@@ -1,0 +1,8 @@
+.vs/
+x64/
+Binary/
+Shaders/
+build/
+
+*.ini
+log.txt
