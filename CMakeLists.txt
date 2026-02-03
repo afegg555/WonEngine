@@ -34,8 +34,19 @@ set(RUNTIME_PUBLIC
     Source/Runtime/Public/1.cpp
 )
 
-set(RUNTIME_PRIVATE
+set(RUNTIME_PLATFORM
+    Source/Runtime/Public/Platform.h
     Source/Runtime/Private/2.cpp
+)
+
+set(RUNTIME_ALLOCATOR
+    Source/Runtime/Public/Allocator.h
+    Source/Runtime/Public/LinearAllocator.h
+)
+
+set(RUNTIME_VERSION
+    Source/Runtime/Public/Version.h
+    Source/Runtime/Private/Version.cpp
 )
 
 set(Editor_PUBLIC
@@ -43,9 +54,14 @@ set(Editor_PUBLIC
 )
 
 add_library(Runtime SHARED
-    ${RUNTIME_PUBLIC}
-    ${RUNTIME_PRIVATE}
+    ${RUNTIME_PLATFORM}
+    ${RUNTIME_ALLOCATOR}
+    ${RUNTIME_VERSION}
 )
+
+source_group("Platform" FILES ${RUNTIME_PLATFORM})
+source_group("Allocator" FILES ${RUNTIME_ALLOCATOR})
+source_group("Version" FILES ${RUNTIME_VERSION})
 
 add_executable(Editor
     ${Editor_PUBLIC}
@@ -54,6 +70,7 @@ add_executable(Editor
 target_include_directories(Runtime
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Runtime/Public>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Vendor>
 )
 
 target_link_libraries(Editor PRIVATE Runtime)
