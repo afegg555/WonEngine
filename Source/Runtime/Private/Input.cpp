@@ -23,7 +23,7 @@ namespace won::io
 	utils::Timer doubleclick_timer;
 	float2 doubleclick_prevpos = float2(0, 0);
 
-	void Input::Update(WindowType _window)
+	void Update(WindowType _window)
 	{
 		window = _window;
 
@@ -50,7 +50,7 @@ namespace won::io
 			doubleclick_prevpos = pos;
 		}
 	}
-	bool Input::IsDown(Button button)
+	bool IsDown(Button button)
 	{
 		uint16_t keycode = (uint16_t)button;
 
@@ -227,8 +227,8 @@ namespace won::io
 		
 	}
 
-	UnorderedMap<Button, int> inputs;
-	bool Input::IsPressed(Button button)
+	static UnorderedMap<Button, int> inputs;
+	bool IsPressed(Button button)
 	{
 		if (!IsDown(button))
 			return false;
@@ -242,7 +242,7 @@ namespace won::io
 
 		return false;
 	}
-	bool Input::IsReleased(Button button)
+	bool IsReleased(Button button)
 	{
 		auto iter = inputs.find(button);
 		if (iter == inputs.end())
@@ -256,19 +256,19 @@ namespace won::io
 		inputs.erase(iter);
 		return true;
 	}
-	bool Input::IsDoubleClicked()
+	bool IsDoubleClicked()
 	{
 		return double_click;
 	}
-	void Input::SetDoubleClickInterval(double seconds)
+	void SetDoubleClickInterval(double seconds)
 	{
 		double_click_interval = seconds;
 	}
-	const KeyboardState& Input::GetKeyboardState()
+	const KeyboardState& GetKeyboardState()
 	{
 		return keyboard;
 	}
-	const MouseState& Input::GetMouseState()
+	const MouseState& GetMouseState()
 	{
 		return mouse;
 	}

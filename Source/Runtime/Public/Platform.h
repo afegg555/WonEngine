@@ -30,44 +30,40 @@ namespace won::platform
         bool is_64bit = true;
     };
 
-    class Platform
+    inline static constexpr PlatformInfo GetInfo()
     {
-    public:
-        static constexpr PlatformInfo GetInfo()
-        {
-            PlatformInfo info;
-            info.type = GetType();
-            info.is_64bit = sizeof(void*) == 8;
-            return info;
-        }
+        PlatformInfo info;
+        info.type = GetType();
+        info.is_64bit = sizeof(void*) == 8;
+        return info;
+    }
 
-        static constexpr PlatformType GetType()
-        {
+    inline static constexpr PlatformType GetType()
+    {
 #if defined(_WIN32)
-            return PlatformType::Windows;
+        return PlatformType::Windows;
 #elif defined(__APPLE__)
-            return PlatformType::MacOS;
+        return PlatformType::MacOS;
 #elif defined(__linux__)
-            return PlatformType::Linux;
+        return PlatformType::Linux;
 #else
-            return PlatformType::Unknown;
+        return PlatformType::Unknown;
 #endif
-        }
+    }
 
-        static constexpr const char* GetName()
+    inline static constexpr const char* GetName()
+    {
+        switch (GetType())
         {
-            switch (GetType())
-            {
-            case PlatformType::Windows: return "Windows";
-            case PlatformType::Linux: return "Linux";
-            case PlatformType::MacOS: return "MacOS";
-            default: return "Unknown";
-            }
+        case PlatformType::Windows: return "Windows";
+        case PlatformType::Linux: return "Linux";
+        case PlatformType::MacOS: return "MacOS";
+        default: return "Unknown";
         }
+    }
 
-        static constexpr bool IsWindows()
-        {
-            return GetType() == PlatformType::Windows;
-        }
-    };
+    inline static constexpr bool IsWindows()
+    {
+        return GetType() == PlatformType::Windows;
+    }
 }

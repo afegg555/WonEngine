@@ -90,17 +90,13 @@ namespace won::io
 		bool right_button_press = false;
 	};
 
-    class WONENGINE_API Input
-    {
-    public:
-        static void Update(WindowType window);
-        static bool IsDown(Button button);
-        static bool IsPressed(Button button);
-        static bool IsReleased(Button button);
-		static bool IsDoubleClicked();
-		static void SetDoubleClickInterval(double seconds); // default is 0.5
+	WONENGINE_API void Update(WindowType window);
+	WONENGINE_API bool IsDown(Button button);
+	WONENGINE_API bool IsPressed(Button button);
+	WONENGINE_API bool IsReleased(Button button);
+	WONENGINE_API bool IsDoubleClicked();
+	WONENGINE_API void SetDoubleClickInterval(double seconds); // default is 0.5
 
-		static const KeyboardState& GetKeyboardState();
-		static const MouseState& GetMouseState();
-    };
+	WONENGINE_API const KeyboardState& GetKeyboardState();
+	WONENGINE_API const MouseState& GetMouseState();
 }
