@@ -55,6 +55,17 @@ set(RUNTIME_IO
     Source/Runtime/Private/PathUtils.cpp
 )
 
+set(RUNTIME_CONFIGURATION
+    Source/Runtime/Public/Configuration.h
+    Source/Runtime/Private/Configuration.cpp
+)
+
+set(RUNTIME_PLUGIN
+    Source/Runtime/Public/PluginManager.h
+    Source/Runtime/Public/IPlugin.h
+    Source/Runtime/Private/PluginManager.cpp
+)
+
 set(RUNTIME_JOBSYSTEM
     Source/Runtime/Public/JobSystem.h
     Source/Runtime/Public/EventHandler.h
@@ -74,7 +85,6 @@ set(RUNTIME_ECS
 
 set(RUNTIME_PLATFORM
     Source/Runtime/Public/Platform.h
-    Source/Runtime/Private/2.cpp
 )
 
 set(RUNTIME_ALLOCATOR
@@ -96,6 +106,8 @@ add_library(Runtime SHARED
     ${RUNTIME_CORE}
     ${RUNTIME_UTILS}
     ${RUNTIME_IO}
+    ${RUNTIME_CONFIGURATION}
+    ${RUNTIME_PLUGIN}
     ${RUNTIME_JOBSYSTEM}
     ${RUNTIME_MATH}
     ${RUNTIME_ECS}
@@ -108,6 +120,8 @@ add_library(Runtime SHARED
 source_group("Core" FILES ${RUNTIME_CORE})
 source_group("Utils" FILES ${RUNTIME_UTILS})
 source_group("IO" FILES ${RUNTIME_IO})
+source_group("Configuration" FILES ${RUNTIME_CONFIGURATION})
+source_group("Plugin" FILES ${RUNTIME_PLUGIN})
 source_group("JobSystem" FILES ${RUNTIME_JOBSYSTEM})
 source_group("Math" FILES ${RUNTIME_MATH})
 source_group("ECS" FILES ${RUNTIME_ECS})

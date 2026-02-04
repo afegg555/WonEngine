@@ -8,6 +8,7 @@
 #include <vector>
 #include <map>
 #include <unordered_map>
+#include <memory>
 
 #define arraysize(a) (sizeof(a) / sizeof(a[0]))
 

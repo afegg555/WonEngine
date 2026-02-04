@@ -100,8 +100,10 @@ namespace won::io
         char str[1024] = {};
         GetModuleFileNameA(NULL, str, arraysize(str));
         return str;
-#endif // _WIN32
+#else
         return std::string();
+#endif // _WIN32
+        
     }
 
     bool IsDirectory(const std::string& path)
