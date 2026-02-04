@@ -1,7 +1,21 @@
 #pragma once
 
+#ifdef _WIN32
+
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif // NOMINMAX
+#include <windows.h>
+
+#endif
+
 namespace won::platform
 {
+#ifdef _WIN32
+    using WindowType = HWND;
+    using ErrorType = HRESULT;
+#endif // _WIN32
+
     enum class PlatformType
     {
         Unknown,

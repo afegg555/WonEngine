@@ -44,9 +44,16 @@ set(RUNTIME_UTILS
 
 set(RUNTIME_IO
     Source/Runtime/Public/FileSystem.h
+    Source/Runtime/Public/Input.h
     Source/Runtime/Public/PathUtils.h
     Source/Runtime/Private/FileSystem.cpp
+    Source/Runtime/Private/Input.cpp
     Source/Runtime/Private/PathUtils.cpp
+)
+
+set(RUNTIME_MATH
+    Source/Runtime/Public/MathTypes.h
+    Source/Runtime/Public/MathUtils.h
 )
 
 set(RUNTIME_ECS
@@ -70,23 +77,31 @@ set(RUNTIME_VERSION
     Source/Runtime/Private/Version.cpp
 )
 
+set(SHADERS_INTEROP
+    Source/Shaders/ShaderInterop.h
+)
+
 add_library(Runtime SHARED
     ${RUNTIME_CORE}
     ${RUNTIME_UTILS}
     ${RUNTIME_IO}
+    ${RUNTIME_MATH}
     ${RUNTIME_ECS}
     ${RUNTIME_PLATFORM}
     ${RUNTIME_ALLOCATOR}
     ${RUNTIME_VERSION}
+    ${SHADERS_INTEROP}
 )
 
 source_group("Core" FILES ${RUNTIME_CORE})
 source_group("Utils" FILES ${RUNTIME_UTILS})
 source_group("IO" FILES ${RUNTIME_IO})
+source_group("Math" FILES ${RUNTIME_MATH})
 source_group("ECS" FILES ${RUNTIME_ECS})
 source_group("Platform" FILES ${RUNTIME_PLATFORM})
 source_group("Allocator" FILES ${RUNTIME_ALLOCATOR})
 source_group("Version" FILES ${RUNTIME_VERSION})
+source_group("ShaderInterop" FILES ${SHADERS_INTEROP})
 
 set(Editor_PUBLIC
     Source/Editor/3.cpp
@@ -99,6 +114,7 @@ add_executable(Editor
 target_include_directories(Runtime
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Runtime/Public>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Shaders>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Vendor>
 )
 

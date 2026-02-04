@@ -1,10 +1,13 @@
 #pragma once
+#include "MathTypes.h"
 
 #include <cstddef>
 #include <cstdint>
 #include <string_view>
 #include <string>
 #include <vector>
+#include <map>
+#include <unordered_map>
 
 #define arraysize(a) (sizeof(a) / sizeof(a[0]))
 
@@ -26,4 +29,10 @@ namespace won
 
     template<typename T>
     using Vector = std::vector<T>;
+
+    template <typename K, typename V>
+    using Map = std::map<K, V>;
+
+    template <typename K, typename V>
+    using UnorderedMap = std::unordered_map<K, V>;
 }
