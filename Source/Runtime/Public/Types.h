@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 
+#define arraysize(a) (sizeof(a) / sizeof(a[0]))
+
 namespace won
 {
     using int8 = std::int8_t;
