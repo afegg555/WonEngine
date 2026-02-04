@@ -35,6 +35,11 @@ set(RUNTIME_CORE
     Source/Runtime/Public/RuntimeExport.h
 )
 
+set(RUNTIME_UTILS
+    Source/Runtime/Public/Timer.h
+    Source/Runtime/Public/SpinLock.h
+)
+
 set(RUNTIME_ECS
     Source/Runtime/Public/Entity.h
     Source/Runtime/Private/Entity.cpp
@@ -58,6 +63,7 @@ set(RUNTIME_VERSION
 
 add_library(Runtime SHARED
     ${RUNTIME_CORE}
+    ${RUNTIME_UTILS}
     ${RUNTIME_ECS}
     ${RUNTIME_PLATFORM}
     ${RUNTIME_ALLOCATOR}
@@ -65,6 +71,7 @@ add_library(Runtime SHARED
 )
 
 source_group("Core" FILES ${RUNTIME_CORE})
+source_group("Utils" FILES ${RUNTIME_UTILS})
 source_group("ECS" FILES ${RUNTIME_ECS})
 source_group("Platform" FILES ${RUNTIME_PLATFORM})
 source_group("Allocator" FILES ${RUNTIME_ALLOCATOR})

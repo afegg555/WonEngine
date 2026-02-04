@@ -2,7 +2,6 @@
 #include "Types.h"
 
 #include <atomic>
-#include <vector>
 
 namespace won::memory
 {
