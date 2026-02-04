@@ -38,6 +38,10 @@ set(RUNTIME_CORE
 set(RUNTIME_UTILS
     Source/Runtime/Public/Timer.h
     Source/Runtime/Public/SpinLock.h
+    Source/Runtime/Public/Backlog.h
+    Source/Runtime/Public/Profiler.h
+    Source/Runtime/Private/Backlog.cpp
+    Source/Runtime/Private/Profiler.cpp
     Source/Runtime/Public/StringUtils.h
     Source/Runtime/Private/StringUtils.cpp
 )
@@ -49,6 +53,13 @@ set(RUNTIME_IO
     Source/Runtime/Private/FileSystem.cpp
     Source/Runtime/Private/Input.cpp
     Source/Runtime/Private/PathUtils.cpp
+)
+
+set(RUNTIME_JOBSYSTEM
+    Source/Runtime/Public/JobSystem.h
+    Source/Runtime/Public/EventHandler.h
+    Source/Runtime/Private/JobSystem.cpp
+    Source/Runtime/Private/EventHandler.cpp
 )
 
 set(RUNTIME_MATH
@@ -85,6 +96,7 @@ add_library(Runtime SHARED
     ${RUNTIME_CORE}
     ${RUNTIME_UTILS}
     ${RUNTIME_IO}
+    ${RUNTIME_JOBSYSTEM}
     ${RUNTIME_MATH}
     ${RUNTIME_ECS}
     ${RUNTIME_PLATFORM}
@@ -96,6 +108,7 @@ add_library(Runtime SHARED
 source_group("Core" FILES ${RUNTIME_CORE})
 source_group("Utils" FILES ${RUNTIME_UTILS})
 source_group("IO" FILES ${RUNTIME_IO})
+source_group("JobSystem" FILES ${RUNTIME_JOBSYSTEM})
 source_group("Math" FILES ${RUNTIME_MATH})
 source_group("ECS" FILES ${RUNTIME_ECS})
 source_group("Platform" FILES ${RUNTIME_PLATFORM})
