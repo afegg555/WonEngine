@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cctype>
 
-namespace won::str
+namespace won::utils
 {
     std::wstring ToWideString(const std::string& str)
     {

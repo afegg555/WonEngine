@@ -30,14 +30,6 @@ namespace won::platform
         bool is_64bit = true;
     };
 
-    inline static constexpr PlatformInfo GetInfo()
-    {
-        PlatformInfo info;
-        info.type = GetType();
-        info.is_64bit = sizeof(void*) == 8;
-        return info;
-    }
-
     inline static constexpr PlatformType GetType()
     {
 #if defined(_WIN32)
@@ -49,6 +41,14 @@ namespace won::platform
 #else
         return PlatformType::Unknown;
 #endif
+    }
+
+    inline static constexpr PlatformInfo GetInfo()
+    {
+        PlatformInfo info;
+        info.type = GetType();
+        info.is_64bit = sizeof(void*) == 8;
+        return info;
     }
 
     inline static constexpr const char* GetName()
