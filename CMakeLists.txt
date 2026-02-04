@@ -42,6 +42,7 @@ set(RUNTIME_PLATFORM
 set(RUNTIME_ALLOCATOR
     Source/Runtime/Public/Allocator.h
     Source/Runtime/Public/LinearAllocator.h
+    Source/Runtime/Public/RingBuffer.h
 )
 
 set(RUNTIME_VERSION
