@@ -30,8 +30,14 @@ foreach(CONFIG ${CMAKE_CONFIGURATION_TYPES})
     set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${CONFIG_UPPER} "${FINAL_OUT_DIR}")
 endforeach()
 
-set(RUNTIME_PUBLIC
-    Source/Runtime/Public/1.cpp
+set(RUNTIME_CORE
+    Source/Runtime/Public/Types.h
+    Source/Runtime/Public/RuntimeExport.h
+)
+
+set(RUNTIME_ECS
+    Source/Runtime/Public/Entity.h
+    Source/Runtime/Private/Entity.cpp
 )
 
 set(RUNTIME_PLATFORM
@@ -50,19 +56,23 @@ set(RUNTIME_VERSION
     Source/Runtime/Private/Version.cpp
 )
 
-set(Editor_PUBLIC
-    Source/Editor/3.cpp
-)
-
 add_library(Runtime SHARED
+    ${RUNTIME_CORE}
+    ${RUNTIME_ECS}
     ${RUNTIME_PLATFORM}
     ${RUNTIME_ALLOCATOR}
     ${RUNTIME_VERSION}
 )
 
+source_group("Core" FILES ${RUNTIME_CORE})
+source_group("ECS" FILES ${RUNTIME_ECS})
 source_group("Platform" FILES ${RUNTIME_PLATFORM})
 source_group("Allocator" FILES ${RUNTIME_ALLOCATOR})
 source_group("Version" FILES ${RUNTIME_VERSION})
+
+set(Editor_PUBLIC
+    Source/Editor/3.cpp
+)
 
 add_executable(Editor
     ${Editor_PUBLIC}
