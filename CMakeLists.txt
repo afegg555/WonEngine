@@ -80,6 +80,7 @@ set(RUNTIME_MATH
 
 set(RUNTIME_ECS
     Source/Runtime/Public/Entity.h
+    Source/Runtime/Public/ComponentManager.h
     Source/Runtime/Private/Entity.cpp
 )
 
