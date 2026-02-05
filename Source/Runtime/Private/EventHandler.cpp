@@ -8,8 +8,8 @@ namespace won::eventhandler
 {
     struct EventManager
     {
-        std::unordered_map<int, std::list<std::function<void(uint64)>*>> subscribers;
-        std::unordered_map<int, std::list<std::function<void(uint64)>>> subscribers_once;
+        UnorderedMap<int, std::list<std::function<void(uint64)>*>> subscribers;
+        UnorderedMap<int, std::list<std::function<void(uint64)>>> subscribers_once;
         std::mutex locker;
     };
 

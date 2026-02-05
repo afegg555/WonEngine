@@ -11,15 +11,15 @@ namespace won::io
         Vector<uint8> bytes;
     };
 
-    WONENGINE_API bool Exists(const std::string& path);
-    WONENGINE_API bool CreateDirectories(const std::string& path);
-    WONENGINE_API bool ReadAllBytes(const std::string& path, FileData* out_data);
-    WONENGINE_API bool WriteAllBytes(const std::string& path, const uint8* data, Size size);
+    WONENGINE_API bool Exists(const String& path);
+    WONENGINE_API bool CreateDirectories(const String& path);
+    WONENGINE_API bool ReadAllBytes(const String& path, FileData* out_data);
+    WONENGINE_API bool WriteAllBytes(const String& path, const uint8* data, Size size);
 
-    WONENGINE_API std::string GetWorkingDirectory();
-    WONENGINE_API std::string GetExecutableDirectory();
-    WONENGINE_API bool IsDirectory(const std::string& path);
-    WONENGINE_API bool IsFile(const std::string& path);
-    WONENGINE_API std::string GetExtension(const std::string& path);
-    WONENGINE_API std::string GetFilename(const std::string& path);
+    WONENGINE_API String GetWorkingDirectory();
+    WONENGINE_API String GetExecutableDirectory();
+    WONENGINE_API bool IsDirectory(const String& path);
+    WONENGINE_API bool IsFile(const String& path);
+    WONENGINE_API String GetExtension(const String& path);
+    WONENGINE_API String GetFilename(const String& path);
 }

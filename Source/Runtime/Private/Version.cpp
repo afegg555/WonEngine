@@ -9,7 +9,7 @@ namespace won
 	// minor bug fixes, alterations, refactors, updates
 	constexpr int revision = 0;
 
-	const std::string version_string = std::to_string(major) + "." + std::to_string(minor) + "." + std::to_string(revision);
+	const String version_string = std::to_string(major) + "." + std::to_string(minor) + "." + std::to_string(revision);
 
 	int GetMajor()
 	{

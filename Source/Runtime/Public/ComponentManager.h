@@ -85,6 +85,6 @@ namespace won::ecs
             return std::static_pointer_cast<ComponentArray<T>>(component_arrays[typeid(T).name()]);
         }
     private:
-        std::unordered_map<const char*, std::shared_ptr<IComponentArray>> component_arrays;
+        UnorderedMap<const char*, std::shared_ptr<IComponentArray>> component_arrays;
     };
 }

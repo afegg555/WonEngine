@@ -13,13 +13,13 @@ namespace won::plugin
     class PluginManager
     {
     public:
-        bool LoadPlugin(const std::string& name);
-        bool UnloadPlugin(const std::string& name);
+        bool LoadPlugin(const String& name);
+        bool UnloadPlugin(const String& name);
 
-        std::shared_ptr<IPlugin> GetPlugin(const std::string& name);
+        std::shared_ptr<IPlugin> GetPlugin(const String& name);
 
     private:
-        UnorderedMap<std::string, PluginHandle> plugins;
+        UnorderedMap<String, PluginHandle> plugins;
         std::mutex vector_lock;
     };
 }

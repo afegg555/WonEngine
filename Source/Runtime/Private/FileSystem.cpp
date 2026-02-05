@@ -9,13 +9,13 @@
 
 namespace won::io
 {
-    bool Exists(const std::string& path)
+    bool Exists(const String& path)
     {
         std::error_code error;
         return std::filesystem::exists(std::filesystem::u8path(path), error);
     }
 
-    bool CreateDirectories(const std::string& path)
+    bool CreateDirectories(const String& path)
     {
         if (path.empty())
         {
@@ -32,7 +32,7 @@ namespace won::io
         return std::filesystem::create_directories(fs_path, error);
     }
 
-    bool ReadAllBytes(const std::string& path, FileData* out_data)
+    bool ReadAllBytes(const String& path, FileData* out_data)
     {
         if (out_data == nullptr)
         {
@@ -45,7 +45,7 @@ namespace won::io
             return false;
         }
 
-        std::ifstream::pos_type size = file.tellg();
+        std::ifstream::pos_type size = file.tellg(); // size in bytes
         if (size < 0)
         {
             return false;
@@ -61,7 +61,7 @@ namespace won::io
         return file.good();
     }
 
-    bool WriteAllBytes(const std::string& path, const uint8* data, Size size)
+    bool WriteAllBytes(const String& path, const uint8* data, Size size)
     {
         if (data == nullptr && size > 0)
         {
@@ -75,7 +75,7 @@ namespace won::io
             std::filesystem::create_directories(fs_path.parent_path(), error);
         }
 
-        std::ofstream file(fs_path, std::ios::binary | std::ios::trunc);
+        std::ofstream file(fs_path, std::ios::binary | std::ios::trunc); // clear and overwrites
         if (!file)
         {
             return false;
@@ -89,39 +89,39 @@ namespace won::io
         return file.good();
     }
 
-    std::string GetWorkingDirectory()
+    String GetWorkingDirectory()
     {
         return std::filesystem::current_path().u8string();
     }
 
-    std::string GetExecutableDirectory()
+    String GetExecutableDirectory()
     {
 #if defined(_WIN32)
         char str[1024] = {};
         GetModuleFileNameA(NULL, str, arraysize(str));
         return str;
 #else
-        return std::string();
+        return String();
 #endif // _WIN32
         
     }
 
-    bool IsDirectory(const std::string& path)
+    bool IsDirectory(const String& path)
     {
         std::error_code error;
         return std::filesystem::is_directory(std::filesystem::u8path(path), error);
     }
 
-    bool IsFile(const std::string& path)
+    bool IsFile(const String& path)
     {
         std::error_code error;
         return std::filesystem::is_regular_file(std::filesystem::u8path(path), error);
     }
 
-    std::string GetExtension(const std::string& path)
+    String GetExtension(const String& path)
     {
         std::filesystem::path fs_path = std::filesystem::u8path(path);
-        std::string extension = fs_path.extension().u8string();
+        String extension = fs_path.extension().u8string();
         if (!extension.empty() && extension.front() == '.')
         {
             extension.erase(extension.begin());
@@ -129,7 +129,7 @@ namespace won::io
         return extension;
     }
 
-    std::string GetFilename(const std::string& path)
+    String GetFilename(const String& path)
     {
         std::filesystem::path fs_path = std::filesystem::u8path(path);
         return fs_path.filename().u8string();

@@ -3,10 +3,10 @@
 
 namespace won::config
 {
-    void SetString(const std::string& key, const std::string& value);
-    bool TryGetString(const std::string& key, std::string& out_value);
-    void SetInt(const std::string& key, int value);
-    bool TryGetInt(const std::string& key, int& out_value);
+    void SetString(const String& key, const String& value);
+    bool TryGetString(const String& key, String& out_value);
+    void SetInt(const String& key, int value);
+    bool TryGetInt(const String& key, int& out_value);
 
     void Clear();
 }

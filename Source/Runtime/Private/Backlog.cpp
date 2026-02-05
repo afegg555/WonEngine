@@ -12,17 +12,17 @@ namespace won::backlog
 {
     static bool enabled = false;
     static LogLevel log_level = LogLevel::Default;
-    static std::string logfile_path;
+    static String logfile_path;
 
     struct InternalState
     {
         std::deque<LogEntry> entries;
         std::mutex entries_lock;
 
-        std::string GetText()
+        String GetText()
         {
             std::scoped_lock lock(entries_lock);
-            std::string result;
+            String result;
             for (const auto& entry : entries)
             {
                 result += entry.text;
@@ -32,7 +32,7 @@ namespace won::backlog
 
         void WriteLogFile()
         {
-            std::string filename;
+            String filename;
             if (logfile_path.empty())
             {
                 filename = won::io::GetWorkingDirectory();
@@ -47,7 +47,7 @@ namespace won::backlog
                 filename = logfile_path;
             }
 
-            std::string text = GetText();
+            String text = GetText();
             won::io::WriteAllBytes(filename,
                 reinterpret_cast<const uint8*>(text.data()),
                 static_cast<Size>(text.size()));
@@ -71,7 +71,7 @@ namespace won::backlog
         return enabled;
     }
 
-    std::string GetText()
+    String GetText()
     {
         return internal_state.GetText();
     }
@@ -102,7 +102,7 @@ namespace won::backlog
             return;
         }
 
-        std::string line = std::string(GetPrefix(level)) + input + "\n";
+        String line = String(GetPrefix(level)) + input + "\n";
 
         LogEntry entry;
         entry.text = line;
@@ -125,7 +125,7 @@ namespace won::backlog
         }
     }
 
-    void Post(const std::string& input, LogLevel level)
+    void Post(const String& input, LogLevel level)
     {
         Post(input.c_str(), level);
     }
@@ -135,7 +135,7 @@ namespace won::backlog
         log_level = new_level;
     }
 
-    void SetLogFile(const std::string& path)
+    void SetLogFile(const String& path)
     {
         logfile_path = path;
     }

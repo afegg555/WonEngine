@@ -258,7 +258,7 @@ namespace won::jobsystem
                     BOOL priority_result = SetThreadPriority(handle, THREAD_PRIORITY_NORMAL);
                     assert(priority_result != 0);
 
-                    std::wstring thread_name = L"won::job_" + std::to_wstring(thread_id);
+                    WString thread_name = L"won::job_" + std::to_wstring(thread_id);
                     HRESULT hr = SetThreadDescription(handle, thread_name.c_str());
                     assert(SUCCEEDED(hr));
                 }
@@ -267,7 +267,7 @@ namespace won::jobsystem
                     BOOL priority_result = SetThreadPriority(handle, THREAD_PRIORITY_LOWEST);
                     assert(priority_result != 0);
 
-                    std::wstring thread_name = L"won::job_lo_" + std::to_wstring(thread_id);
+                    WString thread_name = L"won::job_lo_" + std::to_wstring(thread_id);
                     HRESULT hr = SetThreadDescription(handle, thread_name.c_str());
                     assert(SUCCEEDED(hr));
                 }
@@ -276,7 +276,7 @@ namespace won::jobsystem
                     BOOL priority_result = SetThreadPriority(handle, THREAD_PRIORITY_BELOW_NORMAL);
                     assert(priority_result != 0);
 
-                    std::wstring thread_name = L"won::job_st_" + std::to_wstring(thread_id);
+                    WString thread_name = L"won::job_st_" + std::to_wstring(thread_id);
                     HRESULT hr = SetThreadDescription(handle, thread_name.c_str());
                     assert(SUCCEEDED(hr));
                 }
@@ -284,7 +284,7 @@ namespace won::jobsystem
             }
         }
 
-        std::string log = "JobSystem initialized with " + std::to_string(internal_state.num_cores) + " cores in "
+        String log = "JobSystem initialized with " + std::to_string(internal_state.num_cores) + " cores in "
             + std::to_string(timer.ElapsedMilliSeconds()) + " ms\n\tHigh priority threads : "
             + std::to_string(GetThreadCount(Priority::High)) + "\n\tLow priority threads : "
             + std::to_string(GetThreadCount(Priority::Low)) + "\n\tStreaming priority threads : "

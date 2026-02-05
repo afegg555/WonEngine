@@ -4,7 +4,7 @@
 
 namespace won::plugin
 {
-	bool PluginManager::LoadPlugin(const std::string& name)
+	bool PluginManager::LoadPlugin(const String& name)
 	{
 		std::lock_guard<std::mutex> lock(vector_lock);
 
@@ -16,7 +16,7 @@ namespace won::plugin
 		}
 
         void* handle = nullptr;
-        std::string file_name = name;
+        String file_name = name;
 #if defined(_DEBUG)
         file_name += "d";
 #endif
@@ -59,7 +59,7 @@ namespace won::plugin
 
         return true;
 	}
-	bool PluginManager::UnloadPlugin(const std::string& name)
+	bool PluginManager::UnloadPlugin(const String& name)
 	{
         std::lock_guard<std::mutex> lock(vector_lock);
 
@@ -78,7 +78,7 @@ namespace won::plugin
 
         return true;
 	}
-	std::shared_ptr<IPlugin> PluginManager::GetPlugin(const std::string& name)
+	std::shared_ptr<IPlugin> PluginManager::GetPlugin(const String& name)
 	{
         std::lock_guard<std::mutex> lock(vector_lock);
 

@@ -34,12 +34,12 @@ namespace won::plugin
             return inst;
         }
 
-        void Register(const std::string& name, std::function<IPlugin* ()> creator)
+        void Register(const String& name, std::function<IPlugin* ()> creator)
         {
             factories[name] = creator;
         }
 
-        IPlugin* Create(const std::string& name)
+        IPlugin* Create(const String& name)
         {
             auto it = factories.find(name);
             if (it == factories.end())
@@ -48,7 +48,7 @@ namespace won::plugin
         }
 
     private:
-        std::unordered_map<std::string, std::function<IPlugin* ()>> factories;
+        UnorderedMap<String, std::function<IPlugin* ()>> factories;
     };
 
     using CreatePluginFn = IPlugin * (WON_PLUGIN_CALL*)();

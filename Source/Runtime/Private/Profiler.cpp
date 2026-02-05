@@ -21,7 +21,7 @@ namespace won::profiler
     struct Range
     {
         bool in_use = false;
-        std::string name;
+        String name;
         float times[20] = {};
         int avg_counter = 0;
         float time_ms = 0.0f;
@@ -83,7 +83,7 @@ namespace won::profiler
         EndRange(cpu_frame);
     }
 
-    range_id BeginRangeCPU(const std::string& name)
+    range_id BeginRangeCPU(const String& name)
     {
         if (!enabled)
         {
@@ -107,7 +107,7 @@ namespace won::profiler
         return id;
     }
 
-    range_id BeginRangeGPU(const std::string& name)
+    range_id BeginRangeGPU(const String& name)
     {
         return BeginRangeCPU(name);
     }
@@ -166,7 +166,7 @@ namespace won::profiler
         float total_time = 0.0f;
     };
 
-    void GetProfileInfo(std::string& performance_profile, std::string& resource_profile)
+    void GetProfileInfo(String& performance_profile, String& resource_profile)
     {
         if (!enabled || !enabled_request)
         {
@@ -175,7 +175,7 @@ namespace won::profiler
             return;
         }
 
-        std::unordered_map<std::string, Hits> time_cache;
+        UnorderedMap<String, Hits> time_cache;
         std::stringstream ss;
         ss.precision(2);
 

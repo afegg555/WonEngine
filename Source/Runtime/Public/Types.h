@@ -27,6 +27,7 @@ namespace won
     using Size = std::size_t;
     using StringView = std::string_view;
     using String = std::string;
+    using WString = std::wstring;
 
     template<typename T>
     using Vector = std::vector<T>;

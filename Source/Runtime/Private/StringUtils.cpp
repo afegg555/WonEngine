@@ -5,9 +5,9 @@
 
 namespace won::utils
 {
-    std::wstring ToWideString(const std::string& str)
+    WString ToWideString(const String& str)
     {
-        std::wstring wstr;
+        WString wstr;
         size_t i = 0;
         while (i < str.size())
         {
@@ -67,9 +67,9 @@ namespace won::utils
         return wstr;
     }
 
-    std::string ToString(const std::wstring& wstr)
+    String ToString(const WString& wstr)
     {
-        std::string str;
+        String str;
         for (size_t i = 0; i < wstr.size(); ++i)
         {
             uint32_t codepoint = 0;
@@ -125,9 +125,9 @@ namespace won::utils
         return str;
     }
 
-    std::string ToUpper(StringView input)
+    String ToUpper(StringView input)
     {
-        std::string output(input);
+        String output(input);
         std::transform(output.begin(), output.end(), output.begin(), [](unsigned char ch)
         {
             return static_cast<char>(std::toupper(ch));
@@ -135,9 +135,9 @@ namespace won::utils
         return output;
     }
 
-    std::string ToLower(StringView input)
+    String ToLower(StringView input)
     {
-        std::string output(input);
+        String output(input);
         std::transform(output.begin(), output.end(), output.begin(), [](unsigned char ch)
         {
             return static_cast<char>(std::tolower(ch));

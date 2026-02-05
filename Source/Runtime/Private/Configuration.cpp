@@ -2,14 +2,14 @@
 
 namespace won::config
 {
-    static std::unordered_map<std::string, std::string> values;
+    static UnorderedMap<String, String> values;
 
-    void SetString(const std::string& key, const std::string& value)
+    void SetString(const String& key, const String& value)
     {
         values[key] = value;
     }
 
-    bool TryGetString(const std::string& key, std::string& out_value)
+    bool TryGetString(const String& key, String& out_value)
     {
         auto it = values.find(key);
         if (it == values.end())
@@ -21,12 +21,12 @@ namespace won::config
         return true;
     }
 
-    void SetInt(const std::string& key, int value)
+    void SetInt(const String& key, int value)
     {
         values[key] = std::to_string(value);
     }
 
-    bool TryGetInt(const std::string& key, int& out_value)
+    bool TryGetInt(const String& key, int& out_value)
     {
         auto it = values.find(key);
         if (it == values.end())

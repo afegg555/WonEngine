@@ -12,8 +12,8 @@ namespace won::profiler
     WONENGINE_API void BeginFrame();
     WONENGINE_API void EndFrame();
 
-    WONENGINE_API range_id BeginRangeCPU(const std::string& name);
-    WONENGINE_API range_id BeginRangeGPU(const std::string& name);
+    WONENGINE_API range_id BeginRangeCPU(const String& name);
+    WONENGINE_API range_id BeginRangeGPU(const String& name);
     WONENGINE_API void EndRange(range_id id);
 
     struct WONENGINE_API ScopedRangeCPU
@@ -32,5 +32,5 @@ namespace won::profiler
 
     WONENGINE_API void SetEnabled(bool enabled);
     WONENGINE_API bool IsEnabled();
-    WONENGINE_API void GetProfileInfo(std::string& performance_profile, std::string& resource_profile);
+    WONENGINE_API void GetProfileInfo(String& performance_profile, String& resource_profile);
 }

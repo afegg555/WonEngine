@@ -23,16 +23,16 @@ namespace won::backlog
     WONENGINE_API void SetEnabled(bool enabled);
     WONENGINE_API bool IsEnabled();
 
-    WONENGINE_API std::string GetText();
+    WONENGINE_API String GetText();
     WONENGINE_API void Clear();
     WONENGINE_API void Post(const char* input, LogLevel level = LogLevel::Default);
-    WONENGINE_API void Post(const std::string& input, LogLevel level = LogLevel::Default);
+    WONENGINE_API void Post(const String& input, LogLevel level = LogLevel::Default);
     WONENGINE_API void SetLogLevel(LogLevel new_level);
-    WONENGINE_API void SetLogFile(const std::string& path);
+    WONENGINE_API void SetLogFile(const String& path);
 
     struct LogEntry
     {
-        std::string text;
+        String text;
         LogLevel level = LogLevel::Default;
     };
 }
