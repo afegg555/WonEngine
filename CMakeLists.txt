@@ -49,10 +49,8 @@ set(RUNTIME_UTILS
 set(RUNTIME_IO
     Source/Runtime/Public/FileSystem.h
     Source/Runtime/Public/Input.h
-    Source/Runtime/Public/PathUtils.h
     Source/Runtime/Private/FileSystem.cpp
     Source/Runtime/Private/Input.cpp
-    Source/Runtime/Private/PathUtils.cpp
 )
 
 set(RUNTIME_CONFIGURATION
