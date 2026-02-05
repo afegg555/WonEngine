@@ -53,6 +53,11 @@ set(RUNTIME_IO
     Source/Runtime/Private/Input.cpp
 )
 
+set(RUNTIME_RESOURCE
+    Source/Runtime/Public/ResourceLoader.h
+    Source/Runtime/Private/ResourceLoader.cpp
+)
+
 set(RUNTIME_CONFIGURATION
     Source/Runtime/Public/Configuration.h
     Source/Runtime/Private/Configuration.cpp
@@ -105,6 +110,7 @@ add_library(Runtime SHARED
     ${RUNTIME_CORE}
     ${RUNTIME_UTILS}
     ${RUNTIME_IO}
+    ${RUNTIME_RESOURCE}
     ${RUNTIME_CONFIGURATION}
     ${RUNTIME_PLUGIN}
     ${RUNTIME_JOBSYSTEM}
@@ -119,6 +125,7 @@ add_library(Runtime SHARED
 source_group("Core" FILES ${RUNTIME_CORE})
 source_group("Utils" FILES ${RUNTIME_UTILS})
 source_group("IO" FILES ${RUNTIME_IO})
+source_group("Resource" FILES ${RUNTIME_RESOURCE})
 source_group("Configuration" FILES ${RUNTIME_CONFIGURATION})
 source_group("Plugin" FILES ${RUNTIME_PLUGIN})
 source_group("JobSystem" FILES ${RUNTIME_JOBSYSTEM})
