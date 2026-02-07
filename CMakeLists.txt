@@ -53,6 +53,18 @@ set(RUNTIME_IO
     Source/Runtime/Private/Input.cpp
 )
 
+set(RUNTIME_RHI
+    Source/Runtime/Public/RHIDevice.h
+    Source/Runtime/Public/RHIContext.h
+    Source/Runtime/Public/RHICommandList.h
+    Source/Runtime/Public/RHICommandAllocator.h
+    Source/Runtime/Public/RHIResource.h
+    Source/Runtime/Public/RHIPipeline.h
+    Source/Runtime/Public/RHISampler.h
+    Source/Runtime/Public/RHIShader.h
+    Source/Runtime/Public/RHIObject.h
+)
+
 set(RUNTIME_RESOURCE
     Source/Runtime/Public/ResourceLoader.h
     Source/Runtime/Private/ResourceLoader.cpp
@@ -110,6 +122,7 @@ add_library(Runtime SHARED
     ${RUNTIME_CORE}
     ${RUNTIME_UTILS}
     ${RUNTIME_IO}
+    ${RUNTIME_RHI}
     ${RUNTIME_RESOURCE}
     ${RUNTIME_CONFIGURATION}
     ${RUNTIME_PLUGIN}
@@ -125,6 +138,7 @@ add_library(Runtime SHARED
 source_group("Core" FILES ${RUNTIME_CORE})
 source_group("Utils" FILES ${RUNTIME_UTILS})
 source_group("IO" FILES ${RUNTIME_IO})
+source_group("RHI" FILES ${RUNTIME_RHI})
 source_group("Resource" FILES ${RUNTIME_RESOURCE})
 source_group("Configuration" FILES ${RUNTIME_CONFIGURATION})
 source_group("Plugin" FILES ${RUNTIME_PLUGIN})
