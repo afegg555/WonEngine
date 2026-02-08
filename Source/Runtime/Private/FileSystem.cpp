@@ -1,11 +1,8 @@
 #include "FileSystem.h"
+#include "Platform.h"
 
 #include <filesystem>
 #include <fstream>
-
-#if defined(_WIN32)
-#include <Windows.h>
-#endif // _WIN32
 
 namespace won::io
 {
