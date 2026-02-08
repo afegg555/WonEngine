@@ -14,7 +14,7 @@ namespace won
         rendering::RHIDeviceDesc device_desc;
         device_desc.backend = desc.backend_type;
         std::shared_ptr<rendering::RHIDevice> device;
-        //device = rendering::CreateRHIDevice(device_desc);
+        device = rendering::CreateRHIDevice(device_desc);
 
         rendering::RendererDesc renderer_desc;
         renderer_desc.type = desc.renderer_type;

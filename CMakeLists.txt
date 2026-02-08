@@ -63,6 +63,18 @@ set(RUNTIME_RHI
     Source/Runtime/Public/RHISampler.h
     Source/Runtime/Public/RHIShader.h
     Source/Runtime/Public/RHIObject.h
+    Source/Runtime/Private/RHIDevice.cpp
+)
+
+set(RUNTIME_RHI_DX12
+    Source/Runtime/Private/RHIDeviceDX12.h
+    Source/Runtime/Private/RHIDeviceDX12.cpp
+    Source/Runtime/Private/RHIContextDX12.h
+    Source/Runtime/Private/RHIContextDX12.cpp
+    Source/Runtime/Private/RHICommandAllocatorDX12.h
+    Source/Runtime/Private/RHICommandAllocatorDX12.cpp
+    Source/Runtime/Private/RHICommandListDX12.h
+    Source/Runtime/Private/RHICommandListDX12.cpp
 )
 
 set(RUNTIME_RESOURCE
@@ -146,6 +158,7 @@ add_library(Runtime SHARED
     ${RUNTIME_UTILS}
     ${RUNTIME_IO}
     ${RUNTIME_RHI}
+    ${RUNTIME_RHI_DX12}
     ${RUNTIME_RESOURCE}
     ${RUNTIME_RENDERING}
     ${RUNTIME_RENDERING_FORWARD}
@@ -166,6 +179,7 @@ source_group("Core" FILES ${RUNTIME_CORE})
 source_group("Utils" FILES ${RUNTIME_UTILS})
 source_group("IO" FILES ${RUNTIME_IO})
 source_group("RHI" FILES ${RUNTIME_RHI})
+source_group("RHI/DirectX12" FILES ${RUNTIME_RHI_DX12})
 source_group("Resource" FILES ${RUNTIME_RESOURCE})
 source_group("Rendering" FILES ${RUNTIME_RENDERING})
 source_group("Application" FILES ${RUNTIME_APPLICATION})
@@ -208,4 +222,8 @@ if(MSVC)
     set_target_properties(Runtime PROPERTIES
         MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL"
     )
+endif()
+
+if(WIN32)
+    target_link_libraries(Runtime PRIVATE d3d12 dxgi dxguid)
 endif()

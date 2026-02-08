@@ -12,7 +12,7 @@ namespace won::platform
         return std::make_shared<SwapChainWindows>(desc);
 #else
         (void)desc;
-        return {};
+        return nullptr;
 #endif
     }
 }

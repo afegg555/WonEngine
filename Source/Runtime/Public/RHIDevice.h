@@ -18,9 +18,20 @@ namespace won::rendering
         Metal
     };
 
+    enum class RHIDevicePreference
+    {
+        Default,
+        Discrete,
+        Integrated,
+        Software
+    };
+
     struct RHIDeviceDesc
     {
         RHIBackend backend = RHIBackend::DirectX12;
+        RHIDevicePreference preference = RHIDevicePreference::Default;
+        bool enable_debug_layer = false;
+        bool enable_gpu_validation = false;
     };
 
     class WONENGINE_API RHIDevice
@@ -28,10 +39,6 @@ namespace won::rendering
     public:
         virtual ~RHIDevice() = default;
 
-        virtual void Initialize(const RHIDeviceDesc& desc) = 0;
-        virtual void Shutdown() = 0;
-
-        virtual std::shared_ptr<RHIContext> CreateContext(RHIQueueType type) = 0;
         virtual std::shared_ptr<RHIFence> CreateFence(uint64 initial_value = 0) = 0;
         virtual std::shared_ptr<RHICommandAllocator> CreateCommandAllocator(RHIQueueType type) = 0;
         virtual std::shared_ptr<RHICommandList> CreateCommandList(RHIQueueType type) = 0;
