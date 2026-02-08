@@ -70,6 +70,17 @@ set(RUNTIME_RESOURCE
     Source/Runtime/Private/ResourceLoader.cpp
 )
 
+set(RUNTIME_RENDERING
+    Source/Runtime/Public/Renderer.h
+    Source/Runtime/Private/Renderer.cpp
+    Source/Runtime/Public/View.h
+)
+
+set(RUNTIME_RENDERING_FORWARD
+    Source/Runtime/Private/ForwardRenderer.h
+    Source/Runtime/Private/ForwardRenderer.cpp
+)
+
 set(RUNTIME_CONFIGURATION
     Source/Runtime/Public/Configuration.h
     Source/Runtime/Private/Configuration.cpp
@@ -101,6 +112,18 @@ set(RUNTIME_ECS
 
 set(RUNTIME_PLATFORM
     Source/Runtime/Public/Platform.h
+    Source/Runtime/Public/Swapchain.h
+    Source/Runtime/Private/Swapchain.cpp
+)
+
+set(RUNTIME_PLATFORM_WINDOWS
+    Source/Runtime/Private/SwapChainWindows.h
+    Source/Runtime/Private/SwapChainWindows.cpp
+)
+
+set(RUNTIME_APPLICATION
+    Source/Runtime/Public/Application.h
+    Source/Runtime/Private/Application.cpp
 )
 
 set(RUNTIME_ALLOCATOR
@@ -124,12 +147,16 @@ add_library(Runtime SHARED
     ${RUNTIME_IO}
     ${RUNTIME_RHI}
     ${RUNTIME_RESOURCE}
+    ${RUNTIME_RENDERING}
+    ${RUNTIME_RENDERING_FORWARD}
     ${RUNTIME_CONFIGURATION}
     ${RUNTIME_PLUGIN}
     ${RUNTIME_JOBSYSTEM}
     ${RUNTIME_MATH}
     ${RUNTIME_ECS}
     ${RUNTIME_PLATFORM}
+    ${RUNTIME_PLATFORM_WINDOWS}
+    ${RUNTIME_APPLICATION}
     ${RUNTIME_ALLOCATOR}
     ${RUNTIME_VERSION}
     ${SHADERS_INTEROP}
@@ -140,12 +167,16 @@ source_group("Utils" FILES ${RUNTIME_UTILS})
 source_group("IO" FILES ${RUNTIME_IO})
 source_group("RHI" FILES ${RUNTIME_RHI})
 source_group("Resource" FILES ${RUNTIME_RESOURCE})
+source_group("Rendering" FILES ${RUNTIME_RENDERING})
+source_group("Application" FILES ${RUNTIME_APPLICATION})
+source_group("Rendering/Forward" FILES ${RUNTIME_RENDERING_FORWARD})
 source_group("Configuration" FILES ${RUNTIME_CONFIGURATION})
 source_group("Plugin" FILES ${RUNTIME_PLUGIN})
 source_group("JobSystem" FILES ${RUNTIME_JOBSYSTEM})
 source_group("Math" FILES ${RUNTIME_MATH})
 source_group("ECS" FILES ${RUNTIME_ECS})
 source_group("Platform" FILES ${RUNTIME_PLATFORM})
+source_group("Platform/Windows" FILES ${RUNTIME_PLATFORM_WINDOWS})
 source_group("Allocator" FILES ${RUNTIME_ALLOCATOR})
 source_group("Version" FILES ${RUNTIME_VERSION})
 source_group("ShaderInterop" FILES ${SHADERS_INTEROP})
