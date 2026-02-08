@@ -6,6 +6,7 @@ namespace won::rendering
 {
     class WONENGINE_API RHIObject
     {
+    public:
         virtual ~RHIObject() = default;
 
         virtual void SetName(const String& name) = 0;

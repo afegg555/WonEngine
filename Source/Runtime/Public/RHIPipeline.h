@@ -88,7 +88,7 @@ namespace won::rendering
     class WONENGINE_API RHIPipeline : public RHIObject
     {
     public:
-        virtual ~RHIPipeline() = default;
+        ~RHIPipeline() override = default;
 
         virtual bool IsCompute() const = 0;
     };

@@ -32,7 +32,7 @@ namespace won::rendering
     class WONENGINE_API RHISampler : public RHIObject
     {
     public:
-        virtual ~RHISampler() = default;
+        ~RHISampler() override = default;
     };
 }
 

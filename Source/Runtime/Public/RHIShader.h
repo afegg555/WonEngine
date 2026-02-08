@@ -16,7 +16,7 @@ namespace won::rendering
     class WONENGINE_API RHIShader : public RHIObject
     {
     public:
-        virtual ~RHIShader() = default;
+        ~RHIShader() override = default;
 
         virtual RHIShaderStage GetStage() const = 0;
         virtual const void* GetBytecode() const = 0;

@@ -15,7 +15,7 @@ namespace won::rendering
     class WONENGINE_API RHICommandAllocator : public RHIObject
     {
     public:
-        virtual ~RHICommandAllocator() = default;
+        ~RHICommandAllocator() override = default;
 
         virtual RHIQueueType GetType() const = 0;
         virtual void Reset() = 0;

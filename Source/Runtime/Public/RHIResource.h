@@ -173,7 +173,7 @@ namespace won::rendering
     class WONENGINE_API RHIResource : public RHIObject
     {
     public:
-        virtual ~RHIResource() = default;
+        ~RHIResource() override = default;
 
         virtual const RHIResourceDesc& GetDesc() const = 0;
     };
