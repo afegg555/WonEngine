@@ -47,6 +47,7 @@ namespace won::rendering
         uint32 input_slot = 0;
         uint32 byte_offset = 0;
         bool per_instance = false;
+        uint32 instance_step_rate = 0;
     };
 
     struct RHIRasterDesc

@@ -1,6 +1,7 @@
 #pragma once
 #include "RHIDevice.h"
 #include "RHIContextDX12.h"
+#include "DirectX-Headers/d3d12.h"
 #include "D3D12MemoryAllocator/D3D12MemAlloc.h"
 
 #include <wrl/client.h>
@@ -24,10 +25,10 @@ namespace won::rendering
         std::shared_ptr<RHICommandList> CreateCommandList(RHIQueueType type) override;
 
         std::shared_ptr<RHIResource> CreateBuffer(const RHIBufferDesc& desc,
-            const void* initial_data, Size initial_size) override;
+            const void* initial_data = nullptr, Size initial_size = 0) override;
 
         std::shared_ptr<RHIResource> CreateTexture(const RHITextureDesc& desc,
-            const void* initial_data, Size initial_size) override;
+            const void* initial_data = nullptr, Size initial_size = 0) override;
 
         std::shared_ptr<RHIPipeline> CreateGraphicsPipeline(
             const RHIGraphicsPipelineDesc& desc) override;

@@ -18,9 +18,8 @@ namespace won::rendering
     enum class RHIResourceUsage
     {
         Default,
-        Immutable,
-        Dynamic,
-        Staging
+        Upload,
+        Readback
     };
 
     enum class RHIBindFlags : uint32

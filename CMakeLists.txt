@@ -75,6 +75,10 @@ set(RUNTIME_RHI_DX12
     Source/Runtime/Private/RHICommandAllocatorDX12.cpp
     Source/Runtime/Private/RHICommandListDX12.h
     Source/Runtime/Private/RHICommandListDX12.cpp
+    Source/Runtime/Private/RHIResourceDX12.h
+    Source/Runtime/Private/RHIResourceDX12.cpp
+    Source/Runtime/Private/RHIPipelineDX12.h
+    Source/Runtime/Private/RHIPipelineDX12.cpp
 )
 
 set(RUNTIME_RESOURCE
@@ -225,5 +229,5 @@ if(MSVC)
 endif()
 
 if(WIN32)
-    target_link_libraries(Runtime PRIVATE d3d12 dxgi dxguid)
+    target_link_libraries(Runtime PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler)
 endif()
