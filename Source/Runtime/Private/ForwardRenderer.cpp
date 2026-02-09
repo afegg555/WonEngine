@@ -3,11 +3,17 @@
 #include "Scene.h"
 #include "Swapchain.h"
 
+#include "ShaderLibrary.h"
+
 namespace won::rendering
 {
+    static won::resource::ShaderLibrary shader_library;
+
     void ForwardRenderer::Initialize(const RendererDesc& desc)
     {
         device = desc.device;
+
+        shader_library.LoadAllShaders();
     }
 
     void ForwardRenderer::BeginFrame(platform::Swapchain& swapchain)

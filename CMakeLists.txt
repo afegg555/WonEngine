@@ -83,7 +83,13 @@ set(RUNTIME_RHI_DX12
 
 set(RUNTIME_RESOURCE
     Source/Runtime/Public/ResourceLoader.h
+    Source/Runtime/Public/ShaderCompiler.h
+    Source/Runtime/Public/ShaderLibrary.h
     Source/Runtime/Private/ResourceLoader.cpp
+    Source/Runtime/Private/ShaderCompiler.cpp
+    Source/Runtime/Private/ShaderLibrary.cpp
+    Source/Runtime/Private/DXCShaderCompiler.h
+    Source/Runtime/Private/DXCShaderCompiler.cpp
 )
 
 set(RUNTIME_RENDERING
@@ -157,6 +163,11 @@ set(SHADERS_INTEROP
     Source/Shaders/ShaderInterop.h
 )
 
+set(SHADERS_HLSL
+    Source/Shaders/TestTriangleVS.hlsl
+    Source/Shaders/TestRedPS.hlsl
+)
+
 add_library(Runtime SHARED
     ${RUNTIME_CORE}
     ${RUNTIME_UTILS}
@@ -177,6 +188,7 @@ add_library(Runtime SHARED
     ${RUNTIME_ALLOCATOR}
     ${RUNTIME_VERSION}
     ${SHADERS_INTEROP}
+    ${SHADERS_HLSL}
 )
 
 source_group("Core" FILES ${RUNTIME_CORE})
@@ -198,6 +210,9 @@ source_group("Platform/Windows" FILES ${RUNTIME_PLATFORM_WINDOWS})
 source_group("Allocator" FILES ${RUNTIME_ALLOCATOR})
 source_group("Version" FILES ${RUNTIME_VERSION})
 source_group("ShaderInterop" FILES ${SHADERS_INTEROP})
+source_group("Shaders" FILES ${SHADERS_HLSL})
+
+set_source_files_properties(${SHADERS_HLSL} PROPERTIES HEADER_FILE_ONLY TRUE)
 
 set(Editor_PUBLIC
     Source/Editor/3.cpp
@@ -219,6 +234,7 @@ target_link_libraries(Editor PRIVATE Runtime)
 target_compile_definitions(Runtime
     PRIVATE
         WONENGINE_EXPORTS
+        WONENGINE_SHADER_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Source/Shaders"
 )
 
 if(MSVC)
