@@ -1,2 +1,2 @@
 *.h linguist-language=C++
-Contents/* linguist-vendored
+Contents/** linguist-vendored
