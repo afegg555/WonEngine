@@ -3,6 +3,7 @@
 #include "Renderer.h"
 #include "Swapchain.h"
 #include "JobSystem.h"
+#include "Platform.h"
 
  
 namespace won
@@ -37,6 +38,20 @@ namespace won
     {
         if (!is_running)
             return;
+
+#if defined(_WIN32)
+        MSG msg = {};
+        while (PeekMessageA(&msg, nullptr, 0, 0, PM_REMOVE))
+        {
+            if (msg.message == WM_QUIT)
+            {
+                is_running = false;
+                return;
+            }
+            TranslateMessage(&msg);
+            DispatchMessageA(&msg);
+        }
+#endif
 
         Update(0.f);
         Render();
