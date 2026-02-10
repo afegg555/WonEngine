@@ -15,9 +15,10 @@
 #include "DirectX-Headers/d3dx12_pipeline_state_stream.h"
 #include "DirectX-Headers/dxgiformat.h"
 
-#include "D3D12MemoryAllocator/D3D12MemAlloc.cpp"
-#include <dxgi1_6.h>
 #include <d3dcompiler.h>
+
+#include "D3D12MemoryAllocator/D3D12MemAlloc.cpp"
+
 #ifdef _DEBUG
 #include <dxgidebug.h>
 #endif

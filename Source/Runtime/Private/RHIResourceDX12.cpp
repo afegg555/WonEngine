@@ -1,5 +1,4 @@
 #include "RHIResourceDX12.h"
-#include "DirectX-Headers/d3d12.h"
 
 namespace won::rendering
 {

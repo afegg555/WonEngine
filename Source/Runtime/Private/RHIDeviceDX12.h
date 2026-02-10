@@ -1,7 +1,10 @@
 #pragma once
 #include "RHIDevice.h"
 #include "RHIContextDX12.h"
+
 #include "DirectX-Headers/d3d12.h"
+#include <dxgi1_6.h>
+#define D3D12MA_D3D12_HEADERS_ALREADY_INCLUDED
 #include "D3D12MemoryAllocator/D3D12MemAlloc.h"
 
 #include <wrl/client.h>
