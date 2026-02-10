@@ -1,8 +1,8 @@
 #include "ForwardRenderer.h"
 
 #include "Scene.h"
-#include "Swapchain.h"
 
+#include "Window.h"
 #include "ShaderLibrary.h"
 
 namespace won::rendering
@@ -16,15 +16,14 @@ namespace won::rendering
         shader_library.LoadAllShaders();
     }
 
-    void ForwardRenderer::BeginFrame(platform::Swapchain& swapchain)
+    void ForwardRenderer::BeginFrame(platform::Window& window)
     {
-        current_swapchain = &swapchain;
+        current_window = &window;
     }
 
     void ForwardRenderer::Render(const View& view)
     {
         (void)view;
-        (void)current_swapchain;
         // TODO: build render snapshot and submit passes.
     }
 
@@ -34,7 +33,7 @@ namespace won::rendering
 
     void ForwardRenderer::Shutdown()
     {
-        current_swapchain = nullptr;
+        current_window = nullptr;
         device.reset();
     }
 }

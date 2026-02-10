@@ -1,14 +1,14 @@
 #pragma once
-#include "Swapchain.h"
+#include "Window.h"
 #include "Platform.h"
 
 namespace won::platform
 {
-    class SwapChainWindows final : public Swapchain
+    class WindowWin32 final : public Window
     {
     public:
-        explicit SwapChainWindows(const SwapchainDesc& desc);
-        ~SwapChainWindows() override;
+        explicit WindowWin32(const WindowDesc& desc);
+        ~WindowWin32() override;
 
         void* GetNativeHandle() const override;
         void Show() override;
@@ -24,4 +24,3 @@ namespace won::platform
         int height = 0;
     };
 }
-

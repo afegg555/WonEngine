@@ -1,7 +1,7 @@
 #include "Application.h"
 
 #include "Renderer.h"
-#include "Swapchain.h"
+#include "Window.h"
 #include "JobSystem.h"
 #include "Platform.h"
 
@@ -10,7 +10,12 @@ namespace won
 {
     void Application::Initialize(const ApplicationDesc& desc)
     {
-        swapchain = platform::CreateSwapchain(desc.swapchain);
+        window = platform::CreateNativeWindow(desc.window);
+        if (!window)
+        {
+            is_running = false;
+            return;
+        }
 
         rendering::RHIDeviceDesc device_desc;
         device_desc.backend = desc.backend_type;
@@ -67,7 +72,7 @@ namespace won
             renderer.reset();
         }
 
-        swapchain.reset();
+        window.reset();
         jobsystem::ShutDown();
     }
 
@@ -78,7 +83,11 @@ namespace won
 
     void Application::Render()
     {
-        renderer->BeginFrame(*swapchain);
+        if (!renderer || !window)
+        {
+            return;
+        }
+        renderer->BeginFrame(*window);
         renderer->Render(main_view);
         renderer->EndFrame();
     }

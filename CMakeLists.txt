@@ -56,6 +56,7 @@ set(RUNTIME_IO
 set(RUNTIME_RHI
     Source/Runtime/Public/RHIDevice.h
     Source/Runtime/Public/RHIContext.h
+    Source/Runtime/Public/RHISwapchain.h
     Source/Runtime/Public/RHICommandList.h
     Source/Runtime/Public/RHICommandAllocator.h
     Source/Runtime/Public/RHIResource.h
@@ -134,13 +135,13 @@ set(RUNTIME_ECS
 
 set(RUNTIME_PLATFORM
     Source/Runtime/Public/Platform.h
-    Source/Runtime/Public/Swapchain.h
-    Source/Runtime/Private/Swapchain.cpp
+    Source/Runtime/Public/Window.h
+    Source/Runtime/Private/Window.cpp
 )
 
 set(RUNTIME_PLATFORM_WINDOWS
-    Source/Runtime/Private/SwapChainWindows.h
-    Source/Runtime/Private/SwapChainWindows.cpp
+    Source/Runtime/Private/WindowWin32.h
+    Source/Runtime/Private/WindowWin32.cpp
 )
 
 set(RUNTIME_APPLICATION

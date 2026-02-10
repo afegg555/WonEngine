@@ -2,7 +2,7 @@
 #include "RuntimeExport.h"
 #include "RHIDevice.h"
 #include "View.h"
-#include "Swapchain.h"
+#include "Window.h"
 
 #include <memory>
 
@@ -25,7 +25,7 @@ namespace won::rendering
         virtual ~Renderer() = default;
 
         virtual void Initialize(const RendererDesc& desc) = 0;
-        virtual void BeginFrame(platform::Swapchain& swapchain) = 0;
+        virtual void BeginFrame(platform::Window& window) = 0;
         virtual void Render(const View& view) = 0;
         virtual void EndFrame() = 0;
         virtual void Shutdown() = 0;

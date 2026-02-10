@@ -1,4 +1,4 @@
-#include "SwapChainWindows.h"
+#include "WindowWin32.h"
 
 #if defined(_WIN32)
 namespace won::platform
@@ -34,15 +34,12 @@ namespace won::platform
             wc.hInstance = GetModuleHandleA(nullptr);
             wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
             wc.lpszClassName = k_window_class_name;
-
             RegisterClassExA(&wc);
             registered = true;
         }
     }
 
-    SwapChainWindows::SwapChainWindows(const SwapchainDesc& desc)
-        : width(desc.width)
-        , height(desc.height)
+    WindowWin32::WindowWin32(const WindowDesc& desc) : width(desc.width), height(desc.height)
     {
         RegisterWindowClass();
 
@@ -56,19 +53,8 @@ namespace won::platform
         RECT rect = { 0, 0, desc.width, desc.height };
         AdjustWindowRect(&rect, style, FALSE);
 
-        hwnd = CreateWindowExA(
-            0,
-            k_window_class_name,
-            desc.title,
-            style,
-            CW_USEDEFAULT,
-            CW_USEDEFAULT,
-            rect.right - rect.left,
-            rect.bottom - rect.top,
-            nullptr,
-            nullptr,
-            GetModuleHandleA(nullptr),
-            nullptr);
+        hwnd = CreateWindowExA(0, k_window_class_name, desc.title, style, CW_USEDEFAULT, CW_USEDEFAULT,
+            rect.right - rect.left, rect.bottom - rect.top, nullptr, nullptr, GetModuleHandleA(nullptr), nullptr);
 
         if (desc.visible)
         {
@@ -80,7 +66,7 @@ namespace won::platform
         }
     }
 
-    SwapChainWindows::~SwapChainWindows()
+    WindowWin32::~WindowWin32()
     {
         if (hwnd)
         {
@@ -89,12 +75,12 @@ namespace won::platform
         }
     }
 
-    void* SwapChainWindows::GetNativeHandle() const
+    void* WindowWin32::GetNativeHandle() const
     {
         return hwnd;
     }
 
-    void SwapChainWindows::Show()
+    void WindowWin32::Show()
     {
         if (hwnd)
         {
@@ -103,7 +89,7 @@ namespace won::platform
         }
     }
 
-    void SwapChainWindows::Hide()
+    void WindowWin32::Hide()
     {
         if (hwnd)
         {
@@ -111,7 +97,7 @@ namespace won::platform
         }
     }
 
-    void SwapChainWindows::SetTitle(const char* title)
+    void WindowWin32::SetTitle(const char* title)
     {
         if (hwnd)
         {
@@ -119,30 +105,26 @@ namespace won::platform
         }
     }
 
-    void SwapChainWindows::Resize(int new_width, int new_height)
+    void WindowWin32::Resize(int new_width, int new_height)
     {
         if (hwnd)
         {
             RECT rect = { 0, 0, new_width, new_height };
             AdjustWindowRect(&rect, GetWindowLongA(hwnd, GWL_STYLE), FALSE);
-            SetWindowPos(hwnd, nullptr, 0, 0,
-                rect.right - rect.left, rect.bottom - rect.top,
-                SWP_NOMOVE | SWP_NOZORDER);
+            SetWindowPos(hwnd, nullptr, 0, 0, rect.right - rect.left, rect.bottom - rect.top, SWP_NOMOVE | SWP_NOZORDER);
         }
-
         width = new_width;
         height = new_height;
     }
 
-    int SwapChainWindows::GetWidth() const
+    int WindowWin32::GetWidth() const
     {
         return width;
     }
 
-    int SwapChainWindows::GetHeight() const
+    int WindowWin32::GetHeight() const
     {
         return height;
     }
 }
 #endif
-

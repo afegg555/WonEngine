@@ -1,7 +1,7 @@
 #pragma once
 #include "Types.h"
 #include "Renderer.h"
-#include "Swapchain.h"
+#include "Window.h"
 #include "View.h"
 #include "RHIDevice.h"
 
@@ -14,7 +14,7 @@ namespace won
 {
     struct ApplicationDesc
     {
-        platform::SwapchainDesc swapchain = {};
+        platform::WindowDesc window = {};
         rendering::RendererType renderer_type = rendering::RendererType::Forward;
         rendering::RHIBackend backend_type = rendering::RHIBackend::DirectX12;
         uint32 jobsystem_thread_count = ~0u;
@@ -33,7 +33,7 @@ namespace won
 
     private:
         bool is_running = false;
-        std::shared_ptr<platform::Swapchain> swapchain;
+        std::shared_ptr<platform::Window> window;
         std::shared_ptr<rendering::Renderer> renderer;
         rendering::View main_view;
     };
