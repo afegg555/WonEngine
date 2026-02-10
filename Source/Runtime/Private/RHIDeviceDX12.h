@@ -40,6 +40,8 @@ namespace won::rendering
             const RHIComputePipelineDesc& desc) override;
 
         std::shared_ptr<RHISampler> CreateSampler(const RHISamplerDesc& desc) override;
+        std::shared_ptr<RHIContext> GetContext(RHIQueueType type) override;
+        std::shared_ptr<RHISwapchain> CreateSwapchain(platform::Window& window) override;
 
     private:
         RHIDeviceDesc device_desc = {};

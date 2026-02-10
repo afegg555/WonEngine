@@ -8,6 +8,7 @@
 #include "RHICommandListDX12.h"
 #include "RHIResourceDX12.h"
 #include "RHIPipelineDX12.h"
+#include "RHISwapchainDX12.h"
 
 #include "DirectX-Headers/d3dx12_default.h"
 #include "DirectX-Headers/d3dx12_check_feature_support.h"
@@ -690,5 +691,31 @@ namespace won::rendering
     {
         (void)desc;
         return nullptr;
+    }
+
+    std::shared_ptr<RHIContext> RHIDeviceDX12::GetContext(RHIQueueType type)
+    {
+        switch (type)
+        {
+        case RHIQueueType::Graphics:
+            return graphics_context;
+        case RHIQueueType::Compute:
+            return compute_context;
+        case RHIQueueType::Copy:
+            return copy_context;
+        default:
+            return nullptr;
+        }
+    }
+
+    std::shared_ptr<RHISwapchain> RHIDeviceDX12::CreateSwapchain(platform::Window& window)
+    {
+        if (!device || !factory || !graphics_context)
+        {
+            backlog::Post("Failed to create RHISwapchainDX12", backlog::LogLevel::Error);
+            return nullptr;
+        }
+
+        return std::make_shared<RHISwapchainDX12>(device, factory, graphics_context, window);
     }
 }

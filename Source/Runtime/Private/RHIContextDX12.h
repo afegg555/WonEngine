@@ -19,6 +19,7 @@ namespace won::rendering
         uint64 Submit(RHICommandList& command_list, RHIFence* fence) override;
         void Wait(RHIFence& fence, uint64 value) override;
         void WaitIdle() override;
+        ID3D12CommandQueue* GetQueue() const;
 
     private:
         RHIQueueType queue_type = RHIQueueType::Graphics;

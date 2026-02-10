@@ -2,6 +2,7 @@
 
 #include "Backlog.h"
 #include "Platform.h"
+#include "RHICommandListDX12.h"
 
 #include "DirectX-Headers/d3d12.h"
 
@@ -56,7 +57,15 @@ namespace won::rendering
 
     uint64 RHIContextDX12::Submit(RHICommandList& command_list, RHIFence* fence)
     {
-        (void)command_list;
+        auto* dx12_command_list = dynamic_cast<RHICommandListDX12*>(&command_list);
+        if (!queue || !dx12_command_list || !dx12_command_list->GetCommandList())
+        {
+            backlog::Post("Invalid DX12 command list submission", backlog::LogLevel::Error);
+            return 0;
+        }
+
+        ID3D12CommandList* native_command_lists[] = { dx12_command_list->GetCommandList() };
+        queue->ExecuteCommandLists(1, native_command_lists);
         (void)fence;
         return 0;
     }
@@ -91,5 +100,10 @@ namespace won::rendering
         fence->SetEventOnCompletion(fence_value, fence_event);
         WaitForSingleObject(fence_event, INFINITE);
         CloseHandle(fence_event);
+    }
+
+    ID3D12CommandQueue* RHIContextDX12::GetQueue() const
+    {
+        return queue.Get();
     }
 }
