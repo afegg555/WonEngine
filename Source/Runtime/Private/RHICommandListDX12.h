@@ -1,5 +1,4 @@
 #pragma once
-
 #include "RHICommandList.h"
 
 #include <wrl/client.h>
@@ -11,10 +10,13 @@ struct ID3D12GraphicsCommandList;
 
 namespace won::rendering
 {
+    class DescriptorAllocatorDX12;
+
     class RHICommandListDX12 final : public RHICommandList
     {
     public:
-        RHICommandListDX12(RHIQueueType type, ComPtr<ID3D12Device> device_in);
+        RHICommandListDX12(RHIQueueType type, ComPtr<ID3D12Device> device_in,
+            std::shared_ptr<DescriptorAllocatorDX12> descriptor_allocator_in);
 
         RHIQueueType GetType() const override;
 
@@ -27,32 +29,26 @@ namespace won::rendering
         void SetViewport(const RHIViewport& viewport) override;
         void SetScissor(const RHIRect& scissor) override;
 
-        void SetRenderTargets(const Vector<RHITextureView>& color_targets,
-            const RHITextureView* depth_target) override;
+        void SetRenderTargets(const Vector<RHISubresourceBinding>& color_targets,
+            const RHISubresourceBinding* depth_target) override;
 
-        void ClearRenderTarget(const RHITextureView& target,
+        void ClearRenderTarget(const RHISubresourceBinding& target,
             const RHIClearColor& color) override;
 
-        void ClearDepthStencil(const RHITextureView& target,
+        void ClearDepthStencil(const RHISubresourceBinding& target,
             float depth, uint8 stencil) override;
 
-        void SetVertexBuffer(const RHIBufferView& view) override;
-        void SetIndexBuffer(const RHIBufferView& view, bool index32) override;
+        void SetVertexBuffer(const RHISubresourceBinding& view) override;
+        void SetIndexBuffer(const RHISubresourceBinding& view, bool index32) override;
 
         void SetConstantBuffer(RHIShaderStage stage, uint32 slot,
-            const RHIBufferView& view) override;
+            const RHISubresourceBinding& view) override;
 
         void SetShaderResource(RHIShaderStage stage, uint32 slot,
-            const RHITextureView& view) override;
-
-        void SetShaderResource(RHIShaderStage stage, uint32 slot,
-            const RHIBufferView& view) override;
+            const RHISubresourceBinding& view) override;
 
         void SetUnorderedAccess(RHIShaderStage stage, uint32 slot,
-            const RHITextureView& view) override;
-
-        void SetUnorderedAccess(RHIShaderStage stage, uint32 slot,
-            const RHIBufferView& view) override;
+            const RHISubresourceBinding& view) override;
 
         void SetSampler(RHIShaderStage stage, uint32 slot,
             const RHISampler& sampler) override;
@@ -79,5 +75,6 @@ namespace won::rendering
         RHIQueueType queue_type = RHIQueueType::Graphics;
         ComPtr<ID3D12Device> device;
         ComPtr<ID3D12GraphicsCommandList> command_list;
+        std::shared_ptr<DescriptorAllocatorDX12> descriptor_allocator = {};
     };
 }

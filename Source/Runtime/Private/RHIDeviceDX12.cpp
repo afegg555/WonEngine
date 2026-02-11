@@ -9,13 +9,13 @@
 #include "RHIResourceDX12.h"
 #include "RHIPipelineDX12.h"
 #include "RHISwapchainDX12.h"
+#include "RHIFormatDX12.h"
+#include "DescriptorAllocatorDX12.h"
 
 #include "DirectX-Headers/d3dx12_default.h"
 #include "DirectX-Headers/d3dx12_check_feature_support.h"
 #include "DirectX-Headers/d3dx12_resource_helpers.h"
 #include "DirectX-Headers/d3dx12_pipeline_state_stream.h"
-#include "DirectX-Headers/dxgiformat.h"
-
 #include <d3dcompiler.h>
 
 #include "D3D12MemoryAllocator/D3D12MemAlloc.cpp"
@@ -52,76 +52,9 @@ namespace won::rendering
             return (static_cast<uint32>(flags) & static_cast<uint32>(flag)) != 0;
         }
 
-        DXGI_FORMAT ToDXGIFormat(RHIFormat format)
+        void AddDeviceFeature(uint32& feature_flags, RHIDeviceFeature feature)
         {
-            switch (format)
-            {
-            case RHIFormat::R32G32B32A32Float: return DXGI_FORMAT_R32G32B32A32_FLOAT;
-            case RHIFormat::R32G32B32A32Uint: return DXGI_FORMAT_R32G32B32A32_UINT;
-            case RHIFormat::R32G32B32A32Sint: return DXGI_FORMAT_R32G32B32A32_SINT;
-            case RHIFormat::R32G32B32Float: return DXGI_FORMAT_R32G32B32_FLOAT;
-            case RHIFormat::R32G32B32Uint: return DXGI_FORMAT_R32G32B32_UINT;
-            case RHIFormat::R32G32B32Sint: return DXGI_FORMAT_R32G32B32_SINT;
-            case RHIFormat::R16G16B16A16Float: return DXGI_FORMAT_R16G16B16A16_FLOAT;
-            case RHIFormat::R16G16B16A16Unorm: return DXGI_FORMAT_R16G16B16A16_UNORM;
-            case RHIFormat::R16G16B16A16Uint: return DXGI_FORMAT_R16G16B16A16_UINT;
-            case RHIFormat::R16G16B16A16Snorm: return DXGI_FORMAT_R16G16B16A16_SNORM;
-            case RHIFormat::R16G16B16A16Sint: return DXGI_FORMAT_R16G16B16A16_SINT;
-            case RHIFormat::R32G32Float: return DXGI_FORMAT_R32G32_FLOAT;
-            case RHIFormat::R32G32Uint: return DXGI_FORMAT_R32G32_UINT;
-            case RHIFormat::R32G32Sint: return DXGI_FORMAT_R32G32_SINT;
-            case RHIFormat::D32FloatS8X24Uint: return DXGI_FORMAT_D32_FLOAT_S8X24_UINT;
-            case RHIFormat::R10G10B10A2Unorm: return DXGI_FORMAT_R10G10B10A2_UNORM;
-            case RHIFormat::R10G10B10A2Uint: return DXGI_FORMAT_R10G10B10A2_UINT;
-            case RHIFormat::R11G11B10Float: return DXGI_FORMAT_R11G11B10_FLOAT;
-            case RHIFormat::R8G8B8A8Unorm: return DXGI_FORMAT_R8G8B8A8_UNORM;
-            case RHIFormat::R8G8B8A8UnormSrgb: return DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-            case RHIFormat::R8G8B8A8Uint: return DXGI_FORMAT_R8G8B8A8_UINT;
-            case RHIFormat::R8G8B8A8Snorm: return DXGI_FORMAT_R8G8B8A8_SNORM;
-            case RHIFormat::R8G8B8A8Sint: return DXGI_FORMAT_R8G8B8A8_SINT;
-            case RHIFormat::B8G8R8A8Unorm: return DXGI_FORMAT_B8G8R8A8_UNORM;
-            case RHIFormat::B8G8R8A8UnormSrgb: return DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
-            case RHIFormat::R16G16Float: return DXGI_FORMAT_R16G16_FLOAT;
-            case RHIFormat::R16G16Unorm: return DXGI_FORMAT_R16G16_UNORM;
-            case RHIFormat::R16G16Uint: return DXGI_FORMAT_R16G16_UINT;
-            case RHIFormat::R16G16Snorm: return DXGI_FORMAT_R16G16_SNORM;
-            case RHIFormat::R16G16Sint: return DXGI_FORMAT_R16G16_SINT;
-            case RHIFormat::D32Float: return DXGI_FORMAT_D32_FLOAT;
-            case RHIFormat::R32Float: return DXGI_FORMAT_R32_FLOAT;
-            case RHIFormat::R32Uint: return DXGI_FORMAT_R32_UINT;
-            case RHIFormat::R32Sint: return DXGI_FORMAT_R32_SINT;
-            case RHIFormat::D24UnormS8Uint: return DXGI_FORMAT_D24_UNORM_S8_UINT;
-            case RHIFormat::R9G9B9E5Sharedexp: return DXGI_FORMAT_R9G9B9E5_SHAREDEXP;
-            case RHIFormat::R8G8Unorm: return DXGI_FORMAT_R8G8_UNORM;
-            case RHIFormat::R8G8Uint: return DXGI_FORMAT_R8G8_UINT;
-            case RHIFormat::R8G8Snorm: return DXGI_FORMAT_R8G8_SNORM;
-            case RHIFormat::R8G8Sint: return DXGI_FORMAT_R8G8_SINT;
-            case RHIFormat::R16Float: return DXGI_FORMAT_R16_FLOAT;
-            case RHIFormat::D16Unorm: return DXGI_FORMAT_D16_UNORM;
-            case RHIFormat::R16Unorm: return DXGI_FORMAT_R16_UNORM;
-            case RHIFormat::R16Uint: return DXGI_FORMAT_R16_UINT;
-            case RHIFormat::R16Snorm: return DXGI_FORMAT_R16_SNORM;
-            case RHIFormat::R16Sint: return DXGI_FORMAT_R16_SINT;
-            case RHIFormat::R8Unorm: return DXGI_FORMAT_R8_UNORM;
-            case RHIFormat::R8Uint: return DXGI_FORMAT_R8_UINT;
-            case RHIFormat::R8Snorm: return DXGI_FORMAT_R8_SNORM;
-            case RHIFormat::R8Sint: return DXGI_FORMAT_R8_SINT;
-            case RHIFormat::BC1Unorm: return DXGI_FORMAT_BC1_UNORM;
-            case RHIFormat::BC1UnormSrgb: return DXGI_FORMAT_BC1_UNORM_SRGB;
-            case RHIFormat::BC2Unorm: return DXGI_FORMAT_BC2_UNORM;
-            case RHIFormat::BC2UnormSrgb: return DXGI_FORMAT_BC2_UNORM_SRGB;
-            case RHIFormat::BC3Unorm: return DXGI_FORMAT_BC3_UNORM;
-            case RHIFormat::BC3UnormSrgb: return DXGI_FORMAT_BC3_UNORM_SRGB;
-            case RHIFormat::BC4Unorm: return DXGI_FORMAT_BC4_UNORM;
-            case RHIFormat::BC4Snorm: return DXGI_FORMAT_BC4_SNORM;
-            case RHIFormat::BC5Unorm: return DXGI_FORMAT_BC5_UNORM;
-            case RHIFormat::BC5Snorm: return DXGI_FORMAT_BC5_SNORM;
-            case RHIFormat::BC6HUf16: return DXGI_FORMAT_BC6H_UF16;
-            case RHIFormat::BC6HSf16: return DXGI_FORMAT_BC6H_SF16;
-            case RHIFormat::BC7Unorm: return DXGI_FORMAT_BC7_UNORM;
-            case RHIFormat::BC7UnormSrgb: return DXGI_FORMAT_BC7_UNORM_SRGB;
-            default: return DXGI_FORMAT_UNKNOWN;
-            }
+            feature_flags |= static_cast<uint32>(feature);
         }
 
         D3D12_COMMAND_LIST_TYPE ToCommandListType(RHIQueueType type)
@@ -337,23 +270,39 @@ namespace won::rendering
             return;
         }
 
-        D3D_FEATURE_LEVEL requested_levels[] =
+        D3D12_FEATURE_DATA_D3D12_OPTIONS options = {};
+        if (SUCCEEDED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &options, sizeof(options))))
         {
-            D3D_FEATURE_LEVEL_12_2,
-            D3D_FEATURE_LEVEL_12_1,
-            D3D_FEATURE_LEVEL_12_0,
-            D3D_FEATURE_LEVEL_11_1,
-            D3D_FEATURE_LEVEL_11_0
-        };
-        D3D12_FEATURE_DATA_FEATURE_LEVELS feature_levels = {};
-        feature_levels.NumFeatureLevels = static_cast<UINT>(sizeof(requested_levels) / sizeof(requested_levels[0]));
-        feature_levels.pFeatureLevelsRequested = requested_levels;
-        if (FAILED(device->CheckFeatureSupport(D3D12_FEATURE_FEATURE_LEVELS, &feature_levels, sizeof(feature_levels))))
-        {
-            backlog::Post("Failed to query feature levels", backlog::LogLevel::Warning);
-            feature_levels.MaxSupportedFeatureLevel = D3D_FEATURE_LEVEL_12_0;
+            if (options.ResourceHeapTier >= D3D12_RESOURCE_HEAP_TIER_2)
+            {
+                AddDeviceFeature(feature_flags, RHIDeviceFeature::MixedResourceHeap);
+            }
+
+            if (options.ResourceBindingTier >= D3D12_RESOURCE_BINDING_TIER_3)
+            {
+                AddDeviceFeature(feature_flags, RHIDeviceFeature::Bindless);
+            }
         }
 
+        D3D12_FEATURE_DATA_D3D12_OPTIONS5 options5 = {};
+        if (SUCCEEDED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &options5, sizeof(options5))))
+        {
+            if (options5.RaytracingTier != D3D12_RAYTRACING_TIER_NOT_SUPPORTED)
+            {
+                AddDeviceFeature(feature_flags, RHIDeviceFeature::RayTracing);
+            }
+        }
+
+        D3D12_FEATURE_DATA_ARCHITECTURE1 architecture = {};
+        architecture.NodeIndex = 0;
+        if (SUCCEEDED(device->CheckFeatureSupport(D3D12_FEATURE_ARCHITECTURE1, &architecture, sizeof(architecture))))
+        {
+            if (architecture.UMA)
+            {
+                AddDeviceFeature(feature_flags, RHIDeviceFeature::UMA);
+            }
+        }
+        
         DXGI_ADAPTER_DESC1 selected_adapter_desc = {};
         if (adapter)
         {
@@ -365,7 +314,7 @@ namespace won::rendering
         {
             wonlog("DX12 Adapter: %s", adapter_name.c_str());
         }
-        wonlog("DX12 Feature Level: %s", FeatureLevelToString(feature_levels.MaxSupportedFeatureLevel));
+        wonlog("DX12 Feature Level: %s", FeatureLevelToString(features.MaxSupportedFeatureLevel()));
 #ifdef D3D12_SDK_VERSION
         wonlog("DX12 SDK Version: %u", static_cast<uint32>(D3D12_SDK_VERSION));
 #endif
@@ -383,6 +332,14 @@ namespace won::rendering
         if (FAILED(D3D12MA::CreateAllocator(&allocatorDesc, resource_allocator.ReleaseAndGetAddressOf())))
         {
             backlog::Post("Failed to create memory allocator", backlog::LogLevel::Error);
+            return;
+        }
+
+        descriptor_allocator = std::make_shared<DescriptorAllocatorDX12>(device);
+        if (!descriptor_allocator->IsValid())
+        {
+            backlog::Post("Failed to create descriptor allocator", backlog::LogLevel::Error);
+            descriptor_allocator.reset();
             return;
         }
 
@@ -414,6 +371,25 @@ namespace won::rendering
         adapter.Reset();
         factory.Reset();
         resource_allocator.Reset();
+        descriptor_allocator.reset();
+    }
+
+    void RHIDeviceDX12::BeginFrame()
+    {
+        if (descriptor_allocator)
+        {
+            descriptor_allocator->BeginFrame();
+        }
+    }
+
+    uint32 RHIDeviceDX12::GetFeatureFlags() const
+    {
+        return feature_flags;
+    }
+
+    bool RHIDeviceDX12::HasFeature(RHIDeviceFeature feature) const
+    {
+        return (feature_flags & static_cast<uint32>(feature)) != 0;
     }
 
     std::shared_ptr<RHIFence> RHIDeviceDX12::CreateFence(uint64 initial_value)
@@ -429,7 +405,7 @@ namespace won::rendering
 
     std::shared_ptr<RHICommandList> RHIDeviceDX12::CreateCommandList(RHIQueueType type)
     {
-        return std::make_shared<RHICommandListDX12>(type, device);
+        return std::make_shared<RHICommandListDX12>(type, device, descriptor_allocator);
     }
 
     std::shared_ptr<RHIResource> RHIDeviceDX12::CreateBuffer(const RHIBufferDesc& desc,
@@ -483,7 +459,7 @@ namespace won::rendering
         RHIResourceDesc resource_info = {};
         resource_info.type = RHIResourceType::Buffer;
         resource_info.buffer_desc = desc;
-        auto buffer_resource = std::make_shared<RHIResourceDX12>(resource_info, std::move(resource), allocation);
+        auto buffer_resource = std::make_shared<RHIResourceDX12>(resource_info, std::move(resource), allocation, descriptor_allocator);
 
         if (initial_data && initial_size > 0)
         {
@@ -579,7 +555,37 @@ namespace won::rendering
         RHIResourceDesc resource_info = {};
         resource_info.type = (dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D) ? RHIResourceType::Texture3D : RHIResourceType::Texture2D;
         resource_info.texture_desc = desc;
-        return std::make_shared<RHIResourceDX12>(resource_info, std::move(resource), allocation);
+        return std::make_shared<RHIResourceDX12>(resource_info, std::move(resource), allocation, descriptor_allocator);
+    }
+
+    bool RHIDeviceDX12::CreateSubresource(RHIResource& resource,
+        const RHISubresourceDesc& desc,
+        RHISubresourceHandle* out_handle)
+    {
+        if (!descriptor_allocator || !out_handle)
+        {
+            return false;
+        }
+
+        auto* resource_dx12 = dynamic_cast<RHIResourceDX12*>(&resource);
+        if (!resource_dx12 || !resource_dx12->GetResource())
+        {
+            return false;
+        }
+
+        if (resource_dx12->FindSubresource(desc, out_handle))
+        {
+            return true;
+        }
+
+        D3D12_DESCRIPTOR_HEAP_TYPE heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES;
+        uint32 descriptor_index;
+        if (!descriptor_allocator->CreateSubresourceDescriptor(*resource_dx12, desc, heap_type, descriptor_index))
+        {
+            return false;
+        }
+
+        return resource_dx12->AddSubresource(desc, heap_type, descriptor_index, out_handle);
     }
 
     std::shared_ptr<RHIPipeline> RHIDeviceDX12::CreateGraphicsPipeline(
@@ -637,15 +643,22 @@ namespace won::rendering
         pso_desc.RasterizerState.FrontCounterClockwise = desc.raster.front_ccw ? TRUE : FALSE;
         pso_desc.RasterizerState.DepthClipEnable = desc.raster.depth_clip_enable ? TRUE : FALSE;
         pso_desc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-        pso_desc.DepthStencilState.DepthEnable = desc.depth_stencil.depth_test ? TRUE : FALSE;
-        pso_desc.DepthStencilState.DepthWriteMask = desc.depth_stencil.depth_write ? D3D12_DEPTH_WRITE_MASK_ALL : D3D12_DEPTH_WRITE_MASK_ZERO;
+        const DXGI_FORMAT dsv_format = ToDXGIFormat(desc.depth_stencil_format);
+        const bool has_depth_stencil = dsv_format != DXGI_FORMAT_UNKNOWN;
+        pso_desc.DepthStencilState.DepthEnable = (has_depth_stencil && desc.depth_stencil.depth_test) ? TRUE : FALSE;
+        pso_desc.DepthStencilState.DepthWriteMask = (has_depth_stencil && desc.depth_stencil.depth_write) ? D3D12_DEPTH_WRITE_MASK_ALL : D3D12_DEPTH_WRITE_MASK_ZERO;
         pso_desc.DepthStencilState.DepthFunc = ToCompareFunc(desc.depth_stencil.depth_compare);
         pso_desc.InputLayout = { input_elements.data(), static_cast<UINT>(input_elements.size()) };
         pso_desc.PrimitiveTopologyType = ToTopologyType(desc.topology);
-        pso_desc.NumRenderTargets = 1;
-        pso_desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-        pso_desc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
-        pso_desc.SampleDesc.Count = 1;
+        const uint32 max_render_target_count = D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT;
+        const uint32 render_target_count = static_cast<uint32>(desc.render_target_formats.size());
+        pso_desc.NumRenderTargets = (render_target_count < max_render_target_count) ? render_target_count : max_render_target_count;
+        for (uint32 i = 0; i < pso_desc.NumRenderTargets; ++i)
+        {
+            pso_desc.RTVFormats[i] = ToDXGIFormat(desc.render_target_formats[i]);
+        }
+        pso_desc.DSVFormat = dsv_format;
+        pso_desc.SampleDesc.Count = desc.sample_count > 0 ? desc.sample_count : 1;
 
         ComPtr<ID3D12PipelineState> pipeline_state;
         if (FAILED(device->CreateGraphicsPipelineState(&pso_desc, IID_PPV_ARGS(&pipeline_state))))
@@ -716,6 +729,6 @@ namespace won::rendering
             return nullptr;
         }
 
-        return std::make_shared<RHISwapchainDX12>(device, factory, graphics_context, window);
+        return std::make_shared<RHISwapchainDX12>(device, factory, graphics_context, descriptor_allocator, window);
     }
 }

@@ -26,7 +26,6 @@ namespace won::resource
 
     private:
         static Size ToIndex(ShaderId shader_id);
-        static const char* ToName(ShaderId shader_id);
         ShaderCompilerOptions compiler_options = {};
         std::shared_ptr<ShaderCompiler> shader_compiler = {};
         Vector<std::shared_ptr<rendering::RHIShader>> shaders;

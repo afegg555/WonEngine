@@ -140,6 +140,41 @@ namespace won::rendering
         Present
     };
 
+    enum class RHISubresourceType
+    {
+        Unknown,
+        ConstantBuffer,
+        ShaderResource,
+        UnorderedAccess,
+        RenderTarget,
+        DepthStencil,
+        VertexBuffer,
+        IndexBuffer
+    };
+
+    struct RHISubresourceDesc
+    {
+        RHISubresourceType type = RHISubresourceType::Unknown;
+        RHIFormat format = RHIFormat::Unknown;
+        uint32 first_slice = 0;
+        uint32 slice_count = 1;
+        uint32 first_mip = 0;
+        uint32 mip_count = 1;
+        Size buffer_offset = 0;
+        Size buffer_size = 0;
+        Size buffer_stride = 0;
+    };
+
+    struct RHISubresourceHandle
+    {
+        uint32 index = ~0u; // this is not descriptor index, this is index in subresources[]
+
+        bool IsValid() const
+        {
+            return index != ~0u;
+        }
+    };
+
     struct RHIBufferDesc
     {
         Size size = 0;

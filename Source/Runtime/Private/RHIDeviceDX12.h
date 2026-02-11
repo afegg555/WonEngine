@@ -17,11 +17,17 @@ struct IDXGIAdapter1;
 
 namespace won::rendering
 {
+    class DescriptorAllocatorDX12;
+
     class RHIDeviceDX12 final : public RHIDevice
     {
     public:
         explicit RHIDeviceDX12(const RHIDeviceDesc& desc);
         ~RHIDeviceDX12() override;
+
+        void BeginFrame() override;
+        uint32 GetFeatureFlags() const override;
+        bool HasFeature(RHIDeviceFeature feature) const override;
 
         std::shared_ptr<RHIFence> CreateFence(uint64 initial_value) override;
         std::shared_ptr<RHICommandAllocator> CreateCommandAllocator(RHIQueueType type) override;
@@ -32,6 +38,10 @@ namespace won::rendering
 
         std::shared_ptr<RHIResource> CreateTexture(const RHITextureDesc& desc,
             const void* initial_data = nullptr, Size initial_size = 0) override;
+
+        bool CreateSubresource(RHIResource& resource,
+            const RHISubresourceDesc& desc,
+            RHISubresourceHandle* out_handle) override;
 
         std::shared_ptr<RHIPipeline> CreateGraphicsPipeline(
             const RHIGraphicsPipelineDesc& desc) override;
@@ -51,6 +61,8 @@ namespace won::rendering
         std::shared_ptr<RHIContextDX12> graphics_context = {};
         std::shared_ptr<RHIContextDX12> compute_context = {};
         std::shared_ptr<RHIContextDX12> copy_context = {};
+        std::shared_ptr<DescriptorAllocatorDX12> descriptor_allocator = {};
+        uint32 feature_flags = 0;
 
         ComPtr<D3D12MA::Allocator> resource_allocator;
     };

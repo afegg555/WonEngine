@@ -75,6 +75,9 @@ namespace won::rendering
         const RHIShader* vertex_shader = nullptr;
         const RHIShader* pixel_shader = nullptr;
         Vector<RHIInputElement> input_layout;
+        Vector<RHIFormat> render_target_formats = { RHIFormat::R8G8B8A8Unorm };
+        RHIFormat depth_stencil_format = RHIFormat::D32Float;
+        uint32 sample_count = 1;
         RHIPrimitiveTopology topology = RHIPrimitiveTopology::TriangleList;
         RHIRasterDesc raster = {};
         RHIDepthStencilDesc depth_stencil = {};

@@ -32,22 +32,10 @@ namespace won::rendering
         float a = 1.0f;
     };
 
-    struct RHIBufferView
+    struct RHISubresourceBinding
     {
-        RHIResource* buffer = nullptr;
-        Size offset = 0;
-        Size size = 0;
-        Size stride = 0;
-    };
-
-    struct RHITextureView
-    {
-        RHIResource* texture = nullptr;
-        uint32 mip_level = 0;
-        uint32 mip_count = 1;
-        uint32 array_slice = 0;
-        uint32 array_count = 1;
-        bool depth_read_only = false;
+        RHIResource* resource = nullptr;
+        RHISubresourceHandle subresource = {};
     };
 
     class WONENGINE_API RHICommandList
@@ -66,32 +54,26 @@ namespace won::rendering
         virtual void SetViewport(const RHIViewport& viewport) = 0;
         virtual void SetScissor(const RHIRect& scissor) = 0;
 
-        virtual void SetRenderTargets(const Vector<RHITextureView>& color_targets,
-            const RHITextureView* depth_target) = 0;
+        virtual void SetRenderTargets(const Vector<RHISubresourceBinding>& color_targets,
+            const RHISubresourceBinding* depth_target) = 0;
 
-        virtual void ClearRenderTarget(const RHITextureView& target,
+        virtual void ClearRenderTarget(const RHISubresourceBinding& target,
             const RHIClearColor& color) = 0;
 
-        virtual void ClearDepthStencil(const RHITextureView& target,
+        virtual void ClearDepthStencil(const RHISubresourceBinding& target,
             float depth, uint8 stencil) = 0;
 
-        virtual void SetVertexBuffer(const RHIBufferView& view) = 0;
-        virtual void SetIndexBuffer(const RHIBufferView& view, bool index32) = 0;
+        virtual void SetVertexBuffer(const RHISubresourceBinding& view) = 0;
+        virtual void SetIndexBuffer(const RHISubresourceBinding& view, bool index32) = 0;
 
         virtual void SetConstantBuffer(RHIShaderStage stage, uint32 slot,
-            const RHIBufferView& view) = 0;
+            const RHISubresourceBinding& view) = 0;
 
         virtual void SetShaderResource(RHIShaderStage stage, uint32 slot,
-            const RHITextureView& view) = 0;
-
-        virtual void SetShaderResource(RHIShaderStage stage, uint32 slot,
-            const RHIBufferView& view) = 0;
+            const RHISubresourceBinding& view) = 0;
 
         virtual void SetUnorderedAccess(RHIShaderStage stage, uint32 slot,
-            const RHITextureView& view) = 0;
-
-        virtual void SetUnorderedAccess(RHIShaderStage stage, uint32 slot,
-            const RHIBufferView& view) = 0;
+            const RHISubresourceBinding& view) = 0;
 
         virtual void SetSampler(RHIShaderStage stage, uint32 slot,
             const RHISampler& sampler) = 0;

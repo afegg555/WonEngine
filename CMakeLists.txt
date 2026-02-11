@@ -68,6 +68,7 @@ set(RUNTIME_RHI
 )
 
 set(RUNTIME_RHI_DX12
+    Source/Runtime/Private/RHIFormatDX12.h
     Source/Runtime/Private/RHIDeviceDX12.h
     Source/Runtime/Private/RHIDeviceDX12.cpp
     Source/Runtime/Private/RHIContextDX12.h
@@ -78,8 +79,12 @@ set(RUNTIME_RHI_DX12
     Source/Runtime/Private/RHICommandListDX12.cpp
     Source/Runtime/Private/RHIResourceDX12.h
     Source/Runtime/Private/RHIResourceDX12.cpp
+    Source/Runtime/Private/DescriptorAllocatorDX12.h
+    Source/Runtime/Private/DescriptorAllocatorDX12.cpp
     Source/Runtime/Private/RHIPipelineDX12.h
     Source/Runtime/Private/RHIPipelineDX12.cpp
+    Source/Runtime/Private/RHISwapchainDX12.h
+    Source/Runtime/Private/RHISwapchainDX12.cpp
 )
 
 set(RUNTIME_RESOURCE

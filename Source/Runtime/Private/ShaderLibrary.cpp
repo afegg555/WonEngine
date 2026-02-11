@@ -62,7 +62,6 @@ namespace won::resource
         }
 
         auto shader = std::make_shared<RHIShader>(desc.stage, shader_bytecode.bytecode.data(), shader_bytecode.bytecode.size());
-        shader->SetName(ToName(shader_id));
         shaders[ToIndex(shader_id)] = shader;
         return true;
     }
@@ -100,15 +99,5 @@ namespace won::resource
     Size ShaderLibrary::ToIndex(ShaderId shader_id)
     {
         return static_cast<Size>(shader_id);
-    }
-
-    const char* ShaderLibrary::ToName(ShaderId shader_id)
-    {
-        switch (shader_id)
-        {
-        case ShaderId::TestTriangleVS: return "TestTriangleVS";
-        case ShaderId::TestRedPS: return "TestRedPS";
-        default: return "UnknownShader";
-        }
     }
 }
