@@ -155,6 +155,11 @@ namespace won::rendering
             return false;
         }
 
+        if (entry.heap_type == D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES || entry.descriptor_index == ~0u)
+        {
+            return false;
+        }
+
         out_heap_type = entry.heap_type;
         out_descriptor_index = entry.descriptor_index;
         return true;

@@ -25,6 +25,24 @@ namespace won::rendering
         }
     }
 
+    static D3D_PRIMITIVE_TOPOLOGY ToD3D12PrimitiveTopology(RHIPrimitiveTopology topology)
+    {
+        switch (topology)
+        {
+        case RHIPrimitiveTopology::PointList:
+            return D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
+        case RHIPrimitiveTopology::LineList:
+            return D3D_PRIMITIVE_TOPOLOGY_LINELIST;
+        case RHIPrimitiveTopology::LineStrip:
+            return D3D_PRIMITIVE_TOPOLOGY_LINESTRIP;
+        case RHIPrimitiveTopology::TriangleStrip:
+            return D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP;
+        case RHIPrimitiveTopology::TriangleList:
+        default:
+            return D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        }
+    }
+
     RHICommandListDX12::RHICommandListDX12(RHIQueueType type, ComPtr<ID3D12Device> device_in,
         std::shared_ptr<DescriptorAllocatorDX12> descriptor_allocator_in)
         : queue_type(type)
@@ -307,23 +325,166 @@ namespace won::rendering
         command_list->ClearDepthStencilView(dsv_handle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, depth, stencil, 0, nullptr);
     }
 
-    void RHICommandListDX12::SetVertexBuffer(const RHISubresourceBinding& view)
+    void RHICommandListDX12::SetVertexBuffer(RHIResource& resource, Size stride, Size offset, Size size)
     {
-        (void)view;
+        if (!command_list)
+        {
+            return;
+        }
+
+        auto* resource_dx12 = dynamic_cast<RHIResourceDX12*>(&resource);
+        if (!resource_dx12 || !resource_dx12->GetResource())
+        {
+            return;
+        }
+
+        if (resource_dx12->GetDesc().type != RHIResourceType::Buffer)
+        {
+            backlog::Post("SetVertexBuffer requires buffer resource", backlog::LogLevel::Error);
+            return;
+        }
+
+        if (stride == 0)
+        {
+            backlog::Post("Vertex buffer stride must be greater than zero", backlog::LogLevel::Error);
+            return;
+        }
+
+        const D3D12_RESOURCE_DESC native_desc = resource_dx12->GetResource()->GetDesc();
+        if (native_desc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER || offset > static_cast<Size>(native_desc.Width))
+        {
+            backlog::Post("Invalid vertex buffer resource", backlog::LogLevel::Error);
+            return;
+        }
+
+        const UINT64 size_in_bytes_u64 = size > 0
+            ? static_cast<UINT64>(size)
+            : (native_desc.Width - static_cast<UINT64>(offset));
+        if (offset + static_cast<Size>(size_in_bytes_u64) > static_cast<Size>(native_desc.Width))
+        {
+            backlog::Post("Vertex buffer range is out of bounds", backlog::LogLevel::Error);
+            return;
+        }
+
+        if (size_in_bytes_u64 == 0)
+        {
+            return;
+        }
+
+        D3D12_VERTEX_BUFFER_VIEW vbv = {};
+        vbv.BufferLocation = resource_dx12->GetResource()->GetGPUVirtualAddress() + static_cast<UINT64>(offset);
+        vbv.SizeInBytes = static_cast<UINT>(size_in_bytes_u64);
+        vbv.StrideInBytes = static_cast<UINT>(stride);
+        command_list->IASetVertexBuffers(0, 1, &vbv);
     }
 
-    void RHICommandListDX12::SetIndexBuffer(const RHISubresourceBinding& view, bool index32)
+    void RHICommandListDX12::SetIndexBuffer(RHIResource& resource, bool index32, Size offset, Size size)
     {
-        (void)view;
-        (void)index32;
+        if (!command_list)
+        {
+            return;
+        }
+
+        auto* resource_dx12 = dynamic_cast<RHIResourceDX12*>(&resource);
+        if (!resource_dx12 || !resource_dx12->GetResource())
+        {
+            return;
+        }
+
+        if (resource_dx12->GetDesc().type != RHIResourceType::Buffer)
+        {
+            backlog::Post("SetIndexBuffer requires buffer resource", backlog::LogLevel::Error);
+            return;
+        }
+
+        const D3D12_RESOURCE_DESC native_desc = resource_dx12->GetResource()->GetDesc();
+        if (native_desc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER || offset > static_cast<Size>(native_desc.Width))
+        {
+            backlog::Post("Invalid index buffer resource", backlog::LogLevel::Error);
+            return;
+        }
+
+        const UINT64 size_in_bytes_u64 = size > 0
+            ? static_cast<UINT64>(size)
+            : (native_desc.Width - static_cast<UINT64>(offset));
+        if (offset + static_cast<Size>(size_in_bytes_u64) > static_cast<Size>(native_desc.Width))
+        {
+            backlog::Post("Index buffer range is out of bounds", backlog::LogLevel::Error);
+            return;
+        }
+
+        if (size_in_bytes_u64 == 0)
+        {
+            return;
+        }
+
+        D3D12_INDEX_BUFFER_VIEW ibv = {};
+        ibv.BufferLocation = resource_dx12->GetResource()->GetGPUVirtualAddress() + static_cast<UINT64>(offset);
+        ibv.SizeInBytes = static_cast<UINT>(size_in_bytes_u64);
+        ibv.Format = index32 ? DXGI_FORMAT_R32_UINT : DXGI_FORMAT_R16_UINT;
+        command_list->IASetIndexBuffer(&ibv);
+    }
+
+    void RHICommandListDX12::SetPrimitiveTopology(RHIPrimitiveTopology topology)
+    {
+        if (!command_list)
+        {
+            return;
+        }
+
+        command_list->IASetPrimitiveTopology(ToD3D12PrimitiveTopology(topology));
     }
 
     void RHICommandListDX12::SetConstantBuffer(RHIShaderStage stage, uint32 slot,
         const RHISubresourceBinding& view)
     {
-        (void)stage;
-        (void)slot;
-        (void)view;
+        if (!command_list || !descriptor_allocator || !view.resource)
+        {
+            return;
+        }
+
+        auto* resource_dx12 = dynamic_cast<RHIResourceDX12*>(view.resource);
+        if (!resource_dx12)
+        {
+            return;
+        }
+
+        D3D12_DESCRIPTOR_HEAP_TYPE heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES;
+        uint32 descriptor_index;
+        if (!resource_dx12->GetSubresourceDescriptor(view.subresource, heap_type, descriptor_index))
+        {
+            return;
+        }
+
+        if (heap_type != D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV)
+        {
+            return;
+        }
+
+        D3D12_CPU_DESCRIPTOR_HANDLE source_handle = {};
+        if (!descriptor_allocator->GetCpuDescriptorHandle(heap_type, descriptor_index, source_handle))
+        {
+            return;
+        }
+
+        uint32 frame_bindless_index = 0;
+        D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = {};
+        if (!descriptor_allocator->CopyToFrameHeap(heap_type, source_handle, frame_bindless_index, gpu_handle))
+        {
+            return;
+        }
+
+        (void)frame_bindless_index;
+        if (stage == RHIShaderStage::Compute)
+        {
+            command_list->SetComputeRootDescriptorTable(slot, gpu_handle);
+        }
+        else
+        {
+            command_list->SetGraphicsRootDescriptorTable(slot, gpu_handle);
+        }
+
+        return;
     }
 
     void RHICommandListDX12::SetShaderResource(RHIShaderStage stage, uint32 slot,

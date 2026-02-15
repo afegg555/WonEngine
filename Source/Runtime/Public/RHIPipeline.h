@@ -46,7 +46,7 @@ namespace won::rendering
         RHIFormat format = RHIFormat::Unknown;
         uint32 input_slot = 0;
         uint32 byte_offset = 0;
-        bool per_instance = false;
+        bool per_instance = false; // for instancing
         uint32 instance_step_rate = 0;
     };
 
