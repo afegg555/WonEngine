@@ -19,7 +19,6 @@ namespace won
 
         rendering::RHIDeviceDesc device_desc;
         device_desc.backend = desc.backend_type;
-        std::shared_ptr<rendering::RHIDevice> device;
         device = rendering::CreateRHIDevice(device_desc);
 
         rendering::RendererDesc renderer_desc;
@@ -73,6 +72,8 @@ namespace won
         }
 
         window.reset();
+        device.reset();
+
         jobsystem::ShutDown();
     }
 

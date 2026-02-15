@@ -33,6 +33,7 @@ namespace won
 
     protected:
         bool is_running = false;
+        std::shared_ptr<rendering::RHIDevice> device;
         std::shared_ptr<platform::Window> window;
         std::shared_ptr<rendering::Renderer> renderer;
         rendering::View main_view;
