@@ -72,6 +72,11 @@ namespace won::ecs
             }
         }
 
+        const Vector<Entity>& GetEntities() const
+        {
+            return entities;
+        }
+
     private:
         ComponentManager component_manager;
         Vector<Entity> entities;

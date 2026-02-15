@@ -139,6 +139,7 @@ set(RUNTIME_ECS
     Source/Runtime/Public/Entity.h
     Source/Runtime/Public/ComponentManager.h
     Source/Runtime/Public/Scene.h
+    Source/Runtime/Public/System.h
     Source/Runtime/Public/SceneComponents.h
     Source/Runtime/Public/NameComponent.h
     Source/Runtime/Public/GeometryComponent.h

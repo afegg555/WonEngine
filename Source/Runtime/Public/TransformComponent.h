@@ -3,7 +3,7 @@
 
 namespace won::ecs
 {
-    struct Transform
+    struct TransformComponent
     {
         float3 position = {};
         float4 rotation = { 0.0f, 0.0f, 0.0f, 1.0f };
