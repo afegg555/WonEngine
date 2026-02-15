@@ -22,7 +22,7 @@ namespace won::rendering
         explicit DescriptorAllocatorDX12(ComPtr<ID3D12Device> device_in);
         bool IsValid() const;
 
-        void BeginFrame();
+        void BeginFrame(uint32 frame_index);
 
         bool CreateSubresourceDescriptor(RHIResourceDX12& resource,
             const RHISubresourceDesc& desc,
@@ -94,5 +94,6 @@ namespace won::rendering
         DescriptorHeap sampler_frame_heap;
         uint32 frame_cbv_srv_uav_count = 0;
         uint32 frame_sampler_count = 0;
+        uint32 current_frame_index = 0;
     };
 }

@@ -74,8 +74,9 @@ namespace won::rendering
             sampler_frame_heap.heap;
     }
 
-    void DescriptorAllocatorDX12::BeginFrame()
+    void DescriptorAllocatorDX12::BeginFrame(uint32 frame_index)
     {
+        current_frame_index = frame_index;
         frame_cbv_srv_uav_count = 0;
         frame_sampler_count = 0;
     }

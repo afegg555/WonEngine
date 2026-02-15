@@ -23,6 +23,8 @@ namespace won::rendering
             std::shared_ptr<DescriptorAllocatorDX12> descriptor_allocator_in,
             platform::Window& window);
 
+        uint32 GetCurrentBackBufferIndex() const override;
+        uint32 GetBackBufferCount() const override;
         std::shared_ptr<RHIResource> GetCurrentBackBuffer() override;
         bool Present() override;
 
@@ -32,6 +34,7 @@ namespace won::rendering
         std::shared_ptr<RHIContextDX12> graphics_context;
         std::shared_ptr<DescriptorAllocatorDX12> descriptor_allocator;
         ComPtr<IDXGISwapChain3> dxgi_swapchain;
+        uint32 back_buffer_count = 2;
         Vector<std::shared_ptr<RHIResourceDX12>> back_buffers;
     };
 }

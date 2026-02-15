@@ -374,11 +374,11 @@ namespace won::rendering
         descriptor_allocator.reset();
     }
 
-    void RHIDeviceDX12::BeginFrame()
+    void RHIDeviceDX12::BeginFrame(uint32 frame_index)
     {
         if (descriptor_allocator)
         {
-            descriptor_allocator->BeginFrame();
+            descriptor_allocator->BeginFrame(frame_index);
         }
     }
 

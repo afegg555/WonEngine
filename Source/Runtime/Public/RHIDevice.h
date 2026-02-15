@@ -60,7 +60,7 @@ namespace won::rendering
     public:
         virtual ~RHIDevice() = default;
 
-        virtual void BeginFrame() = 0;
+        virtual void BeginFrame(uint32 frame_index) = 0;
         virtual uint32 GetFeatureFlags() const = 0;
         virtual bool HasFeature(RHIDeviceFeature feature) const = 0;
 

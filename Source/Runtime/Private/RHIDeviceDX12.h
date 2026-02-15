@@ -25,7 +25,7 @@ namespace won::rendering
         explicit RHIDeviceDX12(const RHIDeviceDesc& desc);
         ~RHIDeviceDX12() override;
 
-        void BeginFrame() override;
+        void BeginFrame(uint32 frame_index) override;
         uint32 GetFeatureFlags() const override;
         bool HasFeature(RHIDeviceFeature feature) const override;
 

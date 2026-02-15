@@ -29,7 +29,7 @@ namespace won::rendering
         }
 
         DXGI_SWAP_CHAIN_DESC1 swap_chain_desc = {};
-        swap_chain_desc.BufferCount = 2;
+        swap_chain_desc.BufferCount = back_buffer_count;
         swap_chain_desc.Width = static_cast<UINT>(window.GetWidth());
         swap_chain_desc.Height = static_cast<UINT>(window.GetHeight());
         swap_chain_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -52,9 +52,9 @@ namespace won::rendering
             return;
         }
 
-        back_buffers.resize(2);
+        back_buffers.resize(back_buffer_count);
 
-        for (uint32 i = 0; i < 2; ++i)
+        for (uint32 i = 0; i < back_buffer_count; ++i)
         {
             ComPtr<ID3D12Resource> back_buffer;
             if (FAILED(dxgi_swapchain->GetBuffer(i, IID_PPV_ARGS(&back_buffer))))
@@ -77,6 +77,20 @@ namespace won::rendering
         }
     }
 
+    uint32 RHISwapchainDX12::GetCurrentBackBufferIndex() const
+    {
+        if (!dxgi_swapchain)
+        {
+            return 0;
+        }
+        return dxgi_swapchain->GetCurrentBackBufferIndex();
+    }
+
+    uint32 RHISwapchainDX12::GetBackBufferCount() const
+    {
+        return back_buffer_count;
+    }
+
     std::shared_ptr<RHIResource> RHISwapchainDX12::GetCurrentBackBuffer()
     {
         if (!dxgi_swapchain || back_buffers.empty())
@@ -84,7 +98,7 @@ namespace won::rendering
             return nullptr;
         }
 
-        const uint32 index = dxgi_swapchain->GetCurrentBackBufferIndex();
+        const uint32 index = GetCurrentBackBufferIndex();
         if (index >= back_buffers.size())
         {
             return nullptr;
