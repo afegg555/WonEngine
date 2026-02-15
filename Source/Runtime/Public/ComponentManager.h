@@ -74,7 +74,7 @@ namespace won::ecs
         template <typename T>
         void RegisterComponent()
         {
-            const char* type_name = typeid(T).name();
+            const String type_name = typeid(T).name();
             auto it = component_arrays.find(type_name);
             if (it != component_arrays.end() && it->second)
             {
@@ -151,7 +151,8 @@ namespace won::ecs
         template <typename T>
         std::shared_ptr<ComponentArray<T>> GetComponentArray()
         {
-            auto it = component_arrays.find(typeid(T).name());
+            const String type_name = typeid(T).name();
+            auto it = component_arrays.find(type_name);
             if (it == component_arrays.end() || !it->second)
             {
                 return nullptr;
@@ -162,7 +163,8 @@ namespace won::ecs
         template <typename T>
         std::shared_ptr<const ComponentArray<T>> GetComponentArray() const
         {
-            auto it = component_arrays.find(typeid(T).name());
+            const String type_name = typeid(T).name();
+            auto it = component_arrays.find(type_name);
             if (it == component_arrays.end() || !it->second)
             {
                 return nullptr;
@@ -171,6 +173,6 @@ namespace won::ecs
         }
 
     private:
-        UnorderedMap<const char*, std::shared_ptr<IComponentArray>> component_arrays;
+        UnorderedMap<String, std::shared_ptr<IComponentArray>> component_arrays;
     };
 }
