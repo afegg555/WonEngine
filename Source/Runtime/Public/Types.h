@@ -37,4 +37,9 @@ namespace won
 
     template <typename K, typename V>
     using UnorderedMap = std::unordered_map<K, V>;
+
+    template<typename T>
+    void CheckType() {
+        T::error___;
+    }
 }
