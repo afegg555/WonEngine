@@ -5,14 +5,21 @@
 
 #include <memory>
 
+namespace won::rendering
+{
+    class RHIDevice;
+}
+
 namespace won::resource
 {
-    struct Resource
+    struct WONENGINE_API Resource
     {
+        virtual ~Resource() = default;
         virtual bool IsValid() const = 0;
+        virtual bool CreateRenderData(const std::shared_ptr<rendering::RHIDevice>& device) = 0;
     };
 
-    struct Image : public Resource
+    struct WONENGINE_API Image : public Resource
     {
         int32 width = 0;
         int32 height = 0;
@@ -23,6 +30,12 @@ namespace won::resource
         {
             return width > 0 && height > 0 && channels > 0 && !pixels.empty();
         }
+
+        bool CreateRenderData(const std::shared_ptr<rendering::RHIDevice>& device) override
+        {
+            (void)device;
+            return IsValid();
+        }
     };
 
     // Loads an image from disk and returns a cached shared_ptr when possible.
@@ -32,4 +45,3 @@ namespace won::resource
     WONENGINE_API void ClearImageCache();
     WONENGINE_API Size GetImageCacheSize();
 }
-
