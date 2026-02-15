@@ -4,23 +4,31 @@
 
 namespace won::ecs
 {
-    class IComponentArray {
+    class IComponentArray
+    {
     public:
         virtual ~IComponentArray() = default;
         virtual void EntityDestroyed(Entity entity) = 0;
     };
 
     template <typename T>
-    class ComponentArray : public IComponentArray {
+    class ComponentArray : public IComponentArray
+    {
     public:
-        void Insert(Entity entity, T component) {
+        void Insert(Entity entity, T component)
+        {
             // map entity to array index
             entity_to_index[entity] = data.size();
             index_to_entity[data.size()] = entity;
             data.push_back(component);
         }
 
-        void Remove(Entity entity) {
+        void Remove(Entity entity)
+        {
+            if (!HasData(entity))
+            {
+                return;
+            }
 
             // swap with last element for fast removal (O(1))
             Size index_to_remove = entity_to_index[entity];
@@ -37,10 +45,20 @@ namespace won::ecs
             data.pop_back();
         }
 
-        T& GetData(Entity entity) { return data[entity_to_index[entity]]; }
+        T& GetData(Entity entity)
+        {
+            return data[entity_to_index[entity]];
+        }
 
-        void EntityDestroyed(Entity entity) override {
-            if (entity_to_index.find(entity) != entity_to_index.end()) {
+        bool HasData(Entity entity) const
+        {
+            return entity_to_index.find(entity) != entity_to_index.end();
+        }
+
+        void EntityDestroyed(Entity entity) override
+        {
+            if (entity_to_index.find(entity) != entity_to_index.end())
+            {
                 Remove(entity);
             }
         }
@@ -54,36 +72,104 @@ namespace won::ecs
     class ComponentManager {
     public:
         template <typename T>
-        void RegisterComponent() {
+        void RegisterComponent()
+        {
             const char* type_name = typeid(T).name();
+            auto it = component_arrays.find(type_name);
+            if (it != component_arrays.end() && it->second)
+            {
+                return;
+            }
             component_arrays[type_name] = std::make_shared<ComponentArray<T>>();
         }
 
         template <typename T>
-        void AddComponent(Entity entity, T component) {
-            GetComponentArray<T>()->Insert(entity, component);
+        T* AddComponent(Entity entity, T component)
+        {
+            auto component_array = GetComponentArray<T>();
+            if (!component_array)
+            {
+                RegisterComponent<T>();
+                component_array = GetComponentArray<T>();
+                if (!component_array)
+                {
+                    return nullptr;
+                }
+            }
+
+            if (component_array->HasData(entity))
+            {
+                component_array->GetData(entity) = component;
+                return &component_array->GetData(entity);
+            }
+
+            component_array->Insert(entity, component);
+            return &component_array->GetData(entity);
         }
 
         template <typename T>
-        void RemoveComponent(Entity entity) {
-            GetComponentArray<T>()->Remove(entity);
+        void RemoveComponent(Entity entity)
+        {
+            auto component_array = GetComponentArray<T>();
+            if (!component_array)
+            {
+                return;
+            }
+            component_array->Remove(entity);
         }
 
         template <typename T>
-        T& GetComponent(Entity entity) {
-            return GetComponentArray<T>()->GetData(entity);
+        T* GetComponent(Entity entity)
+        {
+            auto component_array = GetComponentArray<T>();
+            if (!component_array || !component_array->HasData(entity))
+            {
+                return nullptr;
+            }
+            return &component_array->GetData(entity);
         }
 
-        void EntityDestroyed(Entity entity) {
-            for (auto const& pair : component_arrays) {
+        template <typename T>
+        bool HasComponent(Entity entity) const
+        {
+            auto component_array = GetComponentArray<T>();
+            if (!component_array)
+            {
+                return false;
+            }
+            return component_array->HasData(entity);
+        }
+
+        void EntityDestroyed(Entity entity)
+        {
+            for (auto const& pair : component_arrays)
+            {
                 pair.second->EntityDestroyed(entity);
             }
         }
 
         template <typename T>
-        std::shared_ptr<ComponentArray<T>> GetComponentArray() {
-            return std::static_pointer_cast<ComponentArray<T>>(component_arrays[typeid(T).name()]);
+        std::shared_ptr<ComponentArray<T>> GetComponentArray()
+        {
+            auto it = component_arrays.find(typeid(T).name());
+            if (it == component_arrays.end() || !it->second)
+            {
+                return nullptr;
+            }
+            return std::static_pointer_cast<ComponentArray<T>>(it->second);
         }
+
+        template <typename T>
+        std::shared_ptr<const ComponentArray<T>> GetComponentArray() const
+        {
+            auto it = component_arrays.find(typeid(T).name());
+            if (it == component_arrays.end() || !it->second)
+            {
+                return nullptr;
+            }
+            return std::static_pointer_cast<const ComponentArray<T>>(it->second);
+        }
+
     private:
         UnorderedMap<const char*, std::shared_ptr<IComponentArray>> component_arrays;
     };
