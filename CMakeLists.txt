@@ -130,6 +130,7 @@ set(RUNTIME_JOBSYSTEM
 set(RUNTIME_MATH
     Source/Runtime/Public/MathTypes.h
     Source/Runtime/Public/MathUtils.h
+    Source/Runtime/Public/Primitives.h
 )
 
 set(RUNTIME_ECS
