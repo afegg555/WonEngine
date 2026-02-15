@@ -88,6 +88,7 @@ set(RUNTIME_RHI_DX12
 )
 
 set(RUNTIME_RESOURCE
+    Source/Runtime/Public/Mesh.h
     Source/Runtime/Public/ResourceLoader.h
     Source/Runtime/Public/ShaderCompiler.h
     Source/Runtime/Public/ShaderLibrary.h
@@ -136,6 +137,12 @@ set(RUNTIME_MATH
 set(RUNTIME_ECS
     Source/Runtime/Public/Entity.h
     Source/Runtime/Public/ComponentManager.h
+    Source/Runtime/Public/Scene.h
+    Source/Runtime/Public/SceneComponents.h
+    Source/Runtime/Public/NameComponent.h
+    Source/Runtime/Public/GeometryComponent.h
+    Source/Runtime/Public/MaterialComponent.h
+    Source/Runtime/Public/TransformComponent.h
     Source/Runtime/Private/Entity.cpp
 )
 
