@@ -31,7 +31,7 @@ namespace won
         virtual void Update(float dt);
         virtual void Render();
 
-    private:
+    protected:
         bool is_running = false;
         std::shared_ptr<platform::Window> window;
         std::shared_ptr<rendering::Renderer> renderer;
