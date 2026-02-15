@@ -89,6 +89,7 @@ set(RUNTIME_RHI_DX12
 
 set(RUNTIME_RESOURCE
     Source/Runtime/Public/Mesh.h
+    Source/Runtime/Private/Mesh.cpp
     Source/Runtime/Public/ResourceLoader.h
     Source/Runtime/Public/ShaderCompiler.h
     Source/Runtime/Public/ShaderLibrary.h
