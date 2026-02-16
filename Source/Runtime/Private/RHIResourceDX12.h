@@ -14,6 +14,7 @@ struct ID3D12Resource;
 namespace won::rendering
 {
     class DescriptorAllocatorDX12;
+    class RHICommandListDX12;
 
     class RHIResourceDX12 final : public RHIResource
     {
@@ -41,6 +42,8 @@ namespace won::rendering
             uint32& out_descriptor_index) const;
 
     private:
+        friend class RHICommandListDX12;
+
         struct SubresourceEntry
         {
             RHISubresourceDesc desc = {};

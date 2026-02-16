@@ -346,7 +346,7 @@ namespace won::rendering
 
         if (stride == 0)
         {
-            backlog::Post("Vertex buffer stride must be greater than zero", backlog::LogLevel::Error);
+            backlog::Post("SetVertexBuffer requires stride > 0", backlog::LogLevel::Error);
             return;
         }
 
@@ -378,7 +378,7 @@ namespace won::rendering
         command_list->IASetVertexBuffers(0, 1, &vbv);
     }
 
-    void RHICommandListDX12::SetIndexBuffer(RHIResource& resource, bool index32, Size offset, Size size)
+    void RHICommandListDX12::SetIndexBuffer(RHIResource& resource, Size stride, Size offset, Size size)
     {
         if (!command_list)
         {
@@ -394,6 +394,12 @@ namespace won::rendering
         if (resource_dx12->GetDesc().type != RHIResourceType::Buffer)
         {
             backlog::Post("SetIndexBuffer requires buffer resource", backlog::LogLevel::Error);
+            return;
+        }
+
+        if (stride != 2 && stride != 4)
+        {
+            backlog::Post("SetIndexBuffer requires stride 2 or 4", backlog::LogLevel::Error);
             return;
         }
 
@@ -421,7 +427,7 @@ namespace won::rendering
         D3D12_INDEX_BUFFER_VIEW ibv = {};
         ibv.BufferLocation = resource_dx12->GetResource()->GetGPUVirtualAddress() + static_cast<UINT64>(offset);
         ibv.SizeInBytes = static_cast<UINT>(size_in_bytes_u64);
-        ibv.Format = index32 ? DXGI_FORMAT_R32_UINT : DXGI_FORMAT_R16_UINT;
+        ibv.Format = stride == 4 ? DXGI_FORMAT_R32_UINT : DXGI_FORMAT_R16_UINT;
         command_list->IASetIndexBuffer(&ibv);
     }
 
@@ -490,9 +496,51 @@ namespace won::rendering
     void RHICommandListDX12::SetShaderResource(RHIShaderStage stage, uint32 slot,
         const RHISubresourceBinding& view)
     {
-        (void)stage;
-        (void)slot;
-        (void)view;
+        if (!command_list || !descriptor_allocator || !view.resource)
+        {
+            return;
+        }
+
+        auto* resource_dx12 = dynamic_cast<RHIResourceDX12*>(view.resource);
+        if (!resource_dx12)
+        {
+            return;
+        }
+
+        D3D12_DESCRIPTOR_HEAP_TYPE heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES;
+        uint32 descriptor_index;
+        if (!resource_dx12->GetSubresourceDescriptor(view.subresource, heap_type, descriptor_index))
+        {
+            return;
+        }
+
+        if (heap_type != D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV)
+        {
+            return;
+        }
+
+        D3D12_CPU_DESCRIPTOR_HANDLE source_handle = {};
+        if (!descriptor_allocator->GetCpuDescriptorHandle(heap_type, descriptor_index, source_handle))
+        {
+            return;
+        }
+
+        uint32 frame_bindless_index = 0;
+        D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = {};
+        if (!descriptor_allocator->CopyToFrameHeap(heap_type, source_handle, frame_bindless_index, gpu_handle))
+        {
+            return;
+        }
+
+        (void)frame_bindless_index;
+        if (stage == RHIShaderStage::Compute)
+        {
+            command_list->SetComputeRootDescriptorTable(slot, gpu_handle);
+        }
+        else
+        {
+            command_list->SetGraphicsRootDescriptorTable(slot, gpu_handle);
+        }
     }
 
     void RHICommandListDX12::SetUnorderedAccess(RHIShaderStage stage, uint32 slot,
@@ -514,10 +562,28 @@ namespace won::rendering
     void RHICommandListDX12::PushConstants(RHIShaderStage stage, const void* data,
         Size size, uint32 offset)
     {
-        (void)stage;
-        (void)data;
-        (void)size;
-        (void)offset;
+        if (!command_list || !data || size == 0)
+        {
+            return;
+        }
+
+        if ((size % sizeof(uint32)) != 0 || (offset % sizeof(uint32)) != 0)
+        {
+            backlog::Post("PushConstants requires 32-bit aligned size/offset", backlog::LogLevel::Error);
+            return;
+        }
+
+        const UINT root_parameter_index = 0; // RootConstants(b999) is the first root parameter in DEFAULT_ROOTSIGNATURE.
+        const UINT constant_count = static_cast<UINT>(size / sizeof(uint32));
+        const UINT destination_offset = static_cast<UINT>(offset / sizeof(uint32));
+        if (stage == RHIShaderStage::Compute)
+        {
+            command_list->SetComputeRoot32BitConstants(root_parameter_index, constant_count, data, destination_offset);
+        }
+        else
+        {
+            command_list->SetGraphicsRoot32BitConstants(root_parameter_index, constant_count, data, destination_offset);
+        }
     }
 
     void RHICommandListDX12::Draw(uint32 vertex_count, uint32 instance_count,
@@ -549,8 +615,36 @@ namespace won::rendering
 
     void RHICommandListDX12::CopyResource(RHIResource& dest, RHIResource& src)
     {
-        (void)dest;
-        (void)src;
+        if (!command_list)
+        {
+            return;
+        }
+
+        auto* dest_dx12 = dynamic_cast<RHIResourceDX12*>(&dest);
+        auto* src_dx12 = dynamic_cast<RHIResourceDX12*>(&src);
+        if (!dest_dx12 || !src_dx12)
+        {
+            backlog::Post("CopyResource requires DX12 resources", backlog::LogLevel::Error);
+            return;
+        }
+
+        ID3D12Resource* dest_resource = dest_dx12->GetResource();
+        ID3D12Resource* src_resource = src_dx12->GetResource();
+        if (!dest_resource || !src_resource)
+        {
+            backlog::Post("CopyResource requires valid native resources", backlog::LogLevel::Error);
+            return;
+        }
+
+        const D3D12_RESOURCE_DESC dest_desc = dest_resource->GetDesc();
+        const D3D12_RESOURCE_DESC src_desc = src_resource->GetDesc();
+        if (dest_desc.Dimension != src_desc.Dimension || dest_desc.Width != src_desc.Width)
+        {
+            backlog::Post("CopyResource dimension/size mismatch", backlog::LogLevel::Error);
+            return;
+        }
+
+        command_list->CopyResource(dest_resource, src_resource);
     }
 
     void RHICommandListDX12::TransitionResource(RHIResource& resource,

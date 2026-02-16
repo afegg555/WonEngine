@@ -38,8 +38,8 @@ namespace won::rendering
         void ClearDepthStencil(const RHISubresourceBinding& target,
             float depth, uint8 stencil) override;
 
-        void SetVertexBuffer(RHIResource& resource, Size stride, Size offset, Size size) override;
-        void SetIndexBuffer(RHIResource& resource, bool index32, Size offset, Size size) override;
+        void SetVertexBuffer(RHIResource& resource, Size stride, Size offset = 0, Size size = 0) override;
+        void SetIndexBuffer(RHIResource& resource, Size stride, Size offset = 0, Size size = 0) override;
         void SetPrimitiveTopology(RHIPrimitiveTopology topology) override;
 
         void SetConstantBuffer(RHIShaderStage stage, uint32 slot,
