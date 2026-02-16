@@ -130,17 +130,30 @@ namespace won::resource
 
         const WString entry_point_w = utils::ToWideString(entry_point);
         const WString target_profile_w = utils::ToWideString(target_profile);
+        const WString shader_source_root_path_w = utils::ToWideString(compiler_options.shader_source_root_path);
 
-        LPCWSTR arguments[] =
+        Vector<LPCWSTR> arguments =
         {
             L"-E", entry_point_w.c_str(),
             L"-T", target_profile_w.c_str(),
-            //L"-rootsig-define", L"DEFAULT_ROOTSIGNATURE",
+            L"-rootsig-define", L"DEFAULT_ROOTSIGNATURE",
         };
+        if (!shader_source_root_path_w.empty())
+        {
+            arguments.push_back(L"-I");
+            arguments.push_back(shader_source_root_path_w.c_str());
+        }
+
+        ComPtr<IDxcIncludeHandler> include_handler;
+        if (FAILED(dxc_utils->CreateDefaultIncludeHandler(&include_handler)))
+        {
+            backlog::Post("Failed to create DXC include handler", backlog::LogLevel::Error);
+            return shader_bytecode;
+        }
 
         ComPtr<IDxcResult> compile_result;
-        if (FAILED(dxc_compiler->Compile(&source_buffer, arguments,
-            static_cast<uint32>(arraysize(arguments)), nullptr, IID_PPV_ARGS(&compile_result))))
+        if (FAILED(dxc_compiler->Compile(&source_buffer, arguments.data(),
+            static_cast<uint32>(arguments.size()), include_handler.Get(), IID_PPV_ARGS(&compile_result))))
         {
             backlog::Post("DXC compile call failed", backlog::LogLevel::Error);
             return shader_bytecode;
