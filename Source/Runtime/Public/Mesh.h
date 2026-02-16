@@ -2,13 +2,14 @@
 
 #include "Primitives.h"
 #include "ResourceLoader.h"
+#include "RHIResource.h"
 #include "Types.h"
 
 #include <memory>
 
 namespace won::rendering
 {
-    class RHIResource;
+    class RHIDevice;
 }
 
 namespace won::resource
@@ -34,13 +35,11 @@ namespace won::resource
 
         struct VBSubresource
         {
-            Size offset = 0;
-            Size size = 0;
-            Size stride = 0;
+            rendering::RHISubresourceHandle handle = {};
 
             bool IsValid() const
             {
-                return size > 0 && stride > 0;
+                return handle.IsValid();
             }
         };
 
