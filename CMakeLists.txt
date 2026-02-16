@@ -177,9 +177,11 @@ set(RUNTIME_VERSION
 
 set(SHADERS_INTEROP
     Source/Shaders/ShaderInterop.h
+    Source/Shaders/ShaderInterop_Renderer.h
 )
 
 set(SHADERS_HLSL
+    Source/Shaders/Common.hlsli
     Source/Shaders/TestTriangleVS.hlsl
     Source/Shaders/TestRedPS.hlsl
 )
