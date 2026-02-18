@@ -148,6 +148,24 @@ namespace won::rendering
 
         command_list->SetPipelineState(dx12_pipeline->GetPipelineState());
         command_list->SetGraphicsRootSignature(dx12_pipeline->GetRootSignature());
+
+        // DEFAULT_ROOTSIGNATURE layout:
+        // root param 0 = push constants (b999)
+        // root param 1 = frame root CBV (b0)
+        // root param 2 = camera root CBV (b1)
+        // root params 3..9 = bindless SRV descriptor tables for spaces 200..206
+        if (descriptor_allocator)
+        {
+            ID3D12DescriptorHeap* frame_resource_heap = descriptor_allocator->GetFrameCbvSrvUavHeap();
+            if (frame_resource_heap)
+            {
+                const D3D12_GPU_DESCRIPTOR_HANDLE bindless_heap_start = frame_resource_heap->GetGPUDescriptorHandleForHeapStart();
+                for (uint32 root_slot = 3; root_slot <= 9; ++root_slot)
+                {
+                    command_list->SetGraphicsRootDescriptorTable(root_slot, bindless_heap_start);
+                }
+            }
+        }
     }
 
     void RHICommandListDX12::SetComputePipeline(RHIPipeline& pipeline)
