@@ -60,7 +60,7 @@ namespace won::resource
         bool CreateRenderData(const std::shared_ptr<rendering::RHIDevice>& device) override;
         const RenderData* GetRenderData() const;
         void ClearRenderData();
-
+        
     private:
         RenderData render_data = {};
     };

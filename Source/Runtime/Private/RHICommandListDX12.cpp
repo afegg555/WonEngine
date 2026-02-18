@@ -211,7 +211,7 @@ namespace won::rendering
             }
 
             D3D12_DESCRIPTOR_HEAP_TYPE heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES;
-            uint32 descriptor_index;
+            int descriptor_index = -1;
             if (!resource_dx12->GetSubresourceDescriptor(target.subresource,
                     heap_type,
                     descriptor_index))
@@ -236,7 +236,7 @@ namespace won::rendering
             if (depth_resource_dx12)
             {
                 D3D12_DESCRIPTOR_HEAP_TYPE depth_heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES;
-                uint32 depth_descriptor_index;
+                int depth_descriptor_index = -1;
                 if (depth_resource_dx12->GetSubresourceDescriptor(depth_target->subresource,
                         depth_heap_type,
                         depth_descriptor_index))
@@ -275,7 +275,7 @@ namespace won::rendering
         }
 
         D3D12_DESCRIPTOR_HEAP_TYPE heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES;
-        uint32 descriptor_index;
+        int descriptor_index = -1;
         if (!resource_dx12->GetSubresourceDescriptor(target.subresource,
                 heap_type,
                 descriptor_index))
@@ -308,7 +308,7 @@ namespace won::rendering
         }
 
         D3D12_DESCRIPTOR_HEAP_TYPE heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES;
-        uint32 descriptor_index;
+        int descriptor_index = -1;
         if (!resource_dx12->GetSubresourceDescriptor(target.subresource,
                 heap_type,
                 descriptor_index))
@@ -508,7 +508,7 @@ namespace won::rendering
         }
 
         D3D12_DESCRIPTOR_HEAP_TYPE heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES;
-        uint32 descriptor_index;
+        int descriptor_index = -1;
         if (!resource_dx12->GetSubresourceDescriptor(view.subresource, heap_type, descriptor_index))
         {
             return;
@@ -525,7 +525,7 @@ namespace won::rendering
             return;
         }
 
-        uint32 frame_bindless_index = 0;
+        int frame_bindless_index = -1;
         D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = {};
         if (!descriptor_allocator->CopyToFrameHeap(heap_type, source_handle, frame_bindless_index, gpu_handle))
         {

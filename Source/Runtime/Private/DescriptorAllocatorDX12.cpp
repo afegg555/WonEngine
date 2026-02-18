@@ -84,7 +84,7 @@ namespace won::rendering
     bool DescriptorAllocatorDX12::CreateSubresourceDescriptor(RHIResourceDX12& resource,
         const RHISubresourceDesc& desc,
         D3D12_DESCRIPTOR_HEAP_TYPE& out_heap_type,
-        uint32& out_descriptor_index)
+        int& out_descriptor_index)
     {
         if (!resource.GetResource())
         {
@@ -110,7 +110,7 @@ namespace won::rendering
             return false;
         }
 
-        uint32 descriptor_index;
+        int descriptor_index = -1;
         if (!AllocateFromHeap(*target_heap, descriptor_index))
         {
             backlog::Post("Descriptor heap allocation failed", backlog::LogLevel::Error);
@@ -153,11 +153,11 @@ namespace won::rendering
     }
 
     bool DescriptorAllocatorDX12::GetCpuDescriptorHandle(D3D12_DESCRIPTOR_HEAP_TYPE heap_type,
-        uint32 descriptor_index,
+        int descriptor_index,
         D3D12_CPU_DESCRIPTOR_HANDLE& out_handle) const
     {
         const DescriptorHeap* des_heap = GetDescriptorHeap(heap_type);
-        if (!des_heap || !des_heap->heap || descriptor_index >= des_heap->allocated_count)
+        if (!des_heap || !des_heap->heap || descriptor_index < 0 || static_cast<uint32>(descriptor_index) >= des_heap->allocated_count)
         {
             return false;
         }
@@ -166,10 +166,10 @@ namespace won::rendering
         return true;
     }
 
-    void DescriptorAllocatorDX12::ReleaseDescriptor(D3D12_DESCRIPTOR_HEAP_TYPE heap_type, uint32 descriptor_index)
+    void DescriptorAllocatorDX12::ReleaseDescriptor(D3D12_DESCRIPTOR_HEAP_TYPE heap_type, int descriptor_index)
     {
         DescriptorHeap* des_heap = GetDescriptorHeap(heap_type);
-        if (!des_heap || !des_heap->heap || descriptor_index >= des_heap->allocated_count)
+        if (!des_heap || !des_heap->heap || descriptor_index < 0 || static_cast<uint32>(descriptor_index) >= des_heap->allocated_count)
         {
             return;
         }
@@ -179,7 +179,7 @@ namespace won::rendering
 
     bool DescriptorAllocatorDX12::CopyToFrameHeap(D3D12_DESCRIPTOR_HEAP_TYPE heap_type,
         D3D12_CPU_DESCRIPTOR_HANDLE source_handle,
-        uint32& out_bindless_index,
+        int& out_bindless_index,
         D3D12_GPU_DESCRIPTOR_HANDLE& out_gpu_handle)
     {
         DescriptorHeap* frame_heap = nullptr;
@@ -205,7 +205,7 @@ namespace won::rendering
             return false;
         }
 
-        const uint32 frame_descriptor_index = *frame_count;
+        const int frame_descriptor_index = static_cast<int>(*frame_count);
         const D3D12_CPU_DESCRIPTOR_HANDLE destination_handle = GetCpuHandle(*frame_heap, frame_descriptor_index);
         device->CopyDescriptorsSimple(1, destination_handle, source_handle, heap_type);
 
@@ -273,7 +273,7 @@ namespace won::rendering
         return true;
     }
 
-    bool DescriptorAllocatorDX12::AllocateFromHeap(DescriptorHeap& heap, uint32& out_descriptor_index)
+    bool DescriptorAllocatorDX12::AllocateFromHeap(DescriptorHeap& heap, int& out_descriptor_index)
     {
         if (!heap.heap)
         {
@@ -292,14 +292,14 @@ namespace won::rendering
             return false;
         }
 
-        out_descriptor_index = heap.allocated_count;
+        out_descriptor_index = static_cast<int>(heap.allocated_count);
         ++heap.allocated_count;
         return true;
     }
 
-    void DescriptorAllocatorDX12::FreeToHeap(DescriptorHeap& heap, uint32 descriptor_index)
+    void DescriptorAllocatorDX12::FreeToHeap(DescriptorHeap& heap, int descriptor_index)
     {
-        if (descriptor_index >= heap.allocated_count)
+        if (descriptor_index < 0 || static_cast<uint32>(descriptor_index) >= heap.allocated_count)
         {
             return;
         }
@@ -307,7 +307,7 @@ namespace won::rendering
         heap.free_list.push_back(descriptor_index);
     }
 
-    D3D12_CPU_DESCRIPTOR_HANDLE DescriptorAllocatorDX12::GetCpuHandle(const DescriptorHeap& heap, uint32 descriptor_index) const
+    D3D12_CPU_DESCRIPTOR_HANDLE DescriptorAllocatorDX12::GetCpuHandle(const DescriptorHeap& heap, int descriptor_index) const
     {
         D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
         if (!heap.heap)
@@ -316,11 +316,11 @@ namespace won::rendering
         }
 
         cpu_handle = heap.heap->GetCPUDescriptorHandleForHeapStart();
-        cpu_handle.ptr += static_cast<Size>(heap.descriptor_size) * descriptor_index;
+        cpu_handle.ptr += static_cast<Size>(heap.descriptor_size) * static_cast<Size>(descriptor_index);
         return cpu_handle;
     }
 
-    D3D12_GPU_DESCRIPTOR_HANDLE DescriptorAllocatorDX12::GetGpuHandle(const DescriptorHeap& heap, uint32 descriptor_index) const
+    D3D12_GPU_DESCRIPTOR_HANDLE DescriptorAllocatorDX12::GetGpuHandle(const DescriptorHeap& heap, int descriptor_index) const
     {
         D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = {};
         if (!heap.heap)
@@ -329,7 +329,7 @@ namespace won::rendering
         }
 
         gpu_handle = heap.heap->GetGPUDescriptorHandleForHeapStart();
-        gpu_handle.ptr += static_cast<uint64>(heap.descriptor_size) * descriptor_index;
+        gpu_handle.ptr += static_cast<uint64>(heap.descriptor_size) * static_cast<uint64>(descriptor_index);
         return gpu_handle;
     }
 

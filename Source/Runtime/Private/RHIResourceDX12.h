@@ -35,11 +35,11 @@ namespace won::rendering
         bool FindSubresource(const RHISubresourceDesc& desc, RHISubresourceHandle* out_handle) const;
         bool AddSubresource(const RHISubresourceDesc& desc,
             D3D12_DESCRIPTOR_HEAP_TYPE heap_type,
-            uint32 descriptor_index,
+            int descriptor_index,
             RHISubresourceHandle* out_handle);
         bool GetSubresourceDescriptor(const RHISubresourceHandle& handle,
             D3D12_DESCRIPTOR_HEAP_TYPE& out_heap_type,
-            uint32& out_descriptor_index) const;
+            int& out_descriptor_index) const;
 
     private:
         friend class RHICommandListDX12;
@@ -48,7 +48,7 @@ namespace won::rendering
         {
             RHISubresourceDesc desc = {};
             D3D12_DESCRIPTOR_HEAP_TYPE heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES;
-            uint32 descriptor_index = ~0u;
+            int descriptor_index = -1;
             bool valid = false;
         };
 

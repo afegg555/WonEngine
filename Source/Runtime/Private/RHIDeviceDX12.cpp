@@ -579,7 +579,7 @@ namespace won::rendering
         }
 
         D3D12_DESCRIPTOR_HEAP_TYPE heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES;
-        uint32 descriptor_index;
+        int descriptor_index = -1;
         if (!descriptor_allocator->CreateSubresourceDescriptor(*resource_dx12, desc, heap_type, descriptor_index))
         {
             return false;

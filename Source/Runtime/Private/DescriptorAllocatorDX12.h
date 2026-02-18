@@ -27,17 +27,17 @@ namespace won::rendering
         bool CreateSubresourceDescriptor(RHIResourceDX12& resource,
             const RHISubresourceDesc& desc,
             D3D12_DESCRIPTOR_HEAP_TYPE& out_heap_type,
-            uint32& out_descriptor_index);
+            int& out_descriptor_index);
 
         bool GetCpuDescriptorHandle(D3D12_DESCRIPTOR_HEAP_TYPE heap_type,
-            uint32 descriptor_index,
+            int descriptor_index,
             D3D12_CPU_DESCRIPTOR_HANDLE& out_handle) const;
 
-        void ReleaseDescriptor(D3D12_DESCRIPTOR_HEAP_TYPE heap_type, uint32 descriptor_index);
+        void ReleaseDescriptor(D3D12_DESCRIPTOR_HEAP_TYPE heap_type, int descriptor_index);
 
         bool CopyToFrameHeap(D3D12_DESCRIPTOR_HEAP_TYPE heap_type,
             D3D12_CPU_DESCRIPTOR_HANDLE source_handle,
-            uint32& out_bindless_index,
+            int& out_bindless_index,
             D3D12_GPU_DESCRIPTOR_HANDLE& out_gpu_handle);
 
         ID3D12DescriptorHeap* GetFrameCbvSrvUavHeap() const;
@@ -51,17 +51,17 @@ namespace won::rendering
             uint32 descriptor_size = 0;
             uint32 capacity = 0;
             uint32 allocated_count = 0;
-            Vector<uint32> free_list;
+            Vector<int> free_list;
         };
 
         DescriptorHeap* GetDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE heap_type);
         const DescriptorHeap* GetDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE heap_type) const;
 
         bool CreateDescriptorHeap(DescriptorHeap& state, uint32 capacity, bool shader_visible) const;
-        bool AllocateFromHeap(DescriptorHeap& state, uint32& out_descriptor_index);
-        void FreeToHeap(DescriptorHeap& state, uint32 descriptor_index);
-        D3D12_CPU_DESCRIPTOR_HANDLE GetCpuHandle(const DescriptorHeap& state, uint32 descriptor_index) const;
-        D3D12_GPU_DESCRIPTOR_HANDLE GetGpuHandle(const DescriptorHeap& state, uint32 descriptor_index) const;
+        bool AllocateFromHeap(DescriptorHeap& state, int& out_descriptor_index);
+        void FreeToHeap(DescriptorHeap& state, int descriptor_index);
+        D3D12_CPU_DESCRIPTOR_HANDLE GetCpuHandle(const DescriptorHeap& state, int descriptor_index) const;
+        D3D12_GPU_DESCRIPTOR_HANDLE GetGpuHandle(const DescriptorHeap& state, int descriptor_index) const;
 
         bool CreateRenderTargetView(RHIResourceDX12& resource,
             const RHISubresourceDesc& desc,
