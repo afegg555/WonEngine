@@ -441,6 +441,10 @@ namespace won::rendering
         {
             initial_state = D3D12_RESOURCE_STATE_COPY_DEST;
         }
+        else if (desc.usage == RHIResourceUsage::Default && initial_data && initial_size > 0)
+        {
+            initial_state = D3D12_RESOURCE_STATE_COPY_DEST;
+        }
 
         D3D12MA::ALLOCATION_DESC allocation_desc = {};
         allocation_desc.HeapType = heap_type;
@@ -460,6 +464,7 @@ namespace won::rendering
         resource_info.type = RHIResourceType::Buffer;
         resource_info.buffer_desc = desc;
         auto buffer_resource = std::make_shared<RHIResourceDX12>(resource_info, std::move(resource), allocation, descriptor_allocator);
+        buffer_resource->SetCurrentState(initial_state);
 
         if (initial_data && initial_size > 0)
         {
@@ -475,6 +480,78 @@ namespace won::rendering
                 {
                     backlog::Post("Failed to access persistent mapped upload buffer", backlog::LogLevel::Error);
                 }
+            }
+            else if (desc.usage == RHIResourceUsage::Default)
+            {
+                D3D12MA::ALLOCATION_DESC upload_allocation_desc = {};
+                upload_allocation_desc.HeapType = D3D12_HEAP_TYPE_UPLOAD;
+
+                D3D12_RESOURCE_DESC upload_resource_desc = CD3DX12_RESOURCE_DESC::Buffer(static_cast<UINT64>(desc.size), D3D12_RESOURCE_FLAG_NONE);
+
+                ComPtr<ID3D12Resource> upload_native_resource;
+                D3D12MA::Allocation* upload_allocation = nullptr;
+                if (FAILED(resource_allocator->CreateResource(&upload_allocation_desc, &upload_resource_desc,
+                        D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, &upload_allocation, IID_PPV_ARGS(upload_native_resource.GetAddressOf()))))
+                {
+                    backlog::Post("Failed to create upload staging buffer", backlog::LogLevel::Error);
+                    return nullptr;
+                }
+
+                RHIBufferDesc upload_buffer_desc = {};
+                upload_buffer_desc.size = desc.size;
+                upload_buffer_desc.usage = RHIResourceUsage::Upload;
+                upload_buffer_desc.bind_flags = RHIBindFlags::CopySource;
+                RHIResourceDesc upload_resource_info = {};
+                upload_resource_info.type = RHIResourceType::Buffer;
+                upload_resource_info.buffer_desc = upload_buffer_desc;
+                auto upload_resource = std::make_shared<RHIResourceDX12>(upload_resource_info,
+                    std::move(upload_native_resource),
+                    upload_allocation,
+                    descriptor_allocator);
+                upload_resource->SetCurrentState(D3D12_RESOURCE_STATE_GENERIC_READ);
+
+                void* mapped_data = upload_resource->GetMappedData();
+                if (!mapped_data)
+                {
+                    backlog::Post("Failed to map upload staging buffer", backlog::LogLevel::Error);
+                    return nullptr;
+                }
+
+                const Size copy_size = initial_size < desc.size ? initial_size : desc.size;
+                std::memcpy(mapped_data, initial_data, copy_size);
+
+                std::shared_ptr<RHIContext> upload_context = GetContext(RHIQueueType::Copy);
+                RHIQueueType upload_queue_type = RHIQueueType::Copy;
+                if (!upload_context)
+                {
+                    // fallback to Graphics Queue
+                    upload_context = GetContext(RHIQueueType::Graphics);
+                    upload_queue_type = RHIQueueType::Graphics;
+                }
+
+                if (!upload_context)
+                {
+                    backlog::Post("No available context for default buffer upload", backlog::LogLevel::Error);
+                    return nullptr;
+                }
+
+                auto upload_allocator = CreateCommandAllocator(upload_queue_type);
+                auto upload_command_list = CreateCommandList(upload_queue_type);
+                if (!upload_allocator || !upload_command_list)
+                {
+                    backlog::Post("Failed to create upload command objects", backlog::LogLevel::Error);
+                    return nullptr;
+                }
+
+                upload_allocator->Reset();
+                upload_command_list->Begin(*upload_allocator);
+                upload_command_list->TransitionResource(*buffer_resource, RHIResourceState::CopyDest);
+                upload_command_list->CopyResource(*buffer_resource, *upload_resource);
+                upload_command_list->TransitionResource(*buffer_resource, RHIResourceState::Undefined);
+                upload_command_list->End();
+
+                upload_context->Submit(*upload_command_list);
+                upload_context->WaitIdle();
             }
         }
 
@@ -555,7 +632,9 @@ namespace won::rendering
         RHIResourceDesc resource_info = {};
         resource_info.type = (dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D) ? RHIResourceType::Texture3D : RHIResourceType::Texture2D;
         resource_info.texture_desc = desc;
-        return std::make_shared<RHIResourceDX12>(resource_info, std::move(resource), allocation, descriptor_allocator);
+        auto texture_resource = std::make_shared<RHIResourceDX12>(resource_info, std::move(resource), allocation, descriptor_allocator);
+        texture_resource->SetCurrentState(initial_state);
+        return texture_resource;
     }
 
     bool RHIDeviceDX12::CreateSubresource(RHIResource& resource,
@@ -576,6 +655,11 @@ namespace won::rendering
         if (resource_dx12->FindSubresource(desc, out_handle))
         {
             return true;
+        }
+
+        if (desc.type == RHISubresourceType::VertexBuffer || desc.type == RHISubresourceType::IndexBuffer)
+        {
+            return resource_dx12->AddSubresource(desc, D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES, -1, out_handle);
         }
 
         D3D12_DESCRIPTOR_HEAP_TYPE heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES;
