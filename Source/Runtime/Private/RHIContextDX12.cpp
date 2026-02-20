@@ -3,6 +3,7 @@
 #include "Backlog.h"
 #include "Platform.h"
 #include "RHICommandListDX12.h"
+#include "RHIFenceDX12.h"
 
 #include "DirectX-Headers/d3d12.h"
 
@@ -66,14 +67,40 @@ namespace won::rendering
 
         ID3D12CommandList* native_command_lists[] = { dx12_command_list->GetCommandList() };
         queue->ExecuteCommandLists(1, native_command_lists);
-        (void)fence;
-        return 0;
+
+        if (!fence)
+        {
+            return 0;
+        }
+
+        auto* dx12_fence = dynamic_cast<RHIFenceDX12*>(fence);
+        if (!dx12_fence)
+        {
+            backlog::Post("Submit fence type mismatch", backlog::LogLevel::Error);
+            return 0;
+        }
+
+        return dx12_fence->Signal(*queue.Get());
     }
 
     void RHIContextDX12::Wait(RHIFence& fence, uint64 value)
     {
-        (void)fence;
-        (void)value;
+        if (!queue)
+        {
+            return;
+        }
+
+        auto* dx12_fence = dynamic_cast<RHIFenceDX12*>(&fence);
+        if (!dx12_fence || !dx12_fence->GetFence())
+        {
+            backlog::Post("Wait fence type mismatch", backlog::LogLevel::Error);
+            return;
+        }
+
+        if (FAILED(queue->Wait(dx12_fence->GetFence(), value)))
+        {
+            backlog::Post("Command queue wait failed", backlog::LogLevel::Error);
+        }
     }
 
     void RHIContextDX12::WaitIdle()

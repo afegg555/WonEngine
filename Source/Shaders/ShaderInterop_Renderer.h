@@ -86,14 +86,34 @@ struct alignas(16) ShaderMaterial
     uint flags;
     uint3 padding;
     
-    ShaderTextureSlot textures[TEXTURESLOT_COUNT]; // basecolormap... normalmap... etc..
+    ShaderTextureSlot textures[TEXTURESLOT_COUNT];
+};
+
+struct alignas(16) ShaderScene
+{
+    int instancebuffer;
+    int geometrybuffer;
+    int materialbuffer;
+    int padding0;
+};
+
+struct alignas(16) ShaderFrame
+{
+    ShaderScene scene;
+};
+
+struct alignas(16) ShaderCamera
+{
+    float4x4 view;
+    float4x4 projection;
+    float4x4 view_projection;
 };
 
 struct ObjectPushConstants
 {
+    uint instance_index;
     uint geometry_index;
     uint material_index;
-    int mesh_descriptor;
     uint padding0;
 };
 
@@ -102,37 +122,20 @@ struct alignas(16) ShaderObject
     float4x4 local_to_world;
 };
 
+CONSTANTBUFFER(g_frame, ShaderFrame, CBSLOT_RENDERER_FRAME);
+CONSTANTBUFFER(g_camera, ShaderCamera, CBSLOT_RENDERER_CAMERA);
+
+PUSHCONSTANT(object_push_constants, ObjectPushConstants);
+
 #ifdef __cplusplus
 static_assert(sizeof(ShaderTextureSlot) == 16, "ShaderTextureSlot layout mismatch");
 static_assert(sizeof(ShaderGeometry) == 48, "ShaderGeometry layout mismatch");
 static_assert(sizeof(ShaderMaterial) == 336, "ShaderMaterial layout mismatch");
+static_assert(sizeof(ShaderScene) == 16, "ShaderScene layout mismatch");
+static_assert(sizeof(ShaderFrame) == 16, "ShaderFrame layout mismatch");
+static_assert(sizeof(ShaderCamera) == 192, "ShaderCamera layout mismatch");
 static_assert(sizeof(ObjectPushConstants) == 16, "ObjectPushConstants layout mismatch");
 static_assert(sizeof(ShaderObject) == 64, "ShaderObject layout mismatch");
-#else
-StructuredBuffer<ShaderObject> bindless_structured_object[] : register(t0, space200);
-StructuredBuffer<ShaderGeometry> bindless_structured_geometry[] : register(t0, space201);
-StructuredBuffer<ShaderMaterial> bindless_structured_material[] : register(t0, space202);
-StructuredBuffer<float3> bindless_structured_position[] : register(t0, space203);
-StructuredBuffer<float3> bindless_structured_normal[] : register(t0, space204);
-StructuredBuffer<float2> bindless_structured_texcoord[] : register(t0, space205);
-StructuredBuffer<uint> bindless_structured_index[] : register(t0, space206);
-
-PUSHCONSTANT(object_push_constants, ObjectPushConstants);
-
-inline ShaderObject LoadObject(uint object_buffer_index, uint object_index)
-{
-    return bindless_structured_object[object_buffer_index][object_index];
-}
-
-inline ShaderGeometry LoadGeometry(uint geometry_buffer_index, uint geometry_index)
-{
-    return bindless_structured_geometry[geometry_buffer_index][geometry_index];
-}
-
-inline ShaderMaterial LoadMaterial(uint material_buffer_index, uint material_index)
-{
-    return bindless_structured_material[material_buffer_index][material_index];
-}
 #endif // __cplusplus
 
 #endif // WON_SHADERINTEROP_RENDERER_H

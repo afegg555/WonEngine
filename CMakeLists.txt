@@ -73,6 +73,8 @@ set(RUNTIME_RHI_DX12
     Source/Runtime/Private/RHIDeviceDX12.cpp
     Source/Runtime/Private/RHIContextDX12.h
     Source/Runtime/Private/RHIContextDX12.cpp
+    Source/Runtime/Private/RHIFenceDX12.h
+    Source/Runtime/Private/RHIFenceDX12.cpp
     Source/Runtime/Private/RHICommandAllocatorDX12.h
     Source/Runtime/Private/RHICommandAllocatorDX12.cpp
     Source/Runtime/Private/RHICommandListDX12.h
