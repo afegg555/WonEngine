@@ -142,12 +142,15 @@ set(RUNTIME_ECS
     Source/Runtime/Public/ComponentManager.h
     Source/Runtime/Public/Scene.h
     Source/Runtime/Public/System.h
+    Source/Runtime/Public/TransformUpdateSystem.h
     Source/Runtime/Public/SceneComponents.h
     Source/Runtime/Public/NameComponent.h
     Source/Runtime/Public/GeometryComponent.h
     Source/Runtime/Public/MaterialComponent.h
     Source/Runtime/Public/TransformComponent.h
+    Source/Runtime/Public/HierarchyComponent.h
     Source/Runtime/Private/Entity.cpp
+    Source/Runtime/Private/TransformUpdateSystem.cpp
 )
 
 set(RUNTIME_PLATFORM

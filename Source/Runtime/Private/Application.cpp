@@ -4,7 +4,7 @@
 #include "Window.h"
 #include "JobSystem.h"
 #include "Platform.h"
-
+#include "EventHandler.h"
  
 namespace won
 {
@@ -28,7 +28,10 @@ namespace won
         renderer_desc.device = device;
         renderer = rendering::CreateRenderer(renderer_desc);
 
-        main_view = {};
+        main_view.viewport.width = 1280;
+        main_view.viewport.height = 720;
+        main_view.scissor.width = 1280;
+        main_view.scissor.height = 720;
 
         jobsystem::Initialize(desc.jobsystem_thread_count);
 
@@ -58,6 +61,7 @@ namespace won
             DispatchMessageA(&msg);
         }
 #endif
+        eventhandler::FireEvent(eventhandler::EVENT_THREAD_SAFE_POINT, 0);
 
         Update(0.f);
         Render();
@@ -81,7 +85,7 @@ namespace won
 
     void Application::Update(float dt)
     {
-
+        main_view.Update(dt);
     }
 
     void Application::Render()

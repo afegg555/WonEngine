@@ -4,7 +4,29 @@
 #include "MaterialComponent.h"
 #include "NameComponent.h"
 #include "TransformComponent.h"
+#include "HierarchyComponent.h"
 
 namespace won::ecs
 {
+    using ComponentMask = uint64;
+
+    enum class SceneComponentBit : uint32
+    {
+        Transform = 0,
+        Hierarchy,
+        Name,
+        Geometry,
+        Material
+    };
+
+    constexpr ComponentMask ComponentMaskFromBit(SceneComponentBit bit)
+    {
+        return static_cast<ComponentMask>(1ull << static_cast<uint32>(bit));
+    }
+
+    inline constexpr ComponentMask transform_component_mask = ComponentMaskFromBit(SceneComponentBit::Transform);
+    inline constexpr ComponentMask hierarchy_component_mask = ComponentMaskFromBit(SceneComponentBit::Hierarchy);
+    inline constexpr ComponentMask name_component_mask = ComponentMaskFromBit(SceneComponentBit::Name);
+    inline constexpr ComponentMask geometry_component_mask = ComponentMaskFromBit(SceneComponentBit::Geometry);
+    inline constexpr ComponentMask material_component_mask = ComponentMaskFromBit(SceneComponentBit::Material);
 }

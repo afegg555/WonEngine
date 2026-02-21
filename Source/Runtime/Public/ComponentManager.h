@@ -63,7 +63,6 @@ namespace won::ecs
             }
         }
 
-    private:
         Vector<T> data;
         UnorderedMap<Entity, Size> entity_to_index;
         UnorderedMap<Size, Entity> index_to_entity;
@@ -158,18 +157,6 @@ namespace won::ecs
                 return nullptr;
             }
             return std::static_pointer_cast<ComponentArray<T>>(it->second);
-        }
-
-        template <typename T>
-        std::shared_ptr<const ComponentArray<T>> GetComponentArray() const
-        {
-            const String type_name = typeid(T).name();
-            auto it = component_arrays.find(type_name);
-            if (it == component_arrays.end() || !it->second)
-            {
-                return nullptr;
-            }
-            return std::static_pointer_cast<const ComponentArray<T>>(it->second);
         }
 
     private:

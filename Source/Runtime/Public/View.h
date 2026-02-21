@@ -4,7 +4,7 @@
 
 namespace won::rendering
 {
-    struct Viewport
+    struct Rect
     {
         int32 x = 0;
         int32 y = 0;
@@ -16,6 +16,15 @@ namespace won::rendering
     {
         ecs::Entity camera_entity = {};
         ecs::Scene* scene = nullptr;
-        Viewport viewport = {};
+        Rect viewport = {};
+        Rect scissor = {};
+
+        void Update(float dt)
+        {
+            if (scene)
+            {
+                scene->Update(dt);
+            }
+        }
     };
 }
