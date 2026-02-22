@@ -16,7 +16,7 @@ namespace won::rendering
         bool IsValid() const;
 
         RHIQueueType GetType() const override;
-        uint64 Submit(RHICommandList& command_list, RHIFence* fence) override;
+        uint64 Submit(RHICommandList& command_list, RHIFence* fence = nullptr) override;
         void Wait(RHIFence& fence, uint64 value) override;
         void WaitIdle() override;
         ID3D12CommandQueue* GetQueue() const;

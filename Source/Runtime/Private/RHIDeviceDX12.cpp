@@ -11,6 +11,7 @@
 #include "RHISwapchainDX12.h"
 #include "RHIFormatDX12.h"
 #include "DescriptorAllocatorDX12.h"
+#include "RHIFenceDX12.h"
 
 #include "DirectX-Headers/d3dx12_default.h"
 #include "DirectX-Headers/d3dx12_check_feature_support.h"
@@ -50,6 +51,11 @@ namespace won::rendering
         bool HasBindFlag(RHIBindFlags flags, RHIBindFlags flag)
         {
             return (static_cast<uint32>(flags) & static_cast<uint32>(flag)) != 0;
+        }
+
+        Size AlignConstantBufferByteSize(Size size_in_bytes)
+        {
+            return (size_in_bytes + static_cast<Size>(255u)) & ~static_cast<Size>(255u);
         }
 
         void AddDeviceFeature(uint32& feature_flags, RHIDeviceFeature feature)
@@ -394,8 +400,12 @@ namespace won::rendering
 
     std::shared_ptr<RHIFence> RHIDeviceDX12::CreateFence(uint64 initial_value)
     {
-        (void)initial_value;
-        return nullptr;
+        if (!device)
+        {
+            return nullptr;
+        }
+
+        return std::make_shared<RHIFenceDX12>(device, initial_value);
     }
 
     std::shared_ptr<RHICommandAllocator> RHIDeviceDX12::CreateCommandAllocator(RHIQueueType type)
@@ -420,6 +430,12 @@ namespace won::rendering
         if (HasBindFlag(desc.bind_flags, RHIBindFlags::UnorderedAccess))
         {
             flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+        }
+
+        Size buffer_size = desc.size;
+        if (HasBindFlag(desc.bind_flags, RHIBindFlags::ConstantBuffer))
+        {
+            buffer_size = AlignConstantBufferByteSize(buffer_size);
         }
 
         D3D12_HEAP_TYPE heap_type = D3D12_HEAP_TYPE_DEFAULT;
@@ -449,7 +465,7 @@ namespace won::rendering
         D3D12MA::ALLOCATION_DESC allocation_desc = {};
         allocation_desc.HeapType = heap_type;
 
-        D3D12_RESOURCE_DESC resource_desc = CD3DX12_RESOURCE_DESC::Buffer(static_cast<UINT64>(desc.size), flags);
+        D3D12_RESOURCE_DESC resource_desc = CD3DX12_RESOURCE_DESC::Buffer(static_cast<UINT64>(buffer_size), flags);
 
         ComPtr<ID3D12Resource> resource;
         D3D12MA::Allocation* allocation = nullptr;
@@ -463,6 +479,7 @@ namespace won::rendering
         RHIResourceDesc resource_info = {};
         resource_info.type = RHIResourceType::Buffer;
         resource_info.buffer_desc = desc;
+        resource_info.buffer_desc.size = buffer_size;
         auto buffer_resource = std::make_shared<RHIResourceDX12>(resource_info, std::move(resource), allocation, descriptor_allocator);
         buffer_resource->SetCurrentState(initial_state);
 
@@ -473,7 +490,7 @@ namespace won::rendering
                 void* mapped_data = buffer_resource->GetMappedData();
                 if (mapped_data)
                 {
-                    const Size copy_size = initial_size < desc.size ? initial_size : desc.size;
+                    const Size copy_size = initial_size < buffer_size ? initial_size : buffer_size;
                     std::memcpy(mapped_data, initial_data, copy_size);
                 }
                 else
@@ -486,7 +503,7 @@ namespace won::rendering
                 D3D12MA::ALLOCATION_DESC upload_allocation_desc = {};
                 upload_allocation_desc.HeapType = D3D12_HEAP_TYPE_UPLOAD;
 
-                D3D12_RESOURCE_DESC upload_resource_desc = CD3DX12_RESOURCE_DESC::Buffer(static_cast<UINT64>(desc.size), D3D12_RESOURCE_FLAG_NONE);
+                D3D12_RESOURCE_DESC upload_resource_desc = CD3DX12_RESOURCE_DESC::Buffer(static_cast<UINT64>(buffer_size), D3D12_RESOURCE_FLAG_NONE);
 
                 ComPtr<ID3D12Resource> upload_native_resource;
                 D3D12MA::Allocation* upload_allocation = nullptr;
@@ -498,7 +515,7 @@ namespace won::rendering
                 }
 
                 RHIBufferDesc upload_buffer_desc = {};
-                upload_buffer_desc.size = desc.size;
+                upload_buffer_desc.size = buffer_size;
                 upload_buffer_desc.usage = RHIResourceUsage::Upload;
                 upload_buffer_desc.bind_flags = RHIBindFlags::CopySource;
                 RHIResourceDesc upload_resource_info = {};
@@ -517,7 +534,7 @@ namespace won::rendering
                     return nullptr;
                 }
 
-                const Size copy_size = initial_size < desc.size ? initial_size : desc.size;
+                const Size copy_size = initial_size < buffer_size ? initial_size : buffer_size;
                 std::memcpy(mapped_data, initial_data, copy_size);
 
                 std::shared_ptr<RHIContext> upload_context = GetContext(RHIQueueType::Copy);
@@ -550,8 +567,24 @@ namespace won::rendering
                 upload_command_list->TransitionResource(*buffer_resource, RHIResourceState::Undefined);
                 upload_command_list->End();
 
-                upload_context->Submit(*upload_command_list);
-                upload_context->WaitIdle();
+                auto upload_fence = CreateFence(0);
+                if (upload_fence)
+                {
+                    const uint64 upload_fence_value = upload_context->Submit(*upload_command_list, upload_fence.get());
+                    if (upload_fence_value > 0)
+                    {
+                        upload_fence->Wait(upload_fence_value);
+                    }
+                    else
+                    {
+                        upload_context->WaitIdle();
+                    }
+                }
+                else
+                {
+                    upload_context->Submit(*upload_command_list);
+                    upload_context->WaitIdle();
+                }
             }
         }
 
