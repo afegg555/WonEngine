@@ -25,7 +25,7 @@ namespace won::rendering
         explicit RHIDeviceDX12(const RHIDeviceDesc& desc);
         ~RHIDeviceDX12() override;
 
-        void BeginFrame(uint32 frame_index) override;
+        void BeginFrame(uint32 frame_slot) override;
         uint32 GetFeatureFlags() const override;
         bool HasFeature(RHIDeviceFeature feature) const override;
 
@@ -39,6 +39,7 @@ namespace won::rendering
         std::shared_ptr<RHIResource> CreateTexture(const RHITextureDesc& desc,
             const void* initial_data = nullptr, Size initial_size = 0) override;
 
+        // create persistent subresource
         bool CreateSubresource(RHIResource& resource,
             const RHISubresourceDesc& desc,
             RHISubresourceHandle* out_handle) override;

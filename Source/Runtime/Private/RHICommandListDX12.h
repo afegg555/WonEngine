@@ -42,18 +42,17 @@ namespace won::rendering
         void SetVertexBuffer(RHIResource& resource, Size stride, Size offset = 0, Size size = 0) override;
         void SetIndexBuffer(RHIResource& resource, Size stride, Size offset = 0, Size size = 0) override;
         void SetPrimitiveTopology(RHIPrimitiveTopology topology) override;
-
+        
+        //// slot based binding functions
         void SetConstantBuffer(RHIShaderStage stage, uint32 slot,
             const RHISubresourceBinding& view) override;
-
         void SetShaderResource(RHIShaderStage stage, uint32 slot,
             const RHISubresourceBinding& view) override;
-
         void SetUnorderedAccess(RHIShaderStage stage, uint32 slot,
             const RHISubresourceBinding& view) override;
-
         void SetSampler(RHIShaderStage stage, uint32 slot,
             const RHISampler& sampler) override;
+        ////////
 
         void PushConstants(RHIShaderStage stage, const void* data,
             Size size, uint32 offset) override;

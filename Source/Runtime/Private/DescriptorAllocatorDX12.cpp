@@ -4,16 +4,18 @@
 #include "RHIFormatDX12.h"
 #include "RHIResourceDX12.h"
 
+#include <algorithm>
+
 namespace won::rendering
 {
     namespace
     {
-        constexpr uint32 kRtvMasterDescriptorCount = 4096;
-        constexpr uint32 kDsvMasterDescriptorCount = 2048;
-        constexpr uint32 kCbvSrvUavMasterDescriptorCount = 1000000;
-        constexpr uint32 kSamplerMasterDescriptorCount = 2048;
-        constexpr uint32 kCbvSrvUavFrameDescriptorCount = 8192;
-        constexpr uint32 kSamplerFrameDescriptorCount = 1024;
+        constexpr uint32 kRtvCpuStagingDescriptorCount = 4096;
+        constexpr uint32 kDsvCpuStagingDescriptorCount = 2048;
+        constexpr uint32 kCbvSrvUavCpuStagingDescriptorCount = 1000000;
+        constexpr uint32 kSamplerCpuStagingDescriptorCount = 2048;
+        constexpr uint32 kCbvSrvUavGpuDescriptorCount = 1000000;
+        constexpr uint32 kSamplerGpuDescriptorCount = 2048;
 
         UINT AlignConstantBufferSize(UINT size)
         {
@@ -30,34 +32,35 @@ namespace won::rendering
             return;
         }
 
-        rtv_master_heap.heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-        dsv_master_heap.heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
-        cbv_srv_uav_master_heap.heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-        sampler_master_heap.heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
-        cbv_srv_uav_frame_heap.heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-        sampler_frame_heap.heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
+        rtv_cpu_staging_heap.heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+        dsv_cpu_staging_heap.heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+        cbv_srv_uav_cpu_staging_heap.heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+        sampler_cpu_staging_heap.heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
 
-        if (!CreateDescriptorHeap(rtv_master_heap, kRtvMasterDescriptorCount, false))
+        cbv_srv_uav_gpu_heap.gpu_heap.heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+        sampler_gpu_heap.gpu_heap.heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
+
+        if (!CreateDescriptorHeap(rtv_cpu_staging_heap, kRtvCpuStagingDescriptorCount, false))
         {
             return;
         }
-        if (!CreateDescriptorHeap(dsv_master_heap, kDsvMasterDescriptorCount, false))
+        if (!CreateDescriptorHeap(dsv_cpu_staging_heap, kDsvCpuStagingDescriptorCount, false))
         {
             return;
         }
-        if (!CreateDescriptorHeap(cbv_srv_uav_master_heap, kCbvSrvUavMasterDescriptorCount, false))
+        if (!CreateDescriptorHeap(cbv_srv_uav_cpu_staging_heap, kCbvSrvUavCpuStagingDescriptorCount, false))
         {
             return;
         }
-        if (!CreateDescriptorHeap(sampler_master_heap, kSamplerMasterDescriptorCount, false))
+        if (!CreateDescriptorHeap(sampler_cpu_staging_heap, kSamplerCpuStagingDescriptorCount, false))
         {
             return;
         }
-        if (!CreateDescriptorHeap(cbv_srv_uav_frame_heap, kCbvSrvUavFrameDescriptorCount, true))
+        if (!CreateDescriptorHeap(cbv_srv_uav_gpu_heap.gpu_heap, kCbvSrvUavGpuDescriptorCount, true))
         {
             return;
         }
-        if (!CreateDescriptorHeap(sampler_frame_heap, kSamplerFrameDescriptorCount, true))
+        if (!CreateDescriptorHeap(sampler_gpu_heap.gpu_heap, kSamplerGpuDescriptorCount, true))
         {
             return;
         }
@@ -66,19 +69,17 @@ namespace won::rendering
     bool DescriptorAllocatorDX12::IsValid() const
     {
         return device &&
-            rtv_master_heap.heap &&
-            dsv_master_heap.heap &&
-            cbv_srv_uav_master_heap.heap &&
-            sampler_master_heap.heap &&
-            cbv_srv_uav_frame_heap.heap &&
-            sampler_frame_heap.heap;
+            rtv_cpu_staging_heap.heap &&
+            dsv_cpu_staging_heap.heap &&
+            cbv_srv_uav_cpu_staging_heap.heap &&
+            sampler_cpu_staging_heap.heap &&
+            cbv_srv_uav_gpu_heap.gpu_heap.heap &&
+            sampler_gpu_heap.gpu_heap.heap;
     }
 
-    void DescriptorAllocatorDX12::BeginFrame(uint32 frame_index)
+    void DescriptorAllocatorDX12::BeginFrame(uint32 frame_slot)
     {
-        current_frame_index = frame_index;
-        frame_cbv_srv_uav_count = 0;
-        frame_sampler_count = 0;
+        current_frame_slot = frame_slot;
     }
 
     bool DescriptorAllocatorDX12::CreateSubresourceDescriptor(RHIResourceDX12& resource,
@@ -95,15 +96,15 @@ namespace won::rendering
         switch (desc.type)
         {
         case RHISubresourceType::RenderTarget:
-            target_heap = &rtv_master_heap;
+            target_heap = &rtv_cpu_staging_heap;
             break;
         case RHISubresourceType::DepthStencil:
-            target_heap = &dsv_master_heap;
+            target_heap = &dsv_cpu_staging_heap;
             break;
         case RHISubresourceType::ConstantBuffer:
         case RHISubresourceType::ShaderResource:
         case RHISubresourceType::UnorderedAccess:
-            target_heap = &cbv_srv_uav_master_heap;
+            target_heap = &cbv_srv_uav_cpu_staging_heap;
             break;
         default:
             backlog::Post("Unsupported subresource type", backlog::LogLevel::Error);
@@ -117,24 +118,30 @@ namespace won::rendering
             return false;
         }
 
-        const D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = GetCpuHandle(*target_heap, descriptor_index);
+        D3D12_CPU_DESCRIPTOR_HANDLE cpu_staging_handle{};
+        if (!GetCpuDescriptorHandle(target_heap->heap_type, false, descriptor_index, cpu_staging_handle))
+        {
+            FreeToHeap(*target_heap, descriptor_index);
+            return false;
+        }
+
         bool created = false;
         switch (desc.type)
         {
         case RHISubresourceType::RenderTarget:
-            created = CreateRenderTargetView(resource, desc, cpu_handle);
+            created = CreateRenderTargetView(resource, desc, cpu_staging_handle);
             break;
         case RHISubresourceType::DepthStencil:
-            created = CreateDepthStencilView(resource, desc, cpu_handle);
+            created = CreateDepthStencilView(resource, desc, cpu_staging_handle);
             break;
         case RHISubresourceType::ShaderResource:
-            created = CreateShaderResourceView(resource, desc, cpu_handle);
+            created = CreateShaderResourceView(resource, desc, cpu_staging_handle);
             break;
         case RHISubresourceType::UnorderedAccess:
-            created = CreateUnorderedAccessView(resource, desc, cpu_handle);
+            created = CreateUnorderedAccessView(resource, desc, cpu_staging_handle);
             break;
         case RHISubresourceType::ConstantBuffer:
-            created = CreateConstantBufferView(resource, desc, cpu_handle);
+            created = CreateConstantBufferView(resource, desc, cpu_staging_handle);
             break;
         default:
             created = false;
@@ -147,104 +154,110 @@ namespace won::rendering
             return false;
         }
 
+        if (target_heap->heap_type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV)
+        {
+            if (static_cast<uint32>(descriptor_index) >= cbv_srv_uav_gpu_heap.gpu_heap.capacity)
+            {
+                backlog::Post("CBV_SRV_UAV descriptor index exceeds gpu heap capacity", backlog::LogLevel::Error);
+                FreeToHeap(*target_heap, descriptor_index);
+                return false;
+            }
+
+            D3D12_CPU_DESCRIPTOR_HANDLE gpu_visible_handle = {};
+            if (!GetCpuDescriptorHandle(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true, descriptor_index, gpu_visible_handle))
+            {
+                FreeToHeap(*target_heap, descriptor_index);
+                return false;
+            }
+
+            device->CopyDescriptorsSimple(1, gpu_visible_handle, cpu_staging_handle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        }
+
         out_heap_type = target_heap->heap_type;
         out_descriptor_index = descriptor_index;
         return true;
     }
 
     bool DescriptorAllocatorDX12::GetCpuDescriptorHandle(D3D12_DESCRIPTOR_HEAP_TYPE heap_type,
+        bool shader_visible,
         int descriptor_index,
         D3D12_CPU_DESCRIPTOR_HANDLE& out_handle) const
     {
-        const DescriptorHeap* des_heap = GetDescriptorHeap(heap_type);
-        if (!des_heap || !des_heap->heap || descriptor_index < 0 || static_cast<uint32>(descriptor_index) >= des_heap->allocated_count)
+        const DescriptorHeap* des_heap = GetDescriptorHeap(heap_type, shader_visible);
+        if (!des_heap || !des_heap->heap || descriptor_index < 0)
         {
             return false;
         }
 
-        out_handle = GetCpuHandle(*des_heap, descriptor_index);
+        out_handle = des_heap->heap->GetCPUDescriptorHandleForHeapStart();
+        out_handle.ptr += static_cast<Size>(des_heap->descriptor_size) * static_cast<Size>(descriptor_index);
         return true;
+    }
+
+    bool DescriptorAllocatorDX12::GetGpuDescriptorHandle(D3D12_DESCRIPTOR_HEAP_TYPE heap_type, int descriptor_index, D3D12_GPU_DESCRIPTOR_HANDLE& out_handle) const
+    {
+        const DescriptorHeap* des_heap = GetDescriptorHeap(heap_type, true);
+        if (!des_heap || !des_heap->heap || descriptor_index < 0)
+        {
+            return false;
+        }
+
+        out_handle = des_heap->heap->GetGPUDescriptorHandleForHeapStart();
+        out_handle.ptr += static_cast<Size>(des_heap->descriptor_size) * static_cast<Size>(descriptor_index);
+        return true;
+    }
+
+    bool DescriptorAllocatorDX12::GetGPUVisibleHeap(D3D12_DESCRIPTOR_HEAP_TYPE heap_type, ID3D12DescriptorHeap** out_heap) const
+    {
+        if (!out_heap)
+            return false;
+
+        *out_heap = nullptr;
+        switch (heap_type)
+        {
+        case D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV:
+            *out_heap = cbv_srv_uav_gpu_heap.gpu_heap.heap.Get();
+            break;
+        case D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER:
+            *out_heap = sampler_gpu_heap.gpu_heap.heap.Get();
+            break;
+        default:
+            break;
+        }
+
+        return *out_heap != nullptr;
     }
 
     void DescriptorAllocatorDX12::ReleaseDescriptor(D3D12_DESCRIPTOR_HEAP_TYPE heap_type, int descriptor_index)
     {
-        DescriptorHeap* des_heap = GetDescriptorHeap(heap_type);
-        if (!des_heap || !des_heap->heap || descriptor_index < 0 || static_cast<uint32>(descriptor_index) >= des_heap->allocated_count)
-        {
-            return;
-        }
+        DescriptorHeap* cpu_heap = GetDescriptorHeap(heap_type, false);
 
-        FreeToHeap(*des_heap, descriptor_index);
+        if (cpu_heap && cpu_heap->heap && descriptor_index >= 0 && static_cast<uint32>(descriptor_index) < cpu_heap->allocated_count)
+        {
+            FreeToHeap(*cpu_heap, descriptor_index);
+        }
     }
 
-    bool DescriptorAllocatorDX12::CopyToFrameHeap(D3D12_DESCRIPTOR_HEAP_TYPE heap_type,
-        D3D12_CPU_DESCRIPTOR_HANDLE source_handle,
-        int& out_bindless_index,
-        D3D12_GPU_DESCRIPTOR_HANDLE& out_gpu_handle)
-    {
-        DescriptorHeap* frame_heap = nullptr;
-        uint32* frame_count = nullptr;
-        if (heap_type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV)
-        {
-            frame_heap = &cbv_srv_uav_frame_heap;
-            frame_count = &frame_cbv_srv_uav_count;
-        }
-        else if (heap_type == D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER)
-        {
-            frame_heap = &sampler_frame_heap;
-            frame_count = &frame_sampler_count;
-        }
-        else
-        {
-            return false;
-        }
-
-        if (!frame_heap || !frame_count || *frame_count >= frame_heap->capacity)
-        {
-            backlog::Post("Frame descriptor heap is full", backlog::LogLevel::Error);
-            return false;
-        }
-
-        const int frame_descriptor_index = static_cast<int>(*frame_count);
-        const D3D12_CPU_DESCRIPTOR_HANDLE destination_handle = GetCpuHandle(*frame_heap, frame_descriptor_index);
-        device->CopyDescriptorsSimple(1, destination_handle, source_handle, heap_type);
-
-        out_bindless_index = frame_descriptor_index;
-        out_gpu_handle = GetGpuHandle(*frame_heap, frame_descriptor_index);
-        ++(*frame_count);
-        return true;
-    }
-
-    ID3D12DescriptorHeap* DescriptorAllocatorDX12::GetFrameCbvSrvUavHeap() const
-    {
-        return cbv_srv_uav_frame_heap.heap.Get();
-    }
-
-    ID3D12DescriptorHeap* DescriptorAllocatorDX12::GetFrameSamplerHeap() const
-    {
-        return sampler_frame_heap.heap.Get();
-    }
-
-    DescriptorAllocatorDX12::DescriptorHeap* DescriptorAllocatorDX12::GetDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE heap_type)
+    DescriptorAllocatorDX12::DescriptorHeap* DescriptorAllocatorDX12::GetDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE heap_type, bool shader_visible)
     {
         switch (heap_type)
         {
-        case D3D12_DESCRIPTOR_HEAP_TYPE_RTV: return &rtv_master_heap;
-        case D3D12_DESCRIPTOR_HEAP_TYPE_DSV: return &dsv_master_heap;
-        case D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV: return &cbv_srv_uav_master_heap;
-        case D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER: return &sampler_master_heap;
+        case D3D12_DESCRIPTOR_HEAP_TYPE_RTV: return shader_visible ? nullptr : &rtv_cpu_staging_heap;
+        case D3D12_DESCRIPTOR_HEAP_TYPE_DSV: return shader_visible ? nullptr : &dsv_cpu_staging_heap;
+        case D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV: return shader_visible ? &cbv_srv_uav_gpu_heap.gpu_heap : &cbv_srv_uav_cpu_staging_heap;
+        case D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER: return shader_visible ? &sampler_gpu_heap.gpu_heap : &sampler_cpu_staging_heap;
         default: return nullptr;
         }
     }
 
-    const DescriptorAllocatorDX12::DescriptorHeap* DescriptorAllocatorDX12::GetDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE heap_type) const
+    const DescriptorAllocatorDX12::DescriptorHeap* DescriptorAllocatorDX12::GetDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE heap_type, bool shader_visible) const
     {
         switch (heap_type)
         {
-        case D3D12_DESCRIPTOR_HEAP_TYPE_RTV: return &rtv_master_heap;
-        case D3D12_DESCRIPTOR_HEAP_TYPE_DSV: return &dsv_master_heap;
-        case D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV: return &cbv_srv_uav_master_heap;
-        case D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER: return &sampler_master_heap;
+        case D3D12_DESCRIPTOR_HEAP_TYPE_RTV: return shader_visible ? nullptr : &rtv_cpu_staging_heap;
+        case D3D12_DESCRIPTOR_HEAP_TYPE_DSV: return shader_visible ? nullptr : &dsv_cpu_staging_heap;
+        case D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV: return shader_visible ? &cbv_srv_uav_gpu_heap.gpu_heap : &cbv_srv_uav_cpu_staging_heap;
+        case D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER: return shader_visible ? &sampler_gpu_heap.gpu_heap : &sampler_cpu_staging_heap;
         default: return nullptr;
         }
     }
@@ -268,22 +281,19 @@ namespace won::rendering
 
         heap.descriptor_size = device->GetDescriptorHandleIncrementSize(heap.heap_type);
         heap.capacity = capacity;
-        heap.allocated_count = 0;
         heap.free_list.clear();
         return true;
     }
 
     bool DescriptorAllocatorDX12::AllocateFromHeap(DescriptorHeap& heap, int& out_descriptor_index)
     {
-        if (!heap.heap)
-        {
-            return false;
-        }
+        std::lock_guard<std::mutex> lock(heap.mutex);
 
         if (!heap.free_list.empty())
         {
             out_descriptor_index = heap.free_list.back();
             heap.free_list.pop_back();
+
             return true;
         }
 
@@ -299,38 +309,14 @@ namespace won::rendering
 
     void DescriptorAllocatorDX12::FreeToHeap(DescriptorHeap& heap, int descriptor_index)
     {
+        std::lock_guard<std::mutex> lock(heap.mutex);
+
         if (descriptor_index < 0 || static_cast<uint32>(descriptor_index) >= heap.allocated_count)
         {
             return;
         }
 
         heap.free_list.push_back(descriptor_index);
-    }
-
-    D3D12_CPU_DESCRIPTOR_HANDLE DescriptorAllocatorDX12::GetCpuHandle(const DescriptorHeap& heap, int descriptor_index) const
-    {
-        D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
-        if (!heap.heap)
-        {
-            return cpu_handle;
-        }
-
-        cpu_handle = heap.heap->GetCPUDescriptorHandleForHeapStart();
-        cpu_handle.ptr += static_cast<Size>(heap.descriptor_size) * static_cast<Size>(descriptor_index);
-        return cpu_handle;
-    }
-
-    D3D12_GPU_DESCRIPTOR_HANDLE DescriptorAllocatorDX12::GetGpuHandle(const DescriptorHeap& heap, int descriptor_index) const
-    {
-        D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = {};
-        if (!heap.heap)
-        {
-            return gpu_handle;
-        }
-
-        gpu_handle = heap.heap->GetGPUDescriptorHandleForHeapStart();
-        gpu_handle.ptr += static_cast<uint64>(heap.descriptor_size) * static_cast<uint64>(descriptor_index);
-        return gpu_handle;
     }
 
     bool DescriptorAllocatorDX12::CreateRenderTargetView(RHIResourceDX12& resource,

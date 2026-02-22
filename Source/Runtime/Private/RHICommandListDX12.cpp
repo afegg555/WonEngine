@@ -109,15 +109,15 @@ namespace won::rendering
         {
             ID3D12DescriptorHeap* heaps[2] = {};
             uint32 heap_count = 0;
-            ID3D12DescriptorHeap* frame_resource_heap = descriptor_allocator->GetFrameCbvSrvUavHeap();
-            if (frame_resource_heap)
+            ID3D12DescriptorHeap* frame_resource_heap{};
+            if(descriptor_allocator->GetGPUVisibleHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, &frame_resource_heap))
             {
                 heaps[heap_count] = frame_resource_heap;
                 ++heap_count;
             }
 
-            ID3D12DescriptorHeap* frame_sampler_heap = descriptor_allocator->GetFrameSamplerHeap();
-            if (frame_sampler_heap)
+            ID3D12DescriptorHeap* frame_sampler_heap{};
+            if (descriptor_allocator->GetGPUVisibleHeap(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, &frame_sampler_heap))
             {
                 heaps[heap_count] = frame_sampler_heap;
                 ++heap_count;
@@ -156,8 +156,8 @@ namespace won::rendering
         // root params 3..9 = bindless SRV descriptor tables for spaces 200..206
         if (descriptor_allocator)
         {
-            ID3D12DescriptorHeap* frame_resource_heap = descriptor_allocator->GetFrameCbvSrvUavHeap();
-            if (frame_resource_heap)
+            ID3D12DescriptorHeap* frame_resource_heap{};
+            if (descriptor_allocator->GetGPUVisibleHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, &frame_resource_heap))
             {
                 const D3D12_GPU_DESCRIPTOR_HANDLE bindless_heap_start = frame_resource_heap->GetGPUDescriptorHandleForHeapStart();
                 for (uint32 root_slot = 3; root_slot <= 9; ++root_slot)
@@ -238,7 +238,7 @@ namespace won::rendering
             }
 
             D3D12_CPU_DESCRIPTOR_HANDLE rtv_handle = {};
-            if (!descriptor_allocator->GetCpuDescriptorHandle(heap_type, descriptor_index, rtv_handle))
+            if (!descriptor_allocator->GetCpuDescriptorHandle(heap_type, false, descriptor_index, rtv_handle))
             {
                 continue;
             }
@@ -259,7 +259,7 @@ namespace won::rendering
                         depth_heap_type,
                         depth_descriptor_index))
                 {
-                    if (descriptor_allocator->GetCpuDescriptorHandle(depth_heap_type, depth_descriptor_index, dsv_handle))
+                    if (descriptor_allocator->GetCpuDescriptorHandle(depth_heap_type, false, depth_descriptor_index, dsv_handle))
                     {
                         dsv_handle_ptr = &dsv_handle;
                     }
@@ -302,7 +302,7 @@ namespace won::rendering
         }
 
         D3D12_CPU_DESCRIPTOR_HANDLE rtv_handle = {};
-        if (!descriptor_allocator->GetCpuDescriptorHandle(heap_type, descriptor_index, rtv_handle))
+        if (!descriptor_allocator->GetCpuDescriptorHandle(heap_type, false, descriptor_index, rtv_handle))
         {
             return;
         }
@@ -335,7 +335,7 @@ namespace won::rendering
         }
 
         D3D12_CPU_DESCRIPTOR_HANDLE dsv_handle = {};
-        if (!descriptor_allocator->GetCpuDescriptorHandle(heap_type, descriptor_index, dsv_handle))
+        if (!descriptor_allocator->GetCpuDescriptorHandle(heap_type, false, descriptor_index, dsv_handle))
         {
             return;
         }
@@ -462,50 +462,48 @@ namespace won::rendering
     void RHICommandListDX12::SetConstantBuffer(RHIShaderStage stage, uint32 slot,
         const RHISubresourceBinding& view)
     {
-        if (!command_list || !descriptor_allocator || !view.resource)
+        if (!command_list || !view.resource)
         {
             return;
         }
 
         auto* resource_dx12 = dynamic_cast<RHIResourceDX12*>(view.resource);
-        if (!resource_dx12)
+        if (!resource_dx12 || !resource_dx12->GetResource())
         {
             return;
         }
 
-        D3D12_DESCRIPTOR_HEAP_TYPE heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES;
-        uint32 descriptor_index;
-        if (!resource_dx12->GetSubresourceDescriptor(view.subresource, heap_type, descriptor_index))
+        if (resource_dx12->GetDesc().type != RHIResourceType::Buffer)
         {
             return;
         }
 
-        if (heap_type != D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV)
+        if (!view.subresource.IsValid() || view.subresource.index >= static_cast<uint32>(resource_dx12->subresources.size()))
         {
             return;
         }
 
-        D3D12_CPU_DESCRIPTOR_HANDLE source_handle = {};
-        if (!descriptor_allocator->GetCpuDescriptorHandle(heap_type, descriptor_index, source_handle))
+        const RHIResourceDX12::SubresourceEntry& subresource_entry = resource_dx12->subresources[view.subresource.index];
+        if (!subresource_entry.valid || subresource_entry.desc.type != RHISubresourceType::ConstantBuffer)
         {
             return;
         }
 
-        uint32 frame_bindless_index = 0;
-        D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = {};
-        if (!descriptor_allocator->CopyToFrameHeap(heap_type, source_handle, frame_bindless_index, gpu_handle))
+        const D3D12_GPU_VIRTUAL_ADDRESS base_gpu_address = resource_dx12->GetResource()->GetGPUVirtualAddress();
+        const D3D12_GPU_VIRTUAL_ADDRESS gpu_virtual_address = base_gpu_address + static_cast<D3D12_GPU_VIRTUAL_ADDRESS>(subresource_entry.desc.buffer_offset);
+        if ((gpu_virtual_address & 0xFFull) != 0)
         {
+            backlog::Post("Constant buffer GPU address must be 256-byte aligned", backlog::LogLevel::Error);
             return;
         }
 
-        (void)frame_bindless_index;
         if (stage == RHIShaderStage::Compute)
         {
-            command_list->SetComputeRootDescriptorTable(slot, gpu_handle);
+            command_list->SetComputeRootConstantBufferView(slot, gpu_virtual_address);
         }
         else
         {
-            command_list->SetGraphicsRootDescriptorTable(slot, gpu_handle);
+            command_list->SetGraphicsRootConstantBufferView(slot, gpu_virtual_address);
         }
 
         return;
@@ -537,20 +535,12 @@ namespace won::rendering
             return;
         }
 
-        D3D12_CPU_DESCRIPTOR_HANDLE source_handle = {};
-        if (!descriptor_allocator->GetCpuDescriptorHandle(heap_type, descriptor_index, source_handle))
-        {
-            return;
-        }
-
-        int frame_bindless_index = -1;
         D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = {};
-        if (!descriptor_allocator->CopyToFrameHeap(heap_type, source_handle, frame_bindless_index, gpu_handle))
+        if (!descriptor_allocator->GetGpuDescriptorHandle(heap_type, descriptor_index, gpu_handle))
         {
             return;
         }
 
-        (void)frame_bindless_index;
         if (stage == RHIShaderStage::Compute)
         {
             command_list->SetComputeRootDescriptorTable(slot, gpu_handle);
