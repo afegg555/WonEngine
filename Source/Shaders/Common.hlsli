@@ -21,7 +21,7 @@ inline int DescriptorIndex(in int descriptor_index)
     "DescriptorTable(SRV(t0, space = 205, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)), " \
     "DescriptorTable(SRV(t0, space = 206, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE))"
 
-StructuredBuffer<ShaderObject> bindless_structured_object[] : register(t0, space200);
+StructuredBuffer<ShaderInstance> bindless_structured_instance[] : register(t0, space200);
 StructuredBuffer<ShaderGeometry> bindless_structured_geometry[] : register(t0, space201);
 StructuredBuffer<ShaderMaterial> bindless_structured_material[] : register(t0, space202);
 StructuredBuffer<float3> bindless_structured_position[] : register(t0, space203);
@@ -44,9 +44,9 @@ inline ShaderCamera GetCamera()
     return g_camera;
 }
 
-inline ShaderObject GetInstance(uint instance_index)
+inline ShaderInstance GetInstance(uint instance_index)
 {
-    return bindless_structured_object[DescriptorIndex(GetScene().instancebuffer)][instance_index];
+    return bindless_structured_instance[DescriptorIndex(GetScene().instancebuffer)][instance_index];
 }
 
 inline ShaderGeometry GetGeometry(uint geometry_index)
