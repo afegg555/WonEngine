@@ -208,11 +208,6 @@ namespace won::rendering
     void RHICommandListDX12::SetRenderTargets(const Vector<RHISubresourceBinding>& render_targets,
         const RHISubresourceBinding* depth_target)
     {
-        if (!command_list || !descriptor_allocator)
-        {
-            return;
-        }
-
         Vector<D3D12_CPU_DESCRIPTOR_HANDLE> rtv_handles;
         rtv_handles.reserve(render_targets.size());
         for (const auto& target : render_targets)
@@ -228,17 +223,10 @@ namespace won::rendering
                 continue;
             }
 
-            D3D12_DESCRIPTOR_HEAP_TYPE heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES;
-            int descriptor_index = -1;
-            if (!resource_dx12->GetSubresourceDescriptor(target.subresource,
-                    heap_type,
-                    descriptor_index))
-            {
-                continue;
-            }
+            D3D12_DESCRIPTOR_HEAP_TYPE heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 
             D3D12_CPU_DESCRIPTOR_HANDLE rtv_handle = {};
-            if (!descriptor_allocator->GetCpuDescriptorHandle(heap_type, false, descriptor_index, rtv_handle))
+            if (!descriptor_allocator->GetCpuDescriptorHandle(heap_type, false, target.subresource.descriptor_index, rtv_handle))
             {
                 continue;
             }
@@ -253,16 +241,11 @@ namespace won::rendering
             auto* depth_resource_dx12 = dynamic_cast<RHIResourceDX12*>(depth_target->resource);
             if (depth_resource_dx12)
             {
-                D3D12_DESCRIPTOR_HEAP_TYPE depth_heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES;
-                int depth_descriptor_index = -1;
-                if (depth_resource_dx12->GetSubresourceDescriptor(depth_target->subresource,
-                        depth_heap_type,
-                        depth_descriptor_index))
+                D3D12_DESCRIPTOR_HEAP_TYPE depth_heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+
+                if (descriptor_allocator->GetCpuDescriptorHandle(depth_heap_type, false, depth_target->subresource.descriptor_index, dsv_handle))
                 {
-                    if (descriptor_allocator->GetCpuDescriptorHandle(depth_heap_type, false, depth_descriptor_index, dsv_handle))
-                    {
-                        dsv_handle_ptr = &dsv_handle;
-                    }
+                    dsv_handle_ptr = &dsv_handle;
                 }
             }
         }
@@ -281,28 +264,15 @@ namespace won::rendering
     void RHICommandListDX12::ClearRenderTarget(const RHISubresourceBinding& target,
         const RHIClearColor& color)
     {
-        if (!command_list || !descriptor_allocator || !target.resource)
-        {
-            return;
-        }
-
         auto* resource_dx12 = dynamic_cast<RHIResourceDX12*>(target.resource);
         if (!resource_dx12)
         {
             return;
         }
 
-        D3D12_DESCRIPTOR_HEAP_TYPE heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES;
-        int descriptor_index = -1;
-        if (!resource_dx12->GetSubresourceDescriptor(target.subresource,
-                heap_type,
-                descriptor_index))
-        {
-            return;
-        }
-
+        D3D12_DESCRIPTOR_HEAP_TYPE heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
         D3D12_CPU_DESCRIPTOR_HANDLE rtv_handle = {};
-        if (!descriptor_allocator->GetCpuDescriptorHandle(heap_type, false, descriptor_index, rtv_handle))
+        if (!descriptor_allocator->GetCpuDescriptorHandle(heap_type, false, target.subresource.descriptor_index, rtv_handle))
         {
             return;
         }
@@ -314,28 +284,15 @@ namespace won::rendering
     void RHICommandListDX12::ClearDepthStencil(const RHISubresourceBinding& target,
         float depth, uint8 stencil)
     {
-        if (!command_list || !descriptor_allocator || !target.resource)
-        {
-            return;
-        }
-
         auto* resource_dx12 = dynamic_cast<RHIResourceDX12*>(target.resource);
         if (!resource_dx12)
         {
             return;
         }
 
-        D3D12_DESCRIPTOR_HEAP_TYPE heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES;
-        int descriptor_index = -1;
-        if (!resource_dx12->GetSubresourceDescriptor(target.subresource,
-                heap_type,
-                descriptor_index))
-        {
-            return;
-        }
-
+        D3D12_DESCRIPTOR_HEAP_TYPE heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
         D3D12_CPU_DESCRIPTOR_HANDLE dsv_handle = {};
-        if (!descriptor_allocator->GetCpuDescriptorHandle(heap_type, false, descriptor_index, dsv_handle))
+        if (descriptor_allocator->GetCpuDescriptorHandle(heap_type, false, target.subresource.descriptor_index, dsv_handle))
         {
             return;
         }
@@ -478,19 +435,19 @@ namespace won::rendering
             return;
         }
 
-        if (!view.subresource.IsValid() || view.subresource.index >= static_cast<uint32>(resource_dx12->subresources.size()))
+        if (!view.subresource.IsValid())
         {
             return;
         }
 
-        const RHIResourceDX12::SubresourceEntry& subresource_entry = resource_dx12->subresources[view.subresource.index];
-        if (!subresource_entry.valid || subresource_entry.desc.type != RHISubresourceType::ConstantBuffer)
+        const RHIResourceDX12::SubresourceEntry* subresource_entry = resource_dx12->FindSubresourceEntry(view.subresource);
+        if (!subresource_entry || !subresource_entry->valid || subresource_entry->desc.type != RHISubresourceType::ConstantBuffer)
         {
             return;
         }
 
         const D3D12_GPU_VIRTUAL_ADDRESS base_gpu_address = resource_dx12->GetResource()->GetGPUVirtualAddress();
-        const D3D12_GPU_VIRTUAL_ADDRESS gpu_virtual_address = base_gpu_address + static_cast<D3D12_GPU_VIRTUAL_ADDRESS>(subresource_entry.desc.buffer_offset);
+        const D3D12_GPU_VIRTUAL_ADDRESS gpu_virtual_address = base_gpu_address + static_cast<D3D12_GPU_VIRTUAL_ADDRESS>(subresource_entry->desc.buffer_offset);
         if ((gpu_virtual_address & 0xFFull) != 0)
         {
             backlog::Post("Constant buffer GPU address must be 256-byte aligned", backlog::LogLevel::Error);
@@ -523,20 +480,9 @@ namespace won::rendering
             return;
         }
 
-        D3D12_DESCRIPTOR_HEAP_TYPE heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES;
-        int descriptor_index = -1;
-        if (!resource_dx12->GetSubresourceDescriptor(view.subresource, heap_type, descriptor_index))
-        {
-            return;
-        }
-
-        if (heap_type != D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV)
-        {
-            return;
-        }
-
+        D3D12_DESCRIPTOR_HEAP_TYPE heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
         D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = {};
-        if (!descriptor_allocator->GetGpuDescriptorHandle(heap_type, descriptor_index, gpu_handle))
+        if (!descriptor_allocator->GetGpuDescriptorHandle(heap_type, view.subresource.descriptor_index, gpu_handle))
         {
             return;
         }

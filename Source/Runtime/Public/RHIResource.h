@@ -167,11 +167,11 @@ namespace won::rendering
 
     struct RHISubresourceHandle
     {
-        uint32 index = ~0u; // this is not descriptor index, this is index in subresources[]
+        int descriptor_index = -1;
 
         bool IsValid() const
         {
-            return index != ~0u;
+            return descriptor_index >= 0;
         }
     };
 

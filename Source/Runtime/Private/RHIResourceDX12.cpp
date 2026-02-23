@@ -3,6 +3,29 @@
 
 namespace won::rendering
 {
+    namespace
+    {
+        D3D12_DESCRIPTOR_HEAP_TYPE ConvertSubresourceToHeapType(RHISubresourceType subresource_type)
+        {
+            switch (subresource_type)
+            {
+            case won::rendering::RHISubresourceType::ConstantBuffer:
+            case won::rendering::RHISubresourceType::ShaderResource:
+            case won::rendering::RHISubresourceType::UnorderedAccess:
+                return D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+            case won::rendering::RHISubresourceType::RenderTarget:
+                return D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+            case won::rendering::RHISubresourceType::DepthStencil:
+                return D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+            case won::rendering::RHISubresourceType::Unknown:
+            case won::rendering::RHISubresourceType::VertexBuffer:
+            case won::rendering::RHISubresourceType::IndexBuffer:
+            default:
+                return D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES;
+            }
+        }
+    }
+
     RHIResourceDX12::RHIResourceDX12(const RHIResourceDesc& desc_in, ComPtr<ID3D12Resource> resource_in,
         D3D12MA::Allocation* allocation_in,
         std::shared_ptr<DescriptorAllocatorDX12> descriptor_allocator_in)
@@ -33,14 +56,14 @@ namespace won::rendering
 
     RHIResourceDX12::~RHIResourceDX12()
     {
-        std::shared_ptr<DescriptorAllocatorDX12> descriptor_allocator_shared = descriptor_allocator.lock();
-        if (descriptor_allocator_shared)
+        if (descriptor_allocator)
         {
             for (const auto& entry : subresources)
             {
-                if (entry.valid && entry.heap_type != D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES && entry.descriptor_index >= 0)
+                if (entry.valid&& entry.descriptor_index >= 0)
                 {
-                    descriptor_allocator_shared->ReleaseDescriptor(entry.heap_type, entry.descriptor_index);
+                    auto heap_type = ConvertSubresourceToHeapType(entry.desc.type);
+                    descriptor_allocator->ReleaseDescriptor(heap_type, entry.descriptor_index);
                 }
             }
         }
@@ -101,9 +124,8 @@ namespace won::rendering
             return false;
         }
 
-        for (uint32 i = 0; i < static_cast<uint32>(subresources.size()); ++i)
+        for (const auto& entry : subresources)
         {
-            const SubresourceEntry& entry = subresources[i];
             if (!entry.valid)
             {
                 continue;
@@ -111,7 +133,7 @@ namespace won::rendering
 
             if (IsSameSubresourceDesc(entry.desc, desc_in))
             {
-                out_handle->index = i;
+                out_handle->descriptor_index = entry.descriptor_index;
                 return true;
             }
         }
@@ -119,49 +141,26 @@ namespace won::rendering
         return false;
     }
 
-    bool RHIResourceDX12::AddSubresource(const RHISubresourceDesc& desc_in,
-        D3D12_DESCRIPTOR_HEAP_TYPE heap_type,
-        int descriptor_index,
-        RHISubresourceHandle* out_handle)
+    bool RHIResourceDX12::CreateSubresource(const RHISubresourceDesc& desc_in, RHISubresourceHandle* out_handle)
     {
         if (!out_handle)
+        {
+            return false;
+        }
+        D3D12_DESCRIPTOR_HEAP_TYPE out_heap_type{};
+        int descriptor_index = -1;
+        if (!descriptor_allocator->CreateSubresourceDescriptor(*this, desc_in, out_heap_type, descriptor_index))
         {
             return false;
         }
 
         SubresourceEntry entry = {};
         entry.desc = desc_in;
-        entry.heap_type = heap_type;
         entry.descriptor_index = descriptor_index;
         entry.valid = true;
 
         subresources.push_back(entry);
-        out_handle->index = static_cast<uint32>(subresources.size() - 1);
-        return true;
-    }
-
-    bool RHIResourceDX12::GetSubresourceDescriptor(const RHISubresourceHandle& handle,
-        D3D12_DESCRIPTOR_HEAP_TYPE& out_heap_type,
-        int& out_descriptor_index) const
-    {
-        if (!handle.IsValid() || handle.index >= static_cast<uint32>(subresources.size()))
-        {
-            return false;
-        }
-
-        const SubresourceEntry& entry = subresources[handle.index];
-        if (!entry.valid)
-        {
-            return false;
-        }
-
-        if (entry.heap_type == D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES || entry.descriptor_index < 0)
-        {
-            return false;
-        }
-
-        out_heap_type = entry.heap_type;
-        out_descriptor_index = entry.descriptor_index;
+        out_handle->descriptor_index = descriptor_index;
         return true;
     }
 
@@ -176,5 +175,20 @@ namespace won::rendering
             lhs.buffer_offset == rhs.buffer_offset &&
             lhs.buffer_size == rhs.buffer_size &&
             lhs.buffer_stride == rhs.buffer_stride;
+    }
+
+    const RHIResourceDX12::SubresourceEntry* RHIResourceDX12::FindSubresourceEntry(const RHISubresourceHandle& handle) const
+    {
+        for (const auto& entry : subresources)
+        {
+            if (!entry.valid || entry.descriptor_index != handle.descriptor_index)
+            {
+                continue;
+            }
+
+            return &entry;
+        }
+
+        return nullptr;
     }
 }

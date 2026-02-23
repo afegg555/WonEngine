@@ -674,11 +674,6 @@ namespace won::rendering
         const RHISubresourceDesc& desc,
         RHISubresourceHandle* out_handle)
     {
-        if (!descriptor_allocator || !out_handle)
-        {
-            return false;
-        }
-
         auto* resource_dx12 = dynamic_cast<RHIResourceDX12*>(&resource);
         if (!resource_dx12 || !resource_dx12->GetResource())
         {
@@ -690,19 +685,7 @@ namespace won::rendering
             return true;
         }
 
-        if (desc.type == RHISubresourceType::VertexBuffer || desc.type == RHISubresourceType::IndexBuffer)
-        {
-            return resource_dx12->AddSubresource(desc, D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES, -1, out_handle);
-        }
-
-        D3D12_DESCRIPTOR_HEAP_TYPE heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES;
-        int descriptor_index = -1;
-        if (!descriptor_allocator->CreateSubresourceDescriptor(*resource_dx12, desc, heap_type, descriptor_index))
-        {
-            return false;
-        }
-
-        return resource_dx12->AddSubresource(desc, heap_type, descriptor_index, out_handle);
+        return resource_dx12->CreateSubresource(desc, out_handle);
     }
 
     std::shared_ptr<RHIPipeline> RHIDeviceDX12::CreateGraphicsPipeline(
