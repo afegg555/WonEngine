@@ -8,6 +8,8 @@
 
 namespace won::jobsystem
 {
+    static constexpr uint32_t groupsize = 256u;
+
     WONENGINE_API void Initialize(uint32 max_thread_count = ~0u);
     WONENGINE_API void ShutDown();
 

@@ -117,7 +117,7 @@ struct ObjectPushConstants
     uint padding0;
 };
 
-struct alignas(16) ShaderObject
+struct alignas(16) ShaderInstance
 {
     float4x4 local_to_world;
 };
@@ -135,7 +135,7 @@ static_assert(sizeof(ShaderScene) == 16, "ShaderScene layout mismatch");
 static_assert(sizeof(ShaderFrame) == 16, "ShaderFrame layout mismatch");
 static_assert(sizeof(ShaderCamera) == 192, "ShaderCamera layout mismatch");
 static_assert(sizeof(ObjectPushConstants) == 16, "ObjectPushConstants layout mismatch");
-static_assert(sizeof(ShaderObject) == 64, "ShaderObject layout mismatch");
+static_assert(sizeof(ShaderInstance) == 64, "ShaderInstance layout mismatch");
 #endif // __cplusplus
 
 #endif // WON_SHADERINTEROP_RENDERER_H

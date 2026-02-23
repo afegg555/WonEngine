@@ -4,6 +4,8 @@
 #include "System.h"
 #include "SceneComponents.h"
 #include "TransformUpdateSystem.h"
+#include "RenderDataUpdateSystem.h"
+#include "ShaderInterop_Renderer.h"
 
 #include "Types.h"
 
@@ -25,6 +27,7 @@ namespace won::ecs
             component_manager.RegisterComponent<MaterialComponent>();
 
             AddSystem(std::make_shared<TransformUpdateSystem>());
+            AddSystem(std::make_shared<RenderDataUpdateSystem>());
         }
 
         Entity CreateEntity()
@@ -261,7 +264,34 @@ namespace won::ecs
             return entities;
         }
 
+        struct RenderData
+        {
+            struct Renderable
+            {
+                ObjectPushConstants push_constants;
+            };
+
+            Vector<ShaderInstance> shader_instance;
+            Vector<ShaderGeometry> shader_geometry;
+            Vector<ShaderMaterial> shader_material;
+            Vector<Renderable> renderables;
+
+            void Clear()
+            {
+                shader_instance.clear();
+                shader_geometry.clear();
+                shader_material.clear();
+            }
+        };
+
+        RenderData& GetRenderData()
+        {
+            return render_data;
+        }
+
     private:
+
+        RenderData render_data;
         ComponentManager component_manager;
         Vector<Entity> entities;
         Vector<std::shared_ptr<System>> systems;

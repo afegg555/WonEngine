@@ -12,7 +12,8 @@ namespace won::ecs
 
     enum class SceneComponentBit : uint32
     {
-        Transform = 0,
+        None = 0,
+        Transform,
         Hierarchy,
         Name,
         Geometry,
@@ -24,6 +25,7 @@ namespace won::ecs
         return static_cast<ComponentMask>(1ull << static_cast<uint32>(bit));
     }
 
+    inline constexpr ComponentMask none_component_mask = ComponentMaskFromBit(SceneComponentBit::None);
     inline constexpr ComponentMask transform_component_mask = ComponentMaskFromBit(SceneComponentBit::Transform);
     inline constexpr ComponentMask hierarchy_component_mask = ComponentMaskFromBit(SceneComponentBit::Hierarchy);
     inline constexpr ComponentMask name_component_mask = ComponentMaskFromBit(SceneComponentBit::Name);

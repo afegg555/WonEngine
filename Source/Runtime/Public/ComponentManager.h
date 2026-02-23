@@ -63,6 +63,11 @@ namespace won::ecs
             }
         }
 
+        Size GetSize() const
+        {
+            return data.size();
+        }
+
         Vector<T> data;
         UnorderedMap<Entity, Size> entity_to_index;
         UnorderedMap<Size, Entity> index_to_entity;
