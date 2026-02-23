@@ -14,6 +14,7 @@ namespace won::rendering
 
     private:
         std::shared_ptr<RHIDevice> device;
+        std::shared_ptr<RHIPipeline> test_pipeline;
         platform::Window* current_window = nullptr;
     };
 }
