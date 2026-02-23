@@ -13,6 +13,11 @@
 #include <memory>
 #include <utility>
 
+namespace won::rendering
+{
+    class RHIResource;
+}
+
 namespace won::ecs
 {
     class Scene
@@ -269,6 +274,10 @@ namespace won::ecs
             struct Renderable
             {
                 ObjectPushConstants push_constants;
+                std::shared_ptr<rendering::RHIResource> index_buffer;
+                Size index_buffer_offset = 0;
+                Size index_buffer_size = 0;
+                uint32 index_count = 0;
             };
 
             Vector<ShaderInstance> shader_instance;

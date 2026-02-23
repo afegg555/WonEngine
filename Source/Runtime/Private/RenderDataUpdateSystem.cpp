@@ -25,6 +25,7 @@ namespace won::ecs
             shader_geometry.normal_buffer_descriptor = geometry_comp.mesh->GetRenderData()->normals.handle.descriptor_index;
             shader_geometry.texcoord_buffer_descriptor = geometry_comp.mesh->GetRenderData()->texcoords.handle.descriptor_index;
             shader_geometry.index_buffer_descriptor = geometry_comp.mesh->GetRenderData()->indices.handle.descriptor_index;
+            shader_geometry.index_count = geometry_comp.mesh->indices.size();
             });
 
         const auto material_array = scene.GetComponentArray<MaterialComponent>().get();
@@ -54,13 +55,28 @@ namespace won::ecs
             if (geometry_array->HasData(entity) && material_array->HasData(entity))
             {
                 const GeometryComponent& geometry_comp = geometry_array->GetData(entity);
-                uint32 index = renderable_count.fetch_add(geometry_comp.mesh->submeshes.size());
+                const resource::Mesh::RenderData* mesh_render_data = geometry_comp.mesh->GetRenderData();
+                if (!mesh_render_data || !mesh_render_data->buffer)
+                {
+                    return;
+                }
+
+                const Size mesh_index_buffer_offset = geometry_comp.mesh->positions.size() * sizeof(float3) + geometry_comp.mesh->normals.size() * sizeof(float3) + geometry_comp.mesh->texcoords.size() * sizeof(float2);
+                const uint32 submesh_count = static_cast<uint32>(geometry_comp.mesh->submeshes.size());
+                uint32 index = renderable_count.fetch_add(submesh_count);
                 for (Size i = 0; i < geometry_comp.mesh->submeshes.size(); ++i)
                 {
-                    ObjectPushConstants& push_constants = renderdata.renderables[index + i].push_constants;
+                    const resource::Submesh& submesh = geometry_comp.mesh->submeshes[i];
+                    Scene::RenderData::Renderable& renderable = renderdata.renderables[index + i];
+                    ObjectPushConstants& push_constants = renderable.push_constants;
                     push_constants.geometry_index = geometry_array->entity_to_index[entity];
                     push_constants.material_index = material_array->entity_to_index[entity];
                     push_constants.instance_index = transform_array->entity_to_index[entity];
+
+                    renderable.index_buffer = mesh_render_data->buffer;
+                    renderable.index_buffer_offset = mesh_index_buffer_offset + static_cast<Size>(submesh.first_index) * sizeof(uint32);
+                    renderable.index_buffer_size = static_cast<Size>(submesh.index_count) * sizeof(uint32);
+                    renderable.index_count = submesh.index_count;
                 }
             }
 

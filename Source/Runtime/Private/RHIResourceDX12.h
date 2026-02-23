@@ -29,7 +29,7 @@ namespace won::rendering
         const String& GetName() const override;
 
         ID3D12Resource* GetResource() const;
-        void* GetMappedData() const;
+        void* GetMappedData() const override;
 
         void SetCurrentState(D3D12_RESOURCE_STATES new_state);
         D3D12_RESOURCE_STATES GetCurrentState() const;

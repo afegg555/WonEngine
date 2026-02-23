@@ -210,5 +210,6 @@ namespace won::rendering
         ~RHIResource() override = default;
 
         virtual const RHIResourceDesc& GetDesc() const = 0;
+        virtual void* GetMappedData() const = 0;
     };
 }

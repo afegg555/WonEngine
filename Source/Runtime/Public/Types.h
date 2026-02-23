@@ -9,6 +9,7 @@
 #include <map>
 #include <unordered_map>
 #include <memory>
+#include <array>
 
 #define arraysize(a) (sizeof(a) / sizeof(a[0]))
 
