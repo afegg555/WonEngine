@@ -29,7 +29,7 @@ namespace won::rendering
         }
 
         DXGI_SWAP_CHAIN_DESC1 swap_chain_desc = {};
-        swap_chain_desc.BufferCount = back_buffer_count;
+        swap_chain_desc.BufferCount = max_frames_in_flight;
         swap_chain_desc.Width = static_cast<UINT>(window.GetWidth());
         swap_chain_desc.Height = static_cast<UINT>(window.GetHeight());
         swap_chain_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -52,9 +52,14 @@ namespace won::rendering
             return;
         }
 
-        back_buffers.resize(back_buffer_count);
+        if (FAILED(dxgi_swapchain->SetMaximumFrameLatency(max_frames_in_flight)))
+        {
+            backlog::Post("Failed to set swapchain maximum frame latency", backlog::LogLevel::Warning);
+        }
 
-        for (uint32 i = 0; i < back_buffer_count; ++i)
+        back_buffers.resize(max_frames_in_flight);
+
+        for (uint32 i = 0; i < max_frames_in_flight; ++i)
         {
             ComPtr<ID3D12Resource> back_buffer;
             if (FAILED(dxgi_swapchain->GetBuffer(i, IID_PPV_ARGS(&back_buffer))))
@@ -79,26 +84,23 @@ namespace won::rendering
 
     uint32 RHISwapchainDX12::GetCurrentBackBufferIndex() const
     {
-        if (!dxgi_swapchain)
-        {
-            return 0;
-        }
         return dxgi_swapchain->GetCurrentBackBufferIndex();
     }
 
     uint32 RHISwapchainDX12::GetBackBufferCount() const
     {
-        return back_buffer_count;
+        return max_frames_in_flight;
     }
 
     std::shared_ptr<RHIResource> RHISwapchainDX12::GetCurrentBackBuffer()
     {
-        if (!dxgi_swapchain || back_buffers.empty())
-        {
-            return nullptr;
-        }
-
         const uint32 index = GetCurrentBackBufferIndex();
+
+        return GetBackBuffer(index);
+    }
+
+    std::shared_ptr<RHIResource> RHISwapchainDX12::GetBackBuffer(uint32 index)
+    {
         if (index >= back_buffers.size())
         {
             return nullptr;
