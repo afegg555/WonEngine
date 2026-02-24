@@ -53,7 +53,7 @@ namespace won::rendering
     struct RHIRasterDesc
     {
         RHIFillMode fill_mode = RHIFillMode::Solid;
-        RHICullMode cull_mode = RHICullMode::Back;
+        RHICullMode cull_mode = RHICullMode::None;
         bool front_ccw = false;
         bool depth_clip_enable = true;
     };

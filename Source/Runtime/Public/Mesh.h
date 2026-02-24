@@ -36,6 +36,8 @@ namespace won::resource
         struct VBSubresource
         {
             rendering::RHISubresourceHandle handle = {};
+            uint32 size = 0;
+            uint32 offset = 0;
 
             bool IsValid() const
             {

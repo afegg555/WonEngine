@@ -61,7 +61,6 @@ namespace won::ecs
                     return;
                 }
 
-                const Size mesh_index_buffer_offset = geometry_comp.mesh->positions.size() * sizeof(float3) + geometry_comp.mesh->normals.size() * sizeof(float3) + geometry_comp.mesh->texcoords.size() * sizeof(float2);
                 const uint32 submesh_count = static_cast<uint32>(geometry_comp.mesh->submeshes.size());
                 uint32 index = renderable_count.fetch_add(submesh_count);
                 for (Size i = 0; i < geometry_comp.mesh->submeshes.size(); ++i)
@@ -74,8 +73,8 @@ namespace won::ecs
                     push_constants.instance_index = transform_array->entity_to_index[entity];
 
                     renderable.index_buffer = mesh_render_data->buffer;
-                    renderable.index_buffer_offset = mesh_index_buffer_offset + static_cast<Size>(submesh.first_index) * sizeof(uint32);
-                    renderable.index_buffer_size = static_cast<Size>(submesh.index_count) * sizeof(uint32);
+                    renderable.index_buffer_offset = mesh_render_data->indices.offset + submesh.first_index * sizeof(uint32);
+                    renderable.index_buffer_size = submesh.index_count * sizeof(uint32);
                     renderable.index_count = submesh.index_count;
                 }
             }

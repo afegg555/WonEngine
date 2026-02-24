@@ -438,6 +438,20 @@ namespace won::rendering
         Vector<RHISubresourceBinding> color_targets = { back_buffer_binding };
         frame_context.command_list->TransitionResource(*back_buffer, RHIResourceState::RenderTarget);
         frame_context.command_list->SetRenderTargets(color_targets, nullptr);
+        RHIViewport viewport = {};
+        viewport.x = static_cast<float>(view.viewport.x);
+        viewport.y = static_cast<float>(view.viewport.y);
+        viewport.width = static_cast<float>(view.viewport.width);
+        viewport.height = static_cast<float>(view.viewport.height);
+        viewport.min_depth = 0.0f;
+        viewport.max_depth = 1.0f;
+        frame_context.command_list->SetViewport(viewport);
+        RHIRect scissor = {};
+        scissor.x = view.scissor.x;
+        scissor.y = view.scissor.y;
+        scissor.width = view.scissor.width;
+        scissor.height = view.scissor.height;
+        frame_context.command_list->SetScissor(scissor);
         frame_context.command_list->ClearRenderTarget(back_buffer_binding, { 0.f, 0.3f, 0.3f, 1.f });
         // test 
         if (test_pipeline)

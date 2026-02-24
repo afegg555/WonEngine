@@ -86,6 +86,9 @@ namespace won::resource
                 return true;
             }
 
+            out_subresource.offset = buffer_offset;
+            out_subresource.size = buffer_size;
+
             rendering::RHISubresourceDesc subresource_desc = {};
             subresource_desc.type = type;
             subresource_desc.buffer_offset = buffer_offset;
