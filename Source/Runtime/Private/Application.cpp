@@ -10,6 +10,8 @@ namespace won
 {
     void Application::Initialize(const ApplicationDesc& desc)
     {
+        jobsystem::Initialize(desc.jobsystem_thread_count);
+
         window = platform::CreateNativeWindow(desc.window);
         if (!window)
         {
@@ -32,8 +34,6 @@ namespace won
         main_view.viewport.height = 720;
         main_view.scissor.width = 1280;
         main_view.scissor.height = 720;
-
-        jobsystem::Initialize(desc.jobsystem_thread_count);
 
         is_running = true;
     }

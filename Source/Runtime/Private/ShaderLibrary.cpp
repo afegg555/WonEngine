@@ -1,5 +1,6 @@
 #include "ShaderLibrary.h"
 #include "Backlog.h"
+#include "JobSystem.h"
 
 using namespace won::rendering;
 
@@ -12,14 +13,13 @@ namespace won::resource
 
     bool ShaderLibrary::LoadAllShaders()
     {
-        if (!LoadShader(ShaderId::TestTriangleVS, RHIShaderStage::Vertex, "TestTriangleVS.hlsl"))
-        {
-            return false;
-        }
-        if (!LoadShader(ShaderId::TestRedPS, RHIShaderStage::Pixel, "TestRedPS.hlsl"))
-        {
-            return false;
-        }
+        jobsystem::Context ctx;
+
+        jobsystem::Execute(ctx, [this](jobsystem::JobArgs args) { LoadShader(ShaderId::TestTriangleVS, RHIShaderStage::Vertex, "TestTriangleVS.hlsl"); });
+        jobsystem::Execute(ctx, [this](jobsystem::JobArgs args) { LoadShader(ShaderId::TestRedPS, RHIShaderStage::Pixel, "TestRedPS.hlsl"); });
+
+        jobsystem::Wait(ctx);
+
         return true;
     }
 
@@ -51,15 +51,17 @@ namespace won::resource
         ShaderBytecode shader_bytecode = shader_compiler->Compile(desc);
         if (shader_bytecode.bytecode.empty())
         {
-            String log = "Shader compilation failed";
+            String log = "Shader compilation failed : ";
             if (!desc.source_path.empty())
             {
-                log += ": ";
                 log += desc.source_path;
             }
             backlog::Post(log, backlog::LogLevel::Error);
             return false;
         }
+        String log = "Shader compiled : ";
+        log += desc.source_path;
+        backlog::Post(log);
 
         auto shader = std::make_shared<RHIShader>(desc.stage, shader_bytecode.bytecode.data(), shader_bytecode.bytecode.size());
         shaders[ToIndex(shader_id)] = shader;
