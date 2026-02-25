@@ -3,6 +3,9 @@
 #include "Types.h"
 #include "RHIResource.h"
 
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include "DirectX-Headers/d3d12.h"
 
 #include <atomic>

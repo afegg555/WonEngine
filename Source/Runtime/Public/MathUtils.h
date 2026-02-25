@@ -34,7 +34,7 @@ namespace won::math
 	}
 
 	inline bool float_equal(float f1, float f2) {
-		return (std::abs(f1 - f2) <= std::numeric_limits<float>::epsilon() * std::max(std::abs(f1), std::abs(f2)));
+		return (std::abs(f1 - f2) <= std::numeric_limits<float>::epsilon() * (std::max)(std::abs(f1), std::abs(f2)));
 	}
 
 	constexpr float saturate(float x)
@@ -211,22 +211,22 @@ namespace won::math
 		return retVal;
 	}
 	constexpr float2 Max(const float2& a, const float2& b) {
-		return float2(std::max(a.x, b.x), std::max(a.y, b.y));
+		return float2((std::max)(a.x, b.x), (std::max)(a.y, b.y));
 	}
 	constexpr float3 Max(const float3& a, const float3& b) {
-		return float3(std::max(a.x, b.x), std::max(a.y, b.y), std::max(a.z, b.z));
+		return float3((std::max)(a.x, b.x), (std::max)(a.y, b.y), (std::max)(a.z, b.z));
 	}
 	constexpr float4 Max(const float4& a, const float4& b) {
-		return float4(std::max(a.x, b.x), std::max(a.y, b.y), std::max(a.z, b.z), std::max(a.w, b.w));
+		return float4((std::max)(a.x, b.x), (std::max)(a.y, b.y), (std::max)(a.z, b.z), (std::max)(a.w, b.w));
 	}
 	constexpr float2 Min(const float2& a, const float2& b) {
-		return float2(std::min(a.x, b.x), std::min(a.y, b.y));
+		return float2((std::min)(a.x, b.x), (std::min)(a.y, b.y));
 	}
 	constexpr float3 Min(const float3& a, const float3& b) {
-		return float3(std::min(a.x, b.x), std::min(a.y, b.y), std::min(a.z, b.z));
+		return float3((std::min)(a.x, b.x), (std::min)(a.y, b.y), (std::min)(a.z, b.z));
 	}
 	constexpr float4 Min(const float4& a, const float4& b) {
-		return float4(std::min(a.x, b.x), std::min(a.y, b.y), std::min(a.z, b.z), std::min(a.w, b.w));
+		return float4((std::min)(a.x, b.x), (std::min)(a.y, b.y), (std::min)(a.z, b.z), (std::min)(a.w, b.w));
 	}
 	constexpr float2 Abs(const float2& a) {
 		return float2(std::abs(a.x), std::abs(a.y));
@@ -239,7 +239,7 @@ namespace won::math
 	}
 	constexpr float Clamp(float val, float min, float max)
 	{
-		return std::min(max, std::max(min, val));
+		return (std::min)(max, (std::max)(min, val));
 	}
 	constexpr float2 Clamp(float2 val, float2 min, float2 max)
 	{
@@ -366,11 +366,11 @@ namespace won::math
 		float t2 = t1 + std::pow(DistanceEstimated(p1, p2), alpha);
 		float t3 = t2 + std::pow(DistanceEstimated(p2, p3), alpha);
 		t = Lerp(t1, t2, t);
-		float t1t0 = 1.0f / std::max(0.001f, t1 - t0);
-		float t2t1 = 1.0f / std::max(0.001f, t2 - t1);
-		float t3t2 = 1.0f / std::max(0.001f, t3 - t2);
-		float t2t0 = 1.0f / std::max(0.001f, t2 - t0);
-		float t3t1 = 1.0f / std::max(0.001f, t3 - t1);
+		float t1t0 = 1.0f / (std::max)(0.001f, t1 - t0);
+		float t2t1 = 1.0f / (std::max)(0.001f, t2 - t1);
+		float t3t2 = 1.0f / (std::max)(0.001f, t3 - t2);
+		float t2t0 = 1.0f / (std::max)(0.001f, t2 - t0);
+		float t3t1 = 1.0f / (std::max)(0.001f, t3 - t1);
 		XMVECTOR A1 = (t1 - t) * t1t0 * p0 + (t - t0) * t1t0 * p1;
 		XMVECTOR A2 = (t2 - t) * t2t1 * p1 + (t - t1) * t2t1 * p2;
 		XMVECTOR A3 = (t3 - t) * t3t2 * p2 + (t - t2) * t3t2 * p3;
@@ -389,7 +389,7 @@ namespace won::math
 		// We find projection of point p onto the line. 
 		// It falls where t = [(p-v) . (w-v)] / |w-v|^2
 		// We clamp t from [0,1] to handle points outside the segment vw.
-		const float t = std::max(0.0f, std::min(1.0f, XMVectorGetX(XMVector3Dot(point - segmentA, segmentB - segmentA)) / l2));
+		const float t = (std::max)(0.0f, (std::min)(1.0f, XMVectorGetX(XMVector3Dot(point - segmentA, segmentB - segmentA)) / l2));
 		const XMVECTOR projection = segmentA + t * (segmentB - segmentA);  // Projection falls on the segment
 		return Distance(point, projection);
 	}
@@ -519,7 +519,7 @@ namespace won::math
 			float& Dist,
 			float2& bary,
 			float TMin = 0,
-			float TMax = std::numeric_limits<float>::max()
+			float TMax = (std::numeric_limits<float>::max)()
 		)
 	{
 		//const XMVECTOR g_RayEpsilon = XMVectorSet(1e-20f, 1e-20f, 1e-20f, 1e-20f);
