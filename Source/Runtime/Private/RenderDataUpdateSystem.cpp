@@ -11,21 +11,30 @@ namespace won::ecs
 {
     void RenderDataUpdateSystem::Update(Scene& scene, float delta_time)
     {
+        (void)delta_time;
         jobsystem::Context sub_ctx;
 
-        Scene::RenderData& renderdata = scene.GetRenderData();
+        Scene::RenderData& render_data = scene.GetRenderData();
         
         const auto geometry_array = scene.GetComponentArray<GeometryComponent>().get();
-        renderdata.shader_geometry.resize(geometry_array->GetSize());
+        render_data.shader_geometry.resize(geometry_array->GetSize());
 
         jobsystem::Dispatch(sub_ctx, (uint32_t)geometry_array->GetSize(), groupsize, [&](jobsystem::JobArgs args) {
             const GeometryComponent& geometry_comp = geometry_array->data[args.job_index];
-            ShaderGeometry& shader_geometry = renderdata.shader_geometry[args.job_index];
-            shader_geometry.position_buffer_descriptor = geometry_comp.mesh->GetRenderData()->positions.handle.descriptor_index;
-            shader_geometry.normal_buffer_descriptor = geometry_comp.mesh->GetRenderData()->normals.handle.descriptor_index;
-            shader_geometry.texcoord_buffer_descriptor = geometry_comp.mesh->GetRenderData()->texcoords.handle.descriptor_index;
-            shader_geometry.index_buffer_descriptor = geometry_comp.mesh->GetRenderData()->indices.handle.descriptor_index;
-            shader_geometry.index_count = geometry_comp.mesh->indices.size();
+            ShaderGeometry& shader_geometry = render_data.shader_geometry[args.job_index];
+            shader_geometry.Init();
+            shader_geometry.bounds_min = geometry_comp.local_bounds.min;
+            shader_geometry.bounds_max = geometry_comp.local_bounds.max;
+
+            const resource::Mesh::RenderData* mesh_render_data = geometry_comp.mesh->GetRenderData();
+            if (mesh_render_data)
+            {
+                shader_geometry.position_buffer_descriptor = mesh_render_data->positions.handle.descriptor_index;
+                shader_geometry.normal_buffer_descriptor = mesh_render_data->normals.handle.descriptor_index;
+                shader_geometry.texcoord_buffer_descriptor = mesh_render_data->texcoords.handle.descriptor_index;
+                shader_geometry.index_buffer_descriptor = mesh_render_data->indices.handle.descriptor_index;
+                shader_geometry.index_count = static_cast<uint32>(geometry_comp.mesh->indices.size());
+            }
             });
 
         const auto material_array = scene.GetComponentArray<MaterialComponent>().get();
@@ -38,27 +47,42 @@ namespace won::ecs
             material_comp.material_offset = material_slot_sum;
             material_slot_sum += material_array->data[i].GetMaterialSlotCount();
         }
-        renderdata.shader_material.resize(material_slot_sum);
+        render_data.shader_material.resize(material_slot_sum);
 
         jobsystem::Dispatch(sub_ctx, (uint32_t)material_array->GetSize(), groupsize, [&](jobsystem::JobArgs args) {
             const MaterialComponent& material_comp = material_array->data[args.job_index];
             for (size_t i = 0; i < material_comp.GetMaterialSlotCount(); ++i)
             {
-                ShaderMaterial& shader_material = renderdata.shader_material[material_comp.material_offset + i];
-                shader_material.base_color = material_comp.material_slots[i].base_color;
+                const MaterialSlot& material_slot = material_comp.material_slots[i];
+                ShaderMaterial& shader_material = render_data.shader_material[material_comp.material_offset + i];
+                shader_material.Init();
+                shader_material.base_color = material_slot.base_color;
+                shader_material.emissive_color_metallic = float4(0.f, 0.f, 0.f, material_slot.metallic);
+                shader_material.roughness_reflectance_metalness_refraction = float4(material_slot.roughness, material_slot.reflectance, material_slot.metallic, 0.f);
+                shader_material.flags = material_slot.flags;
+
+                for (uint32 texture_slot = 0; texture_slot < static_cast<uint32>(TEXTURESLOT_COUNT); ++texture_slot)
+                {
+                    if (material_slot.textures[i].IsValid())
+                    {
+                        shader_material.textures[texture_slot].texture_descriptor = material_slot.textures[i].res_handle.descriptor_index;
+                    }
+                    
+                }
             }
             });
 
         const auto transform_array = scene.GetComponentArray<TransformComponent>().get();
-        renderdata.shader_instance.resize(transform_array->GetSize());
+        render_data.shader_instance.resize(transform_array->GetSize());
 
-        renderdata.renderables.resize(transform_array->GetSize()); // pre allocated size
+        render_data.renderables.resize(transform_array->GetSize()); // pre allocated size
         std::atomic<uint32> renderable_count{ 0 };
 
         jobsystem::Dispatch(sub_ctx, (uint32_t)transform_array->GetSize(), groupsize, [&](jobsystem::JobArgs args) {
 
             const TransformComponent& transform = transform_array->data[args.job_index];
-            ShaderInstance& shader_instance = renderdata.shader_instance[args.job_index];
+            ShaderInstance& shader_instance = render_data.shader_instance[args.job_index];
+            shader_instance.Init();
             shader_instance.local_to_world = transform.world_transform;
 
             Entity entity = transform_array->index_to_entity[args.job_index];
@@ -76,8 +100,9 @@ namespace won::ecs
                 for (Size i = 0; i < geometry_comp.mesh->submeshes.size(); ++i)
                 {
                     const resource::Submesh& submesh = geometry_comp.mesh->submeshes[i];
-                    Scene::RenderData::Renderable& renderable = renderdata.renderables[index + i];
+                    Scene::RenderData::Renderable& renderable = render_data.renderables[index + i];
                     ObjectPushConstants& push_constants = renderable.push_constants;
+                    push_constants.Init();
                     push_constants.geometry_index = geometry_array->entity_to_index[entity];
                     push_constants.material_index = material_array->entity_to_index[entity] + submesh.material_slot;
                     push_constants.instance_index = transform_array->entity_to_index[entity];
@@ -91,6 +116,6 @@ namespace won::ecs
             });
         jobsystem::Wait(sub_ctx);
 
-        renderdata.renderables.resize(renderable_count.load());
+        render_data.renderables.resize(renderable_count.load());
     }
 }

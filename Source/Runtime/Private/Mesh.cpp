@@ -1,5 +1,6 @@
 #include "Mesh.h"
 
+#include "MathUtils.h"
 #include "RHIDevice.h"
 
 #include <cstring>
@@ -14,15 +15,20 @@ namespace won::resource
             Vector<uint8>& destination,
             Size& out_offset,
             const Size& in_size,
+            const Size& in_stride,
             Size& inout_offset)
         {
-            out_offset = inout_offset;
+            const Size aligned_offset = in_stride == 0 ? inout_offset : won::math::align(inout_offset, in_stride);
+            out_offset = aligned_offset;
 
             if (in_size == 0)
+            {
+                inout_offset = aligned_offset;
                 return;
+            }
 
-            std::memcpy(destination.data() + inout_offset, source.data(), in_size);
-            inout_offset += in_size;
+            std::memcpy(destination.data() + aligned_offset, source.data(), in_size);
+            inout_offset = aligned_offset + in_size;
         }
     }
 
@@ -47,7 +53,11 @@ namespace won::resource
         const Size normals_size = normals.size() * sizeof(float3);
         const Size texcoords_size = texcoords.size() * sizeof(float2);
         const Size indices_size = indices.size() * sizeof(uint32);
-        const Size total_size = positions_size + normals_size + texcoords_size + indices_size;
+        Size total_size = 0;
+        total_size = won::math::align(total_size, static_cast<Size>(sizeof(float3))) + positions_size;
+        total_size = won::math::align(total_size, static_cast<Size>(sizeof(float3))) + normals_size;
+        total_size = won::math::align(total_size, static_cast<Size>(sizeof(float2))) + texcoords_size;
+        total_size = won::math::align(total_size, static_cast<Size>(sizeof(uint32))) + indices_size;
         if (total_size == 0)
         {
             return false;
@@ -64,10 +74,10 @@ namespace won::resource
         Size texcoords_offset = 0;
         Size indices_offset = 0;
 
-        PackBufferSubresource(positions, packed_data, positions_offset, positions_size, offset);
-        PackBufferSubresource(normals, packed_data, normals_offset, normals_size, offset);
-        PackBufferSubresource(texcoords, packed_data, texcoords_offset, texcoords_size, offset);
-        PackBufferSubresource(indices, packed_data, indices_offset, indices_size, offset);
+        PackBufferSubresource(positions, packed_data, positions_offset, positions_size, sizeof(float3), offset);
+        PackBufferSubresource(normals, packed_data, normals_offset, normals_size, sizeof(float3), offset);
+        PackBufferSubresource(texcoords, packed_data, texcoords_offset, texcoords_size, sizeof(float2), offset);
+        PackBufferSubresource(indices, packed_data, indices_offset, indices_size, sizeof(uint32), offset);
 
         rendering::RHIBufferDesc buffer_desc = {};
         buffer_desc.size = total_size;

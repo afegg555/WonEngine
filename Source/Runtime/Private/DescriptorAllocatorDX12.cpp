@@ -1,6 +1,7 @@
 #include "DescriptorAllocatorDX12.h"
 
 #include "Backlog.h"
+#include "MathUtils.h"
 #include "RHIFormatDX12.h"
 #include "RHIResourceDX12.h"
 
@@ -19,7 +20,7 @@ namespace won::rendering
 
         UINT AlignConstantBufferSize(UINT size)
         {
-            return (size + 255u) & ~255u;
+            return won::math::align(size, static_cast<UINT>(256u));
         }
     }
 

@@ -19,7 +19,9 @@ inline int DescriptorIndex(in int descriptor_index)
     "DescriptorTable(SRV(t0, space = 203, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)), " \
     "DescriptorTable(SRV(t0, space = 204, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)), " \
     "DescriptorTable(SRV(t0, space = 205, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)), " \
-    "DescriptorTable(SRV(t0, space = 206, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE))"
+    "DescriptorTable(SRV(t0, space = 206, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)), " \
+    "DescriptorTable(SRV(t0, space = 207, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)), " \
+    "StaticSampler(s100, addressU = TEXTURE_ADDRESS_WRAP, addressV = TEXTURE_ADDRESS_WRAP, addressW = TEXTURE_ADDRESS_WRAP, filter = FILTER_MIN_MAG_MIP_LINEAR)"
 
 StructuredBuffer<ShaderInstance> bindless_structured_instance[] : register(t0, space200);
 StructuredBuffer<ShaderGeometry> bindless_structured_geometry[] : register(t0, space201);
@@ -28,6 +30,8 @@ StructuredBuffer<float3> bindless_structured_position[] : register(t0, space203)
 StructuredBuffer<float3> bindless_structured_normal[] : register(t0, space204);
 StructuredBuffer<float2> bindless_structured_texcoord[] : register(t0, space205);
 StructuredBuffer<uint> bindless_structured_index[] : register(t0, space206);
+Texture2D<float4> bindless_textures[] : register(t0, space207);
+SamplerState sampler_linear_wrap : register(s100);
 
 inline ShaderFrame GetFrame()
 {

@@ -10,6 +10,7 @@
 #define BINDLESS_SPACE_RENDERER_NORMAL 204
 #define BINDLESS_SPACE_RENDERER_TEXCOORD 205
 #define BINDLESS_SPACE_RENDERER_INDEX 206
+#define BINDLESS_SPACE_RENDERER_TEXTURE 207
 
 enum SHADER_OBJECT_FLAGS
 {
@@ -28,6 +29,13 @@ enum SHADER_MATERIAL_FLAGS
     SHADER_MATERIAL_FLAG_NONE = 0,
     SHADER_MATERIAL_FLAG_DOUBLE_SIDED = 1 << 0,
     SHADER_MATERIAL_FLAG_TRANSPARENT = 1 << 1,
+};
+
+enum SHADER_MATERIAL_TYPE
+{
+    SHADER_MATERIAL_TYPE_UNLIT,
+
+    SHADER_MATERIAL_TYPE_COUNT
 };
 
 enum TEXTURESLOT
@@ -57,6 +65,14 @@ struct alignas(16) ShaderTextureSlot
     int sampler_descriptor;
     uint uvset;
     uint padding0;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        texture_descriptor = -1;
+        sampler_descriptor = -1;
+    }
+#endif
 };
 
 struct alignas(16) ShaderGeometry
@@ -71,6 +87,16 @@ struct alignas(16) ShaderGeometry
     uint index_count;
     float3 bounds_max;
     uint flags;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        position_buffer_descriptor = -1;
+        normal_buffer_descriptor = -1;
+        texcoord_buffer_descriptor = -1;
+        index_buffer_descriptor = -1;
+    }
+#endif
 };
 
 struct alignas(16) ShaderMaterial
@@ -83,10 +109,20 @@ struct alignas(16) ShaderMaterial
 
     float4 sheencolor_padding;
 
-    uint flags;
+    uint flags; // see SHADER_MATERIAL_FLAGS
     uint3 padding;
     
     ShaderTextureSlot textures[TEXTURESLOT_COUNT];
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        for (size_t i = 0; i < TEXTURESLOT_COUNT; i++)
+        {
+            textures[i].Init();
+        }
+    }
+#endif
 };
 
 struct alignas(16) ShaderScene
@@ -95,11 +131,27 @@ struct alignas(16) ShaderScene
     int geometrybuffer;
     int materialbuffer;
     int padding0;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        instancebuffer = -1;
+        geometrybuffer = -1;
+        materialbuffer = -1;
+    }
+#endif
 };
 
 struct alignas(16) ShaderFrame
 {
     ShaderScene scene;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        scene.Init();
+    }
+#endif
 };
 
 struct alignas(16) ShaderCamera
@@ -107,6 +159,12 @@ struct alignas(16) ShaderCamera
     float4x4 view;
     float4x4 projection;
     float4x4 view_projection;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+    }
+#endif
 };
 
 struct ObjectPushConstants
@@ -115,11 +173,26 @@ struct ObjectPushConstants
     uint geometry_index;
     uint material_index;
     uint padding0;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        instance_index = -1;
+        geometry_index = -1;
+        material_index = -1;
+    }
+#endif
 };
 
 struct alignas(16) ShaderInstance
 {
     float4x4 local_to_world;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+    }
+#endif
 };
 
 CONSTANTBUFFER(g_frame, ShaderFrame, CBSLOT_RENDERER_FRAME);

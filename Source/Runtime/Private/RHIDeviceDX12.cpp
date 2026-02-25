@@ -1,6 +1,7 @@
 #include "RHIDeviceDX12.h"
 #include "Platform.h"
 #include "Backlog.h"
+#include "MathUtils.h"
 #include "Types.h"
 #include "StringUtils.h"
 #include "RHIContextDX12.h"
@@ -55,7 +56,66 @@ namespace won::rendering
 
         Size AlignConstantBufferByteSize(Size size_in_bytes)
         {
-            return (size_in_bytes + static_cast<Size>(255u)) & ~static_cast<Size>(255u);
+            return won::math::align(size_in_bytes, static_cast<Size>(256u));
+        }
+
+        bool GetFormatBytesPerPixel(RHIFormat format, uint32& out_bytes_per_pixel)
+        {
+            switch (format)
+            {
+            case RHIFormat::R8Unorm:
+            case RHIFormat::R8Uint:
+            case RHIFormat::R8Snorm:
+            case RHIFormat::R8Sint:
+                out_bytes_per_pixel = 1u;
+                return true;
+            case RHIFormat::R8G8Unorm:
+            case RHIFormat::R8G8Uint:
+            case RHIFormat::R8G8Snorm:
+            case RHIFormat::R8G8Sint:
+            case RHIFormat::R16Float:
+            case RHIFormat::R16Unorm:
+            case RHIFormat::R16Uint:
+            case RHIFormat::R16Snorm:
+            case RHIFormat::R16Sint:
+                out_bytes_per_pixel = 2u;
+                return true;
+            case RHIFormat::R8G8B8A8Unorm:
+            case RHIFormat::R8G8B8A8UnormSrgb:
+            case RHIFormat::R8G8B8A8Uint:
+            case RHIFormat::R8G8B8A8Snorm:
+            case RHIFormat::R8G8B8A8Sint:
+            case RHIFormat::B8G8R8A8Unorm:
+            case RHIFormat::B8G8R8A8UnormSrgb:
+            case RHIFormat::R32Float:
+            case RHIFormat::R32Uint:
+            case RHIFormat::R32Sint:
+            case RHIFormat::R16G16Float:
+            case RHIFormat::R16G16Unorm:
+            case RHIFormat::R16G16Uint:
+            case RHIFormat::R16G16Snorm:
+            case RHIFormat::R16G16Sint:
+                out_bytes_per_pixel = 4u;
+                return true;
+            case RHIFormat::R32G32Float:
+            case RHIFormat::R32G32Uint:
+            case RHIFormat::R32G32Sint:
+            case RHIFormat::R16G16B16A16Float:
+            case RHIFormat::R16G16B16A16Unorm:
+            case RHIFormat::R16G16B16A16Uint:
+            case RHIFormat::R16G16B16A16Snorm:
+            case RHIFormat::R16G16B16A16Sint:
+                out_bytes_per_pixel = 8u;
+                return true;
+            case RHIFormat::R32G32B32A32Float:
+            case RHIFormat::R32G32B32A32Uint:
+            case RHIFormat::R32G32B32A32Sint:
+                out_bytes_per_pixel = 16u;
+                return true;
+            default:
+                out_bytes_per_pixel = 0u;
+                return false;
+            }
         }
 
         void AddDeviceFeature(uint32& feature_flags, RHIDeviceFeature feature)
@@ -656,17 +716,96 @@ namespace won::rendering
             return nullptr;
         }
 
-        if (initial_data && initial_size > 0)
-        {
-            assert(0);
-            backlog::Post("Initial data for texture upload is not implemented yet", backlog::LogLevel::Warning);
-        }
-
         RHIResourceDesc resource_info = {};
         resource_info.type = (dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D) ? RHIResourceType::Texture3D : RHIResourceType::Texture2D;
         resource_info.texture_desc = desc;
         auto texture_resource = std::make_shared<RHIResourceDX12>(resource_info, std::move(resource), allocation, descriptor_allocator);
         texture_resource->SetCurrentState(initial_state);
+
+        if (initial_data && initial_size > 0)
+        {
+            UINT64 total_size = 0;
+            std::vector<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> footprints;
+            std::vector<uint64> row_sizes;
+            std::vector<uint> num_rows;
+
+            footprints.resize(desc.array_layers * desc.mip_levels);
+            row_sizes.resize(footprints.size());
+            num_rows.resize(footprints.size());
+
+            device->GetCopyableFootprints(&resource_desc, 0, footprints.size(), 0, footprints.data(), num_rows.data(), row_sizes.data(), &total_size);
+
+            RHIBufferDesc upload_buffer_desc = {};
+            upload_buffer_desc.size = total_size;
+            upload_buffer_desc.usage = RHIResourceUsage::Upload;
+            upload_buffer_desc.bind_flags = RHIBindFlags::CopySource;
+            std::shared_ptr<RHIResource> upload_buffer = CreateBuffer(upload_buffer_desc);
+
+            void* mapped_data = upload_buffer->GetMappedData();
+
+            std::shared_ptr<RHIContext> upload_context = GetContext(RHIQueueType::Graphics);
+            RHIQueueType upload_queue_type = RHIQueueType::Graphics;
+
+            auto upload_allocator = CreateCommandAllocator(upload_queue_type);
+            auto upload_command_list = CreateCommandList(upload_queue_type);
+            auto* upload_command_list_dx12 = dynamic_cast<RHICommandListDX12*>(upload_command_list.get());
+            auto* texture_resource_dx12 = dynamic_cast<RHIResourceDX12*>(texture_resource.get());
+            auto* upload_buffer_dx12 = dynamic_cast<RHIResourceDX12*>(upload_buffer.get());
+
+            upload_allocator->Reset();
+            upload_command_list->Begin(*upload_allocator);
+            upload_command_list->TransitionResource(*texture_resource, RHIResourceState::CopyDest);
+
+            uint32 bytes_per_pixel = 0u;
+            GetFormatBytesPerPixel(desc.format, bytes_per_pixel);
+
+            for (size_t i = 0; i < footprints.size(); ++i)
+            {
+                D3D12_SUBRESOURCE_DATA data{};
+                data.pData = initial_data;
+                data.RowPitch = (LONG_PTR)desc.width * (LONG_PTR)bytes_per_pixel;
+                data.SlicePitch = (LONG_PTR)desc.width * (LONG_PTR)desc.height * (LONG_PTR)bytes_per_pixel;
+
+                D3D12_MEMCPY_DEST DestData = {};
+                DestData.pData = (void*)((UINT64)mapped_data + footprints[i].Offset);
+                DestData.RowPitch = (SIZE_T)footprints[i].Footprint.RowPitch;
+                DestData.SlicePitch = (SIZE_T)footprints[i].Footprint.RowPitch * (SIZE_T)num_rows[i];
+                MemcpySubresource(&DestData, &data, (SIZE_T)row_sizes[i], num_rows[i], footprints[i].Footprint.Depth);
+
+                CD3DX12_TEXTURE_COPY_LOCATION Dst(texture_resource_dx12->GetResource(), UINT(i));
+                CD3DX12_TEXTURE_COPY_LOCATION Src(upload_buffer_dx12->GetResource(), footprints[i]);
+                upload_command_list_dx12->GetCommandList()->CopyTextureRegion(
+                    &Dst,
+                    0,
+                    0,
+                    0,
+                    &Src,
+                    nullptr
+                );
+            }
+            upload_command_list->TransitionResource(*texture_resource, RHIResourceState::ShaderRead);
+            upload_command_list->End();
+
+            auto upload_fence = CreateFence(0);
+            if (upload_fence)
+            {
+                const uint64 upload_fence_value = upload_context->Submit(*upload_command_list, upload_fence.get());
+                if (upload_fence_value > 0)
+                {
+                    upload_fence->Wait(upload_fence_value);
+                }
+                else
+                {
+                    upload_context->WaitIdle();
+                }
+            }
+            else
+            {
+                upload_context->Submit(*upload_command_list);
+                upload_context->WaitIdle();
+            }
+        }
+
         return texture_resource;
     }
 

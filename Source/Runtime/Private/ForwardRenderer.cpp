@@ -396,12 +396,14 @@ namespace won::rendering
             return;
         }
 
-        ShaderFrame shader_frame = {};
+        ShaderFrame shader_frame{};
+        shader_frame.Init();
         shader_frame.scene.instancebuffer = shader_instance_default_buffer_subresource.descriptor_index;
         shader_frame.scene.geometrybuffer = shader_geometry_default_buffer_subresource.descriptor_index;
         shader_frame.scene.materialbuffer = shader_material_default_buffer_subresource.descriptor_index;
 
-        ShaderCamera shader_camera = {};
+        ShaderCamera shader_camera{};
+        shader_camera.Init();
         shader_camera.view = CreateIdentityFloat4x4();
         shader_camera.projection = CreateIdentityFloat4x4();
         shader_camera.view_projection = CreateIdentityFloat4x4();
