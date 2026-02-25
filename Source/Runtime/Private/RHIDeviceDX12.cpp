@@ -457,10 +457,10 @@ namespace won::rendering
         {
             initial_state = D3D12_RESOURCE_STATE_COPY_DEST;
         }
-        else if (desc.usage == RHIResourceUsage::Default && initial_data && initial_size > 0)
-        {
-            initial_state = D3D12_RESOURCE_STATE_COPY_DEST;
-        }
+        //else if (desc.usage == RHIResourceUsage::Default && initial_data && initial_size > 0)
+        //{
+        //    initial_state = D3D12_RESOURCE_STATE_COPY_DEST;
+        //}
 
         D3D12MA::ALLOCATION_DESC allocation_desc = {};
         allocation_desc.HeapType = heap_type;

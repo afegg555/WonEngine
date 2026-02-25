@@ -36,6 +36,7 @@ namespace won::rendering
         swap_chain_desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
         swap_chain_desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
         swap_chain_desc.SampleDesc.Count = 1;
+        swap_chain_desc.Flags = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
 
         ComPtr<IDXGISwapChain1> temp_swapchain;
         if (FAILED(factory->CreateSwapChainForHwnd(graphics_context->GetQueue(), hwnd, &swap_chain_desc, nullptr, nullptr, &temp_swapchain)))

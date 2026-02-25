@@ -396,12 +396,6 @@ namespace won::rendering
             return;
         }
 
-        if (!shader_frame_buffer || !shader_camera_buffer)
-        {
-            backlog::Post("failed to bind frame/camera constants because buffers are missing", backlog::LogLevel::Error);
-            return;
-        }
-
         ShaderFrame shader_frame = {};
         shader_frame.scene.instancebuffer = shader_instance_default_buffer_subresource.descriptor_index;
         shader_frame.scene.geometrybuffer = shader_geometry_default_buffer_subresource.descriptor_index;
@@ -414,11 +408,6 @@ namespace won::rendering
 
         void* shader_frame_mapped_data = shader_frame_buffer->GetMappedData();
         void* shader_camera_mapped_data = shader_camera_buffer->GetMappedData();
-        if (!shader_frame_mapped_data || !shader_camera_mapped_data)
-        {
-            backlog::Post("failed to access frame/camera constant buffer mapped data", backlog::LogLevel::Error);
-            return;
-        }
 
         std::memcpy(shader_frame_mapped_data, &shader_frame, sizeof(ShaderFrame));
         std::memcpy(shader_camera_mapped_data, &shader_camera, sizeof(ShaderCamera));
@@ -470,16 +459,6 @@ namespace won::rendering
             frame_context.command_list->SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
             for (const auto& renderable : render_data.renderables)
             {
-                if (renderable.push_constants.geometry_index >= render_data.shader_geometry.size())
-                {
-                    continue;
-                }
-
-                if (!renderable.index_buffer || renderable.index_count == 0 || renderable.index_buffer_size == 0)
-                {
-                    continue;
-                }
-
                 frame_context.command_list->SetIndexBuffer(*renderable.index_buffer, sizeof(uint32), renderable.index_buffer_offset, renderable.index_buffer_size);
                 frame_context.command_list->PushConstants(RHIShaderStage::Vertex, &renderable.push_constants, sizeof(ObjectPushConstants), 0);
                 frame_context.command_list->DrawIndexed(renderable.index_count, 1, 0, 0, 0);
