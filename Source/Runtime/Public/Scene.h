@@ -275,8 +275,7 @@ namespace won::ecs
             {
                 ObjectPushConstants push_constants;
                 std::shared_ptr<rendering::RHIResource> index_buffer;
-                Size index_buffer_offset = 0;
-                Size index_buffer_size = 0;
+                uint32 index_offset = 0;
                 uint32 index_count = 0;
             };
 

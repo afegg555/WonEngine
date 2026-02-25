@@ -459,7 +459,7 @@ namespace won::rendering
             frame_context.command_list->SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
             for (const auto& renderable : render_data.renderables)
             {
-                frame_context.command_list->SetIndexBuffer(*renderable.index_buffer, sizeof(uint32), renderable.index_buffer_offset, renderable.index_buffer_size);
+                frame_context.command_list->SetIndexBuffer(*renderable.index_buffer, sizeof(uint32), renderable.index_offset, renderable.index_count * sizeof(uint32));
                 frame_context.command_list->PushConstants(RHIShaderStage::Vertex, &renderable.push_constants, sizeof(ObjectPushConstants), 0);
                 frame_context.command_list->DrawIndexed(renderable.index_count, 1, 0, 0, 0);
             }

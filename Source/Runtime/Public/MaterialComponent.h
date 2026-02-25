@@ -17,7 +17,8 @@ namespace won::ecs
     {
         Vector<MaterialSlot> material_slots = { MaterialSlot{} };
 
-        MaterialSlot& GetMaterial(uint32 slot_index = 0u)
+        uint32 material_offset = 0; // internal usage
+        MaterialSlot& GetMaterialSlot(uint32 slot_index = 0u)
         {
             if (slot_index >= material_slots.size())
             {
@@ -25,6 +26,15 @@ namespace won::ecs
             }
 
             return material_slots[slot_index];
+        }
+        MaterialSlot& AddMaterialSlot()
+        {
+            material_slots.push_back({});
+            return material_slots.back();
+        }
+        Size GetMaterialSlotCount() const
+        {
+            return material_slots.size();
         }
     };
 }
