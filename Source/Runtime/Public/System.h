@@ -1,6 +1,8 @@
 #pragma once
 #include "JobSystem.h"
 #include "SceneComponents.h"
+#include "Entity.h"
+#include "Types.h"
 
 using namespace won::jobsystem;
 namespace won::ecs

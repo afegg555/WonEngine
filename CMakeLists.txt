@@ -142,15 +142,24 @@ set(RUNTIME_ECS
     Source/Runtime/Public/ComponentManager.h
     Source/Runtime/Public/Scene.h
     Source/Runtime/Public/System.h
-    Source/Runtime/Public/TransformUpdateSystem.h
-    Source/Runtime/Public/RenderDataUpdateSystem.h
+    Source/Runtime/Private/Entity.cpp
+)
+
+set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/SceneComponents.h
     Source/Runtime/Public/NameComponent.h
     Source/Runtime/Public/GeometryComponent.h
     Source/Runtime/Public/MaterialComponent.h
     Source/Runtime/Public/TransformComponent.h
     Source/Runtime/Public/HierarchyComponent.h
-    Source/Runtime/Private/Entity.cpp
+    Source/Runtime/Public/CameraComponent.h
+)
+
+set(RUNTIME_ECS_SYSTEMS
+    Source/Runtime/Public/CameraUpdateSystem.h
+    Source/Runtime/Public/TransformUpdateSystem.h
+    Source/Runtime/Public/RenderDataUpdateSystem.h
+    Source/Runtime/Private/CameraUpdateSystem.cpp
     Source/Runtime/Private/TransformUpdateSystem.cpp
     Source/Runtime/Private/RenderDataUpdateSystem.cpp
 )
@@ -207,6 +216,8 @@ add_library(Runtime SHARED
     ${RUNTIME_JOBSYSTEM}
     ${RUNTIME_MATH}
     ${RUNTIME_ECS}
+    ${RUNTIME_ECS_COMPONENTS}
+    ${RUNTIME_ECS_SYSTEMS}
     ${RUNTIME_PLATFORM}
     ${RUNTIME_PLATFORM_WINDOWS}
     ${RUNTIME_APPLICATION}
@@ -230,6 +241,8 @@ source_group("Plugin" FILES ${RUNTIME_PLUGIN})
 source_group("JobSystem" FILES ${RUNTIME_JOBSYSTEM})
 source_group("Math" FILES ${RUNTIME_MATH})
 source_group("ECS" FILES ${RUNTIME_ECS})
+source_group("ECS/Components" FILES ${RUNTIME_ECS_COMPONENTS})
+source_group("ECS/Systems" FILES ${RUNTIME_ECS_SYSTEMS})
 source_group("Platform" FILES ${RUNTIME_PLATFORM})
 source_group("Platform/Windows" FILES ${RUNTIME_PLATFORM_WINDOWS})
 source_group("Allocator" FILES ${RUNTIME_ALLOCATOR})

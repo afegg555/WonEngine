@@ -11,7 +11,6 @@ namespace won::ecs
 {
     void RenderDataUpdateSystem::Update(Scene& scene, float delta_time)
     {
-        (void)delta_time;
         jobsystem::Context sub_ctx;
 
         Scene::RenderData& render_data = scene.GetRenderData();

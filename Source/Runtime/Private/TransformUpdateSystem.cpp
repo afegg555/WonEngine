@@ -8,8 +8,6 @@
 
 namespace won::ecs
 {
-    static constexpr uint32_t groupsize = 256u;
-
     void TransformUpdateSystem::Update(Scene& scene, float delta_time)
     {
         jobsystem::Context sub_ctx;

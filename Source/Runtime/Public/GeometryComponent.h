@@ -1,10 +1,7 @@
 #pragma once
-
 #include "Mesh.h"
 #include "Primitives.h"
 #include "Types.h"
-
-#include <memory>
 
 namespace won::ecs
 {

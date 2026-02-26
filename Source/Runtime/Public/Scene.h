@@ -4,6 +4,7 @@
 #include "System.h"
 #include "SceneComponents.h"
 #include "TransformUpdateSystem.h"
+#include "CameraUpdateSystem.h"
 #include "RenderDataUpdateSystem.h"
 #include "ShaderInterop_Renderer.h"
 
@@ -30,8 +31,10 @@ namespace won::ecs
             component_manager.RegisterComponent<NameComponent>();
             component_manager.RegisterComponent<GeometryComponent>();
             component_manager.RegisterComponent<MaterialComponent>();
+            component_manager.RegisterComponent<CameraComponent>();
 
             AddSystem(std::make_shared<TransformUpdateSystem>());
+            AddSystem(std::make_shared<CameraUpdateSystem>());
             AddSystem(std::make_shared<RenderDataUpdateSystem>());
         }
 

@@ -6,6 +6,7 @@
 #include "Window.h"
 #include "ShaderLibrary.h"
 #include "Entity.h"
+#include "CameraComponent.h"
 
 #include <cstring>
 
@@ -407,6 +408,18 @@ namespace won::rendering
         shader_camera.view = CreateIdentityFloat4x4();
         shader_camera.projection = CreateIdentityFloat4x4();
         shader_camera.view_projection = CreateIdentityFloat4x4();
+        if (view.scene)
+        {
+            const ecs::CameraComponent* camera_component = nullptr;
+            if (view.camera_entity != ecs::INVALID_ENTITY)
+            {
+                camera_component = view.scene->GetComponent<ecs::CameraComponent>(view.camera_entity);
+
+                shader_camera.view = camera_component->view;
+                shader_camera.projection = camera_component->projection;
+                shader_camera.view_projection = camera_component->view_projection;
+            }
+        }
 
         void* shader_frame_mapped_data = shader_frame_buffer->GetMappedData();
         void* shader_camera_mapped_data = shader_camera_buffer->GetMappedData();
