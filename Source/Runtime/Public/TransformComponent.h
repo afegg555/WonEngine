@@ -24,6 +24,59 @@ namespace won::ecs
         constexpr void SetDirty(bool value = true) { if (value) { flags |= DIRTY; } else { flags &= ~DIRTY; } }
         constexpr bool IsDirty() const { return flags & DIRTY; }
 
+        void Translate(const float3& value)
+        {
+            SetDirty();
+            position.x += value.x;
+            position.y += value.y;
+            position.z += value.z;
+        }
+        void RotateRollPitchYaw(const float3& value)
+        {
+            SetDirty();
+
+            XMVECTOR quat = XMLoadFloat4(&rotation);
+            XMVECTOR x = XMQuaternionRotationRollPitchYaw(value.x, 0, 0);
+            XMVECTOR y = XMQuaternionRotationRollPitchYaw(0, value.y, 0);
+            XMVECTOR z = XMQuaternionRotationRollPitchYaw(0, 0, value.z);
+
+            quat = XMQuaternionMultiply(x, quat);
+            quat = XMQuaternionMultiply(quat, y);
+            quat = XMQuaternionMultiply(z, quat);
+            quat = XMQuaternionNormalize(quat);
+
+            XMStoreFloat4(&rotation, quat);
+        }
+        void Scale(const float3& value)
+        {
+            SetDirty();
+            scale.x *= value.x;
+            scale.y *= value.y;
+            scale.z *= value.z;
+        }
+        void MatrixTransform(const float4x4& matrix)
+        {
+            SetDirty();
+
+            XMMATRIX xmat = XMLoadFloat4x4(&matrix);
+            
+            XMVECTOR S;
+            XMVECTOR R;
+            XMVECTOR T;
+            XMMatrixDecompose(&S, &R, &T, GetLocalTransform() * xmat);
+
+            XMStoreFloat3(&scale, S);
+            XMStoreFloat4(&rotation, R);
+            XMStoreFloat3(&position, T);
+        }
+        void ClearTransform()
+        {
+            SetDirty();
+            scale = XMFLOAT3(1, 1, 1);
+            rotation = XMFLOAT4(0, 0, 0, 1);
+            position = XMFLOAT3(0, 0, 0);
+        }
+        
         void UpdateTransform()
         {
             if (IsDirty())
