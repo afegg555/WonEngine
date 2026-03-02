@@ -153,14 +153,14 @@ namespace won::rendering
         // root param 0 = push constants (b999)
         // root param 1 = frame root CBV (b0)
         // root param 2 = camera root CBV (b1)
-        // root params 3..10 = bindless SRV descriptor tables for spaces 200..207
+        // root params 3 = bindless SRV descriptor tables for spaces 200..207
         if (descriptor_allocator)
         {
             ID3D12DescriptorHeap* frame_resource_heap{};
             if (descriptor_allocator->GetGPUVisibleHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, &frame_resource_heap))
             {
                 const D3D12_GPU_DESCRIPTOR_HANDLE bindless_heap_start = frame_resource_heap->GetGPUDescriptorHandleForHeapStart();
-                for (uint32 root_slot = 3; root_slot <= 10; ++root_slot)
+                for (uint32 root_slot = 3; root_slot <= 3; ++root_slot) // only slot 3 is a descriptor table for now
                 {
                     command_list->SetGraphicsRootDescriptorTable(root_slot, bindless_heap_start);
                 }
