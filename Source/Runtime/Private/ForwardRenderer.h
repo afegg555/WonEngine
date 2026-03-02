@@ -50,6 +50,7 @@ namespace won::rendering
         RHISubresourceHandle shader_camera_buffer_subresource = {};
 
         std::shared_ptr<RHIPipeline> test_pipeline;
+        std::shared_ptr<RHIPipeline> test_pipeline_simple;
 
         platform::Window* current_window = nullptr;
     };

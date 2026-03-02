@@ -8,8 +8,12 @@ namespace won::resource
 {
     enum class ShaderId : uint16
     {
-        TestTriangleVS,
-        TestRedPS,
+        VSObjectCommon,
+        VSObjectSimple,
+        VSObjectPrepass,
+
+        PSObjectSimple,
+        PSTestRed,
         Count
     };
 

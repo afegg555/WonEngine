@@ -273,8 +273,8 @@ namespace won::rendering
             return;
         }
 
-        const std::shared_ptr<RHIShader> vertex_shader = shader_library.GetShader(resource::ShaderId::TestTriangleVS);
-        const std::shared_ptr<RHIShader> pixel_shader = shader_library.GetShader(resource::ShaderId::TestRedPS);
+        const std::shared_ptr<RHIShader> vertex_shader = shader_library.GetShader(resource::ShaderId::VSObjectCommon);
+        const std::shared_ptr<RHIShader> pixel_shader = shader_library.GetShader(resource::ShaderId::PSTestRed);
 
         RHIGraphicsPipelineDesc pipeline_desc = {};
         pipeline_desc.vertex_shader = vertex_shader.get();
@@ -284,7 +284,12 @@ namespace won::rendering
         pipeline_desc.depth_stencil.depth_write = false;
 
         test_pipeline = device->CreateGraphicsPipeline(pipeline_desc);
-        if (!test_pipeline)
+
+        pipeline_desc.vertex_shader = shader_library.GetShader(resource::ShaderId::VSObjectSimple).get();
+        pipeline_desc.pixel_shader = shader_library.GetShader(resource::ShaderId::PSObjectSimple).get();
+        test_pipeline_simple = device->CreateGraphicsPipeline(pipeline_desc);
+
+        if (!test_pipeline || !test_pipeline_simple)
         {
             backlog::Post("failed to create test graphics pipeline", backlog::LogLevel::Error);
             return;
