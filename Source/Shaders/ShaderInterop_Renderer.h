@@ -186,6 +186,20 @@ struct alignas(16) ShaderCamera
 #endif
 };
 
+struct alignas(16) ShaderLight
+{
+	float3 position;
+    float padding;
+
+    float3 color;
+    float padding2;
+
+    float3 direction;
+    float padding3;
+#ifndef __cplusplus
+#endif // __cplusplus
+};
+
 struct ObjectPushConstants
 {
     uint instance_index;

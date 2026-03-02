@@ -6,6 +6,7 @@
 #include "TransformComponent.h"
 #include "HierarchyComponent.h"
 #include "CameraComponent.h"
+#include "LightComponent.h"
 
 namespace won::ecs
 {
@@ -19,7 +20,8 @@ namespace won::ecs
         Name,
         Geometry,
         Material,
-        Camera
+        Camera,
+        Light
     };
 
     constexpr ComponentMask ComponentMaskFromBit(SceneComponentBit bit)
@@ -34,4 +36,5 @@ namespace won::ecs
     inline constexpr ComponentMask geometry_component_mask = ComponentMaskFromBit(SceneComponentBit::Geometry);
     inline constexpr ComponentMask material_component_mask = ComponentMaskFromBit(SceneComponentBit::Material);
     inline constexpr ComponentMask camera_component_mask = ComponentMaskFromBit(SceneComponentBit::Camera);
+    inline constexpr ComponentMask light_component_mask = ComponentMaskFromBit(SceneComponentBit::Light);
 }
