@@ -15,7 +15,7 @@ namespace won::resource
     {
         jobsystem::Context ctx;
 
-        jobsystem::Execute(ctx, [this](jobsystem::JobArgs args) { LoadShader(ShaderId::TestTriangleVS, RHIShaderStage::Vertex, "TestTriangleVS.hlsl"); });
+        jobsystem::Execute(ctx, [this](jobsystem::JobArgs args) { LoadShader(ShaderId::TestTriangleVS, RHIShaderStage::Vertex, "ObjectVS_common.hlsl"); });
         jobsystem::Execute(ctx, [this](jobsystem::JobArgs args) { LoadShader(ShaderId::TestRedPS, RHIShaderStage::Pixel, "TestRedPS.hlsl"); });
 
         jobsystem::Wait(ctx);

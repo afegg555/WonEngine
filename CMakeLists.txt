@@ -200,6 +200,10 @@ set(SHADERS_HLSL
     Source/Shaders/Common.hlsli
     Source/Shaders/TestTriangleVS.hlsl
     Source/Shaders/TestRedPS.hlsl
+    Source/Shaders/ObjectCommon.hlsli
+    Source/Shaders/ObjectVS.hlsli
+    Source/Shaders/ObjectVS_common.hlsl
+    Source/Shaders/ObjectVS_prepass.hlsl
 )
 
 add_library(Runtime SHARED
