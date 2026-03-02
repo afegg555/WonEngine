@@ -67,9 +67,9 @@ namespace won::ecs
 
                 for (uint32 texture_slot = 0; texture_slot < static_cast<uint32>(TEXTURESLOT_COUNT); ++texture_slot)
                 {
-                    if (material_slot.textures[i].IsValid())
+                    if (material_slot.textures[texture_slot].IsValid())
                     {
-                        shader_material.textures[texture_slot].texture_descriptor = material_slot.textures[i].res_handle.descriptor_index;
+                        shader_material.textures[texture_slot].texture_descriptor = material_slot.textures[texture_slot].res_handle.descriptor_index;
                     }
                     
                 }
