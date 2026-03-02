@@ -19,7 +19,7 @@ VertexOutput main(uint vertex_id : SV_VertexID)
     }
     ShaderInstance shader_object = GetInstance(object_push_constants.instance_index);
     ShaderCamera camera = GetCamera();
-    output.position = mul(float4(position, 1.0f), shader_object.local_to_world);
-    output.position = mul(output.position, camera.view_projection);
+    output.position = mul(shader_object.local_to_world, float4(position, 1.0f));
+    output.position = mul(camera.view_projection, output.position);
     return output;
 }
