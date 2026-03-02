@@ -5,6 +5,7 @@
 #include "SceneComponents.h"
 #include "TransformUpdateSystem.h"
 #include "CameraUpdateSystem.h"
+#include "LightUpdateSystem.h"
 #include "RenderDataUpdateSystem.h"
 #include "ShaderInterop_Renderer.h"
 
@@ -32,9 +33,11 @@ namespace won::ecs
             component_manager.RegisterComponent<GeometryComponent>();
             component_manager.RegisterComponent<MaterialComponent>();
             component_manager.RegisterComponent<CameraComponent>();
+            component_manager.RegisterComponent<LightComponent>();
 
             AddSystem(std::make_shared<TransformUpdateSystem>());
             AddSystem(std::make_shared<CameraUpdateSystem>());
+            AddSystem(std::make_shared<LightUpdateSystem>());
             AddSystem(std::make_shared<RenderDataUpdateSystem>());
         }
 
@@ -287,11 +290,16 @@ namespace won::ecs
             Vector<ShaderMaterial> shader_material;
             Vector<Renderable> renderables;
 
+            Vector<ShaderLight> shader_light;
+            uint4 forward_light_mask;
             void Clear()
             {
                 shader_instance.clear();
                 shader_geometry.clear();
                 shader_material.clear();
+                renderables.clear();
+                shader_light.clear();
+                forward_light_mask = { 0,0,0,0 };
             }
         };
 

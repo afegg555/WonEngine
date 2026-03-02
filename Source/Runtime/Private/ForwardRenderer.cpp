@@ -33,10 +33,12 @@ namespace won::rendering
         const Vector<ShaderInstance>& shader_instance = render_data.shader_instance;
         const Vector<ShaderGeometry>& shader_geometry = render_data.shader_geometry;
         const Vector<ShaderMaterial>& shader_material = render_data.shader_material;
+        const Vector<ShaderLight>& shader_light = render_data.shader_light;
 
         const Size required_instance_buffer_size = shader_instance.size() * sizeof(ShaderInstance);
         const Size required_geometry_buffer_size = shader_geometry.size() * sizeof(ShaderGeometry);
         const Size required_material_buffer_size = shader_material.size() * sizeof(ShaderMaterial);
+        const Size required_light_buffer_size = shader_light.size() * sizeof(ShaderLight);
 
         if (required_instance_buffer_size == 0)
         {
@@ -260,6 +262,117 @@ namespace won::rendering
             frame_context.command_list->TransitionResource(*shader_material_default_buffer, RHIResourceState::ShaderRead);
         }
 
+        if (required_light_buffer_size == 0)
+        {
+            frame_context.shader_light_upload_buffer = nullptr;
+            shader_light_default_buffer = nullptr;
+            shader_light_default_buffer_subresource = {};
+        }
+        else
+        {
+            Size current_default_buffer_size = 0;
+            if (shader_light_default_buffer)
+            {
+                current_default_buffer_size = shader_light_default_buffer->GetDesc().buffer_desc.size;
+            }
+
+            if (!shader_light_default_buffer || current_default_buffer_size < required_light_buffer_size)
+            {
+                RHIBufferDesc shader_light_default_buffer_desc = {};
+                shader_light_default_buffer_desc.size = required_light_buffer_size;
+                shader_light_default_buffer_desc.usage = RHIResourceUsage::Default;
+                shader_light_default_buffer_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::CopyDest;
+                shader_light_default_buffer = device->CreateBuffer(shader_light_default_buffer_desc);
+                if (!shader_light_default_buffer)
+                {
+                    backlog::Post("failed to create shader light default buffer", backlog::LogLevel::Error);
+                    return false;
+                }
+
+                shader_light_default_buffer_subresource = {};
+                RHISubresourceDesc shader_light_default_subresource_desc = {};
+                shader_light_default_subresource_desc.type = RHISubresourceType::ShaderResource;
+                shader_light_default_subresource_desc.buffer_offset = 0;
+                shader_light_default_subresource_desc.buffer_size = shader_light_default_buffer->GetDesc().buffer_desc.size;
+                shader_light_default_subresource_desc.buffer_stride = sizeof(ShaderLight);
+                if (!device->CreateSubresource(*shader_light_default_buffer, shader_light_default_subresource_desc, &shader_light_default_buffer_subresource))
+                {
+                    backlog::Post("failed to create shader light default subresource", backlog::LogLevel::Error);
+                    shader_light_default_buffer = nullptr;
+                    return false;
+                }
+            }
+
+            Size current_upload_buffer_size = 0;
+            if (frame_context.shader_light_upload_buffer)
+            {
+                current_upload_buffer_size = frame_context.shader_light_upload_buffer->GetDesc().buffer_desc.size;
+            }
+
+            if (!frame_context.shader_light_upload_buffer || current_upload_buffer_size < required_light_buffer_size)
+            {
+                RHIBufferDesc shader_light_upload_buffer_desc = {};
+                shader_light_upload_buffer_desc.size = required_light_buffer_size;
+                shader_light_upload_buffer_desc.usage = RHIResourceUsage::Upload;
+                shader_light_upload_buffer_desc.bind_flags = RHIBindFlags::CopySource;
+                frame_context.shader_light_upload_buffer = device->CreateBuffer(shader_light_upload_buffer_desc);
+                if (!frame_context.shader_light_upload_buffer)
+                {
+                    backlog::Post("failed to create shader light upload buffer", backlog::LogLevel::Error);
+                    return false;
+                }
+            }
+
+            void* mapped_data = frame_context.shader_light_upload_buffer->GetMappedData();
+            if (!mapped_data)
+            {
+                backlog::Post("failed to access mapped light upload buffer", backlog::LogLevel::Error);
+                return false;
+            }
+            std::memcpy(mapped_data, shader_light.data(), required_light_buffer_size);
+
+            frame_context.command_list->TransitionResource(*shader_light_default_buffer, RHIResourceState::CopyDest);
+            frame_context.command_list->CopyResource(*shader_light_default_buffer, *frame_context.shader_light_upload_buffer);
+            frame_context.command_list->TransitionResource(*shader_light_default_buffer, RHIResourceState::ShaderRead);
+        }
+
+        ShaderFrame shader_frame{};
+        shader_frame.Init();
+        shader_frame.scene.instancebuffer = shader_instance_default_buffer_subresource.descriptor_index;
+        shader_frame.scene.geometrybuffer = shader_geometry_default_buffer_subresource.descriptor_index;
+        shader_frame.scene.materialbuffer = shader_material_default_buffer_subresource.descriptor_index;
+        shader_frame.scene.lightbuffer = shader_light_default_buffer_subresource.descriptor_index;
+        shader_frame.scene.lights = render_data.forward_light_mask;
+
+        ShaderCamera shader_camera{};
+        shader_camera.Init();
+        shader_camera.view = CreateIdentityFloat4x4();
+        shader_camera.projection = CreateIdentityFloat4x4();
+        shader_camera.view_projection = CreateIdentityFloat4x4();
+        if (view.scene)
+        {
+            const ecs::CameraComponent* camera_component = nullptr;
+            if (view.camera_entity != ecs::INVALID_ENTITY)
+            {
+                camera_component = view.scene->GetComponent<ecs::CameraComponent>(view.camera_entity);
+
+                shader_camera.position = camera_component->eye;
+                shader_camera.forward = camera_component->forward;
+                shader_camera.up = camera_component->up;
+                shader_camera.z_near = camera_component->near;
+                shader_camera.z_far = camera_component->far;
+                shader_camera.view = camera_component->view;
+                shader_camera.projection = camera_component->projection;
+                shader_camera.view_projection = camera_component->view_projection;
+            }
+        }
+
+        void* shader_frame_mapped_data = shader_frame_buffer->GetMappedData();
+        void* shader_camera_mapped_data = shader_camera_buffer->GetMappedData();
+
+        std::memcpy(shader_frame_mapped_data, &shader_frame, sizeof(ShaderFrame));
+        std::memcpy(shader_camera_mapped_data, &shader_camera, sizeof(ShaderCamera));
+
         return true;
     }
 
@@ -402,41 +515,6 @@ namespace won::rendering
         {
             return;
         }
-
-        ShaderFrame shader_frame{};
-        shader_frame.Init();
-        shader_frame.scene.instancebuffer = shader_instance_default_buffer_subresource.descriptor_index;
-        shader_frame.scene.geometrybuffer = shader_geometry_default_buffer_subresource.descriptor_index;
-        shader_frame.scene.materialbuffer = shader_material_default_buffer_subresource.descriptor_index;
-
-        ShaderCamera shader_camera{};
-        shader_camera.Init();
-        shader_camera.view = CreateIdentityFloat4x4();
-        shader_camera.projection = CreateIdentityFloat4x4();
-        shader_camera.view_projection = CreateIdentityFloat4x4();
-        if (view.scene)
-        {
-            const ecs::CameraComponent* camera_component = nullptr;
-            if (view.camera_entity != ecs::INVALID_ENTITY)
-            {
-                camera_component = view.scene->GetComponent<ecs::CameraComponent>(view.camera_entity);
-
-                shader_camera.position = camera_component->eye;
-                shader_camera.forward = camera_component->forward;
-                shader_camera.up = camera_component->up;
-                shader_camera.z_near = camera_component->near;
-                shader_camera.z_far = camera_component->far;
-                shader_camera.view = camera_component->view;
-                shader_camera.projection = camera_component->projection;
-                shader_camera.view_projection = camera_component->view_projection;
-            }
-        }
-
-        void* shader_frame_mapped_data = shader_frame_buffer->GetMappedData();
-        void* shader_camera_mapped_data = shader_camera_buffer->GetMappedData();
-
-        std::memcpy(shader_frame_mapped_data, &shader_frame, sizeof(ShaderFrame));
-        std::memcpy(shader_camera_mapped_data, &shader_camera, sizeof(ShaderCamera));
 
         RHISubresourceDesc back_buffer_rtv_desc = {};
         back_buffer_rtv_desc.type = RHISubresourceType::RenderTarget;

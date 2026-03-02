@@ -23,6 +23,7 @@ namespace won::rendering
             std::shared_ptr<RHIResource> shader_instance_upload_buffer;
             std::shared_ptr<RHIResource> shader_geometry_upload_buffer;
             std::shared_ptr<RHIResource> shader_material_upload_buffer;
+            std::shared_ptr<RHIResource> shader_light_upload_buffer;
             uint64 fence_value = 0;
         };
 
@@ -42,6 +43,9 @@ namespace won::rendering
 
         std::shared_ptr<RHIResource> shader_material_default_buffer;
         RHISubresourceHandle shader_material_default_buffer_subresource = {};
+
+        std::shared_ptr<RHIResource> shader_light_default_buffer;
+        RHISubresourceHandle shader_light_default_buffer_subresource = {};
 
         std::shared_ptr<RHIResource> shader_frame_buffer;
         RHISubresourceHandle shader_frame_buffer_subresource = {};

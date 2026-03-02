@@ -76,7 +76,6 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
         surface.roughness = perceptual_roughness * perceptual_roughness; // perceptually linear roughness to roughness
         
         half metallic = material.GetMetallic();
-        metallic = 1.h;
         half reflectance = material.GetReflectance();
 
         surface.albedo = base_color.rgb * (1 - metallic);

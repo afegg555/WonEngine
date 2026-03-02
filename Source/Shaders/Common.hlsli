@@ -147,10 +147,7 @@ RWTexture2D<uint4> bindless_rwtextures_uint4[] : register(u0, space115);
 StructuredBuffer<ShaderInstance> bindless_structured_instance[] : register(t0, space200);
 StructuredBuffer<ShaderGeometry> bindless_structured_geometry[] : register(t0, space201);
 StructuredBuffer<ShaderMaterial> bindless_structured_material[] : register(t0, space202);
-//StructuredBuffer<float3> bindless_structured_position[] : register(t0, space203);
-//StructuredBuffer<float3> bindless_structured_normal[] : register(t0, space204);
-//StructuredBuffer<float2> bindless_structured_texcoord[] : register(t0, space205);
-//StructuredBuffer<uint> bindless_structured_index[] : register(t0, space206);
+StructuredBuffer<ShaderLight> bindless_structured_light[] : register(t0, space203);
 
 // static samplers
 SamplerState sampler_linear_clamp : register(s100);
@@ -206,6 +203,18 @@ inline ShaderMaterial GetMaterial(uint material_index)
 inline ShaderMaterial GetMaterial()
 {
     return GetMaterial(push.material_index);
+}
+
+inline ShaderLightIterator lights(uint bucket_index = 0)
+{
+    ShaderLightIterator iter;
+    iter.value = GetScene().lights[bucket_index];
+    return iter;
+}
+
+inline ShaderLight GetLight(uint light_index)
+{
+    return bindless_structured_light[DescriptorIndex(GetScene().lightbuffer)][light_index];
 }
 
 #endif // WON_COMMON

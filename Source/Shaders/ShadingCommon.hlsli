@@ -115,14 +115,14 @@ half3 GetDiffuseBRDF(in Surface surface, in LightingContext lighting_context)
 
 inline void LightDirectional(in ShaderLight light, in Surface surface, inout Lighting lighting)
 {
-    half3 L = normalize(-light.direction);
+    half3 L = normalize(-light.GetDirection());
     LightingContext lighting_context;
     lighting_context.Create(surface, L);
 
     if (lighting_context.NoL <= FLT_EPSILON)
         return; // facing away from light
     
-    half3 light_color = light.color;
+    half3 light_color = light.GetColor().xyz;
     
     lighting.direct.diffuse = mad(light_color, GetDiffuseBRDF(surface, lighting_context), lighting.direct.diffuse);
     lighting.direct.specular = mad(light_color, GetSpecularBRDF(surface, lighting_context), lighting.direct.specular);
@@ -130,10 +130,42 @@ inline void LightDirectional(in ShaderLight light, in Surface surface, inout Lig
 
 inline void ForwardLighting(inout Surface surface, inout Lighting lighting)
 {
-    ShaderLight light;
-    light.direction = float3(0, -0.f, 1.f);
-    light.color = float3(10, 10, 10);
-    LightDirectional(light, surface, lighting);
+    if (any(GetScene().lights))
+    {
+        uint max_bucket_count = 4;
+        [unroll]
+        for (uint bucket = 0; bucket < max_bucket_count; ++bucket)
+        {
+            uint bucket_bits = GetScene().lights[bucket];
+            [loop]
+            while (bucket_bits != 0)
+            {
+                // Retrieve global light index from local bucket, then remove bit from local bucket:
+                const uint bucket_bit_index = firstbitlow(bucket_bits);
+                const uint light_index = bucket * 32 + bucket_bit_index;
+                bucket_bits ^= 1u << bucket_bit_index;
+                
+                ShaderLight light = GetLight(light_index);
+                switch (light.GetType())
+                {
+                    case SHADER_LIGHT_TYPE_DIRECTIONAL:
+				    {
+                        LightDirectional(light, surface, lighting);
+                    }
+                    break;
+                    case SHADER_LIGHT_TYPE_POINT:
+				    {
+                    }
+                    break;
+                    case SHADER_LIGHT_TYPE_SPOT:
+				    {
+                    }
+                    break;
+                }
+
+            }
+        }
+    }
 }
 
 #endif // SHADING_COMMON

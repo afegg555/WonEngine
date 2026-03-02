@@ -158,9 +158,11 @@ set(RUNTIME_ECS_COMPONENTS
 
 set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Public/CameraUpdateSystem.h
+    Source/Runtime/Public/LightUpdateSystem.h
     Source/Runtime/Public/TransformUpdateSystem.h
     Source/Runtime/Public/RenderDataUpdateSystem.h
     Source/Runtime/Private/CameraUpdateSystem.cpp
+    Source/Runtime/Private/LightUpdateSystem.cpp
     Source/Runtime/Private/TransformUpdateSystem.cpp
     Source/Runtime/Private/RenderDataUpdateSystem.cpp
 )

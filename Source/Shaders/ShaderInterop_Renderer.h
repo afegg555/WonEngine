@@ -36,6 +36,15 @@ enum SHADER_MATERIAL_TYPE
     SHADER_MATERIAL_TYPE_COUNT
 };
 
+enum SHADER_LIGHT_TYPE
+{
+    SHADER_LIGHT_TYPE_DIRECTIONAL,
+    SHADER_LIGHT_TYPE_POINT,
+    SHADER_LIGHT_TYPE_SPOT,
+
+    SHADER_LIGHT_TYPE_COUNT
+};
+
 enum TEXTURESLOT
 {
     BASECOLORMAP,
@@ -171,14 +180,18 @@ struct alignas(16) ShaderScene
     int instancebuffer;
     int geometrybuffer;
     int materialbuffer;
-    int padding0;
+    int lightbuffer;
 
+    uint4 lights; // supports indexing 128 lights
 #ifdef __cplusplus
     inline void Init()
     {
         instancebuffer = -1;
         geometrybuffer = -1;
         materialbuffer = -1;
+        lightbuffer = -1;
+
+        lights = { 0,0,0,0 };
     }
 #endif
 };
@@ -220,17 +233,143 @@ struct alignas(16) ShaderCamera
 #endif
 };
 
+struct ShaderLightIterator
+{
+    uint value;
+
+#ifdef __cplusplus
+    ShaderLightIterator(uint offset, uint count)
+    {
+        value = offset | (count << 16u);
+    }
+    constexpr operator uint() const { return value; }
+#endif // __cplusplus
+
+    inline uint item_offset()
+    {
+        return value & 0xFFFF;
+    }
+    inline uint item_count()
+    {
+        return value >> 16u;
+    }
+    inline bool empty()
+    {
+        return item_count() == 0;
+    }
+    inline uint first_item()
+    {
+        return item_offset();
+    }
+    inline uint last_item() // includes last valid item
+    {
+        return empty() ? 0 : (item_offset() + item_count() - 1);
+    }
+    inline uint end_item() // excludes last valid item
+    {
+        return empty() ? 0 : (item_offset() + item_count());
+    }
+    inline uint first_bucket()
+    {
+        return first_item() / 32u;
+    }
+    inline uint last_bucket()
+    {
+        return last_item() / 32u;
+    }
+};
+
 struct alignas(16) ShaderLight
 {
 	float3 position;
-    float padding;
+    uint type8_flags8_range16;
 
-    float3 color;
-    float padding2;
+    uint2 direction_outer_cone_angle_cos; // direction 3 cos_outer_cone 1
+    uint2 color; // half4 packed
 
-    float3 direction;
-    float padding3;
-#ifndef __cplusplus
+    uint inner_cone_angle_cos_padding; // cos_inner_cone 1 padding 1
+    uint3 padding;
+#ifdef __cplusplus
+    inline void Init()
+    {
+        position = { 0,0,0 };
+        type8_flags8_range16 = 0;
+
+        direction_outer_cone_angle_cos = { 0,0 };
+        color = { 0,0 };
+        inner_cone_angle_cos_padding = 0;
+    }
+    inline void SetType(uint type)
+    {
+        type8_flags8_range16 |= type & 0xFF;
+    }
+    inline void SetFlags(uint flags)
+    {
+        type8_flags8_range16 |= (flags & 0xFF) << 8u;
+    }
+    inline void SetRange(float value)
+    {
+        type8_flags8_range16 |= XMConvertFloatToHalf(value) << 16u;
+    }
+    inline void SetDirection(float3 value)
+    {
+        direction_outer_cone_angle_cos.x |= XMConvertFloatToHalf(value.x);
+        direction_outer_cone_angle_cos.x |= XMConvertFloatToHalf(value.y) << 16u;
+        direction_outer_cone_angle_cos.y |= XMConvertFloatToHalf(value.z);
+    }
+    inline void SetOuterConeAngleCos(float value)
+    {
+        direction_outer_cone_angle_cos.y |= XMConvertFloatToHalf(value) << 16u;
+    }
+    inline void SetColor(float4 value)
+    {
+        color.x |= XMConvertFloatToHalf(value.x);
+        color.x |= XMConvertFloatToHalf(value.y) << 16u;
+        color.y |= XMConvertFloatToHalf(value.z);
+        color.y |= XMConvertFloatToHalf(value.w) << 16u;
+    }
+    inline void SetInnerConeAngleCos(float value)
+    {
+        inner_cone_angle_cos_padding |= XMConvertFloatToHalf(value);
+    }
+#else
+    inline min16uint GetType()
+    {
+        return type8_flags8_range16 & 0xFF;
+    }
+    inline min16uint GetFlags()
+    {
+        return (type8_flags8_range16 >> 8u) & 0xFF;
+    }
+    inline half GetRange()
+    {
+        return (half)f16tof32(type8_flags8_range16 >> 16u);
+    }
+    inline half3 GetDirection()
+    {
+        return normalize(half3(
+            (half)f16tof32(direction_outer_cone_angle_cos.x),
+            (half)f16tof32(direction_outer_cone_angle_cos.x >> 16u),
+            (half)f16tof32(direction_outer_cone_angle_cos.y)
+        ));
+    }
+    inline half GetOuterConeAngleCos()
+    {
+        return (half)f16tof32(direction_outer_cone_angle_cos.y >> 16u);
+    }
+    inline half4 GetColor()
+    {
+        half4 retVal;
+        retVal.x = (half)f16tof32(color.x);
+        retVal.y = (half)f16tof32(color.x >> 16u);
+        retVal.z = (half)f16tof32(color.y);
+        retVal.w = (half)f16tof32(color.y >> 16u);
+        return retVal;
+    }
+    inline half GetInnerConeAngleCos()
+    {
+        return (half)f16tof32(inner_cone_angle_cos_padding);
+    }
 #endif // __cplusplus
 };
 
@@ -269,13 +408,19 @@ CONSTANTBUFFER(g_camera, ShaderCamera, CBSLOT_RENDERER_CAMERA);
 
 PUSHCONSTANT(push, ObjectPushConstants);
 
+//CBUFFER(ForwardLightMaskCB, CBSLOT_RENDERER_FORWARD_LIGHTMASK)
+//{
+//    uint4 forward_light_mask;	// supports indexing 128 lights
+//};
+
 #ifdef __cplusplus
 static_assert(sizeof(ShaderTextureSlot) == 16, "ShaderTextureSlot layout mismatch");
 static_assert(sizeof(ShaderGeometry) == 64, "ShaderGeometry layout mismatch");
 static_assert(sizeof(ShaderMaterial) == 288, "ShaderMaterial layout mismatch");
-static_assert(sizeof(ShaderScene) == 16, "ShaderScene layout mismatch");
-static_assert(sizeof(ShaderFrame) == 16, "ShaderFrame layout mismatch");
+static_assert(sizeof(ShaderScene) == 32, "ShaderScene layout mismatch");
+static_assert(sizeof(ShaderFrame) == 32, "ShaderFrame layout mismatch");
 static_assert(sizeof(ShaderCamera) == 256, "ShaderCamera layout mismatch");
+static_assert(sizeof(ShaderLight) == 48, "ShaderLight layout mismatch");
 static_assert(sizeof(ObjectPushConstants) == 16, "ObjectPushConstants layout mismatch");
 static_assert(sizeof(ShaderInstance) == 112, "ShaderInstance layout mismatch");
 #endif // __cplusplus

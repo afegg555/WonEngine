@@ -4,10 +4,16 @@
 
 namespace won::math
 {
-    struct Aabb
+    struct AABB
     {
         float3 min = {};
         float3 max = {};
+
+        void CreateFromHalfWidth(const float3& center, const float3& halfwidth)
+        {
+            min = XMFLOAT3(center.x - halfwidth.x, center.y - halfwidth.y, center.z - halfwidth.z);
+            max = XMFLOAT3(center.x + halfwidth.x, center.y + halfwidth.y, center.z + halfwidth.z);
+        }
     };
 
     struct Ray

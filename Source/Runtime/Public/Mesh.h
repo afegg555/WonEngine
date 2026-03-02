@@ -20,7 +20,7 @@ namespace won::resource
         uint32 index_count = 0;
         uint32 first_vertex = 0;
         uint32 material_slot = 0;
-        math::Aabb local_bounds = {};
+        math::AABB local_bounds = {};
     };
 
     struct WONENGINE_API Mesh : public Resource

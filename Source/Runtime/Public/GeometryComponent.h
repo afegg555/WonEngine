@@ -10,7 +10,7 @@ namespace won::ecs
         // keep component lightweight: reference a shared mesh, which is owned by the resource layer
         std::shared_ptr<resource::Mesh> mesh;
 
-        math::Aabb local_bounds = {};
+        math::AABB local_bounds = {};
         bool cast_shadow = true;
     };
 }
