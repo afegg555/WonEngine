@@ -6,6 +6,23 @@ inline int DescriptorIndex(in int descriptor_index)
     return descriptor_index;
 }
 
+#define PI 3.14159265358979323846
+#define SQRT2 1.41421356237309504880
+#define FLT_MAX 3.402823466e+38
+#define FLT_EPSILON 1.192092896e-07
+#define GOLDEN_RATIO 1.6180339887
+#define MEDIUMP_FLT_MAX 65504.0
+#define saturateMediump(x) min(x, MEDIUMP_FLT_MAX)
+
+//	Note: when using -enable-16bit-types compile flag, half will be always FP16
+#define half min16float
+#define half2 min16float2
+#define half3 min16float3
+#define half4 min16float4
+#define half3x3 min16float3x3
+#define half3x4 min16float3x4
+#define half4x4 min16float4x4
+
 #define DEFAULT_ROOTSIGNATURE \
     "RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT), " \
     "RootConstants(num32BitConstants = 4, b999), " \
@@ -33,6 +50,7 @@ inline int DescriptorIndex(in int descriptor_index)
 		"SRV(t0, space = 17, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
 		"SRV(t0, space = 18, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
 		"SRV(t0, space = 19, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"SRV(t0, space = 20, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
 		"UAV(u0, space = 100, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
 		"UAV(u0, space = 101, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
 		"UAV(u0, space = 102, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
@@ -84,7 +102,6 @@ inline half4 UnpackHalf4(in uint2 value)
     retVal.w = (half) f16tof32(value.y >> 16u);
     return retVal;
 }
-#include "ShaderInterop_Renderer.h"
 
 SamplerState bindless_samplers[] : register(s0, space1);
 
@@ -106,6 +123,7 @@ Texture2DArray bindless_textures2DArray[] : register(t0, space16);
 TextureCube bindless_cubemaps[] : register(t0, space17);
 TextureCubeArray bindless_cubearrays[] : register(t0, space18);
 Texture3D bindless_textures3D[] : register(t0, space19);
+Texture2D<half4> bindless_textures_half4[] : register(space20);
 
 RWTexture2D<float4> bindless_rwtextures[] : register(u0, space100);
 RWByteAddressBuffer bindless_rwbuffers[] : register(u0, space101);
@@ -123,6 +141,8 @@ RWTexture2D<uint> bindless_rwtextures_uint[] : register(u0, space112);
 RWTexture2D<uint2> bindless_rwtextures_uint2[] : register(u0, space113);
 RWTexture2D<uint3> bindless_rwtextures_uint3[] : register(u0, space114);
 RWTexture2D<uint4> bindless_rwtextures_uint4[] : register(u0, space115);
+
+#include "ShaderInterop_Renderer.h"
 
 StructuredBuffer<ShaderInstance> bindless_structured_instance[] : register(t0, space200);
 StructuredBuffer<ShaderGeometry> bindless_structured_geometry[] : register(t0, space201);

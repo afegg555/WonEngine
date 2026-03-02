@@ -12,6 +12,7 @@ namespace won::resource
         VSObjectSimple,
         VSObjectPrepass,
 
+        PSObjectCommon,
         PSObjectSimple,
         PSTestRed,
         Count

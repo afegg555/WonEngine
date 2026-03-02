@@ -17,6 +17,7 @@
 #define OBJECTSHADER_USE_COLOR
 #define OBJECTSHADER_USE_NORMAL
 #define OBJECTSHADER_USE_TANGENT
+#define OBJECTSHADER_USE_EMISSIVE
 #endif // OBJECTSHADER_LAYOUT_COMMON
 
 struct VertexInput
@@ -70,6 +71,7 @@ struct VertexInput
 struct PixelInput
 {
     precise float4 pos : SV_Position;
+    float3 worldpos : WORLDPOSITION;
     
 #if defined(PREPASS)
 	uint primitive_id : PRIMITIVEID;
@@ -90,6 +92,13 @@ struct PixelInput
 #ifdef OBJECTSHADER_USE_COLOR
 	half4 color : COLOR;
 #endif // OBJECTSHADER_USE_COLOR
+    
+    inline float3 GetViewVector()
+    {
+        ShaderCamera camera = GetCamera();
+
+        return normalize(camera.position - worldpos);
+    }
 };
 
 #endif // OBJECT_COMMON

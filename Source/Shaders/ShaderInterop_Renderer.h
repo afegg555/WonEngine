@@ -70,7 +70,29 @@ struct alignas(16) ShaderTextureSlot
         texture_descriptor = -1;
         sampler_descriptor = -1;
     }
+#else
+    inline bool IsValid()
+    {
+        return texture_descriptor >= 0;
+    }
+    Texture2D<half4> GetTexture()
+    {
+        return bindless_textures_half4[texture_descriptor];
+    }
+    half4 Sample(in SamplerState sam, in float2 uv)
+    {
+        Texture2D<half4> tex = GetTexture();
+        return tex.Sample(sam, uv);
+    }
+
+    half4 SampleLevel(in SamplerState sam, in float2 uv, in float lod)
+    {
+        Texture2D<half4> tex = GetTexture();
+        return tex.SampleLevel(sam, uv, lod);
+    }
+
 #endif
+
 };
 
 struct alignas(16) ShaderGeometry
@@ -175,6 +197,18 @@ struct alignas(16) ShaderFrame
 
 struct alignas(16) ShaderCamera
 {
+    float3		position;
+    uint		output_index; // viewport or rendertarget array index
+
+    float3		forward;
+    float		z_near;
+
+    float3		up;
+    float		z_far;
+
+    uint2 internal_resolution;
+    float2 internal_resolution_rcp;
+
     float4x4 view;
     float4x4 projection;
     float4x4 view_projection;
@@ -241,7 +275,7 @@ static_assert(sizeof(ShaderGeometry) == 64, "ShaderGeometry layout mismatch");
 static_assert(sizeof(ShaderMaterial) == 288, "ShaderMaterial layout mismatch");
 static_assert(sizeof(ShaderScene) == 16, "ShaderScene layout mismatch");
 static_assert(sizeof(ShaderFrame) == 16, "ShaderFrame layout mismatch");
-static_assert(sizeof(ShaderCamera) == 192, "ShaderCamera layout mismatch");
+static_assert(sizeof(ShaderCamera) == 256, "ShaderCamera layout mismatch");
 static_assert(sizeof(ObjectPushConstants) == 16, "ObjectPushConstants layout mismatch");
 static_assert(sizeof(ShaderInstance) == 112, "ShaderInstance layout mismatch");
 #endif // __cplusplus

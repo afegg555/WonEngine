@@ -274,7 +274,8 @@ namespace won::rendering
         }
 
         const std::shared_ptr<RHIShader> vertex_shader = shader_library.GetShader(resource::ShaderId::VSObjectCommon);
-        const std::shared_ptr<RHIShader> pixel_shader = shader_library.GetShader(resource::ShaderId::PSTestRed);
+        //const std::shared_ptr<RHIShader> pixel_shader = shader_library.GetShader(resource::ShaderId::PSTestRed);
+        const std::shared_ptr<RHIShader> pixel_shader = shader_library.GetShader(resource::ShaderId::PSObjectCommon);
 
         RHIGraphicsPipelineDesc pipeline_desc = {};
         pipeline_desc.vertex_shader = vertex_shader.get();
@@ -420,6 +421,11 @@ namespace won::rendering
             {
                 camera_component = view.scene->GetComponent<ecs::CameraComponent>(view.camera_entity);
 
+                shader_camera.position = camera_component->eye;
+                shader_camera.forward = camera_component->forward;
+                shader_camera.up = camera_component->up;
+                shader_camera.z_near = camera_component->near;
+                shader_camera.z_far = camera_component->far;
                 shader_camera.view = camera_component->view;
                 shader_camera.projection = camera_component->projection;
                 shader_camera.view_projection = camera_component->view_projection;

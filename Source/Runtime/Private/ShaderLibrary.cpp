@@ -18,6 +18,7 @@ namespace won::resource
         jobsystem::Execute(ctx, [this](jobsystem::JobArgs args) { LoadShader(ShaderId::VSObjectCommon, RHIShaderStage::Vertex, "ObjectVS_common.hlsl"); });
         jobsystem::Execute(ctx, [this](jobsystem::JobArgs args) { LoadShader(ShaderId::VSObjectSimple, RHIShaderStage::Vertex, "ObjectVS_simple.hlsl"); });
         jobsystem::Execute(ctx, [this](jobsystem::JobArgs args) { LoadShader(ShaderId::VSObjectPrepass, RHIShaderStage::Vertex, "ObjectVS_prepass.hlsl"); });
+        jobsystem::Execute(ctx, [this](jobsystem::JobArgs args) { LoadShader(ShaderId::PSObjectCommon, RHIShaderStage::Pixel, "ObjectPS_common.hlsl"); });
         jobsystem::Execute(ctx, [this](jobsystem::JobArgs args) { LoadShader(ShaderId::PSObjectSimple, RHIShaderStage::Pixel, "ObjectPS_simple.hlsl"); });
         jobsystem::Execute(ctx, [this](jobsystem::JobArgs args) { LoadShader(ShaderId::PSTestRed, RHIShaderStage::Pixel, "TestRedPS.hlsl"); });
 

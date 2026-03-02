@@ -7,7 +7,8 @@ PixelInput main(VertexInput input)
     output.pos = mul(GetInstance().world_transform, output.pos);
     
     ShaderCamera camera = GetCamera();
-
+    output.worldpos = output.pos.xyz;
+    
     output.pos = mul(camera.view_projection, output.pos);
     
 #ifdef OBJECTSHADER_USE_COLOR

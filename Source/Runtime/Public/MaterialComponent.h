@@ -21,7 +21,7 @@ namespace won::ecs
         float4 base_color = { 1.0f, 1.0f, 1.0f, 1.0f };
         float metallic = 1.0f;
         float roughness = 0.0f;
-        float reflectance = 0.04f;
+        float reflectance = 0.5f; // 0.5 is good enough for most dielectric materials (this means 0.04 F0)
         // Anisotropy factor. 0.0 = isotropic, 1.0 = anisotropy along tangent direction,
         // -1.0 = anisotropy along bitangent direction
         float anisotropy = 0;
