@@ -8,7 +8,7 @@ struct PixelInput
 
 float4 main(PixelInput input) : SV_Target
 {
-    ShaderMaterial material = GetMaterial(object_push_constants.material_index);
+    ShaderMaterial material = GetMaterial();
     float4 base_color = material.base_color;
     const int base_color_texture_descriptor = material.textures[BASECOLORMAP].texture_descriptor;
     if (base_color_texture_descriptor >= 0)

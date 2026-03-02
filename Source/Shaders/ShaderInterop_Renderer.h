@@ -195,7 +195,7 @@ struct alignas(16) ShaderInstance
 CONSTANTBUFFER(g_frame, ShaderFrame, CBSLOT_RENDERER_FRAME);
 CONSTANTBUFFER(g_camera, ShaderCamera, CBSLOT_RENDERER_CAMERA);
 
-PUSHCONSTANT(object_push_constants, ObjectPushConstants);
+PUSHCONSTANT(push, ObjectPushConstants);
 
 #ifdef __cplusplus
 static_assert(sizeof(ShaderTextureSlot) == 16, "ShaderTextureSlot layout mismatch");

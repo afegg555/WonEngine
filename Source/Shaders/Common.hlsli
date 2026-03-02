@@ -72,14 +72,30 @@ inline ShaderInstance GetInstance(uint instance_index)
     return bindless_structured_instance[DescriptorIndex(GetScene().instancebuffer)][instance_index];
 }
 
+inline ShaderInstance GetInstance()
+{
+    return GetInstance(push.instance_index);
+
+}
+
 inline ShaderGeometry GetGeometry(uint geometry_index)
 {
     return bindless_structured_geometry[DescriptorIndex(GetScene().geometrybuffer)][geometry_index];
 }
 
+inline ShaderGeometry GetGeometry()
+{
+    return GetGeometry(push.geometry_index);
+}
+
 inline ShaderMaterial GetMaterial(uint material_index)
 {
     return bindless_structured_material[DescriptorIndex(GetScene().materialbuffer)][material_index];
+}
+
+inline ShaderMaterial GetMaterial()
+{
+    return GetMaterial(push.material_index);
 }
 
 #endif // WON_COMMON
