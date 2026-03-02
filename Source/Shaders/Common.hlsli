@@ -1,8 +1,6 @@
 #ifndef WON_COMMON
 #define WON_COMMON
 
-#include "ShaderInterop_Renderer.h"
-
 inline int DescriptorIndex(in int descriptor_index)
 {
     return descriptor_index;
@@ -13,16 +11,52 @@ inline int DescriptorIndex(in int descriptor_index)
     "RootConstants(num32BitConstants = 4, b999), " \
     "CBV(b0), " \
     "CBV(b1), " \
+	"DescriptorTable(" \
+		"Sampler(s0, space = 1, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE)" \
+	")," \
     "DescriptorTable(" \
-                    "SRV(t0, space = 200, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
-                    "SRV(t0, space = 201, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
-                    "SRV(t0, space = 202, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
-                    "SRV(t0, space = 203, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
-                    "SRV(t0, space = 204, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
-                    "SRV(t0, space = 205, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
-                    "SRV(t0, space = 206, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
-                    "SRV(t0, space = 207, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)" \
-                    "), " \
+		"SRV(t0, space = 2, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"SRV(t0, space = 3, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"SRV(t0, space = 4, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"SRV(t0, space = 5, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"SRV(t0, space = 6, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"SRV(t0, space = 7, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"SRV(t0, space = 8, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"SRV(t0, space = 9, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"SRV(t0, space = 10, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"SRV(t0, space = 11, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"SRV(t0, space = 12, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"SRV(t0, space = 13, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"SRV(t0, space = 14, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"SRV(t0, space = 15, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"SRV(t0, space = 16, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"SRV(t0, space = 17, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"SRV(t0, space = 18, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"SRV(t0, space = 19, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"UAV(u0, space = 100, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"UAV(u0, space = 101, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"UAV(u0, space = 102, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"UAV(u0, space = 103, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"UAV(u0, space = 104, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"UAV(u0, space = 105, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"UAV(u0, space = 106, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"UAV(u0, space = 107, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"UAV(u0, space = 108, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"UAV(u0, space = 109, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"UAV(u0, space = 110, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"UAV(u0, space = 111, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"UAV(u0, space = 112, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"UAV(u0, space = 113, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"UAV(u0, space = 114, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"UAV(u0, space = 115, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+        "SRV(t0, space = 200, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
+        "SRV(t0, space = 201, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
+        "SRV(t0, space = 202, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
+        "SRV(t0, space = 203, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
+        "SRV(t0, space = 204, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
+        "SRV(t0, space = 205, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
+        "SRV(t0, space = 206, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE) " \
+    "), " \
     "StaticSampler(s100, addressU = TEXTURE_ADDRESS_CLAMP, addressV = TEXTURE_ADDRESS_CLAMP, addressW = TEXTURE_ADDRESS_CLAMP, filter = FILTER_MIN_MAG_MIP_LINEAR)," \
 	"StaticSampler(s101, addressU = TEXTURE_ADDRESS_WRAP, addressV = TEXTURE_ADDRESS_WRAP, addressW = TEXTURE_ADDRESS_WRAP, filter = FILTER_MIN_MAG_MIP_LINEAR)," \
 	"StaticSampler(s102, addressU = TEXTURE_ADDRESS_MIRROR, addressV = TEXTURE_ADDRESS_MIRROR, addressW = TEXTURE_ADDRESS_MIRROR, filter = FILTER_MIN_MAG_MIP_LINEAR)," \
@@ -33,15 +67,72 @@ inline int DescriptorIndex(in int descriptor_index)
 	"StaticSampler(s107, addressU = TEXTURE_ADDRESS_WRAP, addressV = TEXTURE_ADDRESS_WRAP, addressW = TEXTURE_ADDRESS_WRAP, filter = FILTER_ANISOTROPIC, maxAnisotropy = 16)," \
 	"StaticSampler(s108, addressU = TEXTURE_ADDRESS_MIRROR, addressV = TEXTURE_ADDRESS_MIRROR, addressW = TEXTURE_ADDRESS_MIRROR, filter = FILTER_ANISOTROPIC, maxAnisotropy = 16)," \
 
+inline uint2 PackHalf4(in float4 value)
+{
+    uint2 retVal = 0;
+    retVal.x = f32tof16(value.x) | (f32tof16(value.y) << 16u);
+    retVal.y = f32tof16(value.z) | (f32tof16(value.w) << 16u);
+    return retVal;
+}
+
+inline half4 UnpackHalf4(in uint2 value)
+{
+    half4 retVal;
+    retVal.x = (half) f16tof32(value.x);
+    retVal.y = (half) f16tof32(value.x >> 16u);
+    retVal.z = (half) f16tof32(value.y);
+    retVal.w = (half) f16tof32(value.y >> 16u);
+    return retVal;
+}
+#include "ShaderInterop_Renderer.h"
+
+SamplerState bindless_samplers[] : register(s0, space1);
+
+Texture2D bindless_textures[] : register(t0, space2);
+ByteAddressBuffer bindless_buffers[] : register(t0, space3);
+Buffer<uint> bindless_buffers_uint[] : register(t0, space4);
+Buffer<uint2> bindless_buffers_uint2[] : register(t0, space5);
+Buffer<uint3> bindless_buffers_uint3[] : register(t0, space6);
+Buffer<uint4> bindless_buffers_uint4[] : register(t0, space7);
+Buffer<float> bindless_buffers_float[] : register(t0, space8);
+Buffer<float2> bindless_buffers_float2[] : register(t0, space9);
+Buffer<float3> bindless_buffers_float3[] : register(t0, space10);
+Buffer<float4> bindless_buffers_float4[] : register(t0, space11);
+Buffer<half> bindless_buffers_half[] : register(t0, space12);
+Buffer<half2> bindless_buffers_half2[] : register(t0, space13);
+Buffer<half3> bindless_buffers_half3[] : register(t0, space14);
+Buffer<half4> bindless_buffers_half4[] : register(t0, space15);
+Texture2DArray bindless_textures2DArray[] : register(t0, space16);
+TextureCube bindless_cubemaps[] : register(t0, space17);
+TextureCubeArray bindless_cubearrays[] : register(t0, space18);
+Texture3D bindless_textures3D[] : register(t0, space19);
+
+RWTexture2D<float4> bindless_rwtextures[] : register(u0, space100);
+RWByteAddressBuffer bindless_rwbuffers[] : register(u0, space101);
+RWBuffer<uint> bindless_rwbuffers_uint[] : register(u0, space102);
+RWBuffer<uint2> bindless_rwbuffers_uint2[] : register(u0, space103);
+RWBuffer<uint3> bindless_rwbuffers_uint3[] : register(u0, space104);
+RWBuffer<uint4> bindless_rwbuffers_uint4[] : register(u0, space105);
+RWBuffer<float> bindless_rwbuffers_float[] : register(u0, space106);
+RWBuffer<float2> bindless_rwbuffers_float2[] : register(u0, space107);
+RWBuffer<float3> bindless_rwbuffers_float3[] : register(u0, space108);
+RWBuffer<float4> bindless_rwbuffers_float4[] : register(u0, space109);
+RWTexture2DArray<float4> bindless_rwtextures2DArray[] : register(u0, space110);
+RWTexture3D<float4> bindless_rwtextures3D[] : register(u0, space111);
+RWTexture2D<uint> bindless_rwtextures_uint[] : register(u0, space112);
+RWTexture2D<uint2> bindless_rwtextures_uint2[] : register(u0, space113);
+RWTexture2D<uint3> bindless_rwtextures_uint3[] : register(u0, space114);
+RWTexture2D<uint4> bindless_rwtextures_uint4[] : register(u0, space115);
+
 StructuredBuffer<ShaderInstance> bindless_structured_instance[] : register(t0, space200);
 StructuredBuffer<ShaderGeometry> bindless_structured_geometry[] : register(t0, space201);
 StructuredBuffer<ShaderMaterial> bindless_structured_material[] : register(t0, space202);
-StructuredBuffer<float3> bindless_structured_position[] : register(t0, space203);
-StructuredBuffer<float3> bindless_structured_normal[] : register(t0, space204);
-StructuredBuffer<float2> bindless_structured_texcoord[] : register(t0, space205);
-StructuredBuffer<uint> bindless_structured_index[] : register(t0, space206);
-Texture2D<float4> bindless_textures[] : register(t0, space207);
+//StructuredBuffer<float3> bindless_structured_position[] : register(t0, space203);
+//StructuredBuffer<float3> bindless_structured_normal[] : register(t0, space204);
+//StructuredBuffer<float2> bindless_structured_texcoord[] : register(t0, space205);
+//StructuredBuffer<uint> bindless_structured_index[] : register(t0, space206);
 
+// static samplers
 SamplerState sampler_linear_clamp : register(s100);
 SamplerState sampler_linear_wrap : register(s101);
 SamplerState sampler_linear_mirror : register(s102);
@@ -75,7 +166,6 @@ inline ShaderInstance GetInstance(uint instance_index)
 inline ShaderInstance GetInstance()
 {
     return GetInstance(push.instance_index);
-
 }
 
 inline ShaderGeometry GetGeometry(uint geometry_index)
