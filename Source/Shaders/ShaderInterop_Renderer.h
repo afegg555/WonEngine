@@ -20,6 +20,7 @@ enum SHADER_MATERIAL_FLAGS
     SHADER_MATERIAL_FLAG_NONE = 0,
     SHADER_MATERIAL_FLAG_DOUBLE_SIDED = 1 << 0,
     SHADER_MATERIAL_FLAG_TRANSPARENT = 1 << 1,
+    SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS = 1 << 2,
 };
 
 enum SHADER_CAMERA_FLAGS
@@ -104,16 +105,15 @@ struct alignas(16) ShaderGeometry
 
 struct alignas(16) ShaderMaterial
 {
-    float4 base_color;
-    float4 emissive_color_metallic;
+    uint2 base_color;
+    uint2 emissive_color_metallic;
 
-    float4 roughness_reflectance_metalness_refraction;
-    float4 anisotropy_sheenroughness_clearcoat_clearcoatroughness;
+    uint2 roughness_reflectance_refraction_padding;
+    uint2 anisotropy_sheenroughness_clearcoat_clearcoatroughness;
 
-    float4 sheencolor_padding;
-
+    uint2 sheencolor_padding;
     uint flags; // see SHADER_MATERIAL_FLAGS
-    uint3 padding;
+    uint padding;
     
     ShaderTextureSlot textures[TEXTURESLOT_COUNT];
 
@@ -125,6 +125,22 @@ struct alignas(16) ShaderMaterial
             textures[i].Init();
         }
     }
+#else
+    inline half4 GetBaseColor() { return UnpackHalf4(base_color); }
+    inline half3 GetEmissiveColor() { return UnpackHalf4(emissive_color_metallic).xyz; }
+    inline half GetMetallic() { return UnpackHalf4(emissive_color_metallic).w; }
+    inline half GetRoughness() { return UnpackHalf4(roughness_reflectance_refraction_padding).x; }
+    inline half GetReflectance() { return UnpackHalf4(roughness_reflectance_refraction_padding).y; }
+    inline half GetRefraction() { return UnpackHalf4(roughness_reflectance_refraction_padding).z; }
+    inline half GetAnisotropy() { return UnpackHalf4(anisotropy_sheenroughness_clearcoat_clearcoatroughness).x; }
+    inline half GetSheenRoughness() { return UnpackHalf4(anisotropy_sheenroughness_clearcoat_clearcoatroughness).y; }
+    inline half GetClearCoat() { return UnpackHalf4(anisotropy_sheenroughness_clearcoat_clearcoatroughness).z; }
+    inline half GetClearCoatRoughness() { return UnpackHalf4(anisotropy_sheenroughness_clearcoat_clearcoatroughness).w; }
+    inline half3 GetSheenColor() { return UnpackHalf4(sheencolor_padding).xyz; }
+
+    inline bool IsDoubleSided() { return flags & SHADER_MATERIAL_FLAG_DOUBLE_SIDED; }
+    inline bool IsTransparent() { return flags & SHADER_MATERIAL_FLAG_TRANSPARENT; }
+    inline bool IsUsingVertexColors() { return flags & SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS; }
 #endif
 };
 
@@ -189,7 +205,9 @@ struct ObjectPushConstants
 
 struct alignas(16) ShaderInstance
 {
-    float4x4 local_to_world;
+    float4x4 world_transform;
+    float3x3 normal_transform; // will be removed
+    float3 padding;
 
 #ifdef __cplusplus
     inline void Init()
@@ -205,13 +223,13 @@ PUSHCONSTANT(push, ObjectPushConstants);
 
 #ifdef __cplusplus
 static_assert(sizeof(ShaderTextureSlot) == 16, "ShaderTextureSlot layout mismatch");
-static_assert(sizeof(ShaderMaterial) == 336, "ShaderMaterial layout mismatch");
 static_assert(sizeof(ShaderGeometry) == 64, "ShaderGeometry layout mismatch");
+static_assert(sizeof(ShaderMaterial) == 288, "ShaderMaterial layout mismatch");
 static_assert(sizeof(ShaderScene) == 16, "ShaderScene layout mismatch");
 static_assert(sizeof(ShaderFrame) == 16, "ShaderFrame layout mismatch");
 static_assert(sizeof(ShaderCamera) == 192, "ShaderCamera layout mismatch");
 static_assert(sizeof(ObjectPushConstants) == 16, "ObjectPushConstants layout mismatch");
-static_assert(sizeof(ShaderInstance) == 64, "ShaderInstance layout mismatch");
+static_assert(sizeof(ShaderInstance) == 112, "ShaderInstance layout mismatch");
 #endif // __cplusplus
 
 #endif // WON_SHADERINTEROP_RENDERER_H

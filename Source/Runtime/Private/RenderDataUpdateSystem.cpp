@@ -7,6 +7,7 @@
 #include "GeometryComponent.h"
 #include "MaterialComponent.h"
 
+using namespace won::math;
 namespace won::ecs
 {
     void RenderDataUpdateSystem::Update(Scene& scene, float delta_time)
@@ -57,9 +58,11 @@ namespace won::ecs
                 const MaterialSlot& material_slot = material_comp.material_slots[i];
                 ShaderMaterial& shader_material = render_data.shader_material[material_comp.material_offset + i];
                 shader_material.Init();
-                shader_material.base_color = material_slot.base_color;
-                shader_material.emissive_color_metallic = float4(0.f, 0.f, 0.f, material_slot.metallic);
-                shader_material.roughness_reflectance_metalness_refraction = float4(material_slot.roughness, material_slot.reflectance, material_slot.metallic, 0.f);
+                shader_material.base_color = pack_half4(material_slot.base_color);
+                shader_material.emissive_color_metallic = pack_half4(0.f, 0.f, 0.f, material_slot.metallic);
+                shader_material.roughness_reflectance_refraction_padding = pack_half4(material_slot.roughness, material_slot.reflectance, 0.f, 0.f);
+                shader_material.anisotropy_sheenroughness_clearcoat_clearcoatroughness = pack_half4(material_slot.anisotropy, material_slot.sheen_roughness, material_slot.clearcoat, material_slot.clearcoat_roughness);
+                shader_material.sheencolor_padding = pack_half4(material_slot.sheen_color.x, material_slot.sheen_color.y, material_slot.sheen_color.z, 0.f);
                 shader_material.flags = material_slot.flags;
 
                 for (uint32 texture_slot = 0; texture_slot < static_cast<uint32>(TEXTURESLOT_COUNT); ++texture_slot)
@@ -84,7 +87,13 @@ namespace won::ecs
             const TransformComponent& transform = transform_array->data[args.job_index];
             ShaderInstance& shader_instance = render_data.shader_instance[args.job_index];
             shader_instance.Init();
-            shader_instance.local_to_world = transform.world_transform;
+            shader_instance.world_transform = transform.world_transform;
+
+            XMMATRIX x_normal_mat = XMLoadFloat4x4(&transform.world_transform);
+            x_normal_mat.r[3] = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
+            x_normal_mat = XMMatrixInverse(nullptr, x_normal_mat);
+            x_normal_mat = XMMatrixTranspose(x_normal_mat);
+            XMStoreFloat3x3(&shader_instance.normal_transform, x_normal_mat);
 
             Entity entity = transform_array->index_to_entity[args.job_index];
             if (geometry_array->HasData(entity) && material_array->HasData(entity))
