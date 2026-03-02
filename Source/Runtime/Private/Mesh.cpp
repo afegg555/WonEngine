@@ -50,12 +50,16 @@ namespace won::resource
         }
 
         const Size positions_size = positions.size() * sizeof(float3);
+        const Size colors_size = colors.size() * sizeof(float4);
         const Size normals_size = normals.size() * sizeof(float3);
+        const Size tangents_size = tangents.size() * sizeof(float4);
         const Size texcoords_size = texcoords.size() * sizeof(float2);
         const Size indices_size = indices.size() * sizeof(uint32);
         Size total_size = 0;
         total_size = won::math::align(total_size, static_cast<Size>(sizeof(float3))) + positions_size;
+        total_size = won::math::align(total_size, static_cast<Size>(sizeof(float4))) + colors_size;
         total_size = won::math::align(total_size, static_cast<Size>(sizeof(float3))) + normals_size;
+        total_size = won::math::align(total_size, static_cast<Size>(sizeof(float4))) + tangents_size;
         total_size = won::math::align(total_size, static_cast<Size>(sizeof(float2))) + texcoords_size;
         total_size = won::math::align(total_size, static_cast<Size>(sizeof(uint32))) + indices_size;
         if (total_size == 0)
@@ -70,12 +74,16 @@ namespace won::resource
         Size offset = 0;
 
         Size positions_offset = 0;
+        Size colors_offset = 0;
         Size normals_offset = 0;
+        Size tangents_offset = 0;
         Size texcoords_offset = 0;
         Size indices_offset = 0;
 
         PackBufferSubresource(positions, packed_data, positions_offset, positions_size, sizeof(float3), offset);
+        PackBufferSubresource(colors, packed_data, colors_offset, colors_size, sizeof(float4), offset);
         PackBufferSubresource(normals, packed_data, normals_offset, normals_size, sizeof(float3), offset);
+        PackBufferSubresource(tangents, packed_data, tangents_offset, tangents_size, sizeof(float4), offset);
         PackBufferSubresource(texcoords, packed_data, texcoords_offset, texcoords_size, sizeof(float2), offset);
         PackBufferSubresource(indices, packed_data, indices_offset, indices_size, sizeof(uint32), offset);
 
@@ -112,7 +120,15 @@ namespace won::resource
         {
             return false;
         }
+        if (!create_subresource(rendering::RHISubresourceType::ShaderResource, colors_offset, colors_size, sizeof(float4), new_render_data.colors))
+        {
+            return false;
+        }
         if (!create_subresource(rendering::RHISubresourceType::ShaderResource, normals_offset, normals_size, sizeof(float3), new_render_data.normals))
+        {
+            return false;
+        }
+        if (!create_subresource(rendering::RHISubresourceType::ShaderResource, tangents_offset, tangents_size, sizeof(float4), new_render_data.tangents))
         {
             return false;
         }

@@ -29,8 +29,10 @@ namespace won::ecs
             if (mesh_render_data)
             {
                 shader_geometry.position_buffer_descriptor = mesh_render_data->positions.handle.descriptor_index;
+                shader_geometry.color_buffer_descriptor = mesh_render_data->colors.handle.descriptor_index;
                 shader_geometry.normal_buffer_descriptor = mesh_render_data->normals.handle.descriptor_index;
                 shader_geometry.texcoord_buffer_descriptor = mesh_render_data->texcoords.handle.descriptor_index;
+                shader_geometry.tangent_buffer_descriptor = mesh_render_data->tangents.handle.descriptor_index;
                 shader_geometry.index_buffer_descriptor = mesh_render_data->indices.handle.descriptor_index;
                 shader_geometry.index_count = static_cast<uint32>(geometry_comp.mesh->indices.size());
             }

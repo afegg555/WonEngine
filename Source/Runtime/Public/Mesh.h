@@ -26,7 +26,9 @@ namespace won::resource
     struct WONENGINE_API Mesh : public Resource
     {
         Vector<float3> positions;
+        Vector<float4> colors;
         Vector<float3> normals;
+        Vector<float4> tangents;
         Vector<float2> texcoords;
         Vector<uint32> indices;
         Vector<Submesh> submeshes;
@@ -49,7 +51,9 @@ namespace won::resource
         {
             std::shared_ptr<rendering::RHIResource> buffer;
             VBSubresource positions = {};
+            VBSubresource colors = {};
             VBSubresource normals = {};
+            VBSubresource tangents = {};
             VBSubresource texcoords = {};
             VBSubresource indices = {};
 

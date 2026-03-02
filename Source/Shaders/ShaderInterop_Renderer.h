@@ -76,9 +76,13 @@ struct alignas(16) ShaderGeometry
 {
     // Vertex pulling path: stream descriptors are resolved from bindless SRVs, not IA bindings.
     int position_buffer_descriptor;
+    int color_buffer_descriptor;
     int normal_buffer_descriptor;
     int texcoord_buffer_descriptor;
+
+    int tangent_buffer_descriptor;
     int index_buffer_descriptor;
+    int2 padding;
 
     float3 bounds_min;
     uint index_count;
@@ -89,8 +93,10 @@ struct alignas(16) ShaderGeometry
     inline void Init()
     {
         position_buffer_descriptor = -1;
+        color_buffer_descriptor = -1;
         normal_buffer_descriptor = -1;
         texcoord_buffer_descriptor = -1;
+        tangent_buffer_descriptor = -1;
         index_buffer_descriptor = -1;
     }
 #endif
@@ -199,8 +205,8 @@ PUSHCONSTANT(push, ObjectPushConstants);
 
 #ifdef __cplusplus
 static_assert(sizeof(ShaderTextureSlot) == 16, "ShaderTextureSlot layout mismatch");
-static_assert(sizeof(ShaderGeometry) == 48, "ShaderGeometry layout mismatch");
 static_assert(sizeof(ShaderMaterial) == 336, "ShaderMaterial layout mismatch");
+static_assert(sizeof(ShaderGeometry) == 64, "ShaderGeometry layout mismatch");
 static_assert(sizeof(ShaderScene) == 16, "ShaderScene layout mismatch");
 static_assert(sizeof(ShaderFrame) == 16, "ShaderFrame layout mismatch");
 static_assert(sizeof(ShaderCamera) == 192, "ShaderCamera layout mismatch");
