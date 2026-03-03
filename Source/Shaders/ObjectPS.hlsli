@@ -52,6 +52,8 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
 #endif // OBJECTSHADER_USE_UVSETS
 #endif // OBJECTSHADER_USE_TANGENT
     
+    surface.NoV = saturate(abs(dot(surface.N, surface.V)) + 1e-5);
+    
 #ifdef OBJECTSHADER_USE_COLOR
     base_color *= input.color;
 #endif // OBJECTSHADER_USE_COLOR

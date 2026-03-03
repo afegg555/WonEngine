@@ -15,6 +15,8 @@ struct Surface
     half4 T; // tangent
     half3 B; // bitangent
     
+    half NoV;
+    
     half3 albedo; // diffuse light absorbtion value (rgb)
     half3 f0; // fresnel value (rgb) (reflectance at incidence angle, also known as specular color)
     half roughness;
@@ -29,6 +31,8 @@ struct Surface
         
         T = half4(0.0h, 0.0h, 0.0h, 0.0h);
         B = half3(0.0h, 0.0h, 0.0h);
+        
+        NoV = 0.0h;
         
         albedo = half3(0.0h, 0.0h, 0.0h);
         f0 = half3(0.0h, 0.0h, 0.0h);
@@ -92,25 +96,68 @@ struct Lighting
 
 half3 GetSpecularBRDF(in Surface surface, in LightingContext lighting_context)
 {
+#ifdef PHONG
+    // Blinn-Phong (almost 4 ~ 16384)
     half r = saturate(surface.roughness);
     half e = exp2((1.0h - r) * 13.0h + 2.0h);
     half phongExponent = max((half) 2.0h, e);
 
-    half NdotH = saturate(lighting_context.NoH);
-    half specLobe = pow(NdotH, phongExponent);
+    half NoH = saturate(lighting_context.NoH);
+    half specLobe = pow(NoH, phongExponent);
     
     half3 specular = lighting_context.F * specLobe;
 
     return specular * lighting_context.NoL;
+#else // PHONG
+    
+#ifdef ANISOTROPIC
+    half D = D_GGX_Anisotropic(lighting_context.NoH, lighting_context.H, surface.T.xyz, surface.B, surface.roughness, surface.roughnessBitangent);
+    half Vis = V_SmithGGXCorrelated_Anisotropic(surface.roughness, surface.roughnessBitangent, 
+        lighting_context.ToV, lighting_context.BoV, lighting_context.ToL, lighting_context.BoL, surface.NoV, lighting_context.NoL);
+#else
+    half D = D_GGX(surface.roughness, lighting_context.NoH, surface.N, lighting_context.H);
+    half Vis = V_SmithGGXCorrelated(surface.roughness, surface.NoV, lighting_context.NoL);
+#endif
+    half3 specular = D * Vis * lighting_context.F;
+    
+#ifdef SHEEN
+    D = D_Charlie(surface.sheenRoughness, lighting_context.NoH);
+    Vis = V_Neubelt(surface.NoV, lighting_context.NoL);
+	specular += D * Vis * surface.sheenColor;
+#endif // SHEEN
+
+#ifdef CLEARCOAT
+    specular *= 1 - lighting_context.FClearCoat;
+    D = D_GGX(surface.clearCoatRoughness, lighting_context.NoH, surface.N, lighting_context.H);
+    Vis = V_Kelemen(lighting_context.LoH);
+    specular += D * Vis * lighting_context.FClearCoat;
+#endif // CLEARCOAT
+    
+    return specular * lighting_context.NoL;
+#endif //PHONG
 }
 half3 GetDiffuseBRDF(in Surface surface, in LightingContext lighting_context)
 {
+#ifdef PHONG
     half ndotl = saturate(lighting_context.NoL);
 
+    // Diffuse reduced by Fresnel (common in hybrid models):
+    //half3 kd = (1.0h - surface_to_light.F);
     half3 kd = half3(1.h, 1.h, 1.h);
-    half3 diffuse = surface.albedo * kd; // * (1.0h / 3.14159265h);
+    half3 diffuse = surface.albedo * kd;// * (1.0h / 3.14159265h);
 
     return diffuse * ndotl;
+#else
+	// Note: subsurface scattering will remove Fresnel (F), because otherwise
+	//	there would be artifact on backside where diffuse wraps
+    half3 diffuse = 1 - lighting_context.F;
+
+#ifdef CLEARCOAT
+    diffuse *= 1 - lighting_context.FClearCoat;
+#endif // CLEARCOAT
+    
+    return diffuse * lighting_context.NoL;
+#endif //PHONG
 }
 
 inline void LightDirectional(in ShaderLight light, in Surface surface, inout Lighting lighting)
@@ -126,6 +173,90 @@ inline void LightDirectional(in ShaderLight light, in Surface surface, inout Lig
     
     lighting.direct.diffuse = mad(light_color, GetDiffuseBRDF(surface, lighting_context), lighting.direct.diffuse);
     lighting.direct.specular = mad(light_color, GetSpecularBRDF(surface, lighting_context), lighting.direct.specular);
+}
+
+inline half GetSquareFalloffAttenuation(in half dist2, in half range2)
+{
+    float factor = dist2 / range2;
+    float smooth_factor = max(1.0 - factor * factor, 0.0);
+    return (smooth_factor * smooth_factor) / max(dist2, 1e-4);
+}
+
+inline half GetSpotAngleAttenuation(half spot_factor,
+        half inner_angle_cos, half outer_angle_cos)
+{
+    // https://google.github.io/filament/Filament.md.html#lighting/directlighting/punctuallights/attenuationfunction
+    const half spot_scale = rcp(max(inner_angle_cos - outer_angle_cos, 0.0001h));
+    const half spot_offset = -outer_angle_cos * spot_scale;
+    half angular_attenuation = saturate(mad(spot_factor, spot_scale, spot_offset));
+    return angular_attenuation * angular_attenuation;
+}
+
+
+inline void LightPoint(in ShaderLight light, in Surface surface, inout Lighting lighting)
+{
+    half3 L = light.position - surface.P;
+
+    const half dist2 = max(dot(L, L), 0.01);
+    const half range = light.GetRange();
+    const half range2 = range * range;
+    
+    if (dist2 > range2)
+        return; // outside range
+		
+    const half dist_rcp = rsqrt(dist2);
+    L = L * dist_rcp;
+
+    LightingContext context;
+    context.Create(surface, L);
+		
+    if (context.NoL <= FLT_EPSILON)
+        return; // facing away from light
+		
+    half3 light_color = light.GetColor().rgb;
+	
+    light_color *= GetSquareFalloffAttenuation(dist2, range2);
+    
+    lighting.direct.diffuse = mad(light_color, GetDiffuseBRDF(surface, context), lighting.direct.diffuse);
+    lighting.direct.specular = mad(light_color, GetSpecularBRDF(surface, context), lighting.direct.specular);
+    
+    lighting.direct.diffuse = half3(100, 100, 100);
+
+}
+
+inline void LightSpotlight(in ShaderLight light, in Surface surface, inout Lighting lighting)
+{
+    half3 L = light.position - surface.P;
+
+    const half dist2 = max(dot(L, L), 0.01);
+    const half range = light.GetRange();
+    const half range2 = range * range;
+    
+    if (dist2 > range2)
+        return; // outside range
+		
+    const half dist_rcp = rsqrt(dist2);
+    L = L * dist_rcp;
+
+    LightingContext context;
+    context.Create(surface, L);
+		
+    if (context.NoL <= FLT_EPSILON)
+        return; // facing away from light
+
+    const half spot_factor = dot(-L, light.GetDirection());
+    const half outer_cone_angle_cos = light.GetOuterConeAngleCos();
+    const half inner_cone_angle_cos = light.GetInnerConeAngleCos();
+    
+    if (spot_factor <= outer_cone_angle_cos)
+        return; // outside spotlight cone
+
+    half3 light_color = light.GetColor().rgb;
+    light_color *= GetSquareFalloffAttenuation(dist2, range2);
+    light_color *= GetSpotAngleAttenuation(spot_factor, inner_cone_angle_cos, outer_cone_angle_cos);
+    
+    lighting.direct.diffuse = mad(light_color, GetDiffuseBRDF(surface, context), lighting.direct.diffuse);
+    lighting.direct.specular = mad(light_color, GetSpecularBRDF(surface, context), lighting.direct.specular);
 }
 
 inline void ForwardLighting(inout Surface surface, inout Lighting lighting)
@@ -155,10 +286,12 @@ inline void ForwardLighting(inout Surface surface, inout Lighting lighting)
                     break;
                     case SHADER_LIGHT_TYPE_POINT:
 				    {
+                        LightPoint(light, surface, lighting);
                     }
                     break;
                     case SHADER_LIGHT_TYPE_SPOT:
 				    {
+                        LightSpotlight(light, surface, lighting);
                     }
                     break;
                 }
