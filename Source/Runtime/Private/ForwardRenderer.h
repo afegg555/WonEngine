@@ -62,6 +62,12 @@ namespace won::rendering
         std::shared_ptr<RHIResource> shader_camera_buffer;
         RHISubresourceHandle shader_camera_buffer_subresource = {};
 
+        std::shared_ptr<RHIResource> depth_buffer;
+        RHISubresourceHandle depth_buffer_subresource = {};
+        uint32 depth_buffer_width = 0;
+        uint32 depth_buffer_height = 0;
+        uint32 depth_buffer_sample_count = 1;
+
         platform::Window* current_window = nullptr;
     };
 }

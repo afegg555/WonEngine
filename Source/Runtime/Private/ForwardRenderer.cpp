@@ -512,6 +512,46 @@ namespace won::rendering
             return;
         }
 
+        // TODO : seperate resize logic
+        const RHIResourceDesc& back_buffer_desc = back_buffer->GetDesc();
+        const uint32 target_width = back_buffer_desc.texture_desc.width;
+        const uint32 target_height = back_buffer_desc.texture_desc.height;
+        const uint32 target_sample_count = back_buffer_desc.texture_desc.sample_count > 0 ? back_buffer_desc.texture_desc.sample_count : 1;
+        if (!depth_buffer || !depth_buffer_subresource.IsValid() || depth_buffer_width != target_width || depth_buffer_height != target_height || depth_buffer_sample_count != target_sample_count)
+        {
+            RHITextureDesc depth_desc = {};
+            depth_desc.width = target_width;
+            depth_desc.height = target_height;
+            depth_desc.depth = 1;
+            depth_desc.mip_levels = 1;
+            depth_desc.array_layers = 1;
+            depth_desc.sample_count = target_sample_count;
+            depth_desc.format = RHIFormat::D32Float;
+            depth_desc.usage = RHIResourceUsage::Default;
+            depth_desc.bind_flags = RHIBindFlags::DepthStencil;
+            depth_buffer = device->CreateTexture(depth_desc);
+            if (!depth_buffer)
+            {
+                backlog::Post("failed to create depth buffer", backlog::LogLevel::Error);
+                return;
+            }
+
+            depth_buffer_subresource = {};
+            RHISubresourceDesc depth_subresource_desc = {};
+            depth_subresource_desc.type = RHISubresourceType::DepthStencil;
+            depth_subresource_desc.format = depth_desc.format;
+            if (!device->CreateSubresource(*depth_buffer, depth_subresource_desc, &depth_buffer_subresource))
+            {
+                backlog::Post("failed to create depth buffer subresource", backlog::LogLevel::Error);
+                depth_buffer = nullptr;
+                return;
+            }
+
+            depth_buffer_width = target_width;
+            depth_buffer_height = target_height;
+            depth_buffer_sample_count = target_sample_count;
+        }
+
         ++frame_count;
 
         FrameContext& frame_context = frame_contexts[current_frame_slot];
@@ -540,10 +580,14 @@ namespace won::rendering
         RHISubresourceBinding back_buffer_binding = {};
         back_buffer_binding.resource = back_buffer.get();
         back_buffer_binding.subresource = back_buffer_rtv;
+        RHISubresourceBinding depth_buffer_binding = {};
+        depth_buffer_binding.resource = depth_buffer.get();
+        depth_buffer_binding.subresource = depth_buffer_subresource;
         Vector<RHISubresourceBinding> color_targets = { back_buffer_binding };
         frame_context.command_list->TransitionResource(*back_buffer, RHIResourceState::RenderTarget);
-        frame_context.command_list->SetRenderTargets(color_targets, nullptr);
+        frame_context.command_list->TransitionResource(*depth_buffer, RHIResourceState::DepthWrite);
         frame_context.command_list->ClearRenderTarget(back_buffer_binding, { 0.f, 0.3f, 0.3f, 1.f });
+        frame_context.command_list->ClearDepthStencil(depth_buffer_binding, 0.0f, 0u);
 
         RHIViewport viewport = {};
         viewport.x = static_cast<float>(view.viewport.x);
@@ -563,11 +607,13 @@ namespace won::rendering
 
         // prepass
         {
+            frame_context.command_list->SetRenderTargets({}, & depth_buffer_binding);
             DrawScene(view, frame_context, RenderPassType::DepthPrepass, DrawScene_Opaque);
         }
         
         // main pass
         {
+            frame_context.command_list->SetRenderTargets(color_targets, &depth_buffer_binding);
             DrawScene(view, frame_context, RenderPassType::MainPass, DrawScene_Opaque | DrawScene_Transparent);
         }
 
@@ -608,6 +654,11 @@ namespace won::rendering
         shader_frame_buffer = nullptr;
         shader_camera_buffer_subresource = {};
         shader_camera_buffer = nullptr;
+        depth_buffer_subresource = {};
+        depth_buffer = nullptr;
+        depth_buffer_width = 0;
+        depth_buffer_height = 0;
+        depth_buffer_sample_count = 1;
         device.reset();
     }
 }

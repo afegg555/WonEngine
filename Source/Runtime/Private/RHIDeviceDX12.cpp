@@ -707,10 +707,20 @@ namespace won::rendering
             initial_state = D3D12_RESOURCE_STATE_RENDER_TARGET;
         }
 
+        D3D12_CLEAR_VALUE optimized_clear_value = {};
+        D3D12_CLEAR_VALUE* optimized_clear_value_ptr = nullptr;
+        if (HasBindFlag(desc.bind_flags, RHIBindFlags::DepthStencil))
+        {
+            optimized_clear_value.Format = resource_desc.Format;
+            optimized_clear_value.DepthStencil.Depth = 0.0f;
+            optimized_clear_value.DepthStencil.Stencil = 0;
+            optimized_clear_value_ptr = &optimized_clear_value;
+        }
+
         ComPtr<ID3D12Resource> resource;
         D3D12MA::Allocation* allocation = nullptr;
         if (FAILED(resource_allocator->CreateResource(&allocation_desc, &resource_desc, initial_state,
-                nullptr, &allocation, IID_PPV_ARGS(resource.GetAddressOf()))))
+                optimized_clear_value_ptr, &allocation, IID_PPV_ARGS(resource.GetAddressOf()))))
         {
             backlog::Post("Failed to create texture resource", backlog::LogLevel::Error);
             return nullptr;

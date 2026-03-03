@@ -293,7 +293,7 @@ namespace won::rendering
 
         D3D12_DESCRIPTOR_HEAP_TYPE heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
         D3D12_CPU_DESCRIPTOR_HANDLE dsv_handle = {};
-        if (descriptor_allocator->GetCpuDescriptorHandle(heap_type, false, target.subresource.descriptor_index, dsv_handle))
+        if (!descriptor_allocator->GetCpuDescriptorHandle(heap_type, false, target.subresource.descriptor_index, dsv_handle))
         {
             return;
         }
