@@ -830,9 +830,9 @@ namespace won::rendering
     std::shared_ptr<RHIPipeline> RHIDeviceDX12::CreateGraphicsPipeline(
         const RHIGraphicsPipelineDesc& desc)
     {
-        if (!device || !desc.vertex_shader || !desc.pixel_shader)
+        if (!device || !desc.vertex_shader)
         {
-            backlog::Post("Graphics pipeline requires vertex/pixel shader", backlog::LogLevel::Error);
+            backlog::Post("Graphics pipeline requires vertex shader", backlog::LogLevel::Error);
             return nullptr;
         }
 
@@ -863,7 +863,11 @@ namespace won::rendering
         D3D12_GRAPHICS_PIPELINE_STATE_DESC pso_desc = {};
         pso_desc.pRootSignature = root_signature.Get();
         pso_desc.VS = CD3DX12_SHADER_BYTECODE(desc.vertex_shader->GetBytecode(), desc.vertex_shader->GetBytecodeSize());
-        pso_desc.PS = CD3DX12_SHADER_BYTECODE(desc.pixel_shader->GetBytecode(), desc.pixel_shader->GetBytecodeSize());
+        if (desc.pixel_shader)
+        {
+            pso_desc.PS = CD3DX12_SHADER_BYTECODE(desc.pixel_shader->GetBytecode(), desc.pixel_shader->GetBytecodeSize());
+        }
+        
         pso_desc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
         if (desc.blend.enable)
         {

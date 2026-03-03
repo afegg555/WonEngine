@@ -61,8 +61,8 @@ namespace won::rendering
     struct RHIDepthStencilDesc
     {
         bool depth_test = true;
-        bool depth_write = true;
-        RHICompareOp depth_compare = RHICompareOp::LessEqual;
+        bool depth_write = false;
+        RHICompareOp depth_compare = RHICompareOp::GreaterEqual;
     };
 
     struct RHIBlendDesc

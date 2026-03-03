@@ -4,15 +4,17 @@
 #include "Scene.h"
 
 #include "Window.h"
-#include "ShaderLibrary.h"
 #include "Entity.h"
 #include "CameraComponent.h"
 
 #include <cstring>
 
+using namespace won::resource;
+using namespace won::ecs;
+
 namespace won::rendering
 {
-    static won::resource::ShaderLibrary shader_library;
+    static ShaderLibrary shader_library;
 
     namespace
     {
@@ -29,7 +31,7 @@ namespace won::rendering
 
     bool ForwardRenderer::BuildFrameContext(const View& view, FrameContext& frame_context)
     {
-        const ecs::Scene::RenderData& render_data = view.scene->GetRenderData();
+        const Scene::RenderData& render_data = view.scene->GetRenderData();
         const Vector<ShaderInstance>& shader_instance = render_data.shader_instance;
         const Vector<ShaderGeometry>& shader_geometry = render_data.shader_geometry;
         const Vector<ShaderMaterial>& shader_material = render_data.shader_material;
@@ -376,6 +378,33 @@ namespace won::rendering
         return true;
     }
 
+    bool ForwardRenderer::DrawScene(const View& view, const FrameContext& frame_context, RenderPassType pass, uint32 flags)
+    {
+        const Scene::RenderData& render_data = view.scene->GetRenderData();
+
+        frame_context.command_list->SetGraphicsPipeline(*shader_library.GetPipeline(pass).get());
+
+        RHISubresourceBinding shader_frame_binding = {};
+        shader_frame_binding.resource = shader_frame_buffer.get();
+        shader_frame_binding.subresource = shader_frame_buffer_subresource;
+        frame_context.command_list->SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_frame_binding);
+
+        RHISubresourceBinding shader_camera_binding = {};
+        shader_camera_binding.resource = shader_camera_buffer.get();
+        shader_camera_binding.subresource = shader_camera_buffer_subresource;
+        frame_context.command_list->SetConstantBuffer(RHIShaderStage::Vertex, 2, shader_camera_binding);
+        frame_context.command_list->SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
+
+        for (const auto& renderable : render_data.renderables)
+        {
+            frame_context.command_list->SetIndexBuffer(*renderable.index_buffer, sizeof(uint32), renderable.index_offset, renderable.index_count * sizeof(uint32));
+            frame_context.command_list->PushConstants(RHIShaderStage::Vertex, &renderable.push_constants, sizeof(ObjectPushConstants), 0);
+            frame_context.command_list->DrawIndexed(renderable.index_count, 1, 0, 0, 0);
+        }
+
+        return true;
+    }
+
     void ForwardRenderer::Initialize(const RendererDesc& desc)
     {
         device = desc.device;
@@ -386,26 +415,9 @@ namespace won::rendering
             return;
         }
 
-        const std::shared_ptr<RHIShader> vertex_shader = shader_library.GetShader(resource::ShaderId::VSObjectCommon);
-        //const std::shared_ptr<RHIShader> pixel_shader = shader_library.GetShader(resource::ShaderId::PSTestRed);
-        const std::shared_ptr<RHIShader> pixel_shader = shader_library.GetShader(resource::ShaderId::PSObjectCommon);
-
-        RHIGraphicsPipelineDesc pipeline_desc = {};
-        pipeline_desc.vertex_shader = vertex_shader.get();
-        pipeline_desc.pixel_shader = pixel_shader.get();
-        pipeline_desc.depth_stencil_format = RHIFormat::Unknown;
-        pipeline_desc.depth_stencil.depth_test = false;
-        pipeline_desc.depth_stencil.depth_write = false;
-
-        test_pipeline = device->CreateGraphicsPipeline(pipeline_desc);
-
-        pipeline_desc.vertex_shader = shader_library.GetShader(resource::ShaderId::VSObjectSimple).get();
-        pipeline_desc.pixel_shader = shader_library.GetShader(resource::ShaderId::PSObjectSimple).get();
-        test_pipeline_simple = device->CreateGraphicsPipeline(pipeline_desc);
-
-        if (!test_pipeline || !test_pipeline_simple)
+        if (!shader_library.BuildAllGraphicsPipelines(device, RHIFormat::R8G8B8A8Unorm, RHIFormat::D32Float, 1u))
         {
-            backlog::Post("failed to create test graphics pipeline", backlog::LogLevel::Error);
+            backlog::Post("ForwardRenderer failed to build graphics pipelines", backlog::LogLevel::Error);
             return;
         }
 
@@ -531,6 +543,8 @@ namespace won::rendering
         Vector<RHISubresourceBinding> color_targets = { back_buffer_binding };
         frame_context.command_list->TransitionResource(*back_buffer, RHIResourceState::RenderTarget);
         frame_context.command_list->SetRenderTargets(color_targets, nullptr);
+        frame_context.command_list->ClearRenderTarget(back_buffer_binding, { 0.f, 0.3f, 0.3f, 1.f });
+
         RHIViewport viewport = {};
         viewport.x = static_cast<float>(view.viewport.x);
         viewport.y = static_cast<float>(view.viewport.y);
@@ -539,39 +553,28 @@ namespace won::rendering
         viewport.min_depth = 0.0f;
         viewport.max_depth = 1.0f;
         frame_context.command_list->SetViewport(viewport);
+
         RHIRect scissor = {};
         scissor.x = view.scissor.x;
         scissor.y = view.scissor.y;
         scissor.width = view.scissor.width;
         scissor.height = view.scissor.height;
         frame_context.command_list->SetScissor(scissor);
-        frame_context.command_list->ClearRenderTarget(back_buffer_binding, { 0.f, 0.3f, 0.3f, 1.f });
-        // test 
-        if (test_pipeline)
-        {
-            const ecs::Scene::RenderData& render_data = view.scene->GetRenderData();
-            frame_context.command_list->SetGraphicsPipeline(*test_pipeline);
-            RHISubresourceBinding shader_frame_binding = {};
-            shader_frame_binding.resource = shader_frame_buffer.get();
-            shader_frame_binding.subresource = shader_frame_buffer_subresource;
-            frame_context.command_list->SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_frame_binding);
 
-            RHISubresourceBinding shader_camera_binding = {};
-            shader_camera_binding.resource = shader_camera_buffer.get();
-            shader_camera_binding.subresource = shader_camera_buffer_subresource;
-            frame_context.command_list->SetConstantBuffer(RHIShaderStage::Vertex, 2, shader_camera_binding);
-            frame_context.command_list->SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
-            for (const auto& renderable : render_data.renderables)
-            {
-                frame_context.command_list->SetIndexBuffer(*renderable.index_buffer, sizeof(uint32), renderable.index_offset, renderable.index_count * sizeof(uint32));
-                frame_context.command_list->PushConstants(RHIShaderStage::Vertex, &renderable.push_constants, sizeof(ObjectPushConstants), 0);
-                frame_context.command_list->DrawIndexed(renderable.index_count, 1, 0, 0, 0);
-            }
+        // prepass
+        {
+            DrawScene(view, frame_context, RenderPassType::DepthPrepass, DrawScene_Opaque);
         }
+        
+        // main pass
+        {
+            DrawScene(view, frame_context, RenderPassType::MainPass, DrawScene_Opaque | DrawScene_Transparent);
+        }
+
+
         frame_context.command_list->TransitionResource(*back_buffer, RHIResourceState::Present);
 
         const std::shared_ptr<RHIContext> graphics_context = device->GetContext(RHIQueueType::Graphics);
-
         frame_context.command_list->End();
         frame_context.fence_value = graphics_context->Submit(*frame_context.command_list, frame_context.fence.get());
 
@@ -605,7 +608,6 @@ namespace won::rendering
         shader_frame_buffer = nullptr;
         shader_camera_buffer_subresource = {};
         shader_camera_buffer = nullptr;
-        test_pipeline = nullptr;
         device.reset();
     }
 }

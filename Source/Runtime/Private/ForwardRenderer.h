@@ -2,6 +2,7 @@
 #include "Renderer.h"
 #include "RHISwapchain.h"
 #include "Types.h"
+#include "ShaderLibrary.h"
 
 namespace won::rendering
 {
@@ -27,7 +28,15 @@ namespace won::rendering
             uint64 fence_value = 0;
         };
 
-        bool BuildFrameContext(const View& view, FrameContext& frame_context);
+        bool BuildFrameContext(const View& view, FrameContext& frame_context); 
+
+        enum DrawSceneFlags : uint32
+        {
+            DrawScene_Opaque = 1 << 0, // include opaque objects
+            DrawScene_Transparent = 1 << 1, // include transparent objects
+        };
+
+        bool DrawScene(const View& view, const FrameContext& frame_context, resource::RenderPassType pass, uint32 flags);
 
         std::shared_ptr<RHIDevice> device;
         std::array<FrameContext, max_frames_in_flight> frame_contexts = {};
@@ -52,9 +61,6 @@ namespace won::rendering
 
         std::shared_ptr<RHIResource> shader_camera_buffer;
         RHISubresourceHandle shader_camera_buffer_subresource = {};
-
-        std::shared_ptr<RHIPipeline> test_pipeline;
-        std::shared_ptr<RHIPipeline> test_pipeline_simple;
 
         platform::Window* current_window = nullptr;
     };

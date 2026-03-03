@@ -214,6 +214,7 @@ set(SHADERS_HLSL
     Source/Shaders/ObjectPS.hlsli
     Source/Shaders/ObjectPS_simple.hlsl
     Source/Shaders/ObjectPS_common.hlsl
+    Source/Shaders/ObjectPS_prepass.hlsl
 )
 
 add_library(Runtime SHARED
