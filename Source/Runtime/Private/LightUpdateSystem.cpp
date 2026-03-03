@@ -42,13 +42,13 @@ namespace won::ecs
 
             switch (light.type)
             {
-            case LightComponent::DIRECTIONAL:
+            case LightComponent::Directional:
                 light.aabb.CreateFromHalfWidth(float3(0, 0, 0), float3(FLT_MAX, FLT_MAX, FLT_MAX));
                 break;
-            case LightComponent::SPOT:
+            case LightComponent::Spot:
                 light.aabb.CreateFromHalfWidth(light.position, float3(light.range, light.range, light.range));
                 break;
-            case LightComponent::POINT:
+            case LightComponent::Point:
                 light.aabb.CreateFromHalfWidth(light.position, float3(light.range, light.range, light.range));
                 break;
             default:

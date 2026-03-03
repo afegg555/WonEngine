@@ -8,22 +8,22 @@ namespace won::ecs
 {
     struct LightComponent
     {
-		enum FLAGS
+		enum Flags
 		{
-			EMPTY = 0,
-			ACTIVE = 1 << 0,
+			Empty = 0,
+			Active = 1 << 0,
 		};
-		uint32_t flags = ACTIVE;
+		uint32_t flags = Active;
 
 		enum LightType : uint32_t
 		{
-			DIRECTIONAL,
-			POINT,
-			SPOT,
+			Directional,
+			Point,
+			Spot,
 
 			LIGHTTYPE_COUNT,
 		};
-		LightType type = DIRECTIONAL;
+		LightType type = Directional;
 
 		XMFLOAT3 color = XMFLOAT3(1, 1, 1);
 		// Brightness of light in. The units that this is defined in depend on the type of light.
@@ -40,7 +40,7 @@ namespace won::ecs
 		float3 direction = { 0, 0, 1 }; // vec(0, 0, 1) * transform_matrix
 		math::AABB aabb = {};
 
-		constexpr void SetActive(bool value = true) { if (value) { flags |= ACTIVE; } else { flags &= ~ACTIVE; } }
-		constexpr bool IsActive() const { return flags & ACTIVE; }
+		constexpr void SetActive(bool value = true) { if (value) { flags |= Active; } else { flags &= ~Active; } }
+		constexpr bool IsActive() const { return flags & Active; }
     };
 }

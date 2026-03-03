@@ -6,13 +6,13 @@ namespace won::ecs
 {
     struct TransformComponent
     {
-        enum FLAGS
+        enum Flags
         {
-            EMPTY = 0,
-            DIRTY = 1 << 0,
+            Empty = 0,
+            Dirty = 1 << 0,
         };
 
-        uint flags = DIRTY;
+        uint flags = Dirty;
 
         // local transform
         float3 position = {};
@@ -21,8 +21,8 @@ namespace won::ecs
 
         float4x4 world_transform = math::IDENTITY_MATRIX;
 
-        constexpr void SetDirty(bool value = true) { if (value) { flags |= DIRTY; } else { flags &= ~DIRTY; } }
-        constexpr bool IsDirty() const { return flags & DIRTY; }
+        constexpr void SetDirty(bool value = true) { if (value) { flags |= Dirty; } else { flags &= ~Dirty; } }
+        constexpr bool IsDirty() const { return flags & Dirty; }
 
         void Translate(const float3& value)
         {

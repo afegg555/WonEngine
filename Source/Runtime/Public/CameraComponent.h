@@ -7,14 +7,14 @@ namespace won::ecs
 {
     struct CameraComponent
     {
-        enum FLAGS
+        enum Flags
         {
-            EMPTY = 0,
-            DIRTY = 1 << 0,
-            IS_ORTHOGRAPHIC = 1 << 1,
+            Empty = 0,
+            Dirty = 1 << 0,
+            IsOrthographic = 1 << 1,
         };
 
-        uint32 flags = EMPTY;
+        uint32 flags = Empty;
 
         // these values will be updated on CameraUpdateSystem
         // you can use TransformComponent for manipulation !!
@@ -38,11 +38,11 @@ namespace won::ecs
         float shutter_speed = 1 / 125.f; // in seconds
         float sensitivity = 100; // ISO
 
-        constexpr void SetDirty(bool value = true) { if (value) { flags |= DIRTY; } else { flags &= ~DIRTY; } }
-        constexpr bool IsDirty() const { return flags & DIRTY; }
+        constexpr void SetDirty(bool value = true) { if (value) { flags |= Dirty; } else { flags &= ~Dirty; } }
+        constexpr bool IsDirty() const { return flags & Dirty; }
 
-        constexpr void SetOrtho(bool value = true) { if (value) { flags |= IS_ORTHOGRAPHIC; } else { flags &= ~IS_ORTHOGRAPHIC; } SetDirty(); }
-        constexpr bool IsOrtho() const { return flags & IS_ORTHOGRAPHIC; }
+        constexpr void SetOrtho(bool value = true) { if (value) { flags |= IsOrthographic; } else { flags &= ~IsOrthographic; } SetDirty(); }
+        constexpr bool IsOrtho() const { return flags & IsOrthographic; }
 
         constexpr void SetNearFar(float near_value, float far_value) { near = near_value; far = far_value; SetDirty(); }
         constexpr void SetAspectRatio(float value) { aspect_ratio = value; SetDirty(); }
