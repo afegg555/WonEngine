@@ -131,6 +131,11 @@ set(RUNTIME_JOBSYSTEM
     Source/Runtime/Private/EventHandler.cpp
 )
 
+set(RUNTIME_SERIALIZATION
+    Source/Runtime/Public/Serializer.h
+    Source/Runtime/Public/Archive.h
+)
+
 set(RUNTIME_MATH
     Source/Runtime/Public/MathTypes.h
     Source/Runtime/Public/MathUtils.h
@@ -229,6 +234,7 @@ add_library(Runtime SHARED
     ${RUNTIME_CONFIGURATION}
     ${RUNTIME_PLUGIN}
     ${RUNTIME_JOBSYSTEM}
+    ${RUNTIME_SERIALIZATION}
     ${RUNTIME_MATH}
     ${RUNTIME_ECS}
     ${RUNTIME_ECS_COMPONENTS}
@@ -254,6 +260,7 @@ source_group("Rendering/Forward" FILES ${RUNTIME_RENDERING_FORWARD})
 source_group("Configuration" FILES ${RUNTIME_CONFIGURATION})
 source_group("Plugin" FILES ${RUNTIME_PLUGIN})
 source_group("JobSystem" FILES ${RUNTIME_JOBSYSTEM})
+source_group("Serialization" FILES ${RUNTIME_SERIALIZATION})
 source_group("Math" FILES ${RUNTIME_MATH})
 source_group("ECS" FILES ${RUNTIME_ECS})
 source_group("ECS/Components" FILES ${RUNTIME_ECS_COMPONENTS})
