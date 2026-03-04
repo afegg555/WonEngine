@@ -66,6 +66,7 @@ namespace won::rendering
         void Dispatch(uint32 group_x, uint32 group_y, uint32 group_z) override;
 
         void CopyResource(RHIResource& dest, RHIResource& src) override;
+        void CopyBuffer(RHIResource& dest, Size dest_offset, RHIResource& src, Size src_offset, Size size) override;
 
         void TransitionResource(RHIResource& resource,
             RHIResourceState after_state) override;

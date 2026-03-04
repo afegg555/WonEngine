@@ -2,6 +2,7 @@
 
 #include "Backlog.h"
 #include "Scene.h"
+#include "MathUtils.h"
 
 #include "Window.h"
 #include "Entity.h"
@@ -11,22 +12,60 @@
 
 using namespace won::resource;
 using namespace won::ecs;
+using namespace won::math;
 
 namespace won::rendering
 {
     static ShaderLibrary shader_library;
 
-    namespace
+    bool ForwardRenderer::AllocateFrameUpload(FrameContext& frame_context, Size size, Size alignment, FrameUploadAllocation& out_allocation)
     {
-        float4x4 CreateIdentityFloat4x4()
+        Size buffer_size = 0;
+        if (frame_context.frame_upload_buffer)
         {
-            float4x4 result = {};
-            result._11 = 1.0f;
-            result._22 = 1.0f;
-            result._33 = 1.0f;
-            result._44 = 1.0f;
-            return result;
+            buffer_size = frame_context.frame_upload_buffer.get()->GetDesc().buffer_desc.size;
         }
+        
+        Size aligned_offset = align(frame_context.frame_upload_offset, alignment);
+        Size required_size = aligned_offset + size;
+
+        if (buffer_size < required_size)
+        {
+            RHIBufferDesc frame_upload_buffer_desc = {};
+            frame_upload_buffer_desc.size = align(std::max((buffer_size + size) * 2, (Size)1024 * 20), alignment); // initial_size
+            frame_upload_buffer_desc.usage = RHIResourceUsage::Upload;
+            frame_upload_buffer_desc.bind_flags = RHIBindFlags::None;
+            frame_context.frame_upload_buffer = device->CreateBuffer(frame_upload_buffer_desc);
+
+            frame_context.frame_upload_offset = 0;
+        }
+
+        void* mapped_data = frame_context.frame_upload_buffer->GetMappedData();
+
+        out_allocation.mapped_data = static_cast<uint8*>(mapped_data) + aligned_offset;
+        out_allocation.buffer_offset = aligned_offset;
+        frame_context.frame_upload_offset = aligned_offset + size;
+
+        return true;
+    }
+
+    bool ForwardRenderer::UpdateDefaultBuffer(FrameContext& frame_context, RHIResource& destination_buffer, const void* source_data, Size data_size, RHIResourceState final_state, Size destination_offset)
+    {
+        const RHIResourceDesc& destination_desc = destination_buffer.GetDesc();
+        Size upload_alignment = device->GetMinOffsetAlignment(destination_desc.buffer_desc);
+
+        FrameUploadAllocation upload_allocation = {};
+        if (!AllocateFrameUpload(frame_context, data_size, upload_alignment, upload_allocation))
+        {
+            return false;
+        }
+
+        std::memcpy(upload_allocation.mapped_data, source_data, data_size);
+
+        frame_context.command_list->TransitionResource(destination_buffer, RHIResourceState::CopyDest);
+        frame_context.command_list->CopyBuffer(destination_buffer, destination_offset, *frame_context.frame_upload_buffer, upload_allocation.buffer_offset, data_size);
+        frame_context.command_list->TransitionResource(destination_buffer, final_state);
+        return true;
     }
 
     bool ForwardRenderer::BuildFrameContext(const View& view, FrameContext& frame_context)
@@ -61,7 +100,7 @@ namespace won::rendering
                 RHIBufferDesc shader_instance_default_buffer_desc = {};
                 shader_instance_default_buffer_desc.size = required_instance_buffer_size;
                 shader_instance_default_buffer_desc.usage = RHIResourceUsage::Default;
-                shader_instance_default_buffer_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::CopyDest;
+                shader_instance_default_buffer_desc.bind_flags = RHIBindFlags::ShaderResource;
                 shader_instance_default_buffer = device->CreateBuffer(shader_instance_default_buffer_desc);
                 if (!shader_instance_default_buffer)
                 {
@@ -94,7 +133,7 @@ namespace won::rendering
                 RHIBufferDesc shader_instance_upload_buffer_desc = {};
                 shader_instance_upload_buffer_desc.size = required_instance_buffer_size;
                 shader_instance_upload_buffer_desc.usage = RHIResourceUsage::Upload;
-                shader_instance_upload_buffer_desc.bind_flags = RHIBindFlags::CopySource;
+                shader_instance_upload_buffer_desc.bind_flags = RHIBindFlags::None;
                 frame_context.shader_instance_upload_buffer = device->CreateBuffer(shader_instance_upload_buffer_desc);
                 if (!frame_context.shader_instance_upload_buffer)
                 {
@@ -135,7 +174,7 @@ namespace won::rendering
                 RHIBufferDesc shader_geometry_default_buffer_desc = {};
                 shader_geometry_default_buffer_desc.size = required_geometry_buffer_size;
                 shader_geometry_default_buffer_desc.usage = RHIResourceUsage::Default;
-                shader_geometry_default_buffer_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::CopyDest;
+                shader_geometry_default_buffer_desc.bind_flags = RHIBindFlags::ShaderResource;
                 shader_geometry_default_buffer = device->CreateBuffer(shader_geometry_default_buffer_desc);
                 if (!shader_geometry_default_buffer)
                 {
@@ -168,7 +207,7 @@ namespace won::rendering
                 RHIBufferDesc shader_geometry_upload_buffer_desc = {};
                 shader_geometry_upload_buffer_desc.size = required_geometry_buffer_size;
                 shader_geometry_upload_buffer_desc.usage = RHIResourceUsage::Upload;
-                shader_geometry_upload_buffer_desc.bind_flags = RHIBindFlags::CopySource;
+                shader_geometry_upload_buffer_desc.bind_flags = RHIBindFlags::None;
                 frame_context.shader_geometry_upload_buffer = device->CreateBuffer(shader_geometry_upload_buffer_desc);
                 if (!frame_context.shader_geometry_upload_buffer)
                 {
@@ -209,7 +248,7 @@ namespace won::rendering
                 RHIBufferDesc shader_material_default_buffer_desc = {};
                 shader_material_default_buffer_desc.size = required_material_buffer_size;
                 shader_material_default_buffer_desc.usage = RHIResourceUsage::Default;
-                shader_material_default_buffer_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::CopyDest;
+                shader_material_default_buffer_desc.bind_flags = RHIBindFlags::ShaderResource;
                 shader_material_default_buffer = device->CreateBuffer(shader_material_default_buffer_desc);
                 if (!shader_material_default_buffer)
                 {
@@ -242,7 +281,7 @@ namespace won::rendering
                 RHIBufferDesc shader_material_upload_buffer_desc = {};
                 shader_material_upload_buffer_desc.size = required_material_buffer_size;
                 shader_material_upload_buffer_desc.usage = RHIResourceUsage::Upload;
-                shader_material_upload_buffer_desc.bind_flags = RHIBindFlags::CopySource;
+                shader_material_upload_buffer_desc.bind_flags = RHIBindFlags::None;
                 frame_context.shader_material_upload_buffer = device->CreateBuffer(shader_material_upload_buffer_desc);
                 if (!frame_context.shader_material_upload_buffer)
                 {
@@ -283,7 +322,7 @@ namespace won::rendering
                 RHIBufferDesc shader_light_default_buffer_desc = {};
                 shader_light_default_buffer_desc.size = required_light_buffer_size;
                 shader_light_default_buffer_desc.usage = RHIResourceUsage::Default;
-                shader_light_default_buffer_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::CopyDest;
+                shader_light_default_buffer_desc.bind_flags = RHIBindFlags::ShaderResource;
                 shader_light_default_buffer = device->CreateBuffer(shader_light_default_buffer_desc);
                 if (!shader_light_default_buffer)
                 {
@@ -316,7 +355,7 @@ namespace won::rendering
                 RHIBufferDesc shader_light_upload_buffer_desc = {};
                 shader_light_upload_buffer_desc.size = required_light_buffer_size;
                 shader_light_upload_buffer_desc.usage = RHIResourceUsage::Upload;
-                shader_light_upload_buffer_desc.bind_flags = RHIBindFlags::CopySource;
+                shader_light_upload_buffer_desc.bind_flags = RHIBindFlags::None;
                 frame_context.shader_light_upload_buffer = device->CreateBuffer(shader_light_upload_buffer_desc);
                 if (!frame_context.shader_light_upload_buffer)
                 {
@@ -348,9 +387,9 @@ namespace won::rendering
 
         ShaderCamera shader_camera{};
         shader_camera.Init();
-        shader_camera.view = CreateIdentityFloat4x4();
-        shader_camera.projection = CreateIdentityFloat4x4();
-        shader_camera.view_projection = CreateIdentityFloat4x4();
+        shader_camera.view = IDENTITY_MATRIX;
+        shader_camera.projection = IDENTITY_MATRIX;
+        shader_camera.view_projection = IDENTITY_MATRIX;
         if (view.scene)
         {
             const ecs::CameraComponent* camera_component = nullptr;
@@ -369,11 +408,14 @@ namespace won::rendering
             }
         }
 
-        void* shader_frame_mapped_data = shader_frame_buffer->GetMappedData();
-        void* shader_camera_mapped_data = shader_camera_buffer->GetMappedData();
-
-        std::memcpy(shader_frame_mapped_data, &shader_frame, sizeof(ShaderFrame));
-        std::memcpy(shader_camera_mapped_data, &shader_camera, sizeof(ShaderCamera));
+        if (!UpdateDefaultBuffer(frame_context, *shader_frame_buffer, &shader_frame, sizeof(ShaderFrame), RHIResourceState::ConstantBuffer))
+        {
+            return false;
+        }
+        if (!UpdateDefaultBuffer(frame_context, *shader_camera_buffer, &shader_camera, sizeof(ShaderCamera), RHIResourceState::ConstantBuffer))
+        {
+            return false;
+        }
 
         return true;
     }
@@ -438,7 +480,7 @@ namespace won::rendering
 
         RHIBufferDesc shader_frame_buffer_desc = {};
         shader_frame_buffer_desc.size = sizeof(ShaderFrame);
-        shader_frame_buffer_desc.usage = RHIResourceUsage::Upload;
+        shader_frame_buffer_desc.usage = RHIResourceUsage::Default;
         shader_frame_buffer_desc.bind_flags = RHIBindFlags::ConstantBuffer;
         shader_frame_buffer = device->CreateBuffer(shader_frame_buffer_desc);
         if (!shader_frame_buffer)
@@ -460,7 +502,7 @@ namespace won::rendering
 
         RHIBufferDesc shader_camera_buffer_desc = {};
         shader_camera_buffer_desc.size = sizeof(ShaderCamera);
-        shader_camera_buffer_desc.usage = RHIResourceUsage::Upload;
+        shader_camera_buffer_desc.usage = RHIResourceUsage::Default;
         shader_camera_buffer_desc.bind_flags = RHIBindFlags::ConstantBuffer;
         shader_camera_buffer = device->CreateBuffer(shader_camera_buffer_desc);
         if (!shader_camera_buffer)
@@ -562,6 +604,7 @@ namespace won::rendering
         }
         frame_context.command_allocator->Reset();
         frame_context.command_list->Begin(*frame_context.command_allocator);
+        frame_context.frame_upload_offset = 0;
 
         if (!BuildFrameContext(view, frame_context))
         {
@@ -650,6 +693,8 @@ namespace won::rendering
         shader_geometry_default_buffer = nullptr;
         shader_material_default_buffer_subresource = {};
         shader_material_default_buffer = nullptr;
+        shader_light_default_buffer_subresource = {};
+        shader_light_default_buffer = nullptr;
         shader_frame_buffer_subresource = {};
         shader_frame_buffer = nullptr;
         shader_camera_buffer_subresource = {};

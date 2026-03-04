@@ -577,7 +577,7 @@ namespace won::rendering
                 RHIBufferDesc upload_buffer_desc = {};
                 upload_buffer_desc.size = buffer_size;
                 upload_buffer_desc.usage = RHIResourceUsage::Upload;
-                upload_buffer_desc.bind_flags = RHIBindFlags::CopySource;
+                upload_buffer_desc.bind_flags = RHIBindFlags::None;
                 RHIResourceDesc upload_resource_info = {};
                 upload_resource_info.type = RHIResourceType::Buffer;
                 upload_resource_info.buffer_desc = upload_buffer_desc;
@@ -748,7 +748,7 @@ namespace won::rendering
             RHIBufferDesc upload_buffer_desc = {};
             upload_buffer_desc.size = total_size;
             upload_buffer_desc.usage = RHIResourceUsage::Upload;
-            upload_buffer_desc.bind_flags = RHIBindFlags::CopySource;
+            upload_buffer_desc.bind_flags = RHIBindFlags::None;
             std::shared_ptr<RHIResource> upload_buffer = CreateBuffer(upload_buffer_desc);
 
             void* mapped_data = upload_buffer->GetMappedData();
@@ -817,6 +817,18 @@ namespace won::rendering
         }
 
         return texture_resource;
+    }
+
+    Size RHIDeviceDX12::GetMinOffsetAlignment(const RHIBufferDesc& desc) const
+    {
+        Size alignment = 1;
+        const uint32 bind_flags = static_cast<uint32>(desc.bind_flags);
+        if ((bind_flags & static_cast<uint32>(RHIBindFlags::ConstantBuffer)) != 0)
+        {
+            alignment = static_cast<Size>(D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+        }
+
+        return alignment;
     }
 
     bool RHIDeviceDX12::CreateSubresource(RHIResource& resource,

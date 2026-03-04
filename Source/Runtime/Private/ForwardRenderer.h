@@ -25,10 +25,20 @@ namespace won::rendering
             std::shared_ptr<RHIResource> shader_geometry_upload_buffer;
             std::shared_ptr<RHIResource> shader_material_upload_buffer;
             std::shared_ptr<RHIResource> shader_light_upload_buffer;
+            std::shared_ptr<RHIResource> frame_upload_buffer;
+            Size frame_upload_offset = 0;
             uint64 fence_value = 0;
         };
 
+        struct FrameUploadAllocation
+        {
+            void* mapped_data = nullptr;
+            Size buffer_offset = 0;
+        };
+
         bool BuildFrameContext(const View& view, FrameContext& frame_context); 
+        bool AllocateFrameUpload(FrameContext& frame_context, Size size, Size alignment, FrameUploadAllocation& out_allocation);
+        bool UpdateDefaultBuffer(FrameContext& frame_context, RHIResource& destination_buffer, const void* source_data, Size data_size, RHIResourceState final_state, Size destination_offset = 0);
 
         enum DrawSceneFlags : uint32
         {

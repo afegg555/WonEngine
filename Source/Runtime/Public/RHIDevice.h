@@ -74,6 +74,8 @@ namespace won::rendering
         virtual std::shared_ptr<RHIResource> CreateTexture(const RHITextureDesc& desc,
             const void* initial_data = nullptr, Size initial_size = 0) = 0;
 
+        virtual Size GetMinOffsetAlignment(const RHIBufferDesc& desc) const = 0;
+
         virtual bool CreateSubresource(RHIResource& resource,
             const RHISubresourceDesc& desc,
             RHISubresourceHandle* out_handle) = 0;

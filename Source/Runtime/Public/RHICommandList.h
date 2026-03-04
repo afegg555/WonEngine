@@ -91,6 +91,7 @@ namespace won::rendering
         virtual void Dispatch(uint32 group_x, uint32 group_y, uint32 group_z) = 0;
 
         virtual void CopyResource(RHIResource& dest, RHIResource& src) = 0;
+        virtual void CopyBuffer(RHIResource& dest, Size dest_offset, RHIResource& src, Size src_offset, Size size) = 0;
 
         virtual void TransitionResource(RHIResource& resource,
             RHIResourceState after_state) = 0;

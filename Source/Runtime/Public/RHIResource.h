@@ -32,8 +32,6 @@ namespace won::rendering
         UnorderedAccess = 1u << 4,
         RenderTarget = 1u << 5,
         DepthStencil = 1u << 6,
-        CopySource = 1u << 7,
-        CopyDest = 1u << 8
     };
 
     enum class RHIMiscFlags : uint32
@@ -134,6 +132,7 @@ namespace won::rendering
         CopySource,
         CopyDest,
         ShaderRead,
+        ConstantBuffer,
         ShaderWrite,
         RenderTarget,
         DepthWrite,

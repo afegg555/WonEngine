@@ -17,6 +17,7 @@ namespace won::rendering
         case RHIResourceState::CopySource: return D3D12_RESOURCE_STATE_COPY_SOURCE;
         case RHIResourceState::CopyDest: return D3D12_RESOURCE_STATE_COPY_DEST;
         case RHIResourceState::ShaderRead: return D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+        case RHIResourceState::ConstantBuffer: return D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
         case RHIResourceState::ShaderWrite: return D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
         case RHIResourceState::RenderTarget: return D3D12_RESOURCE_STATE_RENDER_TARGET;
         case RHIResourceState::DepthWrite: return D3D12_RESOURCE_STATE_DEPTH_WRITE;
@@ -600,6 +601,24 @@ namespace won::rendering
         }
 
         command_list->CopyResource(dest_resource, src_resource);
+    }
+
+    void RHICommandListDX12::CopyBuffer(RHIResource& dest, Size dest_offset, RHIResource& src, Size src_offset, Size size)
+    {
+        auto* dest_dx12 = dynamic_cast<RHIResourceDX12*>(&dest);
+        auto* src_dx12 = dynamic_cast<RHIResourceDX12*>(&src);
+
+        ID3D12Resource* dest_resource = dest_dx12->GetResource();
+        ID3D12Resource* src_resource = src_dx12->GetResource();
+
+        const D3D12_RESOURCE_DESC dest_desc = dest_resource->GetDesc();
+        const D3D12_RESOURCE_DESC src_desc = src_resource->GetDesc();
+        if (dest_desc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER || src_desc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER)
+        {
+            return;
+        }
+
+        command_list->CopyBufferRegion(dest_resource, static_cast<UINT64>(dest_offset), src_resource, static_cast<UINT64>(src_offset), static_cast<UINT64>(size));
     }
 
     void RHICommandListDX12::TransitionResource(RHIResource& resource,
