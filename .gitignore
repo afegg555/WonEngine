@@ -2,6 +2,7 @@
 x64/
 Binary/
 CompiledShaders/
+Samples/
 build/
 
 *.ini
