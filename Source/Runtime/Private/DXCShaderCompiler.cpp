@@ -62,7 +62,7 @@ namespace won::resource
     }
 
     DXCShaderCompiler::DXCShaderCompiler(const ShaderCompilerOptions& options)
-        : compiler_options(options)
+        : ShaderCompiler(options)
     {
 #if defined(_WIN32)
         if (FAILED(DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&dxc_utils))))
@@ -70,7 +70,6 @@ namespace won::resource
             backlog::Post("Failed to create DXC utils", backlog::LogLevel::Error);
             dxc_utils.Reset();
         }
-
         if (FAILED(DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&dxc_compiler))))
         {
             backlog::Post("Failed to create DXC compiler", backlog::LogLevel::Error);
@@ -100,7 +99,6 @@ namespace won::resource
 
         if (source_file.bytes.empty())
         {
-            backlog::Post("Shader source is empty", backlog::LogLevel::Error);
             return compile_result;
         }
 
@@ -131,6 +129,7 @@ namespace won::resource
             L"-E", entry_point_w.c_str(),
             L"-T", target_profile_w.c_str(),
             L"-rootsig-define", L"DEFAULT_ROOTSIGNATURE",
+            L"-Wno-conversion",
         };
         if (!shader_source_root_path_w.empty())
         {

@@ -32,6 +32,7 @@ namespace won::resource
     {
         ShaderCompilerBackend backend = ShaderCompilerBackend::DXC;
         String shader_source_root_path;
+        String shader_bin_root_path;
     };
 
     struct ShaderCompileDesc
@@ -52,8 +53,17 @@ namespace won::resource
     class ShaderCompiler
     {
     public:
+        explicit ShaderCompiler(const ShaderCompilerOptions& options = {})
+            : compiler_options(options) {};
         virtual ~ShaderCompiler() = default;
         virtual ShaderCompileResult Compile(const ShaderCompileDesc& desc) const = 0;
+
+        const ShaderCompilerOptions& GetCompileOptions() const
+        {
+            return compiler_options;
+        }
+    protected:
+        ShaderCompilerOptions compiler_options = {};
     };
 
     WONENGINE_API std::shared_ptr<ShaderCompiler> CreateShaderCompiler(const ShaderCompilerOptions& options = {});

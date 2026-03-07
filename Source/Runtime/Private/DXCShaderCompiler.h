@@ -16,7 +16,6 @@ namespace won::resource
         ShaderCompileResult Compile(const ShaderCompileDesc& desc) const override;
 
     private:
-        ShaderCompilerOptions compiler_options = {};
 #if defined(_WIN32)
         ComPtr<IDxcUtils> dxc_utils;
         ComPtr<IDxcCompiler3> dxc_compiler;

@@ -18,6 +18,8 @@ elseif(UNIX)
 endif()
 
 set(FINAL_OUT_DIR "${CMAKE_SOURCE_DIR}/Binary/${OS_NAME}")
+set(SHADER_BIN_DIR "${CMAKE_SOURCE_DIR}/CompiledShaders")
+file(MAKE_DIRECTORY "${SHADER_BIN_DIR}")
 
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "" FORCE)
 set(CMAKE_DEBUG_POSTFIX "d")
@@ -311,6 +313,7 @@ target_compile_definitions(Runtime
     PRIVATE
         WONENGINE_EXPORTS
         WONENGINE_SHADER_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Source/Shaders"
+        WONENGINE_SHADER_BIN_DIR="${SHADER_BIN_DIR}"
 )
 
 if(MSVC)

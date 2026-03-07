@@ -105,7 +105,7 @@ namespace won::resource
             return false;
         }
 
-        String binary_file_name = io::ReplaceExtension(desc.source_path, "cso");
+        String binary_file_name = shader_compiler->GetCompileOptions().shader_bin_root_path + "/" + io::ReplaceExtension(desc.source_path, "cso");
 
         Vector<uint8> bytecode;
         if (IsShaderOutdated(binary_file_name))
@@ -125,7 +125,9 @@ namespace won::resource
             log += desc.source_path;
             backlog::Post(log);
 
-            compile_result.dependencies.push_back(desc.source_path);
+            String full_source_path = shader_compiler->GetCompileOptions().shader_source_root_path + "/" + desc.source_path;
+            compile_result.dependencies.push_back(full_source_path);
+
             SaveShaderCompileResult(compile_result, binary_file_name);
 
             bytecode = std::move(compile_result.bytecode);

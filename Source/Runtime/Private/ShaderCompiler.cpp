@@ -16,6 +16,15 @@ namespace won::resource
 #endif
         }
 
+        if (resolved_options.shader_bin_root_path.empty())
+        {
+#if defined(WONENGINE_SHADER_BIN_DIR)
+            resolved_options.shader_bin_root_path = WONENGINE_SHADER_BIN_DIR;
+#else
+            resolved_options.shader_bin_root_path = "";
+#endif
+        }
+
         switch (resolved_options.backend)
         {
         case ShaderCompilerBackend::DXC:
