@@ -9,7 +9,7 @@ namespace won::rendering
     class ForwardRenderer final : public Renderer
     {
     public:
-        void Initialize(const RendererDesc& desc) override;
+        void Initialize(const RendererDesc& desc, std::shared_ptr<resource::ShaderLibrary> shader_lib) override;
         void BeginFrame(platform::Window& window) override;
         void Render(const View& view) override;
         void EndFrame() override;

@@ -79,9 +79,9 @@ namespace won::resource
 #endif
     }
 
-    ShaderBytecode DXCShaderCompiler::Compile(const ShaderCompileDesc& desc) const
+    ShaderCompileResult DXCShaderCompiler::Compile(const ShaderCompileDesc& desc) const
     {
-        ShaderBytecode shader_bytecode = {};
+        ShaderCompileResult compile_result = {};
         io::FileData source_file = {};
         if (!desc.source_path.empty())
         {
@@ -94,14 +94,14 @@ namespace won::resource
             if (!io::ReadAllBytes(resolved_source_path, &source_file))
             {
                 backlog::Post("Failed to load shader source: " + resolved_source_path, backlog::LogLevel::Error);
-                return shader_bytecode;
+                return compile_result;
             }
         }
 
         if (source_file.bytes.empty())
         {
             backlog::Post("Shader source is empty", backlog::LogLevel::Error);
-            return shader_bytecode;
+            return compile_result;
         }
 
         const String entry_point = desc.entry_point.empty() ? "main" : desc.entry_point;
@@ -109,12 +109,12 @@ namespace won::resource
 
 #if !defined(_WIN32)
         backlog::Post("DXC shader compiler is only available on Windows", backlog::LogLevel::Error);
-        return shader_bytecode;
+        return compile_result;
 #else
         if (!dxc_utils || !dxc_compiler)
         {
             backlog::Post("DXC compiler is not initialized", backlog::LogLevel::Error);
-            return shader_bytecode;
+            return compile_result;
         }
 
         DxcBuffer source_buffer = {};
@@ -138,46 +138,77 @@ namespace won::resource
             arguments.push_back(shader_source_root_path_w.c_str());
         }
 
-        ComPtr<IDxcIncludeHandler> include_handler;
-        dxc_utils->CreateDefaultIncludeHandler(&include_handler);
+        struct IncludeHandler : public IDxcIncludeHandler
+        {
+            ComPtr<IDxcIncludeHandler> dxcIncludeHandler;
+            ShaderCompileResult* result;
 
-        ComPtr<IDxcResult> compile_result;
+            HRESULT STDMETHODCALLTYPE LoadSource(
+                _In_z_ LPCWSTR pFilename,                                 // Candidate filename.
+                _COM_Outptr_result_maybenull_ IDxcBlob** ppIncludeSource  // Resultant source object for included file, nullptr if not found.
+            ) override
+            {
+                HRESULT hr = dxcIncludeHandler->LoadSource(pFilename, ppIncludeSource);
+                if (SUCCEEDED(hr))
+                {
+                    std::string& filename = result->dependencies.emplace_back();
+                    filename = won::utils::ToString(pFilename);
+                }
+                return hr;
+            }
+            HRESULT STDMETHODCALLTYPE QueryInterface(
+                /* [in] */ REFIID riid,
+                /* [iid_is][out] */ _COM_Outptr_ void __RPC_FAR* __RPC_FAR* ppvObject) override
+            {
+                return dxcIncludeHandler->QueryInterface(riid, ppvObject);
+            }
+
+            ULONG STDMETHODCALLTYPE AddRef(void) override
+            {
+                return 0;
+            }
+            ULONG STDMETHODCALLTYPE Release(void) override
+            {
+                return 0;
+            }
+        } include_handler;
+        include_handler.result = &compile_result;
+        dxc_utils->CreateDefaultIncludeHandler(&include_handler.dxcIncludeHandler);
+
+        ComPtr<IDxcResult> result;
         if (FAILED(dxc_compiler->Compile(&source_buffer, arguments.data(),
-            static_cast<uint32>(arguments.size()), include_handler.Get(), IID_PPV_ARGS(&compile_result))))
+            static_cast<uint32>(arguments.size()), &include_handler, IID_PPV_ARGS(&result))))
         {
             backlog::Post("DXC compile call failed", backlog::LogLevel::Error);
-            return shader_bytecode;
+            return compile_result;
         }
 
         ComPtr<IDxcBlobUtf8> errors;
-        if (SUCCEEDED(compile_result->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(&errors), nullptr)) &&
+        if (SUCCEEDED(result->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(&errors), nullptr)) &&
             errors && errors->GetStringLength() > 0)
         {
             backlog::Post(errors->GetStringPointer(), backlog::LogLevel::Error);
         }
 
         HRESULT compile_status = E_FAIL;
-        if (FAILED(compile_result->GetStatus(&compile_status)) || FAILED(compile_status))
+        if (FAILED(result->GetStatus(&compile_status)) || FAILED(compile_status))
         {
             backlog::Post("DXC failed to compile shader", backlog::LogLevel::Error);
-            return shader_bytecode;
+            return compile_result;
         }
 
         ComPtr<IDxcBlob> object_blob;
-        if (FAILED(compile_result->GetOutput(DXC_OUT_OBJECT, IID_PPV_ARGS(&object_blob), nullptr)) || !object_blob)
+        if (FAILED(result->GetOutput(DXC_OUT_OBJECT, IID_PPV_ARGS(&object_blob), nullptr)) || !object_blob)
         {
             backlog::Post("DXC did not return shader bytecode", backlog::LogLevel::Error);
-            return shader_bytecode;
+            return compile_result;
         }
 
-        shader_bytecode.bytecode.resize(object_blob->GetBufferSize());
-        if (!shader_bytecode.bytecode.empty())
-        {
-            std::memcpy(shader_bytecode.bytecode.data(), object_blob->GetBufferPointer(),
-                object_blob->GetBufferSize());
-        }
+        compile_result.bytecode.resize(object_blob->GetBufferSize());
+        std::memcpy(compile_result.bytecode.data(), object_blob->GetBufferPointer(),
+            object_blob->GetBufferSize());
 
-        return shader_bytecode;
+        return compile_result;
 #endif
     }
 }

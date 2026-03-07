@@ -13,7 +13,7 @@ namespace won::resource
     {
     public:
         explicit DXCShaderCompiler(const ShaderCompilerOptions& options);
-        ShaderBytecode Compile(const ShaderCompileDesc& desc) const override;
+        ShaderCompileResult Compile(const ShaderCompileDesc& desc) const override;
 
     private:
         ShaderCompilerOptions compiler_options = {};

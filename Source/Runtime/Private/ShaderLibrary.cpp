@@ -1,8 +1,11 @@
 #include "ShaderLibrary.h"
 #include "Backlog.h"
 #include "JobSystem.h"
+#include "FileSystem.h"
+#include "Serializer.h"
 
 using namespace won::rendering;
+using namespace won::serialize;
 
 namespace won::resource
 {
@@ -39,7 +42,7 @@ namespace won::resource
         return true;
     }
 
-    bool ShaderLibrary::BuildAllGraphicsPipelines(std::shared_ptr<rendering::RHIDevice>& device, RHIFormat rtv_format, RHIFormat dsv_format, uint32 sample_count)
+    bool ShaderLibrary::BuildAllGraphicsPipelines(const std::shared_ptr<rendering::RHIDevice>& device, RHIFormat rtv_format, RHIFormat dsv_format, uint32 sample_count)
     {
         if (!device)
         {
@@ -102,23 +105,96 @@ namespace won::resource
             return false;
         }
 
-        ShaderBytecode shader_bytecode = shader_compiler->Compile(desc);
-        if (shader_bytecode.bytecode.empty())
+        String binary_file_name = io::ReplaceExtension(desc.source_path, "cso");
+
+        Vector<uint8> bytecode;
+        if (IsShaderOutdated(binary_file_name))
         {
-            String log = "Shader compilation failed : ";
-            if (!desc.source_path.empty())
+            ShaderCompileResult compile_result = shader_compiler->Compile(desc);
+            if (compile_result.bytecode.empty())
             {
-                log += desc.source_path;
+                String log = "Shader compilation failed : ";
+                if (!desc.source_path.empty())
+                {
+                    log += desc.source_path;
+                }
+                backlog::Post(log, backlog::LogLevel::Error);
+                return false;
             }
-            backlog::Post(log, backlog::LogLevel::Error);
+            String log = "Shader compiled : ";
+            log += desc.source_path;
+            backlog::Post(log);
+
+            compile_result.dependencies.push_back(desc.source_path);
+            SaveShaderCompileResult(compile_result, binary_file_name);
+
+            bytecode = std::move(compile_result.bytecode);
+        }
+        else
+        {
+            io::FileData data;
+            if (!io::ReadAllBytes(binary_file_name, &data))
+            {
+                return false;
+            }
+            bytecode = std::move(data.bytes);
+        }
+
+        auto shader = std::make_shared<RHIShader>(desc.stage, bytecode.data(), bytecode.size());
+        shaders[ToIndex(shader_id)] = shader;
+        return true;
+    }
+
+    bool ShaderLibrary::IsShaderOutdated(String cso_name) const
+    {
+        String dependency_path = io::ReplaceExtension(cso_name, "dep");
+
+        if (!io::Exists(cso_name) || !io::Exists(dependency_path))
+        {
+            return true;
+        }
+        
+        uint64 timestamp = 0ull;
+        io::GetLastTimestamp(cso_name, &timestamp);
+
+        BinaryArchive archive(dependency_path, ArchiveMode::Read);
+        if (!archive.IsEnd())
+        {
+            String root = io::GetDirectoryFromPath(dependency_path);
+            Vector<String> dependencies;
+            Serialize(archive, dependencies);
+            for (auto& dep : dependencies)
+            {
+                std::string dependency = root + dep;
+                if (io::Exists(dependency))
+                {
+                    uint64 dep_timestamp = 0ull;
+                    io::GetLastTimestamp(dependency, &dep_timestamp);
+                    if (timestamp < dep_timestamp)
+                    {
+                        return true;
+                    }
+                }
+
+            }
+        }
+        return false;
+    }
+
+    bool ShaderLibrary::SaveShaderCompileResult(const ShaderCompileResult& result, const String& cso_name) const
+    {
+        String dependency_path = io::ReplaceExtension(cso_name, "dep");
+
+        {
+            BinaryArchive archive(dependency_path, ArchiveMode::Write);
+            Serialize(archive, result.dependencies);
+        }
+
+        if (!io::WriteAllBytes(cso_name, result.bytecode.data(), result.bytecode.size()))
+        {
             return false;
         }
-        String log = "Shader compiled : ";
-        log += desc.source_path;
-        backlog::Post(log);
 
-        auto shader = std::make_shared<RHIShader>(desc.stage, shader_bytecode.bytecode.data(), shader_bytecode.bytecode.size());
-        shaders[ToIndex(shader_id)] = shader;
         return true;
     }
 

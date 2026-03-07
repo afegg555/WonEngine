@@ -16,7 +16,6 @@ using namespace won::math;
 
 namespace won::rendering
 {
-    static ShaderLibrary shader_library;
 
     bool ForwardRenderer::AllocateFrameUpload(FrameContext& frame_context, Size size, Size alignment, FrameUploadAllocation& out_allocation)
     {
@@ -424,7 +423,7 @@ namespace won::rendering
     {
         const Scene::RenderData& render_data = view.scene->GetRenderData();
 
-        frame_context.command_list->SetGraphicsPipeline(*shader_library.GetPipeline(pass).get());
+        frame_context.command_list->SetGraphicsPipeline(*shader_library->GetPipeline(pass).get());
 
         RHISubresourceBinding shader_frame_binding = {};
         shader_frame_binding.resource = shader_frame_buffer.get();
@@ -447,21 +446,10 @@ namespace won::rendering
         return true;
     }
 
-    void ForwardRenderer::Initialize(const RendererDesc& desc)
+    void ForwardRenderer::Initialize(const RendererDesc& desc, std::shared_ptr<resource::ShaderLibrary> shader_lib)
     {
         device = desc.device;
-
-        if (!shader_library.LoadAllShaders())
-        {
-            backlog::Post("ForwardRenderer failed to load test shaders", backlog::LogLevel::Error);
-            return;
-        }
-
-        if (!shader_library.BuildAllGraphicsPipelines(device, RHIFormat::R8G8B8A8Unorm, RHIFormat::D32Float, 1u))
-        {
-            backlog::Post("ForwardRenderer failed to build graphics pipelines", backlog::LogLevel::Error);
-            return;
-        }
+        shader_library = shader_lib;
 
         frame_contexts = {};
         for (uint32 i = 0; i < max_frames_in_flight; ++i)

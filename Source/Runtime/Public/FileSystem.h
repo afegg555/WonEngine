@@ -22,5 +22,8 @@ namespace won::io
     WONENGINE_API bool IsDirectory(const String& path);
     WONENGINE_API bool IsFile(const String& path);
     WONENGINE_API String GetExtension(const String& path);
+    WONENGINE_API String ReplaceExtension(const String& path, const String& ext);
     WONENGINE_API String GetFilename(const String& path);
+    WONENGINE_API String GetDirectoryFromPath(const String& path);
+    WONENGINE_API bool CreateFolder(const String& path);
 }

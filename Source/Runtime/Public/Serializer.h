@@ -55,6 +55,17 @@ namespace won::serialize
         }
     }
 
+    inline void Serialize(Archive& archive, const String& value)
+    {
+        Size size = value.size();
+        if (size == 0 || archive.IsReadMode())
+        {
+            return;
+        }
+        Serialize(archive, size); // set size bytes
+        archive.SerializeBytes((void*)value.data(), size);
+    }
+
     template<typename T>
     void Serialize(Archive& archive, Vector<T>& values)
     {
@@ -74,6 +85,21 @@ namespace won::serialize
             {
                 Serialize(archive, values[i]);
             }
+        }
+    }
+
+    template<typename T>
+    void Serialize(Archive& archive, const Vector<T>& values)
+    {
+        Size count = values.size();
+        if (count == 0 || archive.IsReadMode())
+        {
+            return;
+        }
+        Serialize(archive, count); // set size bytes
+        for (Size i = 0; i < count; ++i)
+        {
+            Serialize(archive, values[i]);
         }
     }
 }

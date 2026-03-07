@@ -1,8 +1,11 @@
 #include "Renderer.h"
 #include "ForwardRenderer.h"
+#include "EventHandler.h"
 
 namespace won::rendering
 {
+    static std::shared_ptr<resource::ShaderLibrary> shader_library = std::make_shared<resource::ShaderLibrary>();
+
     std::shared_ptr<Renderer> CreateRenderer(const RendererDesc& desc)
     {
         std::shared_ptr<Renderer> renderer;
@@ -16,9 +19,25 @@ namespace won::rendering
 
         if (renderer)
         {
-            renderer->Initialize(desc);
+            renderer->Initialize(desc, shader_library);
         }
 
         return renderer;
+    }
+
+    void ReloadShaderLibrary(std::shared_ptr<RHIDevice> device)
+    {
+        eventhandler::Subscribe_Once(eventhandler::EVENT_THREAD_SAFE_POINT, [dev = device](uint64_t userdata) {
+            
+            auto context = dev->GetContext(rendering::RHIQueueType::Graphics);
+            context->WaitIdle();
+
+            if (shader_library->LoadAllShaders())
+            {
+                shader_library->BuildAllGraphicsPipelines(dev, RENDERTARGET_BUFFER_FORMAT, DEPTH_BUFFER_FORMAT, 1u);
+            }
+        });
+
+        return;
     }
 }

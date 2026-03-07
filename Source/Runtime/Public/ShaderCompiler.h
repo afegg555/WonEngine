@@ -43,16 +43,17 @@ namespace won::resource
         String entry_point = "main";
     };
 
-    struct ShaderBytecode
+    struct ShaderCompileResult
     {
         Vector<uint8> bytecode;
+        Vector<String> dependencies;
     };
 
     class ShaderCompiler
     {
     public:
         virtual ~ShaderCompiler() = default;
-        virtual ShaderBytecode Compile(const ShaderCompileDesc& desc) const = 0;
+        virtual ShaderCompileResult Compile(const ShaderCompileDesc& desc) const = 0;
     };
 
     WONENGINE_API std::shared_ptr<ShaderCompiler> CreateShaderCompiler(const ShaderCompilerOptions& options = {});

@@ -141,9 +141,35 @@ namespace won::io
         return extension;
     }
 
+    String ReplaceExtension(const String& path, const String& ext)
+    {
+        std::filesystem::path fs_path = std::filesystem::u8path(path);
+        return fs_path.replace_extension(ext).string();
+    }
+
     String GetFilename(const String& path)
     {
         std::filesystem::path fs_path = std::filesystem::u8path(path);
         return fs_path.filename().u8string();
+    }
+
+    String GetDirectoryFromPath(const String& path)
+    {
+        std::filesystem::path fs_path = std::filesystem::u8path(path);
+        if (IsDirectory(path))
+        {
+            return fs_path.lexically_normal().u8string();
+        }
+        if (!path.empty() && (path.back() == '/' || path.back() == '\\'))
+        {
+            return fs_path.lexically_normal().u8string();
+        }
+        return fs_path.parent_path().u8string();
+    }
+
+    bool CreateFolder(const String& path)
+    {
+        std::filesystem::path fs_path = std::filesystem::u8path(path);
+        return std::filesystem::create_directories(fs_path);
     }
 }

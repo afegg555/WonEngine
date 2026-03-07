@@ -72,7 +72,7 @@ namespace won::resource
         }
     }
 
-    std::shared_ptr<Image> LoadImage(const String& path, int32 desired_channels)
+    std::shared_ptr<Image> LoadImageFile(const String& path, int32 desired_channels)
     {
         if (path.empty())
         {
