@@ -1,7 +1,7 @@
 .vs/
 x64/
 Binary/
-Shaders/
+CompiledShaders/
 build/
 
 *.ini
