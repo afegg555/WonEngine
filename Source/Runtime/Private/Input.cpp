@@ -15,14 +15,15 @@ namespace won::io
 #define KEY_TOGGLE(vk_code) 0
 #endif // WIN32
 
-	won::platform::WindowType window;
-	KeyboardState keyboard;
-	MouseState mouse;
-	bool double_click = false;
-	double double_click_interval = 0.5;
-	utils::Timer doubleclick_timer;
-	float2 doubleclick_prevpos = float2(0, 0);
+	static won::platform::WindowType window;
+	static KeyboardState keyboard;
+	static MouseState mouse;
+	static bool double_click = false;
+	static double double_click_interval = 0.5;
+	static utils::Timer doubleclick_timer;
+	static float2 doubleclick_prevpos = float2(0, 0);
 
+	static UnorderedMap<Button, int> inputs;
 	void Update(WindowType _window)
 	{
 		window = _window;
@@ -37,6 +38,35 @@ namespace won::io
 		mouse.left_button_press = KEY_DOWN(VK_LBUTTON);
 		mouse.middle_button_press = KEY_DOWN(VK_MBUTTON);
 		mouse.right_button_press = KEY_DOWN(VK_RBUTTON);
+
+		for (auto iter = inputs.begin(); iter != inputs.end();)
+		{
+			Button button = iter->first;
+
+			bool todelete = false;
+
+			if (IsDown(button))
+			{
+				iter->second++;
+			}
+			else if (iter->second == -1)
+			{
+				todelete = true;
+			}
+			else
+			{
+				iter->second = -1;
+			}
+
+			if (todelete)
+			{
+				iter = inputs.erase(iter);
+			}
+			else
+			{
+				++iter;
+			}
+		}
 
 		double_click = false;
 		if (IsPressed(MOUSE_BUTTON_LEFT))
@@ -227,7 +257,6 @@ namespace won::io
 		
 	}
 
-	static UnorderedMap<Button, int> inputs;
 	bool IsPressed(Button button)
 	{
 		if (!IsDown(button))

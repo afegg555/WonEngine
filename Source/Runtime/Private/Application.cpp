@@ -5,7 +5,8 @@
 #include "JobSystem.h"
 #include "Platform.h"
 #include "EventHandler.h"
- 
+#include "Input.h"
+
 namespace won
 {
     void Application::Initialize(const ApplicationDesc& desc)
@@ -85,6 +86,7 @@ namespace won
 
     void Application::Update(float dt)
     {
+        io::Update((WindowType)window->GetNativeHandle());
         main_view.Update(dt);
     }
 
