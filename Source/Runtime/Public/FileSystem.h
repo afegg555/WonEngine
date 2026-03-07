@@ -15,6 +15,7 @@ namespace won::io
     WONENGINE_API bool CreateDirectories(const String& path);
     WONENGINE_API bool ReadAllBytes(const String& path, FileData* out_data);
     WONENGINE_API bool WriteAllBytes(const String& path, const uint8* data, Size size);
+    WONENGINE_API bool GetLastTimestamp(const String& path, uint64* out_timestamp);
 
     WONENGINE_API String GetWorkingDirectory();
     WONENGINE_API String GetExecutableDirectory();

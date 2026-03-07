@@ -107,12 +107,6 @@ namespace won::resource
         const String entry_point = desc.entry_point.empty() ? "main" : desc.entry_point;
         const String target_profile = GetDefaultTargetProfile(desc);
 
-        if (target_profile.empty())
-        {
-            backlog::Post("Shader target profile is empty", backlog::LogLevel::Error);
-            return shader_bytecode;
-        }
-
 #if !defined(_WIN32)
         backlog::Post("DXC shader compiler is only available on Windows", backlog::LogLevel::Error);
         return shader_bytecode;
@@ -145,11 +139,7 @@ namespace won::resource
         }
 
         ComPtr<IDxcIncludeHandler> include_handler;
-        if (FAILED(dxc_utils->CreateDefaultIncludeHandler(&include_handler)))
-        {
-            backlog::Post("Failed to create DXC include handler", backlog::LogLevel::Error);
-            return shader_bytecode;
-        }
+        dxc_utils->CreateDefaultIncludeHandler(&include_handler);
 
         ComPtr<IDxcResult> compile_result;
         if (FAILED(dxc_compiler->Compile(&source_buffer, arguments.data(),

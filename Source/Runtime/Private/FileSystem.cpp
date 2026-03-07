@@ -1,6 +1,7 @@
 #include "FileSystem.h"
 #include "Platform.h"
 
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 
@@ -84,6 +85,20 @@ namespace won::io
         }
 
         return file.good();
+    }
+    
+    bool GetLastTimestamp(const String& path, uint64* out_timestamp)
+    {
+        std::error_code error;
+        const std::filesystem::path fs_path = std::filesystem::u8path(path);
+        const std::filesystem::file_time_type last_write_time = std::filesystem::last_write_time(fs_path, error);
+        if (error)
+        {
+            return false;
+        }
+        // seconds unit precision
+        *out_timestamp = std::chrono::duration_cast<std::chrono::duration<uint64>>(last_write_time.time_since_epoch()).count();
+        return true;
     }
 
     String GetWorkingDirectory()

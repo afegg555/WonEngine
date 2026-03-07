@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.20)
 
 project(WonEngine LANGUAGES CXX)
 
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "Tools")
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -278,8 +281,16 @@ set(Editor_PUBLIC
     Source/Editor/3.cpp
 )
 
+set(SHADER_OFFLINE_COMPILER_SOURCES
+    Source/Tools/ShaderOfflineCompiler/main.cpp
+)
+
 add_executable(Editor
     ${Editor_PUBLIC}
+)
+
+add_executable(ShaderOfflineCompiler
+    ${SHADER_OFFLINE_COMPILER_SOURCES}
 )
 
 target_include_directories(Runtime
@@ -290,6 +301,11 @@ target_include_directories(Runtime
 )
 
 target_link_libraries(Editor PRIVATE Runtime)
+target_link_libraries(ShaderOfflineCompiler PRIVATE Runtime)
+
+set_target_properties(ShaderOfflineCompiler PROPERTIES
+    FOLDER "Tools"
+)
 
 target_compile_definitions(Runtime
     PRIVATE
