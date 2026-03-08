@@ -19,6 +19,7 @@ endif()
 
 set(FINAL_OUT_DIR "${CMAKE_SOURCE_DIR}/Binary/${OS_NAME}")
 set(SHADER_BIN_DIR "${CMAKE_SOURCE_DIR}/CompiledShaders")
+set(CONTENTS_ROOT_DIR "${CMAKE_SOURCE_DIR}/Contents")
 file(MAKE_DIRECTORY "${SHADER_BIN_DIR}")
 
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "" FORCE)
@@ -88,6 +89,8 @@ set(RUNTIME_RHI_DX12
     Source/Runtime/Private/RHIResourceDX12.cpp
     Source/Runtime/Private/DescriptorAllocatorDX12.h
     Source/Runtime/Private/DescriptorAllocatorDX12.cpp
+    Source/Runtime/Private/RHISamplerDX12.h
+    Source/Runtime/Private/RHISamplerDX12.cpp
     Source/Runtime/Private/RHIPipelineDX12.h
     Source/Runtime/Private/RHIPipelineDX12.cpp
     Source/Runtime/Private/RHISwapchainDX12.h
@@ -280,7 +283,28 @@ source_group("Shaders" FILES ${SHADERS_HLSL})
 set_source_files_properties(${SHADERS_HLSL} PROPERTIES HEADER_FILE_ONLY TRUE)
 
 set(Editor_PUBLIC
-    Source/Editor/3.cpp
+    Source/Editor/main.cpp
+    Source/Editor/Editor.h
+    Source/Editor/Editor.cpp
+    Source/Editor/Themes.h
+    Source/Editor/Themes.cpp
+)
+
+set(Editor_IMGUI
+    Source/Vendor/imgui-docking/imgui.h
+    Source/Vendor/imgui-docking/imgui.cpp
+    Source/Vendor/imgui-docking/imgui_internal.h
+    Source/Vendor/imgui-docking/imgui_demo.cpp
+    Source/Vendor/imgui-docking/imgui_draw.cpp
+    Source/Vendor/imgui-docking/imgui_tables.cpp
+    Source/Vendor/imgui-docking/imgui_widgets.cpp
+    Source/Vendor/imgui-docking/imgui_impl_win32.h
+    Source/Vendor/imgui-docking/imgui_impl_win32.cpp
+    Source/Vendor/imgui-docking/imgui_impl_dx12.h
+    Source/Vendor/imgui-docking/imgui_impl_dx12.cpp
+    Source/Vendor/imgui-docking/imstb_truetype.h
+    Source/Vendor/imgui-docking/imstb_textedit.h
+    Source/Vendor/imgui-docking/imstb_rectpack.h
 )
 
 set(SHADER_OFFLINE_COMPILER_SOURCES
@@ -289,7 +313,10 @@ set(SHADER_OFFLINE_COMPILER_SOURCES
 
 add_executable(Editor
     ${Editor_PUBLIC}
+    ${Editor_IMGUI}
 )
+
+source_group("ImGui" FILES ${Editor_IMGUI})
 
 add_executable(ShaderOfflineCompiler
     ${SHADER_OFFLINE_COMPILER_SOURCES}
@@ -316,6 +343,11 @@ target_compile_definitions(Runtime
         WONENGINE_SHADER_BIN_DIR="${SHADER_BIN_DIR}"
 )
 
+target_compile_definitions(Editor
+    PRIVATE
+        CONTENTS_ROOT_DIR="${CONTENTS_ROOT_DIR}"
+)
+
 if(MSVC)
     target_compile_options(Runtime PRIVATE /W4 /permissive-)
     set_target_properties(Runtime PROPERTIES
@@ -325,4 +357,5 @@ endif()
 
 if(WIN32)
     target_link_libraries(Runtime PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler)
+    target_link_libraries(Editor PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler)
 endif()

@@ -14,8 +14,29 @@ namespace won::rendering
     class RHIPipelineDX12 final : public RHIPipeline
     {
     public:
+        struct RootSignatureBindingTable
+        {
+            static constexpr uint8 invalid_root_parameter = 0xFF;
+            uint64 slot_usage = 0ull;
+            uint8 cbv[descriptor_binder_cbv_count] = {};
+            uint8 srv[descriptor_binder_srv_count] = {};
+            uint8 uav[descriptor_binder_uav_count] = {};
+            uint8 sam[descriptor_binder_sampler_count] = {};
+
+            struct SlotInfo
+            {
+                D3D12_ROOT_PARAMETER_TYPE slot_type = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+                bool is_sampler = false;
+                bool is_bindless = false; // if space > 0
+            };
+            Vector<SlotInfo> slot_infos;
+
+            void Init();
+            void Build(const D3D12_VERSIONED_ROOT_SIGNATURE_DESC& desc);
+        } binding_table;
+
         RHIPipelineDX12(bool is_compute_pipeline, ComPtr<ID3D12PipelineState> pipeline_state_in,
-            ComPtr<ID3D12RootSignature> root_signature_in);
+            ComPtr<ID3D12RootSignature> root_signature_in, RootSignatureBindingTable binding_table_in);
 
         bool IsCompute() const override;
         void SetName(const String& new_name) override;
@@ -31,4 +52,3 @@ namespace won::rendering
         ComPtr<ID3D12RootSignature> root_signature;
     };
 }
-

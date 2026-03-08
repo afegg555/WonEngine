@@ -60,6 +60,7 @@ namespace won
                 is_running = false;
                 return;
             }
+            ProcessPlatformMessage(&msg);
             TranslateMessage(&msg);
             DispatchMessageA(&msg);
         }
@@ -98,9 +99,29 @@ namespace won
         {
             return;
         }
+
         renderer->BeginFrame(*window);
-        renderer->Render(main_view);
+        RenderScene();
+        RenderUI();
         renderer->EndFrame();
+    }
+
+    void Application::RenderScene()
+    {
+        if (renderer)
+        {
+            renderer->Render(main_view);
+        }
+    }
+
+    void Application::ProcessPlatformMessage(void* native_message)
+    {
+        return;
+    }
+
+    void Application::RenderUI()
+    {
+        return;
     }
 
 }

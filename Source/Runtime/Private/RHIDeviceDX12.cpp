@@ -9,6 +9,7 @@
 #include "RHICommandListDX12.h"
 #include "RHIResourceDX12.h"
 #include "RHIPipelineDX12.h"
+#include "RHISamplerDX12.h"
 #include "RHISwapchainDX12.h"
 #include "RHIFormatDX12.h"
 #include "DescriptorAllocatorDX12.h"
@@ -185,8 +186,36 @@ namespace won::rendering
             }
         }
 
+        D3D12_FILTER_TYPE ToSamplerFilterType(RHIFilter filter)
+        {
+            return filter == RHIFilter::Nearest ? D3D12_FILTER_TYPE_POINT : D3D12_FILTER_TYPE_LINEAR;
+        }
+
+        D3D12_FILTER ToSamplerFilter(const RHISamplerDesc& desc)
+        {
+            return D3D12_ENCODE_BASIC_FILTER(
+                ToSamplerFilterType(desc.min_filter),
+                ToSamplerFilterType(desc.mag_filter),
+                ToSamplerFilterType(desc.mip_filter),
+                D3D12_FILTER_REDUCTION_TYPE_STANDARD);
+        }
+
+        D3D12_TEXTURE_ADDRESS_MODE ToSamplerAddressMode(RHIAddressMode address_mode)
+        {
+            switch (address_mode)
+            {
+            case RHIAddressMode::Clamp:
+                return D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+            case RHIAddressMode::Mirror:
+                return D3D12_TEXTURE_ADDRESS_MODE_MIRROR;
+            case RHIAddressMode::Wrap:
+            default:
+                return D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+            }
+        }
+
         bool CreateRootSignatureFromShaderBytecode(ID3D12Device* device, const RHIShader& shader,
-            const char* pipeline_name, ComPtr<ID3D12RootSignature>& root_signature_out)
+            const char* pipeline_name, ComPtr<ID3D12RootSignature>& root_signature_out, RHIPipelineDX12::RootSignatureBindingTable& binding_table_out)
         {
             if (!device || !shader.GetBytecode() || shader.GetBytecodeSize() == 0)
             {
@@ -219,6 +248,10 @@ namespace won::rendering
                 return false;
             }
 
+            const D3D12_VERSIONED_ROOT_SIGNATURE_DESC* desc = nullptr;
+            root_signature_deserializer->GetRootSignatureDescAtVersion(D3D_ROOT_SIGNATURE_VERSION_1_1, &desc);
+            binding_table_out.Build(*desc);
+
             return true;
         }
     }
@@ -231,6 +264,8 @@ namespace won::rendering
 #ifdef _DEBUG
         if (desc.enable_debug_layer)
         {
+            factory_flags |= DXGI_CREATE_FACTORY_DEBUG;
+
             ComPtr<ID3D12Debug> debug;
             if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debug))) && debug)
             {
@@ -244,19 +279,11 @@ namespace won::rendering
                     }
                 }
             }
-            factory_flags |= DXGI_CREATE_FACTORY_DEBUG;
-        }
-#endif
-        
-        if (FAILED(CreateDXGIFactory2(factory_flags, IID_PPV_ARGS(&factory))))
-        {
-            backlog::Post("Failed to create dxgi factory", backlog::LogLevel::Error);
-            return;
-        }
-
-#ifdef _DEBUG
-        if (desc.enable_debug_layer)
-        {
+            else
+            {
+                factory_flags &= ~DXGI_CREATE_FACTORY_DEBUG;
+            }
+            
             ComPtr<IDXGIInfoQueue> dxgi_info_queue;
             if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(dxgi_info_queue.GetAddressOf()))))
             {
@@ -273,9 +300,24 @@ namespace won::rendering
                 //filter.DenyList.pIDList = hide;
                 //dxgi_info_queue->AddStorageFilterEntries(DXGI_DEBUG_ALL, &filter);
             }
-
+            else
+            {
+                factory_flags &= ~DXGI_CREATE_FACTORY_DEBUG;
+            }
         }
 #endif
+        
+        HRESULT factory_result = CreateDXGIFactory2(factory_flags, IID_PPV_ARGS(&factory));
+        if (FAILED(factory_result))
+        {
+            // fallback
+            factory_result = CreateDXGIFactory2(0u, IID_PPV_ARGS(&factory));
+            if (FAILED(factory_result))
+            {
+                return;
+            }
+        }
+
         D3D_FEATURE_LEVEL min_feature_level = D3D_FEATURE_LEVEL_12_0;
 
         if (desc.preference == RHIDevicePreference::Software)
@@ -859,8 +901,9 @@ namespace won::rendering
         }
 
         ComPtr<ID3D12RootSignature> root_signature;
+        RHIPipelineDX12::RootSignatureBindingTable binding_table;
         if (!CreateRootSignatureFromShaderBytecode(device.Get(), *desc.vertex_shader,
-                "Graphics pipeline", root_signature))
+                "Graphics pipeline", root_signature, binding_table))
         {
             return nullptr;
         }
@@ -932,7 +975,7 @@ namespace won::rendering
             return nullptr;
         }
 
-        return std::make_shared<RHIPipelineDX12>(false, std::move(pipeline_state), std::move(root_signature));
+        return std::make_shared<RHIPipelineDX12>(false, std::move(pipeline_state), std::move(root_signature), std::move(binding_table));
     }
 
     std::shared_ptr<RHIPipeline> RHIDeviceDX12::CreateComputePipeline(
@@ -945,8 +988,9 @@ namespace won::rendering
         }
 
         ComPtr<ID3D12RootSignature> root_signature;
+        RHIPipelineDX12::RootSignatureBindingTable binding_table;
         if (!CreateRootSignatureFromShaderBytecode(device.Get(), *desc.compute_shader,
-                "Compute pipeline", root_signature))
+                "Compute pipeline", root_signature, binding_table))
         {
             return nullptr;
         }
@@ -962,13 +1006,40 @@ namespace won::rendering
             return nullptr;
         }
 
-        return std::make_shared<RHIPipelineDX12>(true, std::move(pipeline_state), std::move(root_signature));
+        return std::make_shared<RHIPipelineDX12>(true, std::move(pipeline_state), std::move(root_signature), std::move(binding_table));
     }
 
     std::shared_ptr<RHISampler> RHIDeviceDX12::CreateSampler(const RHISamplerDesc& desc)
     {
-        (void)desc;
-        return nullptr;
+        if (!device || !descriptor_allocator || !descriptor_allocator->IsValid())
+        {
+            backlog::Post("Failed to create sampler because DX12 device is not initialized", backlog::LogLevel::Error);
+            return nullptr;
+        }
+
+        D3D12_SAMPLER_DESC sampler_desc = {};
+        sampler_desc.Filter = ToSamplerFilter(desc);
+        sampler_desc.AddressU = ToSamplerAddressMode(desc.address_u);
+        sampler_desc.AddressV = ToSamplerAddressMode(desc.address_v);
+        sampler_desc.AddressW = ToSamplerAddressMode(desc.address_w);
+        sampler_desc.MipLODBias = desc.mip_lod_bias;
+        sampler_desc.MaxAnisotropy = 1;
+        sampler_desc.ComparisonFunc = D3D12_COMPARISON_FUNC_NONE;
+        sampler_desc.BorderColor[0] = 0.0f;
+        sampler_desc.BorderColor[1] = 0.0f;
+        sampler_desc.BorderColor[2] = 0.0f;
+        sampler_desc.BorderColor[3] = 0.0f;
+        sampler_desc.MinLOD = desc.min_lod;
+        sampler_desc.MaxLOD = desc.max_lod;
+
+        int descriptor_index = -1;
+        if (!descriptor_allocator->CreateSamplerDescriptor(sampler_desc, descriptor_index))
+        {
+            backlog::Post("Failed to allocate sampler descriptor", backlog::LogLevel::Error);
+            return nullptr;
+        }
+
+        return std::make_shared<RHISamplerDX12>(desc, descriptor_index, descriptor_allocator);
     }
 
     std::shared_ptr<RHIContext> RHIDeviceDX12::GetContext(RHIQueueType type)

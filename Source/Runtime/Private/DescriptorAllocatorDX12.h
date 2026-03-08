@@ -30,6 +30,9 @@ namespace won::rendering
 
         void BeginFrame(uint32 frame_slot);
 
+        bool CreateSamplerDescriptor(const D3D12_SAMPLER_DESC& desc,
+            int& out_descriptor_index);
+
         bool CreateSubresourceDescriptor(RHIResourceDX12& resource,
             const RHISubresourceDesc& desc,
             D3D12_DESCRIPTOR_HEAP_TYPE& out_heap_type,

@@ -4,9 +4,11 @@
 #include "RHICommandAllocatorDX12.h"
 #include "RHIPipelineDX12.h"
 #include "RHIResourceDX12.h"
+#include "RHISamplerDX12.h"
 #include "DescriptorAllocatorDX12.h"
 
 #include "DirectX-Headers/d3d12.h"
+#include <intrin.h> // _BitScanReverse64
 
 namespace won::rendering
 {
@@ -59,7 +61,7 @@ namespace won::rendering
 
     void RHICommandListDX12::Begin(RHICommandAllocator& allocator)
     {
-        auto* dx12_allocator = dynamic_cast<RHICommandAllocatorDX12*>(&allocator);
+        auto dx12_allocator = dynamic_cast<RHICommandAllocatorDX12*>(&allocator);
         if (!dx12_allocator)
         {
             backlog::Post("Invalid command allocator type", backlog::LogLevel::Error);
@@ -129,6 +131,10 @@ namespace won::rendering
                 command_list->SetDescriptorHeaps(heap_count, heaps);
             }
         }
+
+        descriptor_binding_table = {};
+        active_graphics_binding_table = nullptr;
+        active_compute_binding_table = nullptr;
     }
 
     void RHICommandListDX12::End()
@@ -141,7 +147,7 @@ namespace won::rendering
 
     void RHICommandListDX12::SetGraphicsPipeline(RHIPipeline& pipeline)
     {
-        auto* dx12_pipeline = dynamic_cast<RHIPipelineDX12*>(&pipeline);
+        auto dx12_pipeline = dynamic_cast<RHIPipelineDX12*>(&pipeline);
         if (!command_list || !dx12_pipeline)
         {
             return;
@@ -149,30 +155,57 @@ namespace won::rendering
 
         command_list->SetPipelineState(dx12_pipeline->GetPipelineState());
         command_list->SetGraphicsRootSignature(dx12_pipeline->GetRootSignature());
+        active_graphics_binding_table = &dx12_pipeline->binding_table;
 
-        // DEFAULT_ROOTSIGNATURE layout:
-        // root param 0 = push constants (b999)
-        // root param 1 = frame root CBV (b0)
-        // root param 2 = camera root CBV (b1)
-        // root params 3 = bindless samplers
-        // root params 4 = bindless SRV descriptor tables for spaces 200..207
-        if (descriptor_allocator)
+        const RHIPipelineDX12::RootSignatureBindingTable& binding_table = dx12_pipeline->binding_table;
+
+        for (Size index = 0; index < binding_table.slot_infos.size(); ++index)
         {
-            ID3D12DescriptorHeap* frame_resource_heap{};
-            if (descriptor_allocator->GetGPUVisibleHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, &frame_resource_heap))
+            if (binding_table.slot_infos[index].slot_type == D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE)
             {
-                const D3D12_GPU_DESCRIPTOR_HANDLE bindless_heap_start = frame_resource_heap->GetGPUDescriptorHandleForHeapStart();
-                for (uint32 root_slot = 4; root_slot <= 4; ++root_slot) // only slot 4 is a descriptor table for now
+                if (binding_table.slot_infos[index].is_bindless)
                 {
-                    command_list->SetGraphicsRootDescriptorTable(root_slot, bindless_heap_start);
+                    ID3D12DescriptorHeap* heap = nullptr;
+                    if (binding_table.slot_infos[index].is_sampler)
+                    {
+                        descriptor_allocator->GetGPUVisibleHeap(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, &heap);
+                    }
+                    else
+                    {
+                        descriptor_allocator->GetGPUVisibleHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, &heap);
+                    }
+                    command_list->SetGraphicsRootDescriptorTable(index, heap->GetGPUDescriptorHandleForHeapStart());
                 }
             }
-        }
+        }        
     }
 
     void RHICommandListDX12::SetComputePipeline(RHIPipeline& pipeline)
     {
-        (void)pipeline;
+        auto dx12_pipeline = dynamic_cast<RHIPipelineDX12*>(&pipeline);
+
+        command_list->SetPipelineState(dx12_pipeline->GetPipelineState());
+        command_list->SetComputeRootSignature(dx12_pipeline->GetRootSignature());
+        active_compute_binding_table = &dx12_pipeline->binding_table;
+
+        const RHIPipelineDX12::RootSignatureBindingTable& binding_table = dx12_pipeline->binding_table;
+        for (Size index = 0; index < binding_table.slot_infos.size(); ++index)
+        {
+            if (binding_table.slot_infos[index].slot_type == D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE &&
+                binding_table.slot_infos[index].is_bindless)
+            {
+                ID3D12DescriptorHeap* heap = nullptr;
+                if (binding_table.slot_infos[index].is_sampler)
+                {
+                    descriptor_allocator->GetGPUVisibleHeap(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, &heap);
+                }
+                else
+                {
+                    descriptor_allocator->GetGPUVisibleHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, &heap);
+                }
+                command_list->SetComputeRootDescriptorTable(index, heap->GetGPUDescriptorHandleForHeapStart());
+            }
+        }
     }
 
     void RHICommandListDX12::SetViewport(const RHIViewport& viewport)
@@ -219,7 +252,7 @@ namespace won::rendering
                 continue;
             }
 
-            auto* resource_dx12 = dynamic_cast<RHIResourceDX12*>(target.resource);
+            auto resource_dx12 = dynamic_cast<RHIResourceDX12*>(target.resource);
             if (!resource_dx12)
             {
                 continue;
@@ -240,7 +273,7 @@ namespace won::rendering
         D3D12_CPU_DESCRIPTOR_HANDLE* dsv_handle_ptr = nullptr;
         if (depth_target && depth_target->resource)
         {
-            auto* depth_resource_dx12 = dynamic_cast<RHIResourceDX12*>(depth_target->resource);
+            auto depth_resource_dx12 = dynamic_cast<RHIResourceDX12*>(depth_target->resource);
             if (depth_resource_dx12)
             {
                 D3D12_DESCRIPTOR_HEAP_TYPE depth_heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
@@ -266,7 +299,7 @@ namespace won::rendering
     void RHICommandListDX12::ClearRenderTarget(const RHISubresourceBinding& target,
         const RHIClearColor& color)
     {
-        auto* resource_dx12 = dynamic_cast<RHIResourceDX12*>(target.resource);
+        auto resource_dx12 = dynamic_cast<RHIResourceDX12*>(target.resource);
         if (!resource_dx12)
         {
             return;
@@ -286,7 +319,7 @@ namespace won::rendering
     void RHICommandListDX12::ClearDepthStencil(const RHISubresourceBinding& target,
         float depth, uint8 stencil)
     {
-        auto* resource_dx12 = dynamic_cast<RHIResourceDX12*>(target.resource);
+        auto resource_dx12 = dynamic_cast<RHIResourceDX12*>(target.resource);
         if (!resource_dx12)
         {
             return;
@@ -309,7 +342,7 @@ namespace won::rendering
             return;
         }
 
-        auto* resource_dx12 = dynamic_cast<RHIResourceDX12*>(&resource);
+        auto resource_dx12 = dynamic_cast<RHIResourceDX12*>(&resource);
         if (!resource_dx12 || !resource_dx12->GetResource())
         {
             return;
@@ -362,7 +395,7 @@ namespace won::rendering
             return;
         }
 
-        auto* resource_dx12 = dynamic_cast<RHIResourceDX12*>(&resource);
+        auto resource_dx12 = dynamic_cast<RHIResourceDX12*>(&resource);
         if (!resource_dx12 || !resource_dx12->GetResource())
         {
             return;
@@ -421,98 +454,33 @@ namespace won::rendering
     void RHICommandListDX12::SetConstantBuffer(RHIShaderStage stage, uint32 slot,
         const RHISubresourceBinding& view)
     {
-        if (!command_list || !view.resource)
-        {
-            return;
-        }
+        assert(slot < descriptor_binder_cbv_count);
 
-        auto* resource_dx12 = dynamic_cast<RHIResourceDX12*>(view.resource);
-        if (!resource_dx12 || !resource_dx12->GetResource())
-        {
-            return;
-        }
-
-        if (resource_dx12->GetDesc().type != RHIResourceType::Buffer)
-        {
-            return;
-        }
-
-        if (!view.subresource.IsValid())
-        {
-            return;
-        }
-
-        const RHIResourceDX12::SubresourceEntry* subresource_entry = resource_dx12->FindSubresourceEntry(view.subresource);
-        if (!subresource_entry || !subresource_entry->valid || subresource_entry->desc.type != RHISubresourceType::ConstantBuffer)
-        {
-            return;
-        }
-
-        const D3D12_GPU_VIRTUAL_ADDRESS base_gpu_address = resource_dx12->GetResource()->GetGPUVirtualAddress();
-        const D3D12_GPU_VIRTUAL_ADDRESS gpu_virtual_address = base_gpu_address + static_cast<D3D12_GPU_VIRTUAL_ADDRESS>(subresource_entry->desc.buffer_offset);
-        if ((gpu_virtual_address & 0xFFull) != 0)
-        {
-            backlog::Post("Constant buffer GPU address must be 256-byte aligned", backlog::LogLevel::Error);
-            return;
-        }
-
-        if (stage == RHIShaderStage::Compute)
-        {
-            command_list->SetComputeRootConstantBufferView(slot, gpu_virtual_address);
-        }
-        else
-        {
-            command_list->SetGraphicsRootConstantBufferView(slot, gpu_virtual_address);
-        }
-
-        return;
+        descriptor_binding_table.cbv[slot] = view;
     }
 
     void RHICommandListDX12::SetShaderResource(RHIShaderStage stage, uint32 slot,
         const RHISubresourceBinding& view)
     {
-        if (!command_list || !descriptor_allocator || !view.resource)
-        {
-            return;
-        }
+        assert(slot < descriptor_binder_srv_count);
 
-        auto* resource_dx12 = dynamic_cast<RHIResourceDX12*>(view.resource);
-        if (!resource_dx12)
-        {
-            return;
-        }
-
-        D3D12_DESCRIPTOR_HEAP_TYPE heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-        D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = {};
-        if (!descriptor_allocator->GetGpuDescriptorHandle(heap_type, view.subresource.descriptor_index, gpu_handle))
-        {
-            return;
-        }
-
-        if (stage == RHIShaderStage::Compute)
-        {
-            command_list->SetComputeRootDescriptorTable(slot, gpu_handle);
-        }
-        else
-        {
-            command_list->SetGraphicsRootDescriptorTable(slot, gpu_handle);
-        }
+        descriptor_binding_table.srv[slot] = view;
     }
 
     void RHICommandListDX12::SetUnorderedAccess(RHIShaderStage stage, uint32 slot,
         const RHISubresourceBinding& view)
     {
-        (void)stage;
-        (void)slot;
-        (void)view;
+        assert(slot < descriptor_binder_uav_count);
+
+        descriptor_binding_table.uav[slot] = view;
     }
 
     void RHICommandListDX12::SetSampler(RHIShaderStage stage, uint32 slot,
         const RHISampler& sampler)
     {
-        (void)stage;
-        (void)slot;
-        (void)sampler;
+        assert(slot < descriptor_binder_sampler_count);
+
+        descriptor_binding_table.sam[slot] = const_cast<RHISampler*>(&sampler);
     }
 
     void RHICommandListDX12::PushConstants(RHIShaderStage stage, const void* data,
@@ -547,6 +515,7 @@ namespace won::rendering
     {
         if (command_list)
         {
+            ApplyGraphicsDescriptorBindings();
             command_list->DrawInstanced(vertex_count, instance_count, first_vertex, first_instance);
         }
     }
@@ -556,6 +525,7 @@ namespace won::rendering
     {
         if (command_list)
         {
+            ApplyGraphicsDescriptorBindings();
             command_list->DrawIndexedInstanced(index_count, instance_count, first_index,
                 vertex_offset, first_instance);
         }
@@ -565,6 +535,7 @@ namespace won::rendering
     {
         if (command_list)
         {
+            ApplyComputeDescriptorBindings();
             command_list->Dispatch(group_x, group_y, group_z);
         }
     }
@@ -576,8 +547,8 @@ namespace won::rendering
             return;
         }
 
-        auto* dest_dx12 = dynamic_cast<RHIResourceDX12*>(&dest);
-        auto* src_dx12 = dynamic_cast<RHIResourceDX12*>(&src);
+        auto dest_dx12 = dynamic_cast<RHIResourceDX12*>(&dest);
+        auto src_dx12 = dynamic_cast<RHIResourceDX12*>(&src);
         if (!dest_dx12 || !src_dx12)
         {
             backlog::Post("CopyResource requires DX12 resources", backlog::LogLevel::Error);
@@ -605,8 +576,8 @@ namespace won::rendering
 
     void RHICommandListDX12::CopyBuffer(RHIResource& dest, Size dest_offset, RHIResource& src, Size src_offset, Size size)
     {
-        auto* dest_dx12 = dynamic_cast<RHIResourceDX12*>(&dest);
-        auto* src_dx12 = dynamic_cast<RHIResourceDX12*>(&src);
+        auto dest_dx12 = dynamic_cast<RHIResourceDX12*>(&dest);
+        auto src_dx12 = dynamic_cast<RHIResourceDX12*>(&src);
 
         ID3D12Resource* dest_resource = dest_dx12->GetResource();
         ID3D12Resource* src_resource = src_dx12->GetResource();
@@ -629,7 +600,7 @@ namespace won::rendering
             return;
         }
 
-        auto* resource_dx12 = dynamic_cast<RHIResourceDX12*>(&resource);
+        auto resource_dx12 = dynamic_cast<RHIResourceDX12*>(&resource);
         if (!resource_dx12 || !resource_dx12->GetResource())
         {
             return;
@@ -656,4 +627,204 @@ namespace won::rendering
     {
         return command_list.Get();
     }
+
+    void RHICommandListDX12::ApplyGraphicsDescriptorBindings()
+    {
+        if (!command_list || !active_graphics_binding_table)
+        {
+            return;
+        }
+
+        for (uint32 slot = 0; slot < descriptor_binder_cbv_count; ++slot)
+        {
+            const uint8 root_index = active_graphics_binding_table->cbv[slot];
+            if (root_index == RHIPipelineDX12::RootSignatureBindingTable::invalid_root_parameter)
+            {
+                continue;
+            }
+
+            const RHISubresourceBinding& view = descriptor_binding_table.cbv[slot];
+            auto resource_dx12 = dynamic_cast<RHIResourceDX12*>(view.resource);
+
+            const RHIResourceDX12::SubresourceEntry* subresource_entry = resource_dx12->FindSubresourceEntry(view.subresource);
+            const D3D12_GPU_VIRTUAL_ADDRESS gpu_virtual_address =
+                resource_dx12->GetResource()->GetGPUVirtualAddress() + static_cast<D3D12_GPU_VIRTUAL_ADDRESS>(subresource_entry->desc.buffer_offset);
+
+            command_list->SetGraphicsRootConstantBufferView(root_index, gpu_virtual_address);
+        }
+
+        for (uint32 slot = 0; slot < descriptor_binder_srv_count; ++slot)
+        {
+            const uint8 root_index = active_graphics_binding_table->srv[slot];
+            if (root_index == RHIPipelineDX12::RootSignatureBindingTable::invalid_root_parameter)
+            {
+                continue;
+            }
+
+            const RHISubresourceBinding& view = descriptor_binding_table.srv[slot];
+
+            D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = {};
+            descriptor_allocator->GetGpuDescriptorHandle(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, view.subresource.descriptor_index, gpu_handle);
+
+            if (active_graphics_binding_table->slot_infos[root_index].slot_type == D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE)
+            {
+                command_list->SetGraphicsRootDescriptorTable(root_index, gpu_handle);
+            }
+            else if (active_graphics_binding_table->slot_infos[root_index].slot_type == D3D12_ROOT_PARAMETER_TYPE_SRV)
+            {
+                auto resource_dx12 = dynamic_cast<RHIResourceDX12*>(view.resource);
+                const RHIResourceDX12::SubresourceEntry* subresource_entry = resource_dx12->FindSubresourceEntry(view.subresource);
+
+                const D3D12_GPU_VIRTUAL_ADDRESS gpu_virtual_address =
+                    resource_dx12->GetResource()->GetGPUVirtualAddress() + static_cast<D3D12_GPU_VIRTUAL_ADDRESS>(subresource_entry->desc.buffer_offset);
+                command_list->SetGraphicsRootShaderResourceView(root_index, gpu_virtual_address);
+            }
+        }
+
+        for (uint32 slot = 0; slot < descriptor_binder_uav_count; ++slot)
+        {
+            const uint8 root_index = active_graphics_binding_table->uav[slot];
+            if (root_index == RHIPipelineDX12::RootSignatureBindingTable::invalid_root_parameter)
+            {
+                continue;
+            }
+
+            const RHISubresourceBinding& view = descriptor_binding_table.uav[slot];
+
+            D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = {};
+            descriptor_allocator->GetGpuDescriptorHandle(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, view.subresource.descriptor_index, gpu_handle);
+
+            if (active_graphics_binding_table->slot_infos[root_index].slot_type == D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE)
+            {
+                command_list->SetGraphicsRootDescriptorTable(root_index, gpu_handle);
+            }
+            else if (active_graphics_binding_table->slot_infos[root_index].slot_type == D3D12_ROOT_PARAMETER_TYPE_UAV)
+            {
+                auto resource_dx12 = dynamic_cast<RHIResourceDX12*>(view.resource);
+                const RHIResourceDX12::SubresourceEntry* subresource_entry = resource_dx12->FindSubresourceEntry(view.subresource);
+
+                const D3D12_GPU_VIRTUAL_ADDRESS gpu_virtual_address =
+                    resource_dx12->GetResource()->GetGPUVirtualAddress() + static_cast<D3D12_GPU_VIRTUAL_ADDRESS>(subresource_entry->desc.buffer_offset);
+                command_list->SetGraphicsRootUnorderedAccessView(root_index, gpu_virtual_address);
+            }
+        }
+
+        for (uint32 slot = 0; slot < descriptor_binder_sampler_count; ++slot)
+        {
+            const uint8 root_index = active_graphics_binding_table->sam[slot];
+            if (root_index == RHIPipelineDX12::RootSignatureBindingTable::invalid_root_parameter)
+            {
+                continue;
+            }
+
+            const RHISampler* sampler = descriptor_binding_table.sam[slot];
+            auto sampler_dx12 = dynamic_cast<const RHISamplerDX12*>(sampler);
+
+            D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = {};
+            descriptor_allocator->GetGpuDescriptorHandle(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, sampler_dx12->GetDescriptorIndex(), gpu_handle);
+
+            command_list->SetGraphicsRootDescriptorTable(root_index, gpu_handle);
+        }
+    }
+
+    void RHICommandListDX12::ApplyComputeDescriptorBindings()
+    {
+        if (!command_list || !active_compute_binding_table)
+        {
+            return;
+        }
+
+        for (uint32 slot = 0; slot < descriptor_binder_cbv_count; ++slot)
+        {
+            const uint8 root_index = active_compute_binding_table->cbv[slot];
+            if (root_index == RHIPipelineDX12::RootSignatureBindingTable::invalid_root_parameter)
+            {
+                continue;
+            }
+
+            const RHISubresourceBinding& view = descriptor_binding_table.cbv[slot];
+            auto resource_dx12 = dynamic_cast<RHIResourceDX12*>(view.resource);
+
+            const RHIResourceDX12::SubresourceEntry* subresource_entry = resource_dx12->FindSubresourceEntry(view.subresource);
+            const D3D12_GPU_VIRTUAL_ADDRESS gpu_virtual_address =
+                resource_dx12->GetResource()->GetGPUVirtualAddress() + static_cast<D3D12_GPU_VIRTUAL_ADDRESS>(subresource_entry->desc.buffer_offset);
+
+            command_list->SetComputeRootConstantBufferView(root_index, gpu_virtual_address);
+        }
+
+        for (uint32 slot = 0; slot < descriptor_binder_srv_count; ++slot)
+        {
+            const uint8 root_index = active_compute_binding_table->srv[slot];
+            if (root_index == RHIPipelineDX12::RootSignatureBindingTable::invalid_root_parameter)
+            {
+                continue;
+            }
+
+            const RHISubresourceBinding& view = descriptor_binding_table.srv[slot];
+
+            D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = {};
+            descriptor_allocator->GetGpuDescriptorHandle(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, view.subresource.descriptor_index, gpu_handle);
+
+            if (active_compute_binding_table->slot_infos[root_index].slot_type == D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE)
+            {
+                command_list->SetComputeRootDescriptorTable(root_index, gpu_handle);
+            }
+            else if (active_compute_binding_table->slot_infos[root_index].slot_type == D3D12_ROOT_PARAMETER_TYPE_SRV)
+            {
+                auto resource_dx12 = dynamic_cast<RHIResourceDX12*>(view.resource);
+                const RHIResourceDX12::SubresourceEntry* subresource_entry = resource_dx12->FindSubresourceEntry(view.subresource);
+
+                const D3D12_GPU_VIRTUAL_ADDRESS gpu_virtual_address =
+                    resource_dx12->GetResource()->GetGPUVirtualAddress() + static_cast<D3D12_GPU_VIRTUAL_ADDRESS>(subresource_entry->desc.buffer_offset);
+                command_list->SetComputeRootShaderResourceView(root_index, gpu_virtual_address);
+            }
+        }
+
+        for (uint32 slot = 0; slot < descriptor_binder_uav_count; ++slot)
+        {
+            const uint8 root_index = active_compute_binding_table->uav[slot];
+            if (root_index == RHIPipelineDX12::RootSignatureBindingTable::invalid_root_parameter)
+            {
+                continue;
+            }
+
+            const RHISubresourceBinding& view = descriptor_binding_table.uav[slot];
+
+            D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = {};
+            descriptor_allocator->GetGpuDescriptorHandle(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, view.subresource.descriptor_index, gpu_handle);
+
+            if (active_compute_binding_table->slot_infos[root_index].slot_type == D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE)
+            {
+                command_list->SetComputeRootDescriptorTable(root_index, gpu_handle);
+            }
+            else if (active_compute_binding_table->slot_infos[root_index].slot_type == D3D12_ROOT_PARAMETER_TYPE_UAV)
+            {
+                auto resource_dx12 = dynamic_cast<RHIResourceDX12*>(view.resource);
+                const RHIResourceDX12::SubresourceEntry* subresource_entry = resource_dx12->FindSubresourceEntry(view.subresource);
+
+                const D3D12_GPU_VIRTUAL_ADDRESS gpu_virtual_address =
+                    resource_dx12->GetResource()->GetGPUVirtualAddress() + static_cast<D3D12_GPU_VIRTUAL_ADDRESS>(subresource_entry->desc.buffer_offset);
+                command_list->SetComputeRootUnorderedAccessView(root_index, gpu_virtual_address);
+            }
+        }
+
+        for (uint32 slot = 0; slot < descriptor_binder_sampler_count; ++slot)
+        {
+            const uint8 root_index = active_compute_binding_table->sam[slot];
+            if (root_index == RHIPipelineDX12::RootSignatureBindingTable::invalid_root_parameter)
+            {
+                continue;
+            }
+
+            const RHISampler* sampler = descriptor_binding_table.sam[slot];
+            auto sampler_dx12 = dynamic_cast<const RHISamplerDX12*>(sampler);
+
+            D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = {};
+            descriptor_allocator->GetGpuDescriptorHandle(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, sampler_dx12->GetDescriptorIndex(), gpu_handle);
+
+            command_list->SetComputeRootDescriptorTable(root_index, gpu_handle);
+        }
+
+    }
+ 
 }

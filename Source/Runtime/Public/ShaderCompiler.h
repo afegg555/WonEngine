@@ -40,7 +40,7 @@ namespace won::resource
         won::rendering::RHIShaderStage stage = won::rendering::RHIShaderStage::Vertex;
         ShaderFormat format = ShaderFormat::HLSL6;
         ShaderModel model = ShaderModel::SM_6_0;
-        String source_path;
+        String source_file_name;
         String entry_point = "main";
     };
 

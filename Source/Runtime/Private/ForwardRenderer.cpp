@@ -33,7 +33,7 @@ namespace won::rendering
             RHIBufferDesc frame_upload_buffer_desc = {};
             frame_upload_buffer_desc.size = align(std::max((buffer_size + size) * 2, (Size)1024 * 20), alignment); // initial_size
             frame_upload_buffer_desc.usage = RHIResourceUsage::Upload;
-            frame_upload_buffer_desc.bind_flags = RHIBindFlags::None;
+            frame_upload_buffer_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::VertexBuffer | RHIBindFlags::IndexBuffer;
             frame_context.frame_upload_buffer = device->CreateBuffer(frame_upload_buffer_desc);
 
             frame_context.frame_upload_offset = 0;
@@ -428,12 +428,12 @@ namespace won::rendering
         RHISubresourceBinding shader_frame_binding = {};
         shader_frame_binding.resource = shader_frame_buffer.get();
         shader_frame_binding.subresource = shader_frame_buffer_subresource;
-        frame_context.command_list->SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_frame_binding);
+        frame_context.command_list->SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
 
         RHISubresourceBinding shader_camera_binding = {};
         shader_camera_binding.resource = shader_camera_buffer.get();
         shader_camera_binding.subresource = shader_camera_buffer_subresource;
-        frame_context.command_list->SetConstantBuffer(RHIShaderStage::Vertex, 2, shader_camera_binding);
+        frame_context.command_list->SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_camera_binding);
         frame_context.command_list->SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
 
         for (const auto& renderable : render_data.renderables)
@@ -582,9 +582,7 @@ namespace won::rendering
             depth_buffer_sample_count = target_sample_count;
         }
 
-        ++frame_count;
-
-        FrameContext& frame_context = frame_contexts[current_frame_slot];
+        FrameContext& frame_context = GetFrameContext();
         if (frame_context.fence_value > 0)
         {
             frame_context.fence->Wait(frame_context.fence_value);
@@ -647,7 +645,24 @@ namespace won::rendering
             frame_context.command_list->SetRenderTargets(color_targets, &depth_buffer_binding);
             DrawScene(view, frame_context, RenderPassType::MainPass, DrawScene_Opaque | DrawScene_Transparent);
         }
+    }
 
+    void ForwardRenderer::EndFrame()
+    {
+        FrameContext& frame_context = GetFrameContext();
+
+        std::shared_ptr<RHISwapchain> swapchain = current_window->GetRHISwapchain();
+        if (!swapchain)
+        {
+            return;
+        }
+
+        std::shared_ptr<RHIResource> back_buffer = swapchain->GetCurrentBackBuffer();
+
+        if (!back_buffer)
+        {
+            return;
+        }
 
         frame_context.command_list->TransitionResource(*back_buffer, RHIResourceState::Present);
 
@@ -661,13 +676,9 @@ namespace won::rendering
             return;
         }
 
+        ++frame_count;
         current_frame_slot = (current_frame_slot + 1) % static_cast<uint32>(frame_contexts.size());
 
-        // TODO: build render snapshot and submit passes.
-    }
-
-    void ForwardRenderer::EndFrame()
-    {
     }
 
     void ForwardRenderer::Shutdown()

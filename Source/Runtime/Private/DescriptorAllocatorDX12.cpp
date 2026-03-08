@@ -83,6 +83,37 @@ namespace won::rendering
         current_frame_slot = frame_slot;
     }
 
+    bool DescriptorAllocatorDX12::CreateSamplerDescriptor(const D3D12_SAMPLER_DESC& desc,
+        int& out_descriptor_index)
+    {
+        int descriptor_index = -1;
+        if (!AllocateFromHeap(sampler_cpu_staging_heap, descriptor_index))
+        {
+            backlog::Post("Sampler descriptor heap allocation failed", backlog::LogLevel::Error);
+            return false;
+        }
+
+        D3D12_CPU_DESCRIPTOR_HANDLE cpu_staging_handle = {};
+        if (!GetCpuDescriptorHandle(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, false, descriptor_index, cpu_staging_handle))
+        {
+            FreeToHeap(sampler_cpu_staging_heap, descriptor_index);
+            return false;
+        }
+
+        device->CreateSampler(&desc, cpu_staging_handle);
+
+        D3D12_CPU_DESCRIPTOR_HANDLE gpu_visible_handle = {};
+        if (!GetCpuDescriptorHandle(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, true, descriptor_index, gpu_visible_handle))
+        {
+            FreeToHeap(sampler_cpu_staging_heap, descriptor_index);
+            return false;
+        }
+
+        device->CopyDescriptorsSimple(1, gpu_visible_handle, cpu_staging_handle, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+        out_descriptor_index = descriptor_index;
+        return true;
+    }
+
     bool DescriptorAllocatorDX12::CreateSubresourceDescriptor(RHIResourceDX12& resource,
         const RHISubresourceDesc& desc,
         D3D12_DESCRIPTOR_HEAP_TYPE& out_heap_type,

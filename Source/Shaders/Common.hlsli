@@ -23,11 +23,26 @@ inline int DescriptorIndex(in int descriptor_index)
 #define half3x4 min16float3x4
 #define half4x4 min16float4x4
 
+// https://learn.microsoft.com/en-us/windows/win32/direct3d12/root-signature-limits
+// maximum size of a root signature is 64 DWORDs
+// Descriptor tables cost 1 DWORD each.
+// Root constants cost 1 DWORD each, since they are 32-bit values.
+// Root descriptors (64-bit GPU virtual addresses) cost 2 DWORDs each.
+// Static samplers do not have any cost in the size of the root signature
+
 #define DEFAULT_ROOTSIGNATURE \
     "RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT), " \
     "RootConstants(num32BitConstants = 4, b999), " \
     "CBV(b0), " \
     "CBV(b1), " \
+	"DescriptorTable( " \
+		"CBV(b2, numDescriptors = 12, flags = DATA_STATIC_WHILE_SET_AT_EXECUTE)," \
+		"SRV(t0, numDescriptors = 16, flags = DESCRIPTORS_VOLATILE | DATA_STATIC_WHILE_SET_AT_EXECUTE)," \
+		"UAV(u0, numDescriptors = 16, flags = DESCRIPTORS_VOLATILE | DATA_STATIC_WHILE_SET_AT_EXECUTE)" \
+	")," \
+	"DescriptorTable( " \
+		"Sampler(s0, offset = 0, numDescriptors = 8, flags = DESCRIPTORS_VOLATILE)" \
+	")," \
 	"DescriptorTable(" \
 		"Sampler(s0, space = 1, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE)" \
 	")," \

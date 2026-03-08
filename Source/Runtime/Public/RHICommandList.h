@@ -38,6 +38,15 @@ namespace won::rendering
         RHISubresourceHandle subresource = {};
     };
 
+    // for slot based binding
+    struct DescriptorBindingTable
+    {
+        RHISubresourceBinding cbv[descriptor_binder_cbv_count];
+        RHISubresourceBinding srv[descriptor_binder_srv_count];
+        RHISubresourceBinding uav[descriptor_binder_uav_count];
+        RHISampler* sam[descriptor_binder_sampler_count] = {};
+    };
+
     class WONENGINE_API RHICommandList
     {
     public:
@@ -95,5 +104,8 @@ namespace won::rendering
 
         virtual void TransitionResource(RHIResource& resource,
             RHIResourceState after_state) = 0;
+
+    protected:
+        DescriptorBindingTable descriptor_binding_table;
     };
 }

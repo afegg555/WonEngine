@@ -30,12 +30,16 @@ namespace won::rendering
         eventhandler::Subscribe_Once(eventhandler::EVENT_THREAD_SAFE_POINT, [dev = device](uint64_t userdata) {
             
             auto context = dev->GetContext(rendering::RHIQueueType::Graphics);
-            context->WaitIdle();
-
-            if (shader_library->LoadAllShaders())
+            if (context)
             {
-                shader_library->BuildAllGraphicsPipelines(dev, RENDERTARGET_BUFFER_FORMAT, DEPTH_BUFFER_FORMAT, 1u);
+                context->WaitIdle();
+
+                if (shader_library->LoadAllShaders())
+                {
+                    shader_library->BuildAllGraphicsPipelines(dev, RENDERTARGET_BUFFER_FORMAT, DEPTH_BUFFER_FORMAT, 1u);
+                }
             }
+
         });
 
         return;

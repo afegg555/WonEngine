@@ -89,6 +89,11 @@ namespace won::rendering
         const RHIShader* compute_shader = nullptr;
     };
 
+    static constexpr uint32 descriptor_binder_cbv_count = 14;
+    static constexpr uint32 descriptor_binder_srv_count = 16;
+    static constexpr uint32 descriptor_binder_uav_count = 16;
+    static constexpr uint32 descriptor_binder_sampler_count = 8;
+
     class WONENGINE_API RHIPipeline : public RHIObject
     {
     public:

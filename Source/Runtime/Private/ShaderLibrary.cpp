@@ -22,7 +22,7 @@ namespace won::resource
     }
 
     ShaderLibrary::ShaderLibrary(const ShaderCompilerOptions& options)
-        : compiler_options(options), shader_compiler(CreateShaderCompiler(options)), shaders(static_cast<Size>(ShaderId::Count))
+        : compiler_options(options), shader_compiler(CreateShaderCompiler(options))
     {
     }
 
@@ -80,11 +80,11 @@ namespace won::resource
         return true;
     }
 
-    bool ShaderLibrary::LoadShader(ShaderId shader_id, RHIShaderStage stage, const String& source_path, const String& entry_point, ShaderModel model, ShaderFormat format)
+    bool ShaderLibrary::LoadShader(ShaderId shader_id, RHIShaderStage stage, const String& source_file_name, const String& entry_point, ShaderModel model, ShaderFormat format)
     {
         ShaderCompileDesc desc = {};
         desc.stage = stage;
-        desc.source_path = source_path;
+        desc.source_file_name = source_file_name;
         desc.entry_point = entry_point;
         desc.model = model;
         desc.format = format;
@@ -105,7 +105,7 @@ namespace won::resource
             return false;
         }
 
-        String binary_file_name = shader_compiler->GetCompileOptions().shader_bin_root_path + "/" + io::ReplaceExtension(desc.source_path, "cso");
+        String binary_file_name = shader_compiler->GetCompileOptions().shader_bin_root_path + "/" + io::ReplaceExtension(desc.source_file_name, "cso");
 
         Vector<uint8> bytecode;
         if (IsShaderOutdated(binary_file_name))
@@ -114,18 +114,18 @@ namespace won::resource
             if (compile_result.bytecode.empty())
             {
                 String log = "Shader compilation failed : ";
-                if (!desc.source_path.empty())
+                if (!desc.source_file_name.empty())
                 {
-                    log += desc.source_path;
+                    log += desc.source_file_name;
                 }
                 backlog::Post(log, backlog::LogLevel::Error);
                 return false;
             }
             String log = "Shader compiled : ";
-            log += desc.source_path;
+            log += desc.source_file_name;
             backlog::Post(log);
 
-            String full_source_path = shader_compiler->GetCompileOptions().shader_source_root_path + "/" + desc.source_path;
+            String full_source_path = shader_compiler->GetCompileOptions().shader_source_root_path + "/" + desc.source_file_name;
             compile_result.dependencies.push_back(full_source_path);
 
             SaveShaderCompileResult(compile_result, binary_file_name);

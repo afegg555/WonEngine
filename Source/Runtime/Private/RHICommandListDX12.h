@@ -1,5 +1,6 @@
 #pragma once
 #include "RHICommandList.h"
+#include "RHIPipelineDX12.h"
 
 #include <wrl/client.h>
 
@@ -74,9 +75,14 @@ namespace won::rendering
         ID3D12GraphicsCommandList* GetCommandList() const;
 
     private:
+        void ApplyGraphicsDescriptorBindings();
+        void ApplyComputeDescriptorBindings();
+
         RHIQueueType queue_type = RHIQueueType::Graphics;
         ComPtr<ID3D12Device> device;
         ComPtr<ID3D12GraphicsCommandList> command_list;
         std::shared_ptr<DescriptorAllocatorDX12> descriptor_allocator = {};
+        const RHIPipelineDX12::RootSignatureBindingTable* active_graphics_binding_table = nullptr;
+        const RHIPipelineDX12::RootSignatureBindingTable* active_compute_binding_table = nullptr;
     };
 }

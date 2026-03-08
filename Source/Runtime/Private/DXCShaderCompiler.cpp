@@ -82,9 +82,9 @@ namespace won::resource
     {
         ShaderCompileResult compile_result = {};
         io::FileData source_file = {};
-        if (!desc.source_path.empty())
+        if (!desc.source_file_name.empty())
         {
-            std::filesystem::path source_fs_path = std::filesystem::u8path(desc.source_path);
+            std::filesystem::path source_fs_path = std::filesystem::u8path(desc.source_file_name);
             if (!source_fs_path.is_absolute() && !compiler_options.shader_source_root_path.empty())
             {
                 source_fs_path = std::filesystem::u8path(compiler_options.shader_source_root_path) / source_fs_path;

@@ -32,6 +32,10 @@ namespace won
         virtual void Render();
 
     protected:
+        virtual void ProcessPlatformMessage(void* native_message);
+        virtual void RenderScene();
+        virtual void RenderUI();
+
         bool is_running = false;
         std::shared_ptr<rendering::RHIDevice> device;
         std::shared_ptr<platform::Window> window;
