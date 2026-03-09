@@ -299,16 +299,16 @@ namespace won::editor
 		}
 	}
 
-	void EditorApplication::ProcessPlatformMessage(void* native_message)
+	bool EditorApplication::ProcessPlatformMessage(void* native_message)
 	{
 #ifdef _WIN32
 		MSG* msg = static_cast<MSG*>(native_message);
 		if (!msg)
 		{
-			return;
+			return false;
 		}
 
-		ImGui_ImplWin32_WndProcHandler(msg->hwnd, msg->message, msg->wParam, msg->lParam);
+		return ImGui_ImplWin32_WndProcHandler(msg->hwnd, msg->message, msg->wParam, msg->lParam) != 0;
 #else
 #endif
 	}
@@ -459,10 +459,10 @@ namespace won::editor
 					binding.resource = imgui_font.get();
 					binding.subresource = imgui_font_subresource;
 					frame_context.command_list->SetShaderResource(RHIShaderStage::Vertex, 0, binding);
-					frame_context.command_list->DrawIndexed(drawCmd->ElemCount, 1, indexOffset, vertexOffset, 0);
+					frame_context.command_list->DrawIndexed(drawCmd->ElemCount, 1, indexOffset + drawCmd->IdxOffset, vertexOffset + drawCmd->VtxOffset, 0);
 				}
-				indexOffset += drawCmd->ElemCount;
 			}
+			indexOffset += drawList->IdxBuffer.size();
 			vertexOffset += drawList->VtxBuffer.size();
 		}
 

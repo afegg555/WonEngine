@@ -60,7 +60,10 @@ namespace won
                 is_running = false;
                 return;
             }
-            ProcessPlatformMessage(&msg);
+            if (ProcessPlatformMessage(&msg))
+            {
+                continue;
+            }
             TranslateMessage(&msg);
             DispatchMessageA(&msg);
         }
@@ -114,9 +117,9 @@ namespace won
         }
     }
 
-    void Application::ProcessPlatformMessage(void* native_message)
+    bool Application::ProcessPlatformMessage(void* native_message)
     {
-        return;
+        return false;
     }
 
     void Application::RenderUI()

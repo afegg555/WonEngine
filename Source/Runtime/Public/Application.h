@@ -32,7 +32,7 @@ namespace won
         virtual void Render();
 
     protected:
-        virtual void ProcessPlatformMessage(void* native_message);
+        virtual bool ProcessPlatformMessage(void* native_message);
         virtual void RenderScene();
         virtual void RenderUI();
 

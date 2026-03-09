@@ -10,7 +10,7 @@ namespace won::editor
 		void Update(float dt) override;
 
 	private:
-		void ProcessPlatformMessage(void* native_message) override;
+		bool ProcessPlatformMessage(void* native_message) override;
 		void RenderUI() override;
 		void ImGui_Impl_CreateDeviceObjects();
 	};
