@@ -29,7 +29,7 @@ namespace won::rendering
         float max_lod = 1000.0f;
     };
 
-    class WONENGINE_API RHISampler : public RHIObject
+    class RHISampler : public RHIObject
     {
     public:
         ~RHISampler() override = default;

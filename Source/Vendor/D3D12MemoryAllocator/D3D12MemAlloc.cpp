@@ -20,6 +20,12 @@
 // THE SOFTWARE.
 //
 
+#if defined(_MSC_VER)
+#pragma warning(push, 0)
+#elif defined(__GNUC__) || defined(__clang__)
+#pragma GCC system_header
+#endif
+
 #include "D3D12MemAlloc.h"
 
 #include <combaseapi.h>
@@ -6496,7 +6502,7 @@ HRESULT AllocatorPimpl::CreateResource(
 #ifdef __ID3D12Device8_INTERFACE_DEFINED__
     D3D12_RESOURCE_DESC1 finalResourceDesc1;
 #endif
-    D3D12_RESOURCE_ALLOCATION_INFO resAllocInfo;
+    D3D12_RESOURCE_ALLOCATION_INFO resAllocInfo{};
     if (createParams.Variant == CREATE_RESOURCE_PARAMS::VARIANT_WITH_STATE)
     {
         finalResourceDesc = *createParams.GetResourceDesc();
@@ -6645,7 +6651,7 @@ HRESULT AllocatorPimpl::CreateAliasingResource(
 #ifdef __ID3D12Device8_INTERFACE_DEFINED__
     D3D12_RESOURCE_DESC1 finalResourceDesc1;
 #endif
-    D3D12_RESOURCE_ALLOCATION_INFO resAllocInfo;
+    D3D12_RESOURCE_ALLOCATION_INFO resAllocInfo{};
     if (createParams.Variant == CREATE_RESOURCE_PARAMS::VARIANT_WITH_STATE)
     {
         finalResourceDesc = *createParams.GetResourceDesc();

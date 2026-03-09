@@ -4,7 +4,7 @@
 
 namespace won::rendering
 {
-    class WONENGINE_API RHIObject
+    class RHIObject
     {
     public:
         virtual ~RHIObject() = default;

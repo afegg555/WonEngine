@@ -1,4 +1,5 @@
 #pragma once
+#pragma warning(disable: 4100)
 #include "MathTypes.h"
 
 #include <cstddef>

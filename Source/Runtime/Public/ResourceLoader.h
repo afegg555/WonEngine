@@ -1,5 +1,4 @@
 #pragma once
-
 #include "RuntimeExport.h"
 #include "Types.h"
 
@@ -12,14 +11,14 @@ namespace won::rendering
 
 namespace won::resource
 {
-    struct WONENGINE_API Resource
+    struct Resource
     {
         virtual ~Resource() = default;
         virtual bool IsValid() const = 0;
         virtual bool CreateRenderData(const std::shared_ptr<rendering::RHIDevice>& device) = 0;
     };
 
-    struct WONENGINE_API Image : public Resource
+    struct Image : public Resource
     {
         int32 width = 0;
         int32 height = 0;
@@ -33,7 +32,6 @@ namespace won::resource
 
         bool CreateRenderData(const std::shared_ptr<rendering::RHIDevice>& device) override
         {
-            (void)device;
             return IsValid();
         }
     };

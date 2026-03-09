@@ -9,7 +9,7 @@ namespace won::ecs
 {
     class Scene;
 
-    class WONENGINE_API TransformUpdateSystem final : public System
+    class TransformUpdateSystem final : public System
     {
     public:
         ComponentMask GetReadMask() const override { return transform_component_mask | hierarchy_component_mask; }

@@ -203,7 +203,7 @@ namespace won::rendering
         RHITextureDesc texture_desc = {};
     };
 
-    class WONENGINE_API RHIResource : public RHIObject
+    class RHIResource : public RHIObject
     {
     public:
         ~RHIResource() override = default;

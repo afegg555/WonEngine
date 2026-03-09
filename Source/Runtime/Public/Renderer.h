@@ -24,7 +24,7 @@ namespace won::rendering
     constexpr RHIFormat RENDERTARGET_BUFFER_FORMAT = RHIFormat::R8G8B8A8Unorm;
     constexpr RHIFormat DEPTH_BUFFER_FORMAT = RHIFormat::D32Float;
 
-    class WONENGINE_API Renderer
+    class Renderer
     {
     public:
         virtual ~Renderer() = default;

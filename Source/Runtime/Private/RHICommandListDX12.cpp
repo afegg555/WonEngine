@@ -174,7 +174,7 @@ namespace won::rendering
                     {
                         descriptor_allocator->GetGPUVisibleHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, &heap);
                     }
-                    command_list->SetGraphicsRootDescriptorTable(index, heap->GetGPUDescriptorHandleForHeapStart());
+                    command_list->SetGraphicsRootDescriptorTable((UINT)index, heap->GetGPUDescriptorHandleForHeapStart());
                 }
             }
         }        
@@ -203,7 +203,7 @@ namespace won::rendering
                 {
                     descriptor_allocator->GetGPUVisibleHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, &heap);
                 }
-                command_list->SetComputeRootDescriptorTable(index, heap->GetGPUDescriptorHandleForHeapStart());
+                command_list->SetComputeRootDescriptorTable((UINT)index, heap->GetGPUDescriptorHandleForHeapStart());
             }
         }
     }

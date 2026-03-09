@@ -46,7 +46,7 @@ namespace won::ecs
         for (Size i = 0; i < material_array->GetSize(); ++i)
         {
             MaterialComponent& material_comp = material_array->data[i];
-            material_comp.material_offset = material_slot_sum;
+            material_comp.material_offset = (uint32)material_slot_sum;
             material_slot_sum += material_array->data[i].GetMaterialSlotCount();
         }
         render_data.shader_material.resize(material_slot_sum);
@@ -113,9 +113,9 @@ namespace won::ecs
                     Scene::RenderData::Renderable& renderable = render_data.renderables[index + i];
                     ObjectPushConstants& push_constants = renderable.push_constants;
                     push_constants.Init();
-                    push_constants.geometry_index = geometry_array->entity_to_index[entity];
-                    push_constants.material_index = material_array->entity_to_index[entity] + submesh.material_slot;
-                    push_constants.instance_index = transform_array->entity_to_index[entity];
+                    push_constants.geometry_index = (uint)geometry_array->entity_to_index[entity];
+                    push_constants.material_index = (uint)material_array->entity_to_index[entity] + submesh.material_slot;
+                    push_constants.instance_index = (uint)transform_array->entity_to_index[entity];
 
                     renderable.index_buffer = mesh_render_data->buffer;
                     renderable.index_offset = mesh_render_data->indices.offset + submesh.first_index * sizeof(uint32);

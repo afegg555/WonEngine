@@ -27,7 +27,7 @@ namespace won::resource
         Count
     };
 
-    class WONENGINE_API ShaderLibrary
+    class ShaderLibrary
     {
     public:
         explicit ShaderLibrary(const ShaderCompilerOptions& options = {});
@@ -46,7 +46,6 @@ namespace won::resource
         Size GetShaderCount() const;
 
     private:
-        std::shared_ptr<rendering::RHIDevice> device;
         ShaderCompilerOptions compiler_options = {};
         std::shared_ptr<ShaderCompiler> shader_compiler = {};
         std::array<std::shared_ptr<rendering::RHIShader>, static_cast<Size>(ShaderId::Count)> shaders;

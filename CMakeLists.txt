@@ -99,10 +99,9 @@ set(RUNTIME_RHI_DX12
 
 set(RUNTIME_RESOURCE
     Source/Runtime/Public/Mesh.h
-    Source/Runtime/Private/Mesh.cpp
     Source/Runtime/Public/ResourceLoader.h
     Source/Runtime/Public/ShaderCompiler.h
-    Source/Runtime/Public/ShaderLibrary.h
+    Source/Runtime/Private/ShaderLibrary.h
     Source/Runtime/Private/ResourceLoader.cpp
     Source/Runtime/Private/ShaderCompiler.cpp
     Source/Runtime/Private/ShaderLibrary.cpp
@@ -170,10 +169,10 @@ set(RUNTIME_ECS_COMPONENTS
 )
 
 set(RUNTIME_ECS_SYSTEMS
-    Source/Runtime/Public/CameraUpdateSystem.h
-    Source/Runtime/Public/LightUpdateSystem.h
-    Source/Runtime/Public/TransformUpdateSystem.h
-    Source/Runtime/Public/RenderDataUpdateSystem.h
+    Source/Runtime/Private/CameraUpdateSystem.h
+    Source/Runtime/Private/LightUpdateSystem.h
+    Source/Runtime/Private/TransformUpdateSystem.h
+    Source/Runtime/Private/RenderDataUpdateSystem.h
     Source/Runtime/Private/CameraUpdateSystem.cpp
     Source/Runtime/Private/LightUpdateSystem.cpp
     Source/Runtime/Private/TransformUpdateSystem.cpp

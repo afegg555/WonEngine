@@ -19,7 +19,7 @@ namespace won::platform
         bool visible = true;
     };
 
-    class WONENGINE_API Window
+    class Window
     {
     public:
         virtual ~Window() = default;

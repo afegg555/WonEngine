@@ -15,7 +15,7 @@ namespace won::ecs
         auto transform_array = scene.GetComponentArray<TransformComponent>().get();
         Scene::RenderData& render_data = scene.GetRenderData();
 
-        uint32_t light_count = light_array->GetSize();
+        Size light_count = light_array->GetSize();
         if (light_array->GetSize() > NUM_MAX_LIGHTS_FORWARD_RENDERING)
         {
             backlog::Post(String("Maximum number of lights in forward rendering is: ") + std::to_string(NUM_MAX_LIGHTS_FORWARD_RENDERING), backlog::LogLevel::Warning);
@@ -25,7 +25,7 @@ namespace won::ecs
         render_data.shader_light.resize(light_count);
         render_data.forward_light_mask = { 0,0,0,0 };
 
-        jobsystem::Dispatch(sub_ctx, light_count, groupsize, [&](jobsystem::JobArgs args) {
+        jobsystem::Dispatch(sub_ctx, (uint32)light_count, groupsize, [&](jobsystem::JobArgs args) {
             LightComponent& light = light_array->data[args.job_index];
             Entity entity = light_array->index_to_entity[args.job_index];
 

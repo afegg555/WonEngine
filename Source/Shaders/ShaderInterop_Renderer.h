@@ -383,9 +383,9 @@ struct ObjectPushConstants
 #ifdef __cplusplus
     inline void Init()
     {
-        instance_index = -1;
-        geometry_index = -1;
-        material_index = -1;
+        instance_index = 0;
+        geometry_index = 0;
+        material_index = 0;
     }
 #endif
 };

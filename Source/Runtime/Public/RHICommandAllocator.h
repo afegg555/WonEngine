@@ -12,7 +12,7 @@ namespace won::rendering
         Copy
     };
 
-    class WONENGINE_API RHICommandAllocator : public RHIObject
+    class RHICommandAllocator : public RHIObject
     {
     public:
         ~RHICommandAllocator() override = default;

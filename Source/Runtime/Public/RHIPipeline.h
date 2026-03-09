@@ -94,7 +94,7 @@ namespace won::rendering
     static constexpr uint32 descriptor_binder_uav_count = 16;
     static constexpr uint32 descriptor_binder_sampler_count = 8;
 
-    class WONENGINE_API RHIPipeline : public RHIObject
+    class RHIPipeline : public RHIObject
     {
     public:
         ~RHIPipeline() override = default;

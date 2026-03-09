@@ -15,7 +15,7 @@
 
 namespace won::jobsystem
 {
-    struct alignas(64) Job
+    struct Job
     {
         job_function_type task;
         Context* ctx = nullptr;

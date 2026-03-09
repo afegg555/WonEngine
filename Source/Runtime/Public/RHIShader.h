@@ -12,7 +12,7 @@ namespace won::rendering
         Compute
     };
 
-    class WONENGINE_API RHIShader final : public RHIObject
+    class RHIShader final : public RHIObject
     {
     public:
         RHIShader() = default;
