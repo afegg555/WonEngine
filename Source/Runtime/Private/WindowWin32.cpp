@@ -14,6 +14,8 @@ namespace won::platform
             case WM_DESTROY:
                 PostQuitMessage(0);
                 return 0;
+            case WM_LBUTTONUP:
+                return 0;
             default:
                 return DefWindowProc(hwnd, message, wparam, lparam);
             }
@@ -44,17 +46,48 @@ namespace won::platform
         RegisterWindowClass();
 
         DWORD style = WS_OVERLAPPEDWINDOW;
-        if (!desc.resizable)
+        int window_x = CW_USEDEFAULT;
+        int window_y = CW_USEDEFAULT;
+        int window_width = desc.width;
+        int window_height = desc.height;
+
+        if (desc.fullscreen)
+        {
+            style = WS_POPUP;
+
+            HMONITOR monitor = MonitorFromPoint(POINT { 0, 0 }, MONITOR_DEFAULTTOPRIMARY);
+            MONITORINFO monitor_info = {};
+            monitor_info.cbSize = sizeof(MONITORINFO);
+            if (GetMonitorInfoA(monitor, &monitor_info))
+            {
+                window_x = monitor_info.rcMonitor.left;
+                window_y = monitor_info.rcMonitor.top;
+                window_width = monitor_info.rcMonitor.right - monitor_info.rcMonitor.left;
+                window_height = monitor_info.rcMonitor.bottom - monitor_info.rcMonitor.top;
+            }
+        }
+        else if (!desc.resizable)
         {
             style &= ~WS_THICKFRAME;
             style &= ~WS_MAXIMIZEBOX;
         }
 
-        RECT rect = { 0, 0, desc.width, desc.height };
-        AdjustWindowRect(&rect, style, FALSE);
+        RECT rect = { 0, 0, window_width, window_height };
+        if (!desc.fullscreen)
+        {
+            AdjustWindowRect(&rect, style, FALSE);
+            window_width = rect.right - rect.left;
+            window_height = rect.bottom - rect.top;
+        }
 
-        hwnd = CreateWindowExA(0, k_window_class_name, desc.title, style, CW_USEDEFAULT, CW_USEDEFAULT,
-            rect.right - rect.left, rect.bottom - rect.top, nullptr, nullptr, GetModuleHandleA(nullptr), nullptr);
+        hwnd = CreateWindowExA(0, k_window_class_name, desc.title, style, window_x, window_y,
+            window_width, window_height, nullptr, nullptr, GetModuleHandleA(nullptr), nullptr);
+
+        if (desc.fullscreen)
+        {
+            width = window_width;
+            height = window_height;
+        }
 
         if (desc.visible)
         {
