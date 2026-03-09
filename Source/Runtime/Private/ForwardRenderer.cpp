@@ -16,34 +16,36 @@ using namespace won::math;
 
 namespace won::rendering
 {
-
     bool ForwardRenderer::AllocateFrameUpload(FrameContext& frame_context, Size size, Size alignment, FrameUploadAllocation& out_allocation)
     {
-        Size buffer_size = 0;
-        if (frame_context.frame_upload_buffer)
-        {
-            buffer_size = frame_context.frame_upload_buffer.get()->GetDesc().buffer_desc.size;
-        }
-        
-        Size aligned_offset = align(frame_context.frame_upload_offset, alignment);
-        Size required_size = aligned_offset + size;
-
-        if (buffer_size < required_size)
+        Size aligned_offset = 0;
+        if (!frame_context.frame_upload_buffer)
         {
             RHIBufferDesc frame_upload_buffer_desc = {};
-            frame_upload_buffer_desc.size = align(std::max((buffer_size + size) * 2, (Size)1024 * 20), alignment); // initial_size
+            frame_upload_buffer_desc.size = align((Size)1024 * 20, alignment); // initial_size
             frame_upload_buffer_desc.usage = RHIResourceUsage::Upload;
             frame_upload_buffer_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::VertexBuffer | RHIBindFlags::IndexBuffer;
             frame_context.frame_upload_buffer = device->CreateBuffer(frame_upload_buffer_desc);
-
             frame_context.frame_upload_offset = 0;
         }
+
+        Size buffer_size = frame_context.frame_upload_buffer->GetDesc().buffer_desc.size;
+        aligned_offset = align(frame_context.frame_upload_offset, alignment);
+        Size required_size = aligned_offset + size;
+        
+        if (buffer_size < required_size)
+        {
+            RHIBufferDesc new_desc = frame_context.frame_upload_buffer->GetDesc().buffer_desc;
+            new_desc.size = align(required_size * 2, alignment);
+            frame_context.deferred_res_removal.push_back(frame_context.frame_upload_buffer);
+            frame_context.frame_upload_buffer = device->CreateBuffer(new_desc);
+        }
+        frame_context.frame_upload_offset = aligned_offset + size;
 
         void* mapped_data = frame_context.frame_upload_buffer->GetMappedData();
 
         out_allocation.mapped_data = static_cast<uint8*>(mapped_data) + aligned_offset;
         out_allocation.buffer_offset = aligned_offset;
-        frame_context.frame_upload_offset = aligned_offset + size;
 
         return true;
     }
@@ -583,11 +585,14 @@ namespace won::rendering
         }
 
         FrameContext& frame_context = GetFrameContext();
+
         if (frame_context.fence_value > 0)
         {
             frame_context.fence->Wait(frame_context.fence_value);
             frame_context.fence_value = 0;
         }
+
+        frame_context.deferred_res_removal.clear();
         frame_context.command_allocator->Reset();
         frame_context.command_list->Begin(*frame_context.command_allocator);
         frame_context.frame_upload_offset = 0;

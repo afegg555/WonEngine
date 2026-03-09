@@ -50,6 +50,8 @@ namespace won::rendering
             std::shared_ptr<RHIResource> frame_upload_buffer;
             Size frame_upload_offset = 0;
             uint64 fence_value = 0;
+
+            std::vector<std::shared_ptr<RHIResource>> deferred_res_removal;
         };
 
         struct FrameUploadAllocation
