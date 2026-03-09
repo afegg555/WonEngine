@@ -6,7 +6,7 @@ namespace won::ecs
 {
     class Scene;
 
-    class CameraUpdateSystem final : public System
+    class WONENGINE_API CameraUpdateSystem final : public System
     {
     public:
         ComponentMask GetReadMask() const override { return transform_component_mask | camera_component_mask; }

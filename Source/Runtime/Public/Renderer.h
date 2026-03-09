@@ -3,11 +3,14 @@
 #include "RHIDevice.h"
 #include "View.h"
 #include "Window.h"
-#include "ShaderLibrary.h"
 #include "RHIResource.h"
 
 #include <memory>
 
+namespace won::resource
+{
+    class ShaderLibrary;
+}
 namespace won::rendering
 {
     enum class RendererType

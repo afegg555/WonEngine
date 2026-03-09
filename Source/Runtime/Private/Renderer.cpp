@@ -1,6 +1,7 @@
 #include "Renderer.h"
 #include "ForwardRenderer.h"
 #include "EventHandler.h"
+#include "ShaderLibrary.h"
 
 namespace won::rendering
 {

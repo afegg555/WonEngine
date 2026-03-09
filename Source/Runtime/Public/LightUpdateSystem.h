@@ -6,7 +6,7 @@ namespace won::ecs
 {
     class Scene;
 
-    class LightUpdateSystem final : public System
+    class WONENGINE_API LightUpdateSystem final : public System
     {
     public:
         ComponentMask GetReadMask() const override { return light_component_mask | transform_component_mask; }

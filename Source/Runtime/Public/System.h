@@ -3,13 +3,14 @@
 #include "SceneComponents.h"
 #include "Entity.h"
 #include "Types.h"
+#include "RuntimeExport.h"
 
 using namespace won::jobsystem;
 namespace won::ecs
 {
     class Scene;
 
-    class System
+    class WONENGINE_API System
     {
     public:
         virtual ~System() = default;
