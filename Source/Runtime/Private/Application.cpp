@@ -60,10 +60,7 @@ namespace won
                 is_running = false;
                 return;
             }
-            if (ProcessPlatformMessage(&msg))
-            {
-                continue;
-            }
+
             TranslateMessage(&msg);
             DispatchMessageA(&msg);
         }
