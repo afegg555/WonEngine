@@ -9,6 +9,19 @@ namespace won::platform
 
         LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
         {
+            if (message == WM_NCCREATE)
+            {
+                CREATESTRUCTA* create_struct = reinterpret_cast<CREATESTRUCTA*>(lparam);
+                auto* window = static_cast<WindowWin32*>(create_struct->lpCreateParams);
+                SetWindowLongPtrA(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(window));
+            }
+
+            auto* window = reinterpret_cast<WindowWin32*>(GetWindowLongPtrA(hwnd, GWLP_USERDATA));
+            if (window && window->DispatchPlatformMessage(hwnd, message, static_cast<Size>(wparam), static_cast<Size>(lparam)))
+            {
+                return 1;
+            }
+
             switch (message)
             {
             case WM_DESTROY:
@@ -81,7 +94,7 @@ namespace won::platform
         }
 
         hwnd = CreateWindowExA(0, k_window_class_name, desc.title, style, window_x, window_y,
-            window_width, window_height, nullptr, nullptr, GetModuleHandleA(nullptr), nullptr);
+            window_width, window_height, nullptr, nullptr, GetModuleHandleA(nullptr), this);
 
         if (desc.fullscreen)
         {

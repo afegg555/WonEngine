@@ -1,6 +1,8 @@
 #pragma once
 #include "RuntimeExport.h"
+#include "Types.h"
 
+#include <functional>
 #include <memory>
 
 namespace won::rendering
@@ -10,6 +12,8 @@ namespace won::rendering
 
 namespace won::platform
 {
+    using PlatformMessageHandler = std::function<bool(void* hwnd, uint32 message, Size wparam, Size lparam)>;
+
     struct WindowDesc
     {
         const char* title = "WonEngine";
@@ -33,6 +37,21 @@ namespace won::platform
         virtual int GetWidth() const = 0;
         virtual int GetHeight() const = 0;
 
+        void SetPlatformMessageHandler(PlatformMessageHandler new_handler)
+        {
+            platform_message_handler = std::move(new_handler);
+        }
+
+        bool DispatchPlatformMessage(void* hwnd, uint32 message, Size wparam, Size lparam)
+        {
+            if (!platform_message_handler)
+            {
+                return false;
+            }
+
+            return platform_message_handler(hwnd, message, wparam, lparam);
+        }
+
         void SetRHISwapchain(const std::shared_ptr<rendering::RHISwapchain>& new_swapchain)
         {
             rhi_swapchain = new_swapchain;
@@ -44,6 +63,7 @@ namespace won::platform
         }
 
     private:
+        PlatformMessageHandler platform_message_handler;
         std::shared_ptr<rendering::RHISwapchain> rhi_swapchain;
     };
 

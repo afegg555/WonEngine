@@ -130,6 +130,10 @@ namespace won::editor
 		SetupVisualStudioStyle();
 
 #ifdef _WIN32
+		window->SetPlatformMessageHandler([](void* hwnd, uint32 message, Size wparam, Size lparam) -> bool
+			{
+				return ImGui_ImplWin32_WndProcHandler(static_cast<HWND>(hwnd), message, static_cast<WPARAM>(wparam), static_cast<LPARAM>(lparam)) != 0;
+			});
 		ImGui_ImplWin32_Init(window->GetNativeHandle());
 #endif
 
@@ -350,7 +354,7 @@ namespace won::editor
 		viewport.height = (float)fb_height;
 		frame_context.command_list->SetViewport(viewport);
 		frame_context.command_list->SetGraphicsPipeline(*imgui_pso);
-		frame_context.command_list->SetSampler(RHIShaderStage::Vertex, 0, *imgui_sampler);
+		frame_context.command_list->SetSampler(RHIShaderStage::Pixel, 0, *imgui_sampler);
 
 		// Copy and convert all vertices into a single contiguous buffer
 		ImDrawVert* vertexCPUMem = reinterpret_cast<ImDrawVert*>(vb_allocation.mapped_data);
@@ -444,7 +448,7 @@ namespace won::editor
 					RHISubresourceBinding binding;
 					binding.resource = imgui_font.get();
 					binding.subresource = imgui_font_subresource;
-					frame_context.command_list->SetShaderResource(RHIShaderStage::Vertex, 0, binding);
+					frame_context.command_list->SetShaderResource(RHIShaderStage::Pixel, 0, binding);
 					frame_context.command_list->DrawIndexed(drawCmd->ElemCount, 1, indexOffset + drawCmd->IdxOffset, vertexOffset + drawCmd->VtxOffset, 0);
 				}
 			}
@@ -481,7 +485,7 @@ namespace won::editor
 		texture_desc.format = RHIFormat::R8G8B8A8Unorm;
 		texture_desc.bind_flags = RHIBindFlags::ShaderResource;
 
-		imgui_font = device->CreateTexture(texture_desc, (void*)pixels, width * height);
+		imgui_font = device->CreateTexture(texture_desc, (void*)pixels, width * height * 4);
 		RHISubresourceDesc subresource_desc;
 		subresource_desc.type = RHISubresourceType::ShaderResource;
 		device->CreateSubresource(*imgui_font, subresource_desc, &imgui_font_subresource);
