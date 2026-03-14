@@ -299,20 +299,6 @@ namespace won::editor
 		}
 	}
 
-	bool EditorApplication::ProcessPlatformMessage(void* native_message)
-	{
-#ifdef _WIN32
-		MSG* msg = static_cast<MSG*>(native_message);
-		if (!msg)
-		{
-			return false;
-		}
-
-		return ImGui_ImplWin32_WndProcHandler(msg->hwnd, msg->message, msg->wParam, msg->lParam) != 0;
-#else
-#endif
-	}
-
 	void EditorApplication::RenderUI()
 	{
 #ifdef _WIN32

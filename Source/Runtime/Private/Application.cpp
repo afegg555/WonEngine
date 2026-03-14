@@ -117,11 +117,6 @@ namespace won
         }
     }
 
-    bool Application::ProcessPlatformMessage(void* native_message)
-    {
-        return false;
-    }
-
     void Application::RenderUI()
     {
         return;
