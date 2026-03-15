@@ -58,28 +58,9 @@ namespace won::rendering
             backlog::Post("Failed to set swapchain maximum frame latency", backlog::LogLevel::Warning);
         }
 
-        back_buffers.resize(max_frames_in_flight);
-
-        for (uint32 i = 0; i < max_frames_in_flight; ++i)
+        if (!CreateBackBuffers(static_cast<uint32>(window.GetWidth()), static_cast<uint32>(window.GetHeight())))
         {
-            ComPtr<ID3D12Resource> back_buffer;
-            if (FAILED(dxgi_swapchain->GetBuffer(i, IID_PPV_ARGS(&back_buffer))))
-            {
-                backlog::Post("Failed to get swapchain back buffer", backlog::LogLevel::Error);
-                back_buffers.clear();
-                return;
-            }
-
-            RHIResourceDesc desc = {};
-            desc.type = RHIResourceType::Texture2D;
-            desc.texture_desc.width = static_cast<uint32>(window.GetWidth());
-            desc.texture_desc.height = static_cast<uint32>(window.GetHeight());
-            desc.texture_desc.format = RHIFormat::R8G8B8A8Unorm;
-            desc.texture_desc.bind_flags = RHIBindFlags::RenderTarget;
-
-            auto resource = std::make_shared<RHIResourceDX12>(desc, std::move(back_buffer), nullptr, descriptor_allocator);
-            resource->SetCurrentState(D3D12_RESOURCE_STATE_PRESENT);
-            back_buffers[i] = resource;
+            backlog::Post("Failed to initialize swapchain back buffers", backlog::LogLevel::Error);
         }
     }
 
@@ -110,6 +91,26 @@ namespace won::rendering
         return back_buffers[index];
     }
 
+    bool RHISwapchainDX12::Resize(uint32 width, uint32 height)
+    {
+
+        if (graphics_context)
+        {
+            graphics_context->WaitIdle();
+        }
+
+        back_buffers.clear();
+
+        const UINT swapchain_flags = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
+        if (FAILED(dxgi_swapchain->ResizeBuffers(max_frames_in_flight, width, height, DXGI_FORMAT_R8G8B8A8_UNORM, swapchain_flags)))
+        {
+            backlog::Post("Failed to resize DXGI swapchain buffers", backlog::LogLevel::Error);
+            return false;
+        }
+
+        return CreateBackBuffers(width, height);
+    }
+
     bool RHISwapchainDX12::Present()
     {
         if (!dxgi_swapchain)
@@ -118,5 +119,38 @@ namespace won::rendering
         }
 
         return SUCCEEDED(dxgi_swapchain->Present(1, 0));
+    }
+
+    bool RHISwapchainDX12::CreateBackBuffers(uint32 width, uint32 height)
+    {
+        back_buffers.resize(max_frames_in_flight);
+
+        for (uint32 i = 0; i < max_frames_in_flight; ++i)
+        {
+            ComPtr<ID3D12Resource> back_buffer;
+            if (FAILED(dxgi_swapchain->GetBuffer(i, IID_PPV_ARGS(&back_buffer))))
+            {
+                backlog::Post("Failed to get swapchain back buffer", backlog::LogLevel::Error);
+                back_buffers.clear();
+                return false;
+            }
+
+            RHIResourceDesc desc = {};
+            desc.type = RHIResourceType::Texture2D;
+            desc.texture_desc.width = width;
+            desc.texture_desc.height = height;
+            desc.texture_desc.depth = 1;
+            desc.texture_desc.mip_levels = 1;
+            desc.texture_desc.array_layers = 1;
+            desc.texture_desc.sample_count = 1;
+            desc.texture_desc.format = RHIFormat::R8G8B8A8Unorm;
+            desc.texture_desc.bind_flags = RHIBindFlags::RenderTarget;
+
+            auto resource = std::make_shared<RHIResourceDX12>(desc, std::move(back_buffer), nullptr, descriptor_allocator);
+            resource->SetCurrentState(D3D12_RESOURCE_STATE_PRESENT);
+            back_buffers[i] = resource;
+        }
+
+        return true;
     }
 }

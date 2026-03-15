@@ -11,6 +11,7 @@ namespace won::rendering
     public:
         void Initialize(const RendererDesc& desc, std::shared_ptr<resource::ShaderLibrary> shader_lib) override;
         void BeginFrame(platform::Window& window) override;
+        void OnResize(platform::Window& window, uint32 width, uint32 height) override;
         void Render(const View& view) override;
         void EndFrame() override;
         void WaitIdle() override;
@@ -51,9 +52,7 @@ namespace won::rendering
 
         std::shared_ptr<RHIResource> depth_buffer;
         RHISubresourceHandle depth_buffer_subresource = {};
-        uint32 depth_buffer_width = 0;
-        uint32 depth_buffer_height = 0;
-        uint32 depth_buffer_sample_count = 1;
+        std::array<RHISubresourceHandle, max_frames_in_flight> back_buffer_subresources = {};
 
         platform::Window* current_window = nullptr;
     };

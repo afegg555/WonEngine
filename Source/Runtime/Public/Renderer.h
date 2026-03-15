@@ -34,6 +34,7 @@ namespace won::rendering
 
         virtual void Initialize(const RendererDesc& desc, std::shared_ptr<resource::ShaderLibrary> shader_lib) = 0;
         virtual void BeginFrame(platform::Window& window) = 0;
+        virtual void OnResize(platform::Window& window, uint32 width, uint32 height) = 0;
         virtual void Render(const View& view) = 0;
         virtual void EndFrame() = 0;
         virtual void WaitIdle() = 0;

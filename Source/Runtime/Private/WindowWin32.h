@@ -17,10 +17,15 @@ namespace won::platform
         void Resize(int width, int height) override;
         int GetWidth() const override;
         int GetHeight() const override;
+        bool IsMinimized() const override;
+        bool ConsumePendingResize() override;
 
+        static LRESULT CALLBACK WindowProc(HWND, UINT, WPARAM, LPARAM);
     private:
         WindowType hwnd = nullptr;
         int width = 0;
         int height = 0;
+        bool is_minimized = false;
+        bool has_pending_resize = false;
     };
 }

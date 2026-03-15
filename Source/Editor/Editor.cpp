@@ -290,6 +290,17 @@ namespace won::editor
 		}
 	}
 
+	void EditorApplication::OnWindowResized(int width, int height)
+	{
+		auto* camera = scene.GetComponent<ecs::CameraComponent>(camera_entity);
+		if (!camera)
+		{
+			return;
+		}
+
+		camera->SetAspectRatio(static_cast<float>(width) / static_cast<float>(height));
+	}
+
 	void EditorApplication::RenderUI()
 	{
 #ifdef _WIN32

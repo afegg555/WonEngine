@@ -10,6 +10,7 @@ namespace won::editor
 		void Update(float dt) override;
 
 	private:
+		void OnWindowResized(int width, int height) override;
 		void RenderUI() override;
 		void ImGui_Impl_CreateDeviceObjects();
 

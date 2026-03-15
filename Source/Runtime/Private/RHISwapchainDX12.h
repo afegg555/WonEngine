@@ -27,9 +27,12 @@ namespace won::rendering
         uint32 GetBackBufferCount() const override;
         std::shared_ptr<RHIResource> GetCurrentBackBuffer() override;
         std::shared_ptr<RHIResource> GetBackBuffer(uint32 index) override;
+        bool Resize(uint32 width, uint32 height) override;
         bool Present() override;
 
     private:
+        bool CreateBackBuffers(uint32 width, uint32 height);
+
         ComPtr<ID3D12Device> device;
         ComPtr<IDXGIFactory6> factory;
         std::shared_ptr<RHIContextDX12> graphics_context;

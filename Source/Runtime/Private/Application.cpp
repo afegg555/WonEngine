@@ -66,6 +66,8 @@ namespace won
             DispatchMessageA(&msg);
         }
 #endif
+
+        ProcessWindowResize();
         eventhandler::FireEvent(eventhandler::EVENT_THREAD_SAFE_POINT, 0);
 
         Update(0.f);
@@ -101,6 +103,11 @@ namespace won
             return;
         }
 
+        if (window->IsMinimized())
+        {
+            return;
+        }
+
         renderer->BeginFrame(*window);
         RenderScene();
         RenderUI();
@@ -123,6 +130,28 @@ namespace won
     void Application::RenderUI()
     {
         return;
+    }
+
+    void Application::OnWindowResized(int width, int height)
+    {
+        return;
+    }
+
+    void Application::ProcessWindowResize()
+    {
+        if (!window || !window->ConsumePendingResize())
+        {
+            return;
+        }
+
+        const int width = window->GetWidth();
+        const int height = window->GetHeight();
+        if (renderer)
+        {
+            renderer->OnResize(*window, static_cast<uint32>(width), static_cast<uint32>(height));
+        }
+
+        OnWindowResized(width, height);
     }
 
 }

@@ -35,6 +35,9 @@ namespace won
         void WaitIdle();
         virtual void RenderScene();
         virtual void RenderUI();
+        virtual void OnWindowResized(int width, int height);
+
+        void ProcessWindowResize();
 
         bool is_running = false;
         std::shared_ptr<rendering::RHIDevice> device;

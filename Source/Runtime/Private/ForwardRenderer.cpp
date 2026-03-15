@@ -517,7 +517,40 @@ namespace won::rendering
 
     void ForwardRenderer::BeginFrame(platform::Window& window)
     {
+        if (current_window != &window)
+        {
+            WaitIdle();
+            back_buffer_subresources = {};
+            depth_buffer_subresource = {};
+            depth_buffer = nullptr;
+        }
+
         current_window = &window;
+    }
+
+    void ForwardRenderer::OnResize(platform::Window& window, uint32 width, uint32 height)
+    {
+        if (width == 0 || height == 0)
+        {
+            return;
+        }
+
+        std::shared_ptr<RHISwapchain> swapchain = window.GetRHISwapchain();
+        if (!swapchain)
+        {
+            return;
+        }
+
+        WaitIdle();
+
+        back_buffer_subresources = {};
+        depth_buffer_subresource = {};
+        depth_buffer = nullptr;
+
+        if (!swapchain->Resize(width, height))
+        {
+            backlog::Post("failed to resize swapchain", backlog::LogLevel::Error);
+        }
     }
 
     void ForwardRenderer::Render(const View& view)
@@ -544,16 +577,48 @@ namespace won::rendering
             return;
         }
 
-        // TODO : seperate resize logic
+        for (uint32 i = 0; i < swapchain->GetBackBufferCount() && i < static_cast<uint32>(back_buffer_subresources.size()); ++i)
+        {
+            if (back_buffer_subresources[i].IsValid())
+            {
+                continue;
+            }
+
+            std::shared_ptr<RHIResource> swapchain_back_buffer = swapchain->GetBackBuffer(i);
+            if (!swapchain_back_buffer)
+            {
+                backlog::Post("failed to get swapchain back buffer for RTV creation", backlog::LogLevel::Error);
+                return;
+            }
+
+            RHISubresourceDesc back_buffer_subresource_desc = {};
+            back_buffer_subresource_desc.type = RHISubresourceType::RenderTarget;
+            if (!device->CreateSubresource(*swapchain_back_buffer, back_buffer_subresource_desc, &back_buffer_subresources[i]))
+            {
+                backlog::Post("failed to create back buffer RTV", backlog::LogLevel::Error);
+                return;
+            }
+        }
+
         const RHIResourceDesc& back_buffer_desc = back_buffer->GetDesc();
-        const uint32 target_width = back_buffer_desc.texture_desc.width;
-        const uint32 target_height = back_buffer_desc.texture_desc.height;
-        const uint32 target_sample_count = back_buffer_desc.texture_desc.sample_count > 0 ? back_buffer_desc.texture_desc.sample_count : 1;
-        if (!depth_buffer || !depth_buffer_subresource.IsValid() || depth_buffer_width != target_width || depth_buffer_height != target_height || depth_buffer_sample_count != target_sample_count)
+        const RHITextureDesc& back_buffer_texture_desc = back_buffer_desc.texture_desc;
+        const uint32 target_sample_count = back_buffer_texture_desc.sample_count > 0 ? back_buffer_texture_desc.sample_count : 1;
+        bool recreate_depth_buffer = !depth_buffer || !depth_buffer_subresource.IsValid();
+        if (!recreate_depth_buffer)
+        {
+            const RHITextureDesc& depth_texture_desc = depth_buffer->GetDesc().texture_desc;
+            recreate_depth_buffer =
+                depth_texture_desc.width != back_buffer_texture_desc.width ||
+                depth_texture_desc.height != back_buffer_texture_desc.height ||
+                depth_texture_desc.sample_count != target_sample_count ||
+                depth_texture_desc.format != RHIFormat::D32Float;
+        }
+
+        if (recreate_depth_buffer)
         {
             RHITextureDesc depth_desc = {};
-            depth_desc.width = target_width;
-            depth_desc.height = target_height;
+            depth_desc.width = back_buffer_texture_desc.width;
+            depth_desc.height = back_buffer_texture_desc.height;
             depth_desc.depth = 1;
             depth_desc.mip_levels = 1;
             depth_desc.array_layers = 1;
@@ -578,10 +643,6 @@ namespace won::rendering
                 depth_buffer = nullptr;
                 return;
             }
-
-            depth_buffer_width = target_width;
-            depth_buffer_height = target_height;
-            depth_buffer_sample_count = target_sample_count;
         }
 
         FrameContext& frame_context = GetFrameContext();
@@ -602,18 +663,11 @@ namespace won::rendering
             return;
         }
 
-        RHISubresourceDesc back_buffer_rtv_desc = {};
-        back_buffer_rtv_desc.type = RHISubresourceType::RenderTarget;
-        RHISubresourceHandle back_buffer_rtv = {};
-        if (!device->CreateSubresource(*back_buffer, back_buffer_rtv_desc, &back_buffer_rtv))
-        {
-            backlog::Post("failed to create back buffer RTV", backlog::LogLevel::Error);
-            return;
-        }
+        const uint32 back_buffer_index = swapchain->GetCurrentBackBufferIndex();
 
         RHISubresourceBinding back_buffer_binding = {};
         back_buffer_binding.resource = back_buffer.get();
-        back_buffer_binding.subresource = back_buffer_rtv;
+        back_buffer_binding.subresource = back_buffer_subresources[back_buffer_index];
         RHISubresourceBinding depth_buffer_binding = {};
         depth_buffer_binding.resource = depth_buffer.get();
         depth_buffer_binding.subresource = depth_buffer_subresource;
@@ -714,11 +768,9 @@ namespace won::rendering
         shader_frame_buffer = nullptr;
         shader_camera_buffer_subresource = {};
         shader_camera_buffer = nullptr;
+        back_buffer_subresources = {};
         depth_buffer_subresource = {};
         depth_buffer = nullptr;
-        depth_buffer_width = 0;
-        depth_buffer_height = 0;
-        depth_buffer_sample_count = 1;
         device.reset();
     }
 }

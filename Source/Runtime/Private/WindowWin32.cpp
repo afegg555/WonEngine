@@ -7,33 +7,6 @@ namespace won::platform
     {
         constexpr const char* k_window_class_name = "WonEngineWindowClass";
 
-        LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
-        {
-            if (message == WM_NCCREATE)
-            {
-                CREATESTRUCTA* create_struct = reinterpret_cast<CREATESTRUCTA*>(lparam);
-                auto* window = static_cast<WindowWin32*>(create_struct->lpCreateParams);
-                SetWindowLongPtrA(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(window));
-            }
-
-            auto* window = reinterpret_cast<WindowWin32*>(GetWindowLongPtrA(hwnd, GWLP_USERDATA));
-            if (window && window->DispatchPlatformMessage(hwnd, message, static_cast<Size>(wparam), static_cast<Size>(lparam)))
-            {
-                return 1;
-            }
-
-            switch (message)
-            {
-            case WM_DESTROY:
-                PostQuitMessage(0);
-                return 0;
-            case WM_LBUTTONUP:
-                return 0;
-            default:
-                return DefWindowProc(hwnd, message, wparam, lparam);
-            }
-        }
-
         void RegisterWindowClass()
         {
             static bool registered = false;
@@ -45,7 +18,7 @@ namespace won::platform
             WNDCLASSEXA wc = {};
             wc.cbSize = sizeof(WNDCLASSEXA);
             wc.style = CS_HREDRAW | CS_VREDRAW;
-            wc.lpfnWndProc = WindowProc;
+            wc.lpfnWndProc = WindowWin32::WindowProc;
             wc.hInstance = GetModuleHandleA(nullptr);
             wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
             wc.lpszClassName = k_window_class_name;
@@ -153,6 +126,12 @@ namespace won::platform
 
     void WindowWin32::Resize(int new_width, int new_height)
     {
+        if (width == new_width &&
+            height == new_height)
+        {
+            return;
+        }
+            
         if (hwnd)
         {
             RECT rect = { 0, 0, new_width, new_height };
@@ -161,6 +140,8 @@ namespace won::platform
         }
         width = new_width;
         height = new_height;
+        is_minimized = (new_width <= 0 || new_height <= 0);
+        has_pending_resize = !is_minimized;
     }
 
     int WindowWin32::GetWidth() const
@@ -171,6 +152,52 @@ namespace won::platform
     int WindowWin32::GetHeight() const
     {
         return height;
+    }
+
+    bool WindowWin32::IsMinimized() const
+    {
+        return is_minimized;
+    }
+
+    bool WindowWin32::ConsumePendingResize()
+    {
+        const bool had_pending_resize = has_pending_resize;
+        has_pending_resize = false;
+        return had_pending_resize;
+    }
+
+    LRESULT CALLBACK WindowWin32::WindowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
+    {
+        if (message == WM_NCCREATE)
+        {
+            CREATESTRUCTA* create_struct = reinterpret_cast<CREATESTRUCTA*>(lparam);
+            auto* window = static_cast<WindowWin32*>(create_struct->lpCreateParams);
+            SetWindowLongPtrA(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(window));
+        }
+
+        auto* window = reinterpret_cast<WindowWin32*>(GetWindowLongPtrA(hwnd, GWLP_USERDATA));
+
+        if (window && window->DispatchPlatformMessage(hwnd, message, static_cast<Size>(wparam), static_cast<Size>(lparam)))
+        {
+            return 1;
+        }
+
+        switch (message)
+        {
+        case WM_DESTROY:
+            PostQuitMessage(0);
+            return 0;
+        case WM_SIZE:
+            if (window)
+            {
+                int width = static_cast<int>(LOWORD(lparam));
+                int height = static_cast<int>(HIWORD(lparam));
+                window->Resize(width, height);
+            }
+            return 0;
+        default:
+            return DefWindowProc(hwnd, message, wparam, lparam);
+        }
     }
 }
 #endif
