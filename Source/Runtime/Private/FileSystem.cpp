@@ -111,7 +111,8 @@ namespace won::io
 #if defined(_WIN32)
         char str[1024] = {};
         GetModuleFileNameA(NULL, str, arraysize(str));
-        return str;
+        std::filesystem::path executable_path = std::filesystem::u8path(str);
+        return executable_path.parent_path().u8string();
 #else
         return String();
 #endif // _WIN32
