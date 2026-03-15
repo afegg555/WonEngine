@@ -17,7 +17,7 @@ namespace won::plugin
     class IPlugin
     {
     public:
-        virtual ~IPlugin() { Shutdown(); };
+        virtual ~IPlugin() = default;
         virtual const char* GetName() const = 0;
         virtual const char* GetVersion() const = 0;
         virtual void* QueryInterface(const char* iid, const char* version_id) const = 0;
