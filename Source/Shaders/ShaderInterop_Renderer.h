@@ -49,19 +49,18 @@ enum TEXTURESLOT
 {
     BASECOLORMAP,
     NORMALMAP,
-    SURFACEMAP,
     EMISSIVEMAP,
+    OPACITYMAP,
     DISPLACEMENTMAP,
     OCCLUSIONMAP,
-    TRANSMISSIONMAP,
     SHEENCOLORMAP,
     SHEENROUGHNESSMAP,
     CLEARCOATMAP,
     CLEARCOATROUGHNESSMAP,
     CLEARCOATNORMALMAP,
-    SPECULARMAP,
     ANISOTROPYMAP,
-    TRANSPARENCYMAP,
+    ROUGHNESSMAP,
+    METALLICMAP,
 
     TEXTURESLOT_COUNT
 };
@@ -416,7 +415,7 @@ PUSHCONSTANT(push, ObjectPushConstants);
 #ifdef __cplusplus
 static_assert(sizeof(ShaderTextureSlot) == 16, "ShaderTextureSlot layout mismatch");
 static_assert(sizeof(ShaderGeometry) == 64, "ShaderGeometry layout mismatch");
-static_assert(sizeof(ShaderMaterial) == 288, "ShaderMaterial layout mismatch");
+static_assert(sizeof(ShaderMaterial) == 272, "ShaderMaterial layout mismatch");
 static_assert(sizeof(ShaderScene) == 32, "ShaderScene layout mismatch");
 static_assert(sizeof(ShaderFrame) == 32, "ShaderFrame layout mismatch");
 static_assert(sizeof(ShaderCamera) == 256, "ShaderCamera layout mismatch");
