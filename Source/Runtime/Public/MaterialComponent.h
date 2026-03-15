@@ -47,15 +47,12 @@ namespace won::ecs
 
     struct MaterialComponent
     {
-        Vector<MaterialSlot> material_slots = { MaterialSlot{} };
+        Vector<MaterialSlot> material_slots = {};
 
         uint32 material_offset = 0; // internal usage
         MaterialSlot& GetMaterialSlot(uint32 slot_index = 0u)
         {
-            if (slot_index >= material_slots.size())
-            {
-                return material_slots[0];
-            }
+            assert(slot_index < material_slots.size());
 
             return material_slots[slot_index];
         }
