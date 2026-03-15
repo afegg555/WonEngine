@@ -57,7 +57,8 @@ namespace won
         {
             if (msg.message == WM_QUIT)
             {
-                is_running = false;
+                WaitIdle();
+                Shutdown();
                 return;
             }
 
@@ -106,6 +107,11 @@ namespace won
         renderer->EndFrame();
     }
 
+    void Application::WaitIdle()
+    {
+        renderer->WaitIdle();
+    }
+    
     void Application::RenderScene()
     {
         if (renderer)

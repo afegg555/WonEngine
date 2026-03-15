@@ -686,8 +686,19 @@ namespace won::rendering
 
     }
 
+    void ForwardRenderer::WaitIdle()
+    {
+        for (Size i = 0; i < static_cast<Size>(RHIQueueType::Count); ++i)
+        {
+            auto context = device->GetContext(static_cast<RHIQueueType>(i));
+            context->WaitIdle();
+        }
+    }
+
     void ForwardRenderer::Shutdown()
     {
+        WaitIdle();
+
         current_window = nullptr;
         frame_contexts = {};
         current_frame_slot = 0;

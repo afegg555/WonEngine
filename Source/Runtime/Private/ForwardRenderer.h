@@ -13,6 +13,7 @@ namespace won::rendering
         void BeginFrame(platform::Window& window) override;
         void Render(const View& view) override;
         void EndFrame() override;
+        void WaitIdle() override;
         void Shutdown() override;
 
         bool AllocateFrameUpload(FrameContext& frame_context, Size size, Size alignment, FrameUploadAllocation& out_allocation) override;

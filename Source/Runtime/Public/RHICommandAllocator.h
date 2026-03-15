@@ -9,7 +9,9 @@ namespace won::rendering
     {
         Graphics,
         Compute,
-        Copy
+        Copy,
+
+        Count
     };
 
     class RHICommandAllocator : public RHIObject

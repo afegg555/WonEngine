@@ -28,24 +28,7 @@ namespace won::editor
 
 	static RHIShader imgui_vs;
 	static RHIShader imgui_ps;
-	std::shared_ptr<RHIPipeline> imgui_pso;
-	std::shared_ptr<RHIResource> imgui_font;
-	RHISubresourceHandle imgui_font_subresource;
-	std::shared_ptr<RHISampler> imgui_sampler;
-
-	static String contents_root_dir;
-
-	static float2 main_viewport_pos;
-	static float2 main_viewport_size;
-
-	ecs::Scene scene;
-	ecs::Entity camera_entity;
-	ecs::Entity image_entity;
-
-#ifdef _WIN32
-	HWND hWnd = NULL;
-#endif
-
+	static String contents_root_dir = String(CONTENTS_ROOT_DIR) + "/";
 	namespace
 	{
 		bool AddImGuiFont(const std::string& font_folder_path, const std::string& font_file_name, bool merge_icon = true)
@@ -93,8 +76,6 @@ namespace won::editor
 	void EditorApplication::Initialize(const ApplicationDesc& desc)
 	{
 		Application::Initialize(desc);
-
-		contents_root_dir = String(CONTENTS_ROOT_DIR) + "/";
 
 		{
 			ShaderCompilerOptions compiler_options;
@@ -290,6 +271,12 @@ namespace won::editor
 
 	void EditorApplication::Shutdown()
 	{
+		imgui_pso.reset();
+		imgui_font.reset();
+		imgui_font_subresource = {};
+		imgui_sampler.reset();
+		scene = {};
+
 		Application::Shutdown();
 	}
 

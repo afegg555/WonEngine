@@ -36,6 +36,7 @@ namespace won::rendering
         virtual void BeginFrame(platform::Window& window) = 0;
         virtual void Render(const View& view) = 0;
         virtual void EndFrame() = 0;
+        virtual void WaitIdle() = 0;
         virtual void Shutdown() = 0;
 
         struct FrameContext

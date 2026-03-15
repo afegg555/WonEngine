@@ -32,6 +32,7 @@ namespace won
         virtual void Render();
 
     protected:
+        void WaitIdle();
         virtual void RenderScene();
         virtual void RenderUI();
 
