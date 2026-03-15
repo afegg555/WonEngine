@@ -101,9 +101,13 @@ set(RUNTIME_RESOURCE
     Source/Runtime/Public/Mesh.h
     Source/Runtime/Public/ResourceLoader.h
     Source/Runtime/Public/ShaderCompiler.h
+    Source/Runtime/Public/ShaderManifest.h
+    Source/Runtime/Public/ShaderLoader.h
     Source/Runtime/Private/ShaderLibrary.h
     Source/Runtime/Private/ResourceLoader.cpp
     Source/Runtime/Private/ShaderCompiler.cpp
+    Source/Runtime/Private/ShaderManifest.cpp
+    Source/Runtime/Private/ShaderLoader.cpp
     Source/Runtime/Private/ShaderLibrary.cpp
     Source/Runtime/Private/DXCShaderCompiler.h
     Source/Runtime/Private/DXCShaderCompiler.cpp

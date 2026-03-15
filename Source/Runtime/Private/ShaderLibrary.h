@@ -2,24 +2,12 @@
 #include "RuntimeExport.h"
 #include "Types.h"
 #include "ShaderCompiler.h"
+#include "ShaderManifest.h"
 #include "RHIShader.h"
 #include "RHIDevice.h"
 
 namespace won::resource
 {
-    enum class ShaderId : uint16
-    {
-        VSObjectCommon,
-        VSObjectSimple,
-        VSObjectPrepass,
-
-        PSObjectCommon,
-        PSObjectSimple,
-        PSObjectPrepass,
-        PSTestRed,
-        Count
-    };
-
     enum class RenderPassType : uint8
     {
         DepthPrepass,
@@ -31,12 +19,9 @@ namespace won::resource
     {
     public:
         explicit ShaderLibrary(const ShaderCompilerOptions& options = {});
-        bool LoadAllShaders();
+        bool LoadManifest(const ShaderManifest& manifest);
         bool BuildAllGraphicsPipelines(const std::shared_ptr<rendering::RHIDevice>& device, rendering::RHIFormat rtv_format, rendering::RHIFormat dsv_format, uint32 sample_count);
-        bool LoadShader(ShaderId shader_id, rendering::RHIShaderStage stage, const String& source_file_name, const String& entry_point = "main", ShaderModel model = ShaderModel::SM_6_0, ShaderFormat format = ShaderFormat::HLSL6);
-        bool LoadShader(ShaderId shader_id, const ShaderCompileDesc& desc);
-        bool IsShaderOutdated(String cso_name) const;
-        bool SaveShaderCompileResult(const ShaderCompileResult& result, const String& cso_name) const;
+        void SetShader(ShaderId shader_id, const std::shared_ptr<rendering::RHIShader>& shader);
         
         std::shared_ptr<rendering::RHIShader> GetShader(ShaderId shader_id) const;
         std::shared_ptr<rendering::RHIPipeline> GetPipeline(RenderPassType pass_type) const;

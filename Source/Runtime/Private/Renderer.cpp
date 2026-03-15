@@ -1,6 +1,7 @@
 #include "Renderer.h"
 #include "ForwardRenderer.h"
 #include "EventHandler.h"
+#include "ShaderManifest.h"
 #include "ShaderLibrary.h"
 
 namespace won::rendering
@@ -35,7 +36,7 @@ namespace won::rendering
             {
                 context->WaitIdle();
 
-                if (shader_library->LoadAllShaders())
+                if (shader_library->LoadManifest(resource::GetDefaultShaderManifest()))
                 {
                     shader_library->BuildAllGraphicsPipelines(dev, RENDERTARGET_BUFFER_FORMAT, DEPTH_BUFFER_FORMAT, 1u);
                 }

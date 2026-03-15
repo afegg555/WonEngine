@@ -1,11 +1,10 @@
 #include "ShaderLibrary.h"
+#include "ShaderLoader.h"
 #include "Backlog.h"
 #include "JobSystem.h"
-#include "FileSystem.h"
-#include "Serializer.h"
+#include <atomic>
 
 using namespace won::rendering;
-using namespace won::serialize;
 
 namespace won::resource
 {
@@ -26,20 +25,27 @@ namespace won::resource
     {
     }
 
-    bool ShaderLibrary::LoadAllShaders()
+    bool ShaderLibrary::LoadManifest(const ShaderManifest& manifest)
     {
         jobsystem::Context ctx;
+        std::atomic<bool> load_succeeded = true;
 
-        jobsystem::Execute(ctx, [this](jobsystem::JobArgs args) { LoadShader(ShaderId::VSObjectCommon, RHIShaderStage::Vertex, "ObjectVS_common.hlsl"); });
-        jobsystem::Execute(ctx, [this](jobsystem::JobArgs args) { LoadShader(ShaderId::VSObjectSimple, RHIShaderStage::Vertex, "ObjectVS_simple.hlsl"); });
-        jobsystem::Execute(ctx, [this](jobsystem::JobArgs args) { LoadShader(ShaderId::VSObjectPrepass, RHIShaderStage::Vertex, "ObjectVS_prepass.hlsl"); });
-        jobsystem::Execute(ctx, [this](jobsystem::JobArgs args) { LoadShader(ShaderId::PSObjectCommon, RHIShaderStage::Pixel, "ObjectPS_common.hlsl"); });
-        jobsystem::Execute(ctx, [this](jobsystem::JobArgs args) { LoadShader(ShaderId::PSObjectSimple, RHIShaderStage::Pixel, "ObjectPS_simple.hlsl"); });
-        jobsystem::Execute(ctx, [this](jobsystem::JobArgs args) { LoadShader(ShaderId::PSObjectPrepass, RHIShaderStage::Pixel, "ObjectPS_prepass.hlsl"); });
-        jobsystem::Execute(ctx, [this](jobsystem::JobArgs args) { LoadShader(ShaderId::PSTestRed, RHIShaderStage::Pixel, "TestRedPS.hlsl"); });
+        for (const auto& entry : manifest)
+        {
+            jobsystem::Execute(ctx, [this, &load_succeeded, entry](jobsystem::JobArgs args) {
+                std::shared_ptr<RHIShader> shader;
+                if (!shaderloader::LoadShader(shader_compiler, entry, shader))
+                {
+                    load_succeeded.store(false);
+                    return;
+                }
+
+                SetShader(entry.shader_id, shader);
+            });
+        }
 
         jobsystem::Wait(ctx);
-        return true;
+        return load_succeeded.load();
     }
 
     bool ShaderLibrary::BuildAllGraphicsPipelines(const std::shared_ptr<rendering::RHIDevice>& device, RHIFormat rtv_format, RHIFormat dsv_format, uint32 sample_count)
@@ -80,124 +86,14 @@ namespace won::resource
         return true;
     }
 
-    bool ShaderLibrary::LoadShader(ShaderId shader_id, RHIShaderStage stage, const String& source_file_name, const String& entry_point, ShaderModel model, ShaderFormat format)
+    void ShaderLibrary::SetShader(ShaderId shader_id, const std::shared_ptr<rendering::RHIShader>& shader)
     {
-        ShaderCompileDesc desc = {};
-        desc.stage = stage;
-        desc.source_file_name = source_file_name;
-        desc.entry_point = entry_point;
-        desc.model = model;
-        desc.format = format;
-        return LoadShader(shader_id, desc);
-    }
-
-    bool ShaderLibrary::LoadShader(ShaderId shader_id, const ShaderCompileDesc& desc)
-    {
-        if (!shader_compiler)
-        {
-            backlog::Post("Shader compiler is not initialized", backlog::LogLevel::Error);
-            return false;
-        }
-
         if (shader_id == ShaderId::Count)
         {
-            backlog::Post("Invalid shader id", backlog::LogLevel::Error);
-            return false;
+            return;
         }
 
-        String binary_file_name = shader_compiler->GetCompileOptions().shader_bin_root_path + "/" + io::ReplaceExtension(desc.source_file_name, "cso");
-
-        Vector<uint8> bytecode;
-        if (IsShaderOutdated(binary_file_name))
-        {
-            ShaderCompileResult compile_result = shader_compiler->Compile(desc);
-            if (compile_result.bytecode.empty())
-            {
-                String log = "Shader compilation failed : ";
-                if (!desc.source_file_name.empty())
-                {
-                    log += desc.source_file_name;
-                }
-                backlog::Post(log, backlog::LogLevel::Error);
-                return false;
-            }
-            String log = "Shader compiled : ";
-            log += desc.source_file_name;
-            backlog::Post(log);
-
-            String full_source_path = shader_compiler->GetCompileOptions().shader_source_root_path + "/" + desc.source_file_name;
-            compile_result.dependencies.push_back(full_source_path);
-
-            SaveShaderCompileResult(compile_result, binary_file_name);
-
-            bytecode = std::move(compile_result.bytecode);
-        }
-        else
-        {
-            io::FileData data;
-            if (!io::ReadAllBytes(binary_file_name, &data))
-            {
-                return false;
-            }
-            bytecode = std::move(data.bytes);
-        }
-
-        auto shader = std::make_shared<RHIShader>(desc.stage, bytecode.data(), bytecode.size());
         shaders[ToIndex(shader_id)] = shader;
-        return true;
-    }
-
-    bool ShaderLibrary::IsShaderOutdated(String cso_name) const
-    {
-        String dependency_path = io::ReplaceExtension(cso_name, "dep");
-
-        if (!io::Exists(cso_name) || !io::Exists(dependency_path))
-        {
-            return true;
-        }
-        
-        uint64 timestamp = 0ull;
-        io::GetLastTimestamp(cso_name, &timestamp);
-
-        BinaryArchive archive(dependency_path, ArchiveMode::Read);
-        if (!archive.IsEnd())
-        {
-            String root = io::GetDirectoryFromPath(dependency_path);
-            Vector<String> dependencies;
-            Serialize(archive, dependencies);
-            for (auto& dep : dependencies)
-            {
-                std::string dependency = root + dep;
-                if (io::Exists(dependency))
-                {
-                    uint64 dep_timestamp = 0ull;
-                    io::GetLastTimestamp(dependency, &dep_timestamp);
-                    if (timestamp < dep_timestamp)
-                    {
-                        return true;
-                    }
-                }
-
-            }
-        }
-        return false;
-    }
-
-    bool ShaderLibrary::SaveShaderCompileResult(const ShaderCompileResult& result, const String& cso_name) const
-    {
-        String dependency_path = io::ReplaceExtension(cso_name, "dep");
-
-        {
-            BinaryArchive archive(dependency_path, ArchiveMode::Write);
-            Serialize(archive, result.dependencies);
-        }
-
-        if (!io::WriteAllBytes(cso_name, result.bytecode.data(), result.bytecode.size()))
-        {
-            return false;
-        }
-
-        return true;
     }
 
     std::shared_ptr<rendering::RHIShader> ShaderLibrary::GetShader(ShaderId shader_id) const
