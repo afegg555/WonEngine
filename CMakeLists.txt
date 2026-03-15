@@ -314,6 +314,11 @@ set(SHADER_OFFLINE_COMPILER_SOURCES
     Source/Tools/ShaderOfflineCompiler/main.cpp
 )
 
+set(PLUGIN_ASSET_IMPORTER
+    Source/Plugins/AssetImporter/AssetImporter.h
+    Source/Plugins/AssetImporter/AssetImporter.cpp
+)
+
 add_executable(Editor
     ${Editor_PUBLIC}
     ${Editor_IMGUI}
@@ -325,18 +330,44 @@ add_executable(ShaderOfflineCompiler
     ${SHADER_OFFLINE_COMPILER_SOURCES}
 )
 
+add_library(AssetImporter SHARED
+    ${PLUGIN_ASSET_IMPORTER}
+)
+
 target_include_directories(Runtime
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Runtime/Public>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Shaders>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Vendor>
 )
 
 target_link_libraries(Editor PRIVATE Runtime)
 target_link_libraries(ShaderOfflineCompiler PRIVATE Runtime)
+target_link_libraries(AssetImporter PRIVATE
+    Runtime
+    debug assimp-vc143-mtd
+    optimized assimp-vc143-mt
+)
+target_include_directories(AssetImporter PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins/AssetImporter/ThirdParty/assimp/include>
+)
+target_compile_definitions(AssetImporter PRIVATE ASSIMP_DLL)
+target_link_directories(AssetImporter PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins/AssetImporter/ThirdParty/assimp/lib>
+)
+add_custom_command(TARGET AssetImporter POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<IF:$<CONFIG:Debug>,${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins/AssetImporter/ThirdParty/assimp/bin/assimp-vc143-mtd.dll,${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins/AssetImporter/ThirdParty/assimp/bin/assimp-vc143-mt.dll>"
+        "$<TARGET_FILE_DIR:AssetImporter>"
+)
 
 set_target_properties(ShaderOfflineCompiler PROPERTIES
     FOLDER "Tools"
+)
+
+set_target_properties(AssetImporter PROPERTIES
+    FOLDER "Plugins"
 )
 
 target_compile_definitions(Runtime

@@ -1,4 +1,5 @@
 #include "Application.h"
+#include "PluginManager.h"
 
 namespace won::editor
 {
@@ -10,6 +11,7 @@ namespace won::editor
 		void Update(float dt) override;
 
 	private:
+		void LoadDefaultPlugins();
 		void OnWindowResized(int width, int height) override;
 		void RenderUI() override;
 		void ImGui_Impl_CreateDeviceObjects();
@@ -26,5 +28,7 @@ namespace won::editor
 		ecs::Scene scene;
 		ecs::Entity camera_entity;
 		ecs::Entity image_entity;
+
+		plugin::PluginManager plugin_manager;
 	};
 }

@@ -8,6 +8,7 @@
 #include "FileSystem.h"
 #include "Backlog.h"
 #include "SceneComponents.h"
+#include "AssetImporter/AssetImporter.h"
 
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include "imgui-docking/imgui.h"
@@ -25,6 +26,7 @@ namespace won::editor
 {
 	using namespace resource;
 	using namespace rendering;
+	using namespace plugin;
 
 	static RHIShader imgui_vs;
 	static RHIShader imgui_ps;
@@ -122,6 +124,8 @@ namespace won::editor
 		AddImGuiFont(font_folder_path, "WantedSansStd-Regular.ttf");
 
 		ImGui_Impl_CreateDeviceObjects();
+
+		LoadDefaultPlugins();
 
 		// camera entity
 		{
@@ -244,7 +248,7 @@ namespace won::editor
 			auto* material = scene.AddComponent<ecs::MaterialComponent>(image_entity);
 			if (material)
 			{
-				auto& material_slot = material->GetMaterialSlot(0);
+				auto& material_slot = material->AddMaterialSlot();
 				material_slot.base_color = { 1.0f, 1.0f, 1.0f, 1.0f };
 				material_slot.metallic = 0.0f;
 				material_slot.roughness = 1.0f;
@@ -287,6 +291,13 @@ namespace won::editor
 		if (won::io::IsPressed(io::Button('R')))
 		{
 			rendering::ReloadShaderLibrary(device);
+		}
+	}
+
+	void EditorApplication::LoadDefaultPlugins()
+	{
+		if (plugin_manager.LoadPlugin(WON_IID_ASSET_IMPORTER))
+		{
 		}
 	}
 
