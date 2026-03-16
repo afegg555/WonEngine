@@ -36,6 +36,11 @@ namespace won::rendering
     {
         RHIResource* resource = nullptr;
         RHISubresourceHandle subresource = {};
+
+        bool IsValid() const
+        {
+            return resource != nullptr && subresource.IsValid();
+        }
     };
 
     // for slot based binding

@@ -662,7 +662,10 @@ namespace won::rendering
             }
 
             const RHISubresourceBinding& view = descriptor_binding_table.srv[slot];
-
+            if (!view.IsValid())
+            {
+                continue;
+            }
             D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = {};
             descriptor_allocator->GetGpuDescriptorHandle(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, view.subresource.descriptor_index, gpu_handle);
 
@@ -690,6 +693,10 @@ namespace won::rendering
             }
 
             const RHISubresourceBinding& view = descriptor_binding_table.uav[slot];
+            if (!view.IsValid())
+            {
+                continue;
+            }
 
             D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = {};
             descriptor_allocator->GetGpuDescriptorHandle(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, view.subresource.descriptor_index, gpu_handle);
@@ -718,6 +725,10 @@ namespace won::rendering
             }
 
             const RHISampler* sampler = descriptor_binding_table.sam[slot];
+            if (!sampler)
+            {
+                continue;
+            }
             auto sampler_dx12 = dynamic_cast<const RHISamplerDX12*>(sampler);
 
             D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = {};
