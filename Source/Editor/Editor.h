@@ -16,6 +16,8 @@ namespace won::editor
 		void RenderUI() override;
 		void ImGui_Impl_CreateDeviceObjects();
 
+		void LoadSampleScene();
+
 	private:
 		std::shared_ptr<RHIPipeline> imgui_pso;
 		std::shared_ptr<RHIResource> imgui_font;

@@ -9,6 +9,7 @@
 #include "Backlog.h"
 #include "SceneComponents.h"
 #include "AssetImporter/AssetImporter.h"
+#include "CameraController/CameraController.h"
 
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include "imgui-docking/imgui.h"
@@ -153,124 +154,12 @@ namespace won::editor
 				//camera->SetOrthoVerticalSize(4.f);
 			}
 		}
-		main_view.scene = &scene;
+		main_view.scene = &scene; // empty scene
 		main_view.camera_entity = camera_entity;
 
-		String file_path = io::GetWorkingDirectory() + "/../Contents/Images/env_comp.png";
-		std::shared_ptr<resource::Image> image = resource::LoadImageFile(file_path, 4);
-		if (!image || !image->IsValid())
-		{
-			backlog::Post(String("failed to load base color texture: ") + file_path, backlog::LogLevel::Warning);
-			return;
-		}
-
-		RHITextureDesc texture_desc = {};
-		texture_desc.width = static_cast<uint32>(image->width);
-		texture_desc.height = static_cast<uint32>(image->height);
-		texture_desc.depth = 1;
-		texture_desc.mip_levels = 1;
-		texture_desc.array_layers = 1;
-		texture_desc.sample_count = 1;
-		texture_desc.format = RHIFormat::R8G8B8A8Unorm;
-		texture_desc.usage = RHIResourceUsage::Default;
-		texture_desc.bind_flags = RHIBindFlags::ShaderResource;
-
-		std::shared_ptr<RHIResource> texture_resource = device->CreateTexture(texture_desc, image->pixels.data(), image->pixels.size());
-		if (!texture_resource)
-		{
-			backlog::Post("failed to create base color texture resource", backlog::LogLevel::Warning);
-			return;
-		}
-
-		RHISubresourceDesc texture_srv_desc = {};
-		texture_srv_desc.type = RHISubresourceType::ShaderResource;
-		texture_srv_desc.first_slice = 0;
-		texture_srv_desc.slice_count = 1;
-		texture_srv_desc.first_mip = 0;
-		texture_srv_desc.mip_count = 1;
-
-		RHISubresourceHandle texture_srv = {};
-		if (!device->CreateSubresource(*texture_resource, texture_srv_desc, &texture_srv))
-		{
-			backlog::Post("failed to create base color texture srv", backlog::LogLevel::Warning);
-			return;
-		}
-
-		// image entity
-		{
-			image_entity = scene.CreateEntity();
-
-			auto* transform = scene.AddComponent<ecs::TransformComponent>(image_entity);
-			if (transform)
-			{
-				transform->position = { 0.0f, 0.0f, 0.0f };
-				transform->Scale({ 2.f,2.f,2.f });
-			}
-
-			auto* geometry = scene.AddComponent<ecs::GeometryComponent>(image_entity);
-			if (geometry)
-			{
-				auto mesh = std::make_shared<resource::Mesh>();
-				mesh->positions = {
-					{ 0.0f, 3.0f, 1.0f },
-					{ 3.0f, 0.0f, 1.0f },
-					{ -3.0f, 0.0f, 1.0f },
-				};
-				mesh->normals = {
-					{ 0.0f, 0.0f, -1.f },
-					{ 0.0f, 0.0f, -1.f },
-					{ 0.0f, 0.0f, -1.f },
-				};
-				mesh->texcoords = {
-					{ 0.5f, 0.0f },
-					{ 1.0f, 1.0f },
-					{ 0.0f, 1.0f },
-				};
-
-				mesh->indices = { 0, 1, 2 };
-
-				resource::Submesh submesh = {};
-				submesh.first_index = 0;
-				//submesh.index_count = 3;
-				submesh.index_count = 3;
-				submesh.first_vertex = 0;
-				submesh.material_slot = 0;
-				submesh.local_bounds.min = { -0.5f, -0.5f, 0.0f };
-				submesh.local_bounds.max = { 0.5f, 0.5f, 0.0f };
-				mesh->submeshes.push_back(submesh);
-
-				geometry->mesh = mesh;
-				geometry->local_bounds = submesh.local_bounds;
-
-				mesh->CreateRenderData(device.get());
-			}
-
-			auto* material = scene.AddComponent<ecs::MaterialComponent>(image_entity);
-			if (material)
-			{
-				auto& material_slot = material->AddMaterialSlot();
-				material_slot.base_color = { 1.0f, 1.0f, 1.0f, 1.0f };
-				material_slot.metallic = 0.0f;
-				material_slot.roughness = 1.0f;
-				//material_slot.textures[0].name = "Test BaseColorMap";
-				//material_slot.textures[0].texture = texture_resource;
-				//material_slot.textures[0].res_handle = texture_srv;
-			}
-		}
-
-		// light entity
-		{
-			ecs::Entity light_entity = scene.CreateEntity();
-			auto* transform = scene.AddComponent<ecs::TransformComponent>(light_entity);
-			//transform->RotateRollPitchYaw({ - math::PI / 12.f, 0, 0});
-			transform->Translate({ 0,0,-1 });
-			auto* light = scene.AddComponent<ecs::LightComponent>(light_entity);
-			light->type = ecs::LightComponent::LightType::Point;
-			light->intensity = 100.f;
-			light->range = 20.f;
-			light->outer_cone_angle = math::PI / 3.f;
-			light->inner_cone_angle = math::PI / 6.f;
-		}
+		main_viewport_pos = { 0, 0 };
+		main_viewport_size = { static_cast<float>(main_view.viewport.width), static_cast<float>(main_view.viewport.height) };
+		LoadSampleScene();
 	}
 
 	void EditorApplication::Shutdown()
@@ -280,6 +169,8 @@ namespace won::editor
 		imgui_font_subresource = {};
 		imgui_sampler.reset();
 		scene = {};
+
+		plugin_manager = {};
 
 		Application::Shutdown();
 	}
@@ -292,12 +183,125 @@ namespace won::editor
 		{
 			rendering::ReloadShaderLibrary(device);
 		}
+
+		static CameraControllerAPI* controller_api = nullptr;
+		static IPlugin* camera_controller = nullptr;
+		if (!controller_api)
+		{
+			camera_controller = plugin_manager.GetPlugin(WON_IID_CAMERA_CONTROLLER).get();
+			controller_api = (CameraControllerAPI*)camera_controller->QueryInterface(WON_IID_CAMERA_CONTROLLER, WON_VID_CAMERA_CONTROLLER);
+		}
+
+		auto camera = scene.GetComponent<ecs::CameraComponent>(camera_entity);
+		auto transform = scene.GetComponent<ecs::TransformComponent>(camera_entity);
+		if (!camera || !transform)
+		{
+			return;
+		}
+
+		float2 mouse_pos = io::GetMouseState().position;
+		float2 viewport_mouse_pos = { mouse_pos.x - main_viewport_pos.x, mouse_pos.y - main_viewport_pos.y };
+		const float camera_speed = 5.0f;
+
+		static bool pressed = false;
+		CameraState camera_state;
+
+		if (0 <= viewport_mouse_pos.x && viewport_mouse_pos.x <= main_viewport_size.x &&
+			0 <= viewport_mouse_pos.y && viewport_mouse_pos.y <= main_viewport_size.y)
+		{
+			if (io::IsPressed(io::Button::MOUSE_BUTTON_LEFT) || io::IsPressed(io::Button::MOUSE_BUTTON_RIGHT))
+			{
+				pressed = true;
+
+				ControllerState controller_state;
+				controller_state.rotate_speed = 1.f;
+				controller_state.screen_size = main_viewport_size;
+				controller_state.zoom_sensitivity = 0.005f;
+
+				camera_state.cam_pos = camera->eye;
+				camera_state.cam_view = camera->forward;
+				camera_state.cam_up = camera->up;
+
+				controller_api->SetControllerState(camera_controller, controller_state);
+				controller_api->Start(camera_controller, viewport_mouse_pos, camera_state);
+			}
+		}
+
+		if (pressed && io::IsDown(io::Button::MOUSE_BUTTON_LEFT))
+		{
+			controller_api->PanMove(camera_controller, viewport_mouse_pos, camera_state);
+			transform->position = camera_state.cam_pos;
+			transform->SetDirty();
+		}
+
+		if (pressed && io::IsDown(io::Button::MOUSE_BUTTON_RIGHT))
+		{
+			controller_api->Rotate(camera_controller, viewport_mouse_pos, camera_state);
+			
+			XMVECTOR xeye = XMLoadFloat3(&camera_state.cam_pos);
+			XMVECTOR xview = XMVector3Normalize(XMLoadFloat3(&camera_state.cam_view));
+			XMVECTOR xup = XMVector3Normalize(XMLoadFloat3(&camera_state.cam_up));
+
+			XMVECTOR xright = XMVector3Normalize(XMVector3Cross(xup, xview));
+			XMVECTOR xup_reortho = XMVector3Normalize(XMVector3Cross(xview, xright));
+
+			XMMATRIX cam_world;
+			cam_world.r[0] = XMVectorSetW(xright, 0.0f);
+			cam_world.r[1] = XMVectorSetW(xup_reortho, 0.0f);
+			cam_world.r[2] = XMVectorSetW(xview, 0.0f);
+			cam_world.r[3] = XMVectorSetW(xeye, 1.0f);
+
+			XMVECTOR xrotation = XMQuaternionRotationMatrix(cam_world);
+			XMStoreFloat3(&transform->position, xeye);
+			XMStoreFloat4(&transform->rotation, xrotation);
+			transform->SetDirty();
+		}
+
+		if (pressed &&
+			(io::IsReleased(io::Button::MOUSE_BUTTON_LEFT) || io::IsReleased(io::Button::MOUSE_BUTTON_RIGHT)))
+		{
+			pressed = false;
+		}
+
+		XMVECTOR xforward = XMVector3Normalize(XMLoadFloat3(&camera->forward));
+		XMVECTOR xup = XMVector3Normalize(XMLoadFloat3(&camera->up));
+		XMVECTOR xright = XMVector3Normalize(XMVector3Cross(xup, xforward));
+
+		if (won::io::IsDown(io::Button('W')))
+		{
+			float3 translation{};
+			XMStoreFloat3(&translation, XMVectorScale(xforward, dt * camera_speed));
+			transform->Translate(translation);
+		}
+		if (won::io::IsDown(io::Button('A')))
+		{
+			float3 translation{};
+			XMStoreFloat3(&translation, XMVectorScale(xright, -dt * camera_speed));
+			transform->Translate(translation);
+		}
+		if (won::io::IsDown(io::Button('S')))
+		{
+			float3 translation{};
+			XMStoreFloat3(&translation, XMVectorScale(xforward, -dt * camera_speed));
+			transform->Translate(translation);
+		}
+		if (won::io::IsDown(io::Button('D')))
+		{
+			float3 translation{};
+			XMStoreFloat3(&translation, XMVectorScale(xright, dt * camera_speed));
+			transform->Translate(translation);
+		}
 	}
 
 	void EditorApplication::LoadDefaultPlugins()
 	{
-		if (plugin_manager.LoadPlugin(WON_IID_ASSET_IMPORTER))
+		if (!plugin_manager.LoadPlugin(WON_IID_ASSET_IMPORTER))
 		{
+
+		}
+		if (!plugin_manager.LoadPlugin(WON_IID_CAMERA_CONTROLLER))
+		{
+
 		}
 	}
 
@@ -526,6 +530,158 @@ namespace won::editor
 		imgui_pso = device->CreateGraphicsPipeline(pipeline_desc);
 
 		return;
+	}
+	void EditorApplication::LoadSampleScene()
+	{
+		{
+			//String file_path = io::GetWorkingDirectory() + "/../Contents/Images/env_comp.png";
+			//std::shared_ptr<resource::Image> image = resource::LoadImageFile(file_path, 4);
+			//if (!image || !image->IsValid())
+			//{
+			//	backlog::Post(String("failed to load base color texture: ") + file_path, backlog::LogLevel::Warning);
+			//	return;
+			//}
+
+			//RHITextureDesc texture_desc = {};
+			//texture_desc.width = static_cast<uint32>(image->width);
+			//texture_desc.height = static_cast<uint32>(image->height);
+			//texture_desc.depth = 1;
+			//texture_desc.mip_levels = 1;
+			//texture_desc.array_layers = 1;
+			//texture_desc.sample_count = 1;
+			//texture_desc.format = RHIFormat::R8G8B8A8Unorm;
+			//texture_desc.usage = RHIResourceUsage::Default;
+			//texture_desc.bind_flags = RHIBindFlags::ShaderResource;
+
+			//std::shared_ptr<RHIResource> texture_resource = device->CreateTexture(texture_desc, image->pixels.data(), image->pixels.size());
+			//if (!texture_resource)
+			//{
+			//	backlog::Post("failed to create base color texture resource", backlog::LogLevel::Warning);
+			//	return;
+			//}
+
+			//RHISubresourceDesc texture_srv_desc = {};
+			//texture_srv_desc.type = RHISubresourceType::ShaderResource;
+			//texture_srv_desc.first_slice = 0;
+			//texture_srv_desc.slice_count = 1;
+			//texture_srv_desc.first_mip = 0;
+			//texture_srv_desc.mip_count = 1;
+
+			//RHISubresourceHandle texture_srv = {};
+			//if (!device->CreateSubresource(*texture_resource, texture_srv_desc, &texture_srv))
+			//{
+			//	backlog::Post("failed to create base color texture srv", backlog::LogLevel::Warning);
+			//	return;
+			//}
+
+			//// image entity
+			//{
+			//	image_entity = scene.CreateEntity();
+
+			//	auto* transform = scene.AddComponent<ecs::TransformComponent>(image_entity);
+			//	if (transform)
+			//	{
+			//		transform->position = { 0.0f, 0.0f, 0.0f };
+			//		transform->Scale({ 2.f,2.f,2.f });
+			//	}
+
+			//	auto* geometry = scene.AddComponent<ecs::GeometryComponent>(image_entity);
+			//	if (geometry)
+			//	{
+			//		auto mesh = std::make_shared<resource::Mesh>();
+			//		mesh->positions = {
+			//			{ 0.0f, 3.0f, 1.0f },
+			//			{ 3.0f, 0.0f, 1.0f },
+			//			{ -3.0f, 0.0f, 1.0f },
+			//		};
+			//		mesh->normals = {
+			//			{ 0.0f, 0.0f, -1.f },
+			//			{ 0.0f, 0.0f, -1.f },
+			//			{ 0.0f, 0.0f, -1.f },
+			//		};
+			//		mesh->texcoords = {
+			//			{ 0.5f, 0.0f },
+			//			{ 1.0f, 1.0f },
+			//			{ 0.0f, 1.0f },
+			//		};
+
+			//		mesh->indices = { 0, 1, 2 };
+
+			//		resource::Submesh submesh = {};
+			//		submesh.first_index = 0;
+			//		//submesh.index_count = 3;
+			//		submesh.index_count = 3;
+			//		submesh.first_vertex = 0;
+			//		submesh.material_slot = 0;
+			//		submesh.local_bounds.min = { -0.5f, -0.5f, 0.0f };
+			//		submesh.local_bounds.max = { 0.5f, 0.5f, 0.0f };
+			//		mesh->submeshes.push_back(submesh);
+
+			//		geometry->mesh = mesh;
+			//		geometry->local_bounds = submesh.local_bounds;
+
+			//		mesh->CreateRenderData(device.get());
+			//	}
+
+			//	auto* material = scene.AddComponent<ecs::MaterialComponent>(image_entity);
+			//	if (material)
+			//	{
+			//		auto& material_slot = material->AddMaterialSlot();
+			//		material_slot.base_color = { 1.0f, 1.0f, 1.0f, 1.0f };
+			//		material_slot.metallic = 0.0f;
+			//		material_slot.roughness = 1.0f;
+			//		//material_slot.textures[0].name = "Test BaseColorMap";
+			//		//material_slot.textures[0].texture = texture_resource;
+			//		//material_slot.textures[0].res_handle = texture_srv;
+			//	}
+			//}
+
+			//// light entity
+			//{
+			//	ecs::Entity light_entity = scene.CreateEntity();
+			//	auto* transform = scene.AddComponent<ecs::TransformComponent>(light_entity);
+			//	//transform->RotateRollPitchYaw({ - math::PI / 12.f, 0, 0});
+			//	transform->Translate({ 0,0,-1 });
+			//	auto* light = scene.AddComponent<ecs::LightComponent>(light_entity);
+			//	light->type = ecs::LightComponent::LightType::Point;
+			//	light->intensity = 100.f;
+			//	light->range = 20.f;
+			//	light->outer_cone_angle = math::PI / 3.f;
+			//	light->inner_cone_angle = math::PI / 6.f;
+			//}
+		}
+
+		{
+			auto asset_importer = plugin_manager.GetPlugin(WON_IID_ASSET_IMPORTER);
+			AssetImporterAPI* api = (AssetImporterAPI*)asset_importer->QueryInterface(WON_IID_ASSET_IMPORTER, WON_VID_ASSET_IMPORTER);
+
+			std::string file_path = contents_root_dir + "/Models/glTF/Sponza/glTF/Sponza.gltf";
+			ecs::Entity root_entity{};
+			api->Import(asset_importer.get(), file_path.c_str(), &scene, device.get(), root_entity);
+
+			auto root_transform = scene.GetComponent<ecs::TransformComponent>(root_entity);
+			root_transform->Scale({ 0.01, 0.01, 0.01 });
+
+			auto material_component = scene.GetComponent<ecs::MaterialComponent>(root_entity);
+			for (uint32 i = 0; i < (uint32)material_component->GetMaterialSlotCount(); i++)
+			{
+				auto& slot = material_component->GetMaterialSlot(i);
+				//slot.shader_type = 
+			}
+			// light entity
+			{
+				ecs::Entity light_entity = scene.CreateEntity();
+				auto* transform = scene.AddComponent<ecs::TransformComponent>(light_entity);
+				transform->RotateRollPitchYaw({ math::PI / 2.f, 0, 0 });
+				//transform->Translate({ 0,0,-1 });
+				auto* light = scene.AddComponent<ecs::LightComponent>(light_entity);
+				light->type = ecs::LightComponent::LightType::Directional;
+				light->intensity = 100.f;
+				//light->range = 20.f;
+				//light->outer_cone_angle = math::PI / 3.f;
+				//light->inner_cone_angle = math::PI / 6.f;
+			}
+		}
 	}
 }
 
