@@ -63,7 +63,7 @@ namespace won::resource
             }
         };
 
-        bool CreateRenderData(const std::shared_ptr<rendering::RHIDevice>& device) override
+        bool CreateRenderData(rendering::RHIDevice* device) override
         {
             if (render_data.IsValid())
             {

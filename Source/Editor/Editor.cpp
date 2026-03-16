@@ -242,7 +242,7 @@ namespace won::editor
 				geometry->mesh = mesh;
 				geometry->local_bounds = submesh.local_bounds;
 
-				mesh->CreateRenderData(device);
+				mesh->CreateRenderData(device.get());
 			}
 
 			auto* material = scene.AddComponent<ecs::MaterialComponent>(image_entity);

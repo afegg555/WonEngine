@@ -15,7 +15,7 @@ namespace won::resource
     {
         virtual ~Resource() = default;
         virtual bool IsValid() const = 0;
-        virtual bool CreateRenderData(const std::shared_ptr<rendering::RHIDevice>& device) = 0;
+        virtual bool CreateRenderData(rendering::RHIDevice* device) = 0;
     };
 
     struct Image : public Resource
@@ -30,7 +30,7 @@ namespace won::resource
             return width > 0 && height > 0 && channels > 0 && !pixels.empty();
         }
 
-        bool CreateRenderData(const std::shared_ptr<rendering::RHIDevice>& device) override
+        bool CreateRenderData(rendering::RHIDevice* device) override
         {
             return IsValid();
         }
