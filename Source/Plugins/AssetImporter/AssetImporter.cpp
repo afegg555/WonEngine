@@ -221,9 +221,6 @@ namespace won::plugin
                 ecs::MaterialSlot& material_slot = material_comp->AddMaterialSlot();
             }
 
-            std::vector<ecs::Entity> mesh_entities;
-            mesh_entities.reserve(aiscene->mNumMeshes);
-
             ecs::GeometryComponent* geometry_comp = target_scene_in->AddComponent<ecs::GeometryComponent>(root_entity);
             geometry_comp->mesh = std::make_shared<resource::Mesh>();
 
@@ -321,6 +318,7 @@ namespace won::plugin
                 }
             }
 
+            geometry_comp->mesh->CreateRenderData(device_in);
             std::string log = "AssetImporter::Import succeeded: " + std::string(file_path_in);
             backlog::Post(log, backlog::LogLevel::Default);
 
