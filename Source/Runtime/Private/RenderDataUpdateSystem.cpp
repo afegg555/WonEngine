@@ -17,25 +17,37 @@ namespace won::ecs
         Scene::RenderData& render_data = scene.GetRenderData();
         
         const auto geometry_array = scene.GetComponentArray<GeometryComponent>().get();
-        render_data.shader_geometry.resize(geometry_array->GetSize());
+
+        // compute prefix sum
+        Size submesh_sum = 0;
+        for (Size i = 0; i < geometry_array->GetSize(); ++i)
+        {
+            GeometryComponent& geometry_comp = geometry_array->data[i];
+            geometry_comp.geometry_offset = (uint32)submesh_sum;
+            submesh_sum += geometry_comp.mesh->submeshes.size();
+        }
+        render_data.shader_geometry.resize(submesh_sum);
 
         jobsystem::Dispatch(sub_ctx, (uint32_t)geometry_array->GetSize(), groupsize, [&](jobsystem::JobArgs args) {
             const GeometryComponent& geometry_comp = geometry_array->data[args.job_index];
-            ShaderGeometry& shader_geometry = render_data.shader_geometry[args.job_index];
-            shader_geometry.Init();
-            shader_geometry.bounds_min = geometry_comp.local_bounds.min;
-            shader_geometry.bounds_max = geometry_comp.local_bounds.max;
-
             const resource::Mesh::RenderData* mesh_render_data = geometry_comp.mesh->GetRenderData();
-            if (mesh_render_data)
+            for (Size i = 0; i < geometry_comp.mesh->submeshes.size(); ++i)
             {
-                shader_geometry.position_buffer_descriptor = mesh_render_data->positions.handle.descriptor_index;
-                shader_geometry.color_buffer_descriptor = mesh_render_data->colors.handle.descriptor_index;
-                shader_geometry.normal_buffer_descriptor = mesh_render_data->normals.handle.descriptor_index;
-                shader_geometry.texcoord_buffer_descriptor = mesh_render_data->texcoords.handle.descriptor_index;
-                shader_geometry.tangent_buffer_descriptor = mesh_render_data->tangents.handle.descriptor_index;
-                shader_geometry.index_buffer_descriptor = mesh_render_data->indices.handle.descriptor_index;
-                shader_geometry.index_count = static_cast<uint32>(geometry_comp.mesh->indices.size());
+                ShaderGeometry& shader_geometry = render_data.shader_geometry[geometry_comp.geometry_offset + i];
+                shader_geometry.Init();
+                shader_geometry.bounds_min = geometry_comp.mesh->submeshes[i].local_bounds.min;
+                shader_geometry.bounds_max = geometry_comp.mesh->submeshes[i].local_bounds.max;
+
+                if (mesh_render_data)
+                {
+                    shader_geometry.position_buffer_descriptor = mesh_render_data->positions.handle.descriptor_index;
+                    shader_geometry.color_buffer_descriptor = mesh_render_data->colors.handle.descriptor_index;
+                    shader_geometry.normal_buffer_descriptor = mesh_render_data->normals.handle.descriptor_index;
+                    shader_geometry.texcoord_buffer_descriptor = mesh_render_data->texcoords.handle.descriptor_index;
+                    shader_geometry.tangent_buffer_descriptor = mesh_render_data->tangents.handle.descriptor_index;
+                    shader_geometry.index_buffer_descriptor = mesh_render_data->indices.handle.descriptor_index;
+                    shader_geometry.index_count = geometry_comp.mesh->submeshes[i].index_count;
+                }
             }
             });
 
@@ -79,7 +91,7 @@ namespace won::ecs
         const auto transform_array = scene.GetComponentArray<TransformComponent>().get();
         render_data.shader_instance.resize(transform_array->GetSize());
 
-        render_data.renderables.resize(transform_array->GetSize()); // pre allocated size
+        render_data.renderables.resize(submesh_sum);
         std::atomic<uint32> renderable_count{ 0 };
 
         jobsystem::Dispatch(sub_ctx, (uint32_t)transform_array->GetSize(), groupsize, [&](jobsystem::JobArgs args) {
@@ -99,6 +111,7 @@ namespace won::ecs
             if (geometry_array->HasData(entity) && material_array->HasData(entity))
             {
                 const GeometryComponent& geometry_comp = geometry_array->GetData(entity);
+                const MaterialComponent& material_comp = material_array->GetData(entity);
                 const resource::Mesh::RenderData* mesh_render_data = geometry_comp.mesh->GetRenderData();
                 if (!mesh_render_data || !mesh_render_data->buffer)
                 {
@@ -113,8 +126,8 @@ namespace won::ecs
                     Scene::RenderData::Renderable& renderable = render_data.renderables[index + i];
                     ObjectPushConstants& push_constants = renderable.push_constants;
                     push_constants.Init();
-                    push_constants.geometry_index = (uint)geometry_array->entity_to_index[entity];
-                    push_constants.material_index = (uint)material_array->entity_to_index[entity] + submesh.material_slot;
+                    push_constants.geometry_index = geometry_comp.geometry_offset + (uint)i;
+                    push_constants.material_index = material_comp.material_offset + submesh.material_slot;
                     push_constants.instance_index = (uint)transform_array->entity_to_index[entity];
 
                     renderable.index_buffer = mesh_render_data->buffer;

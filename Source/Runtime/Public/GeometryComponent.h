@@ -12,5 +12,7 @@ namespace won::ecs
 
         math::AABB local_bounds = {};
         bool cast_shadow = true;
+
+        uint32 geometry_offset = 0; // internal usage
     };
 }
