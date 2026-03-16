@@ -319,6 +319,16 @@ set(PLUGIN_ASSET_IMPORTER
     Source/Plugins/AssetImporter/AssetImporter.cpp
 )
 
+set(PLUGIN_SAMPLE
+    Source/Plugins/PluginSample/PluginSample.h
+    Source/Plugins/PluginSample/PluginSample.cpp
+)
+
+set(PLUGIN_CAMERA_CONTROLLER
+    Source/Plugins/CameraController/CameraController.h
+    Source/Plugins/CameraController/CameraController.cpp
+)
+
 add_executable(Editor
     ${Editor_PUBLIC}
     ${Editor_IMGUI}
@@ -334,6 +344,14 @@ add_library(AssetImporter SHARED
     ${PLUGIN_ASSET_IMPORTER}
 )
 
+add_library(PluginSample SHARED
+    ${PLUGIN_SAMPLE}
+)
+
+add_library(CameraController SHARED
+    ${PLUGIN_CAMERA_CONTROLLER}
+)
+
 target_include_directories(Runtime
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Runtime/Public>
@@ -343,12 +361,15 @@ target_include_directories(Runtime
 )
 
 target_link_libraries(Editor PRIVATE Runtime)
+add_dependencies(Editor AssetImporter CameraController)
 target_link_libraries(ShaderOfflineCompiler PRIVATE Runtime)
 target_link_libraries(AssetImporter PRIVATE
     Runtime
     debug assimp-vc143-mtd
     optimized assimp-vc143-mt
 )
+target_link_libraries(PluginSample PRIVATE Runtime)
+target_link_libraries(CameraController PRIVATE Runtime)
 target_include_directories(AssetImporter PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins/AssetImporter/ThirdParty/assimp/include>
 )
@@ -370,6 +391,13 @@ set_target_properties(AssetImporter PROPERTIES
     FOLDER "Plugins"
 )
 
+set_target_properties(PluginSample PROPERTIES
+    FOLDER "Plugins"
+)
+
+set_target_properties(CameraController PROPERTIES
+    FOLDER "Plugins"
+)
 target_compile_definitions(Runtime
     PRIVATE
         WONENGINE_EXPORTS

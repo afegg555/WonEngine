@@ -335,5 +335,5 @@ namespace won::plugin
         };
     };
 
-    IMPLEMENT_PLUGIN(AssetImporter, AssetImporters);
+    IMPLEMENT_PLUGIN(AssetImporter, PAssetImporter);
 }
