@@ -25,12 +25,12 @@ namespace won::resource::shaderloader
             BinaryArchive archive(dependency_path, ArchiveMode::Read);
             if (!archive.IsEnd())
             {
-                String root = io::GetDirectoryFromPath(dependency_path);
+                //String root = io::GetDirectoryFromPath(dependency_path);
                 Vector<String> dependencies;
                 Serialize(archive, dependencies);
                 for (auto& dep : dependencies)
                 {
-                    std::string dependency = root + dep;
+                    std::string dependency = dep;
                     if (io::Exists(dependency))
                     {
                         uint64 dep_timestamp = 0ull;

@@ -268,6 +268,10 @@ namespace won::io
 			inputs.insert(std::make_pair(button, 0));
 			return true;
 		}
+		if (iter->second == 0)
+		{
+			return true;
+		}
 
 		return false;
 	}
@@ -281,9 +285,12 @@ namespace won::io
 
 			return false;
 		}
+		if (iter->second == -1)
+		{
+			return true;
+		}
 
-		inputs.erase(iter);
-		return true;
+		return false;
 	}
 	bool IsDoubleClicked()
 	{

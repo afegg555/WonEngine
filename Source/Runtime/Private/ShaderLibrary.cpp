@@ -37,10 +37,11 @@ namespace won::resource
                 if (!shaderloader::LoadShader(shader_compiler, entry, shader))
                 {
                     load_succeeded.store(false);
-                    return;
                 }
-
-                SetShader(entry.shader_id, shader);
+                else
+                {
+                    SetShader(entry.shader_id, shader);
+                }
             });
         }
 

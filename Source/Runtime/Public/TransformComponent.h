@@ -56,14 +56,16 @@ namespace won::ecs
         }
         void MatrixTransform(const float4x4& matrix)
         {
+            MatrixTransform(XMLoadFloat4x4(&matrix));
+        }
+        void MatrixTransform(const XMMATRIX& matrix)
+        {
             SetDirty();
 
-            XMMATRIX xmat = XMLoadFloat4x4(&matrix);
-            
             XMVECTOR S;
             XMVECTOR R;
             XMVECTOR T;
-            XMMatrixDecompose(&S, &R, &T, GetLocalTransform() * xmat);
+            XMMatrixDecompose(&S, &R, &T, GetLocalTransform() * matrix);
 
             XMStoreFloat3(&scale, S);
             XMStoreFloat4(&rotation, R);
@@ -72,9 +74,9 @@ namespace won::ecs
         void ClearTransform()
         {
             SetDirty();
-            scale = XMFLOAT3(1, 1, 1);
-            rotation = XMFLOAT4(0, 0, 0, 1);
-            position = XMFLOAT3(0, 0, 0);
+            scale = float3(1, 1, 1);
+            rotation = float4(0, 0, 0, 1);
+            position = float3(0, 0, 0);
         }
         
         void UpdateTransform()
