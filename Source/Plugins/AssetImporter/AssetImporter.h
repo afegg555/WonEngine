@@ -13,6 +13,6 @@ namespace won::plugin
     // public APIs
     struct AssetImporterAPI
     {
-        bool (*Import)(IPlugin* self, const char* file_path_in, ecs::Scene* target_scene_in, RHIDevice* device_in, ecs::Entity root_entity_out);
+        bool (*Import)(IPlugin* self, const char* file_path_in, ecs::Scene* target_scene_in, RHIDevice* device_in, ecs::Entity& root_entity_out);
     };
 }

@@ -33,7 +33,7 @@ namespace won::plugin
             return;
         }
 
-        bool Import(const char* file_path_in, ecs::Scene* target_scene_in, RHIDevice* device_in, ecs::Entity root_entity_out)
+        bool Import(const char* file_path_in, ecs::Scene* target_scene_in, RHIDevice* device_in, ecs::Entity& root_entity_out)
         {
             
             std::string ext = io::GetExtension(file_path_in);
@@ -191,7 +191,7 @@ namespace won::plugin
                 {
                     if (!x.name.empty())
                     {
-                        x.name = dir + x.name;
+                        x.name = dir + "/" + x.name;
 
                         std::shared_ptr<resource::Image> image = resource::LoadImageFile(x.name, 4);
                         if (!image || !image->IsValid())
@@ -210,7 +210,16 @@ namespace won::plugin
                         texture_desc.usage = RHIResourceUsage::Default;
                         texture_desc.bind_flags = RHIBindFlags::ShaderResource;
 
-                        std::shared_ptr<RHIResource> texture_resource = device_in->CreateTexture(texture_desc, image->pixels.data(), image->pixels.size());
+                        x.texture =  device_in->CreateTexture(texture_desc, image->pixels.data(), image->pixels.size());
+
+                        RHISubresourceDesc texture_srv_desc = {};
+                        texture_srv_desc.type = RHISubresourceType::ShaderResource;
+                        texture_srv_desc.first_slice = 0;
+                        texture_srv_desc.slice_count = 1;
+                        texture_srv_desc.first_mip = 0;
+                        texture_srv_desc.mip_count = 1;
+
+                        device_in->CreateSubresource(*x.texture, texture_srv_desc, &x.res_handle);
                     }
                 }
             }
@@ -322,10 +331,11 @@ namespace won::plugin
             std::string log = "AssetImporter::Import succeeded: " + std::string(file_path_in);
             backlog::Post(log, backlog::LogLevel::Default);
 
+            root_entity_out = root_entity;
             return true;
         }
     private:
-        static bool ImportThunk(IPlugin* self, const char* file_path_in, ecs::Scene* target_scene_in, RHIDevice* device_in, ecs::Entity root_entity_out)
+        static bool ImportThunk(IPlugin* self, const char* file_path_in, ecs::Scene* target_scene_in, RHIDevice* device_in, ecs::Entity& root_entity_out)
         {
             return static_cast<AssetImporter*>(self)->Import(file_path_in, target_scene_in, device_in, root_entity_out);
         }

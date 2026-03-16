@@ -25,17 +25,21 @@ namespace won::plugin
     }
     PluginManager::~PluginManager()
     {
-        for (auto& entry : p_impl->plugins)
         {
-            if (entry.second.native_handle)
+            std::lock_guard<std::mutex> lock(p_impl->vector_lock);
+            for (auto& entry : p_impl->plugins)
             {
-                entry.second.plugin->Shutdown();
-                entry.second.plugin.reset();
+                if (entry.second.native_handle)
+                {
+                    entry.second.plugin->Shutdown();
+                    entry.second.plugin.reset();
 #if defined(_WIN32)
-                FreeLibrary((HMODULE)entry.second.native_handle);
+                    FreeLibrary((HMODULE)entry.second.native_handle);
 #endif
+                }
             }
         }
+
         delete p_impl;
     }
     bool PluginManager::LoadPlugin(const String& name)
