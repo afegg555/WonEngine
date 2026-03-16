@@ -1,6 +1,7 @@
 #pragma once
 #include "Types.h"
 #include "Renderer.h"
+#include "Timer.h"
 #include "Window.h"
 #include "View.h"
 #include "RHIDevice.h"
@@ -44,6 +45,8 @@ namespace won
         std::shared_ptr<platform::Window> window;
         std::shared_ptr<rendering::Renderer> renderer;
         rendering::View main_view;
+        utils::Timer frame_timer;
+        bool is_first_frame = true;
     };
 }
 

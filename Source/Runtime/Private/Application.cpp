@@ -38,6 +38,8 @@ namespace won
         main_view.scissor.width = 1280;
         main_view.scissor.height = 720;
 
+        frame_timer.Reset();
+        is_first_frame = true;
         is_running = true;
     }
 
@@ -70,7 +72,19 @@ namespace won
         ProcessWindowResize();
         eventhandler::FireEvent(eventhandler::EVENT_THREAD_SAFE_POINT, 0);
 
-        Update(0.f);
+        float dt = 0.0f;
+        if (is_first_frame)
+        {
+            is_first_frame = false;
+            frame_timer.Reset();
+        }
+        else
+        {
+            dt = static_cast<float>(frame_timer.ElapsedSeconds());
+            frame_timer.Reset();
+        }
+
+        Update(dt);
         Render();
     }
     
