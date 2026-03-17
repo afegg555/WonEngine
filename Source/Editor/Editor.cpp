@@ -199,73 +199,12 @@ namespace won::editor
 			return;
 		}
 
-		float2 mouse_pos = io::GetMouseState().position;
-		float2 viewport_mouse_pos = { mouse_pos.x - main_viewport_pos.x, mouse_pos.y - main_viewport_pos.y };
-		const float camera_speed = 5.0f;
-
-		static bool pressed = false;
-		CameraState camera_state;
-
-		if (0 <= viewport_mouse_pos.x && viewport_mouse_pos.x <= main_viewport_size.x &&
-			0 <= viewport_mouse_pos.y && viewport_mouse_pos.y <= main_viewport_size.y)
-		{
-			if (io::IsPressed(io::Button::MOUSE_BUTTON_LEFT) || io::IsPressed(io::Button::MOUSE_BUTTON_RIGHT))
-			{
-				pressed = true;
-
-				ControllerState controller_state;
-				controller_state.rotate_speed = 1.f;
-				controller_state.screen_size = main_viewport_size;
-				controller_state.zoom_sensitivity = 0.005f;
-
-				camera_state.cam_pos = camera->eye;
-				camera_state.cam_view = camera->forward;
-				camera_state.cam_up = camera->up;
-
-				controller_api->SetControllerState(camera_controller, controller_state);
-				controller_api->Start(camera_controller, viewport_mouse_pos, camera_state);
-			}
-		}
-
-		if (pressed && io::IsDown(io::Button::MOUSE_BUTTON_LEFT))
-		{
-			controller_api->PanMove(camera_controller, viewport_mouse_pos, camera_state);
-			transform->position = camera_state.cam_pos;
-			transform->SetDirty();
-		}
-
-		if (pressed && io::IsDown(io::Button::MOUSE_BUTTON_RIGHT))
-		{
-			controller_api->Rotate(camera_controller, viewport_mouse_pos, camera_state);
-			
-			XMVECTOR xeye = XMLoadFloat3(&camera_state.cam_pos);
-			XMVECTOR xview = XMVector3Normalize(XMLoadFloat3(&camera_state.cam_view));
-			XMVECTOR xup = XMVector3Normalize(XMLoadFloat3(&camera_state.cam_up));
-
-			XMVECTOR xright = XMVector3Normalize(XMVector3Cross(xup, xview));
-			XMVECTOR xup_reortho = XMVector3Normalize(XMVector3Cross(xview, xright));
-
-			XMMATRIX cam_world;
-			cam_world.r[0] = XMVectorSetW(xright, 0.0f);
-			cam_world.r[1] = XMVectorSetW(xup_reortho, 0.0f);
-			cam_world.r[2] = XMVectorSetW(xview, 0.0f);
-			cam_world.r[3] = XMVectorSetW(xeye, 1.0f);
-
-			XMVECTOR xrotation = XMQuaternionRotationMatrix(cam_world);
-			XMStoreFloat3(&transform->position, xeye);
-			XMStoreFloat4(&transform->rotation, xrotation);
-			transform->SetDirty();
-		}
-
-		if (pressed &&
-			(io::IsReleased(io::Button::MOUSE_BUTTON_LEFT) || io::IsReleased(io::Button::MOUSE_BUTTON_RIGHT)))
-		{
-			pressed = false;
-		}
-
+		// assume editor camera has no hierarchy
 		XMVECTOR xforward = XMVector3Normalize(XMLoadFloat3(&camera->forward));
 		XMVECTOR xup = XMVector3Normalize(XMLoadFloat3(&camera->up));
 		XMVECTOR xright = XMVector3Normalize(XMVector3Cross(xup, xforward));
+
+		const float camera_speed = 5.0f;
 
 		if (won::io::IsDown(io::Button('W')))
 		{
@@ -291,6 +230,105 @@ namespace won::editor
 			XMStoreFloat3(&translation, XMVectorScale(xright, dt * camera_speed));
 			transform->Translate(translation);
 		}
+
+		float2 mouse_pos = io::GetMouseState().position;
+		float2 viewport_mouse_pos = { mouse_pos.x - main_viewport_pos.x, mouse_pos.y - main_viewport_pos.y };
+
+		static bool pressed = false;
+		static float2 prev_mouse_pos{};
+
+		if (0 <= viewport_mouse_pos.x && viewport_mouse_pos.x <= main_viewport_size.x &&
+			0 <= viewport_mouse_pos.y && viewport_mouse_pos.y <= main_viewport_size.y)
+		{
+			if (io::IsPressed(io::Button::MOUSE_BUTTON_LEFT) || io::IsPressed(io::Button::MOUSE_BUTTON_RIGHT)
+				|| io::IsPressed(io::Button::MOUSE_BUTTON_MIDDLE))
+			{
+				pressed = true;
+
+				ControllerState controller_state;
+				controller_state.rotate_speed = 1.f;
+				controller_state.screen_size = main_viewport_size;
+				controller_state.zoom_speed = 0.005f;
+				controller_state.rotate_speed = 1.f;
+				controller_state.orbit_speed = 1.f;
+				controller_state.focus_point = { 0.f, 0.f, 0.f };
+
+				controller_api->SetControllerState(camera_controller, controller_state);
+
+				prev_mouse_pos = viewport_mouse_pos;
+			}
+		}
+
+		if (pressed)
+		{
+			float2 mouse_delta = { viewport_mouse_pos.x - prev_mouse_pos.x, viewport_mouse_pos.y - prev_mouse_pos.y };
+			if (!math::float_equal(mouse_delta.x, 0.f)
+				|| !math::float_equal(mouse_delta.y, 0.f))
+			{
+				// assume editor camera has no hierarchy
+				transform->UpdateTransform();
+				XMMATRIX xmat = transform->GetWorldTransform();
+				float4x4 mat{};
+				XMStoreFloat4x4(&mat, xmat);
+				float3 cam_pos = math::GetPosition(mat);
+				backlog::Post(std::to_string(cam_pos.y));
+
+				CameraState camera_state;
+				camera_state.cam_pos = cam_pos;
+				camera_state.cam_view = camera->forward;
+				camera_state.cam_up = camera->up;
+
+				const bool is_panmove = io::IsDown(io::Button::MOUSE_BUTTON_LEFT);
+				const bool is_rotate = io::IsDown(io::Button::MOUSE_BUTTON_RIGHT);
+				const bool is_orbit = io::IsDown(io::Button::MOUSE_BUTTON_MIDDLE);
+
+				if (is_panmove)
+				{
+					controller_api->PanMove(camera_controller, mouse_delta, camera_state);
+					transform->position = camera_state.cam_pos;
+					transform->SetDirty();
+				}
+
+				if(is_rotate || is_orbit)
+				{
+					if (is_rotate)
+					{
+						controller_api->Rotate(camera_controller, mouse_delta, camera_state);
+					}
+					else
+					{
+						controller_api->Orbit(camera_controller, mouse_delta, camera_state);
+					}
+
+					XMVECTOR xeye = XMLoadFloat3(&camera_state.cam_pos);
+					XMVECTOR xview = XMVector3Normalize(XMLoadFloat3(&camera_state.cam_view));
+					XMVECTOR xup = XMVector3Normalize(XMLoadFloat3(&camera_state.cam_up));
+
+					XMVECTOR xright = XMVector3Normalize(XMVector3Cross(xup, xview));
+					XMVECTOR xup_reortho = XMVector3Normalize(XMVector3Cross(xview, xright));
+
+					XMMATRIX cam_world;
+					cam_world.r[0] = XMVectorSetW(xright, 0.0f);
+					cam_world.r[1] = XMVectorSetW(xup_reortho, 0.0f);
+					cam_world.r[2] = XMVectorSetW(xview, 0.0f);
+					cam_world.r[3] = XMVectorSetW(xeye, 1.0f);
+
+					XMVECTOR xrotation = XMQuaternionRotationMatrix(cam_world);
+					XMStoreFloat3(&transform->position, xeye);
+					XMStoreFloat4(&transform->rotation, xrotation);
+					transform->SetDirty();
+				}
+
+				prev_mouse_pos = viewport_mouse_pos;
+			}
+
+			if (io::IsReleased(io::Button::MOUSE_BUTTON_LEFT) || io::IsReleased(io::Button::MOUSE_BUTTON_RIGHT)
+				|| io::IsReleased(io::Button::MOUSE_BUTTON_MIDDLE))
+			{
+				pressed = false;
+			}
+		}
+		
 	}
 
 	void EditorApplication::LoadDefaultPlugins()
