@@ -1,6 +1,6 @@
 #include "imgui-docking/imgui.h"
 
-namespace won::editor
+namespace won::editor::theme
 {
 	void SetupVisualStudioStyle()
 	{

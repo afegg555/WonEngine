@@ -2,7 +2,7 @@
 
 namespace won
 {
-	namespace editor
+	namespace editor::theme
 	{
 		void SetupVisualStudioStyle();
 	}

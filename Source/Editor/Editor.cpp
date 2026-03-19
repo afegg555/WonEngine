@@ -111,7 +111,7 @@ namespace won::editor
 
 		// Setup Dear ImGui style
 		//ImGui::StyleColorsDark();
-		SetupVisualStudioStyle();
+		theme::SetupVisualStudioStyle();
 
 #ifdef _WIN32
 		window->SetPlatformMessageHandler([](void* hwnd, uint32 message, Size wparam, Size lparam) -> bool
@@ -271,7 +271,6 @@ namespace won::editor
 				float4x4 mat{};
 				XMStoreFloat4x4(&mat, xmat);
 				float3 cam_pos = math::GetPosition(mat);
-				backlog::Post(std::to_string(cam_pos.y));
 
 				CameraState camera_state;
 				camera_state.cam_pos = cam_pos;
@@ -696,9 +695,6 @@ namespace won::editor
 			std::string file_path = contents_root_dir + "/Models/glTF/Sponza/glTF/Sponza.gltf";
 			ecs::Entity root_entity{};
 			api->Import(asset_importer.get(), file_path.c_str(), &scene, device.get(), root_entity);
-
-			auto root_transform = scene.GetComponent<ecs::TransformComponent>(root_entity);
-			root_transform->Scale({ 0.01, 0.01, 0.01 });
 
 			auto material_component = scene.GetComponent<ecs::MaterialComponent>(root_entity);
 			for (uint32 i = 0; i < (uint32)material_component->GetMaterialSlotCount(); i++)
