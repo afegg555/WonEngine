@@ -623,6 +623,87 @@ namespace won::rendering
         resource_dx12->SetCurrentState(after);
     }
 
+    void RHICommandListDX12::TransitionSubresource(RHIResource& resource,
+        RHIResourceState before_state,
+        RHIResourceState after_state,
+        uint32 first_mip, uint32 mip_count,
+        uint32 first_slice, uint32 slice_count)
+    {
+        if (!command_list)
+        {
+            return;
+        }
+
+        auto resource_dx12 = dynamic_cast<RHIResourceDX12*>(&resource);
+        if (!resource_dx12 || !resource_dx12->GetResource())
+        {
+            return;
+        }
+
+        const D3D12_RESOURCE_STATES before = ToD3D12State(before_state);
+        const D3D12_RESOURCE_STATES after = ToD3D12State(after_state);
+        if (before == after || mip_count == 0 || slice_count == 0)
+        {
+            return;
+        }
+
+        const RHIResourceDesc& resource_desc = resource_dx12->GetDesc();
+        const uint32 mip_levels = resource_desc.texture_desc.mip_levels;
+        const uint32 total_slices = resource_desc.type == RHIResourceType::Texture3D ? 1u : resource_desc.texture_desc.array_layers;
+        if (mip_levels == 0 || first_mip >= mip_levels || first_slice >= total_slices)
+        {
+            return;
+        }
+
+        Vector<D3D12_RESOURCE_BARRIER> barriers;
+        barriers.reserve(static_cast<Size>(mip_count) * static_cast<Size>(slice_count));
+
+        for (uint32 slice_index = 0; slice_index < slice_count; ++slice_index)
+        {
+            for (uint32 mip_index = 0; mip_index < mip_count; ++mip_index)
+            {
+                D3D12_RESOURCE_BARRIER barrier = {};
+                barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+                barrier.Transition.pResource = resource_dx12->GetResource();
+                barrier.Transition.StateBefore = before;
+                barrier.Transition.StateAfter = after;
+                barrier.Transition.Subresource =
+                    (first_mip + mip_index) +
+                    ((first_slice + slice_index) * mip_levels);
+                barriers.push_back(barrier);
+            }
+        }
+
+        if (!barriers.empty())
+        {
+            command_list->ResourceBarrier(static_cast<UINT>(barriers.size()), barriers.data());
+        }
+
+        if (first_mip == 0 && mip_count == mip_levels && first_slice == 0 && slice_count == total_slices)
+        {
+            resource_dx12->SetCurrentState(after);
+        }
+    }
+
+    void RHICommandListDX12::UAVBarrier(RHIResource& resource)
+    {
+        if (!command_list)
+        {
+            return;
+        }
+
+        auto resource_dx12 = dynamic_cast<RHIResourceDX12*>(&resource);
+        if (!resource_dx12 || !resource_dx12->GetResource())
+        {
+            return;
+        }
+
+        D3D12_RESOURCE_BARRIER barrier = {};
+        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+        barrier.UAV.pResource = resource_dx12->GetResource();
+        command_list->ResourceBarrier(1, &barrier);
+    }
+
     ID3D12GraphicsCommandList* RHICommandListDX12::GetCommandList() const
     {
         return command_list.Get();

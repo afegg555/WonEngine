@@ -109,6 +109,12 @@ namespace won::rendering
 
         virtual void TransitionResource(RHIResource& resource,
             RHIResourceState after_state) = 0;
+        virtual void TransitionSubresource(RHIResource& resource,
+            RHIResourceState before_state,
+            RHIResourceState after_state,
+            uint32 first_mip = 0, uint32 mip_count = 1,
+            uint32 first_slice = 1, uint32 slice_count = 1) = 0;
+        virtual void UAVBarrier(RHIResource& resource) = 0;
 
     protected:
         DescriptorBindingTable descriptor_binding_table;

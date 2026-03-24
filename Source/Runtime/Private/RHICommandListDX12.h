@@ -71,6 +71,12 @@ namespace won::rendering
 
         void TransitionResource(RHIResource& resource,
             RHIResourceState after_state) override;
+        void TransitionSubresource(RHIResource& resource,
+            RHIResourceState before_state,
+            RHIResourceState after_state,
+            uint32 first_mip = 0, uint32 mip_count = 1,
+            uint32 first_slice = 1, uint32 slice_count = 1) override;
+        void UAVBarrier(RHIResource& resource) override;
 
         ID3D12GraphicsCommandList* GetCommandList() const;
 
