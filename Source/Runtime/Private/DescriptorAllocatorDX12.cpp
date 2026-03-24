@@ -475,8 +475,10 @@ namespace won::rendering
         }
 
         const D3D12_RESOURCE_DESC native_desc = native_resource->GetDesc();
+        const RHIResourceDesc& resource_desc = resource.GetDesc();
+        const RHIFormat logical_format = desc.format != RHIFormat::Unknown ? desc.format : resource_desc.texture_desc.format;
         D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {};
-        srv_desc.Format = desc.format != RHIFormat::Unknown ? ToDXGIFormat(desc.format) : native_desc.Format;
+        srv_desc.Format = desc.format != RHIFormat::Unknown || resource_desc.type != RHIResourceType::Buffer ? ToDXGISrvFormat(logical_format) : native_desc.Format;
         srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 
         if (native_desc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER)
@@ -539,8 +541,10 @@ namespace won::rendering
         }
 
         const D3D12_RESOURCE_DESC native_desc = native_resource->GetDesc();
+        const RHIResourceDesc& resource_desc = resource.GetDesc();
+        const RHIFormat logical_format = desc.format != RHIFormat::Unknown ? desc.format : resource_desc.texture_desc.format;
         D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc = {};
-        uav_desc.Format = desc.format != RHIFormat::Unknown ? ToDXGIFormat(desc.format) : native_desc.Format;
+        uav_desc.Format = desc.format != RHIFormat::Unknown || resource_desc.type != RHIResourceType::Buffer ? ToDXGIUavFormat(logical_format) : native_desc.Format;
         if (native_desc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER)
         {
             if (desc.buffer_stride == 0)

@@ -75,4 +75,37 @@ namespace won::rendering
         default: return DXGI_FORMAT_UNKNOWN;
         }
     }
+
+    inline DXGI_FORMAT ToDXGIResourceFormat(RHIFormat format)
+    {
+        switch (format)
+        {
+        case RHIFormat::R8G8B8A8UnormSrgb:
+            return DXGI_FORMAT_R8G8B8A8_TYPELESS;
+        default:
+            return ToDXGIFormat(format);
+        }
+    }
+
+    inline DXGI_FORMAT ToDXGISrvFormat(RHIFormat format)
+    {
+        switch (format)
+        {
+        case RHIFormat::R8G8B8A8UnormSrgb:
+            return DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+        default:
+            return ToDXGIFormat(format);
+        }
+    }
+
+    inline DXGI_FORMAT ToDXGIUavFormat(RHIFormat format)
+    {
+        switch (format)
+        {
+        case RHIFormat::R8G8B8A8UnormSrgb:
+            return DXGI_FORMAT_R8G8B8A8_UNORM;
+        default:
+            return ToDXGIFormat(format);
+        }
+    }
 }

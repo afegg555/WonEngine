@@ -14,7 +14,8 @@ namespace won::resource
         MainPass,
         Count
     };
-
+    // TODO: determine the responsibility for pipeline management;
+    // graphics / compute shader pipeline management.
     class ShaderLibrary
     {
     public:

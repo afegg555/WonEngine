@@ -49,6 +49,11 @@ namespace won::rendering
         return static_cast<RHIBindFlags>(static_cast<uint32>(lhs) & static_cast<uint32>(rhs));
     }
 
+    inline bool HasBindFlag(RHIBindFlags flags, RHIBindFlags flag)
+    {
+        return (static_cast<uint32>(flags) & static_cast<uint32>(flag)) != 0;
+    }
+
     enum class RHIFormat
     {
         Unknown,

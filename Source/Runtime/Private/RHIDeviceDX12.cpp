@@ -14,6 +14,7 @@
 #include "RHIFormatDX12.h"
 #include "DescriptorAllocatorDX12.h"
 #include "RHIFenceDX12.h"
+#include "RenderingUtils.h"
 
 #include "DirectX-Headers/d3dx12_default.h"
 #include "DirectX-Headers/d3dx12_check_feature_support.h"
@@ -48,11 +49,6 @@ namespace won::rendering
             default:
                 return "Unknown";
             }
-        }
-
-        bool HasBindFlag(RHIBindFlags flags, RHIBindFlags flag)
-        {
-            return (static_cast<uint32>(flags) & static_cast<uint32>(flag)) != 0;
         }
 
         Size AlignConstantBufferByteSize(Size size_in_bytes)
@@ -417,7 +413,7 @@ namespace won::rendering
             adapter->GetDesc1(&selected_adapter_desc);
         }
 
-        const String adapter_name = utils::ToString(selected_adapter_desc.Description);
+        const String adapter_name = won::utils::ToString(selected_adapter_desc.Description);
         if (!adapter_name.empty())
         {
             wonlog("DX12 Adapter: %s", adapter_name.c_str());
@@ -714,6 +710,12 @@ namespace won::rendering
         {
             flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
         }
+        if (desc.mip_levels > 1 &&
+            (desc.format == RHIFormat::R8G8B8A8Unorm || desc.format == RHIFormat::R8G8B8A8UnormSrgb) &&
+            !HasBindFlag(desc.bind_flags, RHIBindFlags::DepthStencil))
+        {
+            flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+        }
 
         D3D12_RESOURCE_DIMENSION dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
         uint16 depth_or_array_size = static_cast<uint16>(desc.array_layers);
@@ -730,7 +732,7 @@ namespace won::rendering
         resource_desc.Height = desc.height;
         resource_desc.DepthOrArraySize = depth_or_array_size;
         resource_desc.MipLevels = static_cast<uint16>(desc.mip_levels);
-        resource_desc.Format = ToDXGIFormat(desc.format);
+        resource_desc.Format = ToDXGIResourceFormat(desc.format);
         resource_desc.SampleDesc.Count = desc.sample_count;
         resource_desc.SampleDesc.Quality = 0;
         resource_desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
@@ -781,11 +783,11 @@ namespace won::rendering
             std::vector<uint64> row_sizes;
             std::vector<uint> num_rows;
 
-            footprints.resize(desc.array_layers * desc.mip_levels);
+            footprints.resize(1); // upload only for mip level 0, the rest will be filled using compute shader
             row_sizes.resize(footprints.size());
             num_rows.resize(footprints.size());
 
-            device->GetCopyableFootprints(&resource_desc, 0, footprints.size(), 0, footprints.data(), num_rows.data(), row_sizes.data(), &total_size);
+            device->GetCopyableFootprints(&resource_desc, 0, 1, 0, footprints.data(), num_rows.data(), row_sizes.data(), &total_size);
 
             RHIBufferDesc upload_buffer_desc = {};
             upload_buffer_desc.size = total_size;
@@ -800,9 +802,9 @@ namespace won::rendering
 
             auto upload_allocator = CreateCommandAllocator(upload_queue_type);
             auto upload_command_list = CreateCommandList(upload_queue_type);
-            auto* upload_command_list_dx12 = dynamic_cast<RHICommandListDX12*>(upload_command_list.get());
-            auto* texture_resource_dx12 = dynamic_cast<RHIResourceDX12*>(texture_resource.get());
-            auto* upload_buffer_dx12 = dynamic_cast<RHIResourceDX12*>(upload_buffer.get());
+            auto upload_command_list_dx12 = dynamic_cast<RHICommandListDX12*>(upload_command_list.get());
+            auto texture_resource_dx12 = dynamic_cast<RHIResourceDX12*>(texture_resource.get());
+            auto upload_buffer_dx12 = dynamic_cast<RHIResourceDX12*>(upload_buffer.get());
 
             upload_allocator->Reset();
             upload_command_list->Begin(*upload_allocator);
@@ -835,7 +837,16 @@ namespace won::rendering
                     nullptr
                 );
             }
-            upload_command_list->TransitionResource(*texture_resource, RHIResourceState::ShaderRead);
+
+            if (desc.mip_levels > 1)
+            {
+                upload_command_list->TransitionResource(*texture_resource, RHIResourceState::ShaderWrite);
+            }
+            else
+            {
+                upload_command_list->TransitionResource(*texture_resource, RHIResourceState::ShaderRead);
+            }
+            
             upload_command_list->End();
 
             auto upload_fence = CreateFence(0);
@@ -855,6 +866,14 @@ namespace won::rendering
             {
                 upload_context->Submit(*upload_command_list);
                 upload_context->WaitIdle();
+            }
+            
+            if (desc.mip_levels > 1)
+            {
+                if (!won::rendering::utils::GenerateTextureMips(*this, *texture_resource, desc))
+                {
+                    backlog::Post("Failed to generate texture mips", backlog::LogLevel::Warning);
+                }
             }
         }
 

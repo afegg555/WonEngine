@@ -115,7 +115,9 @@ set(RUNTIME_RESOURCE
 
 set(RUNTIME_RENDERING
     Source/Runtime/Public/Renderer.h
+    Source/Runtime/Public/RenderingUtils.h
     Source/Runtime/Private/Renderer.cpp
+    Source/Runtime/Private/RenderingUtils.cpp
     Source/Runtime/Public/View.h
 )
 
@@ -213,6 +215,7 @@ set(RUNTIME_VERSION
 set(SHADERS_INTEROP
     Source/Shaders/ShaderInterop.h
     Source/Shaders/ShaderInterop_Renderer.h
+    Source/Shaders/ShaderInterop_Utility.h
 )
 
 set(SHADERS_HLSL
@@ -231,6 +234,7 @@ set(SHADERS_HLSL
     Source/Shaders/ObjectPS_simple.hlsl
     Source/Shaders/ObjectPS_common.hlsl
     Source/Shaders/ObjectPS_prepass.hlsl
+    Source/Shaders/TextureMipGenCS.hlsl
 )
 
 add_library(Runtime SHARED

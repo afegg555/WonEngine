@@ -206,18 +206,33 @@ namespace won::plugin
                         texture_desc.mip_levels = 1;
                         texture_desc.array_layers = 1;
                         texture_desc.sample_count = 1;
-                        texture_desc.format = RHIFormat::R8G8B8A8Unorm;
+                        texture_desc.format = (texture_slot == BASECOLORMAP || texture_slot == EMISSIVEMAP || texture_slot == SHEENCOLORMAP)
+                            ? RHIFormat::R8G8B8A8UnormSrgb
+                            : RHIFormat::R8G8B8A8Unorm;
                         texture_desc.usage = RHIResourceUsage::Default;
-                        texture_desc.bind_flags = RHIBindFlags::ShaderResource;
+                        texture_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
 
-                        x.texture =  device_in->CreateTexture(texture_desc, image->pixels.data(), image->pixels.size());
+                        uint32 mip_width = texture_desc.width;
+                        uint32 mip_height = texture_desc.height;
+                        while (mip_width > 1 || mip_height > 1)
+                        {
+                            mip_width = std::max(1u, mip_width / 2u);
+                            mip_height = std::max(1u, mip_height / 2u);
+                            ++texture_desc.mip_levels;
+                        }
+
+                        x.texture = device_in->CreateTexture(texture_desc, image->pixels.data(), image->pixels.size());
+                        if (!x.texture)
+                        {
+                            continue;
+                        }
 
                         RHISubresourceDesc texture_srv_desc = {};
                         texture_srv_desc.type = RHISubresourceType::ShaderResource;
                         texture_srv_desc.first_slice = 0;
                         texture_srv_desc.slice_count = 1;
                         texture_srv_desc.first_mip = 0;
-                        texture_srv_desc.mip_count = 1;
+                        texture_srv_desc.mip_count = texture_desc.mip_levels;
 
                         device_in->CreateSubresource(*x.texture, texture_srv_desc, &x.res_handle);
                     }

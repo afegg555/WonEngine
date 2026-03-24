@@ -12,13 +12,18 @@
 
 namespace won::rendering
 {
-    static D3D12_RESOURCE_STATES ToD3D12State(RHIResourceState state)
+    static D3D12_RESOURCE_STATES ToD3D12State(RHIQueueType queue_type, RHIResourceState state)
     {
         switch (state)
         {
         case RHIResourceState::CopySource: return D3D12_RESOURCE_STATE_COPY_SOURCE;
         case RHIResourceState::CopyDest: return D3D12_RESOURCE_STATE_COPY_DEST;
-        case RHIResourceState::ShaderRead: return D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+        case RHIResourceState::ShaderRead:
+            if (queue_type == RHIQueueType::Compute)
+            {
+                return D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+            }
+            return D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
         case RHIResourceState::ConstantBuffer: return D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
         case RHIResourceState::ShaderWrite: return D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
         case RHIResourceState::RenderTarget: return D3D12_RESOURCE_STATE_RENDER_TARGET;
@@ -607,7 +612,7 @@ namespace won::rendering
         }
 
         const D3D12_RESOURCE_STATES before = resource_dx12->GetCurrentState();
-        const D3D12_RESOURCE_STATES after = ToD3D12State(after_state);
+        const D3D12_RESOURCE_STATES after = ToD3D12State(queue_type, after_state);
         if (before == after)
         {
             return;
@@ -640,8 +645,8 @@ namespace won::rendering
             return;
         }
 
-        const D3D12_RESOURCE_STATES before = ToD3D12State(before_state);
-        const D3D12_RESOURCE_STATES after = ToD3D12State(after_state);
+        const D3D12_RESOURCE_STATES before = ToD3D12State(queue_type, before_state);
+        const D3D12_RESOURCE_STATES after = ToD3D12State(queue_type, after_state);
         if (before == after || mip_count == 0 || slice_count == 0)
         {
             return;
@@ -829,12 +834,12 @@ namespace won::rendering
         for (uint32 slot = 0; slot < descriptor_binder_cbv_count; ++slot)
         {
             const uint8 root_index = active_compute_binding_table->cbv[slot];
-            if (root_index == RHIPipelineDX12::RootSignatureBindingTable::invalid_root_parameter)
+            const RHISubresourceBinding& view = descriptor_binding_table.cbv[slot];
+            if (root_index == RHIPipelineDX12::RootSignatureBindingTable::invalid_root_parameter || !view.IsValid())
             {
                 continue;
             }
 
-            const RHISubresourceBinding& view = descriptor_binding_table.cbv[slot];
             auto resource_dx12 = dynamic_cast<RHIResourceDX12*>(view.resource);
 
             const RHIResourceDX12::SubresourceEntry* subresource_entry = resource_dx12->FindSubresourceEntry(view.subresource);
@@ -847,12 +852,11 @@ namespace won::rendering
         for (uint32 slot = 0; slot < descriptor_binder_srv_count; ++slot)
         {
             const uint8 root_index = active_compute_binding_table->srv[slot];
-            if (root_index == RHIPipelineDX12::RootSignatureBindingTable::invalid_root_parameter)
+            const RHISubresourceBinding& view = descriptor_binding_table.srv[slot];
+            if (root_index == RHIPipelineDX12::RootSignatureBindingTable::invalid_root_parameter || !view.IsValid())
             {
                 continue;
             }
-
-            const RHISubresourceBinding& view = descriptor_binding_table.srv[slot];
 
             D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = {};
             descriptor_allocator->GetGpuDescriptorHandle(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, view.subresource.descriptor_index, gpu_handle);
@@ -875,12 +879,11 @@ namespace won::rendering
         for (uint32 slot = 0; slot < descriptor_binder_uav_count; ++slot)
         {
             const uint8 root_index = active_compute_binding_table->uav[slot];
-            if (root_index == RHIPipelineDX12::RootSignatureBindingTable::invalid_root_parameter)
+            const RHISubresourceBinding& view = descriptor_binding_table.uav[slot];
+            if (root_index == RHIPipelineDX12::RootSignatureBindingTable::invalid_root_parameter || !view.IsValid())
             {
                 continue;
             }
-
-            const RHISubresourceBinding& view = descriptor_binding_table.uav[slot];
 
             D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = {};
             descriptor_allocator->GetGpuDescriptorHandle(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, view.subresource.descriptor_index, gpu_handle);
@@ -903,12 +906,12 @@ namespace won::rendering
         for (uint32 slot = 0; slot < descriptor_binder_sampler_count; ++slot)
         {
             const uint8 root_index = active_compute_binding_table->sam[slot];
-            if (root_index == RHIPipelineDX12::RootSignatureBindingTable::invalid_root_parameter)
+            const RHISampler* sampler = descriptor_binding_table.sam[slot];
+            if (root_index == RHIPipelineDX12::RootSignatureBindingTable::invalid_root_parameter || !sampler)
             {
                 continue;
             }
 
-            const RHISampler* sampler = descriptor_binding_table.sam[slot];
             auto sampler_dx12 = dynamic_cast<const RHISamplerDX12*>(sampler);
 
             D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = {};

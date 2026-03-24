@@ -32,7 +32,7 @@ inline int DescriptorIndex(in int descriptor_index)
 
 #define DEFAULT_ROOTSIGNATURE \
     "RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT), " \
-    "RootConstants(num32BitConstants = 4, b999), " \
+    "RootConstants(num32BitConstants = 5, b999), " \
     "CBV(b0), " \
     "CBV(b1), " \
 	"DescriptorTable( " \
