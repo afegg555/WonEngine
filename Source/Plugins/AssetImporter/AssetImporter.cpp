@@ -187,8 +187,9 @@ namespace won::plugin
                     material_slot.textures[METALLICMAP].name = tex.C_Str();
                 }
 
-                for (auto& x : material_slot.textures)
+                for (uint32 texture_slot = 0; texture_slot < TEXTURESLOT_COUNT; ++texture_slot)
                 {
+                    auto& x = material_slot.textures[texture_slot];
                     if (!x.name.empty())
                     {
                         x.name = dir + "/" + x.name;
@@ -247,53 +248,99 @@ namespace won::plugin
 
             ecs::GeometryComponent* geometry_comp = target_scene_in->AddComponent<ecs::GeometryComponent>(root_entity);
             geometry_comp->mesh = std::make_shared<resource::Mesh>();
-
-            // Load objects, meshes:
-            for (uint32_t mesh_index = 0; mesh_index < aiscene->mNumMeshes; ++mesh_index)
+            auto& mesh = *geometry_comp->mesh;
+            bool geometry_bounds_initialized = false;
+            bool import_failed = false;
+            struct NodeImportEntry
             {
-                const aiMesh* ai_mesh = aiscene->mMeshes[mesh_index];
-                const bool has_uv = ai_mesh->HasTextureCoords(0);
-                const bool has_tb = ai_mesh->HasTangentsAndBitangents();
-                const uint32 vertex_offset = static_cast<uint32>(geometry_comp->mesh->positions.size());
-                const uint32 index_offset = static_cast<uint32>(geometry_comp->mesh->indices.size());
-                resource::Submesh& submesh = geometry_comp->mesh->submeshes.emplace_back();
-                submesh.first_vertex = vertex_offset;
-                submesh.first_index = index_offset;
-                submesh.material_slot = ai_mesh->mMaterialIndex < material_comp->GetMaterialSlotCount() ? ai_mesh->mMaterialIndex : 0;
+                const aiNode* node = nullptr;
+                aiMatrix4x4 parent_transform;
+            };
 
-                if (ai_mesh->HasPositions() && ai_mesh->HasNormals())
+            Vector<NodeImportEntry> node_stack;
+            node_stack.push_back({ aiscene->mRootNode, aiMatrix4x4() });
+
+            while (!node_stack.empty() && !import_failed)
+            {
+                const NodeImportEntry entry = node_stack.back();
+                node_stack.pop_back();
+
+                const aiNode* node = entry.node;
+                const aiMatrix4x4 node_transform = entry.parent_transform * node->mTransformation;
+                aiMatrix3x3 tangent_matrix(node_transform);
+                aiMatrix3x3 normal_matrix(node_transform);
+                normal_matrix.Inverse().Transpose();
+
+                for (uint32_t node_mesh_index = 0; node_mesh_index < node->mNumMeshes; ++node_mesh_index)
                 {
-                    geometry_comp->mesh->positions.reserve(geometry_comp->mesh->positions.size() + ai_mesh->mNumVertices);
-                    geometry_comp->mesh->normals.reserve(geometry_comp->mesh->normals.size() + ai_mesh->mNumVertices);
+                    const aiMesh* ai_mesh = aiscene->mMeshes[node->mMeshes[node_mesh_index]];
+                    const bool has_uv = ai_mesh->HasTextureCoords(0);
+                    const bool has_tb = ai_mesh->HasTangentsAndBitangents();
+                    const uint32 vertex_offset = static_cast<uint32>(mesh.positions.size());
+                    const uint32 index_offset = static_cast<uint32>(mesh.indices.size());
+                    resource::Submesh& submesh = mesh.submeshes.emplace_back();
+                    submesh.first_vertex = vertex_offset;
+                    submesh.first_index = index_offset;
+                    submesh.material_slot = ai_mesh->mMaterialIndex < material_comp->GetMaterialSlotCount() ? ai_mesh->mMaterialIndex : 0;
+
+                    if (!(ai_mesh->HasPositions() && ai_mesh->HasNormals()))
+                    {
+                        import_failed = true;
+                        break;
+                    }
+
+                    mesh.positions.reserve(mesh.positions.size() + ai_mesh->mNumVertices);
+                    mesh.normals.reserve(mesh.normals.size() + ai_mesh->mNumVertices);
 
                     if (has_uv)
                     {
-                        geometry_comp->mesh->texcoords.reserve(geometry_comp->mesh->texcoords.size() + ai_mesh->mNumVertices);
+                        mesh.texcoords.reserve(mesh.texcoords.size() + ai_mesh->mNumVertices);
                     }
                     if (has_tb)
                     {
-                        geometry_comp->mesh->tangents.reserve(geometry_comp->mesh->tangents.size() + ai_mesh->mNumVertices);
+                        mesh.tangents.reserve(mesh.tangents.size() + ai_mesh->mNumVertices);
                     }
 
-                    for (unsigned int vertex_index = 0; vertex_index < ai_mesh->mNumVertices; ++vertex_index)
+                    bool submesh_bounds_initialized = false;
+                    for (uint32_t vertex_index = 0; vertex_index < ai_mesh->mNumVertices; ++vertex_index)
                     {
-                        const float3 position = { ai_mesh->mVertices[vertex_index].x, ai_mesh->mVertices[vertex_index].y, ai_mesh->mVertices[vertex_index].z };
-                        geometry_comp->mesh->positions.push_back(position);
-                        geometry_comp->mesh->normals.push_back({ ai_mesh->mNormals[vertex_index].x, ai_mesh->mNormals[vertex_index].y, ai_mesh->mNormals[vertex_index].z });
+                        const aiVector3D transformed_position = node_transform * ai_mesh->mVertices[vertex_index];
+                        aiVector3D transformed_normal = normal_matrix * ai_mesh->mNormals[vertex_index];
+                        transformed_normal.NormalizeSafe();
+
+                        const float3 position = { transformed_position.x, transformed_position.y, transformed_position.z };
+                        mesh.positions.push_back(position);
+                        mesh.normals.push_back({ transformed_normal.x, transformed_normal.y, transformed_normal.z });
 
                         if (has_uv)
                         {
-                            geometry_comp->mesh->texcoords.push_back(float2{ ai_mesh->mTextureCoords[0][vertex_index].x, ai_mesh->mTextureCoords[0][vertex_index].y });
+                            mesh.texcoords.push_back({ ai_mesh->mTextureCoords[0][vertex_index].x, ai_mesh->mTextureCoords[0][vertex_index].y });
                         }
                         if (has_tb)
                         {
-                            geometry_comp->mesh->tangents.push_back(float4{ ai_mesh->mTangents[vertex_index].x, ai_mesh->mTangents[vertex_index].y, ai_mesh->mTangents[vertex_index].z, 1.f });
+                            aiVector3D transformed_tangent = tangent_matrix * ai_mesh->mTangents[vertex_index];
+                            aiVector3D transformed_bitangent = tangent_matrix * ai_mesh->mBitangents[vertex_index];
+                            transformed_tangent.NormalizeSafe();
+                            transformed_bitangent.NormalizeSafe();
+
+                            aiVector3D computed_bitangent = aiVector3D(
+                                transformed_tangent.y * transformed_normal.z - transformed_tangent.z * transformed_normal.y,
+                                transformed_tangent.z * transformed_normal.x - transformed_tangent.x * transformed_normal.z,
+                                transformed_tangent.x * transformed_normal.y - transformed_tangent.y * transformed_normal.x
+                            );
+                            const float tangent_sign =
+                                (computed_bitangent.x * transformed_bitangent.x +
+                                 computed_bitangent.y * transformed_bitangent.y +
+                                 computed_bitangent.z * transformed_bitangent.z) < 0.f ? -1.f : 1.f;
+
+                            mesh.tangents.push_back({ transformed_tangent.x, transformed_tangent.y, transformed_tangent.z, tangent_sign });
                         }
 
-                        if (vertex_index == 0)
+                        if (!submesh_bounds_initialized)
                         {
                             submesh.local_bounds.min = position;
                             submesh.local_bounds.max = position;
+                            submesh_bounds_initialized = true;
                         }
                         else
                         {
@@ -304,42 +351,51 @@ namespace won::plugin
                             submesh.local_bounds.max.y = std::max(submesh.local_bounds.max.y, position.y);
                             submesh.local_bounds.max.z = std::max(submesh.local_bounds.max.z, position.z);
                         }
-                    }
-                }
-                else
-                {
-                    assert(0);
-                    return false;
-                }
 
-                if (ai_mesh->HasFaces())
-                {
-                    geometry_comp->mesh->indices.reserve(geometry_comp->mesh->indices.size() + ai_mesh->mNumFaces * 3);
-
-                    for (unsigned int face_index = 0; face_index < ai_mesh->mNumFaces; ++face_index)
-                    {
-                        const aiFace& face = ai_mesh->mFaces[face_index];
-                        for (unsigned int index_index = 0; index_index < face.mNumIndices; ++index_index)
+                        if (!geometry_bounds_initialized)
                         {
-                            geometry_comp->mesh->indices.push_back(vertex_offset + face.mIndices[index_index]);
+                            geometry_comp->local_bounds.min = position;
+                            geometry_comp->local_bounds.max = position;
+                            geometry_bounds_initialized = true;
+                        }
+                        else
+                        {
+                            geometry_comp->local_bounds.min.x = std::min(geometry_comp->local_bounds.min.x, position.x);
+                            geometry_comp->local_bounds.min.y = std::min(geometry_comp->local_bounds.min.y, position.y);
+                            geometry_comp->local_bounds.min.z = std::min(geometry_comp->local_bounds.min.z, position.z);
+                            geometry_comp->local_bounds.max.x = std::max(geometry_comp->local_bounds.max.x, position.x);
+                            geometry_comp->local_bounds.max.y = std::max(geometry_comp->local_bounds.max.y, position.y);
+                            geometry_comp->local_bounds.max.z = std::max(geometry_comp->local_bounds.max.z, position.z);
                         }
                     }
+
+                    if (ai_mesh->HasFaces())
+                    {
+                        mesh.indices.reserve(mesh.indices.size() + ai_mesh->mNumFaces * 3);
+
+                        for (uint32_t face_index = 0; face_index < ai_mesh->mNumFaces; ++face_index)
+                        {
+                            const aiFace& face = ai_mesh->mFaces[face_index];
+                            for (uint32_t index_index = 0; index_index < face.mNumIndices; ++index_index)
+                            {
+                                mesh.indices.push_back(vertex_offset + face.mIndices[index_index]);
+                            }
+                        }
+                    }
+
+                    submesh.index_count = static_cast<uint32>(mesh.indices.size()) - index_offset;
                 }
 
-                submesh.index_count = static_cast<uint32>(geometry_comp->mesh->indices.size()) - index_offset;
-                if (mesh_index == 0)
+                for (uint32_t child_index = 0; child_index < node->mNumChildren; ++child_index)
                 {
-                    geometry_comp->local_bounds = submesh.local_bounds;
+                    node_stack.push_back({ node->mChildren[child_index], node_transform });
                 }
-                else
-                {
-                    geometry_comp->local_bounds.min.x = std::min(geometry_comp->local_bounds.min.x, submesh.local_bounds.min.x);
-                    geometry_comp->local_bounds.min.y = std::min(geometry_comp->local_bounds.min.y, submesh.local_bounds.min.y);
-                    geometry_comp->local_bounds.min.z = std::min(geometry_comp->local_bounds.min.z, submesh.local_bounds.min.z);
-                    geometry_comp->local_bounds.max.x = std::max(geometry_comp->local_bounds.max.x, submesh.local_bounds.max.x);
-                    geometry_comp->local_bounds.max.y = std::max(geometry_comp->local_bounds.max.y, submesh.local_bounds.max.y);
-                    geometry_comp->local_bounds.max.z = std::max(geometry_comp->local_bounds.max.z, submesh.local_bounds.max.z);
-                }
+            }
+
+            if (import_failed)
+            {
+                assert(0);
+                return false;
             }
 
             geometry_comp->mesh->CreateRenderData(device_in);
