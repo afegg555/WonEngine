@@ -47,7 +47,7 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
         half3 normal = material.textures[NORMALMAP].Sample(sampler_objectshader, uvsets);
         normal = normal * 2 - 1;
 	    
-        surface.N = normalize(mul(TBN, normal));
+        surface.N = normalize(mul(normal, TBN));
     }
 #endif // OBJECTSHADER_USE_UVSETS
 #endif // OBJECTSHADER_USE_TANGENT
