@@ -14,7 +14,7 @@ namespace won::editor
 		void LoadDefaultPlugins();
 		void OnWindowResized(int width, int height) override;
 		void RenderUI() override;
-		void ImGui_Impl_CreateDeviceObjects();
+		void InitImGui();
 
 		void LoadSampleScene();
 
@@ -24,8 +24,8 @@ namespace won::editor
 		RHISubresourceHandle imgui_font_subresource;
 		std::shared_ptr<RHISampler> imgui_sampler;
 
-		float2 main_viewport_pos;
-		float2 main_viewport_size;
+		//float2 main_viewport_pos;
+		//float2 main_viewport_size;
 
 		ecs::Scene scene;
 		ecs::Entity camera_entity;

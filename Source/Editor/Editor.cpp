@@ -20,6 +20,8 @@
 #include "IconsMaterialDesign.h"
 #include "Themes.h"
 
+#define DEFAULTBUTTONWIDTH 200
+
 // Forward declare message handler from imgui_impl_win32.cpp
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
@@ -74,6 +76,32 @@ namespace won::editor
 
 			return false;
 		}
+
+		void BuildDefaultDockLayout(ImGuiID dockspace_id, const ImVec2& size)
+		{
+			ImGui::DockBuilderRemoveNode(dockspace_id);
+			ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);
+			ImGui::DockBuilderSetNodeSize(dockspace_id, size);
+
+			ImGuiID dock_main = dockspace_id;
+			ImGuiID dock_right = 0;
+			ImGuiID dock_bottom = 0;
+			ImGuiID dock_left = 0;
+
+			dock_right = ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Right, 0.20f, nullptr, &dock_main);
+			dock_bottom = ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Down, 0.30f, nullptr, &dock_main);
+			dock_left = ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Left, 0.20f, nullptr, &dock_main);
+
+			ImGui::DockBuilderDockWindow("Viewport", dock_main);
+			ImGui::DockBuilderDockWindow("Inspector", dock_right);
+			ImGui::DockBuilderDockWindow("Contents Browser", dock_bottom);
+			ImGui::DockBuilderDockWindow("Log", dock_bottom);
+			ImGui::DockBuilderDockWindow("Profiler", dock_bottom);
+			ImGui::DockBuilderDockWindow("Scene Tree", dock_left);
+			ImGui::DockBuilderDockWindow("Entity List", dock_left);
+
+			ImGui::DockBuilderFinish(dockspace_id);
+		}
 	}
 
 	void EditorApplication::Initialize(const ApplicationDesc& desc)
@@ -113,6 +141,9 @@ namespace won::editor
 		//ImGui::StyleColorsDark();
 		theme::SetupVisualStudioStyle();
 
+		ImGuiStyle& style = ImGui::GetStyle();
+		style.WindowMenuButtonPosition = ImGuiDir_None;
+
 #ifdef _WIN32
 		window->SetPlatformMessageHandler([](void* hwnd, uint32 message, Size wparam, Size lparam) -> bool
 			{
@@ -124,7 +155,7 @@ namespace won::editor
 		std::string font_folder_path = contents_root_dir + "Fonts";
 		AddImGuiFont(font_folder_path, "WantedSansStd-Regular.ttf");
 
-		ImGui_Impl_CreateDeviceObjects();
+		InitImGui();
 
 		LoadDefaultPlugins();
 
@@ -157,8 +188,8 @@ namespace won::editor
 		main_view.scene = &scene; // empty scene
 		main_view.camera_entity = camera_entity;
 
-		main_viewport_pos = { 0, 0 };
-		main_viewport_size = { static_cast<float>(main_view.viewport.width), static_cast<float>(main_view.viewport.height) };
+		//main_viewport_pos = { 0, 0 };
+		//main_viewport_size = { static_cast<float>(main_view.viewport.width), static_cast<float>(main_view.viewport.height) };
 		LoadSampleScene();
 	}
 
@@ -232,6 +263,8 @@ namespace won::editor
 		}
 
 		float2 mouse_pos = io::GetMouseState().position;
+		float2 main_viewport_pos = { (float)main_view.viewport.x, (float)main_view.viewport.y};
+		float2 main_viewport_size = { (float)main_view.viewport.width, (float)main_view.viewport.height};
 		float2 viewport_mouse_pos = { mouse_pos.x - main_viewport_pos.x, mouse_pos.y - main_viewport_pos.y };
 
 		static bool pressed = false;
@@ -358,9 +391,164 @@ namespace won::editor
 #ifdef _WIN32
 		ImGui_ImplWin32_NewFrame();
 #endif
-
 		ImGui::NewFrame();
-		ImGui::ShowDemoWindow();
+		//ImGui::ShowDemoWindow();
+
+		ImGuiIO& io = ImGui::GetIO();
+
+		ImGuiWindowFlags flags =
+			ImGuiWindowFlags_MenuBar |
+			ImGuiWindowFlags_NoDocking |
+			ImGuiWindowFlags_NoTitleBar |
+			ImGuiWindowFlags_NoCollapse |
+			ImGuiWindowFlags_NoResize |
+			ImGuiWindowFlags_NoMove |
+			ImGuiWindowFlags_NoBringToFrontOnFocus |
+			ImGuiWindowFlags_NoNavFocus;
+
+		ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
+		ImGui::SetNextWindowSize(io.DisplaySize, ImGuiCond_Always);
+
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+		ImGui::PushStyleColor(ImGuiCol_WindowBg, IM_COL32(0, 0, 0, 0));
+		ImGui::Begin("Main", NULL, flags);
+
+		ImGui::PopStyleVar(3);
+
+		ImGuiID dockspace_id = ImGui::GetID("MainDockSpace");
+
+		if (ImGui::DockBuilderGetNode(dockspace_id) == nullptr)
+			BuildDefaultDockLayout(dockspace_id, io.DisplaySize);
+
+		if (ImGui::BeginMenuBar())
+		{
+			if (ImGui::BeginMenu("Window"))
+			{
+				if (ImGui::MenuItem("Reset Layout"))
+					BuildDefaultDockLayout(dockspace_id, io.DisplaySize);
+				ImGui::EndMenu();
+			}
+
+			ImGui::EndMenuBar();
+		}
+
+		ImGui::DockSpace(dockspace_id, ImVec2(0, 0), ImGuiDockNodeFlags_PassthruCentralNode);
+
+		ImGui::End();
+
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+		if (ImGui::Begin("Viewport"))
+		{
+			if (ImGui::Button("Options"))
+			{
+				ImGui::OpenPopup("OptionsPopup");
+				//ImGui::SetNextWindowSizeConstraints(ImVec2(240, 160), ImVec2(600, 500));
+			}
+
+			ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(500, 500));
+			if (ImGui::BeginPopup("OptionsPopup"))
+			{
+				static bool use_wireframe = false;
+				if (ImGui::Checkbox("WireFrame", &use_wireframe))
+				{
+					// TODO: WireFrame
+				}
+
+				ImGui::Separator();
+				if (ImGui::Button("Close")) ImGui::CloseCurrentPopup();
+
+				ImGui::EndPopup();
+			}
+			ImGui::PopStyleVar();
+
+			ImVec2 viewport_region_min = ImGui::GetWindowContentRegionMin();
+			ImVec2 viewport_region_max = ImGui::GetWindowContentRegionMax();
+			ImVec2 window_pos = ImGui::GetWindowPos();
+			ImVec2 viewport_pos = ImVec2(window_pos.x + viewport_region_min.x, window_pos.y + viewport_region_min.y);
+			ImVec2 viewport_size = ImVec2(viewport_region_max.x - viewport_region_min.x, viewport_region_max.y - viewport_region_min.y);
+
+			main_view.viewport.x = static_cast<uint32>(viewport_pos.x);
+			main_view.viewport.y = static_cast<uint32>(viewport_pos.y);
+			main_view.viewport.width = static_cast<uint32>(viewport_size.x);
+			main_view.viewport.height = static_cast<uint32>(viewport_size.y);
+			main_view.scissor.x = main_view.viewport.x;
+			main_view.scissor.y = main_view.viewport.y;
+			main_view.scissor.width = main_view.viewport.width;
+			main_view.scissor.height = main_view.viewport.height;
+			//main_viewport_size = { viewport_size.x, viewport_size.y };
+		}
+		ImGui::End();
+		ImGui::PopStyleVar();
+		ImGui::PopStyleColor();
+
+		ImGui::Begin("Scene Tree");
+		ImGui::Text("...");
+		ImGui::End();
+
+		if (ImGui::Begin("Entity List"))
+		{
+			static int selected_index = -1;
+
+			if (ImGui::BeginChild("EntityListRegion", ImVec2(0.0f, 0.0f), false, ImGuiWindowFlags_AlwaysVerticalScrollbar))
+			{
+
+			}
+
+			ImGui::EndChild();
+		}
+		ImGui::End();
+
+		if (ImGui::Begin("Inspector"))
+		{
+
+		}
+		ImGui::End();
+
+		if (ImGui::Begin("Log", nullptr, ImGuiWindowFlags_NoScrollbar))
+		{
+			static std::string lastlog = "";
+
+			//ImGui::SameLine();
+			ImGui::SetCursorPos(ImGui::GetCursorPos() + ImVec2(0, -3));
+			if (ImGui::Button("Copy to Clipboard", ImVec2(DEFAULTBUTTONWIDTH, 0)))
+				ImGui::SetClipboardText(lastlog.c_str());
+			ImGui::SameLine();
+			ImGui::SetCursorPos(ImGui::GetCursorPos() + ImVec2(0, -3));
+			if (ImGui::Button("Clear", ImVec2(DEFAULTBUTTONWIDTH, 0)))
+				lastlog.clear();
+
+			ImGui::SetCursorPos(ImGui::GetCursorPos() + ImVec2(0, 3));
+
+			std::string log = won::backlog::GetText();
+			if (log.size() > 0)
+			{
+				lastlog += log;
+				won::backlog::Clear();
+			}
+
+			ImGui::BeginChild("##log", ImVec2(0.0f, 0.0f), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
+			ImGui::Text("%s", lastlog.c_str());
+
+			if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
+				ImGui::SetScrollHereY(1.0f);
+			ImGui::EndChild();
+
+		}
+		ImGui::End();
+
+		if (ImGui::Begin("Contents Browser", nullptr))
+		{
+
+		}
+		ImGui::End();
+
+		if (ImGui::Begin("Profiler", nullptr, ImGuiWindowFlags_NoScrollbar))
+		{
+
+		}
+		ImGui::End();
 
 		// Rendering
 		ImGui::Render();
@@ -517,7 +705,7 @@ namespace won::editor
 		}
 	}
 
-	void EditorApplication::ImGui_Impl_CreateDeviceObjects()
+	void EditorApplication::InitImGui()
 	{
 		// Build texture atlas
 		ImGuiIO& io = ImGui::GetIO();
@@ -568,6 +756,7 @@ namespace won::editor
 
 		return;
 	}
+
 	void EditorApplication::LoadSampleScene()
 	{
 		{
