@@ -279,10 +279,28 @@ namespace won::ecs
         {
             struct Renderable
             {
+                enum Flags : uint32
+                {
+                    None = 0,
+                    CastShadow = 1 << 0,
+                    Transparent = 1 << 1,
+                };
+
                 ObjectPushConstants push_constants;
                 std::shared_ptr<rendering::RHIResource> index_buffer;
                 uint32 index_offset = 0;
                 uint32 index_count = 0;
+                uint32 flags = None;
+
+                bool IsTransparent() const
+                {
+                    return (flags & Transparent) != 0;
+                }
+
+                bool IsCastShadow() const
+                {
+                    return (flags & CastShadow) != 0;
+                }
             };
 
             Vector<ShaderInstance> shader_instance;

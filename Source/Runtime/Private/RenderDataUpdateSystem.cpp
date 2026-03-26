@@ -37,6 +37,7 @@ namespace won::ecs
                 shader_geometry.Init();
                 shader_geometry.bounds_min = geometry_comp.mesh->submeshes[i].local_bounds.min;
                 shader_geometry.bounds_max = geometry_comp.mesh->submeshes[i].local_bounds.max;
+                //shader_geometry.flags = geometry_comp.flags;
 
                 if (mesh_render_data)
                 {
@@ -123,6 +124,7 @@ namespace won::ecs
                 for (Size i = 0; i < geometry_comp.mesh->submeshes.size(); ++i)
                 {
                     const resource::Submesh& submesh = geometry_comp.mesh->submeshes[i];
+                    const MaterialSlot& material_slot = material_comp.material_slots[submesh.material_slot];
                     Scene::RenderData::Renderable& renderable = render_data.renderables[index + i];
                     ObjectPushConstants& push_constants = renderable.push_constants;
                     push_constants.Init();
@@ -133,6 +135,15 @@ namespace won::ecs
                     renderable.index_buffer = mesh_render_data->buffer;
                     renderable.index_offset = mesh_render_data->indices.offset + submesh.first_index * sizeof(uint32);
                     renderable.index_count = submesh.index_count;
+                    renderable.flags = Scene::RenderData::Renderable::None;
+                    if (geometry_comp.IsCastShadow())
+                    {
+                        renderable.flags |= Scene::RenderData::Renderable::CastShadow;
+                    }
+                    if ((material_slot.flags & SHADER_MATERIAL_FLAG_TRANSPARENT) != 0)
+                    {
+                        renderable.flags |= Scene::RenderData::Renderable::Transparent;
+                    }
                 }
             }
 
