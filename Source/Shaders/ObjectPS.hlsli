@@ -12,7 +12,7 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
     surface.V = input.GetViewVector();
     
     ShaderMaterial material = GetMaterial();
-    half4 base_color = half4(1.0, 1.0, 1.0, 1.0);
+    half4 base_color = material.GetBaseColor();
     
 #ifdef OBJECTSHADER_USE_NORMAL
     if (is_frontface == false)
@@ -52,7 +52,7 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
 #endif // OBJECTSHADER_USE_UVSETS
 #endif // OBJECTSHADER_USE_TANGENT
     
-    surface.NoV = saturate(abs(dot(surface.N, surface.V)) + 1e-5);
+    surface.NoV = saturate(abs(dot(surface.N, surface.V)) + FLT_EPSILON);
     
 #ifdef OBJECTSHADER_USE_COLOR
     base_color *= input.color;
