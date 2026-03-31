@@ -881,16 +881,23 @@ namespace won::editor
 			auto asset_importer = plugin_manager.GetPlugin(WON_IID_ASSET_IMPORTER);
 			AssetImporterAPI* api = (AssetImporterAPI*)asset_importer->QueryInterface(WON_IID_ASSET_IMPORTER, WON_VID_ASSET_IMPORTER);
 
-			std::string file_path = contents_root_dir + "/Models/glTF/Sponza/glTF/Sponza.gltf";
+			//std::string file_path = contents_root_dir + "/Models/glTF/Sponza/glTF/Sponza.gltf";
+			std::string file_path = contents_root_dir + "/Models/Obj/Sphere/sphere.obj";
 			ecs::Entity root_entity{};
 			api->Import(asset_importer.get(), file_path.c_str(), &scene, device.get(), root_entity);
 
-			auto material_component = scene.GetComponent<ecs::MaterialComponent>(root_entity);
-			for (uint32 i = 0; i < (uint32)material_component->GetMaterialSlotCount(); i++)
 			{
-				auto& slot = material_component->GetMaterialSlot(i);
-				//slot.shader_type = 
+				auto material_component = scene.GetComponent<ecs::MaterialComponent>(root_entity);
+				for (uint32 i = 0; i < (uint32)material_component->GetMaterialSlotCount(); i++)
+				{
+					//auto& slot = material_component->GetMaterialSlot(i);
+					//slot.shader_type = 
+				}
+				auto geometry_component = scene.GetComponent<ecs::GeometryComponent>(root_entity);
+				geometry_component->SetCastShadow(true);
 			}
+
+
 			// light entity
 			{
 				ecs::Entity light_entity = scene.CreateEntity();
@@ -903,6 +910,61 @@ namespace won::editor
 				//light->range = 20.f;
 				//light->outer_cone_angle = math::PI / 3.f;
 				//light->inner_cone_angle = math::PI / 6.f;
+			}
+
+			// plane entity
+			{
+				ecs::Entity plane_entity = scene.CreateEntity();
+				auto transform = scene.AddComponent<ecs::TransformComponent>(plane_entity);
+				if (transform)
+				{
+					transform->Translate({ 0.f, -5.f, 0.f });
+					transform->Scale({ 10.f, 10.f, 10.f });
+				}
+				auto geometry = scene.AddComponent<ecs::GeometryComponent>(plane_entity);
+				if (geometry)
+				{
+					//geometry->SetCastShadow(true);
+
+					auto mesh = std::make_shared<resource::Mesh>();
+					mesh->positions = {
+						{ 1.0f, 0.0f, 1.0f },
+						{ -1.0f, 0.0f, 1.0f },
+						{ 1.0f, 0.0f, -1.0f },
+						{ -1.0f, 0.0f, -1.0f },
+					};
+					mesh->normals = {
+						{ 0.0f, 1.0f, 0.f },
+						{ 0.0f, 1.0f, 0.f },
+						{ 0.0f, 1.0f, 0.f },
+						{ 0.0f, 1.0f, 0.f },
+					};
+
+					mesh->indices = { 1, 0, 2, 1, 2, 3 };
+
+					resource::Submesh submesh = {};
+					submesh.first_index = 0;
+					submesh.index_count = 6;
+					submesh.first_vertex = 0;
+					submesh.material_slot = 0;
+					//submesh.local_bounds.min = { -0.5f, -0.5f, 0.0f };
+					//submesh.local_bounds.max = { 0.5f, 0.5f, 0.0f };
+					mesh->submeshes.push_back(submesh);
+
+					geometry->mesh = mesh;
+					geometry->local_bounds = submesh.local_bounds;
+
+					mesh->CreateRenderData(device.get());
+				}
+
+				auto material = scene.AddComponent<ecs::MaterialComponent>(plane_entity);
+				if (material)
+				{
+					auto& material_slot = material->AddMaterialSlot();
+					material_slot.base_color = { 0.8f, 0.8f, 0.8f, 1.0f };
+					material_slot.metallic = 1.0f;
+					material_slot.roughness = 0.5f;
+				}
 			}
 		}
 	}

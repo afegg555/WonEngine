@@ -29,7 +29,6 @@ namespace won::editor
 
 		ecs::Scene scene;
 		ecs::Entity camera_entity;
-		ecs::Entity image_entity;
 
 		plugin::PluginManager plugin_manager;
 	};
