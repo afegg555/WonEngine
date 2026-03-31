@@ -8,6 +8,7 @@
 #include "DescriptorAllocatorDX12.h"
 
 #include "DirectX-Headers/d3d12.h"
+#include <Windows.h>
 #include <intrin.h> // _BitScanReverse64
 
 namespace won::rendering
@@ -148,6 +149,33 @@ namespace won::rendering
         {
             command_list->Close();
         }
+    }
+
+    void RHICommandListDX12::BeginEvent(const char* name)
+    {
+        const int wide_length = MultiByteToWideChar(CP_UTF8, 0, name, -1, nullptr, 0);
+        if (wide_length <= 1)
+        {
+            return;
+        }
+
+        WString wide_name(static_cast<Size>(wide_length), L'\0');
+        if (MultiByteToWideChar(CP_UTF8, 0, name, -1, wide_name.data(), wide_length) <= 0)
+        {
+            return;
+        }
+
+        command_list->BeginEvent(0, wide_name.c_str(), static_cast<UINT>(wide_length * sizeof(wchar_t)));
+    }
+
+    void RHICommandListDX12::EndEvent()
+    {
+        if (!command_list)
+        {
+            return;
+        }
+
+        command_list->EndEvent();
     }
 
     void RHICommandListDX12::SetGraphicsPipeline(RHIPipeline& pipeline)

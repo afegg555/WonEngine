@@ -23,6 +23,8 @@ namespace won::rendering
 
         void Begin(RHICommandAllocator& allocator) override;
         void End() override;
+        void BeginEvent(const char* name) override;
+        void EndEvent() override;
 
         void SetGraphicsPipeline(RHIPipeline& pipeline) override;
         void SetComputePipeline(RHIPipeline& pipeline) override;

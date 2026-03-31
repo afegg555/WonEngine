@@ -61,6 +61,8 @@ namespace won::rendering
 
         virtual void Begin(RHICommandAllocator& allocator) = 0;
         virtual void End() = 0;
+        virtual void BeginEvent(const char* name) = 0;
+        virtual void EndEvent() = 0;
 
         virtual void SetGraphicsPipeline(RHIPipeline& pipeline) = 0;
         virtual void SetComputePipeline(RHIPipeline& pipeline) = 0;
