@@ -3,11 +3,16 @@
 #include "MathUtils.h"
 #include "Scene.h"
 #include "LightComponent.h"
+#include "RectPacker.h"
 #include "JobSystem.h"
 #include "Backlog.h"
+#include <mutex>
 
 namespace won::ecs
 {
+    static std::mutex shadowmap_atlas_mutex;
+    constexpr int32 shadow_map_atlas_max_size = 16384;
+
     void LightUpdateSystem::Update(Scene& scene, float delta_time)
     {
         jobsystem::Context sub_ctx;
@@ -24,6 +29,9 @@ namespace won::ecs
 
         render_data.shader_light.resize(light_count);
         render_data.forward_light_mask = { 0,0,0,0 };
+        render_data.shadow_map_atlas_size = { 0, 0 };
+
+        rectpacker::State shadow_map_atlas_packer = {};
 
         jobsystem::Dispatch(sub_ctx, (uint32)light_count, groupsize, [&](jobsystem::JobArgs args) {
             LightComponent& light = light_array->data[args.job_index];
@@ -74,9 +82,49 @@ namespace won::ecs
                 const uint8_t bucket_place = uint8_t(args.job_index % 32);
                 uint32_t* value = reinterpret_cast<uint32_t*>(&render_data.forward_light_mask);
                 value[bucket_index] |= 1 << bucket_place;
+
+                if(light.IsDynamic() && light.IsCastShadow())
+                {
+                    light.ClearShadowMapAtlasRect();
+
+                    rectpacker::Rect rect = {};
+                    rect.id = static_cast<int>(args.job_index);
+                    rect.w = static_cast<stbrp_coord>((std::max)(1u, light.shadow_map_resolution));
+                    rect.h = static_cast<stbrp_coord>((std::max)(1u, light.shadow_map_resolution));
+
+                    {
+                        std::lock_guard<std::mutex> lock(shadowmap_atlas_mutex);
+                        shadow_map_atlas_packer.AddRect(rect);
+                    }
+                }
             }
-            });
+        });
 
         jobsystem::Wait(sub_ctx);
+
+        if (!shadow_map_atlas_packer.rects.empty())
+        {
+            if (!shadow_map_atlas_packer.Pack(shadow_map_atlas_max_size))
+            {
+                backlog::Post("failed to pack shadow map atlas", backlog::LogLevel::Error);
+                return;
+            }
+
+            render_data.shadow_map_atlas_size = {
+                static_cast<uint32>(shadow_map_atlas_packer.width),
+                static_cast<uint32>(shadow_map_atlas_packer.height)
+            };
+
+            for (const rectpacker::Rect& rect : shadow_map_atlas_packer.rects)
+            {
+                if (rect.was_packed == 0 || rect.id < 0)
+                {
+                    continue;
+                }
+
+                LightComponent& light = light_array->data[rect.id];
+                light.shadow_map_atlas_rect = { rect.x, rect.y, rect.w, rect.h };
+            }
+        }
     }
 }
