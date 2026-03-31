@@ -310,6 +310,8 @@ namespace won::ecs
 
             Vector<ShaderLight> shader_light;
             uint4 forward_light_mask;
+            uint2 shadow_map_atlas_size = { 0, 0 };
+            Vector<Entity> shadow_light_entities; // TODO: remove
             void Clear()
             {
                 shader_instance.clear();
@@ -318,6 +320,8 @@ namespace won::ecs
                 renderables.clear();
                 shader_light.clear();
                 forward_light_mask = { 0,0,0,0 };
+                shadow_map_atlas_size = { 0, 0 };
+                shadow_light_entities.clear();
             }
         };
 

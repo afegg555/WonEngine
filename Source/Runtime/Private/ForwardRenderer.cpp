@@ -440,6 +440,26 @@ namespace won::rendering
 
         for (const auto& renderable : render_data.renderables)
         {
+            if (renderable.IsTransparent())
+            {
+                if ((flags & DrawScene_Transparent) == 0)
+                {
+                    continue;
+                }
+            }
+            else
+            {
+                if ((flags & DrawScene_Opaque) == 0)
+                {
+                    continue;
+                }
+            }
+
+            if ((flags & DrawScene_ShadowCaster) != 0 && !renderable.IsCastShadow())
+            {
+                continue;
+            }
+
             frame_context.command_list->SetIndexBuffer(*renderable.index_buffer, sizeof(uint32), renderable.index_offset, renderable.index_count * sizeof(uint32));
             frame_context.command_list->PushConstants(RHIShaderStage::Vertex, &renderable.push_constants, sizeof(ObjectPushConstants), 0);
             frame_context.command_list->DrawIndexed(renderable.index_count, 1, 0, 0, 0);
@@ -672,6 +692,56 @@ namespace won::rendering
         depth_buffer_binding.resource = depth_buffer.get();
         depth_buffer_binding.subresource = depth_buffer_subresource;
         Vector<RHISubresourceBinding> color_targets = { back_buffer_binding };
+
+        const Scene::RenderData& render_data = view.scene->GetRenderData();
+        if (render_data.shadow_map_atlas_size.x == 0 || render_data.shadow_map_atlas_size.y == 0)
+        {
+            shadow_map_atlas = nullptr;
+            shadow_map_atlas_subresource = {};
+            shadow_map_atlas_size = { 0, 0 };
+        }
+        else
+        {
+            const bool regen_shadowmap_atlas =
+                !shadow_map_atlas ||
+                !shadow_map_atlas_subresource.IsValid() ||
+                shadow_map_atlas_size.x != render_data.shadow_map_atlas_size.x ||
+                shadow_map_atlas_size.y != render_data.shadow_map_atlas_size.y;
+
+            if (regen_shadowmap_atlas)
+            {
+                RHITextureDesc shadow_map_atlas_desc = {};
+                shadow_map_atlas_desc.width = render_data.shadow_map_atlas_size.x;
+                shadow_map_atlas_desc.height = render_data.shadow_map_atlas_size.y;
+                shadow_map_atlas_desc.depth = 1;
+                shadow_map_atlas_desc.mip_levels = 1;
+                shadow_map_atlas_desc.array_layers = 1;
+                shadow_map_atlas_desc.sample_count = 1;
+                shadow_map_atlas_desc.format = RHIFormat::D32Float;
+                shadow_map_atlas_desc.usage = RHIResourceUsage::Default;
+                shadow_map_atlas_desc.bind_flags = RHIBindFlags::DepthStencil;
+                shadow_map_atlas = device->CreateTexture(shadow_map_atlas_desc);
+                if (!shadow_map_atlas)
+                {
+                    backlog::Post("failed to create shadow map atlas", backlog::LogLevel::Error);
+                    return;
+                }
+
+                shadow_map_atlas_subresource = {};
+                RHISubresourceDesc shadow_map_atlas_subresource_desc = {};
+                shadow_map_atlas_subresource_desc.type = RHISubresourceType::DepthStencil;
+                shadow_map_atlas_subresource_desc.format = shadow_map_atlas_desc.format;
+                if (!device->CreateSubresource(*shadow_map_atlas, shadow_map_atlas_subresource_desc, &shadow_map_atlas_subresource))
+                {
+                    backlog::Post("failed to create shadow map atlas subresource", backlog::LogLevel::Error);
+                    shadow_map_atlas = nullptr;
+                    return;
+                }
+
+                shadow_map_atlas_size = render_data.shadow_map_atlas_size;
+            }
+        }
+
         frame_context.command_list->TransitionResource(*back_buffer, RHIResourceState::RenderTarget);
         frame_context.command_list->TransitionResource(*depth_buffer, RHIResourceState::DepthWrite);
         frame_context.command_list->ClearRenderTarget(back_buffer_binding, { 0.f, 0.3f, 0.3f, 1.f });
@@ -693,16 +763,157 @@ namespace won::rendering
         scissor.height = view.scissor.height;
         frame_context.command_list->SetScissor(scissor);
 
+        if (shadow_map_atlas && shadow_map_atlas_subresource.IsValid() && !render_data.shadow_light_entities.empty())
+        {
+            frame_context.command_list->BeginEvent("Fill Shadow Map Atlas");
+
+            RHISubresourceBinding shadow_map_atlas_binding = {};
+            shadow_map_atlas_binding.resource = shadow_map_atlas.get();
+            shadow_map_atlas_binding.subresource = shadow_map_atlas_subresource;
+
+            frame_context.command_list->TransitionResource(*shadow_map_atlas, RHIResourceState::DepthWrite);
+            frame_context.command_list->ClearDepthStencil(shadow_map_atlas_binding, 0.0f, 0u);
+            frame_context.command_list->SetRenderTargets({}, &shadow_map_atlas_binding);
+
+            // TODO: unify with ShaderLight
+            for (const Entity shadow_light_entity : render_data.shadow_light_entities)
+            {
+                const LightComponent* shadow_light = view.scene->GetComponent<LightComponent>(shadow_light_entity);
+                if (!shadow_light || !shadow_light->HasShadowMapAtlasRect())
+                {
+                    continue;
+                }
+
+                ShaderCamera shadow_camera = {};
+                shadow_camera.Init();
+
+                const XMVECTOR light_position = XMLoadFloat3(&shadow_light->position);
+                XMVECTOR light_direction = XMLoadFloat3(&shadow_light->direction);
+                if (XMVectorGetX(XMVector3LengthSq(light_direction)) <= FLT_EPSILON)
+                {
+                    light_direction = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+                }
+                light_direction = XMVector3Normalize(light_direction);
+
+                XMVECTOR light_up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+                if (std::abs(XMVectorGetX(XMVector3Dot(light_up, light_direction))) > 0.99f)
+                {
+                    light_up = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+                }
+
+                XMMATRIX shadow_view = {};
+                XMMATRIX shadow_projection = {};
+
+                if (shadow_light->type == LightComponent::Directional)
+                {
+                    const XMVECTOR shadow_eye = light_position - light_direction * 100.0f;
+                    shadow_view = XMMatrixLookToLH(shadow_eye, light_direction, light_up);
+                    // TODO: current projection size is hard coded.
+                    shadow_projection = XMMatrixOrthographicLH(20.0f, 20.0f, 1000.0f, 0.1f);
+                    XMStoreFloat3(&shadow_camera.position, shadow_eye);
+                    shadow_camera.z_near = 0.1f;
+                    shadow_camera.z_far = 1000.0f;
+                }
+                else if (shadow_light->type == LightComponent::Spot)
+                {
+                    shadow_view = XMMatrixLookToLH(light_position, light_direction, light_up);
+                    shadow_projection = XMMatrixPerspectiveFovLH((std::max)(0.1f, shadow_light->outer_cone_angle * 2.0f), 1.0f, shadow_light->range, 0.1f);
+                    XMStoreFloat3(&shadow_camera.position, light_position);
+                    shadow_camera.z_near = 0.1f;
+                    shadow_camera.z_far = shadow_light->range;
+                }
+                else if (shadow_light->type == LightComponent::Point)
+                {
+                    shadow_view = XMMatrixLookToLH(light_position, light_direction, light_up);
+                    shadow_projection = XMMatrixPerspectiveFovLH(XM_PIDIV2, 1.0f, shadow_light->range, 0.1f);
+                    XMStoreFloat3(&shadow_camera.position, light_position);
+                    shadow_camera.z_near = 0.1f;
+                    shadow_camera.z_far = shadow_light->range;
+                }
+                else
+                {
+                    continue;
+                }
+
+                XMStoreFloat3(&shadow_camera.forward, light_direction);
+                XMStoreFloat3(&shadow_camera.up, XMVector3Normalize(light_up));
+                XMStoreFloat4x4(&shadow_camera.view, shadow_view);
+                XMStoreFloat4x4(&shadow_camera.projection, shadow_projection);
+                XMStoreFloat4x4(&shadow_camera.view_projection, XMMatrixMultiply(shadow_view, shadow_projection));
+
+                if (!UpdateDefaultBuffer(frame_context, *shader_camera_buffer, &shadow_camera, sizeof(ShaderCamera), RHIResourceState::ConstantBuffer))
+                {
+                    return;
+                }
+
+                RHIViewport shadow_viewport = {};
+                shadow_viewport.x = static_cast<float>(shadow_light->shadow_map_atlas_rect.x);
+                shadow_viewport.y = static_cast<float>(shadow_light->shadow_map_atlas_rect.y);
+                shadow_viewport.width = static_cast<float>(shadow_light->shadow_map_atlas_rect.z);
+                shadow_viewport.height = static_cast<float>(shadow_light->shadow_map_atlas_rect.w);
+                shadow_viewport.min_depth = 0.0f;
+                shadow_viewport.max_depth = 1.0f;
+                frame_context.command_list->SetViewport(shadow_viewport);
+
+                RHIRect shadow_scissor = {};
+                shadow_scissor.x = shadow_light->shadow_map_atlas_rect.x;
+                shadow_scissor.y = shadow_light->shadow_map_atlas_rect.y;
+                shadow_scissor.width = shadow_light->shadow_map_atlas_rect.z;
+                shadow_scissor.height = shadow_light->shadow_map_atlas_rect.w;
+                frame_context.command_list->SetScissor(shadow_scissor);
+
+                DrawScene(view, frame_context, RenderPassType::ShadowPass, DrawScene_Opaque | DrawScene_ShadowCaster);
+            }
+            frame_context.command_list->EndEvent();
+
+            frame_context.command_list->BeginEvent("Restore Render State");
+            ShaderCamera shader_camera{};
+            shader_camera.Init();
+            shader_camera.view = IDENTITY_MATRIX;
+            shader_camera.projection = IDENTITY_MATRIX;
+            shader_camera.view_projection = IDENTITY_MATRIX;
+            if (view.camera_entity != ecs::INVALID_ENTITY)
+            {
+                const ecs::CameraComponent* camera_component = view.scene->GetComponent<ecs::CameraComponent>(view.camera_entity);
+                if (camera_component)
+                {
+                    shader_camera.position = camera_component->eye;
+                    shader_camera.forward = camera_component->forward;
+                    shader_camera.up = camera_component->up;
+                    shader_camera.z_near = camera_component->near;
+                    shader_camera.z_far = camera_component->far;
+                    shader_camera.view = camera_component->view;
+                    shader_camera.projection = camera_component->projection;
+                    shader_camera.view_projection = camera_component->view_projection;
+                }
+            }
+
+            if (!UpdateDefaultBuffer(frame_context, *shader_camera_buffer, &shader_camera, sizeof(ShaderCamera), RHIResourceState::ConstantBuffer))
+            {
+                return;
+            }
+
+            frame_context.command_list->SetViewport(viewport);
+            frame_context.command_list->SetScissor(scissor);
+
+            frame_context.command_list->EndEvent();
+        }
+
         // prepass
         {
+            frame_context.command_list->BeginEvent("Prepass");
             frame_context.command_list->SetRenderTargets({}, & depth_buffer_binding);
             DrawScene(view, frame_context, RenderPassType::DepthPrepass, DrawScene_Opaque);
+            frame_context.command_list->EndEvent();
         }
         
         // main pass
         {
+            frame_context.command_list->BeginEvent("Restore Camera State");
+
             frame_context.command_list->SetRenderTargets(color_targets, &depth_buffer_binding);
             DrawScene(view, frame_context, RenderPassType::MainPass, DrawScene_Opaque | DrawScene_Transparent);
+            frame_context.command_list->EndEvent();
         }
     }
 
@@ -768,6 +979,9 @@ namespace won::rendering
         shader_frame_buffer = nullptr;
         shader_camera_buffer_subresource = {};
         shader_camera_buffer = nullptr;
+        shadow_map_atlas_subresource = {};
+        shadow_map_atlas = nullptr;
+        shadow_map_atlas_size = { 0, 0 };
         back_buffer_subresources = {};
         depth_buffer_subresource = {};
         depth_buffer = nullptr;

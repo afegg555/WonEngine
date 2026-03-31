@@ -10,6 +10,7 @@ namespace won::resource
 {
     enum class RenderPassType : uint8
     {
+        ShadowPass,
         DepthPrepass,
         MainPass,
         Count

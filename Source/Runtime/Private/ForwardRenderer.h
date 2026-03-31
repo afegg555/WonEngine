@@ -26,6 +26,7 @@ namespace won::rendering
         {
             DrawScene_Opaque = 1 << 0, // include opaque objects
             DrawScene_Transparent = 1 << 1, // include transparent objects
+            DrawScene_ShadowCaster = 1 << 2, // include shadow casters only
         };
 
         bool DrawScene(const View& view, const FrameContext& frame_context, resource::RenderPassType pass, uint32 flags);
@@ -52,6 +53,9 @@ namespace won::rendering
 
         std::shared_ptr<RHIResource> depth_buffer;
         RHISubresourceHandle depth_buffer_subresource = {};
+        std::shared_ptr<RHIResource> shadow_map_atlas;
+        RHISubresourceHandle shadow_map_atlas_subresource = {};
+        uint2 shadow_map_atlas_size = { 0, 0 };
         std::array<RHISubresourceHandle, max_frames_in_flight> back_buffer_subresources = {};
 
         platform::Window* current_window = nullptr;

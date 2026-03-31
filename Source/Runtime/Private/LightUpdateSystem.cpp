@@ -30,6 +30,7 @@ namespace won::ecs
         render_data.shader_light.resize(light_count);
         render_data.forward_light_mask = { 0,0,0,0 };
         render_data.shadow_map_atlas_size = { 0, 0 };
+        render_data.shadow_light_entities.clear();
 
         rectpacker::State shadow_map_atlas_packer = {};
 
@@ -124,6 +125,7 @@ namespace won::ecs
 
                 LightComponent& light = light_array->data[rect.id];
                 light.shadow_map_atlas_rect = { rect.x, rect.y, rect.w, rect.h };
+                render_data.shadow_light_entities.push_back(light_array->index_to_entity[rect.id]);
             }
         }
     }

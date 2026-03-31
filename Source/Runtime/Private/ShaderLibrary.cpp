@@ -62,6 +62,20 @@ namespace won::resource
         RHIGraphicsPipelineDesc pipeline_desc = {};
         pipeline_desc.vertex_shader = GetShader(ShaderId::VSObjectPrepass).get();
         pipeline_desc.pixel_shader = nullptr;
+        pipeline_desc.sample_count = 1;
+        pipeline_desc.depth_stencil_format = dsv_format;
+        pipeline_desc.depth_stencil.depth_test = true;
+        pipeline_desc.depth_stencil.depth_write = true;
+        pipeline_desc.depth_stencil.depth_compare = RHICompareOp::GreaterEqual;
+        pipeline_desc.blend.enable = false;
+        pipeline_desc.raster.cull_mode = RHICullMode::Back;
+        pipeline_desc.render_target_formats = {};
+        graphics_pipelines[ToIndex(RenderPassType::ShadowPass)] = device->CreateGraphicsPipeline(pipeline_desc);
+
+        pipeline_desc = {};
+        pipeline_desc.vertex_shader = GetShader(ShaderId::VSObjectPrepass).get();
+        pipeline_desc.pixel_shader = nullptr;
+        pipeline_desc.sample_count = sample_count;
         pipeline_desc.depth_stencil_format = dsv_format;
         pipeline_desc.depth_stencil.depth_test = true;
         pipeline_desc.depth_stencil.depth_write = true;
