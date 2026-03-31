@@ -46,6 +46,7 @@ set(RUNTIME_UTILS
     Source/Runtime/Public/SpinLock.h
     Source/Runtime/Public/Backlog.h
     Source/Runtime/Public/Profiler.h
+    Source/Runtime/Public/RectPacker.h
     Source/Runtime/Private/Backlog.cpp
     Source/Runtime/Private/Profiler.cpp
     Source/Runtime/Public/StringUtils.h
