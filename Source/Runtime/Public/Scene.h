@@ -303,25 +303,37 @@ namespace won::ecs
                 }
             };
 
-            Vector<ShaderInstance> shader_instance;
-            Vector<ShaderGeometry> shader_geometry;
-            Vector<ShaderMaterial> shader_material;
+            struct RenderShadowLight
+            {
+                //LightComponent::LightType type = LightComponent::Directional;
+                uint32 light_index = 0;
+                float4x4 view_projection;
+                uint32 shadow_map_resolution = 0;
+                int4 shadow_map_atlas_rect = { -1, -1, 0, 0 };
+
+                bool HasShadowMapAtlasRect() const { return shadow_map_atlas_rect.z > 0 && shadow_map_atlas_rect.w > 0; }
+            };
+
+            Vector<ShaderInstance> shader_instances;
+            Vector<ShaderGeometry> shader_geometries;
+            Vector<ShaderMaterial> shader_materials;
             Vector<Renderable> renderables;
 
-            Vector<ShaderLight> shader_light;
+            Vector<ShaderLight> shader_lights;
+            Vector<RenderShadowLight> render_shadow_lights;
             uint4 forward_light_mask;
             uint2 shadow_map_atlas_size = { 0, 0 };
-            Vector<Entity> shadow_light_entities; // TODO: remove
+
             void Clear()
             {
-                shader_instance.clear();
-                shader_geometry.clear();
-                shader_material.clear();
+                shader_instances.clear();
+                shader_geometries.clear();
+                shader_materials.clear();
                 renderables.clear();
-                shader_light.clear();
+                shader_lights.clear();
                 forward_light_mask = { 0,0,0,0 };
                 shadow_map_atlas_size = { 0, 0 };
-                shadow_light_entities.clear();
+                render_shadow_lights.clear();
             }
         };
 

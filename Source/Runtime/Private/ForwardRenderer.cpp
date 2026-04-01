@@ -72,15 +72,15 @@ namespace won::rendering
     bool ForwardRenderer::BuildFrameContext(const View& view, FrameContext& frame_context)
     {
         const Scene::RenderData& render_data = view.scene->GetRenderData();
-        const Vector<ShaderInstance>& shader_instance = render_data.shader_instance;
-        const Vector<ShaderGeometry>& shader_geometry = render_data.shader_geometry;
-        const Vector<ShaderMaterial>& shader_material = render_data.shader_material;
-        const Vector<ShaderLight>& shader_light = render_data.shader_light;
+        const Vector<ShaderInstance>& shader_instances = render_data.shader_instances;
+        const Vector<ShaderGeometry>& shader_geometries = render_data.shader_geometries;
+        const Vector<ShaderMaterial>& shader_materials = render_data.shader_materials;
+        const Vector<ShaderLight>& shader_lights = render_data.shader_lights;
 
-        const Size required_instance_buffer_size = shader_instance.size() * sizeof(ShaderInstance);
-        const Size required_geometry_buffer_size = shader_geometry.size() * sizeof(ShaderGeometry);
-        const Size required_material_buffer_size = shader_material.size() * sizeof(ShaderMaterial);
-        const Size required_light_buffer_size = shader_light.size() * sizeof(ShaderLight);
+        const Size required_instance_buffer_size = shader_instances.size() * sizeof(ShaderInstance);
+        const Size required_geometry_buffer_size = shader_geometries.size() * sizeof(ShaderGeometry);
+        const Size required_material_buffer_size = shader_materials.size() * sizeof(ShaderMaterial);
+        const Size required_light_buffer_size = shader_lights.size() * sizeof(ShaderLight);
 
         if (required_instance_buffer_size == 0)
         {
@@ -149,7 +149,7 @@ namespace won::rendering
                 backlog::Post("failed to access mapped instance upload buffer", backlog::LogLevel::Error);
                 return false;
             }
-            std::memcpy(mapped_data, shader_instance.data(), required_instance_buffer_size);
+            std::memcpy(mapped_data, shader_instances.data(), required_instance_buffer_size);
 
             frame_context.command_list->TransitionResource(*shader_instance_default_buffer, RHIResourceState::CopyDest);
             frame_context.command_list->CopyResource(*shader_instance_default_buffer, *frame_context.shader_instance_upload_buffer);
@@ -223,7 +223,7 @@ namespace won::rendering
                 backlog::Post("failed to access mapped geometry upload buffer", backlog::LogLevel::Error);
                 return false;
             }
-            std::memcpy(mapped_data, shader_geometry.data(), required_geometry_buffer_size);
+            std::memcpy(mapped_data, shader_geometries.data(), required_geometry_buffer_size);
 
             frame_context.command_list->TransitionResource(*shader_geometry_default_buffer, RHIResourceState::CopyDest);
             frame_context.command_list->CopyResource(*shader_geometry_default_buffer, *frame_context.shader_geometry_upload_buffer);
@@ -297,7 +297,7 @@ namespace won::rendering
                 backlog::Post("failed to access mapped material upload buffer", backlog::LogLevel::Error);
                 return false;
             }
-            std::memcpy(mapped_data, shader_material.data(), required_material_buffer_size);
+            std::memcpy(mapped_data, shader_materials.data(), required_material_buffer_size);
 
             frame_context.command_list->TransitionResource(*shader_material_default_buffer, RHIResourceState::CopyDest);
             frame_context.command_list->CopyResource(*shader_material_default_buffer, *frame_context.shader_material_upload_buffer);
@@ -371,7 +371,7 @@ namespace won::rendering
                 backlog::Post("failed to access mapped light upload buffer", backlog::LogLevel::Error);
                 return false;
             }
-            std::memcpy(mapped_data, shader_light.data(), required_light_buffer_size);
+            std::memcpy(mapped_data, shader_lights.data(), required_light_buffer_size);
 
             frame_context.command_list->TransitionResource(*shader_light_default_buffer, RHIResourceState::CopyDest);
             frame_context.command_list->CopyResource(*shader_light_default_buffer, *frame_context.shader_light_upload_buffer);
@@ -763,7 +763,7 @@ namespace won::rendering
         scissor.height = view.scissor.height;
         frame_context.command_list->SetScissor(scissor);
 
-        if (shadow_map_atlas && shadow_map_atlas_subresource.IsValid() && !render_data.shadow_light_entities.empty())
+        if (shadow_map_atlas && shadow_map_atlas_subresource.IsValid() && !render_data.render_shadow_lights.empty())
         {
             frame_context.command_list->BeginEvent("Fill Shadow Map Atlas");
 
@@ -775,11 +775,9 @@ namespace won::rendering
             frame_context.command_list->ClearDepthStencil(shadow_map_atlas_binding, 0.0f, 0u);
             frame_context.command_list->SetRenderTargets({}, &shadow_map_atlas_binding);
 
-            // TODO: unify with ShaderLight
-            for (const Entity shadow_light_entity : render_data.shadow_light_entities)
+            for (const auto& shadow_light : render_data.render_shadow_lights)
             {
-                const LightComponent* shadow_light = view.scene->GetComponent<LightComponent>(shadow_light_entity);
-                if (!shadow_light || !shadow_light->HasShadowMapAtlasRect())
+                if (!shadow_light.HasShadowMapAtlasRect())
                 {
                     continue;
                 }
@@ -787,59 +785,7 @@ namespace won::rendering
                 ShaderCamera shadow_camera = {};
                 shadow_camera.Init();
 
-                const XMVECTOR light_position = XMLoadFloat3(&shadow_light->position);
-                XMVECTOR light_direction = XMLoadFloat3(&shadow_light->direction);
-                if (XMVectorGetX(XMVector3LengthSq(light_direction)) <= FLT_EPSILON)
-                {
-                    light_direction = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
-                }
-                light_direction = XMVector3Normalize(light_direction);
-
-                XMVECTOR light_up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-                if (std::abs(XMVectorGetX(XMVector3Dot(light_up, light_direction))) > 0.99f)
-                {
-                    light_up = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
-                }
-
-                XMMATRIX shadow_view = {};
-                XMMATRIX shadow_projection = {};
-
-                if (shadow_light->type == LightComponent::Directional)
-                {
-                    const XMVECTOR shadow_eye = light_position - light_direction * 100.0f;
-                    shadow_view = XMMatrixLookToLH(shadow_eye, light_direction, light_up);
-                    // TODO: current projection size is hard coded.
-                    shadow_projection = XMMatrixOrthographicLH(20.0f, 20.0f, 1000.0f, 0.1f);
-                    XMStoreFloat3(&shadow_camera.position, shadow_eye);
-                    shadow_camera.z_near = 0.1f;
-                    shadow_camera.z_far = 1000.0f;
-                }
-                else if (shadow_light->type == LightComponent::Spot)
-                {
-                    shadow_view = XMMatrixLookToLH(light_position, light_direction, light_up);
-                    shadow_projection = XMMatrixPerspectiveFovLH((std::max)(0.1f, shadow_light->outer_cone_angle * 2.0f), 1.0f, shadow_light->range, 0.1f);
-                    XMStoreFloat3(&shadow_camera.position, light_position);
-                    shadow_camera.z_near = 0.1f;
-                    shadow_camera.z_far = shadow_light->range;
-                }
-                else if (shadow_light->type == LightComponent::Point)
-                {
-                    shadow_view = XMMatrixLookToLH(light_position, light_direction, light_up);
-                    shadow_projection = XMMatrixPerspectiveFovLH(XM_PIDIV2, 1.0f, shadow_light->range, 0.1f);
-                    XMStoreFloat3(&shadow_camera.position, light_position);
-                    shadow_camera.z_near = 0.1f;
-                    shadow_camera.z_far = shadow_light->range;
-                }
-                else
-                {
-                    continue;
-                }
-
-                XMStoreFloat3(&shadow_camera.forward, light_direction);
-                XMStoreFloat3(&shadow_camera.up, XMVector3Normalize(light_up));
-                XMStoreFloat4x4(&shadow_camera.view, shadow_view);
-                XMStoreFloat4x4(&shadow_camera.projection, shadow_projection);
-                XMStoreFloat4x4(&shadow_camera.view_projection, XMMatrixMultiply(shadow_view, shadow_projection));
+                shadow_camera.view_projection = shadow_light.view_projection;
 
                 if (!UpdateDefaultBuffer(frame_context, *shader_camera_buffer, &shadow_camera, sizeof(ShaderCamera), RHIResourceState::ConstantBuffer))
                 {
@@ -847,19 +793,19 @@ namespace won::rendering
                 }
 
                 RHIViewport shadow_viewport = {};
-                shadow_viewport.x = static_cast<float>(shadow_light->shadow_map_atlas_rect.x);
-                shadow_viewport.y = static_cast<float>(shadow_light->shadow_map_atlas_rect.y);
-                shadow_viewport.width = static_cast<float>(shadow_light->shadow_map_atlas_rect.z);
-                shadow_viewport.height = static_cast<float>(shadow_light->shadow_map_atlas_rect.w);
+                shadow_viewport.x = static_cast<float>(shadow_light.shadow_map_atlas_rect.x);
+                shadow_viewport.y = static_cast<float>(shadow_light.shadow_map_atlas_rect.y);
+                shadow_viewport.width = static_cast<float>(shadow_light.shadow_map_atlas_rect.z);
+                shadow_viewport.height = static_cast<float>(shadow_light.shadow_map_atlas_rect.w);
                 shadow_viewport.min_depth = 0.0f;
                 shadow_viewport.max_depth = 1.0f;
                 frame_context.command_list->SetViewport(shadow_viewport);
 
                 RHIRect shadow_scissor = {};
-                shadow_scissor.x = shadow_light->shadow_map_atlas_rect.x;
-                shadow_scissor.y = shadow_light->shadow_map_atlas_rect.y;
-                shadow_scissor.width = shadow_light->shadow_map_atlas_rect.z;
-                shadow_scissor.height = shadow_light->shadow_map_atlas_rect.w;
+                shadow_scissor.x = shadow_light.shadow_map_atlas_rect.x;
+                shadow_scissor.y = shadow_light.shadow_map_atlas_rect.y;
+                shadow_scissor.width = shadow_light.shadow_map_atlas_rect.z;
+                shadow_scissor.height = shadow_light.shadow_map_atlas_rect.w;
                 frame_context.command_list->SetScissor(shadow_scissor);
 
                 DrawScene(view, frame_context, RenderPassType::ShadowPass, DrawScene_Opaque | DrawScene_ShadowCaster);

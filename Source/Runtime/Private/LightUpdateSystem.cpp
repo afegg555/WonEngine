@@ -27,10 +27,11 @@ namespace won::ecs
             light_count = NUM_MAX_LIGHTS_FORWARD_RENDERING;
         }
 
-        render_data.shader_light.resize(light_count);
+        render_data.shader_lights.resize(light_count);
         render_data.forward_light_mask = { 0,0,0,0 };
         render_data.shadow_map_atlas_size = { 0, 0 };
-        render_data.shadow_light_entities.clear();
+
+        render_data.render_shadow_lights.resize(light_count);
 
         rectpacker::State shadow_map_atlas_packer = {};
 
@@ -65,7 +66,7 @@ namespace won::ecs
                 break;
             }
 
-            ShaderLight& shader_light = render_data.shader_light[args.job_index];
+            ShaderLight& shader_light = render_data.shader_lights[args.job_index];
             shader_light.Init();
             shader_light.position = light.position;
             
@@ -86,7 +87,47 @@ namespace won::ecs
 
                 if(light.IsDynamic() && light.IsCastShadow())
                 {
-                    light.ClearShadowMapAtlasRect();
+                    auto& render_shadow_light = render_data.render_shadow_lights[args.job_index];
+
+                    const XMVECTOR light_position = XMLoadFloat3(&light.position);
+                    XMVECTOR light_direction = XMVector3Normalize(XMLoadFloat3(&light.direction));
+                    XMVECTOR light_up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+                    if (std::abs(XMVectorGetX(XMVector3Dot(light_up, light_direction))) > 0.99f)
+                    {
+                        light_up = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+                    }
+
+                    XMMATRIX shadow_view = {};
+                    XMMATRIX shadow_projection = {};
+
+                    if (light.type == LightComponent::Directional)
+                    {
+                        const XMVECTOR shadow_eye = light_position - light_direction * 100.0f;
+                        shadow_view = XMMatrixLookToLH(shadow_eye, light_direction, light_up);
+                        // TODO: current projection size is hard coded.
+                        shadow_projection = XMMatrixOrthographicLH(20.0f, 20.0f, 1000.0f, 0.1f);
+                    }
+                    else if (light.type == LightComponent::Spot)
+                    {
+                        shadow_view = XMMatrixLookToLH(light_position, light_direction, light_up);
+                        shadow_projection = XMMatrixPerspectiveFovLH((std::max)(0.1f, light.outer_cone_angle * 2.0f), 1.0f, light.range, 0.1f);
+                    }
+                    else if (light.type == LightComponent::Point)
+                    {
+                        shadow_view = XMMatrixLookToLH(light_position, light_direction, light_up);
+                        shadow_projection = XMMatrixPerspectiveFovLH(XM_PIDIV2, 1.0f, light.range, 0.1f);
+                    }
+                    else
+                    {
+                        backlog::Post("Shadowmap is not supported on this light type", backlog::LogLevel::Error);
+                        return;
+                    }
+
+                    XMMATRIX shadow_view_projection = {};
+                    shadow_view_projection = shadow_view * shadow_projection;
+                    XMStoreFloat4x4(&render_shadow_light.view_projection, shadow_view_projection);
+                    render_shadow_light.shadow_map_resolution = light.shadow_map_resolution;
+                    render_shadow_light.light_index = args.job_index;
 
                     rectpacker::Rect rect = {};
                     rect.id = static_cast<int>(args.job_index);
@@ -97,6 +138,7 @@ namespace won::ecs
                         std::lock_guard<std::mutex> lock(shadowmap_atlas_mutex);
                         shadow_map_atlas_packer.AddRect(rect);
                     }
+                    
                 }
             }
         });
@@ -123,9 +165,8 @@ namespace won::ecs
                     continue;
                 }
 
-                LightComponent& light = light_array->data[rect.id];
-                light.shadow_map_atlas_rect = { rect.x, rect.y, rect.w, rect.h };
-                render_data.shadow_light_entities.push_back(light_array->index_to_entity[rect.id]);
+                auto& render_shadow_light = render_data.render_shadow_lights[rect.id];
+                render_shadow_light.shadow_map_atlas_rect = { rect.x, rect.y, rect.w, rect.h };
             }
         }
     }

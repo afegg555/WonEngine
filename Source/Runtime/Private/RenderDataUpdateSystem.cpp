@@ -26,14 +26,14 @@ namespace won::ecs
             geometry_comp.geometry_offset = (uint32)submesh_sum;
             submesh_sum += geometry_comp.mesh->submeshes.size();
         }
-        render_data.shader_geometry.resize(submesh_sum);
+        render_data.shader_geometries.resize(submesh_sum);
 
         jobsystem::Dispatch(sub_ctx, (uint32_t)geometry_array->GetSize(), groupsize, [&](jobsystem::JobArgs args) {
             const GeometryComponent& geometry_comp = geometry_array->data[args.job_index];
             const resource::Mesh::RenderData* mesh_render_data = geometry_comp.mesh->GetRenderData();
             for (Size i = 0; i < geometry_comp.mesh->submeshes.size(); ++i)
             {
-                ShaderGeometry& shader_geometry = render_data.shader_geometry[geometry_comp.geometry_offset + i];
+                ShaderGeometry& shader_geometry = render_data.shader_geometries[geometry_comp.geometry_offset + i];
                 shader_geometry.Init();
                 shader_geometry.bounds_min = geometry_comp.mesh->submeshes[i].local_bounds.min;
                 shader_geometry.bounds_max = geometry_comp.mesh->submeshes[i].local_bounds.max;
@@ -62,14 +62,14 @@ namespace won::ecs
             material_comp.material_offset = (uint32)material_slot_sum;
             material_slot_sum += material_array->data[i].GetMaterialSlotCount();
         }
-        render_data.shader_material.resize(material_slot_sum);
+        render_data.shader_materials.resize(material_slot_sum);
 
         jobsystem::Dispatch(sub_ctx, (uint32_t)material_array->GetSize(), groupsize, [&](jobsystem::JobArgs args) {
             const MaterialComponent& material_comp = material_array->data[args.job_index];
             for (size_t i = 0; i < material_comp.GetMaterialSlotCount(); ++i)
             {
                 const MaterialSlot& material_slot = material_comp.material_slots[i];
-                ShaderMaterial& shader_material = render_data.shader_material[material_comp.material_offset + i];
+                ShaderMaterial& shader_material = render_data.shader_materials[material_comp.material_offset + i];
                 shader_material.Init();
                 shader_material.base_color = pack_half4(material_slot.base_color);
                 shader_material.emissive_color_metallic = pack_half4(0.f, 0.f, 0.f, material_slot.metallic);
@@ -90,7 +90,7 @@ namespace won::ecs
             });
 
         const auto transform_array = scene.GetComponentArray<TransformComponent>().get();
-        render_data.shader_instance.resize(transform_array->GetSize());
+        render_data.shader_instances.resize(transform_array->GetSize());
 
         render_data.renderables.resize(submesh_sum);
         std::atomic<uint32> renderable_count{ 0 };
@@ -98,7 +98,7 @@ namespace won::ecs
         jobsystem::Dispatch(sub_ctx, (uint32_t)transform_array->GetSize(), groupsize, [&](jobsystem::JobArgs args) {
 
             const TransformComponent& transform = transform_array->data[args.job_index];
-            ShaderInstance& shader_instance = render_data.shader_instance[args.job_index];
+            ShaderInstance& shader_instance = render_data.shader_instances[args.job_index];
             shader_instance.Init();
             shader_instance.world_transform = transform.world_transform;
 

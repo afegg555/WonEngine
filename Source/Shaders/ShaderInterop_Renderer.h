@@ -287,7 +287,8 @@ struct alignas(16) ShaderLight
     uint2 color; // half4 packed
 
     uint inner_cone_angle_cos_padding; // cos_inner_cone 1 padding 1
-    uint3 padding;
+    float2 shadowmap_atlas_uv;
+    uint padding;
 #ifdef __cplusplus
     inline void Init()
     {
@@ -297,6 +298,7 @@ struct alignas(16) ShaderLight
         direction_outer_cone_angle_cos = { 0,0 };
         color = { 0,0 };
         inner_cone_angle_cos_padding = 0;
+        shadowmap_atlas_uv = { 0,0 };
     }
     inline void SetType(uint type)
     {

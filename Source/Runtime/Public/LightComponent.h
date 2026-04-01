@@ -42,7 +42,6 @@ namespace won::ecs
 		float3 position = { 0, 0, 0 }; // vec(0, 0, 0) * transform_matrix
 		float3 direction = { 0, 0, 1 }; // vec(0, 0, 1) * transform_matrix
 		math::AABB aabb = {};
-        int4 shadow_map_atlas_rect = { -1, -1, 0, 0 };
 
 		constexpr void SetActive(bool value = true) { if (value) { flags |= Active; } else { flags &= ~Active; } }
 		constexpr bool IsActive() const { return flags & Active; }
@@ -51,7 +50,5 @@ namespace won::ecs
 		constexpr bool IsCastShadow() const { return flags & CastShadow; }
 		constexpr void SetDynamic(bool value = true) { if (value) { flags |= Dynamic; } else { flags &= ~Dynamic; } }
 		constexpr bool IsDynamic() const { return flags & Dynamic; }
-        constexpr void ClearShadowMapAtlasRect() { shadow_map_atlas_rect = { -1, -1, 0, 0 }; }
-        constexpr bool HasShadowMapAtlasRect() const { return shadow_map_atlas_rect.z > 0 && shadow_map_atlas_rect.w > 0; }
     };
 }
