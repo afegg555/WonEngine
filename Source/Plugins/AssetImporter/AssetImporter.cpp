@@ -249,7 +249,6 @@ namespace won::plugin
             ecs::GeometryComponent* geometry_comp = target_scene_in->AddComponent<ecs::GeometryComponent>(root_entity);
             geometry_comp->mesh = std::make_shared<resource::Mesh>();
             auto& mesh = *geometry_comp->mesh;
-            bool geometry_bounds_initialized = false;
             bool import_failed = false;
             struct NodeImportEntry
             {
@@ -279,6 +278,7 @@ namespace won::plugin
                     const uint32 vertex_offset = static_cast<uint32>(mesh.positions.size());
                     const uint32 index_offset = static_cast<uint32>(mesh.indices.size());
                     resource::Submesh& submesh = mesh.submeshes.emplace_back();
+                    submesh.local_bounds.Invalidate();
                     submesh.first_vertex = vertex_offset;
                     submesh.first_index = index_offset;
                     submesh.material_slot = ai_mesh->mMaterialIndex < material_comp->GetMaterialSlotCount() ? ai_mesh->mMaterialIndex : 0;
@@ -336,37 +336,12 @@ namespace won::plugin
                             mesh.tangents.push_back({ transformed_tangent.x, transformed_tangent.y, transformed_tangent.z, tangent_sign });
                         }
 
-                        if (!submesh_bounds_initialized)
-                        {
-                            submesh.local_bounds.min = position;
-                            submesh.local_bounds.max = position;
-                            submesh_bounds_initialized = true;
-                        }
-                        else
-                        {
-                            submesh.local_bounds.min.x = std::min(submesh.local_bounds.min.x, position.x);
-                            submesh.local_bounds.min.y = std::min(submesh.local_bounds.min.y, position.y);
-                            submesh.local_bounds.min.z = std::min(submesh.local_bounds.min.z, position.z);
-                            submesh.local_bounds.max.x = std::max(submesh.local_bounds.max.x, position.x);
-                            submesh.local_bounds.max.y = std::max(submesh.local_bounds.max.y, position.y);
-                            submesh.local_bounds.max.z = std::max(submesh.local_bounds.max.z, position.z);
-                        }
-
-                        if (!geometry_bounds_initialized)
-                        {
-                            geometry_comp->local_bounds.min = position;
-                            geometry_comp->local_bounds.max = position;
-                            geometry_bounds_initialized = true;
-                        }
-                        else
-                        {
-                            geometry_comp->local_bounds.min.x = std::min(geometry_comp->local_bounds.min.x, position.x);
-                            geometry_comp->local_bounds.min.y = std::min(geometry_comp->local_bounds.min.y, position.y);
-                            geometry_comp->local_bounds.min.z = std::min(geometry_comp->local_bounds.min.z, position.z);
-                            geometry_comp->local_bounds.max.x = std::max(geometry_comp->local_bounds.max.x, position.x);
-                            geometry_comp->local_bounds.max.y = std::max(geometry_comp->local_bounds.max.y, position.y);
-                            geometry_comp->local_bounds.max.z = std::max(geometry_comp->local_bounds.max.z, position.z);
-                        }
+                        submesh.local_bounds.min.x = std::min(submesh.local_bounds.min.x, position.x);
+                        submesh.local_bounds.min.y = std::min(submesh.local_bounds.min.y, position.y);
+                        submesh.local_bounds.min.z = std::min(submesh.local_bounds.min.z, position.z);
+                        submesh.local_bounds.max.x = std::max(submesh.local_bounds.max.x, position.x);
+                        submesh.local_bounds.max.y = std::max(submesh.local_bounds.max.y, position.y);
+                        submesh.local_bounds.max.z = std::max(submesh.local_bounds.max.z, position.z);
                     }
 
                     if (ai_mesh->HasFaces())
@@ -398,6 +373,7 @@ namespace won::plugin
                 return false;
             }
 
+            geometry_comp->UpdateLocalBounds();
             geometry_comp->mesh->CreateRenderData(device_in);
             std::string log = "AssetImporter::Import succeeded: " + std::string(file_path_in);
             backlog::Post(log, backlog::LogLevel::Default);

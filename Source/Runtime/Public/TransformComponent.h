@@ -20,6 +20,7 @@ namespace won::ecs
         float3 scale = { 1.0f, 1.0f, 1.0f };
 
         float4x4 world_transform = math::IDENTITY_MATRIX;
+        math::AABB world_bounds = {};
 
         constexpr void SetDirty(bool value = true) { if (value) { flags |= Dirty; } else { flags &= ~Dirty; } }
         constexpr bool IsDirty() const { return flags & Dirty; }

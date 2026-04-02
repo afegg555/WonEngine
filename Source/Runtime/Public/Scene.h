@@ -8,7 +8,7 @@
 #include "LightUpdateSystem.h"
 #include "GeometryUpdateSystem.h"
 #include "MaterialUpdateSystem.h"
-#include "RenderDataUpdateSystem.h"
+#include "RenderableUpdateSystem.h"
 #include "ShaderInterop_Renderer.h"
 
 #include "Types.h"
@@ -327,6 +327,7 @@ namespace won::ecs
             Vector<RenderShadowLight> render_shadow_lights;
             uint4 forward_light_mask;
             uint2 shadow_map_atlas_size = { 0, 0 };
+            math::AABB shadow_caster_world_bound;
 
             void Clear()
             {
@@ -334,10 +335,12 @@ namespace won::ecs
                 shader_geometries.clear();
                 shader_materials.clear();
                 renderables.clear();
+
                 shader_lights.clear();
+                render_shadow_lights.clear();
                 forward_light_mask = { 0,0,0,0 };
                 shadow_map_atlas_size = { 0, 0 };
-                render_shadow_lights.clear();
+                shadow_caster_world_bound.Invalidate();
             }
         };
 

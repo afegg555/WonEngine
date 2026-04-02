@@ -4,14 +4,21 @@
 #include "Scene.h"
 #include "TransformComponent.h"
 #include "HierarchyComponent.h"
+#include "GeometryComponent.h"
 #include "JobSystem.h"
+#include <mutex>
 
 namespace won::ecs
 {
+    static std::mutex shadow_caster_world_bound_mutex;
+
     void TransformUpdateSystem::Update(Scene& scene, float delta_time)
     {
         jobsystem::Context sub_ctx;
         auto transform_array = scene.GetComponentArray<TransformComponent>().get();
+        Scene::RenderData& render_data = scene.GetRenderData();
+
+        // update local transform
         jobsystem::Dispatch(sub_ctx, (uint32_t)transform_array->data.size(), groupsize, [&](jobsystem::JobArgs args) {
 
             TransformComponent& transform = transform_array->data[args.job_index];
@@ -21,6 +28,8 @@ namespace won::ecs
         jobsystem::Wait(sub_ctx); // dependencies
 
         auto hierarchy_array = scene.GetComponentArray<HierarchyComponent>().get();
+
+        // update world transform using hierarchy
         jobsystem::Dispatch(sub_ctx, (uint32_t)hierarchy_array->data.size(), groupsize, [&](jobsystem::JobArgs args) {
 
             HierarchyComponent& hierarchy = hierarchy_array->data[args.job_index];
@@ -47,6 +56,31 @@ namespace won::ecs
             }
             XMStoreFloat4x4(&transform_child.world_transform, worldmatrix);
             });
+        jobsystem::Wait(sub_ctx);
+
+        auto geometry_array = scene.GetComponentArray<GeometryComponent>().get();
+
+        render_data.shadow_caster_world_bound.Invalidate();
+        // update world bounds
+        jobsystem::Dispatch(sub_ctx, (uint32_t)transform_array->data.size(), groupsize, [&](jobsystem::JobArgs args) {
+            TransformComponent& transform = transform_array->data[args.job_index];
+            Entity entity = transform_array->index_to_entity[args.job_index];
+
+            transform.world_bounds.Invalidate();
+            if (!geometry_array->HasData(entity))
+            {
+                return;
+            }
+
+            const GeometryComponent& geometry = geometry_array->GetData(entity);
+            transform.world_bounds = math::TransformAABB(geometry.local_bounds, transform.world_transform);
+
+            if (geometry.IsCastShadow())
+            {
+                std::lock_guard<std::mutex> mutex(shadow_caster_world_bound_mutex);
+                render_data.shadow_caster_world_bound.Merge(transform.world_bounds);
+            }
+        });
         jobsystem::Wait(sub_ctx);
     }
 }
