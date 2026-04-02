@@ -66,20 +66,21 @@ namespace won::ecs
                 break;
             }
 
-            ShaderLight& shader_light = render_data.shader_lights[args.job_index];
-            shader_light.Init();
-            shader_light.position = light.position;
-            
-            shader_light.SetType(light.type);
-            shader_light.SetColor({light.color.x * light.intensity, light.color.y * light.intensity, light.color.z * light.intensity, light.intensity });
-            shader_light.SetFlags(light.flags);
-            shader_light.SetRange(light.range);
-            shader_light.SetDirection(light.direction);
-            shader_light.SetOuterConeAngleCos(cos(light.outer_cone_angle));
-            shader_light.SetInnerConeAngleCos(cos(light.inner_cone_angle));
-
             if (light.IsActive())
             {
+                ShaderLight& shader_light = render_data.shader_lights[args.job_index];
+                shader_light.Init();
+                shader_light.position = light.position;
+
+                shader_light.SetType(light.type);
+                shader_light.SetColor({ light.color.x * light.intensity, light.color.y * light.intensity, light.color.z * light.intensity, light.intensity });
+                shader_light.SetRange(light.range);
+                shader_light.SetDirection(light.direction);
+                shader_light.SetOuterConeAngleCos(cos(light.outer_cone_angle));
+                shader_light.SetInnerConeAngleCos(cos(light.inner_cone_angle));
+                if (!light.IsDynamic()) shader_light.SetFlags(SHADER_LIGHT_FLAGS::LIGHT_FLAG_LIGHT_STATIC);
+                if (light.IsCastShadow()) shader_light.SetFlags(SHADER_LIGHT_FLAGS::LIGHT_FLAG_LIGHT_CASTING_SHADOW);
+
                 const uint8_t bucket_index = uint8_t(args.job_index / 32);
                 const uint8_t bucket_place = uint8_t(args.job_index % 32);
                 uint32_t* value = reinterpret_cast<uint32_t*>(&render_data.forward_light_mask);
@@ -126,6 +127,7 @@ namespace won::ecs
                     XMMATRIX shadow_view_projection = {};
                     shadow_view_projection = shadow_view * shadow_projection;
                     XMStoreFloat4x4(&render_shadow_light.view_projection, shadow_view_projection);
+                    shader_light.shadow_view_projection = render_shadow_light.view_projection;
                     render_shadow_light.shadow_map_resolution = light.shadow_map_resolution;
                     render_shadow_light.light_index = args.job_index;
 
@@ -167,6 +169,13 @@ namespace won::ecs
 
                 auto& render_shadow_light = render_data.render_shadow_lights[rect.id];
                 render_shadow_light.shadow_map_atlas_rect = { rect.x, rect.y, rect.w, rect.h };
+                ShaderLight& shader_light = render_data.shader_lights[render_shadow_light.light_index];
+                shader_light.shadow_atlas_scale_bias = {
+                    static_cast<float>(rect.w) / static_cast<float>(render_data.shadow_map_atlas_size.x),
+                    static_cast<float>(rect.h) / static_cast<float>(render_data.shadow_map_atlas_size.y),
+                    static_cast<float>(rect.x) / static_cast<float>(render_data.shadow_map_atlas_size.x),
+                    static_cast<float>(rect.y) / static_cast<float>(render_data.shadow_map_atlas_size.y)
+                };
             }
         }
     }

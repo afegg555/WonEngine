@@ -964,6 +964,7 @@ namespace won::editor
 					material_slot.base_color = { 0.8f, 0.8f, 0.8f, 1.0f };
 					material_slot.metallic = 1.0f;
 					material_slot.roughness = 0.5f;
+					material_slot.flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW;
 				}
 			}
 		}

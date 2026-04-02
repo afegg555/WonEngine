@@ -86,7 +86,7 @@ namespace won::rendering
         {
             frame_context.shader_instance_upload_buffer = nullptr;
             shader_instance_default_buffer = nullptr;
-            shader_instance_default_buffer_subresource = {};
+            shader_instance_default_buffer_srv = {};
         }
         else
         {
@@ -109,13 +109,13 @@ namespace won::rendering
                     return false;
                 }
 
-                shader_instance_default_buffer_subresource = {};
+                shader_instance_default_buffer_srv = {};
                 RHISubresourceDesc shader_instance_default_subresource_desc = {};
                 shader_instance_default_subresource_desc.type = RHISubresourceType::ShaderResource;
                 shader_instance_default_subresource_desc.buffer_offset = 0;
                 shader_instance_default_subresource_desc.buffer_size = shader_instance_default_buffer->GetDesc().buffer_desc.size;
                 shader_instance_default_subresource_desc.buffer_stride = sizeof(ShaderInstance);
-                if (!device->CreateSubresource(*shader_instance_default_buffer, shader_instance_default_subresource_desc, &shader_instance_default_buffer_subresource))
+                if (!device->CreateSubresource(*shader_instance_default_buffer, shader_instance_default_subresource_desc, &shader_instance_default_buffer_srv))
                 {
                     backlog::Post("failed to create shader instance default subresource", backlog::LogLevel::Error);
                     shader_instance_default_buffer = nullptr;
@@ -160,7 +160,7 @@ namespace won::rendering
         {
             frame_context.shader_geometry_upload_buffer = nullptr;
             shader_geometry_default_buffer = nullptr;
-            shader_geometry_default_buffer_subresource = {};
+            shader_geometry_default_buffer_srv = {};
         }
         else
         {
@@ -183,13 +183,13 @@ namespace won::rendering
                     return false;
                 }
 
-                shader_geometry_default_buffer_subresource = {};
+                shader_geometry_default_buffer_srv = {};
                 RHISubresourceDesc shader_geometry_default_subresource_desc = {};
                 shader_geometry_default_subresource_desc.type = RHISubresourceType::ShaderResource;
                 shader_geometry_default_subresource_desc.buffer_offset = 0;
                 shader_geometry_default_subresource_desc.buffer_size = shader_geometry_default_buffer->GetDesc().buffer_desc.size;
                 shader_geometry_default_subresource_desc.buffer_stride = sizeof(ShaderGeometry);
-                if (!device->CreateSubresource(*shader_geometry_default_buffer, shader_geometry_default_subresource_desc, &shader_geometry_default_buffer_subresource))
+                if (!device->CreateSubresource(*shader_geometry_default_buffer, shader_geometry_default_subresource_desc, &shader_geometry_default_buffer_srv))
                 {
                     backlog::Post("failed to create shader geometry default subresource", backlog::LogLevel::Error);
                     shader_geometry_default_buffer = nullptr;
@@ -234,7 +234,7 @@ namespace won::rendering
         {
             frame_context.shader_material_upload_buffer = nullptr;
             shader_material_default_buffer = nullptr;
-            shader_material_default_buffer_subresource = {};
+            shader_material_default_buffer_srv = {};
         }
         else
         {
@@ -257,13 +257,13 @@ namespace won::rendering
                     return false;
                 }
 
-                shader_material_default_buffer_subresource = {};
+                shader_material_default_buffer_srv = {};
                 RHISubresourceDesc shader_material_default_subresource_desc = {};
                 shader_material_default_subresource_desc.type = RHISubresourceType::ShaderResource;
                 shader_material_default_subresource_desc.buffer_offset = 0;
                 shader_material_default_subresource_desc.buffer_size = shader_material_default_buffer->GetDesc().buffer_desc.size;
                 shader_material_default_subresource_desc.buffer_stride = sizeof(ShaderMaterial);
-                if (!device->CreateSubresource(*shader_material_default_buffer, shader_material_default_subresource_desc, &shader_material_default_buffer_subresource))
+                if (!device->CreateSubresource(*shader_material_default_buffer, shader_material_default_subresource_desc, &shader_material_default_buffer_srv))
                 {
                     backlog::Post("failed to create shader material default subresource", backlog::LogLevel::Error);
                     shader_material_default_buffer = nullptr;
@@ -308,7 +308,7 @@ namespace won::rendering
         {
             frame_context.shader_light_upload_buffer = nullptr;
             shader_light_default_buffer = nullptr;
-            shader_light_default_buffer_subresource = {};
+            shader_light_default_buffer_srv = {};
         }
         else
         {
@@ -331,13 +331,13 @@ namespace won::rendering
                     return false;
                 }
 
-                shader_light_default_buffer_subresource = {};
+                shader_light_default_buffer_srv = {};
                 RHISubresourceDesc shader_light_default_subresource_desc = {};
                 shader_light_default_subresource_desc.type = RHISubresourceType::ShaderResource;
                 shader_light_default_subresource_desc.buffer_offset = 0;
                 shader_light_default_subresource_desc.buffer_size = shader_light_default_buffer->GetDesc().buffer_desc.size;
                 shader_light_default_subresource_desc.buffer_stride = sizeof(ShaderLight);
-                if (!device->CreateSubresource(*shader_light_default_buffer, shader_light_default_subresource_desc, &shader_light_default_buffer_subresource))
+                if (!device->CreateSubresource(*shader_light_default_buffer, shader_light_default_subresource_desc, &shader_light_default_buffer_srv))
                 {
                     backlog::Post("failed to create shader light default subresource", backlog::LogLevel::Error);
                     shader_light_default_buffer = nullptr;
@@ -380,11 +380,12 @@ namespace won::rendering
 
         ShaderFrame shader_frame{};
         shader_frame.Init();
-        shader_frame.scene.instancebuffer = shader_instance_default_buffer_subresource.descriptor_index;
-        shader_frame.scene.geometrybuffer = shader_geometry_default_buffer_subresource.descriptor_index;
-        shader_frame.scene.materialbuffer = shader_material_default_buffer_subresource.descriptor_index;
-        shader_frame.scene.lightbuffer = shader_light_default_buffer_subresource.descriptor_index;
+        shader_frame.scene.instancebuffer = shader_instance_default_buffer_srv.descriptor_index;
+        shader_frame.scene.geometrybuffer = shader_geometry_default_buffer_srv.descriptor_index;
+        shader_frame.scene.materialbuffer = shader_material_default_buffer_srv.descriptor_index;
+        shader_frame.scene.lightbuffer = shader_light_default_buffer_srv.descriptor_index;
         shader_frame.scene.lights = render_data.forward_light_mask;
+        shader_frame.scene.shadow_atlas = shadow_map_atlas_srv.descriptor_index;
 
         ShaderCamera shader_camera{};
         shader_camera.Init();
@@ -429,12 +430,12 @@ namespace won::rendering
 
         RHISubresourceBinding shader_frame_binding = {};
         shader_frame_binding.resource = shader_frame_buffer.get();
-        shader_frame_binding.subresource = shader_frame_buffer_subresource;
+        shader_frame_binding.subresource = shader_frame_buffer_cbv;
         frame_context.command_list->SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
 
         RHISubresourceBinding shader_camera_binding = {};
         shader_camera_binding.resource = shader_camera_buffer.get();
-        shader_camera_binding.subresource = shader_camera_buffer_subresource;
+        shader_camera_binding.subresource = shader_camera_buffer_cbv;
         frame_context.command_list->SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_camera_binding);
         frame_context.command_list->SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
 
@@ -503,7 +504,7 @@ namespace won::rendering
         shader_frame_subresource_desc.type = RHISubresourceType::ConstantBuffer;
         shader_frame_subresource_desc.buffer_offset = 0;
         shader_frame_subresource_desc.buffer_size = sizeof(ShaderFrame);
-        if (!device->CreateSubresource(*shader_frame_buffer, shader_frame_subresource_desc, &shader_frame_buffer_subresource))
+        if (!device->CreateSubresource(*shader_frame_buffer, shader_frame_subresource_desc, &shader_frame_buffer_cbv))
         {
             backlog::Post("failed to create shader frame subresource", backlog::LogLevel::Error);
             shader_frame_buffer = nullptr;
@@ -525,7 +526,7 @@ namespace won::rendering
         shader_camera_subresource_desc.type = RHISubresourceType::ConstantBuffer;
         shader_camera_subresource_desc.buffer_offset = 0;
         shader_camera_subresource_desc.buffer_size = sizeof(ShaderCamera);
-        if (!device->CreateSubresource(*shader_camera_buffer, shader_camera_subresource_desc, &shader_camera_buffer_subresource))
+        if (!device->CreateSubresource(*shader_camera_buffer, shader_camera_subresource_desc, &shader_camera_buffer_cbv))
         {
             backlog::Post("failed to create shader camera subresource", backlog::LogLevel::Error);
             shader_camera_buffer = nullptr;
@@ -540,8 +541,8 @@ namespace won::rendering
         if (current_window != &window)
         {
             WaitIdle();
-            back_buffer_subresources = {};
-            depth_buffer_subresource = {};
+            back_buffers_rtv = {};
+            depth_buffer_dsv = {};
             depth_buffer = nullptr;
         }
 
@@ -563,8 +564,8 @@ namespace won::rendering
 
         WaitIdle();
 
-        back_buffer_subresources = {};
-        depth_buffer_subresource = {};
+        back_buffers_rtv = {};
+        depth_buffer_dsv = {};
         depth_buffer = nullptr;
 
         if (!swapchain->Resize(width, height))
@@ -597,9 +598,9 @@ namespace won::rendering
             return;
         }
 
-        for (uint32 i = 0; i < swapchain->GetBackBufferCount() && i < static_cast<uint32>(back_buffer_subresources.size()); ++i)
+        for (uint32 i = 0; i < swapchain->GetBackBufferCount() && i < static_cast<uint32>(back_buffers_rtv.size()); ++i)
         {
-            if (back_buffer_subresources[i].IsValid())
+            if (back_buffers_rtv[i].IsValid())
             {
                 continue;
             }
@@ -613,7 +614,7 @@ namespace won::rendering
 
             RHISubresourceDesc back_buffer_subresource_desc = {};
             back_buffer_subresource_desc.type = RHISubresourceType::RenderTarget;
-            if (!device->CreateSubresource(*swapchain_back_buffer, back_buffer_subresource_desc, &back_buffer_subresources[i]))
+            if (!device->CreateSubresource(*swapchain_back_buffer, back_buffer_subresource_desc, &back_buffers_rtv[i]))
             {
                 backlog::Post("failed to create back buffer RTV", backlog::LogLevel::Error);
                 return;
@@ -623,7 +624,7 @@ namespace won::rendering
         const RHIResourceDesc& back_buffer_desc = back_buffer->GetDesc();
         const RHITextureDesc& back_buffer_texture_desc = back_buffer_desc.texture_desc;
         const uint32 target_sample_count = back_buffer_texture_desc.sample_count > 0 ? back_buffer_texture_desc.sample_count : 1;
-        bool recreate_depth_buffer = !depth_buffer || !depth_buffer_subresource.IsValid();
+        bool recreate_depth_buffer = !depth_buffer || !depth_buffer_dsv.IsValid();
         if (!recreate_depth_buffer)
         {
             const RHITextureDesc& depth_texture_desc = depth_buffer->GetDesc().texture_desc;
@@ -653,15 +654,71 @@ namespace won::rendering
                 return;
             }
 
-            depth_buffer_subresource = {};
+            depth_buffer_dsv = {};
             RHISubresourceDesc depth_subresource_desc = {};
             depth_subresource_desc.type = RHISubresourceType::DepthStencil;
             depth_subresource_desc.format = depth_desc.format;
-            if (!device->CreateSubresource(*depth_buffer, depth_subresource_desc, &depth_buffer_subresource))
+            if (!device->CreateSubresource(*depth_buffer, depth_subresource_desc, &depth_buffer_dsv))
             {
                 backlog::Post("failed to create depth buffer subresource", backlog::LogLevel::Error);
                 depth_buffer = nullptr;
                 return;
+            }
+        }
+
+        const Scene::RenderData& render_data = view.scene->GetRenderData();
+        if (render_data.shadow_map_atlas_size.x == 0 || render_data.shadow_map_atlas_size.y == 0)
+        {
+            shadow_map_atlas = nullptr;
+            shadow_map_atlas_dsv = {};
+            shadow_map_atlas_size = { 0, 0 };
+        }
+        else
+        {
+            const bool recreate_shadowmap_atlas =
+                !shadow_map_atlas ||
+                !shadow_map_atlas_dsv.IsValid() ||
+                shadow_map_atlas_size.x != render_data.shadow_map_atlas_size.x ||
+                shadow_map_atlas_size.y != render_data.shadow_map_atlas_size.y;
+
+            if (recreate_shadowmap_atlas)
+            {
+                RHITextureDesc shadow_map_atlas_desc = {};
+                shadow_map_atlas_desc.width = render_data.shadow_map_atlas_size.x;
+                shadow_map_atlas_desc.height = render_data.shadow_map_atlas_size.y;
+                shadow_map_atlas_desc.depth = 1;
+                shadow_map_atlas_desc.mip_levels = 1;
+                shadow_map_atlas_desc.array_layers = 1;
+                shadow_map_atlas_desc.sample_count = 1;
+                shadow_map_atlas_desc.format = RHIFormat::D32Float;
+                shadow_map_atlas_desc.usage = RHIResourceUsage::Default;
+                shadow_map_atlas_desc.bind_flags = RHIBindFlags::DepthStencil | RHIBindFlags::ShaderResource;
+                shadow_map_atlas = device->CreateTexture(shadow_map_atlas_desc);
+                if (!shadow_map_atlas)
+                {
+                    backlog::Post("failed to create shadow map atlas", backlog::LogLevel::Error);
+                    return;
+                }
+
+                shadow_map_atlas_dsv = {};
+                RHISubresourceDesc shadow_map_atlas_subresource_desc = {};
+                shadow_map_atlas_subresource_desc.type = RHISubresourceType::DepthStencil;
+                shadow_map_atlas_subresource_desc.format = shadow_map_atlas_desc.format;
+                if (!device->CreateSubresource(*shadow_map_atlas, shadow_map_atlas_subresource_desc, &shadow_map_atlas_dsv))
+                {
+                    backlog::Post("failed to create shadow map atlas subresource", backlog::LogLevel::Error);
+                    shadow_map_atlas = nullptr;
+                    return;
+                }
+                shadow_map_atlas_subresource_desc.type = RHISubresourceType::ShaderResource;
+                if (!device->CreateSubresource(*shadow_map_atlas, shadow_map_atlas_subresource_desc, &shadow_map_atlas_srv))
+                {
+                    backlog::Post("failed to create shadow map atlas subresource", backlog::LogLevel::Error);
+                    shadow_map_atlas = nullptr;
+                    return;
+                }
+
+                shadow_map_atlas_size = render_data.shadow_map_atlas_size;
             }
         }
 
@@ -687,60 +744,11 @@ namespace won::rendering
 
         RHISubresourceBinding back_buffer_binding = {};
         back_buffer_binding.resource = back_buffer.get();
-        back_buffer_binding.subresource = back_buffer_subresources[back_buffer_index];
+        back_buffer_binding.subresource = back_buffers_rtv[back_buffer_index];
         RHISubresourceBinding depth_buffer_binding = {};
         depth_buffer_binding.resource = depth_buffer.get();
-        depth_buffer_binding.subresource = depth_buffer_subresource;
+        depth_buffer_binding.subresource = depth_buffer_dsv;
         Vector<RHISubresourceBinding> color_targets = { back_buffer_binding };
-
-        const Scene::RenderData& render_data = view.scene->GetRenderData();
-        if (render_data.shadow_map_atlas_size.x == 0 || render_data.shadow_map_atlas_size.y == 0)
-        {
-            shadow_map_atlas = nullptr;
-            shadow_map_atlas_subresource = {};
-            shadow_map_atlas_size = { 0, 0 };
-        }
-        else
-        {
-            const bool regen_shadowmap_atlas =
-                !shadow_map_atlas ||
-                !shadow_map_atlas_subresource.IsValid() ||
-                shadow_map_atlas_size.x != render_data.shadow_map_atlas_size.x ||
-                shadow_map_atlas_size.y != render_data.shadow_map_atlas_size.y;
-
-            if (regen_shadowmap_atlas)
-            {
-                RHITextureDesc shadow_map_atlas_desc = {};
-                shadow_map_atlas_desc.width = render_data.shadow_map_atlas_size.x;
-                shadow_map_atlas_desc.height = render_data.shadow_map_atlas_size.y;
-                shadow_map_atlas_desc.depth = 1;
-                shadow_map_atlas_desc.mip_levels = 1;
-                shadow_map_atlas_desc.array_layers = 1;
-                shadow_map_atlas_desc.sample_count = 1;
-                shadow_map_atlas_desc.format = RHIFormat::D32Float;
-                shadow_map_atlas_desc.usage = RHIResourceUsage::Default;
-                shadow_map_atlas_desc.bind_flags = RHIBindFlags::DepthStencil;
-                shadow_map_atlas = device->CreateTexture(shadow_map_atlas_desc);
-                if (!shadow_map_atlas)
-                {
-                    backlog::Post("failed to create shadow map atlas", backlog::LogLevel::Error);
-                    return;
-                }
-
-                shadow_map_atlas_subresource = {};
-                RHISubresourceDesc shadow_map_atlas_subresource_desc = {};
-                shadow_map_atlas_subresource_desc.type = RHISubresourceType::DepthStencil;
-                shadow_map_atlas_subresource_desc.format = shadow_map_atlas_desc.format;
-                if (!device->CreateSubresource(*shadow_map_atlas, shadow_map_atlas_subresource_desc, &shadow_map_atlas_subresource))
-                {
-                    backlog::Post("failed to create shadow map atlas subresource", backlog::LogLevel::Error);
-                    shadow_map_atlas = nullptr;
-                    return;
-                }
-
-                shadow_map_atlas_size = render_data.shadow_map_atlas_size;
-            }
-        }
 
         frame_context.command_list->TransitionResource(*back_buffer, RHIResourceState::RenderTarget);
         frame_context.command_list->TransitionResource(*depth_buffer, RHIResourceState::DepthWrite);
@@ -763,13 +771,13 @@ namespace won::rendering
         scissor.height = view.scissor.height;
         frame_context.command_list->SetScissor(scissor);
 
-        if (shadow_map_atlas && shadow_map_atlas_subresource.IsValid() && !render_data.render_shadow_lights.empty())
+        if (shadow_map_atlas && shadow_map_atlas_dsv.IsValid() && !render_data.render_shadow_lights.empty())
         {
             frame_context.command_list->BeginEvent("Fill Shadow Map Atlas");
 
             RHISubresourceBinding shadow_map_atlas_binding = {};
             shadow_map_atlas_binding.resource = shadow_map_atlas.get();
-            shadow_map_atlas_binding.subresource = shadow_map_atlas_subresource;
+            shadow_map_atlas_binding.subresource = shadow_map_atlas_dsv;
 
             frame_context.command_list->TransitionResource(*shadow_map_atlas, RHIResourceState::DepthWrite);
             frame_context.command_list->ClearDepthStencil(shadow_map_atlas_binding, 0.0f, 0u);
@@ -810,6 +818,7 @@ namespace won::rendering
 
                 DrawScene(view, frame_context, RenderPassType::ShadowPass, DrawScene_Opaque | DrawScene_ShadowCaster);
             }
+            frame_context.command_list->TransitionResource(*shadow_map_atlas, RHIResourceState::ShaderRead);
             frame_context.command_list->EndEvent();
 
             frame_context.command_list->BeginEvent("Restore Render State");
@@ -839,11 +848,11 @@ namespace won::rendering
                 return;
             }
 
-            frame_context.command_list->SetViewport(viewport);
-            frame_context.command_list->SetScissor(scissor);
-
             frame_context.command_list->EndEvent();
         }
+
+        frame_context.command_list->SetViewport(viewport);
+        frame_context.command_list->SetScissor(scissor);
 
         // prepass
         {
@@ -913,23 +922,23 @@ namespace won::rendering
         current_window = nullptr;
         frame_contexts = {};
         current_frame_slot = 0;
-        shader_instance_default_buffer_subresource = {};
+        shader_instance_default_buffer_srv = {};
         shader_instance_default_buffer = nullptr;
-        shader_geometry_default_buffer_subresource = {};
+        shader_geometry_default_buffer_srv = {};
         shader_geometry_default_buffer = nullptr;
-        shader_material_default_buffer_subresource = {};
+        shader_material_default_buffer_srv = {};
         shader_material_default_buffer = nullptr;
-        shader_light_default_buffer_subresource = {};
+        shader_light_default_buffer_srv = {};
         shader_light_default_buffer = nullptr;
-        shader_frame_buffer_subresource = {};
+        shader_frame_buffer_cbv = {};
         shader_frame_buffer = nullptr;
-        shader_camera_buffer_subresource = {};
+        shader_camera_buffer_cbv = {};
         shader_camera_buffer = nullptr;
-        shadow_map_atlas_subresource = {};
+        shadow_map_atlas_dsv = {};
         shadow_map_atlas = nullptr;
         shadow_map_atlas_size = { 0, 0 };
-        back_buffer_subresources = {};
-        depth_buffer_subresource = {};
+        back_buffers_rtv = {};
+        depth_buffer_dsv = {};
         depth_buffer = nullptr;
         device.reset();
     }

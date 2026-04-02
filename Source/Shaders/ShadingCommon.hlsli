@@ -171,6 +171,31 @@ inline void LightDirectional(in ShaderLight light, in Surface surface, inout Lig
     
     half3 light_color = light.GetColor().xyz;
     
+	[branch]
+    if (light.IsCastingShadow() && GetMaterial().IsReceiveShadow())
+    {
+        if (GetScene().shadow_atlas >= 0 && light.shadow_atlas_scale_bias.x > 0.0f && light.shadow_atlas_scale_bias.y > 0.0f)
+        {
+            float4 shadow_pos = mul(light.shadow_view_projection, float4(surface.P, 1.0f));
+            float3 shadow_ndc = shadow_pos.xyz / shadow_pos.w;
+            float2 shadow_uv = shadow_ndc.xy * float2(0.5f, -0.5f) + 0.5f;
+
+            if (shadow_uv.x >= 0.0f && shadow_uv.x <= 1.0f &&
+                shadow_uv.y >= 0.0f && shadow_uv.y <= 1.0f &&
+                shadow_ndc.z >= 0.0f && shadow_ndc.z <= 1.0f)
+            {
+                float2 atlas_uv = shadow_uv * light.shadow_atlas_scale_bias.xy + light.shadow_atlas_scale_bias.zw;
+                float shadow_depth = bindless_textures[DescriptorIndex(GetScene().shadow_atlas)].SampleLevel(sampler_point_clamp, atlas_uv, 0).r;
+                float shadow_bias = max(0.0005f * (1.0f - lighting_context.NoL), 0.00005f);
+                if (shadow_ndc.z - shadow_bias < shadow_depth)
+                {
+                    //light_color *= 0.1f;
+                    return;
+                }
+            }
+        }
+    }
+    
     lighting.direct.diffuse = mad(light_color, GetDiffuseBRDF(surface, lighting_context), lighting.direct.diffuse);
     lighting.direct.specular = mad(light_color, GetSpecularBRDF(surface, lighting_context), lighting.direct.specular);
 }
@@ -219,9 +244,6 @@ inline void LightPoint(in ShaderLight light, in Surface surface, inout Lighting 
     
     lighting.direct.diffuse = mad(light_color, GetDiffuseBRDF(surface, context), lighting.direct.diffuse);
     lighting.direct.specular = mad(light_color, GetSpecularBRDF(surface, context), lighting.direct.specular);
-    
-    lighting.direct.diffuse = half3(100, 100, 100);
-
 }
 
 inline void LightSpotlight(in ShaderLight light, in Surface surface, inout Lighting lighting)

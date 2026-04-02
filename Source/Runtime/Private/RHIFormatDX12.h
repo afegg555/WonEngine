@@ -80,8 +80,33 @@ namespace won::rendering
     {
         switch (format)
         {
+        case RHIFormat::D32FloatS8X24Uint:
+            return DXGI_FORMAT_R32G8X24_TYPELESS;
+        case RHIFormat::D32Float:
+            return DXGI_FORMAT_R32_TYPELESS;
+        case RHIFormat::D24UnormS8Uint:
+            return DXGI_FORMAT_R24G8_TYPELESS;
+        case RHIFormat::D16Unorm:
+            return DXGI_FORMAT_R16_TYPELESS;
         case RHIFormat::R8G8B8A8UnormSrgb:
             return DXGI_FORMAT_R8G8B8A8_TYPELESS;
+        default:
+            return ToDXGIFormat(format);
+        }
+    }
+
+    inline DXGI_FORMAT ToDXGIDsvFormat(RHIFormat format)
+    {
+        switch (format)
+        {
+        case RHIFormat::D32FloatS8X24Uint:
+            return DXGI_FORMAT_D32_FLOAT_S8X24_UINT;
+        case RHIFormat::D32Float:
+            return DXGI_FORMAT_D32_FLOAT;
+        case RHIFormat::D24UnormS8Uint:
+            return DXGI_FORMAT_D24_UNORM_S8_UINT;
+        case RHIFormat::D16Unorm:
+            return DXGI_FORMAT_D16_UNORM;
         default:
             return ToDXGIFormat(format);
         }
@@ -91,6 +116,14 @@ namespace won::rendering
     {
         switch (format)
         {
+        case RHIFormat::D32FloatS8X24Uint:
+            return DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS;
+        case RHIFormat::D32Float:
+            return DXGI_FORMAT_R32_FLOAT;
+        case RHIFormat::D24UnormS8Uint:
+            return DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+        case RHIFormat::D16Unorm:
+            return DXGI_FORMAT_R16_UNORM;
         case RHIFormat::R8G8B8A8UnormSrgb:
             return DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
         default:

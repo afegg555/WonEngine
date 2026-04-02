@@ -755,7 +755,7 @@ namespace won::rendering
         D3D12_CLEAR_VALUE* optimized_clear_value_ptr = nullptr;
         if (HasBindFlag(desc.bind_flags, RHIBindFlags::DepthStencil))
         {
-            optimized_clear_value.Format = resource_desc.Format;
+            optimized_clear_value.Format = ToDXGIDsvFormat(desc.format);
             optimized_clear_value.DepthStencil.Depth = 0.0f;
             optimized_clear_value.DepthStencil.Stencil = 0;
             optimized_clear_value_ptr = &optimized_clear_value;

@@ -423,8 +423,10 @@ namespace won::rendering
         }
 
         const D3D12_RESOURCE_DESC native_desc = native_resource->GetDesc();
+        const RHIResourceDesc& resource_desc = resource.GetDesc();
+        const RHIFormat logical_format = desc.format != RHIFormat::Unknown ? desc.format : resource_desc.texture_desc.format;
         D3D12_DEPTH_STENCIL_VIEW_DESC dsv_desc = {};
-        dsv_desc.Format = desc.format != RHIFormat::Unknown ? ToDXGIFormat(desc.format) : native_desc.Format;
+        dsv_desc.Format = ToDXGIDsvFormat(logical_format);
         const uint32 slice_count = desc.slice_count > 0 ? desc.slice_count : 1;
         if (native_desc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE2D)
         {

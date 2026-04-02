@@ -34,29 +34,32 @@ namespace won::rendering
         std::shared_ptr<RHIDevice> device;
 
         std::shared_ptr<RHIResource> shader_instance_default_buffer;
-        RHISubresourceHandle shader_instance_default_buffer_subresource = {};
+        RHISubresourceHandle shader_instance_default_buffer_srv = {};
 
         std::shared_ptr<RHIResource> shader_geometry_default_buffer;
-        RHISubresourceHandle shader_geometry_default_buffer_subresource = {};
+        RHISubresourceHandle shader_geometry_default_buffer_srv = {};
 
         std::shared_ptr<RHIResource> shader_material_default_buffer;
-        RHISubresourceHandle shader_material_default_buffer_subresource = {};
+        RHISubresourceHandle shader_material_default_buffer_srv = {};
 
         std::shared_ptr<RHIResource> shader_light_default_buffer;
-        RHISubresourceHandle shader_light_default_buffer_subresource = {};
+        RHISubresourceHandle shader_light_default_buffer_srv = {};
 
         std::shared_ptr<RHIResource> shader_frame_buffer;
-        RHISubresourceHandle shader_frame_buffer_subresource = {};
+        RHISubresourceHandle shader_frame_buffer_cbv = {};
 
         std::shared_ptr<RHIResource> shader_camera_buffer;
-        RHISubresourceHandle shader_camera_buffer_subresource = {};
+        RHISubresourceHandle shader_camera_buffer_cbv = {};
 
         std::shared_ptr<RHIResource> depth_buffer;
-        RHISubresourceHandle depth_buffer_subresource = {};
+        RHISubresourceHandle depth_buffer_dsv = {};
+
         std::shared_ptr<RHIResource> shadow_map_atlas;
-        RHISubresourceHandle shadow_map_atlas_subresource = {};
+        RHISubresourceHandle shadow_map_atlas_dsv = {};
+        RHISubresourceHandle shadow_map_atlas_srv = {};
+
         uint2 shadow_map_atlas_size = { 0, 0 };
-        std::array<RHISubresourceHandle, max_frames_in_flight> back_buffer_subresources = {};
+        std::array<RHISubresourceHandle, max_frames_in_flight> back_buffers_rtv = {};
 
         platform::Window* current_window = nullptr;
     };

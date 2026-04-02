@@ -21,6 +21,7 @@ enum SHADER_MATERIAL_FLAGS
     SHADER_MATERIAL_FLAG_DOUBLE_SIDED = 1 << 0,
     SHADER_MATERIAL_FLAG_TRANSPARENT = 1 << 1,
     SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS = 1 << 2,
+    SHADER_MATERIAL_FLAG_RECEIVE_SHADOW = 1 << 3,
 };
 
 enum SHADER_CAMERA_FLAGS
@@ -43,6 +44,12 @@ enum SHADER_LIGHT_TYPE
     SHADER_LIGHT_TYPE_SPOT,
 
     SHADER_LIGHT_TYPE_COUNT
+};
+
+enum SHADER_LIGHT_FLAGS
+{
+    LIGHT_FLAG_LIGHT_STATIC = 1 << 0,
+    LIGHT_FLAG_LIGHT_CASTING_SHADOW = 1 << 1,
 };
 
 enum TEXTURESLOT
@@ -171,6 +178,7 @@ struct alignas(16) ShaderMaterial
     inline bool IsDoubleSided() { return flags & SHADER_MATERIAL_FLAG_DOUBLE_SIDED; }
     inline bool IsTransparent() { return flags & SHADER_MATERIAL_FLAG_TRANSPARENT; }
     inline bool IsUsingVertexColors() { return flags & SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS; }
+    inline bool IsReceiveShadow() { return flags & SHADER_MATERIAL_FLAG_RECEIVE_SHADOW; }
 #endif
 };
 
@@ -181,6 +189,9 @@ struct alignas(16) ShaderScene
     int materialbuffer;
     int lightbuffer;
 
+    int shadow_atlas;
+    int3 padding;
+
     uint4 lights; // supports indexing 128 lights
 #ifdef __cplusplus
     inline void Init()
@@ -189,6 +200,8 @@ struct alignas(16) ShaderScene
         geometrybuffer = -1;
         materialbuffer = -1;
         lightbuffer = -1;
+
+        shadow_atlas = -1;
 
         lights = { 0,0,0,0 };
     }
@@ -287,8 +300,10 @@ struct alignas(16) ShaderLight
     uint2 color; // half4 packed
 
     uint inner_cone_angle_cos_padding; // cos_inner_cone 1 padding 1
-    float2 shadowmap_atlas_uv;
-    uint padding;
+    uint3 padding;
+
+    float4 shadow_atlas_scale_bias;
+    float4x4 shadow_view_projection;
 #ifdef __cplusplus
     inline void Init()
     {
@@ -298,7 +313,9 @@ struct alignas(16) ShaderLight
         direction_outer_cone_angle_cos = { 0,0 };
         color = { 0,0 };
         inner_cone_angle_cos_padding = 0;
-        shadowmap_atlas_uv = { 0,0 };
+
+        shadow_atlas_scale_bias = { 0,0,0,0 };
+        shadow_view_projection = float4x4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
     }
     inline void SetType(uint type)
     {
@@ -371,6 +388,14 @@ struct alignas(16) ShaderLight
     {
         return (half)f16tof32(inner_cone_angle_cos_padding);
     }
+    inline bool IsCastingShadow()
+    {
+        return GetFlags() & LIGHT_FLAG_LIGHT_CASTING_SHADOW;
+    }
+    inline bool IsStaticLight()
+    {
+        return GetFlags() & LIGHT_FLAG_LIGHT_STATIC;
+    }
 #endif // __cplusplus
 };
 
@@ -418,10 +443,10 @@ PUSHCONSTANT(push, ObjectPushConstants);
 static_assert(sizeof(ShaderTextureSlot) == 16, "ShaderTextureSlot layout mismatch");
 static_assert(sizeof(ShaderGeometry) == 64, "ShaderGeometry layout mismatch");
 static_assert(sizeof(ShaderMaterial) == 272, "ShaderMaterial layout mismatch");
-static_assert(sizeof(ShaderScene) == 32, "ShaderScene layout mismatch");
-static_assert(sizeof(ShaderFrame) == 32, "ShaderFrame layout mismatch");
+static_assert(sizeof(ShaderScene) == 48, "ShaderScene layout mismatch");
+static_assert(sizeof(ShaderFrame) == 48, "ShaderFrame layout mismatch");
 static_assert(sizeof(ShaderCamera) == 256, "ShaderCamera layout mismatch");
-static_assert(sizeof(ShaderLight) == 48, "ShaderLight layout mismatch");
+static_assert(sizeof(ShaderLight) == 128, "ShaderLight layout mismatch");
 static_assert(sizeof(ObjectPushConstants) == 16, "ObjectPushConstants layout mismatch");
 static_assert(sizeof(ShaderInstance) == 112, "ShaderInstance layout mismatch");
 #endif // __cplusplus
