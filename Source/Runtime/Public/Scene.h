@@ -6,6 +6,8 @@
 #include "TransformUpdateSystem.h"
 #include "CameraUpdateSystem.h"
 #include "LightUpdateSystem.h"
+#include "GeometryUpdateSystem.h"
+#include "MaterialUpdateSystem.h"
 #include "RenderDataUpdateSystem.h"
 #include "ShaderInterop_Renderer.h"
 
@@ -38,7 +40,9 @@ namespace won::ecs
             AddSystem(std::make_shared<TransformUpdateSystem>());
             AddSystem(std::make_shared<CameraUpdateSystem>());
             AddSystem(std::make_shared<LightUpdateSystem>());
-            AddSystem(std::make_shared<RenderDataUpdateSystem>());
+            AddSystem(std::make_shared<GeometryUpdateSystem>());
+            AddSystem(std::make_shared<MaterialUpdateSystem>());
+            AddSystem(std::make_shared<RenderableUpdateSystem>());
         }
 
         Entity CreateEntity()

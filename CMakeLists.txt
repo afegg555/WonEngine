@@ -177,13 +177,17 @@ set(RUNTIME_ECS_COMPONENTS
 
 set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Public/CameraUpdateSystem.h
+    Source/Runtime/Public/GeometryUpdateSystem.h
     Source/Runtime/Public/LightUpdateSystem.h
+    Source/Runtime/Public/MaterialUpdateSystem.h
     Source/Runtime/Public/TransformUpdateSystem.h
-    Source/Runtime/Public/RenderDataUpdateSystem.h
+    Source/Runtime/Public/RenderableUpdateSystem.h
     Source/Runtime/Private/CameraUpdateSystem.cpp
+    Source/Runtime/Private/GeometryUpdateSystem.cpp
     Source/Runtime/Private/LightUpdateSystem.cpp
+    Source/Runtime/Private/MaterialUpdateSystem.cpp
     Source/Runtime/Private/TransformUpdateSystem.cpp
-    Source/Runtime/Private/RenderDataUpdateSystem.cpp
+    Source/Runtime/Private/RenderableUpdateSystem.cpp
 )
 
 set(RUNTIME_PLATFORM
