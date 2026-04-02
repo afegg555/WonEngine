@@ -185,13 +185,29 @@ inline void LightDirectional(in ShaderLight light, in Surface surface, inout Lig
                 shadow_ndc.z >= 0.0f && shadow_ndc.z <= 1.0f)
             {
                 float2 atlas_uv = shadow_uv * light.shadow_atlas_scale_bias.xy + light.shadow_atlas_scale_bias.zw;
-                float shadow_depth = bindless_textures[DescriptorIndex(GetScene().shadow_atlas)].SampleLevel(sampler_point_clamp, atlas_uv, 0).r;
+                uint atlas_width = 0;
+                uint atlas_height = 0;
+                bindless_textures[DescriptorIndex(GetScene().shadow_atlas)].GetDimensions(atlas_width, atlas_height);
+                float2 atlas_texel = 1.0f / float2(atlas_width, atlas_height);
+                float2 atlas_uv_min = light.shadow_atlas_scale_bias.zw;
+                float2 atlas_uv_max = light.shadow_atlas_scale_bias.xy + light.shadow_atlas_scale_bias.zw;
                 float shadow_bias = max(0.0005f * (1.0f - lighting_context.NoL), 0.00005f);
-                if (shadow_ndc.z - shadow_bias < shadow_depth)
+                float visibility = 0.0f;
+
+                [unroll]
+                for (int y = -2; y <= 2; ++y)
                 {
-                    //light_color *= 0.1f;
-                    return;
+                    [unroll]
+                    for (int x = -2; x <= 2; ++x)
+                    {
+                        float2 sample_uv = atlas_uv + float2(x, y) * atlas_texel;
+                        sample_uv = clamp(sample_uv, atlas_uv_min + atlas_texel * 0.5f, atlas_uv_max - atlas_texel * 0.5f);
+                        float shadow_depth = bindless_textures[DescriptorIndex(GetScene().shadow_atlas)].SampleLevel(sampler_point_clamp, sample_uv, 0).r;
+                        visibility += shadow_ndc.z - shadow_bias > shadow_depth ? 1.0f : 0.0f;
+                    }
                 }
+                visibility /= 25.0f;
+                light_color *= visibility;
             }
         }
     }
