@@ -18,13 +18,7 @@ namespace won::ecs
         const auto transform_array = scene.GetComponentArray<TransformComponent>().get();
         render_data.shader_instances.resize(transform_array->GetSize());
 
-        Size submesh_sum = 0;
-        for (Size i = 0; i < geometry_array->GetSize(); ++i)
-        {
-            submesh_sum += geometry_array->data[i].mesh->submeshes.size();
-        }
-
-        render_data.renderables.resize(submesh_sum);
+        render_data.renderables.resize(render_data.shader_geometries.size());
         std::atomic<uint32> renderable_count{ 0 };
 
         jobsystem::Dispatch(sub_ctx, (uint32_t)transform_array->GetSize(), groupsize, [&](jobsystem::JobArgs args) {
