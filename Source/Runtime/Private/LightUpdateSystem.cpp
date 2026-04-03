@@ -89,6 +89,7 @@ namespace won::ecs
                 if(light.IsDynamic() && light.IsCastShadow())
                 {
                     auto& render_shadow_light = render_data.render_shadow_lights[args.job_index];
+                    const math::AABB& shadow_caster_world_bound = render_data.shadow_caster_world_bound;
 
                     const XMVECTOR light_position = XMLoadFloat3(&light.position);
                     XMVECTOR light_direction = XMVector3Normalize(XMLoadFloat3(&light.direction));
@@ -103,10 +104,24 @@ namespace won::ecs
 
                     if (light.type == LightComponent::Directional)
                     {
-                        const XMVECTOR shadow_eye = light_position - light_direction * 100.0f;
+                        const float bound_radius = won::math::Length(shadow_caster_world_bound.GetExtent());
+                        const float3 bound_center = shadow_caster_world_bound.GetCenter();
+                        XMVECTOR xbound_center = XMLoadFloat3(&bound_center);
+
+                        const XMVECTOR shadow_eye = xbound_center - light_direction * (bound_radius * 2.f);
                         shadow_view = XMMatrixLookToLH(shadow_eye, light_direction, light_up);
-                        // TODO: current projection size is hard coded.
-                        shadow_projection = XMMatrixOrthographicLH(20.0f, 20.0f, 1000.0f, 0.1f);
+
+                        const math::AABB shadow_caster_light_bound = math::TransformAABB(shadow_caster_world_bound, shadow_view);
+                        const float padding = bound_radius * 0.05f;
+
+                        shadow_projection = XMMatrixOrthographicOffCenterLH(
+                            shadow_caster_light_bound.min.x - padding,
+                            shadow_caster_light_bound.max.x + padding,
+                            shadow_caster_light_bound.min.y - padding,
+                            shadow_caster_light_bound.max.y + padding,
+                            (std::max)(1000.f, shadow_caster_light_bound.max.z + padding),
+                            (std::max)(0.1f, shadow_caster_light_bound.min.z - padding));
+
                     }
                     else if (light.type == LightComponent::Spot)
                     {
