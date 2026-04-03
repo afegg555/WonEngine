@@ -47,9 +47,23 @@ namespace won::math
             max.y = (std::max)(max.y, other.max.y);
             max.z = (std::max)(max.z, other.max.z);
         }
+
+        inline float3 GetCenter() const
+        {
+            return float3{ (min.x + max.x) * 0.5f,
+                (min.y + max.y) * 0.5f,
+                (min.z + max.z) * 0.5f };
+        }
+
+        inline float3 GetExtent() const 
+        {
+            return float3{ (max.x - min.x) * 0.5f,
+                (max.y - min.y) * 0.5f,
+                (max.z - min.z) * 0.5f };
+        }
     };
 
-    inline AABB TransformAABB(const AABB& aabb, const float4x4& transform)
+    inline AABB TransformAABB(const AABB& aabb, const XMMATRIX& transform)
     {
         AABB transformed_aabb = {};
         transformed_aabb.Invalidate();
@@ -58,7 +72,6 @@ namespace won::math
             return transformed_aabb;
         }
 
-        const XMMATRIX world = XMLoadFloat4x4(&transform);
         const float3 corners[8] = {
             { aabb.min.x, aabb.min.y, aabb.min.z },
             { aabb.max.x, aabb.min.y, aabb.min.z },
@@ -72,7 +85,7 @@ namespace won::math
 
         for (const float3& corner : corners)
         {
-            const XMVECTOR world_corner = XMVector3TransformCoord(XMLoadFloat3(&corner), world);
+            const XMVECTOR world_corner = XMVector3TransformCoord(XMLoadFloat3(&corner), transform);
             float3 transformed_corner = {};
             XMStoreFloat3(&transformed_corner, world_corner);
 
@@ -92,6 +105,13 @@ namespace won::math
         }
 
         return transformed_aabb;
+    }
+
+    inline AABB TransformAABB(const AABB& aabb, const float4x4& transform)
+    {
+        const XMMATRIX world = XMLoadFloat4x4(&transform);
+
+        return TransformAABB(aabb, world);
     }
 
     struct Ray
