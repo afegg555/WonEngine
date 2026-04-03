@@ -6,6 +6,8 @@
 
 #define min_roughness 0.045
 
+//#define PCSS_SHADOW
+
 struct Surface
 {
     float3 P; // world space position
@@ -193,20 +195,59 @@ inline void LightDirectional(in ShaderLight light, in Surface surface, inout Lig
                 float2 atlas_uv_max = light.shadow_atlas_scale_bias.xy + light.shadow_atlas_scale_bias.zw;
                 float shadow_bias = max(0.0005f * (1.0f - lighting_context.NoL), 0.00005f);
                 float visibility = 0.0f;
-
+                Texture2D shadow_map = bindless_textures[DescriptorIndex(GetScene().shadow_atlas)];
+                float search_step = 1.f;
+                
+#ifdef PCSS_SHADOW
+                float avg_blocker_depth = 0.0f;
+                search_step = 2.f;
+#endif
                 [unroll]
                 for (int y = -2; y <= 2; ++y)
                 {
                     [unroll]
                     for (int x = -2; x <= 2; ++x)
                     {
-                        float2 sample_uv = atlas_uv + float2(x, y) * atlas_texel;
+                        float2 sample_uv = atlas_uv + float2(x, y) * atlas_texel * search_step;
                         sample_uv = clamp(sample_uv, atlas_uv_min + atlas_texel * 0.5f, atlas_uv_max - atlas_texel * 0.5f);
-                        float shadow_depth = bindless_textures[DescriptorIndex(GetScene().shadow_atlas)].SampleLevel(sampler_point_clamp, sample_uv, 0).r;
-                        visibility += shadow_ndc.z - shadow_bias > shadow_depth ? 1.0f : 0.0f;
+                        float shadow_depth = shadow_map.SampleLevel(sampler_point_clamp, sample_uv, 0).r;
+                        [flatten]
+                        if (shadow_ndc.z - shadow_bias > shadow_depth)
+                        {
+                            visibility += 1.0f;
+#ifdef PCSS_SHADOW
+                            avg_blocker_depth += shadow_depth;
+#endif
+                        }
                     }
                 }
+                
+#ifdef PCSS_SHADOW
+                if (visibility > 0.0f)
+                {
+                    avg_blocker_depth /= visibility;
+
+                    float penumbra = saturate((shadow_ndc.z - avg_blocker_depth) / max(avg_blocker_depth, 0.0001f));
+                    float filter_radius = lerp(1.0f, 6.0f, penumbra);
+                    float2 filter_step = atlas_texel * filter_radius;
+
+                    visibility = 0.f;
+                    [unroll]
+                    for (int y = -2; y <= 2; ++y)
+                    {
+                        [unroll]
+                        for (int x = -2; x <= 2; ++x)
+                        {
+                            float2 sample_uv = atlas_uv + float2(x, y) * filter_step;
+                            sample_uv = clamp(sample_uv, atlas_uv_min + atlas_texel * 0.5f, atlas_uv_max - atlas_texel * 0.5f);
+                            float shadow_depth = shadow_map.SampleLevel(sampler_point_clamp, sample_uv, 0).r;
+                            visibility += shadow_ndc.z - shadow_bias > shadow_depth ? 1.0f : 0.0f;
+                        }
+                    }
+                }
+#endif
                 visibility /= 25.0f;
+                
                 light_color *= visibility;
             }
         }
