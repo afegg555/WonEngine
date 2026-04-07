@@ -7,10 +7,11 @@
 #include "ShaderCompiler.h"
 #include "FileSystem.h"
 #include "Backlog.h"
+#include "Profiler.h"
 #include "SceneComponents.h"
+
 #include "AssetImporter/AssetImporter.h"
 #include "CameraController/CameraController.h"
-
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include "imgui-docking/imgui.h"
 #include "imgui-docking/imgui_internal.h"
@@ -550,7 +551,32 @@ namespace won::editor
 
 		if (ImGui::Begin("Profiler", nullptr, ImGuiWindowFlags_NoScrollbar))
 		{
+			ImGui::SetCursorPos(ImGui::GetCursorPos() + ImVec2(0, -3));
 
+			static bool profiler_enabled = false;
+			if (ImGui::Checkbox("Enable Profiler", &profiler_enabled))
+			{
+				profiler::SetEnabled(profiler_enabled);
+			}
+
+			if (profiler_enabled)
+			{
+				ImGui::SameLine();
+				ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Profiler Turned On! Performance may be reduced!");
+
+				ImGui::SetCursorPos(ImGui::GetCursorPos() + ImVec2(0, 3));
+
+				std::string performance, res_usage;
+				profiler::GetProfileInfo(performance, res_usage);
+
+				std::string profile = performance + "\n" + res_usage;
+				ImGui::BeginChild("##Profiler", ImVec2(0.0f, 0.0f), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
+				ImGui::Text("%s", profile.c_str());
+
+				if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
+					ImGui::SetScrollHereY(1.0f);
+				ImGui::EndChild();
+			}
 		}
 		ImGui::End();
 

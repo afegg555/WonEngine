@@ -6,7 +6,7 @@
 #include "Platform.h"
 #include "EventHandler.h"
 #include "Input.h"
-
+#include "Profiler.h"
 namespace won
 {
     void Application::Initialize(const ApplicationDesc& desc)
@@ -84,8 +84,10 @@ namespace won
             frame_timer.Reset();
         }
 
+        profiler::BeginFrame();
         Update(dt);
         Render();
+        profiler::EndFrame();
     }
     
     void Application::Shutdown()
@@ -106,8 +108,10 @@ namespace won
 
     void Application::Update(float dt)
     {
+        auto range = profiler::BeginRangeCPU("Application::Update");
         io::Update((WindowType)window->GetNativeHandle());
         main_view.Update(dt);
+        profiler::EndRange(range);
     }
 
     void Application::Render()
