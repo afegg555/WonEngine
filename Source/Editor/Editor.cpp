@@ -180,7 +180,7 @@ namespace won::editor
 				}
 				camera->SetAspectRatio(viewport_width / viewport_height);
 				camera->SetNearFar(0.1f, 1000.0f);
-				camera->SetFOV_Y(math::PI / 2.0f);
+				camera->SetFOV_Y(math::PI / 3.0f);
 				camera->SetOrtho(false);
 				//camera->SetOrthoVerticalSize(4.f);
 			}
@@ -471,13 +471,17 @@ namespace won::editor
 
 			main_view.viewport.x = static_cast<uint32>(viewport_pos.x);
 			main_view.viewport.y = static_cast<uint32>(viewport_pos.y);
-			main_view.viewport.width = static_cast<uint32>(viewport_size.x);
-			main_view.viewport.height = static_cast<uint32>(viewport_size.y);
+			main_view.viewport.width = (std::max)(1u, static_cast<uint32>(viewport_size.x));
+			main_view.viewport.height = (std::max)(1u, static_cast<uint32>(viewport_size.y));
 			main_view.scissor.x = main_view.viewport.x;
 			main_view.scissor.y = main_view.viewport.y;
 			main_view.scissor.width = main_view.viewport.width;
 			main_view.scissor.height = main_view.viewport.height;
-			//main_viewport_size = { viewport_size.x, viewport_size.y };
+
+			if (auto* camera = scene.GetComponent<ecs::CameraComponent>(camera_entity))
+			{
+				camera->SetAspectRatio(static_cast<float>(main_view.viewport.width) / static_cast<float>(main_view.viewport.height));
+			}
 		}
 		ImGui::End();
 		ImGui::PopStyleVar();
