@@ -38,6 +38,35 @@ namespace won::editor
 	static String contents_root_dir = String(CONTENTS_ROOT_DIR) + "/";
 	namespace
 	{
+		float3 QuaternionToEulerXYZDegrees(const float4& quaternion)
+		{
+			XMVECTOR xquaternion = XMVector4Normalize(XMLoadFloat4(&quaternion));
+			XMMATRIX rotation_matrix = XMMatrixRotationQuaternion(xquaternion);
+			float4x4 matrix = {};
+			XMStoreFloat4x4(&matrix, rotation_matrix);
+
+			float pitch = asin(-matrix._32);
+			float yaw = atan2(matrix._31, matrix._33);
+			float roll = atan2(matrix._12, matrix._22);
+
+			return {
+				math::RadiansToDegrees(pitch),
+				math::RadiansToDegrees(yaw),
+				math::RadiansToDegrees(roll)
+			};
+		}
+
+		float4 EulerXYZDegreesToQuaternion(const float3& euler_xyz_degrees)
+		{
+			const float pitch = math::DegreesToRadians(euler_xyz_degrees.x);
+			const float yaw = math::DegreesToRadians(euler_xyz_degrees.y);
+			const float roll = math::DegreesToRadians(euler_xyz_degrees.z);
+
+			float4 quaternion = {};
+			XMStoreFloat4(&quaternion, XMQuaternionRotationRollPitchYaw(pitch, yaw, roll));
+			return quaternion;
+		}
+
 		bool AddImGuiFont(const std::string& font_folder_path, const std::string& font_file_name, bool merge_icon = true)
 		{
 			//PE: Add all lang.
@@ -600,6 +629,135 @@ namespace won::editor
 					{
 						name_comp->value = name_buf;
 					}
+
+					ImGui::Separator();
+				}
+
+				TransformComponent* transform_comp = main_view.scene->GetComponent<TransformComponent>(picked_entity);
+				if (transform_comp)
+				{
+					ImGui::Text("TransformComponent");
+
+					float position[3] = { transform_comp->position.x, transform_comp->position.y, transform_comp->position.z };
+					if (ImGui::InputFloat3("Position", position))
+					{
+						transform_comp->position = { position[0], position[1], position[2] };
+						transform_comp->SetDirty();
+					}
+
+					float3 rotation_xyz = QuaternionToEulerXYZDegrees(transform_comp->rotation);
+					float rotation[3] = { rotation_xyz.x, rotation_xyz.y, rotation_xyz.z };
+					if (ImGui::InputFloat3("Rotation XYZ", rotation))
+					{
+						transform_comp->rotation = EulerXYZDegreesToQuaternion({ rotation[0], rotation[1], rotation[2] });
+						transform_comp->SetDirty();
+					}
+
+					float scale[3] = { transform_comp->scale.x, transform_comp->scale.y, transform_comp->scale.z };
+					if (ImGui::InputFloat3("Scale", scale))
+					{
+						transform_comp->scale = { scale[0], scale[1], scale[2] };
+						transform_comp->SetDirty();
+					}
+
+					ImGui::Separator();
+				}
+
+				LightComponent* light_comp = main_view.scene->GetComponent<LightComponent>(picked_entity);
+				if (light_comp)
+				{
+					ImGui::Text("LightComponent");
+					
+					// TODO: enum is hard coded
+					int light_type = static_cast<int>(light_comp->type);
+					const char* light_type_items[] = { "Directional", "Point", "Spot" };
+					if (ImGui::Combo("Type", &light_type, light_type_items, IM_ARRAYSIZE(light_type_items)))
+					{
+						light_comp->type = static_cast<LightComponent::LightType>(light_type);
+					}
+
+					float color[3] = { light_comp->color.x, light_comp->color.y, light_comp->color.z };
+					if (ImGui::InputFloat3("Color", color))
+					{
+						light_comp->color = { color[0], color[1], color[2] };
+					}
+
+					ImGui::DragFloat("Intensity", &light_comp->intensity, 1.0f, 0.0f, 100000.0f);
+					ImGui::DragFloat("Range", &light_comp->range, 0.1f, 0.0f, 100000.0f);
+					ImGui::DragFloat("Outer Cone", &light_comp->outer_cone_angle, 0.01f, 0.0f, math::PI);
+					ImGui::DragFloat("Inner Cone", &light_comp->inner_cone_angle, 0.01f, 0.0f, math::PI);
+
+					int shadow_map_resolution = static_cast<int>(light_comp->shadow_map_resolution);
+					if (ImGui::InputInt("Shadow Resolution", &shadow_map_resolution))
+					{
+						//light_comp->shadow_map_resolution = (std::max)(1, shadow_map_resolution);
+					}
+
+					bool is_active = light_comp->IsActive();
+					if (ImGui::Checkbox("Active", &is_active))
+					{
+						light_comp->SetActive(is_active);
+					}
+
+					bool is_dynamic = light_comp->IsDynamic();
+					if (ImGui::Checkbox("Dynamic", &is_dynamic))
+					{
+						light_comp->SetDynamic(is_dynamic);
+					}
+
+					bool is_cast_shadow = light_comp->IsCastShadow();
+					if (ImGui::Checkbox("Cast Shadow", &is_cast_shadow))
+					{
+						light_comp->SetCastShadow(is_cast_shadow);
+					}
+
+					ImGui::Separator();
+				}
+
+				CameraComponent* camera_comp = main_view.scene->GetComponent<CameraComponent>(picked_entity);
+				if (camera_comp)
+				{
+					ImGui::Text("CameraComponent");
+
+					bool is_ortho = camera_comp->IsOrtho();
+					if (ImGui::Checkbox("Orthographic", &is_ortho))
+					{
+						camera_comp->SetOrtho(is_ortho);
+					}
+
+					float near_plane = camera_comp->near_plane;
+					float far_plane = camera_comp->far_plane;
+					bool near_far_changed = false;
+					near_far_changed |= ImGui::DragFloat("Near", &near_plane, 0.01f, 0.001f, 100000.0f);
+					near_far_changed |= ImGui::DragFloat("Far", &far_plane, 1.0f, 0.01f, 100000.0f);
+					if (near_far_changed)
+					{
+						near_plane = (std::max)(0.001f, near_plane);
+						far_plane = (std::max)(near_plane + 0.001f, far_plane);
+						camera_comp->SetNearFar(near_plane, far_plane);
+					}
+
+					if (!camera_comp->IsOrtho())
+					{
+						float fov_y = camera_comp->fov_y;
+						if (ImGui::DragFloat("FOV Y", &fov_y, 0.01f, 0.01f, math::PI - 0.01f))
+						{
+							camera_comp->SetFOV_Y(fov_y);
+						}
+					}
+					else
+					{
+						float ortho_vertical_size = camera_comp->ortho_vertical_size;
+						if (ImGui::DragFloat("Ortho Size", &ortho_vertical_size, 0.1f, 0.001f, 100000.0f))
+						{
+							camera_comp->SetOrthoVerticalSize(ortho_vertical_size);
+						}
+					}
+
+					ImGui::Text("Aspect Ratio: %.3f", camera_comp->aspect_ratio);
+					ImGui::DragFloat("Aperture", &camera_comp->aperture, 0.01f, 0.0f, 128.0f);
+					ImGui::DragFloat("Shutter Speed", &camera_comp->shutter_speed, 0.001f, 0.0001f, 100.0f);
+					ImGui::DragFloat("Sensitivity", &camera_comp->sensitivity, 1.0f, 1.0f, 102400.0f);
 
 					ImGui::Separator();
 				}

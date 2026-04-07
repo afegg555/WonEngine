@@ -402,8 +402,8 @@ namespace won::rendering
                 shader_camera.position = camera_component->eye;
                 shader_camera.forward = camera_component->forward;
                 shader_camera.up = camera_component->up;
-                shader_camera.z_near = camera_component->near;
-                shader_camera.z_far = camera_component->far;
+                shader_camera.z_near = camera_component->near_plane;
+                shader_camera.z_far = camera_component->far_plane;
                 shader_camera.view = camera_component->view;
                 shader_camera.projection = camera_component->projection;
                 shader_camera.view_projection = camera_component->view_projection;
@@ -835,8 +835,8 @@ namespace won::rendering
                     shader_camera.position = camera_component->eye;
                     shader_camera.forward = camera_component->forward;
                     shader_camera.up = camera_component->up;
-                    shader_camera.z_near = camera_component->near;
-                    shader_camera.z_far = camera_component->far;
+                    shader_camera.z_near = camera_component->near_plane;
+                    shader_camera.z_far = camera_component->far_plane;
                     shader_camera.view = camera_component->view;
                     shader_camera.projection = camera_component->projection;
                     shader_camera.view_projection = camera_component->view_projection;

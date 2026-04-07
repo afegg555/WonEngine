@@ -24,8 +24,8 @@ namespace won::ecs
         float4x4 view, projection, view_projection;
         float4x4 inv_view, inv_projection, inv_view_projection;
 
-        float near = 0.1f;
-        float far = 1000.f;
+        float near_plane = 0.1f;
+        float far_plane = 1000.f;
         float aspect_ratio = 16.f / 9.f; // width / height
 
         // perspective
@@ -44,7 +44,7 @@ namespace won::ecs
         constexpr void SetOrtho(bool value = true) { if (value) { flags |= IsOrthographic; } else { flags &= ~IsOrthographic; } SetDirty(); }
         constexpr bool IsOrtho() const { return flags & IsOrthographic; }
 
-        constexpr void SetNearFar(float near_value, float far_value) { near = near_value; far = far_value; SetDirty(); }
+        constexpr void SetNearFar(float near_value, float far_value) { near_plane = near_value; far_plane = far_value; SetDirty(); }
         constexpr void SetAspectRatio(float value) { aspect_ratio = value; SetDirty(); }
         constexpr void SetFOV_Y(float value) { fov_y = value; SetDirty(); }
         constexpr void SetOrthoVerticalSize(float value) { ortho_vertical_size = value; SetDirty(); }

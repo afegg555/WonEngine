@@ -43,11 +43,11 @@ namespace won::ecs
             {
                 float ortho_height = camera.ortho_vertical_size;
                 float ortho_width = ortho_height * camera.aspect_ratio;
-                projection = XMMatrixOrthographicLH(ortho_width, ortho_height, camera.far, camera.near); // reverse zbuffer!
+                projection = XMMatrixOrthographicLH(ortho_width, ortho_height, camera.far_plane, camera.near_plane); // reverse zbuffer!
             }
             else
             {
-                projection = XMMatrixPerspectiveFovLH(camera.fov_y, camera.aspect_ratio, camera.far, camera.near); // reverse zbuffer!
+                projection = XMMatrixPerspectiveFovLH(camera.fov_y, camera.aspect_ratio, camera.far_plane, camera.near_plane); // reverse zbuffer!
             }
 
             XMMATRIX inv_projection = XMMatrixInverse(nullptr, projection);
