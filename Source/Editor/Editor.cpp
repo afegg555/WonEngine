@@ -31,6 +31,7 @@ namespace won::editor
 	using namespace resource;
 	using namespace rendering;
 	using namespace plugin;
+	using namespace ecs;
 
 	static RHIShader imgui_vs;
 	static RHIShader imgui_ps;
@@ -98,7 +99,7 @@ namespace won::editor
 			ImGui::DockBuilderDockWindow("Contents Browser", dock_bottom);
 			ImGui::DockBuilderDockWindow("Log", dock_bottom);
 			ImGui::DockBuilderDockWindow("Profiler", dock_bottom);
-			ImGui::DockBuilderDockWindow("Scene Tree", dock_left);
+			//ImGui::DockBuilderDockWindow("Scene Tree", dock_left);
 			ImGui::DockBuilderDockWindow("Entity List", dock_left);
 
 			ImGui::DockBuilderFinish(dockspace_id);
@@ -163,14 +164,14 @@ namespace won::editor
 		// camera entity
 		{
 			camera_entity = scene.CreateEntity();
-			auto* camera_transform = scene.AddComponent<ecs::TransformComponent>(camera_entity);
+			auto camera_transform = scene.AddComponent<ecs::TransformComponent>(camera_entity);
 			if (camera_transform)
 			{
 				camera_transform->position = { 0.0f, 0.0f, -3.0f };
 				camera_transform->SetDirty();
 			}
 
-			auto* camera = scene.AddComponent<ecs::CameraComponent>(camera_entity);
+			auto camera = scene.AddComponent<ecs::CameraComponent>(camera_entity);
 			if (camera)
 			{
 				float viewport_width = static_cast<float>(main_view.viewport.width);
@@ -185,6 +186,9 @@ namespace won::editor
 				camera->SetOrtho(false);
 				//camera->SetOrthoVerticalSize(4.f);
 			}
+
+			auto name = scene.AddComponent<ecs::NameComponent>(camera_entity);
+			name->value = "Editor Camera";
 		}
 		main_view.scene = &scene; // empty scene
 		main_view.camera_entity = camera_entity;
@@ -488,26 +492,118 @@ namespace won::editor
 		ImGui::PopStyleVar();
 		ImGui::PopStyleColor();
 
-		ImGui::Begin("Scene Tree");
-		ImGui::Text("...");
-		ImGui::End();
+		//ImGui::Begin("Scene Tree");
+		//ImGui::Text("...");
+		//ImGui::End();
 
 		if (ImGui::Begin("Entity List"))
 		{
 			static int selected_index = -1;
+			ecs::Entity delete_entity = INVALID_ENTITY;
+
+			if (ImGui::Button("+"))
+			{
+				ecs::Entity entity = scene.CreateEntity();
+				auto transform = scene.AddComponent<TransformComponent>(entity);
+				auto name = scene.AddComponent<NameComponent>(entity);
+				UpdateEntityList();
+				picked_entity = entity;
+
+				for (int i = 0; i < static_cast<int>(sorted_entities.size()); ++i)
+				{
+					if (sorted_entities[i] == entity)
+					{
+						selected_index = i;
+						break;
+					}
+				}
+			}
 
 			if (ImGui::BeginChild("EntityListRegion", ImVec2(0.0f, 0.0f), false, ImGuiWindowFlags_AlwaysVerticalScrollbar))
 			{
+				ImGuiListClipper clipper;
+				clipper.Begin((int)sorted_entities.size());
 
+				while (clipper.Step())
+				{
+					for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i)
+					{
+						const auto& id = sorted_entities[i];
+						ImGui::PushID(static_cast<int>(id));
+
+						std::string label = "Entity " + std::to_string(id);
+						auto name = main_view.scene->GetComponent<ecs::NameComponent>(id);
+						if (name != nullptr)
+						{
+							label += " (" + name->value + ")";
+						}
+
+						const bool is_selected = (selected_index == i);
+						if (ImGui::Selectable(label.c_str(), is_selected))
+						{
+							selected_index = i;
+						}
+
+						if (ImGui::BeginPopupContextItem("EntityContextMenu"))
+						{
+							selected_index = i;
+							picked_entity = id;
+
+							if (ImGui::MenuItem("Delete Entity", nullptr, false, id != camera_entity))
+							{
+								delete_entity = id;
+							}
+
+							ImGui::EndPopup();
+						}
+
+						if (is_selected)
+						{
+							ImGui::SetItemDefaultFocus();
+							picked_entity = id;
+						}
+
+						ImGui::PopID();
+					}
+				}
 			}
 
 			ImGui::EndChild();
+
+			if (delete_entity != INVALID_ENTITY)
+			{
+				scene.DestroyEntity(delete_entity);
+				UpdateEntityList();
+				selected_index = -1;
+
+				if (picked_entity == delete_entity)
+				{
+					picked_entity = INVALID_ENTITY;
+				}
+			}
 		}
 		ImGui::End();
 
 		if (ImGui::Begin("Inspector"))
 		{
+			if (picked_entity != INVALID_ENTITY)
+			{
+				// TODO: use reflection system
+				NameComponent* name_comp = main_view.scene->GetComponent<NameComponent>(picked_entity);
+				if (name_comp)
+				{
+					ImGui::Text("NameComponent");
+					char name_buf[256];
+					std::snprintf(name_buf, sizeof(name_buf), "%s", name_comp->value.c_str());
 
+					if (ImGui::InputText("Value", name_buf, sizeof(name_buf)))
+					{
+						name_comp->value = name_buf;
+					}
+
+					ImGui::Separator();
+				}
+			}
 		}
 		ImGui::End();
 
@@ -931,15 +1027,18 @@ namespace won::editor
 			// light entity
 			{
 				ecs::Entity light_entity = scene.CreateEntity();
-				auto* transform = scene.AddComponent<ecs::TransformComponent>(light_entity);
+				auto transform = scene.AddComponent<ecs::TransformComponent>(light_entity);
 				transform->RotateRollPitchYaw({ math::PI / 2.f, 0, 0 });
 				//transform->Translate({ 0,0,-1 });
-				auto* light = scene.AddComponent<ecs::LightComponent>(light_entity);
+				auto light = scene.AddComponent<ecs::LightComponent>(light_entity);
 				light->type = ecs::LightComponent::LightType::Directional;
 				light->intensity = 100.f;
 				//light->range = 20.f;
 				//light->outer_cone_angle = math::PI / 3.f;
 				//light->inner_cone_angle = math::PI / 6.f;
+
+				auto name = scene.AddComponent<ecs::NameComponent>(light_entity);
+				name->value = "Light";
 			}
 
 			// plane entity
@@ -996,8 +1095,26 @@ namespace won::editor
 					material_slot.roughness = 0.5f;
 					material_slot.flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW;
 				}
+
+				auto name = scene.AddComponent<ecs::NameComponent>(plane_entity);
+				name->value = "Plane";
+
 			}
 		}
+		UpdateEntityList();
+	}
+	void EditorApplication::UpdateEntityList()
+	{
+		static std::mutex entity_list_mutex;
+		std::lock_guard<std::mutex> lock(entity_list_mutex);
+
+		auto& entities = main_view.scene->GetEntities();
+
+		sorted_entities.clear();
+		sorted_entities.reserve(entities.size());
+		sorted_entities.insert(sorted_entities.end(), entities.begin(), entities.end());
+
+		std::sort(sorted_entities.begin(), sorted_entities.end());
 	}
 }
 

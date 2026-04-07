@@ -1,5 +1,6 @@
 #include "Application.h"
 #include "PluginManager.h"
+#include "Entity.h"
 
 namespace won::editor
 {
@@ -10,13 +11,15 @@ namespace won::editor
 		void Shutdown() override;
 		void Update(float dt) override;
 
-	private:
-		void LoadDefaultPlugins();
+	protected:
 		void OnWindowResized(int width, int height) override;
 		void RenderUI() override;
-		void InitImGui();
 
+	private:
+		void LoadDefaultPlugins();
+		void InitImGui();
 		void LoadSampleScene();
+		void UpdateEntityList();
 
 	private:
 		std::shared_ptr<RHIPipeline> imgui_pso;
@@ -24,11 +27,11 @@ namespace won::editor
 		RHISubresourceHandle imgui_font_subresource;
 		std::shared_ptr<RHISampler> imgui_sampler;
 
-		//float2 main_viewport_pos;
-		//float2 main_viewport_size;
+		std::vector<ecs::Entity> sorted_entities;
 
 		ecs::Scene scene;
 		ecs::Entity camera_entity;
+		ecs::Entity picked_entity;
 
 		plugin::PluginManager plugin_manager;
 	};
