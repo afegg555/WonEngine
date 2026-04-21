@@ -39,6 +39,11 @@ namespace won::ecs
             {
                 const GeometryComponent& geometry_comp = geometry_array->GetData(entity);
                 const MaterialComponent& material_comp = material_array->GetData(entity);
+                if (!geometry_comp.mesh)
+                {
+                    return;
+                }
+
                 const resource::Mesh::RenderData* mesh_render_data = geometry_comp.mesh->GetRenderData();
                 if (!mesh_render_data || !mesh_render_data->buffer)
                 {
@@ -50,6 +55,11 @@ namespace won::ecs
                 for (Size i = 0; i < geometry_comp.mesh->submeshes.size(); ++i)
                 {
                     const resource::Submesh& submesh = geometry_comp.mesh->submeshes[i];
+                    if (submesh.material_slot >= material_comp.material_slots.size())
+                    {
+                        continue;
+                    }
+
                     const MaterialSlot& material_slot = material_comp.material_slots[submesh.material_slot];
                     Scene::RenderData::Renderable& renderable = render_data.renderables[index + i];
                     ObjectPushConstants& push_constants = renderable.push_constants;

@@ -19,13 +19,21 @@ namespace won::ecs
         {
             GeometryComponent& geometry_comp = geometry_array->data[i];
             geometry_comp.geometry_offset = (uint32)submesh_sum;
-            submesh_sum += geometry_comp.mesh->submeshes.size();
+            if (geometry_comp.mesh)
+            {
+                submesh_sum += geometry_comp.mesh->submeshes.size();
+            }
         }
 
         render_data.shader_geometries.resize(submesh_sum);
 
         jobsystem::Dispatch(sub_ctx, (uint32_t)geometry_array->GetSize(), groupsize, [&](jobsystem::JobArgs args) {
             const GeometryComponent& geometry_comp = geometry_array->data[args.job_index];
+            if (!geometry_comp.mesh)
+            {
+                return;
+            }
+
             const resource::Mesh::RenderData* mesh_render_data = geometry_comp.mesh->GetRenderData();
 
             for (Size i = 0; i < geometry_comp.mesh->submeshes.size(); ++i)
