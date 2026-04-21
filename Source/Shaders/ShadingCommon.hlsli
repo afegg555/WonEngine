@@ -162,6 +162,77 @@ half3 GetDiffuseBRDF(in Surface surface, in LightingContext lighting_context)
 #endif //PHONG
 }
 
+inline float SampleDirectionalShadowCascade(in ShaderShadowCascade cascade, in float3 world_position, in half NoL)
+{
+    float4 shadow_pos = mul(cascade.shadow_view_projection, float4(world_position, 1.0f));
+    float3 shadow_ndc = shadow_pos.xyz / shadow_pos.w;
+    float2 shadow_uv = shadow_ndc.xy * float2(0.5f, -0.5f) + 0.5f;
+
+    if (shadow_uv.x < 0.0f || shadow_uv.x > 1.0f ||
+        shadow_uv.y < 0.0f || shadow_uv.y > 1.0f ||
+        shadow_ndc.z < 0.0f || shadow_ndc.z > 1.0f)
+    {
+        return 1.0f;
+    }
+
+    float2 atlas_uv = shadow_uv * cascade.shadow_atlas_scale_bias.xy + cascade.shadow_atlas_scale_bias.zw;
+    uint atlas_width = 0;
+    uint atlas_height = 0;
+    bindless_textures[DescriptorIndex(GetScene().shadow_atlas)].GetDimensions(atlas_width, atlas_height);
+    float2 atlas_texel = 1.0f / float2(atlas_width, atlas_height);
+    float2 atlas_uv_min = cascade.shadow_atlas_scale_bias.zw;
+    float2 atlas_uv_max = cascade.shadow_atlas_scale_bias.xy + cascade.shadow_atlas_scale_bias.zw;
+    float shadow_bias = max(0.0005f * (1.0f - NoL), 0.00005f);
+    float visibility = 0.0f;
+    Texture2D shadow_map = bindless_textures[DescriptorIndex(GetScene().shadow_atlas)];
+    float2 filter_step = atlas_texel;
+
+#ifdef PCSS_SHADOW
+    float avg_blocker_depth = 0.0f;
+
+    [unroll]
+    for (int py = -2; py <= 2; ++py)
+    {
+        [unroll]
+        for (int px = -2; px <= 2; ++px)
+        {
+            float2 sample_uv = atlas_uv + float2(px, py) * atlas_texel * 2.f;
+            sample_uv = clamp(sample_uv, atlas_uv_min + atlas_texel * 0.5f, atlas_uv_max - atlas_texel * 0.5f);
+            float shadow_depth = shadow_map.SampleLevel(sampler_point_clamp, sample_uv, 0).r;
+            [flatten]
+            if (shadow_ndc.z - shadow_bias < shadow_depth)
+            {
+                visibility += 1.0f;
+                avg_blocker_depth += shadow_depth;
+            }
+        }
+    }
+    if (visibility > 0.0f)
+    {
+        avg_blocker_depth /= visibility;
+        float penumbra = saturate((shadow_ndc.z - avg_blocker_depth) / max(avg_blocker_depth, 0.0001f));
+        float filter_radius = lerp(1.0f, 6.0f, penumbra);
+        filter_step *= filter_radius;
+        visibility = 0.f;
+    }
+#endif
+
+    [unroll]
+    for (int y = -2; y <= 2; ++y)
+    {
+        [unroll]
+        for (int x = -2; x <= 2; ++x)
+        {
+            float2 sample_uv = atlas_uv + float2(x, y) * filter_step;
+            sample_uv = clamp(sample_uv, atlas_uv_min + atlas_texel * 0.5f, atlas_uv_max - atlas_texel * 0.5f);
+            float shadow_depth = shadow_map.SampleLevel(sampler_point_clamp, sample_uv, 0).r;
+            visibility += shadow_ndc.z - shadow_bias > shadow_depth ? 1.0f : 0.0f;
+        }
+    }
+
+    return visibility / 25.0f;
+}
+
 inline void LightDirectional(in ShaderLight light, in Surface surface, inout Lighting lighting)
 {
     half3 L = normalize(-light.GetDirection());
@@ -176,74 +247,55 @@ inline void LightDirectional(in ShaderLight light, in Surface surface, inout Lig
 	[branch]
     if (light.IsCastingShadow() && GetMaterial().IsReceiveShadow())
     {
-        if (GetScene().shadow_atlas >= 0 && light.shadow_atlas_scale_bias.x > 0.0f && light.shadow_atlas_scale_bias.y > 0.0f)
+        if (GetScene().shadow_atlas >= 0 && GetScene().shadow_cascade_buffer >= 0 && light.HasShadowSlices())
         {
-            float4 shadow_pos = mul(light.shadow_view_projection, float4(surface.P, 1.0f));
-            float3 shadow_ndc = shadow_pos.xyz / shadow_pos.w;
-            float2 shadow_uv = shadow_ndc.xy * float2(0.5f, -0.5f) + 0.5f;
+            ShaderCamera camera = GetCamera();
+            float linear_depth = max(0.0f, dot(surface.P - camera.position, camera.forward));
+            uint cascade_local_index = 0;
 
-            if (shadow_uv.x >= 0.0f && shadow_uv.x <= 1.0f &&
-                shadow_uv.y >= 0.0f && shadow_uv.y <= 1.0f &&
-                shadow_ndc.z >= 0.0f && shadow_ndc.z <= 1.0f)
+            [unroll]
+            for (uint i = 0; i < 4; ++i)
             {
-                float2 atlas_uv = shadow_uv * light.shadow_atlas_scale_bias.xy + light.shadow_atlas_scale_bias.zw;
-                uint atlas_width = 0;
-                uint atlas_height = 0;
-                bindless_textures[DescriptorIndex(GetScene().shadow_atlas)].GetDimensions(atlas_width, atlas_height);
-                float2 atlas_texel = 1.0f / float2(atlas_width, atlas_height);
-                float2 atlas_uv_min = light.shadow_atlas_scale_bias.zw;
-                float2 atlas_uv_max = light.shadow_atlas_scale_bias.xy + light.shadow_atlas_scale_bias.zw;
-                float shadow_bias = max(0.0005f * (1.0f - lighting_context.NoL), 0.00005f);
-                float visibility = 0.0f;
-                Texture2D shadow_map = bindless_textures[DescriptorIndex(GetScene().shadow_atlas)];
-                float2 filter_step = atlas_texel;
-                
-#ifdef PCSS_SHADOW
-                float avg_blocker_depth = 0.0f;
-                
-                [unroll]
-                for (int py = -2; py <= 2; ++py)
+                if (i >= light.shadow_slice_count)
                 {
-                    [unroll]
-                    for (int px = -2; px <= 2; ++px)
-                    {
-                        float2 sample_uv = atlas_uv + float2(px, py) * atlas_texel * 2.f;
-                        sample_uv = clamp(sample_uv, atlas_uv_min + atlas_texel * 0.5f, atlas_uv_max - atlas_texel * 0.5f);
-                        float shadow_depth = shadow_map.SampleLevel(sampler_point_clamp, sample_uv, 0).r;
-                        [flatten]
-                        if (shadow_ndc.z - shadow_bias < shadow_depth)
-                        {
-                            visibility += 1.0f;
-                            avg_blocker_depth += shadow_depth;
-                        }
-                    }
+                    break;
                 }
-                if (visibility > 0.0f)
+                ShaderShadowCascade cascade_candidate = GetShadowCascade(light.shadow_slice_offset + i);
+                if (linear_depth <= cascade_candidate.split_far)
                 {
-                    avg_blocker_depth /= visibility;
-                    float penumbra = saturate((shadow_ndc.z - avg_blocker_depth) / max(avg_blocker_depth, 0.0001f));
-                    float filter_radius = lerp(1.0f, 6.0f, penumbra);
-                    filter_step *= filter_radius;
-                    visibility = 0.f;
+                    cascade_local_index = i;
+                    break;
                 }
-#endif
-                // PCF
-                [unroll]
-                for (int y = -2; y <= 2; ++y)
+                cascade_local_index = i;
+            }
+
+            ShaderShadowCascade cascade = GetShadowCascade(light.shadow_slice_offset + cascade_local_index);
+            float visibility = SampleDirectionalShadowCascade(cascade, surface.P, lighting_context.NoL);
+
+            if (cascade_local_index + 1 < light.shadow_slice_count)
+            {
+                float split_near = camera.z_near;
+                if (cascade_local_index > 0)
                 {
-                    [unroll]
-                    for (int x = -2; x <= 2; ++x)
-                    {
-                        float2 sample_uv = atlas_uv + float2(x, y) * filter_step;
-                        sample_uv = clamp(sample_uv, atlas_uv_min + atlas_texel * 0.5f, atlas_uv_max - atlas_texel * 0.5f);
-                        float shadow_depth = shadow_map.SampleLevel(sampler_point_clamp, sample_uv, 0).r;
-                        visibility += shadow_ndc.z - shadow_bias > shadow_depth ? 1.0f : 0.0f;
-                    }
+                    split_near = GetShadowCascade(light.shadow_slice_offset + cascade_local_index - 1).split_far;
                 }
 
-                visibility /= 25.0f;
-                light_color *= visibility;
+                float cascade_range = max(cascade.split_far - split_near, 0.0001f);
+                float blend_distance = cascade_range * cascade.blend_band;
+                if (blend_distance > 0.0f)
+                {
+                    float blend_start = cascade.split_far - blend_distance;
+                    if (linear_depth > blend_start)
+                    {
+                        ShaderShadowCascade next_cascade = GetShadowCascade(light.shadow_slice_offset + cascade_local_index + 1);
+                        float next_visibility = SampleDirectionalShadowCascade(next_cascade, surface.P, lighting_context.NoL);
+                        float blend_weight = saturate((linear_depth - blend_start) / blend_distance);
+                        visibility = lerp(visibility, next_visibility, blend_weight);
+                    }
+                }
             }
+
+            light_color *= visibility;
         }
     }
     

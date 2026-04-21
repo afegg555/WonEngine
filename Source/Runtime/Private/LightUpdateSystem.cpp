@@ -3,16 +3,11 @@
 #include "MathUtils.h"
 #include "Scene.h"
 #include "LightComponent.h"
-#include "RectPacker.h"
 #include "JobSystem.h"
 #include "Backlog.h"
-#include <mutex>
 
 namespace won::ecs
 {
-    static std::mutex shadowmap_atlas_mutex;
-    constexpr int32 shadow_map_atlas_max_size = 16384;
-
     void LightUpdateSystem::Update(Scene& scene, float delta_time)
     {
         jobsystem::Context sub_ctx;
@@ -29,11 +24,6 @@ namespace won::ecs
 
         render_data.shader_lights.resize(light_count);
         render_data.forward_light_mask = { 0,0,0,0 };
-        render_data.shadow_map_atlas_size = { 0, 0 };
-
-        render_data.render_shadow_lights.resize(light_count);
-
-        rectpacker::State shadow_map_atlas_packer = {};
 
         jobsystem::Dispatch(sub_ctx, (uint32)light_count, groupsize, [&](jobsystem::JobArgs args) {
             LightComponent& light = light_array->data[args.job_index];
@@ -85,113 +75,9 @@ namespace won::ecs
                 const uint8_t bucket_place = uint8_t(args.job_index % 32);
                 uint32_t* value = reinterpret_cast<uint32_t*>(&render_data.forward_light_mask);
                 value[bucket_index] |= 1 << bucket_place;
-
-                if(light.IsDynamic() && light.IsCastShadow())
-                {
-                    auto& render_shadow_light = render_data.render_shadow_lights[args.job_index];
-                    const math::AABB& shadow_caster_world_bound = render_data.shadow_caster_world_bound;
-
-                    const XMVECTOR light_position = XMLoadFloat3(&light.position);
-                    XMVECTOR light_direction = XMVector3Normalize(XMLoadFloat3(&light.direction));
-                    XMVECTOR light_up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-                    if (std::abs(XMVectorGetX(XMVector3Dot(light_up, light_direction))) > 0.99f)
-                    {
-                        light_up = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
-                    }
-
-                    XMMATRIX shadow_view = {};
-                    XMMATRIX shadow_projection = {};
-
-                    if (light.type == LightComponent::Directional)
-                    {
-                        const float bound_radius = won::math::Length(shadow_caster_world_bound.GetExtent());
-                        const float3 bound_center = shadow_caster_world_bound.GetCenter();
-                        XMVECTOR xbound_center = XMLoadFloat3(&bound_center);
-
-                        const XMVECTOR shadow_eye = xbound_center - light_direction * (bound_radius * 2.f);
-                        shadow_view = XMMatrixLookToLH(shadow_eye, light_direction, light_up);
-
-                        const math::AABB shadow_caster_light_bound = math::TransformAABB(shadow_caster_world_bound, shadow_view);
-                        const float padding = bound_radius * 0.05f;
-
-                        shadow_projection = XMMatrixOrthographicOffCenterLH(
-                            shadow_caster_light_bound.min.x - padding,
-                            shadow_caster_light_bound.max.x + padding,
-                            shadow_caster_light_bound.min.y - padding,
-                            shadow_caster_light_bound.max.y + padding,
-                            (std::max)(1000.f, shadow_caster_light_bound.max.z + padding),
-                            (std::max)(0.1f, shadow_caster_light_bound.min.z - padding));
-
-                    }
-                    else if (light.type == LightComponent::Spot)
-                    {
-                        shadow_view = XMMatrixLookToLH(light_position, light_direction, light_up);
-                        shadow_projection = XMMatrixPerspectiveFovLH((std::max)(0.1f, light.outer_cone_angle * 2.0f), 1.0f, light.range, 0.1f);
-                    }
-                    else if (light.type == LightComponent::Point)
-                    {
-                        shadow_view = XMMatrixLookToLH(light_position, light_direction, light_up);
-                        shadow_projection = XMMatrixPerspectiveFovLH(XM_PIDIV2, 1.0f, light.range, 0.1f);
-                    }
-                    else
-                    {
-                        backlog::Post("Shadowmap is not supported on this light type", backlog::LogLevel::Error);
-                        return;
-                    }
-
-                    XMMATRIX shadow_view_projection = {};
-                    shadow_view_projection = shadow_view * shadow_projection;
-                    XMStoreFloat4x4(&render_shadow_light.view_projection, shadow_view_projection);
-                    shader_light.shadow_view_projection = render_shadow_light.view_projection;
-                    render_shadow_light.shadow_map_resolution = light.shadow_map_resolution;
-                    render_shadow_light.light_index = args.job_index;
-
-                    rectpacker::Rect rect = {};
-                    rect.id = static_cast<int>(args.job_index);
-                    rect.w = static_cast<stbrp_coord>((std::max)(1u, light.shadow_map_resolution));
-                    rect.h = static_cast<stbrp_coord>((std::max)(1u, light.shadow_map_resolution));
-
-                    {
-                        std::lock_guard<std::mutex> lock(shadowmap_atlas_mutex);
-                        shadow_map_atlas_packer.AddRect(rect);
-                    }
-                    
-                }
             }
         });
 
         jobsystem::Wait(sub_ctx);
-
-        if (!shadow_map_atlas_packer.rects.empty())
-        {
-            if (!shadow_map_atlas_packer.Pack(shadow_map_atlas_max_size))
-            {
-                backlog::Post("failed to pack shadow map atlas", backlog::LogLevel::Error);
-                return;
-            }
-
-            render_data.shadow_map_atlas_size = {
-                static_cast<uint32>(shadow_map_atlas_packer.width),
-                static_cast<uint32>(shadow_map_atlas_packer.height)
-            };
-
-            for (const rectpacker::Rect& rect : shadow_map_atlas_packer.rects)
-            {
-                if (rect.was_packed == 0 || rect.id < 0)
-                {
-                    continue;
-                }
-
-                auto& render_shadow_light = render_data.render_shadow_lights[rect.id];
-                render_shadow_light.shadow_map_atlas_rect = { rect.x, rect.y, rect.w, rect.h };
-                ShaderLight& shader_light = render_data.shader_lights[render_shadow_light.light_index];
-                shader_light.shadow_atlas_scale_bias = {
-                    static_cast<float>(rect.w) / static_cast<float>(render_data.shadow_map_atlas_size.x),
-                    static_cast<float>(rect.h) / static_cast<float>(render_data.shadow_map_atlas_size.y),
-                    static_cast<float>(rect.x) / static_cast<float>(render_data.shadow_map_atlas_size.x),
-                    static_cast<float>(rect.y) / static_cast<float>(render_data.shadow_map_atlas_size.y)
-                };
-            }
-        }
     }
 }

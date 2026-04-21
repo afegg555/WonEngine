@@ -3,6 +3,7 @@
 #include "Primitives.h"
 
 static constexpr uint NUM_MAX_LIGHTS_FORWARD_RENDERING = 128;
+static constexpr uint SHADOW_CASCADE_COUNT_MAX = 4;
 
 namespace won::ecs
 {
@@ -35,7 +36,11 @@ namespace won::ecs
 		float range = 10.0f;
 		float outer_cone_angle = XM_PIDIV4;
 		float inner_cone_angle = 0; // default value is 0, means only outer cone angle is used
-        uint32 shadow_map_resolution = 256;
+
+        uint32 shadow_map_resolution = 1024;
+		uint32 shadow_cascade_count = 4;
+		float shadow_cascade_lambda = 0.95f; // 0: uniform split, 1: logarithmic split(more precision for near area)
+		float shadow_cascade_blend = 0.1f;
 
 		// these value will be updated on LightUpdateSystem
 		// you can use TransformComponent for manipulation !!

@@ -7,8 +7,10 @@
 #include "Window.h"
 #include "Entity.h"
 #include "CameraComponent.h"
+#include "RectPacker.h"
 
 #include <cstring>
+#include <cmath>
 
 using namespace won::resource;
 using namespace won::ecs;
@@ -76,11 +78,13 @@ namespace won::rendering
         const Vector<ShaderGeometry>& shader_geometries = render_data.shader_geometries;
         const Vector<ShaderMaterial>& shader_materials = render_data.shader_materials;
         const Vector<ShaderLight>& shader_lights = render_data.shader_lights;
+        const Vector<ShaderShadowCascade>& shader_shadow_cascades = render_data.shader_shadow_cascades;
 
         const Size required_instance_buffer_size = shader_instances.size() * sizeof(ShaderInstance);
         const Size required_geometry_buffer_size = shader_geometries.size() * sizeof(ShaderGeometry);
         const Size required_material_buffer_size = shader_materials.size() * sizeof(ShaderMaterial);
         const Size required_light_buffer_size = shader_lights.size() * sizeof(ShaderLight);
+        const Size required_shadow_cascade_buffer_size = shader_shadow_cascades.size() * sizeof(ShaderShadowCascade);
 
         if (required_instance_buffer_size == 0)
         {
@@ -378,6 +382,52 @@ namespace won::rendering
             frame_context.command_list->TransitionResource(*shader_light_default_buffer, RHIResourceState::ShaderRead);
         }
 
+        if (required_shadow_cascade_buffer_size == 0)
+        {
+            shader_shadow_cascade_default_buffer = nullptr;
+            shader_shadow_cascade_default_buffer_srv = {};
+        }
+        else
+        {
+            Size current_default_buffer_size = 0;
+            if (shader_shadow_cascade_default_buffer)
+            {
+                current_default_buffer_size = shader_shadow_cascade_default_buffer->GetDesc().buffer_desc.size;
+            }
+
+            if (!shader_shadow_cascade_default_buffer || current_default_buffer_size < required_shadow_cascade_buffer_size)
+            {
+                RHIBufferDesc shader_shadow_cascade_default_buffer_desc = {};
+                shader_shadow_cascade_default_buffer_desc.size = required_shadow_cascade_buffer_size;
+                shader_shadow_cascade_default_buffer_desc.usage = RHIResourceUsage::Default;
+                shader_shadow_cascade_default_buffer_desc.bind_flags = RHIBindFlags::ShaderResource;
+                shader_shadow_cascade_default_buffer = device->CreateBuffer(shader_shadow_cascade_default_buffer_desc);
+                if (!shader_shadow_cascade_default_buffer)
+                {
+                    backlog::Post("failed to create shader shadow cascade default buffer", backlog::LogLevel::Error);
+                    return false;
+                }
+
+                shader_shadow_cascade_default_buffer_srv = {};
+                RHISubresourceDesc shader_shadow_cascade_default_subresource_desc = {};
+                shader_shadow_cascade_default_subresource_desc.type = RHISubresourceType::ShaderResource;
+                shader_shadow_cascade_default_subresource_desc.buffer_offset = 0;
+                shader_shadow_cascade_default_subresource_desc.buffer_size = shader_shadow_cascade_default_buffer->GetDesc().buffer_desc.size;
+                shader_shadow_cascade_default_subresource_desc.buffer_stride = sizeof(ShaderShadowCascade);
+                if (!device->CreateSubresource(*shader_shadow_cascade_default_buffer, shader_shadow_cascade_default_subresource_desc, &shader_shadow_cascade_default_buffer_srv))
+                {
+                    backlog::Post("failed to create shader shadow cascade default subresource", backlog::LogLevel::Error);
+                    shader_shadow_cascade_default_buffer = nullptr;
+                    return false;
+                }
+            }
+
+            if (!UpdateDefaultBuffer(frame_context, *shader_shadow_cascade_default_buffer, shader_shadow_cascades.data(), required_shadow_cascade_buffer_size, RHIResourceState::ShaderRead))
+            {
+                return false;
+            }
+        }
+
         ShaderFrame shader_frame{};
         shader_frame.Init();
         shader_frame.scene.instancebuffer = shader_instance_default_buffer_srv.descriptor_index;
@@ -386,6 +436,7 @@ namespace won::rendering
         shader_frame.scene.lightbuffer = shader_light_default_buffer_srv.descriptor_index;
         shader_frame.scene.lights = render_data.forward_light_mask;
         shader_frame.scene.shadow_atlas = shadow_map_atlas_srv.descriptor_index;
+        shader_frame.scene.shadow_cascade_buffer = shader_shadow_cascade_default_buffer_srv.descriptor_index;
 
         ShaderCamera shader_camera{};
         shader_camera.Init();
@@ -417,6 +468,232 @@ namespace won::rendering
         if (!UpdateDefaultBuffer(frame_context, *shader_camera_buffer, &shader_camera, sizeof(ShaderCamera), RHIResourceState::ConstantBuffer))
         {
             return false;
+        }
+
+        return true;
+    }
+
+    bool ForwardRenderer::BuildShadowCascades(const View& view)
+    {
+        if (!view.scene || view.camera_entity == INVALID_ENTITY)
+        {
+            return false;
+        }
+
+        Scene::RenderData& render_data = view.scene->GetRenderData();
+        render_data.shader_shadow_cascades.clear();
+        render_data.render_shadow_slices.clear();
+        render_data.shadow_map_atlas_size = { 0, 0 };
+
+        const ecs::CameraComponent* camera = view.scene->GetComponent<ecs::CameraComponent>(view.camera_entity);
+        if (!camera)
+        {
+            return true;
+        }
+
+        auto light_array = view.scene->GetComponentArray<ecs::LightComponent>().get();
+        if (!light_array)
+        {
+            return true;
+        }
+
+        const uint32 light_count = (std::min)(static_cast<uint32>(light_array->GetSize()), static_cast<uint32>(render_data.shader_lights.size()));
+        rectpacker::State atlas_packer = {};
+
+        for (uint32 light_index = 0u; light_index < light_count; ++light_index)
+        {
+            const ecs::LightComponent& light = light_array->data[light_index];
+            ShaderLight& shader_light = render_data.shader_lights[light_index];
+            shader_light.shadow_slice_offset = 0u;
+            shader_light.shadow_slice_count = 0u;
+
+            if (!light.IsActive() || !light.IsDynamic() || !light.IsCastShadow())
+            {
+                continue;
+            }
+
+            if (light.type != ecs::LightComponent::Directional)
+            {
+                continue;
+            }
+
+            const uint32 cascade_count = camera->IsOrtho() ? 1u : (std::min)(light.shadow_cascade_count, SHADOW_CASCADE_COUNT_MAX);
+            if (cascade_count == 0)
+            {
+                continue;
+            }
+
+            const uint32 cascade_offset = static_cast<uint32>(render_data.shader_shadow_cascades.size());
+            shader_light.shadow_slice_offset = cascade_offset;
+            shader_light.shadow_slice_count = cascade_count;
+
+            float split_distances[SHADOW_CASCADE_COUNT_MAX + 1] = {};
+            split_distances[0] = camera->near_plane;
+            for (uint32 cascade_index = 1; cascade_index <= cascade_count; ++cascade_index)
+            {
+                const float t = static_cast<float>(cascade_index) / static_cast<float>(cascade_count);
+                const float uniform_split = math::Lerp(camera->near_plane, camera->far_plane, t);
+                const float log_split = camera->near_plane * std::pow(camera->far_plane / camera->near_plane, t);
+                split_distances[cascade_index] = math::Lerp(uniform_split, log_split, light.shadow_cascade_lambda);
+            }
+            split_distances[cascade_count] = camera->far_plane;
+
+            XMVECTOR light_direction = XMVector3Normalize(XMLoadFloat3(&light.direction));
+            XMVECTOR light_up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+            if (std::abs(XMVectorGetX(XMVector3Dot(light_up, light_direction))) > 0.99f)
+            {
+                light_up = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+            }
+
+            for (uint32 cascade_index = 0; cascade_index < cascade_count; ++cascade_index)
+            {
+                const float split_near = split_distances[cascade_index];
+                const float split_far = split_distances[cascade_index + 1];
+                std::array<float3, 8> frustum_corners = {};
+                const float near_to_far = camera->far_plane - camera->near_plane;
+                const float split_t_near = std::abs(near_to_far) > 0.0001f ? (split_near - camera->near_plane) / near_to_far : 0.0f;
+                const float split_t_far = std::abs(near_to_far) > 0.0001f ? (split_far - camera->near_plane) / near_to_far : 1.0f;
+
+                for (uint32 corner_index = 0; corner_index < 4; ++corner_index)
+                {
+                    const float3& full_near_corner = {
+                        camera->corners_np[corner_index].x,
+                        camera->corners_np[corner_index].y,
+                        camera->corners_np[corner_index].z
+                    };
+                    const float3& full_far_corner = {
+                        camera->corners_fp[corner_index].x,
+                        camera->corners_fp[corner_index].y,
+                        camera->corners_fp[corner_index].z
+                    };
+
+                    frustum_corners[corner_index] = math::Lerp(full_near_corner, full_far_corner, split_t_near);
+                    frustum_corners[corner_index + 4] = math::Lerp(full_near_corner, full_far_corner, split_t_far);
+                }
+
+                float3 frustum_center = {};
+                for (const float3& corner : frustum_corners)
+                {
+                    frustum_center.x += corner.x;
+                    frustum_center.y += corner.y;
+                    frustum_center.z += corner.z;
+                }
+                frustum_center.x /= 8.0f;
+                frustum_center.y /= 8.0f;
+                frustum_center.z /= 8.0f;
+
+                const XMVECTOR xcenter = XMLoadFloat3(&frustum_center);
+                const XMVECTOR shadow_eye = xcenter - light_direction * camera->far_plane;
+                const XMMATRIX shadow_view = XMMatrixLookToLH(shadow_eye, light_direction, light_up);
+
+                math::AABB frustum_light_bound = {};
+                frustum_light_bound.Invalidate();
+                for (const float3& corner : frustum_corners)
+                {
+                    float3 transformed_corner = {};
+                    XMStoreFloat3(&transformed_corner, XMVector3TransformCoord(XMLoadFloat3(&corner), shadow_view));
+
+                    frustum_light_bound.min = math::Min(frustum_light_bound.min, transformed_corner);
+                    frustum_light_bound.max = math::Max(frustum_light_bound.max, transformed_corner);
+                }
+
+                math::AABB caster_light_bound = {};
+                caster_light_bound.Invalidate();
+                if (render_data.shadow_caster_world_bound.IsValid())
+                {
+                    caster_light_bound = math::TransformAABB(render_data.shadow_caster_world_bound, shadow_view);
+                }
+
+                float3 cascade_center_ls = frustum_light_bound.GetCenter();
+                float3 cascade_extent_ls = frustum_light_bound.GetExtent();
+
+                const uint32 shadow_resolution = (std::max)(1u, light.shadow_map_resolution);
+                const float cascade_width = (std::max)(cascade_extent_ls.x * 2.0f, 0.001f);
+                const float cascade_height = (std::max)(cascade_extent_ls.y * 2.0f, 0.001f);
+                const float texel_size_x = cascade_width / static_cast<float>(shadow_resolution);
+                const float texel_size_y = cascade_height / static_cast<float>(shadow_resolution);
+
+                cascade_center_ls.x = std::floor(cascade_center_ls.x / texel_size_x) * texel_size_x;
+                cascade_center_ls.y = std::floor(cascade_center_ls.y / texel_size_y) * texel_size_y;
+
+                const float min_x = cascade_center_ls.x - cascade_extent_ls.x;
+                const float max_x = cascade_center_ls.x + cascade_extent_ls.x;
+                const float min_y = cascade_center_ls.y - cascade_extent_ls.y;
+                const float max_y = cascade_center_ls.y + cascade_extent_ls.y;
+
+                float near_z = frustum_light_bound.max.z + 10.0f;
+                float far_z = frustum_light_bound.min.z - 10.0f;
+                if (caster_light_bound.IsValid())
+                {
+                    near_z = caster_light_bound.max.z + 10.0f;
+                    far_z = caster_light_bound.min.z - 10.0f;
+                }
+                if (near_z <= far_z)
+                {
+                    near_z = far_z + 1.0f;
+                }
+
+                const XMMATRIX shadow_projection = XMMatrixOrthographicOffCenterLH(
+                    min_x,
+                    max_x,
+                    min_y,
+                    max_y,
+                    near_z,
+                    far_z);
+
+                ShaderShadowCascade shader_shadow_cascade = {};
+                shader_shadow_cascade.Init();
+                XMStoreFloat4x4(&shader_shadow_cascade.shadow_view_projection, shadow_view * shadow_projection);
+                shader_shadow_cascade.split_far = split_far;
+                shader_shadow_cascade.blend_band = light.shadow_cascade_blend;
+                render_data.shader_shadow_cascades.push_back(shader_shadow_cascade);
+
+                Scene::RenderData::RenderShadowSlice render_shadow_slice = {};
+                render_shadow_slice.light_index = light_index;
+                render_shadow_slice.view_projection = shader_shadow_cascade.shadow_view_projection;
+                render_data.render_shadow_slices.push_back(render_shadow_slice);
+
+                rectpacker::Rect rect = {};
+                rect.id = static_cast<int>(render_data.shader_shadow_cascades.size() - 1);
+                rect.w = static_cast<stbrp_coord>(shadow_resolution);
+                rect.h = static_cast<stbrp_coord>(shadow_resolution);
+                atlas_packer.AddRect(rect);
+            }
+        }
+
+        if (atlas_packer.rects.empty())
+        {
+            return true;
+        }
+
+        if (!atlas_packer.Pack(16384))
+        {
+            backlog::Post("failed to pack shadow map atlas", backlog::LogLevel::Error);
+            return false;
+        }
+
+        render_data.shadow_map_atlas_size = {
+            static_cast<uint32>(atlas_packer.width),
+            static_cast<uint32>(atlas_packer.height)
+        };
+
+        for (const rectpacker::Rect& rect : atlas_packer.rects)
+        {
+            if (rect.was_packed == 0 || rect.id < 0)
+            {
+                continue;
+            }
+
+            ShaderShadowCascade& shader_shadow_cascade = render_data.shader_shadow_cascades[rect.id];
+            shader_shadow_cascade.shadow_atlas_scale_bias = {
+                static_cast<float>(rect.w) / static_cast<float>(render_data.shadow_map_atlas_size.x),
+                static_cast<float>(rect.h) / static_cast<float>(render_data.shadow_map_atlas_size.y),
+                static_cast<float>(rect.x) / static_cast<float>(render_data.shadow_map_atlas_size.x),
+                static_cast<float>(rect.y) / static_cast<float>(render_data.shadow_map_atlas_size.y)
+            };
+
+            Scene::RenderData::RenderShadowSlice& render_shadow_slice = render_data.render_shadow_slices[rect.id];
+            render_shadow_slice.shadow_map_atlas_rect = { rect.x, rect.y, rect.w, rect.h };
         }
 
         return true;
@@ -576,7 +853,7 @@ namespace won::rendering
 
     void ForwardRenderer::Render(const View& view)
     {
-        if (!view.scene || !current_window)// || view.camera_entity == ecs::INVALID_ENTITY)
+        if (!view.scene || view.camera_entity == ecs::INVALID_ENTITY || !current_window)
             return;
 
         std::shared_ptr<RHISwapchain> swapchain = current_window->GetRHISwapchain();
@@ -666,11 +943,17 @@ namespace won::rendering
             }
         }
 
+        if (!BuildShadowCascades(view))
+        {
+            return;
+        }
+
         const Scene::RenderData& render_data = view.scene->GetRenderData();
         if (render_data.shadow_map_atlas_size.x == 0 || render_data.shadow_map_atlas_size.y == 0)
         {
             shadow_map_atlas = nullptr;
             shadow_map_atlas_dsv = {};
+            shadow_map_atlas_srv = {};
             shadow_map_atlas_size = { 0, 0 };
         }
         else
@@ -678,6 +961,7 @@ namespace won::rendering
             const bool recreate_shadowmap_atlas =
                 !shadow_map_atlas ||
                 !shadow_map_atlas_dsv.IsValid() ||
+                !shadow_map_atlas_srv.IsValid() ||
                 shadow_map_atlas_size.x != render_data.shadow_map_atlas_size.x ||
                 shadow_map_atlas_size.y != render_data.shadow_map_atlas_size.y;
 
@@ -771,7 +1055,7 @@ namespace won::rendering
         scissor.height = view.scissor.height;
         frame_context.command_list->SetScissor(scissor);
 
-        if (shadow_map_atlas && shadow_map_atlas_dsv.IsValid() && !render_data.render_shadow_lights.empty())
+        if (shadow_map_atlas && shadow_map_atlas_dsv.IsValid() && !render_data.render_shadow_slices.empty())
         {
             frame_context.command_list->BeginEvent("Fill Shadow Map Atlas");
 
@@ -783,9 +1067,9 @@ namespace won::rendering
             frame_context.command_list->ClearDepthStencil(shadow_map_atlas_binding, 0.0f, 0u);
             frame_context.command_list->SetRenderTargets({}, &shadow_map_atlas_binding);
 
-            for (const auto& shadow_light : render_data.render_shadow_lights)
+            for (const auto& shadow_slice : render_data.render_shadow_slices)
             {
-                if (!shadow_light.HasShadowMapAtlasRect())
+                if (!shadow_slice.HasShadowMapAtlasRect())
                 {
                     continue;
                 }
@@ -793,7 +1077,7 @@ namespace won::rendering
                 ShaderCamera shadow_camera = {};
                 shadow_camera.Init();
 
-                shadow_camera.view_projection = shadow_light.view_projection;
+                shadow_camera.view_projection = shadow_slice.view_projection;
 
                 if (!UpdateDefaultBuffer(frame_context, *shader_camera_buffer, &shadow_camera, sizeof(ShaderCamera), RHIResourceState::ConstantBuffer))
                 {
@@ -801,19 +1085,19 @@ namespace won::rendering
                 }
 
                 RHIViewport shadow_viewport = {};
-                shadow_viewport.x = static_cast<float>(shadow_light.shadow_map_atlas_rect.x);
-                shadow_viewport.y = static_cast<float>(shadow_light.shadow_map_atlas_rect.y);
-                shadow_viewport.width = static_cast<float>(shadow_light.shadow_map_atlas_rect.z);
-                shadow_viewport.height = static_cast<float>(shadow_light.shadow_map_atlas_rect.w);
+                shadow_viewport.x = static_cast<float>(shadow_slice.shadow_map_atlas_rect.x);
+                shadow_viewport.y = static_cast<float>(shadow_slice.shadow_map_atlas_rect.y);
+                shadow_viewport.width = static_cast<float>(shadow_slice.shadow_map_atlas_rect.z);
+                shadow_viewport.height = static_cast<float>(shadow_slice.shadow_map_atlas_rect.w);
                 shadow_viewport.min_depth = 0.0f;
                 shadow_viewport.max_depth = 1.0f;
                 frame_context.command_list->SetViewport(shadow_viewport);
 
                 RHIRect shadow_scissor = {};
-                shadow_scissor.x = shadow_light.shadow_map_atlas_rect.x;
-                shadow_scissor.y = shadow_light.shadow_map_atlas_rect.y;
-                shadow_scissor.width = shadow_light.shadow_map_atlas_rect.z;
-                shadow_scissor.height = shadow_light.shadow_map_atlas_rect.w;
+                shadow_scissor.x = shadow_slice.shadow_map_atlas_rect.x;
+                shadow_scissor.y = shadow_slice.shadow_map_atlas_rect.y;
+                shadow_scissor.width = shadow_slice.shadow_map_atlas_rect.z;
+                shadow_scissor.height = shadow_slice.shadow_map_atlas_rect.w;
                 frame_context.command_list->SetScissor(shadow_scissor);
 
                 DrawScene(view, frame_context, RenderPassType::ShadowPass, DrawScene_Opaque | DrawScene_ShadowCaster);
@@ -930,11 +1214,14 @@ namespace won::rendering
         shader_material_default_buffer = nullptr;
         shader_light_default_buffer_srv = {};
         shader_light_default_buffer = nullptr;
+        shader_shadow_cascade_default_buffer_srv = {};
+        shader_shadow_cascade_default_buffer = nullptr;
         shader_frame_buffer_cbv = {};
         shader_frame_buffer = nullptr;
         shader_camera_buffer_cbv = {};
         shader_camera_buffer = nullptr;
         shadow_map_atlas_dsv = {};
+        shadow_map_atlas_srv = {};
         shadow_map_atlas = nullptr;
         shadow_map_atlas_size = { 0, 0 };
         back_buffers_rtv = {};

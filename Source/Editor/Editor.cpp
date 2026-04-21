@@ -690,8 +690,17 @@ namespace won::editor
 					int shadow_map_resolution = static_cast<int>(light_comp->shadow_map_resolution);
 					if (ImGui::InputInt("Shadow Resolution", &shadow_map_resolution))
 					{
-						//light_comp->shadow_map_resolution = (std::max)(1, shadow_map_resolution);
+						light_comp->shadow_map_resolution = (std::max)(1, shadow_map_resolution);
 					}
+
+					int shadow_cascade_count = static_cast<int>(light_comp->shadow_cascade_count);
+					if (ImGui::SliderInt("Cascade Count", &shadow_cascade_count, 1, SHADOW_CASCADE_COUNT_MAX))
+					{
+						light_comp->shadow_cascade_count = static_cast<uint32>(shadow_cascade_count);
+					}
+
+					ImGui::SliderFloat("Cascade Lambda", &light_comp->shadow_cascade_lambda, 0.0f, 1.0f);
+					ImGui::SliderFloat("Cascade Blend", &light_comp->shadow_cascade_blend, 0.0f, 0.3f);
 
 					bool is_active = light_comp->IsActive();
 					if (ImGui::Checkbox("Active", &is_active))

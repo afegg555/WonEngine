@@ -12,6 +12,7 @@
 #include "ShaderInterop_Renderer.h"
 
 #include "Types.h"
+#include "MathUtils.h"
 
 #include <algorithm>
 #include <memory>
@@ -307,12 +308,10 @@ namespace won::ecs
                 }
             };
 
-            struct RenderShadowLight
+            struct RenderShadowSlice
             {
-                //LightComponent::LightType type = LightComponent::Directional;
                 uint32 light_index = 0;
-                float4x4 view_projection;
-                uint32 shadow_map_resolution = 0;
+                float4x4 view_projection = math::IDENTITY_MATRIX;
                 int4 shadow_map_atlas_rect = { -1, -1, 0, 0 };
 
                 bool HasShadowMapAtlasRect() const { return shadow_map_atlas_rect.z > 0 && shadow_map_atlas_rect.w > 0; }
@@ -323,8 +322,9 @@ namespace won::ecs
             Vector<ShaderMaterial> shader_materials;
             Vector<Renderable> renderables;
 
-            Vector<ShaderLight> shader_lights;
-            Vector<RenderShadowLight> render_shadow_lights;
+            Vector<ShaderLight> shader_lights; // all lights
+            Vector<ShaderShadowCascade> shader_shadow_cascades; // lights with shadow map
+            Vector<RenderShadowSlice> render_shadow_slices;
             uint4 forward_light_mask;
             uint2 shadow_map_atlas_size = { 0, 0 };
             math::AABB shadow_caster_world_bound;
@@ -337,7 +337,8 @@ namespace won::ecs
                 renderables.clear();
 
                 shader_lights.clear();
-                render_shadow_lights.clear();
+                shader_shadow_cascades.clear();
+                render_shadow_slices.clear();
                 forward_light_mask = { 0,0,0,0 };
                 shadow_map_atlas_size = { 0, 0 };
                 shadow_caster_world_bound.Invalidate();

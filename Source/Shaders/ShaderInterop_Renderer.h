@@ -190,7 +190,8 @@ struct alignas(16) ShaderScene
     int lightbuffer;
 
     int shadow_atlas;
-    int3 padding;
+    int shadow_cascade_buffer;
+    int2 padding;
 
     uint4 lights; // supports indexing 128 lights
 #ifdef __cplusplus
@@ -202,6 +203,7 @@ struct alignas(16) ShaderScene
         lightbuffer = -1;
 
         shadow_atlas = -1;
+        shadow_cascade_buffer = -1;
 
         lights = { 0,0,0,0 };
     }
@@ -300,10 +302,9 @@ struct alignas(16) ShaderLight
     uint2 color; // half4 packed
 
     uint inner_cone_angle_cos_padding; // cos_inner_cone 1 padding 1
-    uint3 padding;
-
-    float4 shadow_atlas_scale_bias;
-    float4x4 shadow_view_projection;
+    uint shadow_slice_offset;
+    uint shadow_slice_count;
+    uint padding;
 #ifdef __cplusplus
     inline void Init()
     {
@@ -313,9 +314,8 @@ struct alignas(16) ShaderLight
         direction_outer_cone_angle_cos = { 0,0 };
         color = { 0,0 };
         inner_cone_angle_cos_padding = 0;
-
-        shadow_atlas_scale_bias = { 0,0,0,0 };
-        shadow_view_projection = float4x4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
+        shadow_slice_offset = 0;
+        shadow_slice_count = 0;
     }
     inline void SetType(uint type)
     {
@@ -396,7 +396,32 @@ struct alignas(16) ShaderLight
     {
         return GetFlags() & LIGHT_FLAG_LIGHT_STATIC;
     }
+    inline bool HasShadowSlices()
+    {
+        return shadow_slice_count > 0;
+    }
 #endif // __cplusplus
+};
+
+struct alignas(16) ShaderShadowCascade
+{
+    float4x4 shadow_view_projection;
+    float4 shadow_atlas_scale_bias;
+
+    float split_far;
+    float blend_band;
+    uint2 padding;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        shadow_view_projection = float4x4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
+        shadow_atlas_scale_bias = { 0,0,0,0 };
+
+        split_far = 0.0f;
+        blend_band = 0.0f;
+    }
+#endif
 };
 
 struct ObjectPushConstants
@@ -446,7 +471,8 @@ static_assert(sizeof(ShaderMaterial) == 272, "ShaderMaterial layout mismatch");
 static_assert(sizeof(ShaderScene) == 48, "ShaderScene layout mismatch");
 static_assert(sizeof(ShaderFrame) == 48, "ShaderFrame layout mismatch");
 static_assert(sizeof(ShaderCamera) == 256, "ShaderCamera layout mismatch");
-static_assert(sizeof(ShaderLight) == 128, "ShaderLight layout mismatch");
+static_assert(sizeof(ShaderLight) == 48, "ShaderLight layout mismatch");
+static_assert(sizeof(ShaderShadowCascade) == 96, "ShaderShadowCascade layout mismatch");
 static_assert(sizeof(ObjectPushConstants) == 16, "ObjectPushConstants layout mismatch");
 static_assert(sizeof(ShaderInstance) == 112, "ShaderInstance layout mismatch");
 #endif // __cplusplus

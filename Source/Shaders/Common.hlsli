@@ -163,6 +163,7 @@ StructuredBuffer<ShaderInstance> bindless_structured_instance[] : register(t0, s
 StructuredBuffer<ShaderGeometry> bindless_structured_geometry[] : register(t0, space201);
 StructuredBuffer<ShaderMaterial> bindless_structured_material[] : register(t0, space202);
 StructuredBuffer<ShaderLight> bindless_structured_light[] : register(t0, space203);
+StructuredBuffer<ShaderShadowCascade> bindless_structured_shadow_cascade[] : register(t0, space204);
 
 // static samplers
 SamplerState sampler_linear_clamp : register(s100);
@@ -230,6 +231,11 @@ inline ShaderLightIterator lights(uint bucket_index = 0)
 inline ShaderLight GetLight(uint light_index)
 {
     return bindless_structured_light[DescriptorIndex(GetScene().lightbuffer)][light_index];
+}
+
+inline ShaderShadowCascade GetShadowCascade(uint cascade_index)
+{
+    return bindless_structured_shadow_cascade[DescriptorIndex(GetScene().shadow_cascade_buffer)][cascade_index];
 }
 
 #endif // WON_COMMON

@@ -29,6 +29,7 @@ namespace won::rendering
             DrawScene_ShadowCaster = 1 << 2, // include shadow casters only
         };
 
+        bool BuildShadowCascades(const View& view);
         bool DrawScene(const View& view, const FrameContext& frame_context, resource::RenderPassType pass, uint32 flags);
 
         std::shared_ptr<RHIDevice> device;
@@ -44,6 +45,9 @@ namespace won::rendering
 
         std::shared_ptr<RHIResource> shader_light_default_buffer;
         RHISubresourceHandle shader_light_default_buffer_srv = {};
+
+        std::shared_ptr<RHIResource> shader_shadow_cascade_default_buffer;
+        RHISubresourceHandle shader_shadow_cascade_default_buffer_srv = {};
 
         std::shared_ptr<RHIResource> shader_frame_buffer;
         RHISubresourceHandle shader_frame_buffer_cbv = {};
