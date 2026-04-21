@@ -17,6 +17,7 @@ namespace won::platform
         void Resize(int width, int height) override;
         int GetWidth() const override;
         int GetHeight() const override;
+        bool IsFocused() const override;
         bool IsMinimized() const override;
         bool ConsumePendingResize() override;
 

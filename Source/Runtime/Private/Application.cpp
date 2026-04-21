@@ -109,7 +109,14 @@ namespace won
     void Application::Update(float dt)
     {
         auto range = profiler::BeginRangeCPU("Application::Update");
-        io::Update((WindowType)window->GetNativeHandle());
+        if (window->IsFocused())
+        {
+            io::Update((WindowType)window->GetNativeHandle());
+        }
+        else
+        {
+            io::Reset();
+        }
         main_view.Update(dt);
         profiler::EndRange(range);
     }

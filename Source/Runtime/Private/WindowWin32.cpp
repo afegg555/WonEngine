@@ -154,6 +154,17 @@ namespace won::platform
         return height;
     }
 
+    bool WindowWin32::IsFocused() const
+    {
+        if (!hwnd)
+        {
+            return false;
+        }
+
+        HWND focused_window = GetForegroundWindow();
+        return focused_window == hwnd;
+    }
+
     bool WindowWin32::IsMinimized() const
     {
         return is_minimized;

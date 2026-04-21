@@ -91,6 +91,7 @@ namespace won::io
 	};
 
 	WONENGINE_API void Update(WindowType window);
+	WONENGINE_API void Reset();
 	WONENGINE_API bool IsDown(Button button);
 	WONENGINE_API bool IsPressed(Button button);
 	WONENGINE_API bool IsReleased(Button button);

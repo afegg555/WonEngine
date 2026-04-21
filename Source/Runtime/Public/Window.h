@@ -36,6 +36,7 @@ namespace won::platform
         virtual void Resize(int width, int height) = 0;
         virtual int GetWidth() const = 0;
         virtual int GetHeight() const = 0;
+        virtual bool IsFocused() const = 0;
         virtual bool IsMinimized() const = 0;
         virtual bool ConsumePendingResize() = 0;
 

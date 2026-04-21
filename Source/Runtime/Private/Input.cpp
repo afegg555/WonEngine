@@ -22,10 +22,22 @@ namespace won::io
 	static double double_click_interval = 0.5;
 	static utils::Timer doubleclick_timer;
 	static float2 doubleclick_prevpos = float2(0, 0);
+	static bool input_active = false;
 
 	static UnorderedMap<Button, int> inputs;
+	void Reset()
+	{
+		input_active = false;
+		keyboard = {};
+		mouse = {};
+		double_click = false;
+		doubleclick_prevpos = float2(0, 0);
+		inputs.clear();
+	}
+
 	void Update(WindowType _window)
 	{
+		input_active = true;
 		window = _window;
 
 #ifdef _WIN32
@@ -82,6 +94,11 @@ namespace won::io
 	}
 	bool IsDown(Button button)
 	{
+		if (!input_active)
+		{
+			return false;
+		}
+
 		uint16_t keycode = (uint16_t)button;
 
 		switch (button)
