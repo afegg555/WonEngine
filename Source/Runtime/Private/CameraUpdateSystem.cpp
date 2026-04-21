@@ -54,6 +54,15 @@ namespace won::ecs
             XMMATRIX view_projection = XMMatrixMultiply(view, projection);
             XMMATRIX inv_view_projection = XMMatrixInverse(nullptr, view_projection);
 
+            XMStoreFloat3(&camera.corners_np[0], XMVector3TransformCoord(XMVectorSet(-1, 1, 1, 1), inv_view_projection));
+            XMStoreFloat3(&camera.corners_np[1], XMVector3TransformCoord(XMVectorSet(1, 1, 1, 1), inv_view_projection));
+            XMStoreFloat3(&camera.corners_np[2], XMVector3TransformCoord(XMVectorSet(-1, -1, 1, 1), inv_view_projection));
+            XMStoreFloat3(&camera.corners_np[3], XMVector3TransformCoord(XMVectorSet(1, -1, 1, 1), inv_view_projection));
+            XMStoreFloat3(&camera.corners_fp[0], XMVector3TransformCoord(XMVectorSet(-1, 1, 0, 1), inv_view_projection));
+            XMStoreFloat3(&camera.corners_fp[1], XMVector3TransformCoord(XMVectorSet(1, 1, 0, 1), inv_view_projection));
+            XMStoreFloat3(&camera.corners_fp[2], XMVector3TransformCoord(XMVectorSet(-1, -1, 0, 1), inv_view_projection));
+            XMStoreFloat3(&camera.corners_fp[3], XMVector3TransformCoord(XMVectorSet(1, -1, 0, 1), inv_view_projection));
+
             XMStoreFloat4x4(&camera.view, view);
             XMStoreFloat4x4(&camera.projection, projection);
             XMStoreFloat4x4(&camera.inv_projection, inv_projection);

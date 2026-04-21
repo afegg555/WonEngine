@@ -23,6 +23,8 @@ namespace won::ecs
         float3 up = { 0, 0, 1 }; // vec(0, 0, 1) * transform_matrix
         float4x4 view, projection, view_projection;
         float4x4 inv_view, inv_projection, inv_view_projection;
+        float3 corners_np[4]; // top-left, top-right, bottom-left, bottom-right
+        float3 corners_fp[4];
 
         float near_plane = 0.1f;
         float far_plane = 1000.f;
