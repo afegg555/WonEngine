@@ -5,9 +5,11 @@ namespace won::resource
 {
     enum class ShaderId : uint16
     {
+        VSFullTriangle,
         VSObjectCommon,
         VSObjectSimple,
         VSObjectPrepass,
+        PSSky,
         PSObjectCommon,
         PSObjectSimple,
         PSObjectPrepass,

@@ -4,6 +4,7 @@
 #include "System.h"
 #include "SceneComponents.h"
 #include "TransformUpdateSystem.h"
+#include "EnvironmentUpdateSystem.h"
 #include "CameraUpdateSystem.h"
 #include "LightUpdateSystem.h"
 #include "GeometryUpdateSystem.h"
@@ -37,8 +38,10 @@ namespace won::ecs
             component_manager.RegisterComponent<MaterialComponent>();
             component_manager.RegisterComponent<CameraComponent>();
             component_manager.RegisterComponent<LightComponent>();
+            component_manager.RegisterComponent<SkyComponent>();
 
             AddSystem(std::make_shared<TransformUpdateSystem>());
+            AddSystem(std::make_shared<EnvironmentUpdateSystem>());
             AddSystem(std::make_shared<CameraUpdateSystem>());
             AddSystem(std::make_shared<LightUpdateSystem>());
             AddSystem(std::make_shared<GeometryUpdateSystem>());
@@ -78,6 +81,12 @@ namespace won::ecs
         Component* GetComponent(Entity entity)
         {
             return component_manager.GetComponent<Component>(entity);
+        }
+
+        template <typename Component>
+        void RemoveComponent(Entity entity)
+        {
+            component_manager.RemoveComponent<Component>(entity);
         }
 
         template <typename Component>
@@ -328,6 +337,8 @@ namespace won::ecs
             uint4 forward_light_mask;
             uint2 shadow_map_atlas_size = { 0, 0 };
             math::AABB shadow_caster_world_bound;
+
+            ShaderSky shader_sky;
 
             void Clear()
             {

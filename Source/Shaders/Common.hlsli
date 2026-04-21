@@ -186,6 +186,11 @@ inline ShaderScene GetScene()
     return g_frame.scene;
 }
 
+inline ShaderSky GetSky()
+{
+    return g_frame.sky;
+}
+
 inline ShaderCamera GetCamera()
 {
     return g_camera;

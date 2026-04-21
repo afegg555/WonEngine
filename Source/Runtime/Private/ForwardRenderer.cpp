@@ -437,27 +437,29 @@ namespace won::rendering
         shader_frame.scene.lights = render_data.forward_light_mask;
         shader_frame.scene.shadow_atlas = shadow_map_atlas_srv.descriptor_index;
         shader_frame.scene.shadow_cascade_buffer = shader_shadow_cascade_default_buffer_srv.descriptor_index;
+        shader_frame.sky = render_data.shader_sky;
 
         ShaderCamera shader_camera{};
         shader_camera.Init();
-        shader_camera.view = IDENTITY_MATRIX;
-        shader_camera.projection = IDENTITY_MATRIX;
-        shader_camera.view_projection = IDENTITY_MATRIX;
-        if (view.scene)
+        if (view.camera_entity != ecs::INVALID_ENTITY)
         {
-            const ecs::CameraComponent* camera_component = nullptr;
-            if (view.camera_entity != ecs::INVALID_ENTITY)
+            const ecs::CameraComponent* camera_component = view.scene->GetComponent<ecs::CameraComponent>(view.camera_entity);
+            if (camera_component)
             {
-                camera_component = view.scene->GetComponent<ecs::CameraComponent>(view.camera_entity);
-
                 shader_camera.position = camera_component->eye;
                 shader_camera.forward = camera_component->forward;
                 shader_camera.up = camera_component->up;
                 shader_camera.z_near = camera_component->near_plane;
                 shader_camera.z_far = camera_component->far_plane;
+                shader_camera.internal_resolution = { static_cast<uint32>(view.viewport.width), static_cast<uint32>(view.viewport.height) };
+                shader_camera.internal_resolution_rcp = {
+                    view.viewport.width > 0 ? 1.0f / static_cast<float>(view.viewport.width) : 0.0f,
+                    view.viewport.height > 0 ? 1.0f / static_cast<float>(view.viewport.height) : 0.0f
+                };
                 shader_camera.view = camera_component->view;
                 shader_camera.projection = camera_component->projection;
                 shader_camera.view_projection = camera_component->view_projection;
+                shader_camera.inv_view_projection = camera_component->inv_view_projection;
             }
         }
 
@@ -1033,6 +1035,12 @@ namespace won::rendering
         depth_buffer_binding.resource = depth_buffer.get();
         depth_buffer_binding.subresource = depth_buffer_dsv;
         Vector<RHISubresourceBinding> color_targets = { back_buffer_binding };
+        RHISubresourceBinding shader_frame_binding = {};
+        shader_frame_binding.resource = shader_frame_buffer.get();
+        shader_frame_binding.subresource = shader_frame_buffer_cbv;
+        RHISubresourceBinding shader_camera_binding = {};
+        shader_camera_binding.resource = shader_camera_buffer.get();
+        shader_camera_binding.subresource = shader_camera_buffer_cbv;
 
         frame_context.command_list->TransitionResource(*back_buffer, RHIResourceState::RenderTarget);
         frame_context.command_list->TransitionResource(*depth_buffer, RHIResourceState::DepthWrite);
@@ -1054,6 +1062,19 @@ namespace won::rendering
         scissor.width = view.scissor.width;
         scissor.height = view.scissor.height;
         frame_context.command_list->SetScissor(scissor);
+
+        {
+            frame_context.command_list->BeginEvent("Sky Pass");
+            frame_context.command_list->SetRenderTargets(color_targets, nullptr);
+            frame_context.command_list->SetGraphicsPipeline(*shader_library->GetPipeline(RenderPassType::SkyPass).get());
+            frame_context.command_list->SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
+            frame_context.command_list->SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_camera_binding);
+            frame_context.command_list->SetConstantBuffer(RHIShaderStage::Pixel, 0, shader_frame_binding);
+            frame_context.command_list->SetConstantBuffer(RHIShaderStage::Pixel, 1, shader_camera_binding);
+            frame_context.command_list->SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
+            frame_context.command_list->Draw(3, 1, 0, 0);
+            frame_context.command_list->EndEvent();
+        }
 
         if (shadow_map_atlas && shadow_map_atlas_dsv.IsValid() && !render_data.render_shadow_slices.empty())
         {
@@ -1111,6 +1132,7 @@ namespace won::rendering
             shader_camera.view = IDENTITY_MATRIX;
             shader_camera.projection = IDENTITY_MATRIX;
             shader_camera.view_projection = IDENTITY_MATRIX;
+            shader_camera.inv_view_projection = IDENTITY_MATRIX;
             if (view.camera_entity != ecs::INVALID_ENTITY)
             {
                 const ecs::CameraComponent* camera_component = view.scene->GetComponent<ecs::CameraComponent>(view.camera_entity);
@@ -1121,9 +1143,15 @@ namespace won::rendering
                     shader_camera.up = camera_component->up;
                     shader_camera.z_near = camera_component->near_plane;
                     shader_camera.z_far = camera_component->far_plane;
+                    shader_camera.internal_resolution = { static_cast<uint32>(view.viewport.width), static_cast<uint32>(view.viewport.height) };
+                    shader_camera.internal_resolution_rcp = {
+                        view.viewport.width > 0 ? 1.0f / static_cast<float>(view.viewport.width) : 0.0f,
+                        view.viewport.height > 0 ? 1.0f / static_cast<float>(view.viewport.height) : 0.0f
+                    };
                     shader_camera.view = camera_component->view;
                     shader_camera.projection = camera_component->projection;
                     shader_camera.view_projection = camera_component->view_projection;
+                    shader_camera.inv_view_projection = camera_component->inv_view_projection;
                 }
             }
 
