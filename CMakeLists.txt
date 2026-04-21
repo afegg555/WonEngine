@@ -173,15 +173,18 @@ set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/HierarchyComponent.h
     Source/Runtime/Public/CameraComponent.h
     Source/Runtime/Public/LightComponent.h
+    Source/Runtime/Public/SkyComponent.h
 )
 
 set(RUNTIME_ECS_SYSTEMS
+    Source/Runtime/Public/EnvironmentUpdateSystem.h
     Source/Runtime/Public/CameraUpdateSystem.h
     Source/Runtime/Public/GeometryUpdateSystem.h
     Source/Runtime/Public/LightUpdateSystem.h
     Source/Runtime/Public/MaterialUpdateSystem.h
     Source/Runtime/Public/TransformUpdateSystem.h
     Source/Runtime/Public/RenderableUpdateSystem.h
+    Source/Runtime/Private/EnvironmentUpdateSystem.cpp
     Source/Runtime/Private/CameraUpdateSystem.cpp
     Source/Runtime/Private/GeometryUpdateSystem.cpp
     Source/Runtime/Private/LightUpdateSystem.cpp
@@ -225,8 +228,9 @@ set(SHADERS_INTEROP
 
 set(SHADERS_HLSL
     Source/Shaders/Common.hlsli
-    Source/Shaders/TestTriangleVS.hlsl
+    Source/Shaders/FullTriangleVS.hlsl
     Source/Shaders/TestRedPS.hlsl
+    Source/Shaders/SkyPS.hlsl
     Source/Shaders/ShadingCommon.hlsli
     Source/Shaders/BRDFCommon.hlsli
     Source/Shaders/FogCommon.hlsli

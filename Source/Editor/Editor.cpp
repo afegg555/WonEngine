@@ -196,7 +196,7 @@ namespace won::editor
 			auto camera_transform = scene.AddComponent<ecs::TransformComponent>(camera_entity);
 			if (camera_transform)
 			{
-				camera_transform->position = { 0.0f, 0.0f, -3.0f };
+				camera_transform->position = { 0.0f, 0.0f, -20.0f };
 				camera_transform->SetDirty();
 			}
 
@@ -617,157 +617,780 @@ namespace won::editor
 		{
 			if (picked_entity != INVALID_ENTITY)
 			{
+				if (ImGui::Button("Add Component", ImVec2(-1.0f, 0.0f)))
+				{
+					ImGui::OpenPopup("AddComponentPopup");
+				}
+
+				if (ImGui::BeginPopup("AddComponentPopup"))
+				{
+					if (ImGui::MenuItem("NameComponent"))
+					{
+						if (main_view.scene->GetComponent<NameComponent>(picked_entity) == nullptr)
+						{
+							if (NameComponent* name = main_view.scene->AddComponent<NameComponent>(picked_entity))
+							{
+								name->value = "Entity " + std::to_string(picked_entity);
+							}
+						}
+					}
+
+					if (ImGui::MenuItem("TransformComponent"))
+					{
+						if (main_view.scene->GetComponent<TransformComponent>(picked_entity) == nullptr)
+						{
+							main_view.scene->AddComponent<TransformComponent>(picked_entity);
+						}
+					}
+
+					if (ImGui::MenuItem("HierarchyComponent"))
+					{
+						if (main_view.scene->GetComponent<HierarchyComponent>(picked_entity) == nullptr)
+						{
+							main_view.scene->AddComponent<HierarchyComponent>(picked_entity);
+						}
+					}
+
+					if (ImGui::MenuItem("CameraComponent"))
+					{
+						if (main_view.scene->GetComponent<CameraComponent>(picked_entity) == nullptr)
+						{
+							main_view.scene->AddComponent<CameraComponent>(picked_entity);
+						}
+					}
+
+					if (ImGui::MenuItem("LightComponent"))
+					{
+						if (main_view.scene->GetComponent<LightComponent>(picked_entity) == nullptr)
+						{
+							main_view.scene->AddComponent<LightComponent>(picked_entity);
+						}
+					}
+
+					if (ImGui::MenuItem("SkyComponent"))
+					{
+						if (main_view.scene->GetComponent<SkyComponent>(picked_entity) == nullptr)
+						{
+							main_view.scene->AddComponent<SkyComponent>(picked_entity);
+						}
+					}
+
+					if (ImGui::MenuItem("FogVolumeComponent"))
+					{
+						if (main_view.scene->GetComponent<FogVolumeComponent>(picked_entity) == nullptr)
+						{
+							main_view.scene->AddComponent<FogVolumeComponent>(picked_entity);
+						}
+					}
+
+					if (ImGui::MenuItem("EnvironmentLightingComponent"))
+					{
+						if (main_view.scene->GetComponent<EnvironmentLightingComponent>(picked_entity) == nullptr)
+						{
+							main_view.scene->AddComponent<EnvironmentLightingComponent>(picked_entity);
+						}
+					}
+
+					if (ImGui::MenuItem("DDGIVolumeComponent"))
+					{
+						if (main_view.scene->GetComponent<DDGIVolumeComponent>(picked_entity) == nullptr)
+						{
+							main_view.scene->AddComponent<DDGIVolumeComponent>(picked_entity);
+						}
+					}
+
+					if (ImGui::MenuItem("GeometryComponent"))
+					{
+						if (main_view.scene->GetComponent<GeometryComponent>(picked_entity) == nullptr)
+						{
+							main_view.scene->AddComponent<GeometryComponent>(picked_entity);
+						}
+					}
+
+					if (ImGui::MenuItem("MaterialComponent"))
+					{
+						if (main_view.scene->GetComponent<MaterialComponent>(picked_entity) == nullptr)
+						{
+							main_view.scene->AddComponent<MaterialComponent>(picked_entity);
+						}
+					}
+
+					ImGui::EndPopup();
+				}
+
+				ImGui::Separator();
+
 				// TODO: use reflection system
 				NameComponent* name_comp = main_view.scene->GetComponent<NameComponent>(picked_entity);
 				if (name_comp)
 				{
+					ImGui::PushID("NameComponent");
 					ImGui::Text("NameComponent");
-					char name_buf[256];
-					std::snprintf(name_buf, sizeof(name_buf), "%s", name_comp->value.c_str());
+					ImGui::SameLine();
+					bool remove_component = ImGui::Button("Remove");
 
-					if (ImGui::InputText("Value", name_buf, sizeof(name_buf)))
+					if (!remove_component)
 					{
-						name_comp->value = name_buf;
+						char name_buf[256];
+						std::snprintf(name_buf, sizeof(name_buf), "%s", name_comp->value.c_str());
+
+						if (ImGui::InputText("Value", name_buf, sizeof(name_buf)))
+						{
+							name_comp->value = name_buf;
+						}
+					}
+					else
+					{
+						main_view.scene->RemoveComponent<NameComponent>(picked_entity);
 					}
 
+					ImGui::PopID();
 					ImGui::Separator();
 				}
 
 				TransformComponent* transform_comp = main_view.scene->GetComponent<TransformComponent>(picked_entity);
 				if (transform_comp)
 				{
+					ImGui::PushID("TransformComponent");
 					ImGui::Text("TransformComponent");
-
-					float position[3] = { transform_comp->position.x, transform_comp->position.y, transform_comp->position.z };
-					if (ImGui::InputFloat3("Position", position))
+					ImGui::SameLine();
+					const bool can_remove_transform = picked_entity != camera_entity;
+					if (!can_remove_transform)
 					{
-						transform_comp->position = { position[0], position[1], position[2] };
-						transform_comp->SetDirty();
+						ImGui::BeginDisabled();
+					}
+					bool remove_component = ImGui::Button("Remove");
+					if (!can_remove_transform)
+					{
+						ImGui::EndDisabled();
 					}
 
-					float3 rotation_xyz = QuaternionToEulerXYZDegrees(transform_comp->rotation);
-					float rotation[3] = { rotation_xyz.x, rotation_xyz.y, rotation_xyz.z };
-					if (ImGui::InputFloat3("Rotation XYZ", rotation))
+					if (!remove_component)
 					{
-						transform_comp->rotation = EulerXYZDegreesToQuaternion({ rotation[0], rotation[1], rotation[2] });
-						transform_comp->SetDirty();
+						float position[3] = { transform_comp->position.x, transform_comp->position.y, transform_comp->position.z };
+						if (ImGui::InputFloat3("Position", position))
+						{
+							transform_comp->position = { position[0], position[1], position[2] };
+							transform_comp->SetDirty();
+						}
+
+						float3 rotation_xyz = QuaternionToEulerXYZDegrees(transform_comp->rotation);
+						float rotation[3] = { rotation_xyz.x, rotation_xyz.y, rotation_xyz.z };
+						if (ImGui::InputFloat3("Rotation XYZ", rotation))
+						{
+							transform_comp->rotation = EulerXYZDegreesToQuaternion({ rotation[0], rotation[1], rotation[2] });
+							transform_comp->SetDirty();
+						}
+
+						float scale[3] = { transform_comp->scale.x, transform_comp->scale.y, transform_comp->scale.z };
+						if (ImGui::InputFloat3("Scale", scale))
+						{
+							transform_comp->scale = { scale[0], scale[1], scale[2] };
+							transform_comp->SetDirty();
+						}
+					}
+					else if (can_remove_transform)
+					{
+						main_view.scene->RemoveComponent<TransformComponent>(picked_entity);
 					}
 
-					float scale[3] = { transform_comp->scale.x, transform_comp->scale.y, transform_comp->scale.z };
-					if (ImGui::InputFloat3("Scale", scale))
+					ImGui::PopID();
+					ImGui::Separator();
+				}
+
+				HierarchyComponent* hierarchy_comp = main_view.scene->GetComponent<HierarchyComponent>(picked_entity);
+				if (hierarchy_comp)
+				{
+					ImGui::PushID("HierarchyComponent");
+					ImGui::Text("HierarchyComponent");
+					ImGui::SameLine();
+					bool remove_component = ImGui::Button("Remove");
+
+					if (!remove_component)
 					{
-						transform_comp->scale = { scale[0], scale[1], scale[2] };
-						transform_comp->SetDirty();
+						uint64 parent_id = hierarchy_comp->parent_id;
+						if (ImGui::InputScalar("Parent", ImGuiDataType_U64, &parent_id))
+						{
+							hierarchy_comp->parent_id = parent_id;
+						}
+					}
+					else
+					{
+						main_view.scene->RemoveComponent<HierarchyComponent>(picked_entity);
 					}
 
+					ImGui::PopID();
 					ImGui::Separator();
 				}
 
 				LightComponent* light_comp = main_view.scene->GetComponent<LightComponent>(picked_entity);
 				if (light_comp)
 				{
+					ImGui::PushID("LightComponent");
 					ImGui::Text("LightComponent");
+					ImGui::SameLine();
+					bool remove_component = ImGui::Button("Remove");
 					
-					// TODO: enum is hard coded
-					int light_type = static_cast<int>(light_comp->type);
-					const char* light_type_items[] = { "Directional", "Point", "Spot" };
-					if (ImGui::Combo("Type", &light_type, light_type_items, IM_ARRAYSIZE(light_type_items)))
+					if (!remove_component)
 					{
-						light_comp->type = static_cast<LightComponent::LightType>(light_type);
+						// TODO: enum is hard coded
+						int light_type = static_cast<int>(light_comp->type);
+						const char* light_type_items[] = { "Directional", "Point", "Spot" };
+						if (ImGui::Combo("Type", &light_type, light_type_items, IM_ARRAYSIZE(light_type_items)))
+						{
+							light_comp->type = static_cast<LightComponent::LightType>(light_type);
+						}
+
+						float color[3] = { light_comp->color.x, light_comp->color.y, light_comp->color.z };
+						if (ImGui::InputFloat3("Color", color))
+						{
+							light_comp->color = { color[0], color[1], color[2] };
+						}
+
+						ImGui::DragFloat("Intensity", &light_comp->intensity, 1.0f, 0.0f, 100000.0f);
+						ImGui::DragFloat("Range", &light_comp->range, 0.1f, 0.0f, 100000.0f);
+						ImGui::DragFloat("Outer Cone", &light_comp->outer_cone_angle, 0.01f, 0.0f, math::PI);
+						ImGui::DragFloat("Inner Cone", &light_comp->inner_cone_angle, 0.01f, 0.0f, math::PI);
+
+						int shadow_map_resolution = static_cast<int>(light_comp->shadow_map_resolution);
+						if (ImGui::InputInt("Shadow Resolution", &shadow_map_resolution))
+						{
+							light_comp->shadow_map_resolution = (std::max)(1, shadow_map_resolution);
+						}
+
+						int shadow_cascade_count = static_cast<int>(light_comp->shadow_cascade_count);
+						if (ImGui::SliderInt("Cascade Count", &shadow_cascade_count, 1, SHADOW_CASCADE_COUNT_MAX))
+						{
+							light_comp->shadow_cascade_count = static_cast<uint32>(shadow_cascade_count);
+						}
+
+						ImGui::SliderFloat("Cascade Lambda", &light_comp->shadow_cascade_lambda, 0.0f, 1.0f);
+						ImGui::SliderFloat("Cascade Blend", &light_comp->shadow_cascade_blend, 0.0f, 0.3f);
+
+						bool is_active = light_comp->IsActive();
+						if (ImGui::Checkbox("Active", &is_active))
+						{
+							light_comp->SetActive(is_active);
+						}
+
+						bool is_dynamic = light_comp->IsDynamic();
+						if (ImGui::Checkbox("Dynamic", &is_dynamic))
+						{
+							light_comp->SetDynamic(is_dynamic);
+						}
+
+						bool is_cast_shadow = light_comp->IsCastShadow();
+						if (ImGui::Checkbox("Cast Shadow", &is_cast_shadow))
+						{
+							light_comp->SetCastShadow(is_cast_shadow);
+						}
+					}
+					else
+					{
+						main_view.scene->RemoveComponent<LightComponent>(picked_entity);
 					}
 
-					float color[3] = { light_comp->color.x, light_comp->color.y, light_comp->color.z };
-					if (ImGui::InputFloat3("Color", color))
-					{
-						light_comp->color = { color[0], color[1], color[2] };
-					}
-
-					ImGui::DragFloat("Intensity", &light_comp->intensity, 1.0f, 0.0f, 100000.0f);
-					ImGui::DragFloat("Range", &light_comp->range, 0.1f, 0.0f, 100000.0f);
-					ImGui::DragFloat("Outer Cone", &light_comp->outer_cone_angle, 0.01f, 0.0f, math::PI);
-					ImGui::DragFloat("Inner Cone", &light_comp->inner_cone_angle, 0.01f, 0.0f, math::PI);
-
-					int shadow_map_resolution = static_cast<int>(light_comp->shadow_map_resolution);
-					if (ImGui::InputInt("Shadow Resolution", &shadow_map_resolution))
-					{
-						light_comp->shadow_map_resolution = (std::max)(1, shadow_map_resolution);
-					}
-
-					int shadow_cascade_count = static_cast<int>(light_comp->shadow_cascade_count);
-					if (ImGui::SliderInt("Cascade Count", &shadow_cascade_count, 1, SHADOW_CASCADE_COUNT_MAX))
-					{
-						light_comp->shadow_cascade_count = static_cast<uint32>(shadow_cascade_count);
-					}
-
-					ImGui::SliderFloat("Cascade Lambda", &light_comp->shadow_cascade_lambda, 0.0f, 1.0f);
-					ImGui::SliderFloat("Cascade Blend", &light_comp->shadow_cascade_blend, 0.0f, 0.3f);
-
-					bool is_active = light_comp->IsActive();
-					if (ImGui::Checkbox("Active", &is_active))
-					{
-						light_comp->SetActive(is_active);
-					}
-
-					bool is_dynamic = light_comp->IsDynamic();
-					if (ImGui::Checkbox("Dynamic", &is_dynamic))
-					{
-						light_comp->SetDynamic(is_dynamic);
-					}
-
-					bool is_cast_shadow = light_comp->IsCastShadow();
-					if (ImGui::Checkbox("Cast Shadow", &is_cast_shadow))
-					{
-						light_comp->SetCastShadow(is_cast_shadow);
-					}
-
+					ImGui::PopID();
 					ImGui::Separator();
 				}
 
 				CameraComponent* camera_comp = main_view.scene->GetComponent<CameraComponent>(picked_entity);
 				if (camera_comp)
 				{
+					ImGui::PushID("CameraComponent");
 					ImGui::Text("CameraComponent");
-
-					bool is_ortho = camera_comp->IsOrtho();
-					if (ImGui::Checkbox("Orthographic", &is_ortho))
+					ImGui::SameLine();
+					const bool can_remove_camera = picked_entity != camera_entity;
+					if (!can_remove_camera)
 					{
-						camera_comp->SetOrtho(is_ortho);
+						ImGui::BeginDisabled();
+					}
+					bool remove_component = ImGui::Button("Remove");
+					if (!can_remove_camera)
+					{
+						ImGui::EndDisabled();
 					}
 
-					float near_plane = camera_comp->near_plane;
-					float far_plane = camera_comp->far_plane;
-					bool near_far_changed = false;
-					near_far_changed |= ImGui::DragFloat("Near", &near_plane, 0.01f, 0.001f, 100000.0f);
-					near_far_changed |= ImGui::DragFloat("Far", &far_plane, 1.0f, 0.01f, 100000.0f);
-					if (near_far_changed)
+					if (!remove_component)
 					{
-						near_plane = (std::max)(0.001f, near_plane);
-						far_plane = (std::max)(near_plane + 0.001f, far_plane);
-						camera_comp->SetNearFar(near_plane, far_plane);
-					}
-
-					if (!camera_comp->IsOrtho())
-					{
-						float fov_y = camera_comp->fov_y;
-						if (ImGui::DragFloat("FOV Y", &fov_y, 0.01f, 0.01f, math::PI - 0.01f))
+						bool is_ortho = camera_comp->IsOrtho();
+						if (ImGui::Checkbox("Orthographic", &is_ortho))
 						{
-							camera_comp->SetFOV_Y(fov_y);
+							camera_comp->SetOrtho(is_ortho);
+						}
+
+						float near_plane = camera_comp->near_plane;
+						float far_plane = camera_comp->far_plane;
+						bool near_far_changed = false;
+						near_far_changed |= ImGui::DragFloat("Near", &near_plane, 0.01f, 0.001f, 100000.0f);
+						near_far_changed |= ImGui::DragFloat("Far", &far_plane, 1.0f, 0.01f, 100000.0f);
+						if (near_far_changed)
+						{
+							near_plane = (std::max)(0.001f, near_plane);
+							far_plane = (std::max)(near_plane + 0.001f, far_plane);
+							camera_comp->SetNearFar(near_plane, far_plane);
+						}
+
+						if (!camera_comp->IsOrtho())
+						{
+							float fov_y = camera_comp->fov_y;
+							if (ImGui::DragFloat("FOV Y", &fov_y, 0.01f, 0.01f, math::PI - 0.01f))
+							{
+								camera_comp->SetFOV_Y(fov_y);
+							}
+						}
+						else
+						{
+							float ortho_vertical_size = camera_comp->ortho_vertical_size;
+							if (ImGui::DragFloat("Ortho Size", &ortho_vertical_size, 0.1f, 0.001f, 100000.0f))
+							{
+								camera_comp->SetOrthoVerticalSize(ortho_vertical_size);
+							}
+						}
+
+						ImGui::Text("Aspect Ratio: %.3f", camera_comp->aspect_ratio);
+						ImGui::DragFloat("Aperture", &camera_comp->aperture, 0.01f, 0.0f, 128.0f);
+						ImGui::DragFloat("Shutter Speed", &camera_comp->shutter_speed, 0.001f, 0.0001f, 100.0f);
+						ImGui::DragFloat("Sensitivity", &camera_comp->sensitivity, 1.0f, 1.0f, 102400.0f);
+					}
+					else if (can_remove_camera)
+					{
+						main_view.scene->RemoveComponent<CameraComponent>(picked_entity);
+					}
+
+					ImGui::PopID();
+					ImGui::Separator();
+				}
+
+				SkyComponent* sky_comp = main_view.scene->GetComponent<SkyComponent>(picked_entity);
+				if (sky_comp)
+				{
+					ImGui::PushID("SkyComponent");
+					ImGui::Text("SkyComponent");
+					ImGui::SameLine();
+					bool remove_component = ImGui::Button("Remove");
+
+					if (!remove_component)
+					{
+						bool is_active = sky_comp->IsActive();
+						if (ImGui::Checkbox("Active", &is_active))
+						{
+							sky_comp->SetActive(is_active);
+						}
+
+						float sun_color[3] = { sky_comp->sun_color.x, sky_comp->sun_color.y, sky_comp->sun_color.z };
+						if (ImGui::InputFloat3("Sun Color", sun_color))
+						{
+							sky_comp->sun_color = { sun_color[0], sun_color[1], sun_color[2] };
+						}
+
+						ImGui::DragFloat("Sun Intensity", &sky_comp->sun_intensity, 0.1f, 0.0f, 100000.0f);
+						ImGui::DragFloat("Sun Angular Radius", &sky_comp->sun_angular_radius, 0.0001f, 0.0f, 1.0f);
+						ImGui::DragFloat("Sun Glow Intensity", &sky_comp->sun_glow_intensity, 0.01f, 0.0f, 1000.0f);
+						ImGui::DragFloat("Sun Glow Falloff", &sky_comp->sun_glow_falloff, 0.1f, 0.0f, 1000.0f);
+
+						float sky_horizon_color[3] = { sky_comp->sky_horizon_color.x, sky_comp->sky_horizon_color.y, sky_comp->sky_horizon_color.z };
+						if (ImGui::InputFloat3("Sky Horizon Color", sky_horizon_color))
+						{
+							sky_comp->sky_horizon_color = { sky_horizon_color[0], sky_horizon_color[1], sky_horizon_color[2] };
+						}
+
+						float sky_zenith_color[3] = { sky_comp->sky_zenith_color.x, sky_comp->sky_zenith_color.y, sky_comp->sky_zenith_color.z };
+						if (ImGui::InputFloat3("Sky Zenith Color", sky_zenith_color))
+						{
+							sky_comp->sky_zenith_color = { sky_zenith_color[0], sky_zenith_color[1], sky_zenith_color[2] };
+						}
+
+						ImGui::DragFloat("Sky Intensity", &sky_comp->sky_intensity, 0.01f, 0.0f, 1000.0f);
+						ImGui::DragFloat("Sky Horizon Falloff", &sky_comp->sky_horizon_falloff, 0.01f, 0.0f, 1000.0f);
+
+						float ground_horizon_color[3] = { sky_comp->ground_horizon_color.x, sky_comp->ground_horizon_color.y, sky_comp->ground_horizon_color.z };
+						if (ImGui::InputFloat3("Ground Horizon Color", ground_horizon_color))
+						{
+							sky_comp->ground_horizon_color = { ground_horizon_color[0], ground_horizon_color[1], ground_horizon_color[2] };
+						}
+
+						float ground_color[3] = { sky_comp->ground_color.x, sky_comp->ground_color.y, sky_comp->ground_color.z };
+						if (ImGui::InputFloat3("Ground Color", ground_color))
+						{
+							sky_comp->ground_color = { ground_color[0], ground_color[1], ground_color[2] };
+						}
+
+						ImGui::DragFloat("Ground Intensity", &sky_comp->ground_intensity, 0.01f, 0.0f, 1000.0f);
+						ImGui::DragFloat("Ground Falloff", &sky_comp->ground_falloff, 0.01f, 0.0f, 1000.0f);
+					}
+					else
+					{
+						main_view.scene->RemoveComponent<SkyComponent>(picked_entity);
+					}
+
+					ImGui::PopID();
+					ImGui::Separator();
+				}
+
+				FogVolumeComponent* fog_volume_comp = main_view.scene->GetComponent<FogVolumeComponent>(picked_entity);
+				if (fog_volume_comp)
+				{
+					ImGui::PushID("FogVolumeComponent");
+					ImGui::Text("FogVolumeComponent");
+					ImGui::SameLine();
+					bool remove_component = ImGui::Button("Remove");
+
+					if (!remove_component)
+					{
+						bool is_active = fog_volume_comp->IsActive();
+						if (ImGui::Checkbox("Active", &is_active))
+						{
+							fog_volume_comp->SetActive(is_active);
+						}
+
+						float half_extents[3] = { fog_volume_comp->half_extents.x, fog_volume_comp->half_extents.y, fog_volume_comp->half_extents.z };
+						if (ImGui::InputFloat3("Half Extents", half_extents))
+						{
+							fog_volume_comp->half_extents = { half_extents[0], half_extents[1], half_extents[2] };
+						}
+
+						float color[3] = { fog_volume_comp->color.x, fog_volume_comp->color.y, fog_volume_comp->color.z };
+						if (ImGui::InputFloat3("Color", color))
+						{
+							fog_volume_comp->color = { color[0], color[1], color[2] };
+						}
+
+						ImGui::DragFloat("Density", &fog_volume_comp->density, 0.001f, 0.0f, 10.0f);
+						ImGui::DragFloat("Height Falloff", &fog_volume_comp->height_falloff, 0.001f, 0.0f, 100.0f);
+						ImGui::DragFloat("Height Offset", &fog_volume_comp->height_offset, 0.01f, -100000.0f, 100000.0f);
+						ImGui::DragFloat("Blend Distance", &fog_volume_comp->blend_distance, 0.01f, 0.0f, 100000.0f);
+						ImGui::SliderFloat("Max Opacity", &fog_volume_comp->max_opacity, 0.0f, 1.0f);
+
+						int priority = static_cast<int>(fog_volume_comp->priority);
+						if (ImGui::InputInt("Priority", &priority))
+						{
+							fog_volume_comp->priority = static_cast<uint32>((std::max)(0, priority));
 						}
 					}
 					else
 					{
-						float ortho_vertical_size = camera_comp->ortho_vertical_size;
-						if (ImGui::DragFloat("Ortho Size", &ortho_vertical_size, 0.1f, 0.001f, 100000.0f))
-						{
-							camera_comp->SetOrthoVerticalSize(ortho_vertical_size);
-						}
+						main_view.scene->RemoveComponent<FogVolumeComponent>(picked_entity);
 					}
 
-					ImGui::Text("Aspect Ratio: %.3f", camera_comp->aspect_ratio);
-					ImGui::DragFloat("Aperture", &camera_comp->aperture, 0.01f, 0.0f, 128.0f);
-					ImGui::DragFloat("Shutter Speed", &camera_comp->shutter_speed, 0.001f, 0.0001f, 100.0f);
-					ImGui::DragFloat("Sensitivity", &camera_comp->sensitivity, 1.0f, 1.0f, 102400.0f);
+					ImGui::PopID();
+					ImGui::Separator();
+				}
 
+				EnvironmentLightingComponent* environment_lighting_comp = main_view.scene->GetComponent<EnvironmentLightingComponent>(picked_entity);
+				if (environment_lighting_comp)
+				{
+					ImGui::PushID("EnvironmentLightingComponent");
+					ImGui::Text("EnvironmentLightingComponent");
+					ImGui::SameLine();
+					bool remove_component = ImGui::Button("Remove");
+
+					if (!remove_component)
+					{
+						bool is_active = environment_lighting_comp->IsActive();
+						if (ImGui::Checkbox("Active", &is_active))
+						{
+							environment_lighting_comp->SetActive(is_active);
+						}
+
+						int gi_mode = static_cast<int>(environment_lighting_comp->gi_mode);
+						const char* gi_mode_items[] = { "None", "Ambient", "DDGI" };
+						if (ImGui::Combo("GI Mode", &gi_mode, gi_mode_items, IM_ARRAYSIZE(gi_mode_items)))
+						{
+							environment_lighting_comp->gi_mode = static_cast<EnvironmentLightingComponent::GIMode>(gi_mode);
+						}
+
+						float ambient_color[3] = { environment_lighting_comp->ambient_color.x, environment_lighting_comp->ambient_color.y, environment_lighting_comp->ambient_color.z };
+						if (ImGui::InputFloat3("Ambient Color", ambient_color))
+						{
+							environment_lighting_comp->ambient_color = { ambient_color[0], ambient_color[1], ambient_color[2] };
+						}
+
+						ImGui::DragFloat("Ambient Intensity", &environment_lighting_comp->ambient_intensity, 0.01f, 0.0f, 1000.0f);
+						ImGui::DragFloat("Sky Lighting Intensity", &environment_lighting_comp->sky_lighting_intensity, 0.01f, 0.0f, 1000.0f);
+						ImGui::DragFloat("Indirect Diffuse", &environment_lighting_comp->indirect_diffuse_intensity, 0.01f, 0.0f, 1000.0f);
+						ImGui::DragFloat("Indirect Specular", &environment_lighting_comp->indirect_specular_intensity, 0.01f, 0.0f, 1000.0f);
+						ImGui::DragFloat("Emissive Indirect Scale", &environment_lighting_comp->emissive_indirect_scale, 0.01f, 0.0f, 1000.0f);
+					}
+					else
+					{
+						main_view.scene->RemoveComponent<EnvironmentLightingComponent>(picked_entity);
+					}
+
+					ImGui::PopID();
+					ImGui::Separator();
+				}
+
+				DDGIVolumeComponent* ddgi_volume_comp = main_view.scene->GetComponent<DDGIVolumeComponent>(picked_entity);
+				if (ddgi_volume_comp)
+				{
+					ImGui::PushID("DDGIVolumeComponent");
+					ImGui::Text("DDGIVolumeComponent");
+					ImGui::SameLine();
+					bool remove_component = ImGui::Button("Remove");
+
+					if (!remove_component)
+					{
+						bool is_active = ddgi_volume_comp->IsActive();
+						if (ImGui::Checkbox("Active", &is_active))
+						{
+							ddgi_volume_comp->SetActive(is_active);
+						}
+
+						bool is_dynamic = ddgi_volume_comp->IsDynamic();
+						if (ImGui::Checkbox("Dynamic", &is_dynamic))
+						{
+							ddgi_volume_comp->SetDynamic(is_dynamic);
+						}
+
+						int probe_counts[3] = {
+							static_cast<int>(ddgi_volume_comp->probe_counts.x),
+							static_cast<int>(ddgi_volume_comp->probe_counts.y),
+							static_cast<int>(ddgi_volume_comp->probe_counts.z)
+						};
+						if (ImGui::InputInt3("Probe Counts", probe_counts))
+						{
+							ddgi_volume_comp->probe_counts = {
+								static_cast<uint32>((std::max)(1, probe_counts[0])),
+								static_cast<uint32>((std::max)(1, probe_counts[1])),
+								static_cast<uint32>((std::max)(1, probe_counts[2]))
+							};
+						}
+
+						float probe_spacing[3] = { ddgi_volume_comp->probe_spacing.x, ddgi_volume_comp->probe_spacing.y, ddgi_volume_comp->probe_spacing.z };
+						if (ImGui::InputFloat3("Probe Spacing", probe_spacing))
+						{
+							ddgi_volume_comp->probe_spacing = { probe_spacing[0], probe_spacing[1], probe_spacing[2] };
+						}
+
+						float volume_offset[3] = { ddgi_volume_comp->volume_offset.x, ddgi_volume_comp->volume_offset.y, ddgi_volume_comp->volume_offset.z };
+						if (ImGui::InputFloat3("Volume Offset", volume_offset))
+						{
+							ddgi_volume_comp->volume_offset = { volume_offset[0], volume_offset[1], volume_offset[2] };
+						}
+
+						int rays_per_probe = static_cast<int>(ddgi_volume_comp->rays_per_probe);
+						if (ImGui::InputInt("Rays Per Probe", &rays_per_probe))
+						{
+							ddgi_volume_comp->rays_per_probe = static_cast<uint32>((std::max)(1, rays_per_probe));
+						}
+
+						int irradiance_resolution = static_cast<int>(ddgi_volume_comp->irradiance_resolution);
+						if (ImGui::InputInt("Irradiance Resolution", &irradiance_resolution))
+						{
+							ddgi_volume_comp->irradiance_resolution = static_cast<uint32>((std::max)(1, irradiance_resolution));
+						}
+
+						int visibility_resolution = static_cast<int>(ddgi_volume_comp->visibility_resolution);
+						if (ImGui::InputInt("Visibility Resolution", &visibility_resolution))
+						{
+							ddgi_volume_comp->visibility_resolution = static_cast<uint32>((std::max)(1, visibility_resolution));
+						}
+
+						int probes_per_frame = static_cast<int>(ddgi_volume_comp->probes_per_frame);
+						if (ImGui::InputInt("Probes Per Frame", &probes_per_frame))
+						{
+							ddgi_volume_comp->probes_per_frame = static_cast<uint32>((std::max)(1, probes_per_frame));
+						}
+
+						int priority = static_cast<int>(ddgi_volume_comp->priority);
+						if (ImGui::InputInt("Priority", &priority))
+						{
+							ddgi_volume_comp->priority = static_cast<uint32>((std::max)(0, priority));
+						}
+
+						ImGui::SliderFloat("Hysteresis", &ddgi_volume_comp->hysteresis, 0.0f, 1.0f);
+						ImGui::DragFloat("Normal Bias", &ddgi_volume_comp->normal_bias, 0.001f, 0.0f, 100.0f);
+						ImGui::DragFloat("View Bias", &ddgi_volume_comp->view_bias, 0.001f, 0.0f, 100.0f);
+						ImGui::DragFloat("Max Distance", &ddgi_volume_comp->max_distance, 0.01f, 0.0f, 100000.0f);
+					}
+					else
+					{
+						main_view.scene->RemoveComponent<DDGIVolumeComponent>(picked_entity);
+					}
+
+					ImGui::PopID();
+					ImGui::Separator();
+				}
+
+				GeometryComponent* geometry_comp = main_view.scene->GetComponent<GeometryComponent>(picked_entity);
+				if (geometry_comp)
+				{
+					ImGui::PushID("GeometryComponent");
+					ImGui::Text("GeometryComponent");
+					ImGui::SameLine();
+					bool remove_component = ImGui::Button("Remove");
+
+					if (!remove_component)
+					{
+						ImGui::Text("Mesh: %s", geometry_comp->mesh ? "Assigned" : "None");
+
+						bool cast_shadow = geometry_comp->IsCastShadow();
+						if (ImGui::Checkbox("Cast Shadow", &cast_shadow))
+						{
+							geometry_comp->SetCastShadow(cast_shadow);
+						}
+					}
+					else
+					{
+						main_view.scene->RemoveComponent<GeometryComponent>(picked_entity);
+					}
+
+					ImGui::PopID();
+					ImGui::Separator();
+				}
+
+				MaterialComponent* material_comp = main_view.scene->GetComponent<MaterialComponent>(picked_entity);
+				if (material_comp)
+				{
+					ImGui::PushID("MaterialComponent");
+					ImGui::Text("MaterialComponent");
+					ImGui::SameLine();
+					bool remove_component = ImGui::Button("Remove");
+
+					if (!remove_component)
+					{
+						static Entity selected_material_entity = INVALID_ENTITY;
+						static int selected_material_slot = 0;
+						if (selected_material_entity != picked_entity)
+						{
+							selected_material_entity = picked_entity;
+							selected_material_slot = 0;
+						}
+
+						int material_slot_count = static_cast<int>(material_comp->GetMaterialSlotCount());
+						ImGui::Text("Material Slots: %d", material_slot_count);
+
+						if (ImGui::Button("Add Slot"))
+						{
+							material_comp->AddMaterialSlot();
+							selected_material_slot = material_slot_count;
+							material_slot_count = static_cast<int>(material_comp->GetMaterialSlotCount());
+						}
+						ImGui::SameLine();
+						if (material_slot_count == 0)
+						{
+							ImGui::BeginDisabled();
+						}
+						if (ImGui::Button("Remove Slot") && material_slot_count > 0)
+						{
+							material_comp->material_slots.erase(material_comp->material_slots.begin() + selected_material_slot);
+							material_slot_count = static_cast<int>(material_comp->GetMaterialSlotCount());
+							selected_material_slot = (std::max)(0, material_slot_count - 1);
+						}
+						if (material_slot_count == 0)
+						{
+							ImGui::EndDisabled();
+						}
+
+						if (material_slot_count > 0)
+						{
+							selected_material_slot = (std::min)(selected_material_slot, material_slot_count - 1);
+
+							String slot_label = "Slot " + std::to_string(selected_material_slot);
+							if (ImGui::BeginCombo("Selected Slot", slot_label.c_str()))
+							{
+								for (int slot_index = 0; slot_index < material_slot_count; ++slot_index)
+								{
+									String item_label = "Slot " + std::to_string(slot_index);
+									const bool is_selected = selected_material_slot == slot_index;
+									if (ImGui::Selectable(item_label.c_str(), is_selected))
+									{
+										selected_material_slot = slot_index;
+									}
+									if (is_selected)
+									{
+										ImGui::SetItemDefaultFocus();
+									}
+								}
+								ImGui::EndCombo();
+							}
+
+							MaterialSlot& material_slot = material_comp->GetMaterialSlot(static_cast<uint32>(selected_material_slot));
+							const char* shader_type_items[] = { "Unlit" };
+							int shader_type = static_cast<int>(material_slot.shader_type);
+							if (ImGui::Combo("Shader Type", &shader_type, shader_type_items, IM_ARRAYSIZE(shader_type_items)))
+							{
+								material_slot.shader_type = static_cast<uint32>(shader_type);
+							}
+
+							bool is_double_sided = (material_slot.flags & SHADER_MATERIAL_FLAG_DOUBLE_SIDED) != 0;
+							if (ImGui::Checkbox("Double Sided", &is_double_sided))
+							{
+								if (is_double_sided) { material_slot.flags |= SHADER_MATERIAL_FLAG_DOUBLE_SIDED; } else { material_slot.flags &= ~SHADER_MATERIAL_FLAG_DOUBLE_SIDED; }
+							}
+
+							bool is_transparent = (material_slot.flags & SHADER_MATERIAL_FLAG_TRANSPARENT) != 0;
+							if (ImGui::Checkbox("Transparent", &is_transparent))
+							{
+								if (is_transparent) { material_slot.flags |= SHADER_MATERIAL_FLAG_TRANSPARENT; } else { material_slot.flags &= ~SHADER_MATERIAL_FLAG_TRANSPARENT; }
+							}
+
+							bool use_vertex_colors = (material_slot.flags & SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS) != 0;
+							if (ImGui::Checkbox("Use Vertex Colors", &use_vertex_colors))
+							{
+								if (use_vertex_colors) { material_slot.flags |= SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS; } else { material_slot.flags &= ~SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS; }
+							}
+
+							bool receive_shadow = (material_slot.flags & SHADER_MATERIAL_FLAG_RECEIVE_SHADOW) != 0;
+							if (ImGui::Checkbox("Receive Shadow", &receive_shadow))
+							{
+								if (receive_shadow) { material_slot.flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW; } else { material_slot.flags &= ~SHADER_MATERIAL_FLAG_RECEIVE_SHADOW; }
+							}
+
+							float base_color[4] = { material_slot.base_color.x, material_slot.base_color.y, material_slot.base_color.z, material_slot.base_color.w };
+							if (ImGui::ColorEdit4("Base Color", base_color))
+							{
+								material_slot.base_color = { base_color[0], base_color[1], base_color[2], base_color[3] };
+							}
+
+							ImGui::SliderFloat("Metallic", &material_slot.metallic, 0.0f, 1.0f);
+							ImGui::SliderFloat("Roughness", &material_slot.roughness, 0.0f, 1.0f);
+							ImGui::SliderFloat("Reflectance", &material_slot.reflectance, 0.0f, 1.0f);
+							ImGui::SliderFloat("Anisotropy", &material_slot.anisotropy, -1.0f, 1.0f);
+
+							float sheen_color[3] = { material_slot.sheen_color.x, material_slot.sheen_color.y, material_slot.sheen_color.z };
+							if (ImGui::ColorEdit3("Sheen Color", sheen_color))
+							{
+								material_slot.sheen_color = { sheen_color[0], sheen_color[1], sheen_color[2] };
+							}
+
+							ImGui::SliderFloat("Sheen Roughness", &material_slot.sheen_roughness, 0.0f, 1.0f);
+							ImGui::SliderFloat("Clearcoat", &material_slot.clearcoat, 0.0f, 1.0f);
+							ImGui::SliderFloat("Clearcoat Roughness", &material_slot.clearcoat_roughness, 0.0f, 1.0f);
+
+							static const char* texture_slot_names[] = {
+								"Base Color Map",
+								"Normal Map",
+								"Emissive Map",
+								"Opacity Map",
+								"Displacement Map",
+								"Occlusion Map",
+								"Sheen Color Map",
+								"Sheen Roughness Map",
+								"Clearcoat Map",
+								"Clearcoat Roughness Map",
+								"Clearcoat Normal Map",
+								"Anisotropy Map",
+								"Roughness Map",
+								"Metallic Map",
+							};
+							static_assert(TEXTURESLOT_COUNT == IM_ARRAYSIZE(texture_slot_names), "Texture slot labels must match");
+
+							ImGui::SeparatorText("Textures");
+							for (uint32 texture_slot = 0; texture_slot < static_cast<uint32>(TEXTURESLOT_COUNT); ++texture_slot)
+							{
+								const MaterialSlot::TextureMap& texture = material_slot.textures[texture_slot];
+								ImGui::Text("%s: %s", texture_slot_names[texture_slot], texture.IsValid() ? "Assigned" : "None");
+							}
+						}
+					}
+					else
+					{
+						main_view.scene->RemoveComponent<MaterialComponent>(picked_entity);
+					}
+
+					ImGui::PopID();
 					ImGui::Separator();
 				}
 			}
@@ -1206,6 +1829,17 @@ namespace won::editor
 
 				auto name = scene.AddComponent<ecs::NameComponent>(light_entity);
 				name->value = "Light";
+			}
+
+			// environment entity
+			{
+				ecs::Entity env_entity = scene.CreateEntity();
+				
+				auto env = scene.AddComponent<ecs::SkyComponent>(env_entity);
+				env->SetActive(true);
+
+				auto name = scene.AddComponent<ecs::NameComponent>(env_entity);
+				name->value = "Environment";
 			}
 
 			// plane entity

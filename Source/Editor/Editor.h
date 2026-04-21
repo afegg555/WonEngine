@@ -31,7 +31,7 @@ namespace won::editor
 
 		ecs::Scene scene;
 		ecs::Entity camera_entity;
-		ecs::Entity picked_entity;
+		ecs::Entity picked_entity = ecs::INVALID_ENTITY;
 
 		plugin::PluginManager plugin_manager;
 	};
