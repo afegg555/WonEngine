@@ -1,6 +1,7 @@
 #pragma once
 #include "RHIDevice.h"
 #include "RHIContextDX12.h"
+#include "RHIQueryHeap.h"
 
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -35,6 +36,7 @@ namespace won::rendering
         std::shared_ptr<RHIFence> CreateFence(uint64 initial_value) override;
         std::shared_ptr<RHICommandAllocator> CreateCommandAllocator(RHIQueueType type) override;
         std::shared_ptr<RHICommandList> CreateCommandList(RHIQueueType type) override;
+        std::shared_ptr<RHIQueryHeap> CreateQueryHeap(const RHIQueryHeapDesc& desc) override;
 
         std::shared_ptr<RHIResource> CreateBuffer(const RHIBufferDesc& desc,
             const void* initial_data = nullptr, Size initial_size = 0) override;

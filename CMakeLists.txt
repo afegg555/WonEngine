@@ -66,6 +66,7 @@ set(RUNTIME_RHI
     Source/Runtime/Public/RHISwapchain.h
     Source/Runtime/Public/RHICommandList.h
     Source/Runtime/Public/RHICommandAllocator.h
+    Source/Runtime/Public/RHIQueryHeap.h
     Source/Runtime/Public/RHIResource.h
     Source/Runtime/Public/RHIPipeline.h
     Source/Runtime/Public/RHISampler.h
@@ -86,6 +87,8 @@ set(RUNTIME_RHI_DX12
     Source/Runtime/Private/RHICommandAllocatorDX12.cpp
     Source/Runtime/Private/RHICommandListDX12.h
     Source/Runtime/Private/RHICommandListDX12.cpp
+    Source/Runtime/Private/RHIQueryHeapDX12.h
+    Source/Runtime/Private/RHIQueryHeapDX12.cpp
     Source/Runtime/Private/RHIResourceDX12.h
     Source/Runtime/Private/RHIResourceDX12.cpp
     Source/Runtime/Private/DescriptorAllocatorDX12.h

@@ -1,6 +1,7 @@
 #pragma once
 #include "RHICommandList.h"
 #include "RHIPipelineDX12.h"
+#include "RHIQueryHeapDX12.h"
 
 #include <wrl/client.h>
 
@@ -70,6 +71,10 @@ namespace won::rendering
 
         void CopyResource(RHIResource& dest, RHIResource& src) override;
         void CopyBuffer(RHIResource& dest, Size dest_offset, RHIResource& src, Size src_offset, Size size) override;
+        void BeginQuery(RHIQueryHeap& heap, uint32 index) override;
+        void EndQuery(RHIQueryHeap& heap, uint32 index) override;
+        void ResolveQuery(RHIQueryHeap& heap, uint32 start_index, uint32 count, RHIResource& dest_buffer, Size dest_offset) override;
+        void ResetQuery(RHIQueryHeap& heap, uint32 start_index, uint32 count) override;
 
         void TransitionResource(RHIResource& resource,
             RHIResourceState after_state) override;

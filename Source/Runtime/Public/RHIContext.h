@@ -21,5 +21,6 @@ namespace won::rendering
         virtual uint64 Submit(RHICommandList& command_list, RHIFence* fence = nullptr) = 0;
         virtual void Wait(RHIFence& fence, uint64 value) = 0;
         virtual void WaitIdle() = 0;
+        virtual uint64 GetTimestampFrequency() const = 0;
     };
 }

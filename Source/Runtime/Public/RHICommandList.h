@@ -1,6 +1,7 @@
 #pragma once
 #include "RHICommandAllocator.h"
 #include "RHIPipeline.h"
+#include "RHIQueryHeap.h"
 #include "RHISampler.h"
 #include "Types.h"
 
@@ -108,6 +109,10 @@ namespace won::rendering
 
         virtual void CopyResource(RHIResource& dest, RHIResource& src) = 0;
         virtual void CopyBuffer(RHIResource& dest, Size dest_offset, RHIResource& src, Size src_offset, Size size) = 0;
+        virtual void BeginQuery(RHIQueryHeap& heap, uint32 index) = 0;
+        virtual void EndQuery(RHIQueryHeap& heap, uint32 index) = 0;
+        virtual void ResolveQuery(RHIQueryHeap& heap, uint32 start_index, uint32 count, RHIResource& dest_buffer, Size dest_offset) = 0;
+        virtual void ResetQuery(RHIQueryHeap& heap, uint32 start_index, uint32 count) = 0;
 
         virtual void TransitionResource(RHIResource& resource,
             RHIResourceState after_state) = 0;

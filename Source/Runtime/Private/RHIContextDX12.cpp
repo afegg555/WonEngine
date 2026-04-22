@@ -129,6 +129,22 @@ namespace won::rendering
         CloseHandle(fence_event);
     }
 
+    uint64 RHIContextDX12::GetTimestampFrequency() const
+    {
+        if (!queue)
+        {
+            return 0;
+        }
+
+        uint64 frequency = 0;
+        if (FAILED(queue->GetTimestampFrequency(&frequency)))
+        {
+            return 0;
+        }
+
+        return frequency;
+    }
+
     ID3D12CommandQueue* RHIContextDX12::GetQueue() const
     {
         return queue.Get();

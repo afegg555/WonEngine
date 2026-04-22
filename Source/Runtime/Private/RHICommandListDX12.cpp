@@ -3,6 +3,7 @@
 #include "Backlog.h"
 #include "RHICommandAllocatorDX12.h"
 #include "RHIPipelineDX12.h"
+#include "RHIQueryHeapDX12.h"
 #include "RHIResourceDX12.h"
 #include "RHISamplerDX12.h"
 #include "DescriptorAllocatorDX12.h"
@@ -148,6 +149,18 @@ namespace won::rendering
         if (command_list)
         {
             command_list->Close();
+        }
+    }
+
+    static D3D12_QUERY_TYPE ToD3D12QueryType(RHIQueryType type)
+    {
+        switch (type)
+        {
+        case RHIQueryType::Occlusion:
+            return D3D12_QUERY_TYPE_OCCLUSION;
+        case RHIQueryType::Timestamp:
+        default:
+            return D3D12_QUERY_TYPE_TIMESTAMP;
         }
     }
 
@@ -623,6 +636,58 @@ namespace won::rendering
         }
 
         command_list->CopyBufferRegion(dest_resource, static_cast<UINT64>(dest_offset), src_resource, static_cast<UINT64>(src_offset), static_cast<UINT64>(size));
+    }
+
+    void RHICommandListDX12::BeginQuery(RHIQueryHeap& heap, uint32 index)
+    {
+        auto query_heap_dx12 = dynamic_cast<RHIQueryHeapDX12*>(&heap);
+        if (!command_list || !query_heap_dx12 || !query_heap_dx12->GetQueryHeap())
+        {
+            return;
+        }
+
+        if (heap.GetDesc().type == RHIQueryType::Timestamp)
+        {
+            return;
+        }
+
+        command_list->BeginQuery(query_heap_dx12->GetQueryHeap(), ToD3D12QueryType(heap.GetDesc().type), index);
+    }
+
+    void RHICommandListDX12::EndQuery(RHIQueryHeap& heap, uint32 index)
+    {
+        auto query_heap_dx12 = dynamic_cast<RHIQueryHeapDX12*>(&heap);
+        if (!command_list || !query_heap_dx12 || !query_heap_dx12->GetQueryHeap())
+        {
+            return;
+        }
+
+        command_list->EndQuery(query_heap_dx12->GetQueryHeap(), ToD3D12QueryType(heap.GetDesc().type), index);
+    }
+
+    void RHICommandListDX12::ResolveQuery(RHIQueryHeap& heap, uint32 start_index, uint32 count, RHIResource& dest_buffer, Size dest_offset)
+    {
+        auto query_heap_dx12 = dynamic_cast<RHIQueryHeapDX12*>(&heap);
+        auto dest_buffer_dx12 = dynamic_cast<RHIResourceDX12*>(&dest_buffer);
+        if (!command_list || !query_heap_dx12 || !query_heap_dx12->GetQueryHeap() || !dest_buffer_dx12 || !dest_buffer_dx12->GetResource() || count == 0)
+        {
+            return;
+        }
+
+        command_list->ResolveQueryData(
+            query_heap_dx12->GetQueryHeap(),
+            ToD3D12QueryType(heap.GetDesc().type),
+            start_index,
+            count,
+            dest_buffer_dx12->GetResource(),
+            static_cast<UINT64>(dest_offset)
+        );
+    }
+
+    void RHICommandListDX12::ResetQuery(RHIQueryHeap& heap, uint32 start_index, uint32 count)
+    {
+        // TODO
+        return;
     }
 
     void RHICommandListDX12::TransitionResource(RHIResource& resource,

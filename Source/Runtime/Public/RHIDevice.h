@@ -2,6 +2,7 @@
 #include "RHICommandAllocator.h"
 #include "RHIContext.h"
 #include "RHIPipeline.h"
+#include "RHIQueryHeap.h"
 #include "RHIResource.h"
 #include "RHISampler.h"
 #include "RHISwapchain.h"
@@ -67,6 +68,7 @@ namespace won::rendering
         virtual std::shared_ptr<RHIFence> CreateFence(uint64 initial_value = 0) = 0;
         virtual std::shared_ptr<RHICommandAllocator> CreateCommandAllocator(RHIQueueType type) = 0;
         virtual std::shared_ptr<RHICommandList> CreateCommandList(RHIQueueType type) = 0;
+        virtual std::shared_ptr<RHIQueryHeap> CreateQueryHeap(const RHIQueryHeapDesc& desc) = 0;
 
         virtual std::shared_ptr<RHIResource> CreateBuffer(const RHIBufferDesc& desc,
             const void* initial_data = nullptr, Size initial_size = 0) = 0;

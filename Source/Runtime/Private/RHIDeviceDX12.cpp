@@ -7,6 +7,7 @@
 #include "RHIContextDX12.h"
 #include "RHICommandAllocatorDX12.h"
 #include "RHICommandListDX12.h"
+#include "RHIQueryHeapDX12.h"
 #include "RHIResourceDX12.h"
 #include "RHIPipelineDX12.h"
 #include "RHISamplerDX12.h"
@@ -514,6 +515,37 @@ namespace won::rendering
     std::shared_ptr<RHICommandList> RHIDeviceDX12::CreateCommandList(RHIQueueType type)
     {
         return std::make_shared<RHICommandListDX12>(type, device, descriptor_allocator);
+    }
+
+    std::shared_ptr<RHIQueryHeap> RHIDeviceDX12::CreateQueryHeap(const RHIQueryHeapDesc& desc)
+    {
+        if (!device || desc.query_count == 0)
+        {
+            return nullptr;
+        }
+
+        D3D12_QUERY_HEAP_DESC query_heap_desc = {};
+        query_heap_desc.Count = desc.query_count;
+        query_heap_desc.NodeMask = 0;
+        switch (desc.type)
+        {
+        case RHIQueryType::Occlusion:
+            query_heap_desc.Type = D3D12_QUERY_HEAP_TYPE_OCCLUSION;
+            break;
+        case RHIQueryType::Timestamp:
+        default:
+            query_heap_desc.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
+            break;
+        }
+
+        ComPtr<ID3D12QueryHeap> query_heap;
+        if (FAILED(device->CreateQueryHeap(&query_heap_desc, IID_PPV_ARGS(&query_heap))) || !query_heap)
+        {
+            backlog::Post("Failed to create query heap", backlog::LogLevel::Error);
+            return nullptr;
+        }
+
+        return std::make_shared<RHIQueryHeapDX12>(desc, std::move(query_heap));
     }
 
     std::shared_ptr<RHIResource> RHIDeviceDX12::CreateBuffer(const RHIBufferDesc& desc,
