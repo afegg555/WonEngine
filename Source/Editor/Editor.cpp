@@ -1483,7 +1483,7 @@ namespace won::editor
 			return;
 
 		Renderer::FrameContext& frame_context = renderer->GetFrameContext();
-		Renderer::FrameUploadAllocation vb_allocation{}, ib_allocation{}, cb_allocation{};
+		Renderer::FrameUploadAllocation allocation{};
 
 		// Setup orthographic projection matrix into our constant buffer
 		struct ImGuiConstants
@@ -1495,13 +1495,12 @@ namespace won::editor
 		const uint64_t vbSize = sizeof(ImDrawVert) * drawData->TotalVtxCount;
 		const uint64_t ibSize = sizeof(ImDrawIdx) * drawData->TotalIdxCount;
 		const uint64_t cbSize = sizeof(ImGuiConstants);
+		const uint64_t totalSize = vbSize + ibSize + cbSize;
 
-		renderer->AllocateFrameUpload(frame_context, vbSize, 1, vb_allocation);
-		renderer->AllocateFrameUpload(frame_context, ibSize, 1, ib_allocation);
-		RHIBufferDesc cb_desc;
-		cb_desc.bind_flags = RHIBindFlags::ConstantBuffer;
-		auto cb_align = device->GetMinOffsetAlignment(cb_desc);
-		renderer->AllocateFrameUpload(frame_context, cbSize, cb_align, cb_allocation);
+		RHIBufferDesc buffer_desc;
+		buffer_desc.bind_flags = RHIBindFlags::VertexBuffer | RHIBindFlags::IndexBuffer | RHIBindFlags::ConstantBuffer;
+		auto buffer_align = device->GetMinOffsetAlignment(buffer_desc);
+		renderer->AllocateFrameUpload(frame_context, totalSize, buffer_align, allocation);
 
 		RHIViewport viewport;
 		viewport.width = (float)fb_width;
@@ -1510,9 +1509,17 @@ namespace won::editor
 		frame_context.command_list->SetGraphicsPipeline(*imgui_pso);
 		frame_context.command_list->SetSampler(RHIShaderStage::Pixel, 0, *imgui_sampler);
 
+		const Size cb_data_offset = 0;
+		const Size vb_data_offset = cb_data_offset + cbSize;
+		const Size ib_data_offset = vb_data_offset + vbSize;
+		const Size cb_buffer_offset = allocation.buffer_offset + cb_data_offset;
+		const Size vb_buffer_offset = allocation.buffer_offset + vb_data_offset;
+		const Size ib_buffer_offset = allocation.buffer_offset + ib_data_offset;
+		uint8* allocation_base = static_cast<uint8*>(allocation.mapped_data);
+
 		// Copy and convert all vertices into a single contiguous buffer
-		ImDrawVert* vertexCPUMem = reinterpret_cast<ImDrawVert*>(vb_allocation.mapped_data);
-		ImDrawIdx* indexCPUMem = reinterpret_cast<ImDrawIdx*>(ib_allocation.mapped_data);
+		ImDrawVert* vertexCPUMem = reinterpret_cast<ImDrawVert*>(allocation_base + vb_data_offset);
+		ImDrawIdx* indexCPUMem = reinterpret_cast<ImDrawIdx*>(allocation_base + ib_data_offset);
 		for (int cmdListIdx = 0; cmdListIdx < drawData->CmdListsCount; cmdListIdx++)
 		{
 			const ImDrawList* drawList = drawData->CmdLists[cmdListIdx];
@@ -1535,13 +1542,13 @@ namespace won::editor
 				{ 0.0f,         0.0f,           0.5f,       0.0f },
 				{ (R + L) / (L - R),  (T + B) / (B - T),    0.5f,       1.0f },
 			};
-			memcpy(cb_allocation.mapped_data, mvp, sizeof(mvp));
+			std::memcpy(allocation_base + cb_data_offset, mvp, sizeof(mvp));
 
 			RHISubresourceHandle cb_subresource_handle{};
 
 			RHISubresourceDesc subresource_desc{};
 			subresource_desc.type = RHISubresourceType::ConstantBuffer;
-			subresource_desc.buffer_offset = cb_allocation.buffer_offset;
+			subresource_desc.buffer_offset = cb_buffer_offset;
 			subresource_desc.buffer_size = cbSize;
 			subresource_desc.buffer_stride = sizeof(ImGuiConstants);
 			device->CreateSubresource(*frame_context.frame_upload_buffer, subresource_desc, &cb_subresource_handle);
@@ -1550,8 +1557,8 @@ namespace won::editor
 			cb_binding.resource = frame_context.frame_upload_buffer.get();
 			cb_binding.subresource = cb_subresource_handle;
 
-			frame_context.command_list->SetVertexBuffer(*frame_context.frame_upload_buffer, sizeof(ImDrawVert), vb_allocation.buffer_offset, vbSize);
-			frame_context.command_list->SetIndexBuffer(*frame_context.frame_upload_buffer, sizeof(ImDrawIdx), ib_allocation.buffer_offset, ibSize);
+			frame_context.command_list->SetVertexBuffer(*frame_context.frame_upload_buffer, sizeof(ImDrawVert), vb_buffer_offset, vbSize);
+			frame_context.command_list->SetIndexBuffer(*frame_context.frame_upload_buffer, sizeof(ImDrawIdx), ib_buffer_offset, ibSize);
 			frame_context.command_list->SetConstantBuffer(RHIShaderStage::Vertex, 0, cb_binding);
 		}
 
