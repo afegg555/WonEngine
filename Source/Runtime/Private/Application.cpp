@@ -108,7 +108,7 @@ namespace won
 
     void Application::Update(float dt)
     {
-        auto range = profiler::BeginRangeCPU("Application::Update");
+        auto range = profiler::BeginRangeCPU("Update");
         if (window->IsFocused())
         {
             io::Update((WindowType)window->GetNativeHandle());
@@ -133,10 +133,12 @@ namespace won
             return;
         }
 
+        auto range = profiler::BeginRangeCPU("Render");
         renderer->BeginFrame(*window);
         RenderScene();
         RenderUI();
         renderer->EndFrame();
+        profiler::EndRange(range);
     }
 
     void Application::WaitIdle()

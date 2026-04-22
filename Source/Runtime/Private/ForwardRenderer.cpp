@@ -1,6 +1,7 @@
 #include "ForwardRenderer.h"
 
 #include "Backlog.h"
+#include "Profiler.h"
 #include "Scene.h"
 #include "MathUtils.h"
 
@@ -1058,10 +1059,14 @@ namespace won::rendering
         frame_context.command_allocator->Reset();
         frame_context.command_list->Begin(*frame_context.command_allocator);
         frame_context.frame_upload_offset = 0;
+        profiler::BeginFrameGPU(*device, current_frame_slot, *frame_context.command_list);
 
-        if (!BuildFrameContext(view, frame_context))
         {
-            return;
+            auto gpu_range = profiler::ScopedRangeGPU("Build Frame Context", *frame_context.command_list);
+            if (!BuildFrameContext(view, frame_context))
+            {
+                return;
+            }
         }
 
         const uint32 back_buffer_index = swapchain->GetCurrentBackBufferIndex();
@@ -1102,6 +1107,7 @@ namespace won::rendering
         frame_context.command_list->SetScissor(scissor);
 
         {
+            auto gpu_range = profiler::ScopedRangeGPU("Sky Pass", *frame_context.command_list);
             frame_context.command_list->BeginEvent("Sky Pass");
             frame_context.command_list->SetRenderTargets(color_targets, nullptr);
             frame_context.command_list->SetGraphicsPipeline(*shader_library->GetPipeline(RenderPassType::SkyPass).get());
@@ -1116,6 +1122,7 @@ namespace won::rendering
 
         if (shadow_map_atlas && shadow_map_atlas_dsv.IsValid() && !render_data.render_shadow_slices.empty())
         {
+            auto gpu_range = profiler::ScopedRangeGPU("Shadow Pass", *frame_context.command_list);
             frame_context.command_list->BeginEvent("Fill Shadow Map Atlas");
 
             RHISubresourceBinding shadow_map_atlas_binding = {};
@@ -1206,6 +1213,7 @@ namespace won::rendering
 
         // prepass
         {
+            auto gpu_range = profiler::ScopedRangeGPU("Prepass", *frame_context.command_list);
             frame_context.command_list->BeginEvent("Prepass");
             frame_context.command_list->SetRenderTargets({}, & depth_buffer_binding);
             DrawScene(view, frame_context, RenderPassType::DepthPrepass, DrawScene_Opaque);
@@ -1214,6 +1222,7 @@ namespace won::rendering
         
         // main pass
         {
+            auto gpu_range = profiler::ScopedRangeGPU("Main Pass", *frame_context.command_list);
             frame_context.command_list->BeginEvent("Restore Camera State");
 
             frame_context.command_list->SetRenderTargets(color_targets, &depth_buffer_binding);
@@ -1239,6 +1248,7 @@ namespace won::rendering
             return;
         }
 
+        profiler::EndFrameGPU(*frame_context.command_list);
         frame_context.command_list->TransitionResource(*back_buffer, RHIResourceState::Present);
 
         const std::shared_ptr<RHIContext> graphics_context = device->GetContext(RHIQueueType::Graphics);

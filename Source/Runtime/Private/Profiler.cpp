@@ -1,38 +1,80 @@
 #include "Profiler.h"
 
-#include "MathUtils.h"
+#include "RHIDevice.h"
+#include "RHICommandList.h"
+#include "RHIContext.h"
+#include "RHIQueryHeap.h"
+#include "RHIResource.h"
 #include "StringUtils.h"
 #include "Timer.h"
-#include "FileSystem.h"
 
-#include <algorithm>
+#include <array>
 #include <mutex>
 #include <sstream>
-#include <unordered_map>
-#include <vector>
 
 namespace won::profiler
 {
-    static bool enabled = false;
-    static bool enabled_request = false;
-    static std::mutex lock;
-    static range_id cpu_frame = 0;
-
-    struct Range
+    namespace
     {
-        bool in_use = false;
-        String name;
-        float times[20] = {};
-        int avg_counter = 0;
-        float time_ms = 0.0f;
-        won::utils::Timer cpu_timer;
-    };
+        enum class RangeType
+        {
+            CPU,
+            GPU,
+        };
 
-    static UnorderedMap<range_id, Range> ranges;
+        struct Range
+        {
+            bool in_use = false;
+            RangeType type = RangeType::CPU;
+            String name;
+            float times[20] = {};
+            int avg_counter = 0;
+            float time_ms = 0.0f;
+            won::utils::Timer cpu_timer;
+            rendering::RHICommandList* command_list = nullptr;
+            std::array<int32, rendering::max_frames_in_flight> query_begin = { -1, -1, -1 };
+            std::array<int32, rendering::max_frames_in_flight> query_end = { -1, -1, -1 };
+        };
 
-    static range_id CombineHash(range_id base, Size value)
-    {
-        return base ^ (value + 0x9e3779b97f4a7c15ull + (base << 6) + (base >> 2));
+        constexpr uint32 profiler_query_count = 2048;
+
+        bool enabled = false;
+        bool enabled_request = false;
+        bool gpu_available = false;
+        range_id cpu_frame = 0;
+        range_id gpu_frame = 0;
+        uint32 active_frame_slot = 0;
+        uint32 next_query_index = 0;
+        double timestamp_per_ms = 0.0;
+        std::mutex lock;
+        UnorderedMap<range_id, Range> ranges;
+        std::shared_ptr<rendering::RHIQueryHeap> query_heap;
+        std::array<std::shared_ptr<rendering::RHIResource>, rendering::max_frames_in_flight> query_readback_buffers = {};
+
+        range_id CombineHash(range_id base, Size value)
+        {
+            return base ^ (value + 0x9e3779b97f4a7c15ull + (base << 6) + (base >> 2));
+        }
+
+        int32 AllocateQuery()
+        {
+            if (next_query_index >= profiler_query_count)
+            {
+                return -1;
+            }
+
+            return static_cast<int32>(next_query_index++);
+        }
+
+        void WriteTimestamp(rendering::RHICommandList& command_list, int32 query_index)
+        {
+            if (!query_heap || query_index < 0)
+            {
+                return;
+            }
+
+            command_list.EndQuery(*query_heap, static_cast<uint32>(query_index));
+        }
     }
 
     void BeginFrame()
@@ -41,6 +83,9 @@ namespace won::profiler
         {
             ranges.clear();
             enabled = enabled_request;
+            cpu_frame = 0;
+            gpu_frame = 0;
+            next_query_index = 0;
         }
 
         if (!enabled)
@@ -51,7 +96,7 @@ namespace won::profiler
         for (auto& pair : ranges)
         {
             Range& range = pair.second;
-            if (!range.in_use)
+            if (!range.in_use || range.type != RangeType::CPU)
             {
                 continue;
             }
@@ -59,15 +104,16 @@ namespace won::profiler
             range.times[range.avg_counter++ % arraysize(range.times)] = range.time_ms;
             if (range.avg_counter > static_cast<int>(arraysize(range.times)))
             {
-                float avg_time = 0.0f;
-                for (float t : range.times)
+                float avg = 0.0f;
+                for (float time : range.times)
                 {
-                    avg_time += t;
+                    avg += time;
                 }
-                range.time_ms = avg_time / static_cast<float>(arraysize(range.times));
+                range.time_ms = avg / static_cast<float>(arraysize(range.times));
             }
 
             range.in_use = false;
+            range.command_list = nullptr;
         }
 
         cpu_frame = BeginRangeCPU("CPU Frame");
@@ -83,6 +129,121 @@ namespace won::profiler
         EndRange(cpu_frame);
     }
 
+    void BeginFrameGPU(rendering::RHIDevice& device, uint32 frame_slot, rendering::RHICommandList& command_list)
+    {
+        if (!enabled)
+        {
+            return;
+        }
+
+        auto context = device.GetContext(command_list.GetType());
+        if (!context)
+        {
+            gpu_available = false;
+            return;
+        }
+
+        const uint64 frequency = context->GetTimestampFrequency();
+        if (frequency == 0)
+        {
+            gpu_available = false;
+            return;
+        }
+
+        if (!query_heap)
+        {
+            rendering::RHIQueryHeapDesc query_desc = {};
+            query_desc.type = rendering::RHIQueryType::Timestamp;
+            query_desc.query_count = profiler_query_count;
+            query_heap = device.CreateQueryHeap(query_desc);
+            if (!query_heap)
+            {
+                gpu_available = false;
+                return;
+            }
+            query_heap->SetName("Profiler Query Heap");
+
+            rendering::RHIBufferDesc readback_desc = {};
+            readback_desc.usage = rendering::RHIResourceUsage::Readback;
+            readback_desc.size = static_cast<Size>(profiler_query_count) * sizeof(uint64);
+
+            for (auto& buffer : query_readback_buffers)
+            {
+                buffer = device.CreateBuffer(readback_desc);
+                if (!buffer)
+                {
+                    query_heap = nullptr;
+                    gpu_available = false;
+                    return;
+                }
+                buffer->SetName("Profiler Query Readback Buffer");
+            }
+        }
+
+        gpu_available = true;
+        timestamp_per_ms = static_cast<double>(frequency) / 1000.0;
+        active_frame_slot = frame_slot;
+        next_query_index = 0;
+
+        const uint64* query_results = static_cast<const uint64*>(query_readback_buffers[frame_slot]->GetMappedData());
+        for (auto& pair : ranges)
+        {
+            Range& range = pair.second;
+            if (!range.in_use || range.type != RangeType::GPU)
+            {
+                continue;
+            }
+
+            const int32 begin_index = range.query_begin[frame_slot];
+            const int32 end_index = range.query_end[frame_slot];
+            if (query_results && begin_index >= 0 && end_index >= 0 && begin_index < static_cast<int32>(profiler_query_count) && end_index < static_cast<int32>(profiler_query_count))
+            {
+                const uint64 begin_value = query_results[begin_index];
+                const uint64 end_value = query_results[end_index];
+                if (end_value >= begin_value)
+                {
+                    range.time_ms = static_cast<float>((static_cast<double>(end_value - begin_value)) / timestamp_per_ms);
+                }
+            }
+
+            range.query_begin[frame_slot] = -1;
+            range.query_end[frame_slot] = -1;
+            range.times[range.avg_counter++ % arraysize(range.times)] = range.time_ms;
+            if (range.avg_counter > static_cast<int>(arraysize(range.times)))
+            {
+                float avg = 0.0f;
+                for (float time : range.times)
+                {
+                    avg += time;
+                }
+                range.time_ms = avg / static_cast<float>(arraysize(range.times));
+            }
+
+            range.in_use = false;
+            range.command_list = nullptr;
+        }
+
+        command_list.ResetQuery(*query_heap, 0, profiler_query_count);
+        gpu_frame = BeginRangeGPU("GPU Frame", command_list);
+    }
+
+    void EndFrameGPU(rendering::RHICommandList& command_list)
+    {
+        if (!enabled || !gpu_available || !query_heap)
+        {
+            return;
+        }
+
+        EndRange(gpu_frame);
+
+        if (next_query_index == 0)
+        {
+            return;
+        }
+
+        command_list.ResolveQuery(*query_heap, 0, next_query_index, *query_readback_buffers[active_frame_slot], 0);
+    }
+
     range_id BeginRangeCPU(const String& name)
     {
         if (!enabled)
@@ -93,7 +254,7 @@ namespace won::profiler
         range_id id = static_cast<range_id>(won::utils::Hash(name));
 
         std::scoped_lock guard(lock);
-        size_t differentiator = 0;
+        Size differentiator = 0;
         while (ranges[id].in_use)
         {
             id = CombineHash(id, differentiator++);
@@ -101,20 +262,44 @@ namespace won::profiler
 
         Range& range = ranges[id];
         range.in_use = true;
+        range.type = RangeType::CPU;
         range.name = name;
         range.cpu_timer.Reset();
 
         return id;
     }
 
-    range_id BeginRangeGPU(const String& name)
+    range_id BeginRangeGPU(const String& name, rendering::RHICommandList& command_list)
     {
-        return BeginRangeCPU(name);
+        if (!enabled || !gpu_available || !query_heap)
+        {
+            return 0;
+        }
+
+        range_id id = static_cast<range_id>(won::utils::Hash(name));
+
+        std::scoped_lock guard(lock);
+        Size differentiator = 0;
+        while (ranges[id].in_use)
+        {
+            id = CombineHash(id, differentiator++);
+        }
+
+        Range& range = ranges[id];
+        range.in_use = true;
+        range.type = RangeType::GPU;
+        range.name = name;
+        range.command_list = &command_list;
+        range.query_begin[active_frame_slot] = AllocateQuery();
+        range.query_end[active_frame_slot] = -1;
+        WriteTimestamp(command_list, range.query_begin[active_frame_slot]);
+
+        return id;
     }
 
     void EndRange(range_id id)
     {
-        if (!enabled)
+        if (!enabled || id == 0)
         {
             return;
         }
@@ -127,7 +312,19 @@ namespace won::profiler
         }
 
         Range& range = iter->second;
-        range.time_ms = static_cast<float>(range.cpu_timer.ElapsedMilliSeconds());
+        if (range.type == RangeType::CPU)
+        {
+            range.time_ms = static_cast<float>(range.cpu_timer.ElapsedMilliSeconds());
+            return;
+        }
+
+        if (!range.command_list)
+        {
+            return;
+        }
+
+        range.query_end[active_frame_slot] = AllocateQuery();
+        WriteTimestamp(*range.command_list, range.query_end[active_frame_slot]);
     }
 
     ScopedRangeCPU::ScopedRangeCPU(const char* name)
@@ -140,9 +337,9 @@ namespace won::profiler
         EndRange(id);
     }
 
-    ScopedRangeGPU::ScopedRangeGPU(const char* name)
+    ScopedRangeGPU::ScopedRangeGPU(const char* name, rendering::RHICommandList& command_list)
     {
-        id = BeginRangeGPU(name);
+        id = BeginRangeGPU(name, command_list);
     }
 
     ScopedRangeGPU::~ScopedRangeGPU()
@@ -175,7 +372,8 @@ namespace won::profiler
             return;
         }
 
-        UnorderedMap<String, Hits> time_cache;
+        UnorderedMap<String, Hits> cpu_time_cache;
+        UnorderedMap<String, Hits> gpu_time_cache;
         std::stringstream ss;
         ss.precision(2);
 
@@ -187,14 +385,28 @@ namespace won::profiler
                 continue;
             }
 
-            if (pair.first == cpu_frame)
+            if (range.type == RangeType::CPU)
             {
-                continue;
-            }
+                if (pair.first == cpu_frame)
+                {
+                    continue;
+                }
 
-            Hits& hit = time_cache[range.name];
-            hit.num_hits++;
-            hit.total_time += range.time_ms;
+                Hits& hit = cpu_time_cache[range.name];
+                hit.num_hits++;
+                hit.total_time += range.time_ms;
+            }
+            else
+            {
+                if (pair.first == gpu_frame)
+                {
+                    continue;
+                }
+
+                Hits& hit = gpu_time_cache[range.name];
+                hit.num_hits++;
+                hit.total_time += range.time_ms;
+            }
         }
 
         if (ranges.find(cpu_frame) != ranges.end())
@@ -202,7 +414,31 @@ namespace won::profiler
             ss << ranges[cpu_frame].name << ": " << std::fixed << ranges[cpu_frame].time_ms << " ms\n";
         }
 
-        for (auto& pair : time_cache)
+        for (auto& pair : cpu_time_cache)
+        {
+            if (pair.second.num_hits > 1)
+            {
+                ss << "\t" << pair.first << " (" << pair.second.num_hits << "x)"
+                   << ": " << std::fixed << pair.second.total_time << " ms\n";
+            }
+            else if (pair.second.num_hits == 1)
+            {
+                ss << "\t" << pair.first << ": " << std::fixed << pair.second.total_time << " ms\n";
+            }
+        }
+
+        ss << "\n";
+
+        if (gpu_available && ranges.find(gpu_frame) != ranges.end())
+        {
+            ss << ranges[gpu_frame].name << ": " << std::fixed << ranges[gpu_frame].time_ms << " ms\n";
+        }
+        else
+        {
+            ss << "GPU Frame: unavailable\n";
+        }
+
+        for (auto& pair : gpu_time_cache)
         {
             if (pair.second.num_hits > 1)
             {

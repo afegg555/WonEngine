@@ -1,0 +1,27 @@
+#pragma once
+#include "RuntimeExport.h"
+#include "Types.h"
+#include "RHIObject.h"
+
+namespace won::rendering
+{
+    enum class RHIQueryType
+    {
+        Timestamp,
+        Occlusion,
+    };
+
+    struct RHIQueryHeapDesc
+    {
+        RHIQueryType type = RHIQueryType::Timestamp;
+        uint32 query_count = 0;
+    };
+
+    class WONENGINE_API RHIQueryHeap : public RHIObject
+    {
+    public:
+        ~RHIQueryHeap() override = default;
+
+        virtual const RHIQueryHeapDesc& GetDesc() const = 0;
+    };
+}

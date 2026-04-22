@@ -1495,6 +1495,7 @@ namespace won::editor
 
 		Renderer::FrameContext& frame_context = renderer->GetFrameContext();
 		Renderer::FrameUploadAllocation allocation{};
+		auto gpu_range = profiler::ScopedRangeGPU("ImGui", *frame_context.command_list);
 
 		// Setup orthographic projection matrix into our constant buffer
 		struct ImGuiConstants
