@@ -64,9 +64,9 @@ namespace won::rendering
 
         inline FrameContext& GetFrameContext() { return frame_contexts[current_frame_slot]; };
 
-        virtual bool AllocateFrameUpload(FrameContext& frame_context, Size size, Size alignment, FrameUploadAllocation& out_allocation) { return false; };
-        virtual bool BuildFrameContext(const View& view, FrameContext& frame_context) { return false; };
-        virtual bool UpdateDefaultBuffer(FrameContext& frame_context, RHIResource& destination_buffer, const void* source_data, Size data_size, RHIResourceState final_state, Size destination_offset = 0) { return false; };
+        virtual bool AllocateFrameUpload(FrameContext& frame_context, Size size, Size alignment, FrameUploadAllocation& out_allocation) = 0;
+        virtual bool BuildFrameContext(const View& view, FrameContext& frame_context) = 0;
+        virtual bool UpdateDefaultBuffer(FrameContext& frame_context, RHIResource& destination_buffer, const void* source_data, Size data_size, RHIResourceState final_state, Size destination_offset = 0) = 0;
 
     protected:
         std::shared_ptr<resource::ShaderLibrary> shader_library;

@@ -1,6 +1,8 @@
 #include "RHIResourceDX12.h"
 #include "DescriptorAllocatorDX12.h"
 
+#include <Windows.h>
+
 namespace won::rendering
 {
     namespace
@@ -90,6 +92,25 @@ namespace won::rendering
     void RHIResourceDX12::SetName(const String& new_name)
     {
         name = new_name;
+        if (!resource)
+        {
+            return;
+        }
+
+        const int wide_length = MultiByteToWideChar(CP_UTF8, 0, name.c_str(), -1, nullptr, 0);
+        if (wide_length <= 1)
+        {
+            resource->SetName(L"");
+            return;
+        }
+
+        WString wide_name(static_cast<Size>(wide_length), L'\0');
+        if (MultiByteToWideChar(CP_UTF8, 0, name.c_str(), -1, wide_name.data(), wide_length) <= 0)
+        {
+            return;
+        }
+
+        resource->SetName(wide_name.c_str());
     }
 
     const String& RHIResourceDX12::GetName() const

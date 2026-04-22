@@ -18,6 +18,15 @@ using namespace won::math;
 
 namespace won::rendering
 {
+    namespace
+    {
+        void RemoveResourceDeferred(Renderer::FrameContext& frame_context, std::shared_ptr<RHIResource>& resource)
+        {
+            frame_context.deferred_res_removal.push_back(resource);
+            resource = nullptr;
+        }
+    }
+
     bool ForwardRenderer::AllocateFrameUpload(FrameContext& frame_context, Size size, Size alignment, FrameUploadAllocation& out_allocation)
     {
         Size aligned_offset = 0;
@@ -28,6 +37,10 @@ namespace won::rendering
             frame_upload_buffer_desc.usage = RHIResourceUsage::Upload;
             frame_upload_buffer_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::VertexBuffer | RHIBindFlags::IndexBuffer;
             frame_context.frame_upload_buffer = device->CreateBuffer(frame_upload_buffer_desc);
+            if (frame_context.frame_upload_buffer)
+            {
+                frame_context.frame_upload_buffer->SetName("Frame Upload Buffer");
+            }
             frame_context.frame_upload_offset = 0;
         }
 
@@ -39,8 +52,12 @@ namespace won::rendering
         {
             RHIBufferDesc new_desc = frame_context.frame_upload_buffer->GetDesc().buffer_desc;
             new_desc.size = align(required_size * 2, alignment);
-            frame_context.deferred_res_removal.push_back(frame_context.frame_upload_buffer);
+            RemoveResourceDeferred(frame_context, frame_context.frame_upload_buffer);
             frame_context.frame_upload_buffer = device->CreateBuffer(new_desc);
+            if (frame_context.frame_upload_buffer)
+            {
+                frame_context.frame_upload_buffer->SetName("Frame Upload Buffer");
+            }
         }
         frame_context.frame_upload_offset = aligned_offset + size;
 
@@ -89,7 +106,7 @@ namespace won::rendering
         if (required_instance_buffer_size == 0)
         {
             frame_context.shader_instance_upload_buffer = nullptr;
-            shader_instance_default_buffer = nullptr;
+            RemoveResourceDeferred(frame_context, shader_instance_default_buffer);
             shader_instance_default_buffer_srv = {};
         }
         else
@@ -102,6 +119,7 @@ namespace won::rendering
 
             if (!shader_instance_default_buffer || current_default_buffer_size < required_instance_buffer_size)
             {
+                RemoveResourceDeferred(frame_context, shader_instance_default_buffer);
                 RHIBufferDesc shader_instance_default_buffer_desc = {};
                 shader_instance_default_buffer_desc.size = required_instance_buffer_size;
                 shader_instance_default_buffer_desc.usage = RHIResourceUsage::Default;
@@ -112,6 +130,7 @@ namespace won::rendering
                     backlog::Post("failed to create shader instance default buffer", backlog::LogLevel::Error);
                     return false;
                 }
+                shader_instance_default_buffer->SetName("Shader Instance Default Buffer");
 
                 shader_instance_default_buffer_srv = {};
                 RHISubresourceDesc shader_instance_default_subresource_desc = {};
@@ -145,6 +164,7 @@ namespace won::rendering
                     backlog::Post("failed to create shader instance upload buffer", backlog::LogLevel::Error);
                     return false;
                 }
+                frame_context.shader_instance_upload_buffer->SetName("Shader Instance Upload Buffer");
             }
 
             void* mapped_data = frame_context.shader_instance_upload_buffer->GetMappedData();
@@ -163,7 +183,7 @@ namespace won::rendering
         if (required_geometry_buffer_size == 0)
         {
             frame_context.shader_geometry_upload_buffer = nullptr;
-            shader_geometry_default_buffer = nullptr;
+            RemoveResourceDeferred(frame_context, shader_geometry_default_buffer);
             shader_geometry_default_buffer_srv = {};
         }
         else
@@ -176,6 +196,7 @@ namespace won::rendering
 
             if (!shader_geometry_default_buffer || current_default_buffer_size < required_geometry_buffer_size)
             {
+                RemoveResourceDeferred(frame_context, shader_geometry_default_buffer);
                 RHIBufferDesc shader_geometry_default_buffer_desc = {};
                 shader_geometry_default_buffer_desc.size = required_geometry_buffer_size;
                 shader_geometry_default_buffer_desc.usage = RHIResourceUsage::Default;
@@ -186,6 +207,7 @@ namespace won::rendering
                     backlog::Post("failed to create shader geometry default buffer", backlog::LogLevel::Error);
                     return false;
                 }
+                shader_geometry_default_buffer->SetName("Shader Geometry Default Buffer");
 
                 shader_geometry_default_buffer_srv = {};
                 RHISubresourceDesc shader_geometry_default_subresource_desc = {};
@@ -219,6 +241,7 @@ namespace won::rendering
                     backlog::Post("failed to create shader geometry upload buffer", backlog::LogLevel::Error);
                     return false;
                 }
+                frame_context.shader_geometry_upload_buffer->SetName("Shader Geometry Upload Buffer");
             }
 
             void* mapped_data = frame_context.shader_geometry_upload_buffer->GetMappedData();
@@ -237,7 +260,7 @@ namespace won::rendering
         if (required_material_buffer_size == 0)
         {
             frame_context.shader_material_upload_buffer = nullptr;
-            shader_material_default_buffer = nullptr;
+            RemoveResourceDeferred(frame_context, shader_material_default_buffer);
             shader_material_default_buffer_srv = {};
         }
         else
@@ -250,6 +273,7 @@ namespace won::rendering
 
             if (!shader_material_default_buffer || current_default_buffer_size < required_material_buffer_size)
             {
+                RemoveResourceDeferred(frame_context, shader_material_default_buffer);
                 RHIBufferDesc shader_material_default_buffer_desc = {};
                 shader_material_default_buffer_desc.size = required_material_buffer_size;
                 shader_material_default_buffer_desc.usage = RHIResourceUsage::Default;
@@ -260,6 +284,7 @@ namespace won::rendering
                     backlog::Post("failed to create shader material default buffer", backlog::LogLevel::Error);
                     return false;
                 }
+                shader_material_default_buffer->SetName("Shader Material Default Buffer");
 
                 shader_material_default_buffer_srv = {};
                 RHISubresourceDesc shader_material_default_subresource_desc = {};
@@ -293,6 +318,7 @@ namespace won::rendering
                     backlog::Post("failed to create shader material upload buffer", backlog::LogLevel::Error);
                     return false;
                 }
+                frame_context.shader_material_upload_buffer->SetName("Shader Material Upload Buffer");
             }
 
             void* mapped_data = frame_context.shader_material_upload_buffer->GetMappedData();
@@ -311,7 +337,7 @@ namespace won::rendering
         if (required_light_buffer_size == 0)
         {
             frame_context.shader_light_upload_buffer = nullptr;
-            shader_light_default_buffer = nullptr;
+            RemoveResourceDeferred(frame_context, shader_light_default_buffer);
             shader_light_default_buffer_srv = {};
         }
         else
@@ -324,6 +350,7 @@ namespace won::rendering
 
             if (!shader_light_default_buffer || current_default_buffer_size < required_light_buffer_size)
             {
+                RemoveResourceDeferred(frame_context, shader_light_default_buffer);
                 RHIBufferDesc shader_light_default_buffer_desc = {};
                 shader_light_default_buffer_desc.size = required_light_buffer_size;
                 shader_light_default_buffer_desc.usage = RHIResourceUsage::Default;
@@ -334,6 +361,7 @@ namespace won::rendering
                     backlog::Post("failed to create shader light default buffer", backlog::LogLevel::Error);
                     return false;
                 }
+                shader_light_default_buffer->SetName("Shader Light Default Buffer");
 
                 shader_light_default_buffer_srv = {};
                 RHISubresourceDesc shader_light_default_subresource_desc = {};
@@ -367,6 +395,7 @@ namespace won::rendering
                     backlog::Post("failed to create shader light upload buffer", backlog::LogLevel::Error);
                     return false;
                 }
+                frame_context.shader_light_upload_buffer->SetName("Shader Light Upload Buffer");
             }
 
             void* mapped_data = frame_context.shader_light_upload_buffer->GetMappedData();
@@ -384,7 +413,7 @@ namespace won::rendering
 
         if (required_shadow_cascade_buffer_size == 0)
         {
-            shader_shadow_cascade_default_buffer = nullptr;
+            RemoveResourceDeferred(frame_context, shader_shadow_cascade_default_buffer);
             shader_shadow_cascade_default_buffer_srv = {};
         }
         else
@@ -397,6 +426,7 @@ namespace won::rendering
 
             if (!shader_shadow_cascade_default_buffer || current_default_buffer_size < required_shadow_cascade_buffer_size)
             {
+                RemoveResourceDeferred(frame_context, shader_shadow_cascade_default_buffer);
                 RHIBufferDesc shader_shadow_cascade_default_buffer_desc = {};
                 shader_shadow_cascade_default_buffer_desc.size = required_shadow_cascade_buffer_size;
                 shader_shadow_cascade_default_buffer_desc.usage = RHIResourceUsage::Default;
@@ -407,6 +437,7 @@ namespace won::rendering
                     backlog::Post("failed to create shader shadow cascade default buffer", backlog::LogLevel::Error);
                     return false;
                 }
+                shader_shadow_cascade_default_buffer->SetName("Shader Shadow Cascade Default Buffer");
 
                 shader_shadow_cascade_default_buffer_srv = {};
                 RHISubresourceDesc shader_shadow_cascade_default_subresource_desc = {};
@@ -778,6 +809,7 @@ namespace won::rendering
             backlog::Post("failed to create shader frame buffer", backlog::LogLevel::Error);
             return;
         }
+        shader_frame_buffer->SetName("Shader Frame Buffer");
 
         RHISubresourceDesc shader_frame_subresource_desc = {};
         shader_frame_subresource_desc.type = RHISubresourceType::ConstantBuffer;
@@ -800,6 +832,7 @@ namespace won::rendering
             backlog::Post("failed to create shader camera buffer", backlog::LogLevel::Error);
             return;
         }
+        shader_camera_buffer->SetName("Shader Camera Buffer");
 
         RHISubresourceDesc shader_camera_subresource_desc = {};
         shader_camera_subresource_desc.type = RHISubresourceType::ConstantBuffer;
@@ -914,8 +947,18 @@ namespace won::rendering
                 depth_texture_desc.format != RHIFormat::D32Float;
         }
 
+        FrameContext& frame_context = GetFrameContext();
+        if (frame_context.fence_value > 0)
+        {
+            frame_context.fence->Wait(frame_context.fence_value);
+            frame_context.fence_value = 0;
+        }
+
+        frame_context.deferred_res_removal.clear();
+
         if (recreate_depth_buffer)
         {
+            RemoveResourceDeferred(frame_context, depth_buffer);
             RHITextureDesc depth_desc = {};
             depth_desc.width = back_buffer_texture_desc.width;
             depth_desc.height = back_buffer_texture_desc.height;
@@ -932,6 +975,7 @@ namespace won::rendering
                 backlog::Post("failed to create depth buffer", backlog::LogLevel::Error);
                 return;
             }
+            depth_buffer->SetName("Scene Depth Buffer");
 
             depth_buffer_dsv = {};
             RHISubresourceDesc depth_subresource_desc = {};
@@ -953,7 +997,7 @@ namespace won::rendering
         const Scene::RenderData& render_data = view.scene->GetRenderData();
         if (render_data.shadow_map_atlas_size.x == 0 || render_data.shadow_map_atlas_size.y == 0)
         {
-            shadow_map_atlas = nullptr;
+            RemoveResourceDeferred(frame_context, shadow_map_atlas);
             shadow_map_atlas_dsv = {};
             shadow_map_atlas_srv = {};
             shadow_map_atlas_size = { 0, 0 };
@@ -969,6 +1013,7 @@ namespace won::rendering
 
             if (recreate_shadowmap_atlas)
             {
+                RemoveResourceDeferred(frame_context, shadow_map_atlas);
                 RHITextureDesc shadow_map_atlas_desc = {};
                 shadow_map_atlas_desc.width = render_data.shadow_map_atlas_size.x;
                 shadow_map_atlas_desc.height = render_data.shadow_map_atlas_size.y;
@@ -985,6 +1030,7 @@ namespace won::rendering
                     backlog::Post("failed to create shadow map atlas", backlog::LogLevel::Error);
                     return;
                 }
+                shadow_map_atlas->SetName("Shadow Map Atlas");
 
                 shadow_map_atlas_dsv = {};
                 RHISubresourceDesc shadow_map_atlas_subresource_desc = {};
@@ -1008,15 +1054,6 @@ namespace won::rendering
             }
         }
 
-        FrameContext& frame_context = GetFrameContext();
-
-        if (frame_context.fence_value > 0)
-        {
-            frame_context.fence->Wait(frame_context.fence_value);
-            frame_context.fence_value = 0;
-        }
-
-        frame_context.deferred_res_removal.clear();
         frame_context.command_allocator->Reset();
         frame_context.command_list->Begin(*frame_context.command_allocator);
         frame_context.frame_upload_offset = 0;
