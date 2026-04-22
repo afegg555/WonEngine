@@ -1107,10 +1107,8 @@ namespace won::editor
 						}
 
 						ImGui::DragFloat("Ambient Intensity", &environment_lighting_comp->ambient_intensity, 0.01f, 0.0f, 1000.0f);
-						ImGui::DragFloat("Sky Lighting Intensity", &environment_lighting_comp->sky_lighting_intensity, 0.01f, 0.0f, 1000.0f);
-						ImGui::DragFloat("Indirect Diffuse", &environment_lighting_comp->indirect_diffuse_intensity, 0.01f, 0.0f, 1000.0f);
-						ImGui::DragFloat("Indirect Specular", &environment_lighting_comp->indirect_specular_intensity, 0.01f, 0.0f, 1000.0f);
-						ImGui::DragFloat("Emissive Indirect Scale", &environment_lighting_comp->emissive_indirect_scale, 0.01f, 0.0f, 1000.0f);
+						ImGui::DragFloat("Indirect Diffuse Scale", &environment_lighting_comp->indirect_diffuse_scale, 0.01f, 0.0f, 1000.0f);
+						ImGui::DragFloat("Indirect Specular Scale", &environment_lighting_comp->indirect_specular_scale, 0.01f, 0.0f, 1000.0f);
 					}
 					else
 					{
@@ -1844,6 +1842,7 @@ namespace won::editor
 				
 				auto env = scene.AddComponent<ecs::SkyComponent>(env_entity);
 				env->SetActive(true);
+				scene.AddComponent<ecs::EnvironmentLightingComponent>(env_entity);
 
 				auto name = scene.AddComponent<ecs::NameComponent>(env_entity);
 				name->value = "Environment";

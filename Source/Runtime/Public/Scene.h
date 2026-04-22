@@ -39,6 +39,7 @@ namespace won::ecs
             component_manager.RegisterComponent<CameraComponent>();
             component_manager.RegisterComponent<LightComponent>();
             component_manager.RegisterComponent<SkyComponent>();
+            component_manager.RegisterComponent<EnvironmentLightingComponent>();
 
             AddSystem(std::make_shared<TransformUpdateSystem>());
             AddSystem(std::make_shared<EnvironmentUpdateSystem>());
@@ -339,6 +340,7 @@ namespace won::ecs
             math::AABB shadow_caster_world_bound;
 
             ShaderSky shader_sky;
+            ShaderEnvironmentLighting shader_environment_lighting;
 
             void Clear()
             {
@@ -353,6 +355,8 @@ namespace won::ecs
                 forward_light_mask = { 0,0,0,0 };
                 shadow_map_atlas_size = { 0, 0 };
                 shadow_caster_world_bound.Invalidate();
+                shader_sky.Init();
+                shader_environment_lighting.Init();
             }
         };
 

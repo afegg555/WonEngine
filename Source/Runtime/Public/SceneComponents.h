@@ -8,6 +8,7 @@
 #include "CameraComponent.h"
 #include "LightComponent.h"
 #include "SkyComponent.h"
+#include "EnvironmentLightingComponent.h"
 
 namespace won::ecs
 {
@@ -24,6 +25,7 @@ namespace won::ecs
         Camera,
         Light,
         Sky,
+        EnvironmentLighting,
     };
 
     constexpr ComponentMask ComponentMaskFromBit(SceneComponentBit bit)
@@ -40,4 +42,5 @@ namespace won::ecs
     inline constexpr ComponentMask camera_component_mask = ComponentMaskFromBit(SceneComponentBit::Camera);
     inline constexpr ComponentMask light_component_mask = ComponentMaskFromBit(SceneComponentBit::Light);
     inline constexpr ComponentMask sky_component_mask = ComponentMaskFromBit(SceneComponentBit::Sky);
+    inline constexpr ComponentMask environment_lighting_component_mask = ComponentMaskFromBit(SceneComponentBit::EnvironmentLighting);
 }

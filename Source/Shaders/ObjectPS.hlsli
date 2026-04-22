@@ -89,14 +89,19 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
     
 #ifndef UNLIT
     half3 ambient = half3(0.0, 0.0, 0.0);
+    ShaderEnvironmentLighting environment_lighting = GetEnvironmentLighting();
+    if (environment_lighting.IsActive() && environment_lighting.gi_mode == SHADER_ENVIRONMENT_GI_MODE_AMBIENT)
+    {
+        ambient = environment_lighting.GetAmbientColor() * environment_lighting.GetAmbientIntensity();
+    }
 
     Lighting lighting;
     lighting.Create(0, 0, ambient, 0);
     
     ForwardLighting(surface, lighting);
     
-    half3 diffuse = lighting.direct.diffuse * Fd_Lambert(); // apply fd here for efficiency
-    half3 specular = lighting.direct.specular;
+    half3 diffuse = (lighting.direct.diffuse + lighting.indirect.diffuse) * Fd_Lambert(); // apply fd here for efficiency
+    half3 specular = lighting.direct.specular + lighting.indirect.specular;
     final_color.rgb = surface.albedo * diffuse;
     final_color.rgb += specular;
     final_color.rgb += surface.emissive_color;

@@ -469,6 +469,7 @@ namespace won::rendering
         shader_frame.scene.shadow_atlas = shadow_map_atlas_srv.descriptor_index;
         shader_frame.scene.shadow_cascade_buffer = shader_shadow_cascade_default_buffer_srv.descriptor_index;
         shader_frame.sky = render_data.shader_sky;
+        shader_frame.environment_lighting = render_data.shader_environment_lighting;
 
         ShaderCamera shader_camera{};
         shader_camera.Init();

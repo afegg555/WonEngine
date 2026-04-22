@@ -174,6 +174,7 @@ set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/CameraComponent.h
     Source/Runtime/Public/LightComponent.h
     Source/Runtime/Public/SkyComponent.h
+    Source/Runtime/Public/EnvironmentLightingComponent.h
 )
 
 set(RUNTIME_ECS_SYSTEMS

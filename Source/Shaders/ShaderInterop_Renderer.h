@@ -52,6 +52,19 @@ enum SHADER_LIGHT_FLAGS
     LIGHT_FLAG_LIGHT_CASTING_SHADOW = 1 << 1,
 };
 
+enum SHADER_ENVIRONMENT_LIGHTING_FLAGS
+{
+    SHADER_ENVIRONMENT_LIGHTING_FLAG_NONE = 0,
+    SHADER_ENVIRONMENT_LIGHTING_FLAG_ACTIVE = 1 << 0,
+};
+
+enum SHADER_ENVIRONMENT_GI_MODE
+{
+    SHADER_ENVIRONMENT_GI_MODE_NONE,
+    SHADER_ENVIRONMENT_GI_MODE_AMBIENT,
+    SHADER_ENVIRONMENT_GI_MODE_DDGI,
+};
+
 enum TEXTURESLOT
 {
     BASECOLORMAP,
@@ -301,16 +314,56 @@ struct alignas(16) ShaderSky
 #endif
 };
 
+struct alignas(16) ShaderEnvironmentLighting
+{
+    uint flags;
+    uint gi_mode;
+    uint2 padding;
+
+    uint2 ambient_color_ambient_intensity;
+    uint2 indirect_diffuse_scale_indirect_specular_scale;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        flags = SHADER_ENVIRONMENT_LIGHTING_FLAG_NONE;
+        gi_mode = SHADER_ENVIRONMENT_GI_MODE_NONE;
+        ambient_color_ambient_intensity = { 0,0 };
+        indirect_diffuse_scale_indirect_specular_scale = { 0,0 };
+    }
+
+    inline void SetAmbientColorIntensity(const float3& color, float intensity)
+    {
+        ambient_color_ambient_intensity.x = XMConvertFloatToHalf(color.x) | (XMConvertFloatToHalf(color.y) << 16u);
+        ambient_color_ambient_intensity.y = XMConvertFloatToHalf(color.z) | (XMConvertFloatToHalf(intensity) << 16u);
+    }
+
+    inline void SetIndirectScale(float diffuse_scale, float specular_scale)
+    {
+        indirect_diffuse_scale_indirect_specular_scale.x = XMConvertFloatToHalf(diffuse_scale) | (XMConvertFloatToHalf(specular_scale) << 16u);
+        indirect_diffuse_scale_indirect_specular_scale.y = 0;
+    }
+#else
+    inline bool IsActive() { return (flags & SHADER_ENVIRONMENT_LIGHTING_FLAG_ACTIVE) != 0; }
+    inline half3 GetAmbientColor() { return UnpackHalf4(ambient_color_ambient_intensity).xyz; }
+    inline half GetAmbientIntensity() { return UnpackHalf4(ambient_color_ambient_intensity).w; }
+    inline half GetIndirectDiffuseScale() { return (half)f16tof32(indirect_diffuse_scale_indirect_specular_scale.x); }
+    inline half GetIndirectSpecularScale() { return (half)f16tof32(indirect_diffuse_scale_indirect_specular_scale.x >> 16u); }
+#endif
+};
+
 struct alignas(16) ShaderFrame
 {
     ShaderScene scene;
     ShaderSky sky;
+    ShaderEnvironmentLighting environment_lighting;
 
 #ifdef __cplusplus
     inline void Init()
     {
         scene.Init();
         sky.Init();
+        environment_lighting.Init();
     }
 #endif
 };
@@ -568,7 +621,8 @@ static_assert(sizeof(ShaderGeometry) == 64, "ShaderGeometry layout mismatch");
 static_assert(sizeof(ShaderMaterial) == 272, "ShaderMaterial layout mismatch");
 static_assert(sizeof(ShaderScene) == 48, "ShaderScene layout mismatch");
 static_assert(sizeof(ShaderSky) == 64, "ShaderSky layout mismatch");
-static_assert(sizeof(ShaderFrame) == 112, "ShaderFrame layout mismatch");
+static_assert(sizeof(ShaderEnvironmentLighting) == 32, "ShaderEnvironmentLighting layout mismatch");
+static_assert(sizeof(ShaderFrame) == 144, "ShaderFrame layout mismatch");
 static_assert(sizeof(ShaderCamera) == 320, "ShaderCamera layout mismatch");
 static_assert(sizeof(ShaderLight) == 48, "ShaderLight layout mismatch");
 static_assert(sizeof(ShaderShadowCascade) == 96, "ShaderShadowCascade layout mismatch");

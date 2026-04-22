@@ -12,6 +12,7 @@ namespace won::ecs
     {
         auto& render_data = scene.GetRenderData();
         render_data.shader_sky.Init();
+        render_data.shader_environment_lighting.Init();
 
         auto sky_array = scene.GetComponentArray<SkyComponent>().get();
 
@@ -31,6 +32,18 @@ namespace won::ecs
             }
         }
 
+        auto env_lighting_array = scene.GetComponentArray<EnvironmentLightingComponent>().get();
 
+        if (env_lighting_array && env_lighting_array->GetSize() > 0)
+        {
+            EnvironmentLightingComponent& env_lighting = env_lighting_array->data[0]; // force to use first element
+            if (env_lighting.IsActive())
+            {
+                render_data.shader_environment_lighting.flags = SHADER_ENVIRONMENT_LIGHTING_FLAG_ACTIVE;
+                render_data.shader_environment_lighting.gi_mode = static_cast<uint32>(env_lighting.gi_mode);
+                render_data.shader_environment_lighting.SetAmbientColorIntensity(env_lighting.ambient_color, env_lighting.ambient_intensity);
+                render_data.shader_environment_lighting.SetIndirectScale(env_lighting.indirect_diffuse_scale, env_lighting.indirect_specular_scale);
+            }
+        }
     }
 }
