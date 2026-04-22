@@ -303,6 +303,7 @@ namespace won::editor
 
 		static bool pressed = false;
 		static float2 prev_mouse_pos{};
+		static CameraInteractionMode active_interaction = CameraInteractionMode::None;
 
 		if (0 <= viewport_mouse_pos.x && viewport_mouse_pos.x <= main_viewport_size.x &&
 			0 <= viewport_mouse_pos.y && viewport_mouse_pos.y <= main_viewport_size.y)
@@ -321,6 +322,25 @@ namespace won::editor
 				controller_state.focus_point = { 0.f, 0.f, 0.f };
 
 				controller_api->SetControllerState(camera_controller, controller_state);
+
+				CameraState camera_state;
+				camera_state.cam_pos = transform->position;
+				camera_state.cam_rotation = transform->rotation;
+
+				if (io::IsPressed(io::Button::MOUSE_BUTTON_RIGHT))
+				{
+					active_interaction = CameraInteractionMode::Rotate;
+				}
+				else if (io::IsPressed(io::Button::MOUSE_BUTTON_MIDDLE))
+				{
+					active_interaction = CameraInteractionMode::Orbit;
+				}
+				else
+				{
+					active_interaction = CameraInteractionMode::PanMove;
+				}
+
+				controller_api->BeginInteraction(camera_controller, active_interaction, camera_state);
 
 				prev_mouse_pos = viewport_mouse_pos;
 			}
@@ -341,57 +361,42 @@ namespace won::editor
 
 				CameraState camera_state;
 				camera_state.cam_pos = cam_pos;
-				camera_state.cam_view = camera->forward;
-				camera_state.cam_up = camera->up;
+				camera_state.cam_rotation = transform->rotation;
 
 				const bool is_panmove = io::IsDown(io::Button::MOUSE_BUTTON_LEFT);
 				const bool is_rotate = io::IsDown(io::Button::MOUSE_BUTTON_RIGHT);
 				const bool is_orbit = io::IsDown(io::Button::MOUSE_BUTTON_MIDDLE);
 
-				if (is_panmove)
+				if (is_panmove || is_rotate || is_orbit)
 				{
-					controller_api->PanMove(camera_controller, mouse_delta, camera_state);
+					controller_api->UpdateInteraction(camera_controller, mouse_delta, camera_state);
 					transform->position = camera_state.cam_pos;
-					transform->SetDirty();
-				}
-
-				if(is_rotate || is_orbit)
-				{
-					if (is_rotate)
-					{
-						controller_api->Rotate(camera_controller, mouse_delta, camera_state);
-					}
-					else
-					{
-						controller_api->Orbit(camera_controller, mouse_delta, camera_state);
-					}
-
-					XMVECTOR xeye = XMLoadFloat3(&camera_state.cam_pos);
-					XMVECTOR xview = XMVector3Normalize(XMLoadFloat3(&camera_state.cam_view));
-					XMVECTOR xup = XMVector3Normalize(XMLoadFloat3(&camera_state.cam_up));
-
-					XMVECTOR xright = XMVector3Normalize(XMVector3Cross(xup, xview));
-					XMVECTOR xup_reortho = XMVector3Normalize(XMVector3Cross(xview, xright));
-
-					XMMATRIX cam_world;
-					cam_world.r[0] = XMVectorSetW(xright, 0.0f);
-					cam_world.r[1] = XMVectorSetW(xup_reortho, 0.0f);
-					cam_world.r[2] = XMVectorSetW(xview, 0.0f);
-					cam_world.r[3] = XMVectorSetW(xeye, 1.0f);
-
-					XMVECTOR xrotation = XMQuaternionRotationMatrix(cam_world);
-					XMStoreFloat3(&transform->position, xeye);
-					XMStoreFloat4(&transform->rotation, xrotation);
+					transform->rotation = camera_state.cam_rotation;
 					transform->SetDirty();
 				}
 
 				prev_mouse_pos = viewport_mouse_pos;
 			}
 
-			if (io::IsReleased(io::Button::MOUSE_BUTTON_LEFT) || io::IsReleased(io::Button::MOUSE_BUTTON_RIGHT)
-				|| io::IsReleased(io::Button::MOUSE_BUTTON_MIDDLE))
+			bool interaction_finished = false;
+			if (active_interaction == CameraInteractionMode::PanMove)
 			{
+				interaction_finished = !io::IsDown(io::Button::MOUSE_BUTTON_LEFT);
+			}
+			else if (active_interaction == CameraInteractionMode::Rotate)
+			{
+				interaction_finished = !io::IsDown(io::Button::MOUSE_BUTTON_RIGHT);
+			}
+			else if (active_interaction == CameraInteractionMode::Orbit)
+			{
+				interaction_finished = !io::IsDown(io::Button::MOUSE_BUTTON_MIDDLE);
+			}
+
+			if (interaction_finished)
+			{
+				controller_api->EndInteraction(camera_controller);
 				pressed = false;
+				active_interaction = CameraInteractionMode::None;
 			}
 		}
 		

@@ -3,16 +3,23 @@
 #include "MathUtils.h"
 
 inline constexpr const char* WON_IID_CAMERA_CONTROLLER = "CameraController";
-inline constexpr const char* WON_VID_CAMERA_CONTROLLER = "0.1.0";
+inline constexpr const char* WON_VID_CAMERA_CONTROLLER = "0.2.0";
 
 namespace won::plugin
 {
+    enum class CameraInteractionMode : uint32
+    {
+        None,
+        PanMove,
+        Rotate,
+        Orbit,
+    };
+
     struct CameraState
     {
-        // in-out 
+        // in-out
         float3 cam_pos{ 0.f, 0.f, 0.f };
-        float3 cam_view{ 0.f, 0.f, -1.f };
-        float3 cam_up{ 0.f, 1.f, 0.f };
+        float4 cam_rotation{ 0.f, 0.f, 0.f, 1.f };
     };
 
     struct ControllerState
@@ -29,8 +36,8 @@ namespace won::plugin
     {
         void (*SetControllerState)(IPlugin* self, const ControllerState& controller_state);
 
-        void (*PanMove)(IPlugin* self, const float2& mouse_delta, CameraState& cam_state);
-        void (*Rotate)(IPlugin* self, const float2& mouse_delta, CameraState& cam_state);
-        void (*Orbit)(IPlugin* self, const float2& mouse_delta, CameraState& cam_state);
+        void (*BeginInteraction)(IPlugin* self, CameraInteractionMode mode, const CameraState& cam_state);
+        void (*UpdateInteraction)(IPlugin* self, const float2& mouse_delta, CameraState& cam_state);
+        void (*EndInteraction)(IPlugin* self);
     };
 }

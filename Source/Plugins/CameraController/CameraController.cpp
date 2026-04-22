@@ -1,19 +1,39 @@
 #include "CameraController.h"
 #include "Backlog.h"
 
+#include <cmath>
+
 namespace won::plugin
 {
+    namespace
+    {
+        constexpr float pitch_limit = XM_PIDIV2 - 0.001f;
+
+        XMVECTOR BaseForward()
+        {
+            return XMVectorSet(0.f, 0.f, 1.f, 0.f);
+        }
+
+        XMVECTOR BaseUp()
+        {
+            return XMVectorSet(0.f, 1.f, 0.f, 0.f);
+        }
+
+        XMVECTOR BaseRight()
+        {
+            return XMVectorSet(1.f, 0.f, 0.f, 0.f);
+        }
+    }
+
     class CameraController : public IPlugin
     {
         struct ControllerStateInternal
         {
             ControllerState state;
-
-        };
-        struct CameraStateInternal
-        {
-            CameraState cam_state;
-            float2 mouse_start;
+            CameraInteractionMode interaction_mode = CameraInteractionMode::None;
+            float yaw = 0.f;
+            float pitch = 0.f;
+            float orbit_distance = 0.f;
         };
 
     public:
@@ -41,27 +61,71 @@ namespace won::plugin
             internal_controller_state.state = in_controller_state;
         }
 
+        void BeginInteraction(CameraInteractionMode mode, const CameraState& cam_state)
+        {
+            internal_controller_state.interaction_mode = mode;
+
+            XMVECTOR cam_rotation = XMQuaternionNormalize(XMLoadFloat4(&cam_state.cam_rotation));
+            XMVECTOR cam_forward = XMVector3Rotate(BaseForward(), cam_rotation);
+            XMVECTOR cam_right = XMVector3Rotate(BaseRight(), cam_rotation);
+
+            internal_controller_state.pitch = std::asin(math::clamp(XMVectorGetY(cam_forward), -1.f, 1.f));
+            const float cos_pitch = std::cos(internal_controller_state.pitch);
+            if (std::abs(cos_pitch) > 0.0001f)
+            {
+                internal_controller_state.yaw = std::atan2(XMVectorGetX(cam_forward), XMVectorGetZ(cam_forward));
+            }
+            else
+            {
+                internal_controller_state.yaw = std::atan2(-XMVectorGetZ(cam_right), XMVectorGetX(cam_right));
+            }
+
+            XMVECTOR cam_pos = XMLoadFloat3(&cam_state.cam_pos);
+            XMVECTOR focus_point = XMLoadFloat3(&internal_controller_state.state.focus_point);
+            internal_controller_state.orbit_distance = XMVectorGetX(XMVector3Length(cam_pos - focus_point));
+        }
+
+        void EndInteraction()
+        {
+            internal_controller_state.interaction_mode = CameraInteractionMode::None;
+        }
+
+        void UpdateInteraction(const float2& mouse_delta, CameraState& cam_state)
+        {
+            switch (internal_controller_state.interaction_mode)
+            {
+            case CameraInteractionMode::PanMove:
+                PanMove(mouse_delta, cam_state);
+                break;
+            case CameraInteractionMode::Rotate:
+                Rotate(mouse_delta, cam_state);
+                break;
+            case CameraInteractionMode::Orbit:
+                Orbit(mouse_delta, cam_state);
+                break;
+            default:
+                break;
+            }
+        }
+
+    private:
         void PanMove(const float2& mouse_delta, CameraState& cam_state)
         {
             const float dx = mouse_delta.x / internal_controller_state.state.screen_size.x;
             const float dy = -mouse_delta.y / internal_controller_state.state.screen_size.y;
 
             XMVECTOR cam_pos = XMLoadFloat3(&cam_state.cam_pos);
-            XMVECTOR cam_view = XMVector3Normalize(XMLoadFloat3(&cam_state.cam_view));
-            XMVECTOR cam_up = XMVector3Normalize(XMLoadFloat3(&cam_state.cam_up));
+            XMVECTOR cam_rotation = XMQuaternionNormalize(XMLoadFloat4(&cam_state.cam_rotation));
+            XMVECTOR cam_right = XMVector3Rotate(BaseRight(), cam_rotation);
+            XMVECTOR cam_up = XMVector3Rotate(BaseUp(), cam_rotation);
 
-            XMVECTOR cam_right = XMVector3Normalize(XMVector3Cross(cam_up, cam_view));
-            XMVECTOR cam_up_ortho = XMVector3Cross(cam_view, cam_right);
-
-            XMVECTOR basis_x = cam_right;
-            XMVECTOR basis_y = cam_up_ortho;
             XMVECTOR focus_point = XMLoadFloat3(&internal_controller_state.state.focus_point);
             float dist = XMVectorGetX(XMVector3Length(cam_pos - focus_point));
 
             XMVECTOR delta =
                 XMVectorAdd(
-                    XMVectorScale(basis_x, -dx * dist),
-                    XMVectorScale(basis_y, -dy * dist)
+                    XMVectorScale(cam_right, -dx * dist),
+                    XMVectorScale(cam_up, -dy * dist)
                 );
 
             cam_pos = XMVectorAdd(cam_pos, delta);
@@ -72,94 +136,95 @@ namespace won::plugin
         void Orbit(const float2& mouse_delta, CameraState& cam_state)
         {
             const float dx = mouse_delta.x / internal_controller_state.state.screen_size.x;
-            const float dy = mouse_delta.y / internal_controller_state.state.screen_size.y;
+            const float dy = -mouse_delta.y / internal_controller_state.state.screen_size.y;
 
-            const float yaw = dx * XM_2PI * internal_controller_state.state.rotate_speed;
-            const float pitch = dy * XM_2PI * internal_controller_state.state.rotate_speed;
+            internal_controller_state.yaw += dx * XM_2PI * internal_controller_state.state.orbit_speed;
+            internal_controller_state.pitch = math::clamp(
+                internal_controller_state.pitch + dy * XM_2PI * internal_controller_state.state.orbit_speed,
+                -pitch_limit,
+                pitch_limit);
 
-            XMVECTOR cam_pos = XMLoadFloat3(&cam_state.cam_pos);
-            XMVECTOR cam_view = XMVector3Normalize(XMLoadFloat3(&cam_state.cam_view));
-            XMVECTOR cam_up = XMVector3Normalize(XMLoadFloat3(&cam_state.cam_up));
+            const float cos_pitch = std::cos(internal_controller_state.pitch);
+            XMVECTOR cam_forward = XMVectorSet(
+                std::sin(internal_controller_state.yaw) * cos_pitch,
+                std::sin(internal_controller_state.pitch),
+                std::cos(internal_controller_state.yaw) * cos_pitch,
+                0.f);
+            XMVECTOR cam_right = XMVectorSet(
+                std::cos(internal_controller_state.yaw),
+                0.f,
+                -std::sin(internal_controller_state.yaw),
+                0.f);
+            XMVECTOR cam_up = XMVector3Normalize(XMVector3Cross(cam_forward, cam_right));
 
-            XMVECTOR cam_right = XMVector3Normalize(XMVector3Cross(cam_up, cam_view));
+            XMMATRIX cam_world = XMMatrixIdentity();
+            cam_world.r[0] = XMVectorSetW(cam_right, 0.f);
+            cam_world.r[1] = XMVectorSetW(cam_up, 0.f);
+            cam_world.r[2] = XMVectorSetW(cam_forward, 0.f);
+
+            XMVECTOR cam_rotation = XMQuaternionNormalize(XMQuaternionRotationMatrix(cam_world));
+            XMStoreFloat4(&cam_state.cam_rotation, cam_rotation);
+
             XMVECTOR focus_point = XMLoadFloat3(&internal_controller_state.state.focus_point);
-
-            XMVECTOR world_up = XMVectorSet(0, 1, 0, 0);
-            XMMATRIX yaw_m = XMMatrixRotationAxis(world_up, yaw);
-
-            XMVECTOR offset = XMVectorSubtract(cam_pos, focus_point);
-            offset = XMVector3TransformCoord(offset, yaw_m);
-            cam_pos = XMVectorAdd(focus_point, offset);
-
-            cam_view = XMVector3Normalize(XMVector3Transform(cam_view, yaw_m));
-            cam_up = XMVector3Normalize(XMVector3Transform(cam_up, yaw_m));
-            cam_right = XMVector3Normalize(XMVector3Cross(cam_up, cam_view));
-
-            XMMATRIX pitch_m = XMMatrixRotationAxis(cam_right, pitch);
-
-            offset = XMVectorSubtract(cam_pos, focus_point);
-            offset = XMVector3TransformCoord(offset, pitch_m);
-            cam_pos = XMVectorAdd(focus_point, offset);
-
-            cam_view = XMVector3Normalize(XMVector3Transform(cam_view, pitch_m));
-            cam_up = XMVector3Normalize(XMVector3Transform(cam_up, pitch_m));
-
+            XMVECTOR cam_pos = focus_point - XMVectorScale(cam_forward, (std::max)(internal_controller_state.orbit_distance, 0.001f));
             XMStoreFloat3(&cam_state.cam_pos, cam_pos);
-            XMStoreFloat3(&cam_state.cam_view, cam_view);
-            XMStoreFloat3(&cam_state.cam_up, cam_up);
         }
 
         void Rotate(const float2& mouse_delta, CameraState& cam_state)
         {
             const float dx = mouse_delta.x / internal_controller_state.state.screen_size.x;
-            const float dy = mouse_delta.y / internal_controller_state.state.screen_size.y;
+            const float dy = -mouse_delta.y / internal_controller_state.state.screen_size.y;
 
-            const float yaw = dx * XM_2PI * internal_controller_state.state.rotate_speed;
-            float pitch = dy * XM_2PI * internal_controller_state.state.rotate_speed;
+            internal_controller_state.yaw += dx * XM_2PI * internal_controller_state.state.rotate_speed;
+            internal_controller_state.pitch = math::clamp(
+                internal_controller_state.pitch + dy * XM_2PI * internal_controller_state.state.rotate_speed,
+                -pitch_limit,
+                pitch_limit);
 
-            XMVECTOR cam_view = XMVector3Normalize(XMLoadFloat3(&cam_state.cam_view));
-            XMVECTOR cam_up = XMVector3Normalize(XMLoadFloat3(&cam_state.cam_up));
-            const XMVECTOR world_up = XMVectorSet(0.f, 1.f, 0.f, 0.f);
+            const float cos_pitch = std::cos(internal_controller_state.pitch);
+            XMVECTOR cam_forward = XMVectorSet(
+                std::sin(internal_controller_state.yaw) * cos_pitch,
+                std::sin(internal_controller_state.pitch),
+                std::cos(internal_controller_state.yaw) * cos_pitch,
+                0.f);
+            XMVECTOR cam_right = XMVectorSet(
+                std::cos(internal_controller_state.yaw),
+                0.f,
+                -std::sin(internal_controller_state.yaw),
+                0.f);
+            XMVECTOR cam_up = XMVector3Normalize(XMVector3Cross(cam_forward, cam_right));
 
-            const float current_pitch = std::asin(math::clamp(XMVectorGetY(cam_view), -1.f, 1.f));
-            const float next_pitch = math::clamp(current_pitch + pitch, -XM_PIDIV2 + 0.001f, XM_PIDIV2 - 0.001f);
-            pitch = next_pitch - current_pitch;
+            XMMATRIX cam_world = XMMatrixIdentity();
+            cam_world.r[0] = XMVectorSetW(cam_right, 0.f);
+            cam_world.r[1] = XMVectorSetW(cam_up, 0.f);
+            cam_world.r[2] = XMVectorSetW(cam_forward, 0.f);
 
-            const XMMATRIX yaw_matrix = XMMatrixRotationAxis(world_up, yaw);
-            cam_view = XMVector3Normalize(XMVector3TransformNormal(cam_view, yaw_matrix));
-            cam_up = XMVector3Normalize(XMVector3TransformNormal(cam_up, yaw_matrix));
-
-            const XMVECTOR cam_right = XMVector3Normalize(XMVector3Cross(cam_up, cam_view));
-            const XMMATRIX pitch_matrix = XMMatrixRotationAxis(cam_right, pitch);
-            cam_view = XMVector3Normalize(XMVector3TransformNormal(cam_view, pitch_matrix));
-            cam_up = XMVector3Normalize(XMVector3Cross(cam_view, cam_right));
-
-            XMStoreFloat3(&cam_state.cam_view, cam_view);
-            XMStoreFloat3(&cam_state.cam_up, cam_up);
+            XMVECTOR cam_rotation = XMQuaternionNormalize(XMQuaternionRotationMatrix(cam_world));
+            XMStoreFloat4(&cam_state.cam_rotation, cam_rotation);
         }
-    private:
+
         static void SetControllerStateThunk(IPlugin* self, const ControllerState& in_controller_state)
         {
             return static_cast<CameraController*>(self)->SetControllerState(in_controller_state);
         }
-        static void PanMoveThunk(IPlugin* self, const XMFLOAT2& mouse_delta, CameraState& cam_state)
+        static void BeginInteractionThunk(IPlugin* self, CameraInteractionMode mode, const CameraState& cam_state)
         {
-            return static_cast<CameraController*>(self)->PanMove(mouse_delta, cam_state);
+            return static_cast<CameraController*>(self)->BeginInteraction(mode, cam_state);
         }
-        static void OrbitThunk(IPlugin* self, const XMFLOAT2& mouse_delta, CameraState& cam_state)
+        static void UpdateInteractionThunk(IPlugin* self, const XMFLOAT2& mouse_delta, CameraState& cam_state)
         {
-            return static_cast<CameraController*>(self)->Orbit(mouse_delta, cam_state);
+            return static_cast<CameraController*>(self)->UpdateInteraction(mouse_delta, cam_state);
         }
-        static void RotateThunk(IPlugin* self, const XMFLOAT2& mouse_delta, CameraState& cam_state)
+        static void EndInteractionThunk(IPlugin* self)
         {
-            return static_cast<CameraController*>(self)->Rotate(mouse_delta, cam_state);
+            return static_cast<CameraController*>(self)->EndInteraction();
         }
 
         inline static CameraControllerAPI s_api{
             &SetControllerStateThunk,
-            &PanMoveThunk,
-            &RotateThunk,
-            &OrbitThunk
+            &BeginInteractionThunk,
+            &UpdateInteractionThunk,
+            &EndInteractionThunk,
         };
 
         ControllerStateInternal internal_controller_state;
