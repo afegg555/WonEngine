@@ -17,7 +17,7 @@ namespace won::rendering
         uint32 query_count = 0;
     };
 
-    class WONENGINE_API RHIQueryHeap : public RHIObject
+    class RHIQueryHeap : public RHIObject
     {
     public:
         ~RHIQueryHeap() override = default;
