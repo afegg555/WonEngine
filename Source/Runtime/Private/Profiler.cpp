@@ -25,6 +25,7 @@ namespace won::profiler
         struct Range
         {
             bool in_use = false;
+            bool has_valid_result = false;
             RangeType type = RangeType::CPU;
             String name;
             float times[20] = {};
@@ -112,6 +113,7 @@ namespace won::profiler
                 range.time_ms = avg / static_cast<float>(arraysize(range.times));
             }
 
+            range.has_valid_result = true;
             range.in_use = false;
             range.command_list = nullptr;
         }
@@ -196,6 +198,7 @@ namespace won::profiler
 
             const int32 begin_index = range.query_begin[frame_slot];
             const int32 end_index = range.query_end[frame_slot];
+            bool has_new_result = false;
             if (query_results && begin_index >= 0 && end_index >= 0 && begin_index < static_cast<int32>(profiler_query_count) && end_index < static_cast<int32>(profiler_query_count))
             {
                 const uint64 begin_value = query_results[begin_index];
@@ -203,20 +206,25 @@ namespace won::profiler
                 if (end_value >= begin_value)
                 {
                     range.time_ms = static_cast<float>((static_cast<double>(end_value - begin_value)) / timestamp_per_ms);
+                    has_new_result = true;
                 }
             }
 
             range.query_begin[frame_slot] = -1;
             range.query_end[frame_slot] = -1;
-            range.times[range.avg_counter++ % arraysize(range.times)] = range.time_ms;
-            if (range.avg_counter > static_cast<int>(arraysize(range.times)))
+            if (has_new_result)
             {
-                float avg = 0.0f;
-                for (float time : range.times)
+                range.times[range.avg_counter++ % arraysize(range.times)] = range.time_ms;
+                if (range.avg_counter > static_cast<int>(arraysize(range.times)))
                 {
-                    avg += time;
+                    float avg = 0.0f;
+                    for (float time : range.times)
+                    {
+                        avg += time;
+                    }
+                    range.time_ms = avg / static_cast<float>(arraysize(range.times));
                 }
-                range.time_ms = avg / static_cast<float>(arraysize(range.times));
+                range.has_valid_result = true;
             }
 
             range.in_use = false;
@@ -380,7 +388,7 @@ namespace won::profiler
         for (const auto& pair : ranges)
         {
             const Range& range = pair.second;
-            if (!range.in_use)
+            if (!range.has_valid_result)
             {
                 continue;
             }
