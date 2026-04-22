@@ -28,6 +28,8 @@ namespace won::rendering
         std::shared_ptr<RHIResource> GetCurrentBackBuffer() override;
         std::shared_ptr<RHIResource> GetBackBuffer(uint32 index) override;
         bool Resize(uint32 width, uint32 height) override;
+        void SetVSync(bool enabled) override;
+        bool IsVSyncEnabled() const override;
         bool Present() override;
 
     private:
@@ -39,5 +41,6 @@ namespace won::rendering
         std::shared_ptr<DescriptorAllocatorDX12> descriptor_allocator;
         ComPtr<IDXGISwapChain3> dxgi_swapchain;
         Vector<std::shared_ptr<RHIResourceDX12>> back_buffers;
+        bool vsync_enabled = true;
     };
 }

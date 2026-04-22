@@ -118,7 +118,17 @@ namespace won::rendering
             return false;
         }
 
-        return SUCCEEDED(dxgi_swapchain->Present(1, 0));
+        return SUCCEEDED(dxgi_swapchain->Present(vsync_enabled ? 1 : 0, 0));
+    }
+
+    void RHISwapchainDX12::SetVSync(bool enabled)
+    {
+        vsync_enabled = enabled;
+    }
+
+    bool RHISwapchainDX12::IsVSyncEnabled() const
+    {
+        return vsync_enabled;
     }
 
     bool RHISwapchainDX12::CreateBackBuffers(uint32 width, uint32 height)

@@ -16,6 +16,8 @@ namespace won::rendering
         virtual std::shared_ptr<RHIResource> GetCurrentBackBuffer() = 0;
         virtual std::shared_ptr<RHIResource> GetBackBuffer(uint32 index) = 0;
         virtual bool Resize(uint32 width, uint32 height) = 0;
+        virtual void SetVSync(bool enabled) = 0;
+        virtual bool IsVSyncEnabled() const = 0;
         virtual bool Present() = 0;
     };
 }

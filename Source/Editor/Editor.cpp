@@ -490,6 +490,19 @@ namespace won::editor
 					// TODO: WireFrame
 				}
 
+				if (window)
+				{
+					std::shared_ptr<RHISwapchain> swapchain = window->GetRHISwapchain();
+					if (swapchain)
+					{
+						bool vsync_enabled = swapchain->IsVSyncEnabled();
+						if (ImGui::Checkbox("VSync", &vsync_enabled))
+						{
+							swapchain->SetVSync(vsync_enabled);
+						}
+					}
+				}
+
 				ImGui::Separator();
 				if (ImGui::Button("Close")) ImGui::CloseCurrentPopup();
 
