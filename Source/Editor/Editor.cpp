@@ -67,6 +67,55 @@ namespace won::editor
 			return quaternion;
 		}
 
+		bool DrawComponentRemoveButton(const char* component_name, bool can_remove = true)
+		{
+			ImGui::SameLine();
+			const float button_width = ImGui::CalcTextSize("X").x + ImGui::GetStyle().FramePadding.x * 2.0f;
+			ImGui::SetCursorPosX((std::max)(ImGui::GetCursorPosX(), ImGui::GetWindowContentRegionMax().x - button_width));
+			if (!can_remove)
+			{
+				ImGui::BeginDisabled();
+			}
+
+			const bool pressed = ImGui::SmallButton("X");
+			if (!can_remove)
+			{
+				ImGui::EndDisabled();
+			}
+
+			if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+			{
+				ImGui::SetTooltip("Remove %s", component_name);
+			}
+
+			if (pressed && can_remove)
+			{
+				ImGui::OpenPopup("Remove Component");
+			}
+
+			bool remove_component = false;
+			if (ImGui::BeginPopupModal("Remove Component", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+			{
+				ImGui::Text("Remove %s?", component_name);
+				ImGui::TextDisabled("This action cannot be undone.");
+
+				if (ImGui::Button("Remove"))
+				{
+					remove_component = true;
+					ImGui::CloseCurrentPopup();
+				}
+				ImGui::SameLine();
+				if (ImGui::Button("Cancel"))
+				{
+					ImGui::CloseCurrentPopup();
+				}
+
+				ImGui::EndPopup();
+			}
+
+			return remove_component;
+		}
+
 		bool AddImGuiFont(const std::string& font_folder_path, const std::string& font_file_name, bool merge_icon = true)
 		{
 			//PE: Add all lang.
@@ -635,117 +684,13 @@ namespace won::editor
 		{
 			if (picked_entity != INVALID_ENTITY)
 			{
-				if (ImGui::Button("Add Component", ImVec2(-1.0f, 0.0f)))
-				{
-					ImGui::OpenPopup("AddComponentPopup");
-				}
-
-				if (ImGui::BeginPopup("AddComponentPopup"))
-				{
-					if (ImGui::MenuItem("NameComponent"))
-					{
-						if (main_view.scene->GetComponent<NameComponent>(picked_entity) == nullptr)
-						{
-							if (NameComponent* name = main_view.scene->AddComponent<NameComponent>(picked_entity))
-							{
-								name->value = "Entity " + std::to_string(picked_entity);
-							}
-						}
-					}
-
-					if (ImGui::MenuItem("TransformComponent"))
-					{
-						if (main_view.scene->GetComponent<TransformComponent>(picked_entity) == nullptr)
-						{
-							main_view.scene->AddComponent<TransformComponent>(picked_entity);
-						}
-					}
-
-					if (ImGui::MenuItem("HierarchyComponent"))
-					{
-						if (main_view.scene->GetComponent<HierarchyComponent>(picked_entity) == nullptr)
-						{
-							main_view.scene->AddComponent<HierarchyComponent>(picked_entity);
-						}
-					}
-
-					if (ImGui::MenuItem("CameraComponent"))
-					{
-						if (main_view.scene->GetComponent<CameraComponent>(picked_entity) == nullptr)
-						{
-							main_view.scene->AddComponent<CameraComponent>(picked_entity);
-						}
-					}
-
-					if (ImGui::MenuItem("LightComponent"))
-					{
-						if (main_view.scene->GetComponent<LightComponent>(picked_entity) == nullptr)
-						{
-							main_view.scene->AddComponent<LightComponent>(picked_entity);
-						}
-					}
-
-					if (ImGui::MenuItem("SkyComponent"))
-					{
-						if (main_view.scene->GetComponent<SkyComponent>(picked_entity) == nullptr)
-						{
-							main_view.scene->AddComponent<SkyComponent>(picked_entity);
-						}
-					}
-
-					if (ImGui::MenuItem("FogVolumeComponent"))
-					{
-						if (main_view.scene->GetComponent<FogVolumeComponent>(picked_entity) == nullptr)
-						{
-							main_view.scene->AddComponent<FogVolumeComponent>(picked_entity);
-						}
-					}
-
-					if (ImGui::MenuItem("EnvironmentLightingComponent"))
-					{
-						if (main_view.scene->GetComponent<EnvironmentLightingComponent>(picked_entity) == nullptr)
-						{
-							main_view.scene->AddComponent<EnvironmentLightingComponent>(picked_entity);
-						}
-					}
-
-					if (ImGui::MenuItem("DDGIVolumeComponent"))
-					{
-						if (main_view.scene->GetComponent<DDGIVolumeComponent>(picked_entity) == nullptr)
-						{
-							main_view.scene->AddComponent<DDGIVolumeComponent>(picked_entity);
-						}
-					}
-
-					if (ImGui::MenuItem("GeometryComponent"))
-					{
-						if (main_view.scene->GetComponent<GeometryComponent>(picked_entity) == nullptr)
-						{
-							main_view.scene->AddComponent<GeometryComponent>(picked_entity);
-						}
-					}
-
-					if (ImGui::MenuItem("MaterialComponent"))
-					{
-						if (main_view.scene->GetComponent<MaterialComponent>(picked_entity) == nullptr)
-						{
-							main_view.scene->AddComponent<MaterialComponent>(picked_entity);
-						}
-					}
-
-					ImGui::EndPopup();
-				}
-
-				ImGui::Separator();
-
 				// TODO: use reflection system
 				NameComponent* name_comp = main_view.scene->GetComponent<NameComponent>(picked_entity);
 				if (name_comp)
 				{
 					ImGui::PushID("NameComponent");
 					ImGui::Text("NameComponent");
-					ImGui::SameLine();
-					bool remove_component = ImGui::Button("Remove");
+					bool remove_component = DrawComponentRemoveButton("NameComponent");
 
 					if (!remove_component)
 					{
@@ -771,17 +716,8 @@ namespace won::editor
 				{
 					ImGui::PushID("TransformComponent");
 					ImGui::Text("TransformComponent");
-					ImGui::SameLine();
 					const bool can_remove_transform = picked_entity != camera_entity;
-					if (!can_remove_transform)
-					{
-						ImGui::BeginDisabled();
-					}
-					bool remove_component = ImGui::Button("Remove");
-					if (!can_remove_transform)
-					{
-						ImGui::EndDisabled();
-					}
+					bool remove_component = DrawComponentRemoveButton("TransformComponent", can_remove_transform);
 
 					if (!remove_component)
 					{
@@ -821,8 +757,7 @@ namespace won::editor
 				{
 					ImGui::PushID("HierarchyComponent");
 					ImGui::Text("HierarchyComponent");
-					ImGui::SameLine();
-					bool remove_component = ImGui::Button("Remove");
+					bool remove_component = DrawComponentRemoveButton("HierarchyComponent");
 
 					if (!remove_component)
 					{
@@ -846,8 +781,7 @@ namespace won::editor
 				{
 					ImGui::PushID("LightComponent");
 					ImGui::Text("LightComponent");
-					ImGui::SameLine();
-					bool remove_component = ImGui::Button("Remove");
+					bool remove_component = DrawComponentRemoveButton("LightComponent");
 					
 					if (!remove_component)
 					{
@@ -917,17 +851,8 @@ namespace won::editor
 				{
 					ImGui::PushID("CameraComponent");
 					ImGui::Text("CameraComponent");
-					ImGui::SameLine();
 					const bool can_remove_camera = picked_entity != camera_entity;
-					if (!can_remove_camera)
-					{
-						ImGui::BeginDisabled();
-					}
-					bool remove_component = ImGui::Button("Remove");
-					if (!can_remove_camera)
-					{
-						ImGui::EndDisabled();
-					}
+					bool remove_component = DrawComponentRemoveButton("CameraComponent", can_remove_camera);
 
 					if (!remove_component)
 					{
@@ -985,8 +910,7 @@ namespace won::editor
 				{
 					ImGui::PushID("SkyComponent");
 					ImGui::Text("SkyComponent");
-					ImGui::SameLine();
-					bool remove_component = ImGui::Button("Remove");
+					bool remove_component = DrawComponentRemoveButton("SkyComponent");
 
 					if (!remove_component)
 					{
@@ -994,6 +918,23 @@ namespace won::editor
 						if (ImGui::Checkbox("Active", &is_active))
 						{
 							sky_comp->SetActive(is_active);
+						}
+
+						float sun_direction[3] = { sky_comp->sun_direction.x, sky_comp->sun_direction.y, sky_comp->sun_direction.z };
+						if (ImGui::DragFloat3("Sun Direction", sun_direction, 0.01f, -1.0f, 1.0f))
+						{
+							float3 direction = { sun_direction[0], sun_direction[1], sun_direction[2] };
+							const float direction_length_sq = math::LengthSquared(direction);
+							if (direction_length_sq > 0.0f)
+							{
+								const float inv_direction_length = 1.0f / std::sqrt(direction_length_sq);
+								sky_comp->sun_direction =
+								{
+									direction.x * inv_direction_length,
+									direction.y * inv_direction_length,
+									direction.z * inv_direction_length,
+								};
+							}
 						}
 
 						float sun_color[3] = { sky_comp->sun_color.x, sky_comp->sun_color.y, sky_comp->sun_color.z };
@@ -1100,8 +1041,7 @@ namespace won::editor
 				{
 					ImGui::PushID("EnvironmentLightingComponent");
 					ImGui::Text("EnvironmentLightingComponent");
-					ImGui::SameLine();
-					bool remove_component = ImGui::Button("Remove");
+					bool remove_component = DrawComponentRemoveButton("EnvironmentLightingComponent");
 
 					if (!remove_component)
 					{
@@ -1234,8 +1174,7 @@ namespace won::editor
 				{
 					ImGui::PushID("GeometryComponent");
 					ImGui::Text("GeometryComponent");
-					ImGui::SameLine();
-					bool remove_component = ImGui::Button("Remove");
+					bool remove_component = DrawComponentRemoveButton("GeometryComponent");
 
 					if (!remove_component)
 					{
@@ -1261,8 +1200,7 @@ namespace won::editor
 				{
 					ImGui::PushID("MaterialComponent");
 					ImGui::Text("MaterialComponent");
-					ImGui::SameLine();
-					bool remove_component = ImGui::Button("Remove");
+					bool remove_component = DrawComponentRemoveButton("MaterialComponent");
 
 					if (!remove_component)
 					{
@@ -1408,6 +1346,91 @@ namespace won::editor
 
 					ImGui::PopID();
 					ImGui::Separator();
+				}
+
+				if (ImGui::Button("Add Component", ImVec2(-1.0f, 0.0f)))
+				{
+					ImGui::OpenPopup("AddComponentPopup");
+				}
+
+				if (ImGui::BeginPopup("AddComponentPopup"))
+				{
+					if (ImGui::MenuItem("NameComponent"))
+					{
+						if (main_view.scene->GetComponent<NameComponent>(picked_entity) == nullptr)
+						{
+							if (NameComponent* name = main_view.scene->AddComponent<NameComponent>(picked_entity))
+							{
+								name->value = "Entity " + std::to_string(picked_entity);
+							}
+						}
+					}
+
+					if (ImGui::MenuItem("TransformComponent"))
+					{
+						if (main_view.scene->GetComponent<TransformComponent>(picked_entity) == nullptr)
+						{
+							main_view.scene->AddComponent<TransformComponent>(picked_entity);
+						}
+					}
+
+					if (ImGui::MenuItem("HierarchyComponent"))
+					{
+						if (main_view.scene->GetComponent<HierarchyComponent>(picked_entity) == nullptr)
+						{
+							main_view.scene->AddComponent<HierarchyComponent>(picked_entity);
+						}
+					}
+
+					if (ImGui::MenuItem("CameraComponent"))
+					{
+						if (main_view.scene->GetComponent<CameraComponent>(picked_entity) == nullptr)
+						{
+							main_view.scene->AddComponent<CameraComponent>(picked_entity);
+						}
+					}
+
+					if (ImGui::MenuItem("LightComponent"))
+					{
+						if (main_view.scene->GetComponent<LightComponent>(picked_entity) == nullptr)
+						{
+							main_view.scene->AddComponent<LightComponent>(picked_entity);
+						}
+					}
+
+					if (ImGui::MenuItem("SkyComponent"))
+					{
+						if (main_view.scene->GetComponent<SkyComponent>(picked_entity) == nullptr)
+						{
+							main_view.scene->AddComponent<SkyComponent>(picked_entity);
+						}
+					}
+
+					if (ImGui::MenuItem("EnvironmentLightingComponent"))
+					{
+						if (main_view.scene->GetComponent<EnvironmentLightingComponent>(picked_entity) == nullptr)
+						{
+							main_view.scene->AddComponent<EnvironmentLightingComponent>(picked_entity);
+						}
+					}
+
+					if (ImGui::MenuItem("GeometryComponent"))
+					{
+						if (main_view.scene->GetComponent<GeometryComponent>(picked_entity) == nullptr)
+						{
+							main_view.scene->AddComponent<GeometryComponent>(picked_entity);
+						}
+					}
+
+					if (ImGui::MenuItem("MaterialComponent"))
+					{
+						if (main_view.scene->GetComponent<MaterialComponent>(picked_entity) == nullptr)
+						{
+							main_view.scene->AddComponent<MaterialComponent>(picked_entity);
+						}
+					}
+
+					ImGui::EndPopup();
 				}
 			}
 		}
