@@ -16,6 +16,7 @@ namespace won::rendering
         void EndFrame() override;
         void WaitIdle() override;
         void Shutdown() override;
+        RendererDebugState GetDebugState() const override;
 
         bool AllocateFrameUpload(FrameContext& frame_context, Size size, Size alignment, FrameUploadAllocation& out_allocation) override;
         bool BuildFrameContext(const View& view, FrameContext& frame_context) override;
@@ -61,6 +62,8 @@ namespace won::rendering
         std::shared_ptr<RHIResource> shadow_map_atlas;
         RHISubresourceHandle shadow_map_atlas_dsv = {};
         RHISubresourceHandle shadow_map_atlas_srv = {};
+
+        RendererDebugState debug_state = {};
 
         uint2 shadow_map_atlas_size = { 0, 0 };
         std::array<RHISubresourceHandle, max_frames_in_flight> back_buffers_rtv = {};

@@ -24,6 +24,10 @@ namespace won::rendering
         RendererType type = RendererType::Forward;
     };
 
+    struct RendererDebugState
+    {
+    };
+
     constexpr RHIFormat RENDERTARGET_BUFFER_FORMAT = RHIFormat::R8G8B8A8Unorm;
     constexpr RHIFormat DEPTH_BUFFER_FORMAT = RHIFormat::D32Float;
 
@@ -39,6 +43,7 @@ namespace won::rendering
         virtual void EndFrame() = 0;
         virtual void WaitIdle() = 0;
         virtual void Shutdown() = 0;
+        virtual RendererDebugState GetDebugState() const = 0;
 
         struct FrameContext
         {

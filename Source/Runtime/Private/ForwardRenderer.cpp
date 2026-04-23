@@ -10,6 +10,8 @@
 #include "CameraComponent.h"
 #include "RectPacker.h"
 
+#include "ShaderInterop.h"
+
 #include <cstring>
 #include <cmath>
 
@@ -26,6 +28,11 @@ namespace won::rendering
             frame_context.deferred_res_removal.push_back(resource);
             resource = nullptr;
         }
+    }
+
+    RendererDebugState ForwardRenderer::GetDebugState() const
+    {
+        return debug_state;
     }
 
     bool ForwardRenderer::AllocateFrameUpload(FrameContext& frame_context, Size size, Size alignment, FrameUploadAllocation& out_allocation)
@@ -1300,6 +1307,7 @@ namespace won::rendering
         shadow_map_atlas_srv = {};
         shadow_map_atlas = nullptr;
         shadow_map_atlas_size = { 0, 0 };
+        debug_state = {};
         back_buffers_rtv = {};
         depth_buffer_dsv = {};
         depth_buffer = nullptr;
