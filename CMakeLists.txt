@@ -178,7 +178,9 @@ set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/CameraComponent.h
     Source/Runtime/Public/LightComponent.h
     Source/Runtime/Public/SkyComponent.h
+    Source/Runtime/Public/FogVolumeComponent.h
     Source/Runtime/Public/EnvironmentLightingComponent.h
+    Source/Runtime/Public/DDGIVolumeComponent.h
 )
 
 set(RUNTIME_ECS_SYSTEMS

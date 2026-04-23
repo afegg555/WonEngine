@@ -1010,40 +1010,11 @@ namespace won::editor
 				{
 					ImGui::PushID("FogVolumeComponent");
 					ImGui::Text("FogVolumeComponent");
-					ImGui::SameLine();
-					bool remove_component = ImGui::Button("Remove");
+					bool remove_component = DrawComponentRemoveButton("FogVolumeComponent");
 
 					if (!remove_component)
 					{
-						bool is_active = fog_volume_comp->IsActive();
-						if (ImGui::Checkbox("Active", &is_active))
-						{
-							fog_volume_comp->SetActive(is_active);
-						}
 
-						float half_extents[3] = { fog_volume_comp->half_extents.x, fog_volume_comp->half_extents.y, fog_volume_comp->half_extents.z };
-						if (ImGui::InputFloat3("Half Extents", half_extents))
-						{
-							fog_volume_comp->half_extents = { half_extents[0], half_extents[1], half_extents[2] };
-						}
-
-						float color[3] = { fog_volume_comp->color.x, fog_volume_comp->color.y, fog_volume_comp->color.z };
-						if (ImGui::InputFloat3("Color", color))
-						{
-							fog_volume_comp->color = { color[0], color[1], color[2] };
-						}
-
-						ImGui::DragFloat("Density", &fog_volume_comp->density, 0.001f, 0.0f, 10.0f);
-						ImGui::DragFloat("Height Falloff", &fog_volume_comp->height_falloff, 0.001f, 0.0f, 100.0f);
-						ImGui::DragFloat("Height Offset", &fog_volume_comp->height_offset, 0.01f, -100000.0f, 100000.0f);
-						ImGui::DragFloat("Blend Distance", &fog_volume_comp->blend_distance, 0.01f, 0.0f, 100000.0f);
-						ImGui::SliderFloat("Max Opacity", &fog_volume_comp->max_opacity, 0.0f, 1.0f);
-
-						int priority = static_cast<int>(fog_volume_comp->priority);
-						if (ImGui::InputInt("Priority", &priority))
-						{
-							fog_volume_comp->priority = static_cast<uint32>((std::max)(0, priority));
-						}
 					}
 					else
 					{
@@ -1100,83 +1071,11 @@ namespace won::editor
 				{
 					ImGui::PushID("DDGIVolumeComponent");
 					ImGui::Text("DDGIVolumeComponent");
-					ImGui::SameLine();
-					bool remove_component = ImGui::Button("Remove");
+					bool remove_component = DrawComponentRemoveButton("DDGIVolumeComponent");
 
 					if (!remove_component)
 					{
-						bool is_active = ddgi_volume_comp->IsActive();
-						if (ImGui::Checkbox("Active", &is_active))
-						{
-							ddgi_volume_comp->SetActive(is_active);
-						}
 
-						bool is_dynamic = ddgi_volume_comp->IsDynamic();
-						if (ImGui::Checkbox("Dynamic", &is_dynamic))
-						{
-							ddgi_volume_comp->SetDynamic(is_dynamic);
-						}
-
-						int probe_counts[3] = {
-							static_cast<int>(ddgi_volume_comp->probe_counts.x),
-							static_cast<int>(ddgi_volume_comp->probe_counts.y),
-							static_cast<int>(ddgi_volume_comp->probe_counts.z)
-						};
-						if (ImGui::InputInt3("Probe Counts", probe_counts))
-						{
-							ddgi_volume_comp->probe_counts = {
-								static_cast<uint32>((std::max)(1, probe_counts[0])),
-								static_cast<uint32>((std::max)(1, probe_counts[1])),
-								static_cast<uint32>((std::max)(1, probe_counts[2]))
-							};
-						}
-
-						float probe_spacing[3] = { ddgi_volume_comp->probe_spacing.x, ddgi_volume_comp->probe_spacing.y, ddgi_volume_comp->probe_spacing.z };
-						if (ImGui::InputFloat3("Probe Spacing", probe_spacing))
-						{
-							ddgi_volume_comp->probe_spacing = { probe_spacing[0], probe_spacing[1], probe_spacing[2] };
-						}
-
-						float volume_offset[3] = { ddgi_volume_comp->volume_offset.x, ddgi_volume_comp->volume_offset.y, ddgi_volume_comp->volume_offset.z };
-						if (ImGui::InputFloat3("Volume Offset", volume_offset))
-						{
-							ddgi_volume_comp->volume_offset = { volume_offset[0], volume_offset[1], volume_offset[2] };
-						}
-
-						int rays_per_probe = static_cast<int>(ddgi_volume_comp->rays_per_probe);
-						if (ImGui::InputInt("Rays Per Probe", &rays_per_probe))
-						{
-							ddgi_volume_comp->rays_per_probe = static_cast<uint32>((std::max)(1, rays_per_probe));
-						}
-
-						int irradiance_resolution = static_cast<int>(ddgi_volume_comp->irradiance_resolution);
-						if (ImGui::InputInt("Irradiance Resolution", &irradiance_resolution))
-						{
-							ddgi_volume_comp->irradiance_resolution = static_cast<uint32>((std::max)(1, irradiance_resolution));
-						}
-
-						int visibility_resolution = static_cast<int>(ddgi_volume_comp->visibility_resolution);
-						if (ImGui::InputInt("Visibility Resolution", &visibility_resolution))
-						{
-							ddgi_volume_comp->visibility_resolution = static_cast<uint32>((std::max)(1, visibility_resolution));
-						}
-
-						int probes_per_frame = static_cast<int>(ddgi_volume_comp->probes_per_frame);
-						if (ImGui::InputInt("Probes Per Frame", &probes_per_frame))
-						{
-							ddgi_volume_comp->probes_per_frame = static_cast<uint32>((std::max)(1, probes_per_frame));
-						}
-
-						int priority = static_cast<int>(ddgi_volume_comp->priority);
-						if (ImGui::InputInt("Priority", &priority))
-						{
-							ddgi_volume_comp->priority = static_cast<uint32>((std::max)(0, priority));
-						}
-
-						ImGui::SliderFloat("Hysteresis", &ddgi_volume_comp->hysteresis, 0.0f, 1.0f);
-						ImGui::DragFloat("Normal Bias", &ddgi_volume_comp->normal_bias, 0.001f, 0.0f, 100.0f);
-						ImGui::DragFloat("View Bias", &ddgi_volume_comp->view_bias, 0.001f, 0.0f, 100.0f);
-						ImGui::DragFloat("Max Distance", &ddgi_volume_comp->max_distance, 0.01f, 0.0f, 100000.0f);
 					}
 					else
 					{
@@ -1424,11 +1323,27 @@ namespace won::editor
 						}
 					}
 
+					if (ImGui::MenuItem("FogVolumeComponent"))
+					{
+						if (main_view.scene->GetComponent<FogVolumeComponent>(picked_entity) == nullptr)
+						{
+							main_view.scene->AddComponent<FogVolumeComponent>(picked_entity);
+						}
+					}
+
 					if (ImGui::MenuItem("EnvironmentLightingComponent"))
 					{
 						if (main_view.scene->GetComponent<EnvironmentLightingComponent>(picked_entity) == nullptr)
 						{
 							main_view.scene->AddComponent<EnvironmentLightingComponent>(picked_entity);
+						}
+					}
+
+					if (ImGui::MenuItem("DDGIVolumeComponent"))
+					{
+						if (main_view.scene->GetComponent<DDGIVolumeComponent>(picked_entity) == nullptr)
+						{
+							main_view.scene->AddComponent<DDGIVolumeComponent>(picked_entity);
 						}
 					}
 
@@ -1903,6 +1818,7 @@ namespace won::editor
 				auto env = scene.AddComponent<ecs::SkyComponent>(env_entity);
 				env->SetActive(true);
 				scene.AddComponent<ecs::EnvironmentLightingComponent>(env_entity);
+				scene.AddComponent<ecs::DDGIVolumeComponent>(env_entity);
 
 				auto name = scene.AddComponent<ecs::NameComponent>(env_entity);
 				name->value = "Environment";

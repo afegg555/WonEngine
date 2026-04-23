@@ -48,7 +48,9 @@ namespace won::ecs
             component_manager.RegisterComponent<CameraComponent>();
             component_manager.RegisterComponent<LightComponent>();
             component_manager.RegisterComponent<SkyComponent>();
+            component_manager.RegisterComponent<FogVolumeComponent>();
             component_manager.RegisterComponent<EnvironmentLightingComponent>();
+            component_manager.RegisterComponent<DDGIVolumeComponent>();
 
             AddSystem(std::make_shared<TransformUpdateSystem>());
             AddSystem(std::make_shared<EnvironmentUpdateSystem>());
