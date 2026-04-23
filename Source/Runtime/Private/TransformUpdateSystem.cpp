@@ -73,7 +73,7 @@ namespace won::ecs
             }
 
             const GeometryComponent& geometry = geometry_array->GetData(entity);
-            transform.world_bounds = math::TransformAABB(geometry.local_bounds, transform.world_transform);
+            transform.world_bounds = geometry.local_bounds.TransformAABB(transform.world_transform);
 
             if (geometry.IsCastShadow())
             {

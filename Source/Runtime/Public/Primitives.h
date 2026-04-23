@@ -5,6 +5,12 @@
 
 namespace won::math
 {
+    struct Ray
+    {
+        float3 origin = {};
+        float3 direction = { 0.0f, 0.0f, 1.0f };
+    };
+
     struct AABB
     {
         float3 min = {};
@@ -61,63 +67,103 @@ namespace won::math
                 (max.y - min.y) * 0.5f,
                 (max.z - min.z) * 0.5f };
         }
-    };
 
-    inline AABB TransformAABB(const AABB& aabb, const XMMATRIX& transform)
-    {
-        AABB transformed_aabb = {};
-        transformed_aabb.Invalidate();
-        if (!aabb.IsValid())
+        inline AABB TransformAABB(const XMMATRIX& transform) const
         {
+            AABB transformed_aabb = {};
+            transformed_aabb.Invalidate();
+            if (!IsValid())
+            {
+                return transformed_aabb;
+            }
+
+            const float3 corners[8] = {
+                { min.x, min.y, min.z },
+                { max.x, min.y, min.z },
+                { min.x, max.y, min.z },
+                { max.x, max.y, min.z },
+                { min.x, min.y, max.z },
+                { max.x, min.y, max.z },
+                { min.x, max.y, max.z },
+                { max.x, max.y, max.z }
+            };
+
+            for (const float3& corner : corners)
+            {
+                const XMVECTOR world_corner = XMVector3TransformCoord(XMLoadFloat3(&corner), transform);
+                float3 transformed_corner = {};
+                XMStoreFloat3(&transformed_corner, world_corner);
+
+                if (!transformed_aabb.IsValid())
+                {
+                    transformed_aabb.min = transformed_corner;
+                    transformed_aabb.max = transformed_corner;
+                    continue;
+                }
+
+                transformed_aabb.min.x = (std::min)(transformed_aabb.min.x, transformed_corner.x);
+                transformed_aabb.min.y = (std::min)(transformed_aabb.min.y, transformed_corner.y);
+                transformed_aabb.min.z = (std::min)(transformed_aabb.min.z, transformed_corner.z);
+                transformed_aabb.max.x = (std::max)(transformed_aabb.max.x, transformed_corner.x);
+                transformed_aabb.max.y = (std::max)(transformed_aabb.max.y, transformed_corner.y);
+                transformed_aabb.max.z = (std::max)(transformed_aabb.max.z, transformed_corner.z);
+            }
+
             return transformed_aabb;
         }
 
-        const float3 corners[8] = {
-            { aabb.min.x, aabb.min.y, aabb.min.z },
-            { aabb.max.x, aabb.min.y, aabb.min.z },
-            { aabb.min.x, aabb.max.y, aabb.min.z },
-            { aabb.max.x, aabb.max.y, aabb.min.z },
-            { aabb.min.x, aabb.min.y, aabb.max.z },
-            { aabb.max.x, aabb.min.y, aabb.max.z },
-            { aabb.min.x, aabb.max.y, aabb.max.z },
-            { aabb.max.x, aabb.max.y, aabb.max.z }
-        };
-
-        for (const float3& corner : corners)
+        inline AABB TransformAABB(const float4x4& transform) const
         {
-            const XMVECTOR world_corner = XMVector3TransformCoord(XMLoadFloat3(&corner), transform);
-            float3 transformed_corner = {};
-            XMStoreFloat3(&transformed_corner, world_corner);
-
-            if (!transformed_aabb.IsValid())
-            {
-                transformed_aabb.min = transformed_corner;
-                transformed_aabb.max = transformed_corner;
-                continue;
-            }
-
-            transformed_aabb.min.x = (std::min)(transformed_aabb.min.x, transformed_corner.x);
-            transformed_aabb.min.y = (std::min)(transformed_aabb.min.y, transformed_corner.y);
-            transformed_aabb.min.z = (std::min)(transformed_aabb.min.z, transformed_corner.z);
-            transformed_aabb.max.x = (std::max)(transformed_aabb.max.x, transformed_corner.x);
-            transformed_aabb.max.y = (std::max)(transformed_aabb.max.y, transformed_corner.y);
-            transformed_aabb.max.z = (std::max)(transformed_aabb.max.z, transformed_corner.z);
+            const XMMATRIX world = XMLoadFloat4x4(&transform);
+            return TransformAABB(world);
         }
 
-        return transformed_aabb;
-    }
+        inline bool IntersectAABB(const Ray& ray, float min_distance, float max_distance, float& out_distance) const
+        {
+            if (!IsValid())
+            {
+                return false;
+            }
 
-    inline AABB TransformAABB(const AABB& aabb, const float4x4& transform)
-    {
-        const XMMATRIX world = XMLoadFloat4x4(&transform);
+            float near_distance = min_distance;
+            float far_distance = max_distance;
+            auto get_axis_value = [](const float3& value, uint32 axis) { return axis == 0 ? value.x : (axis == 1 ? value.y : value.z); };
 
-        return TransformAABB(aabb, world);
-    }
+            for (uint32 axis = 0; axis < 3; ++axis)
+            {
+                const float origin = get_axis_value(ray.origin, axis);
+                const float direction = get_axis_value(ray.direction, axis);
+                const float bounds_min = get_axis_value(min, axis);
+                const float bounds_max = get_axis_value(max, axis);
 
-    struct Ray
-    {
-        float3 origin = {};
-        float3 direction = { 0.0f, 0.0f, 1.0f };
+                if (std::abs(direction) < 0.000001f)
+                {
+                    if (origin < bounds_min || origin > bounds_max)
+                    {
+                        return false;
+                    }
+                    continue;
+                }
+
+                const float inv_direction = 1.0f / direction;
+                float t0 = (bounds_min - origin) * inv_direction;
+                float t1 = (bounds_max - origin) * inv_direction;
+                if (t0 > t1)
+                {
+                    std::swap(t0, t1);
+                }
+
+                near_distance = (std::max)(near_distance, t0);
+                far_distance = (std::min)(far_distance, t1);
+                if (near_distance > far_distance)
+                {
+                    return false;
+                }
+            }
+
+            out_distance = near_distance;
+            return true;
+        }
     };
 
     struct Plane

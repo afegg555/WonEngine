@@ -636,7 +636,7 @@ namespace won::rendering
                 caster_light_bound.Invalidate();
                 if (render_data.shadow_caster_world_bound.IsValid())
                 {
-                    caster_light_bound = math::TransformAABB(render_data.shadow_caster_world_bound, shadow_view);
+                    caster_light_bound = render_data.shadow_caster_world_bound.TransformAABB(shadow_view);
                 }
 
                 float3 cascade_center_ls = frustum_light_bound.GetCenter();

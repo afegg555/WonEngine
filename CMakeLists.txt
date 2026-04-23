@@ -156,6 +156,7 @@ set(RUNTIME_SERIALIZATION
 set(RUNTIME_MATH
     Source/Runtime/Public/MathTypes.h
     Source/Runtime/Public/MathUtils.h
+    Source/Runtime/Public/BVH.h
     Source/Runtime/Public/Primitives.h
 )
 
