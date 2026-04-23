@@ -522,6 +522,13 @@ namespace won::rendering
                 srv_desc.Texture2D.ResourceMinLODClamp = 0.0f;
             }
         }
+        else if (native_desc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D)
+        {
+            srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE3D;
+            srv_desc.Texture3D.MostDetailedMip = desc.first_mip;
+            srv_desc.Texture3D.MipLevels = desc.mip_count;
+            srv_desc.Texture3D.ResourceMinLODClamp = 0.0f;
+        }
         else
         {
             backlog::Post("Unsupported SRV dimension", backlog::LogLevel::Error);
@@ -582,6 +589,14 @@ namespace won::rendering
                 uav_desc.Texture2D.MipSlice = desc.first_mip;
                 uav_desc.Texture2D.PlaneSlice = 0;
             }
+        }
+        else if (native_desc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D)
+        {
+            const uint32 slice_count = desc.slice_count > 0 ? desc.slice_count : resource_desc.texture_desc.depth;
+            uav_desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE3D;
+            uav_desc.Texture3D.MipSlice = desc.first_mip;
+            uav_desc.Texture3D.FirstWSlice = desc.first_slice;
+            uav_desc.Texture3D.WSize = slice_count;
         }
         else
         {
