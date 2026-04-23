@@ -30,6 +30,8 @@
 
 #endif // __cplusplus
 
+#define DISPATCH_THREAD_GROUP_3D 4
+#define DISPATCH_THREAD_GROUP_2D 8
 
 // Common buffers:
 // These are usable by all shaders
