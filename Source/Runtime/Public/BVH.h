@@ -90,7 +90,7 @@ namespace won::math
                     AABB bounds = {};
                     bounds.Invalidate();
                     AABB centroid_bounds = {};
-                    centroid_bounds.Invalidate();
+                    centroid_bounds.Invalidate(); // bounds of centroids
 
                     for (int i = primitive_begin; i < primitive_end; ++i)
                     {

@@ -1,6 +1,8 @@
 #pragma once
 #include "MathUtils.h"
 #include "Primitives.h"
+#include "BVH.h"
+#include "Backlog.h"
 #include "RHIDevice.h"
 #include "ResourceLoader.h"
 #include "RHIResource.h"
@@ -29,10 +31,45 @@ namespace won::resource
         Vector<float2> texcoords;
         Vector<uint32> indices;
         Vector<Submesh> submeshes;
+        math::bvh::BVH local_bvh;
 
         bool IsValid() const override
         {
             return !positions.empty() && !indices.empty();
+        }
+
+        void BuildBVH()
+        {
+            Vector<math::bvh::BVHPrimitive> primitives;
+            primitives.reserve(indices.size() / 3);
+            for (uint32 index = 0; index + 2 < indices.size(); index += 3)
+            {
+                const uint32 i0 = indices[index];
+                const uint32 i1 = indices[index + 1];
+                const uint32 i2 = indices[index + 2];
+                if (i0 >= positions.size() || i1 >= positions.size() || i2 >= positions.size())
+                {
+                    continue;
+                }
+
+                math::AABB bounds = {};
+                bounds.Invalidate();
+                math::AABB vertex_bounds = {};
+                vertex_bounds.min = positions[i0];
+                vertex_bounds.max = positions[i0];
+                bounds.Merge(vertex_bounds);
+                vertex_bounds.min = positions[i1];
+                vertex_bounds.max = positions[i1];
+                bounds.Merge(vertex_bounds);
+                vertex_bounds.min = positions[i2];
+                vertex_bounds.max = positions[i2];
+                bounds.Merge(vertex_bounds);
+
+                primitives.push_back(math::bvh::MakePrimitive(bounds, index / 3));
+            }
+
+            local_bvh.Build(primitives);
+            backlog::Post("Mesh local BVH built: " + std::to_string(primitives.size()) + " triangles");
         }
 
         struct VBSubresource

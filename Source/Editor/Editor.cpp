@@ -357,8 +357,20 @@ namespace won::editor
 		if (0 <= viewport_mouse_pos.x && viewport_mouse_pos.x <= main_viewport_size.x &&
 			0 <= viewport_mouse_pos.y && viewport_mouse_pos.y <= main_viewport_size.y)
 		{
-			if (io::IsPressed(io::Button::MOUSE_BUTTON_LEFT) || io::IsPressed(io::Button::MOUSE_BUTTON_RIGHT)
-				|| io::IsPressed(io::Button::MOUSE_BUTTON_MIDDLE))
+			if (io::IsPressed(io::Button::MOUSE_BUTTON_LEFT))
+			{
+				ecs::RayCastHit hit = {};
+				if (main_view.RayCast(mouse_pos, hit, true))
+				{
+					picked_entity = hit.entity;
+				}
+				else
+				{
+					picked_entity = ecs::INVALID_ENTITY;
+				}
+			}
+
+			if (io::IsPressed(io::Button::MOUSE_BUTTON_RIGHT) || io::IsPressed(io::Button::MOUSE_BUTTON_MIDDLE))
 			{
 				pressed = true;
 
@@ -384,10 +396,11 @@ namespace won::editor
 				{
 					active_interaction = CameraInteractionMode::Orbit;
 				}
-				else
-				{
-					active_interaction = CameraInteractionMode::PanMove;
-				}
+				// PanMove is temporarily disabled so left mouse can be used for scene picking.
+				// else
+				// {
+				// 	active_interaction = CameraInteractionMode::PanMove;
+				// }
 
 				controller_api->BeginInteraction(camera_controller, active_interaction, camera_state);
 
@@ -412,7 +425,9 @@ namespace won::editor
 				camera_state.cam_pos = cam_pos;
 				camera_state.cam_rotation = transform->rotation;
 
-				const bool is_panmove = io::IsDown(io::Button::MOUSE_BUTTON_LEFT);
+				// PanMove is temporarily disabled so left mouse can be used for scene picking.
+				// const bool is_panmove = io::IsDown(io::Button::MOUSE_BUTTON_LEFT);
+				const bool is_panmove = false;
 				const bool is_rotate = io::IsDown(io::Button::MOUSE_BUTTON_RIGHT);
 				const bool is_orbit = io::IsDown(io::Button::MOUSE_BUTTON_MIDDLE);
 
@@ -430,7 +445,9 @@ namespace won::editor
 			bool interaction_finished = false;
 			if (active_interaction == CameraInteractionMode::PanMove)
 			{
-				interaction_finished = !io::IsDown(io::Button::MOUSE_BUTTON_LEFT);
+				// PanMove is temporarily disabled so left mouse can be used for scene picking.
+				// interaction_finished = !io::IsDown(io::Button::MOUSE_BUTTON_LEFT);
+				interaction_finished = true;
 			}
 			else if (active_interaction == CameraInteractionMode::Rotate)
 			{
@@ -634,10 +651,11 @@ namespace won::editor
 							label += " (" + name->value + ")";
 						}
 
-						const bool is_selected = (selected_index == i);
+						const bool is_selected = (picked_entity == id);
 						if (ImGui::Selectable(label.c_str(), is_selected))
 						{
 							selected_index = i;
+							picked_entity = id;
 						}
 
 						if (ImGui::BeginPopupContextItem("EntityContextMenu"))
@@ -656,7 +674,7 @@ namespace won::editor
 						if (is_selected)
 						{
 							ImGui::SetItemDefaultFocus();
-							picked_entity = id;
+							selected_index = i;
 						}
 
 						ImGui::PopID();
@@ -1925,8 +1943,8 @@ namespace won::editor
 					submesh.index_count = 6;
 					submesh.first_vertex = 0;
 					submesh.material_slot = 0;
-					//submesh.local_bounds.min = { -0.5f, -0.5f, 0.0f };
-					//submesh.local_bounds.max = { 0.5f, 0.5f, 0.0f };
+					submesh.local_bounds.min = { -1.0f, 0.0f, -1.0f };
+					submesh.local_bounds.max = { 1.0f, 0.0f, 1.0f };
 					mesh->submeshes.push_back(submesh);
 
 					geometry->mesh = mesh;
