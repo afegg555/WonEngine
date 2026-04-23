@@ -467,6 +467,76 @@ namespace won::rendering
             }
         }
 
+        if ((render_data.shader_ddgi_volume.flags & SHADER_DDGI_FLAG_ACTIVE) == 0)
+        {
+            RemoveResourceDeferred(frame_context, ddgi_irradiance_texture);
+            ddgi_irradiance_texture_srv = {};
+            ddgi_irradiance_texture_uav = {};
+            ddgi_probe_counts = { 0, 0, 0 };
+        }
+        else
+        {
+            const bool recreate_ddgi_texture =
+                !ddgi_irradiance_texture ||
+                !ddgi_irradiance_texture_srv.IsValid() ||
+                !ddgi_irradiance_texture_uav.IsValid() ||
+                ddgi_probe_counts.x != render_data.shader_ddgi_volume.probe_counts.x ||
+                ddgi_probe_counts.y != render_data.shader_ddgi_volume.probe_counts.y ||
+                ddgi_probe_counts.z != render_data.shader_ddgi_volume.probe_counts.z;
+
+            if (recreate_ddgi_texture)
+            {
+                RemoveResourceDeferred(frame_context, ddgi_irradiance_texture);
+                RHITextureDesc ddgi_irradiance_texture_desc = {};
+                ddgi_irradiance_texture_desc.width = (std::max)(render_data.shader_ddgi_volume.probe_counts.x, 1u);
+                ddgi_irradiance_texture_desc.height = (std::max)(render_data.shader_ddgi_volume.probe_counts.y, 1u);
+                ddgi_irradiance_texture_desc.depth = (std::max)(render_data.shader_ddgi_volume.probe_counts.z, 1u);
+                ddgi_irradiance_texture_desc.mip_levels = 1;
+                ddgi_irradiance_texture_desc.array_layers = 1;
+                ddgi_irradiance_texture_desc.sample_count = 1;
+                ddgi_irradiance_texture_desc.format = RHIFormat::R16G16B16A16Float;
+                ddgi_irradiance_texture_desc.usage = RHIResourceUsage::Default;
+                ddgi_irradiance_texture_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
+                ddgi_irradiance_texture = device->CreateTexture(ddgi_irradiance_texture_desc);
+                if (!ddgi_irradiance_texture)
+                {
+                    backlog::Post("failed to create ddgi irradiance texture", backlog::LogLevel::Error);
+                    return false;
+                }
+                ddgi_irradiance_texture->SetName("DDGI Irradiance Texture");
+
+                ddgi_irradiance_texture_srv = {};
+                RHISubresourceDesc ddgi_irradiance_srv_desc = {};
+                ddgi_irradiance_srv_desc.type = RHISubresourceType::ShaderResource;
+                ddgi_irradiance_srv_desc.format = ddgi_irradiance_texture_desc.format;
+                ddgi_irradiance_srv_desc.first_mip = 0;
+                ddgi_irradiance_srv_desc.mip_count = 1;
+                if (!device->CreateSubresource(*ddgi_irradiance_texture, ddgi_irradiance_srv_desc, &ddgi_irradiance_texture_srv))
+                {
+                    backlog::Post("failed to create ddgi irradiance srv", backlog::LogLevel::Error);
+                    ddgi_irradiance_texture = nullptr;
+                    return false;
+                }
+
+                ddgi_irradiance_texture_uav = {};
+                RHISubresourceDesc ddgi_irradiance_uav_desc = {};
+                ddgi_irradiance_uav_desc.type = RHISubresourceType::UnorderedAccess;
+                ddgi_irradiance_uav_desc.format = ddgi_irradiance_texture_desc.format;
+                ddgi_irradiance_uav_desc.first_mip = 0;
+                ddgi_irradiance_uav_desc.mip_count = 1;
+                ddgi_irradiance_uav_desc.first_slice = 0;
+                ddgi_irradiance_uav_desc.slice_count = ddgi_irradiance_texture_desc.depth;
+                if (!device->CreateSubresource(*ddgi_irradiance_texture, ddgi_irradiance_uav_desc, &ddgi_irradiance_texture_uav))
+                {
+                    backlog::Post("failed to create ddgi irradiance uav", backlog::LogLevel::Error);
+                    ddgi_irradiance_texture = nullptr;
+                    return false;
+                }
+
+                ddgi_probe_counts = render_data.shader_ddgi_volume.probe_counts;
+            }
+        }
+
         ShaderFrame shader_frame{};
         shader_frame.Init();
         shader_frame.scene.instancebuffer = shader_instance_default_buffer_srv.descriptor_index;
@@ -478,6 +548,9 @@ namespace won::rendering
         shader_frame.scene.shadow_cascade_buffer = shader_shadow_cascade_default_buffer_srv.descriptor_index;
         shader_frame.sky = render_data.shader_sky;
         shader_frame.environment_lighting = render_data.shader_environment_lighting;
+        shader_frame.ddgi_volume = render_data.shader_ddgi_volume;
+        shader_frame.ddgi_volume.irradiance_texture = ddgi_irradiance_texture_srv.descriptor_index;
+        shader_frame.ddgi_volume.irradiance_texture_uav = ddgi_irradiance_texture_uav.descriptor_index;
 
         ShaderCamera shader_camera{};
         shader_camera.Init();
@@ -1004,6 +1077,35 @@ namespace won::rendering
         }
 
         const Scene::RenderData& render_data = view.scene->GetRenderData();
+        debug_state.ddgi = {};
+        debug_state.ddgi.gi_mode_ddgi = render_data.shader_environment_lighting.gi_mode == SHADER_ENVIRONMENT_GI_MODE_DDGI;
+        debug_state.ddgi.volume_active = (render_data.shader_ddgi_volume.flags & SHADER_DDGI_FLAG_ACTIVE) != 0;
+        if (debug_state.ddgi.volume_active)
+        {
+            const uint3& probe_counts = render_data.shader_ddgi_volume.probe_counts;
+            const float3& probe_spacing = render_data.shader_ddgi_volume.probe_spacing;
+            const float3 probe_span = {
+                static_cast<float>((probe_counts.x > 0 ? probe_counts.x - 1 : 0)) * probe_spacing.x,
+                static_cast<float>((probe_counts.y > 0 ? probe_counts.y - 1 : 0)) * probe_spacing.y,
+                static_cast<float>((probe_counts.z > 0 ? probe_counts.z - 1 : 0)) * probe_spacing.z
+            };
+
+            debug_state.ddgi.volume_entity = render_data.ddgi_volume_entity;
+            debug_state.ddgi.probe_counts = probe_counts;
+            debug_state.ddgi.volume_min = render_data.shader_ddgi_volume.volume_min;
+            debug_state.ddgi.volume_max = {
+                render_data.shader_ddgi_volume.volume_min.x + probe_span.x,
+                render_data.shader_ddgi_volume.volume_min.y + probe_span.y,
+                render_data.shader_ddgi_volume.volume_min.z + probe_span.z
+            };
+            debug_state.ddgi.probe_spacing = probe_spacing;
+            debug_state.ddgi.total_probe_count = probe_counts.x * probe_counts.y * probe_counts.z;
+        }
+        debug_state.ddgi.irradiance_texture_allocated = ddgi_irradiance_texture != nullptr;
+        debug_state.ddgi.irradiance_srv_valid = ddgi_irradiance_texture_srv.IsValid();
+        debug_state.ddgi.irradiance_uav_valid = ddgi_irradiance_texture_uav.IsValid();
+        debug_state.ddgi.irradiance_texture_srv = ddgi_irradiance_texture_srv.descriptor_index;
+        debug_state.ddgi.irradiance_texture_uav = ddgi_irradiance_texture_uav.descriptor_index;
         if (render_data.shadow_map_atlas_size.x == 0 || render_data.shadow_map_atlas_size.y == 0)
         {
             RemoveResourceDeferred(frame_context, shadow_map_atlas);
@@ -1091,6 +1193,49 @@ namespace won::rendering
         RHISubresourceBinding shader_camera_binding = {};
         shader_camera_binding.resource = shader_camera_buffer.get();
         shader_camera_binding.subresource = shader_camera_buffer_cbv;
+
+        if (shader_library)
+        {
+            if (!ddgi_probe_update_pipeline)
+            {
+                RHIComputePipelineDesc ddgi_probe_update_pipeline_desc = {};
+                ddgi_probe_update_pipeline_desc.compute_shader = shader_library->GetShader(ShaderId::CSDDGIProbeUpdate).get();
+                ddgi_probe_update_pipeline = device->CreateComputePipeline(ddgi_probe_update_pipeline_desc);
+                if (ddgi_probe_update_pipeline)
+                {
+                    ddgi_probe_update_pipeline->SetName("DDGI Probe Update Pipeline");
+                }
+            }
+        }
+        debug_state.ddgi.probe_update_pipeline_ready = ddgi_probe_update_pipeline != nullptr;
+
+        if (render_data.shader_environment_lighting.gi_mode == SHADER_ENVIRONMENT_GI_MODE_DDGI &&
+            (render_data.shader_ddgi_volume.flags & SHADER_DDGI_FLAG_ACTIVE) != 0 &&
+            ddgi_probe_update_pipeline &&
+            ddgi_irradiance_texture &&
+            ddgi_irradiance_texture_srv.IsValid() &&
+            ddgi_irradiance_texture_uav.IsValid())
+        {
+            debug_state.ddgi.dispatch_groups = {
+                (render_data.shader_ddgi_volume.probe_counts.x + DISPATCH_THREAD_GROUP_3D - 1) / DISPATCH_THREAD_GROUP_3D,
+                (render_data.shader_ddgi_volume.probe_counts.y + DISPATCH_THREAD_GROUP_3D - 1) / DISPATCH_THREAD_GROUP_3D,
+                (render_data.shader_ddgi_volume.probe_counts.z + DISPATCH_THREAD_GROUP_3D - 1) / DISPATCH_THREAD_GROUP_3D
+            };
+            auto gpu_range = profiler::ScopedRangeGPU("DDGI Probe Update", *frame_context.command_list);
+            frame_context.command_list->BeginEvent("DDGI Probe Update");
+            frame_context.command_list->TransitionResource(*ddgi_irradiance_texture, RHIResourceState::ShaderWrite);
+            frame_context.command_list->SetComputePipeline(*ddgi_probe_update_pipeline);
+            frame_context.command_list->SetConstantBuffer(RHIShaderStage::Compute, 0, shader_frame_binding);
+            frame_context.command_list->SetConstantBuffer(RHIShaderStage::Compute, 1, shader_camera_binding);
+            frame_context.command_list->Dispatch(
+                (render_data.shader_ddgi_volume.probe_counts.x + DISPATCH_THREAD_GROUP_3D - 1) / DISPATCH_THREAD_GROUP_3D,
+                (render_data.shader_ddgi_volume.probe_counts.y + DISPATCH_THREAD_GROUP_3D - 1) / DISPATCH_THREAD_GROUP_3D,
+                (render_data.shader_ddgi_volume.probe_counts.z + DISPATCH_THREAD_GROUP_3D - 1) / DISPATCH_THREAD_GROUP_3D);
+            frame_context.command_list->UAVBarrier(*ddgi_irradiance_texture);
+            frame_context.command_list->TransitionResource(*ddgi_irradiance_texture, RHIResourceState::ShaderRead);
+            frame_context.command_list->EndEvent();
+            debug_state.ddgi.probe_update_dispatched = true;
+        }
 
         frame_context.command_list->TransitionResource(*back_buffer, RHIResourceState::RenderTarget);
         frame_context.command_list->TransitionResource(*depth_buffer, RHIResourceState::DepthWrite);
@@ -1307,7 +1452,12 @@ namespace won::rendering
         shadow_map_atlas_srv = {};
         shadow_map_atlas = nullptr;
         shadow_map_atlas_size = { 0, 0 };
+        ddgi_irradiance_texture_uav = {};
+        ddgi_irradiance_texture_srv = {};
+        ddgi_irradiance_texture = nullptr;
+        ddgi_probe_update_pipeline = nullptr;
         debug_state = {};
+        ddgi_probe_counts = { 0, 0, 0 };
         back_buffers_rtv = {};
         depth_buffer_dsv = {};
         depth_buffer = nullptr;

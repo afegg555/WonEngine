@@ -548,6 +548,8 @@ namespace won::ecs
 
             ShaderSky shader_sky;
             ShaderEnvironmentLighting shader_environment_lighting;
+            ShaderDDGIVolume shader_ddgi_volume;
+            Entity ddgi_volume_entity = INVALID_ENTITY;
 
             void Clear()
             {
@@ -564,6 +566,8 @@ namespace won::ecs
                 shadow_caster_world_bound.Invalidate();
                 shader_sky.Init();
                 shader_environment_lighting.Init();
+                shader_ddgi_volume.Init();
+                ddgi_volume_entity = INVALID_ENTITY;
             }
         };
 

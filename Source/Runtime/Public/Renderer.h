@@ -24,8 +24,31 @@ namespace won::rendering
         RendererType type = RendererType::Forward;
     };
 
+    struct RendererDebugDDGIState
+    {
+        bool gi_mode_ddgi = false;
+        bool volume_active = false;
+        bool irradiance_texture_allocated = false;
+        bool irradiance_srv_valid = false;
+        bool irradiance_uav_valid = false;
+        bool probe_update_pipeline_ready = false;
+        bool probe_update_dispatched = false;
+
+        ecs::Entity volume_entity = ecs::INVALID_ENTITY;
+        uint3 probe_counts = { 0, 0, 0 };
+        float3 volume_min = { 0.0f, 0.0f, 0.0f };
+        float3 volume_max = { 0.0f, 0.0f, 0.0f };
+        float3 probe_spacing = { 0.0f, 0.0f, 0.0f };
+        uint32 total_probe_count = 0;
+        uint3 dispatch_groups = { 0, 0, 0 };
+
+        int irradiance_texture_srv = -1;
+        int irradiance_texture_uav = -1;
+    };
+
     struct RendererDebugState
     {
+        RendererDebugDDGIState ddgi = {};
     };
 
     constexpr RHIFormat RENDERTARGET_BUFFER_FORMAT = RHIFormat::R8G8B8A8Unorm;

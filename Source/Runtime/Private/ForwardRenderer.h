@@ -63,9 +63,15 @@ namespace won::rendering
         RHISubresourceHandle shadow_map_atlas_dsv = {};
         RHISubresourceHandle shadow_map_atlas_srv = {};
 
+        std::shared_ptr<RHIResource> ddgi_irradiance_texture;
+        RHISubresourceHandle ddgi_irradiance_texture_srv = {};
+        RHISubresourceHandle ddgi_irradiance_texture_uav = {};
+
+        std::shared_ptr<RHIPipeline> ddgi_probe_update_pipeline;
         RendererDebugState debug_state = {};
 
         uint2 shadow_map_atlas_size = { 0, 0 };
+        uint3 ddgi_probe_counts = { 0, 0, 0 };
         std::array<RHISubresourceHandle, max_frames_in_flight> back_buffers_rtv = {};
 
         platform::Window* current_window = nullptr;

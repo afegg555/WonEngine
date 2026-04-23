@@ -94,6 +94,31 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
     {
         ambient = environment_lighting.GetAmbientColor() * environment_lighting.GetAmbientIntensity();
     }
+    else if (environment_lighting.IsActive() && environment_lighting.gi_mode == SHADER_ENVIRONMENT_GI_MODE_DDGI)
+    {
+        ShaderDDGIVolume ddgi_volume = GetDDGIVolume();
+        if (ddgi_volume.IsActive() && ddgi_volume.HasIrradianceTexture())
+        {
+            float3 safe_probe_spacing = max(ddgi_volume.probe_spacing, float3(0.001f, 0.001f, 0.001f));
+            float3 sample_position = surface.P + surface.N * ddgi_volume.normal_bias + surface.V * ddgi_volume.view_bias;
+            float3 probe_coord = (sample_position - ddgi_volume.volume_min) / safe_probe_spacing;
+            float3 max_probe_coord = float3(
+                (float)(ddgi_volume.probe_counts.x > 0 ? ddgi_volume.probe_counts.x - 1 : 0),
+                (float)(ddgi_volume.probe_counts.y > 0 ? ddgi_volume.probe_counts.y - 1 : 0),
+                (float)(ddgi_volume.probe_counts.z > 0 ? ddgi_volume.probe_counts.z - 1 : 0)
+            );
+            probe_coord = clamp(probe_coord, float3(0.0f, 0.0f, 0.0f), max_probe_coord);
+
+            float3 texture_size = float3(
+                max((float)ddgi_volume.probe_counts.x, 1.0f),
+                max((float)ddgi_volume.probe_counts.y, 1.0f),
+                max((float)ddgi_volume.probe_counts.z, 1.0f)
+            );
+            float3 sample_uv = (probe_coord + float3(0.5f, 0.5f, 0.5f)) / texture_size;
+            ambient = bindless_textures3D[DescriptorIndex(ddgi_volume.irradiance_texture)].SampleLevel(sampler_linear_clamp, sample_uv, 0).rgb;
+            ambient *= environment_lighting.GetIndirectDiffuseScale();
+        }
+    }
 
     Lighting lighting;
     lighting.Create(0, 0, ambient, 0);

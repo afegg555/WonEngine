@@ -13,6 +13,7 @@ namespace won::resource
         PSObjectCommon,
         PSObjectSimple,
         PSObjectPrepass,
+        CSDDGIProbeUpdate,
         PSTestRed,
         Count
     };

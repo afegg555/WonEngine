@@ -58,6 +58,12 @@ enum SHADER_ENVIRONMENT_LIGHTING_FLAGS
     SHADER_ENVIRONMENT_LIGHTING_FLAG_ACTIVE = 1 << 0,
 };
 
+enum SHADER_DDGI_FLAGS
+{
+    SHADER_DDGI_FLAG_NONE = 0,
+    SHADER_DDGI_FLAG_ACTIVE = 1 << 0,
+};
+
 enum SHADER_ENVIRONMENT_GI_MODE
 {
     SHADER_ENVIRONMENT_GI_MODE_NONE,
@@ -352,11 +358,48 @@ struct alignas(16) ShaderEnvironmentLighting
 #endif
 };
 
+struct alignas(16) ShaderDDGIVolume
+{
+    uint flags;
+    int irradiance_texture;
+    int irradiance_texture_uav;
+    uint rays_per_probe;
+
+    uint3 probe_counts;
+    float normal_bias;
+
+    float3 volume_min;
+    float view_bias;
+
+    float3 probe_spacing;
+    float max_distance;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        flags = SHADER_DDGI_FLAG_NONE;
+        irradiance_texture = -1;
+        irradiance_texture_uav = -1;
+        rays_per_probe = 1;
+        probe_counts = { 1, 1, 1 };
+        normal_bias = 0.0f;
+        volume_min = { 0.0f, 0.0f, 0.0f };
+        view_bias = 0.0f;
+        probe_spacing = { 1.0f, 1.0f, 1.0f };
+        max_distance = 0.0f;
+    }
+#else
+    inline bool IsActive() { return (flags & SHADER_DDGI_FLAG_ACTIVE) != 0; }
+    inline bool HasIrradianceTexture() { return irradiance_texture >= 0; }
+#endif
+};
+
 struct alignas(16) ShaderFrame
 {
     ShaderScene scene;
     ShaderSky sky;
     ShaderEnvironmentLighting environment_lighting;
+    ShaderDDGIVolume ddgi_volume;
 
 #ifdef __cplusplus
     inline void Init()
@@ -364,6 +407,7 @@ struct alignas(16) ShaderFrame
         scene.Init();
         sky.Init();
         environment_lighting.Init();
+        ddgi_volume.Init();
     }
 #endif
 };
@@ -622,7 +666,8 @@ static_assert(sizeof(ShaderMaterial) == 272, "ShaderMaterial layout mismatch");
 static_assert(sizeof(ShaderScene) == 48, "ShaderScene layout mismatch");
 static_assert(sizeof(ShaderSky) == 64, "ShaderSky layout mismatch");
 static_assert(sizeof(ShaderEnvironmentLighting) == 32, "ShaderEnvironmentLighting layout mismatch");
-static_assert(sizeof(ShaderFrame) == 144, "ShaderFrame layout mismatch");
+static_assert(sizeof(ShaderDDGIVolume) == 64, "ShaderDDGIVolume layout mismatch");
+static_assert(sizeof(ShaderFrame) == 208, "ShaderFrame layout mismatch");
 static_assert(sizeof(ShaderCamera) == 320, "ShaderCamera layout mismatch");
 static_assert(sizeof(ShaderLight) == 48, "ShaderLight layout mismatch");
 static_assert(sizeof(ShaderShadowCascade) == 96, "ShaderShadowCascade layout mismatch");

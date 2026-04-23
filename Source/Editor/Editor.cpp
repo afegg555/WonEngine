@@ -182,6 +182,176 @@ namespace won::editor
 
 			ImGui::DockBuilderFinish(dockspace_id);
 		}
+
+		bool ProjectWorldToScreen(const ecs::CameraComponent& camera, const ImVec2& viewport_pos, const ImVec2& viewport_size, const float3& world_position, ImVec2& out_screen_position)
+		{
+			const XMVECTOR projected = XMVector3Project(
+				XMLoadFloat3(&world_position),
+				viewport_pos.x,
+				viewport_pos.y,
+				viewport_size.x,
+				viewport_size.y,
+				0.0f,
+				1.0f,
+				XMLoadFloat4x4(&camera.projection),
+				XMLoadFloat4x4(&camera.view),
+				XMMatrixIdentity());
+
+			float3 projected_position = {};
+			XMStoreFloat3(&projected_position, projected);
+			if (projected_position.z < 0.0f || projected_position.z > 1.0f)
+			{
+				return false;
+			}
+
+			out_screen_position = ImVec2(projected_position.x, projected_position.y);
+			return true;
+		}
+
+		void DrawWorldLine(ImDrawList* draw_list, const ecs::CameraComponent& camera, const ImVec2& viewport_pos, const ImVec2& viewport_size, const float3& from, const float3& to, ImU32 color, float thickness = 1.0f)
+		{
+			ImVec2 from_screen = {};
+			ImVec2 to_screen = {};
+			if (!ProjectWorldToScreen(camera, viewport_pos, viewport_size, from, from_screen) ||
+				!ProjectWorldToScreen(camera, viewport_pos, viewport_size, to, to_screen))
+			{
+				return;
+			}
+
+			draw_list->AddLine(from_screen, to_screen, color, thickness);
+		}
+
+		void DrawWorldAABB(ImDrawList* draw_list, const ecs::CameraComponent& camera, const ImVec2& viewport_pos, const ImVec2& viewport_size, const float3& bounds_min, const float3& bounds_max, ImU32 color, float thickness = 1.0f)
+		{
+			const float3 corners[8] = {
+				{ bounds_min.x, bounds_min.y, bounds_min.z },
+				{ bounds_max.x, bounds_min.y, bounds_min.z },
+				{ bounds_min.x, bounds_max.y, bounds_min.z },
+				{ bounds_max.x, bounds_max.y, bounds_min.z },
+				{ bounds_min.x, bounds_min.y, bounds_max.z },
+				{ bounds_max.x, bounds_min.y, bounds_max.z },
+				{ bounds_min.x, bounds_max.y, bounds_max.z },
+				{ bounds_max.x, bounds_max.y, bounds_max.z }
+			};
+
+			const int edges[12][2] = {
+				{ 0, 1 }, { 1, 3 }, { 3, 2 }, { 2, 0 },
+				{ 4, 5 }, { 5, 7 }, { 7, 6 }, { 6, 4 },
+				{ 0, 4 }, { 1, 5 }, { 2, 6 }, { 3, 7 }
+			};
+
+			for (const auto& edge : edges)
+			{
+				DrawWorldLine(draw_list, camera, viewport_pos, viewport_size, corners[edge[0]], corners[edge[1]], color, thickness);
+			}
+		}
+
+		void DrawTextBlock(ImDrawList* draw_list, const ImVec2& start_position, const Vector<String>& lines, bool align_right = false)
+		{
+			if (lines.empty())
+			{
+				return;
+			}
+
+			float max_width = 0.0f;
+			for (const String& line : lines)
+			{
+				max_width = (std::max)(max_width, ImGui::CalcTextSize(line.c_str()).x);
+			}
+
+			const float line_height = ImGui::GetTextLineHeightWithSpacing();
+			const float block_width = max_width + 16.0f;
+			const float block_height = line_height * static_cast<float>(lines.size()) + 10.0f;
+			const ImVec2 bg_min = align_right ? ImVec2(start_position.x - block_width - 4.0f, start_position.y + 4.0f) : start_position + ImVec2(4.0f, 4.0f);
+			const ImVec2 bg_max = ImVec2(bg_min.x + block_width, bg_min.y + block_height);
+			ImVec2 text_cursor = bg_min + ImVec2(6.0f, 6.0f);
+			draw_list->AddRectFilled(bg_min, bg_max, IM_COL32(18, 18, 18, 180), 6.0f);
+			draw_list->AddRect(bg_min, bg_max, IM_COL32(90, 90, 90, 200), 6.0f);
+
+			for (const String& line : lines)
+			{
+				draw_list->AddText(text_cursor, IM_COL32(230, 230, 230, 255), line.c_str());
+				text_cursor.y += line_height;
+			}
+		}
+
+		void DrawDDGIDebugOverlay(
+			const ecs::CameraComponent& camera,
+			const rendering::RendererDebugState& renderer_debug_state,
+			const ImVec2& viewport_pos,
+			const ImVec2& viewport_size,
+			bool show_volume,
+			bool show_probes,
+			bool show_text,
+			int max_probe_draw_count)
+		{
+			ImDrawList* draw_list = ImGui::GetWindowDrawList();
+			const rendering::RendererDebugDDGIState& ddgi_state = renderer_debug_state.ddgi;
+			int drawn_probe_count = 0;
+
+			if (show_volume && ddgi_state.volume_active)
+			{
+				DrawWorldAABB(draw_list, camera, viewport_pos, viewport_size, ddgi_state.volume_min, ddgi_state.volume_max, IM_COL32(80, 220, 120, 255), 1.5f);
+			}
+
+			if (show_probes && ddgi_state.volume_active && ddgi_state.total_probe_count > 0)
+			{
+				const int clamped_max_probe_draw_count = (std::max)(1, max_probe_draw_count);
+				const float sample_ratio = static_cast<float>(ddgi_state.total_probe_count) / static_cast<float>(clamped_max_probe_draw_count);
+				const int sampling_step = sample_ratio > 1.0f ? (std::max)(1, static_cast<int>(std::ceil(std::cbrt(sample_ratio)))) : 1;
+
+				for (uint32 z = 0; z < ddgi_state.probe_counts.z; z += static_cast<uint32>(sampling_step))
+				{
+					for (uint32 y = 0; y < ddgi_state.probe_counts.y; y += static_cast<uint32>(sampling_step))
+					{
+						for (uint32 x = 0; x < ddgi_state.probe_counts.x; x += static_cast<uint32>(sampling_step))
+						{
+							const float3 probe_position = {
+								ddgi_state.volume_min.x + static_cast<float>(x) * ddgi_state.probe_spacing.x,
+								ddgi_state.volume_min.y + static_cast<float>(y) * ddgi_state.probe_spacing.y,
+								ddgi_state.volume_min.z + static_cast<float>(z) * ddgi_state.probe_spacing.z
+							};
+
+							ImVec2 screen_position = {};
+							if (ProjectWorldToScreen(camera, viewport_pos, viewport_size, probe_position, screen_position))
+							{
+								draw_list->AddCircleFilled(screen_position, 2.0f, IM_COL32(255, 180, 60, 220), 8);
+								++drawn_probe_count;
+							}
+						}
+					}
+				}
+			}
+
+			if (show_text)
+			{
+				auto bool_text = [](bool value) -> const char*
+				{
+					return value ? "Yes" : "No";
+				};
+
+				Vector<String> lines;
+				lines.push_back("DDGI Debug");
+				lines.push_back(String("GI Mode DDGI: ") + bool_text(ddgi_state.gi_mode_ddgi));
+				lines.push_back(String("Active Volume: ") + bool_text(ddgi_state.volume_active));
+				if (ddgi_state.volume_active)
+				{
+					lines.push_back("Volume Entity: " + std::to_string(ddgi_state.volume_entity));
+					lines.push_back("Probe Counts: " + std::to_string(ddgi_state.probe_counts.x) + ", " + std::to_string(ddgi_state.probe_counts.y) + ", " + std::to_string(ddgi_state.probe_counts.z));
+					lines.push_back("Probe Spacing: " + std::to_string(ddgi_state.probe_spacing.x) + ", " + std::to_string(ddgi_state.probe_spacing.y) + ", " + std::to_string(ddgi_state.probe_spacing.z));
+					lines.push_back("Total Probes: " + std::to_string(ddgi_state.total_probe_count));
+					lines.push_back("Drawn Probes: " + std::to_string(drawn_probe_count));
+				}
+				lines.push_back(String("Texture Allocated: ") + bool_text(ddgi_state.irradiance_texture_allocated));
+				lines.push_back(String("SRV Valid: ") + bool_text(ddgi_state.irradiance_srv_valid) + " (" + std::to_string(ddgi_state.irradiance_texture_srv) + ")");
+				lines.push_back(String("UAV Valid: ") + bool_text(ddgi_state.irradiance_uav_valid) + " (" + std::to_string(ddgi_state.irradiance_texture_uav) + ")");
+				lines.push_back(String("Pipeline Ready: ") + bool_text(ddgi_state.probe_update_pipeline_ready));
+				lines.push_back(String("Probe Dispatch: ") + bool_text(ddgi_state.probe_update_dispatched));
+				lines.push_back("Dispatch Groups: " + std::to_string(ddgi_state.dispatch_groups.x) + ", " + std::to_string(ddgi_state.dispatch_groups.y) + ", " + std::to_string(ddgi_state.dispatch_groups.z));
+
+				DrawTextBlock(draw_list, ImVec2(viewport_pos.x + viewport_size.x, viewport_pos.y), lines, true);
+			}
+		}
 	}
 
 	void EditorApplication::Initialize(const ApplicationDesc& desc)
@@ -575,6 +745,17 @@ namespace won::editor
 				}
 
 				ImGui::Separator();
+				ImGui::Checkbox("DDGI Debug Overlay", &viewport_debug_settings.show_ddgi_overlay);
+				if (viewport_debug_settings.show_ddgi_overlay)
+				{
+					ImGui::Checkbox("DDGI Volume", &viewport_debug_settings.show_ddgi_volume);
+					ImGui::Checkbox("DDGI Probes", &viewport_debug_settings.show_ddgi_probes);
+					ImGui::Checkbox("DDGI Text", &viewport_debug_settings.show_ddgi_text);
+					ImGui::InputInt("DDGI Max Probe Draw", &viewport_debug_settings.ddgi_max_probe_draw_count);
+					viewport_debug_settings.ddgi_max_probe_draw_count = (std::max)(1, viewport_debug_settings.ddgi_max_probe_draw_count);
+				}
+
+				ImGui::Separator();
 				if (ImGui::Button("Close")) ImGui::CloseCurrentPopup();
 
 				ImGui::EndPopup();
@@ -599,6 +780,24 @@ namespace won::editor
 			if (auto* camera = scene.GetComponent<ecs::CameraComponent>(camera_entity))
 			{
 				camera->SetAspectRatio(static_cast<float>(main_view.viewport.width) / static_cast<float>(main_view.viewport.height));
+				if (viewport_debug_settings.show_ddgi_overlay)
+				{
+					rendering::RendererDebugState renderer_debug_state = {};
+					if (renderer)
+					{
+						renderer_debug_state = renderer->GetDebugState();
+					}
+
+					DrawDDGIDebugOverlay(
+						*camera,
+						renderer_debug_state,
+						viewport_pos,
+						viewport_size,
+						viewport_debug_settings.show_ddgi_volume,
+						viewport_debug_settings.show_ddgi_probes,
+						viewport_debug_settings.show_ddgi_text,
+						viewport_debug_settings.ddgi_max_probe_draw_count);
+				}
 			}
 		}
 		ImGui::End();
@@ -1075,7 +1274,78 @@ namespace won::editor
 
 					if (!remove_component)
 					{
+						bool is_active = ddgi_volume_comp->IsActive();
+						if (ImGui::Checkbox("Active", &is_active))
+						{
+							ddgi_volume_comp->SetActive(is_active);
+						}
 
+						bool is_dynamic = ddgi_volume_comp->IsDynamic();
+						if (ImGui::Checkbox("Dynamic", &is_dynamic))
+						{
+							ddgi_volume_comp->SetDynamic(is_dynamic);
+						}
+
+						int probe_counts[3] = {
+							static_cast<int>(ddgi_volume_comp->probe_counts.x),
+							static_cast<int>(ddgi_volume_comp->probe_counts.y),
+							static_cast<int>(ddgi_volume_comp->probe_counts.z)
+						};
+						if (ImGui::InputInt3("Probe Counts", probe_counts))
+						{
+							ddgi_volume_comp->probe_counts = {
+								static_cast<uint32>((std::max)(1, probe_counts[0])),
+								static_cast<uint32>((std::max)(1, probe_counts[1])),
+								static_cast<uint32>((std::max)(1, probe_counts[2]))
+							};
+						}
+
+						float probe_spacing[3] = { ddgi_volume_comp->probe_spacing.x, ddgi_volume_comp->probe_spacing.y, ddgi_volume_comp->probe_spacing.z };
+						if (ImGui::InputFloat3("Probe Spacing", probe_spacing))
+						{
+							ddgi_volume_comp->probe_spacing = { probe_spacing[0], probe_spacing[1], probe_spacing[2] };
+						}
+
+						float volume_offset[3] = { ddgi_volume_comp->volume_offset.x, ddgi_volume_comp->volume_offset.y, ddgi_volume_comp->volume_offset.z };
+						if (ImGui::InputFloat3("Volume Offset", volume_offset))
+						{
+							ddgi_volume_comp->volume_offset = { volume_offset[0], volume_offset[1], volume_offset[2] };
+						}
+
+						int rays_per_probe = static_cast<int>(ddgi_volume_comp->rays_per_probe);
+						if (ImGui::InputInt("Rays Per Probe", &rays_per_probe))
+						{
+							ddgi_volume_comp->rays_per_probe = static_cast<uint32>((std::max)(1, rays_per_probe));
+						}
+
+						int irradiance_resolution = static_cast<int>(ddgi_volume_comp->irradiance_resolution);
+						if (ImGui::InputInt("Irradiance Resolution", &irradiance_resolution))
+						{
+							ddgi_volume_comp->irradiance_resolution = static_cast<uint32>((std::max)(1, irradiance_resolution));
+						}
+
+						int visibility_resolution = static_cast<int>(ddgi_volume_comp->visibility_resolution);
+						if (ImGui::InputInt("Visibility Resolution", &visibility_resolution))
+						{
+							ddgi_volume_comp->visibility_resolution = static_cast<uint32>((std::max)(1, visibility_resolution));
+						}
+
+						int probes_per_frame = static_cast<int>(ddgi_volume_comp->probes_per_frame);
+						if (ImGui::InputInt("Probes Per Frame", &probes_per_frame))
+						{
+							ddgi_volume_comp->probes_per_frame = static_cast<uint32>((std::max)(1, probes_per_frame));
+						}
+
+						int priority = static_cast<int>(ddgi_volume_comp->priority);
+						if (ImGui::InputInt("Priority", &priority))
+						{
+							ddgi_volume_comp->priority = static_cast<uint32>((std::max)(0, priority));
+						}
+
+						ImGui::SliderFloat("Hysteresis", &ddgi_volume_comp->hysteresis, 0.0f, 1.0f);
+						ImGui::DragFloat("Normal Bias", &ddgi_volume_comp->normal_bias, 0.001f, 0.0f, 100.0f);
+						ImGui::DragFloat("View Bias", &ddgi_volume_comp->view_bias, 0.001f, 0.0f, 100.0f);
+						ImGui::DragFloat("Max Distance", &ddgi_volume_comp->max_distance, 0.01f, 0.0f, 100000.0f);
 					}
 					else
 					{

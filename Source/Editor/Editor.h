@@ -22,6 +22,15 @@ namespace won::editor
 		void UpdateEntityList();
 
 	private:
+		struct ViewportDebugSettings
+		{
+			bool show_ddgi_overlay = false;
+			bool show_ddgi_volume = true;
+			bool show_ddgi_probes = true;
+			bool show_ddgi_text = true;
+			int ddgi_max_probe_draw_count = 256;
+		};
+
 		std::shared_ptr<RHIPipeline> imgui_pso;
 		std::shared_ptr<RHIResource> imgui_font;
 		RHISubresourceHandle imgui_font_subresource;
@@ -32,6 +41,7 @@ namespace won::editor
 		ecs::Scene scene;
 		ecs::Entity camera_entity;
 		ecs::Entity picked_entity = ecs::INVALID_ENTITY;
+		ViewportDebugSettings viewport_debug_settings = {};
 
 		plugin::PluginManager plugin_manager;
 	};

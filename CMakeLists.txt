@@ -250,6 +250,7 @@ set(SHADERS_HLSL
     Source/Shaders/ObjectPS_simple.hlsl
     Source/Shaders/ObjectPS_common.hlsl
     Source/Shaders/ObjectPS_prepass.hlsl
+    Source/Shaders/DDGIProbeUpdateCS.hlsl
     Source/Shaders/TextureMipGenCS.hlsl
 )
 

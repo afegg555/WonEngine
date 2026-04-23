@@ -13,6 +13,7 @@ namespace won::resource
             { ShaderId::PSObjectCommon, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "ObjectPS_common.hlsl", "main" } },
             { ShaderId::PSObjectSimple, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "ObjectPS_simple.hlsl", "main" } },
             { ShaderId::PSObjectPrepass, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "ObjectPS_prepass.hlsl", "main" } },
+            { ShaderId::CSDDGIProbeUpdate, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "DDGIProbeUpdateCS.hlsl", "main" } },
             { ShaderId::PSTestRed, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TestRedPS.hlsl", "main" } },
         };
 
