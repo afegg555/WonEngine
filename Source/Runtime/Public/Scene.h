@@ -359,14 +359,115 @@ namespace won::ecs
             cpu_bvh_dirty = false;
         }
 
+        void BuildGPUBVH()
+        {
+            render_data.shader_bvh_nodes.clear();
+            render_data.shader_bvh_primitives.clear();
+
+            auto geometry_array = GetComponentArray<GeometryComponent>().get();
+            auto transform_array = GetComponentArray<TransformComponent>().get();
+            if (!geometry_array || !transform_array)
+            {
+                gpu_bvh_dirty = false;
+                return;
+            }
+
+            profiler::ScopedRangeCPU range("Scene::BuildBVH(GPU)");
+
+            math::bvh::BVH bvh;
+            Vector<math::bvh::BVHPrimitive> primitives;
+            Vector<ShaderBVHPrimitive> source_primitives;
+
+            for (Size geometry_component_index = 0; geometry_component_index < geometry_array->GetSize(); ++geometry_component_index)
+            {
+                const Entity entity = geometry_array->index_to_entity[geometry_component_index];
+                const GeometryComponent& geometry = geometry_array->data[geometry_component_index];
+                if (!geometry.mesh || !geometry.mesh->IsValid() || !transform_array->HasData(entity))
+                {
+                    continue;
+                }
+
+                const TransformComponent& transform = transform_array->GetData(entity);
+                const XMMATRIX world_transform = transform.GetWorldTransform();
+                const resource::Mesh& mesh = *geometry.mesh;
+
+                for (Size submesh_index = 0; submesh_index < mesh.submeshes.size(); ++submesh_index)
+                {
+                    const resource::Submesh& submesh = mesh.submeshes[submesh_index];
+                    const uint32 geometry_index = geometry.geometry_offset + static_cast<uint32>(submesh_index);
+                    const uint32 end_index = submesh.first_index + submesh.index_count;
+                    for (uint32 index = submesh.first_index; index + 2 < end_index && index + 2 < mesh.indices.size(); index += 3)
+                    {
+                        const uint32 i0 = mesh.indices[index];
+                        const uint32 i1 = mesh.indices[index + 1];
+                        const uint32 i2 = mesh.indices[index + 2];
+                        if (i0 >= mesh.positions.size() || i1 >= mesh.positions.size() || i2 >= mesh.positions.size())
+                        {
+                            continue;
+                        }
+
+                        ShaderBVHPrimitive shader_primitive = {};
+                        XMStoreFloat3(&shader_primitive.v0, XMVector3TransformCoord(XMLoadFloat3(&mesh.positions[i0]), world_transform));
+                        XMStoreFloat3(&shader_primitive.v1, XMVector3TransformCoord(XMLoadFloat3(&mesh.positions[i1]), world_transform));
+                        XMStoreFloat3(&shader_primitive.v2, XMVector3TransformCoord(XMLoadFloat3(&mesh.positions[i2]), world_transform));
+                        shader_primitive.geometry_index = geometry_index;
+                        shader_primitive.triangle_index = (index - submesh.first_index) / 3;
+
+                        math::AABB bounds = {};
+                        bounds.Invalidate();
+                        math::AABB vertex_bounds = {};
+                        vertex_bounds.min = shader_primitive.v0;
+                        vertex_bounds.max = shader_primitive.v0;
+                        bounds.Merge(vertex_bounds);
+                        vertex_bounds.min = shader_primitive.v1;
+                        vertex_bounds.max = shader_primitive.v1;
+                        bounds.Merge(vertex_bounds);
+                        vertex_bounds.min = shader_primitive.v2;
+                        vertex_bounds.max = shader_primitive.v2;
+                        bounds.Merge(vertex_bounds);
+
+                        primitives.push_back(math::bvh::MakePrimitive(bounds, static_cast<uint32>(source_primitives.size())));
+                        source_primitives.push_back(shader_primitive);
+                    }
+                }
+            }
+
+            bvh.Build(primitives);
+            if (!bvh.IsValid())
+            {
+                gpu_bvh_dirty = false;
+                return;
+            }
+
+            render_data.shader_bvh_nodes.resize(bvh.nodes.size());
+            for (Size i = 0; i < bvh.nodes.size(); ++i)
+            {
+                const math::bvh::BVHNode& node = bvh.nodes[i];
+                ShaderBVHNode& shader_node = render_data.shader_bvh_nodes[i];
+                shader_node.bounds_min = node.bounds.min;
+                shader_node.bounds_max = node.bounds.max;
+                shader_node.left_index = node.left_index;
+                shader_node.right_index = node.right_index;
+                shader_node.first_primitive = static_cast<uint32>(node.first_primitive);
+                shader_node.primitive_count = static_cast<uint32>(node.primitive_count);
+                shader_node.padding = { 0, 0 };
+            }
+
+            render_data.shader_bvh_primitives.resize(bvh.primitive_indices.size());
+            for (Size i = 0; i < bvh.primitive_indices.size(); ++i)
+            {
+                const uint32 source_index = bvh.primitives[bvh.primitive_indices[i]].user_data;
+                if (source_index < source_primitives.size())
+                {
+                    render_data.shader_bvh_primitives[i] = source_primitives[source_index];
+                }
+            }
+            gpu_bvh_dirty = false;
+        }
+
         bool RayCastClosest(const math::Ray& ray, RayCastHit& out_hit, bool use_local_bvh = true)
         {
             out_hit = {};
-
-            if (scene_bvh_dirty)
-            {
-                BuildBVH();
-            }
 
             if (!scene_bvh.IsValid())
             {
@@ -550,6 +651,8 @@ namespace won::ecs
             Vector<ShaderInstance> shader_instances;
             Vector<ShaderGeometry> shader_geometries;
             Vector<ShaderMaterial> shader_materials;
+            Vector<ShaderBVHNode> shader_bvh_nodes;
+            Vector<ShaderBVHPrimitive> shader_bvh_primitives;
             Vector<Renderable> renderables;
 
             Vector<ShaderLight> shader_lights; // all lights
@@ -569,6 +672,8 @@ namespace won::ecs
                 shader_instances.clear();
                 shader_geometries.clear();
                 shader_materials.clear();
+                shader_bvh_nodes.clear();
+                shader_bvh_primitives.clear();
                 renderables.clear();
 
                 shader_lights.clear();

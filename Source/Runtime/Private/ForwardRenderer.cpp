@@ -104,12 +104,16 @@ namespace won::rendering
         const Vector<ShaderMaterial>& shader_materials = render_data.shader_materials;
         const Vector<ShaderLight>& shader_lights = render_data.shader_lights;
         const Vector<ShaderShadowCascade>& shader_shadow_cascades = render_data.shader_shadow_cascades;
+        const Vector<ShaderBVHNode>& shader_bvh_nodes = render_data.shader_bvh_nodes;
+        const Vector<ShaderBVHPrimitive>& shader_bvh_primitives = render_data.shader_bvh_primitives;
 
         const Size required_instance_buffer_size = shader_instances.size() * sizeof(ShaderInstance);
         const Size required_geometry_buffer_size = shader_geometries.size() * sizeof(ShaderGeometry);
         const Size required_material_buffer_size = shader_materials.size() * sizeof(ShaderMaterial);
         const Size required_light_buffer_size = shader_lights.size() * sizeof(ShaderLight);
         const Size required_shadow_cascade_buffer_size = shader_shadow_cascades.size() * sizeof(ShaderShadowCascade);
+        const Size required_bvh_node_buffer_size = shader_bvh_nodes.size() * sizeof(ShaderBVHNode);
+        const Size required_bvh_primitive_buffer_size = shader_bvh_primitives.size() * sizeof(ShaderBVHPrimitive);
 
         if (required_instance_buffer_size == 0)
         {
@@ -467,6 +471,102 @@ namespace won::rendering
             }
         }
 
+        if (required_bvh_node_buffer_size == 0)
+        {
+            RemoveResourceDeferred(frame_context, shader_bvh_node_default_buffer);
+            shader_bvh_node_default_buffer_srv = {};
+        }
+        else
+        {
+            Size current_default_buffer_size = 0;
+            if (shader_bvh_node_default_buffer)
+            {
+                current_default_buffer_size = shader_bvh_node_default_buffer->GetDesc().buffer_desc.size;
+            }
+
+            if (!shader_bvh_node_default_buffer || current_default_buffer_size < required_bvh_node_buffer_size)
+            {
+                RemoveResourceDeferred(frame_context, shader_bvh_node_default_buffer);
+                RHIBufferDesc shader_bvh_node_default_buffer_desc = {};
+                shader_bvh_node_default_buffer_desc.size = required_bvh_node_buffer_size;
+                shader_bvh_node_default_buffer_desc.usage = RHIResourceUsage::Default;
+                shader_bvh_node_default_buffer_desc.bind_flags = RHIBindFlags::ShaderResource;
+                shader_bvh_node_default_buffer = device->CreateBuffer(shader_bvh_node_default_buffer_desc);
+                if (!shader_bvh_node_default_buffer)
+                {
+                    backlog::Post("failed to create shader bvh node default buffer", backlog::LogLevel::Error);
+                    return false;
+                }
+                shader_bvh_node_default_buffer->SetName("Shader BVH Node Default Buffer");
+
+                shader_bvh_node_default_buffer_srv = {};
+                RHISubresourceDesc shader_bvh_node_default_subresource_desc = {};
+                shader_bvh_node_default_subresource_desc.type = RHISubresourceType::ShaderResource;
+                shader_bvh_node_default_subresource_desc.buffer_offset = 0;
+                shader_bvh_node_default_subresource_desc.buffer_size = shader_bvh_node_default_buffer->GetDesc().buffer_desc.size;
+                shader_bvh_node_default_subresource_desc.buffer_stride = sizeof(ShaderBVHNode);
+                if (!device->CreateSubresource(*shader_bvh_node_default_buffer, shader_bvh_node_default_subresource_desc, &shader_bvh_node_default_buffer_srv))
+                {
+                    backlog::Post("failed to create shader bvh node default subresource", backlog::LogLevel::Error);
+                    shader_bvh_node_default_buffer = nullptr;
+                    return false;
+                }
+            }
+
+            if (!UpdateDefaultBuffer(frame_context, *shader_bvh_node_default_buffer, shader_bvh_nodes.data(), required_bvh_node_buffer_size, RHIResourceState::ShaderRead))
+            {
+                return false;
+            }
+        }
+
+        if (required_bvh_primitive_buffer_size == 0)
+        {
+            RemoveResourceDeferred(frame_context, shader_bvh_primitive_default_buffer);
+            shader_bvh_primitive_default_buffer_srv = {};
+        }
+        else
+        {
+            Size current_default_buffer_size = 0;
+            if (shader_bvh_primitive_default_buffer)
+            {
+                current_default_buffer_size = shader_bvh_primitive_default_buffer->GetDesc().buffer_desc.size;
+            }
+
+            if (!shader_bvh_primitive_default_buffer || current_default_buffer_size < required_bvh_primitive_buffer_size)
+            {
+                RemoveResourceDeferred(frame_context, shader_bvh_primitive_default_buffer);
+                RHIBufferDesc shader_bvh_primitive_default_buffer_desc = {};
+                shader_bvh_primitive_default_buffer_desc.size = required_bvh_primitive_buffer_size;
+                shader_bvh_primitive_default_buffer_desc.usage = RHIResourceUsage::Default;
+                shader_bvh_primitive_default_buffer_desc.bind_flags = RHIBindFlags::ShaderResource;
+                shader_bvh_primitive_default_buffer = device->CreateBuffer(shader_bvh_primitive_default_buffer_desc);
+                if (!shader_bvh_primitive_default_buffer)
+                {
+                    backlog::Post("failed to create shader bvh primitive default buffer", backlog::LogLevel::Error);
+                    return false;
+                }
+                shader_bvh_primitive_default_buffer->SetName("Shader BVH Primitive Default Buffer");
+
+                shader_bvh_primitive_default_buffer_srv = {};
+                RHISubresourceDesc shader_bvh_primitive_default_subresource_desc = {};
+                shader_bvh_primitive_default_subresource_desc.type = RHISubresourceType::ShaderResource;
+                shader_bvh_primitive_default_subresource_desc.buffer_offset = 0;
+                shader_bvh_primitive_default_subresource_desc.buffer_size = shader_bvh_primitive_default_buffer->GetDesc().buffer_desc.size;
+                shader_bvh_primitive_default_subresource_desc.buffer_stride = sizeof(ShaderBVHPrimitive);
+                if (!device->CreateSubresource(*shader_bvh_primitive_default_buffer, shader_bvh_primitive_default_subresource_desc, &shader_bvh_primitive_default_buffer_srv))
+                {
+                    backlog::Post("failed to create shader bvh primitive default subresource", backlog::LogLevel::Error);
+                    shader_bvh_primitive_default_buffer = nullptr;
+                    return false;
+                }
+            }
+
+            if (!UpdateDefaultBuffer(frame_context, *shader_bvh_primitive_default_buffer, shader_bvh_primitives.data(), required_bvh_primitive_buffer_size, RHIResourceState::ShaderRead))
+            {
+                return false;
+            }
+        }
+
         if ((render_data.shader_ddgi_volume.flags & SHADER_DDGI_FLAG_ACTIVE) == 0)
         {
             RemoveResourceDeferred(frame_context, ddgi_irradiance_texture);
@@ -546,6 +646,10 @@ namespace won::rendering
         shader_frame.scene.lights = render_data.forward_light_mask;
         shader_frame.scene.shadow_atlas = shadow_map_atlas_srv.descriptor_index;
         shader_frame.scene.shadow_cascade_buffer = shader_shadow_cascade_default_buffer_srv.descriptor_index;
+        shader_frame.scene.bvh_node_buffer = shader_bvh_node_default_buffer_srv.descriptor_index;
+        shader_frame.scene.bvh_primitive_buffer = shader_bvh_primitive_default_buffer_srv.descriptor_index;
+        shader_frame.scene.bvh_node_count = static_cast<uint32>(shader_bvh_nodes.size());
+        shader_frame.scene.bvh_primitive_count = static_cast<uint32>(shader_bvh_primitives.size());
         shader_frame.sky = render_data.shader_sky;
         shader_frame.environment_lighting = render_data.shader_environment_lighting;
         shader_frame.ddgi_volume = render_data.shader_ddgi_volume;
@@ -1196,10 +1300,17 @@ namespace won::rendering
 
         if (shader_library)
         {
-            if (!ddgi_probe_update_pipeline)
+            std::shared_ptr<RHIShader> current_ddgi_probe_update_shader = shader_library->GetShader(ShaderId::CSDDGIProbeUpdate);
+            if (ddgi_probe_update_shader != current_ddgi_probe_update_shader)
+            {
+                ddgi_probe_update_pipeline = nullptr;
+                ddgi_probe_update_shader = current_ddgi_probe_update_shader;
+            }
+
+            if (!ddgi_probe_update_pipeline && ddgi_probe_update_shader)
             {
                 RHIComputePipelineDesc ddgi_probe_update_pipeline_desc = {};
-                ddgi_probe_update_pipeline_desc.compute_shader = shader_library->GetShader(ShaderId::CSDDGIProbeUpdate).get();
+                ddgi_probe_update_pipeline_desc.compute_shader = ddgi_probe_update_shader.get();
                 ddgi_probe_update_pipeline = device->CreateComputePipeline(ddgi_probe_update_pipeline_desc);
                 if (ddgi_probe_update_pipeline)
                 {
@@ -1444,6 +1555,10 @@ namespace won::rendering
         shader_light_default_buffer = nullptr;
         shader_shadow_cascade_default_buffer_srv = {};
         shader_shadow_cascade_default_buffer = nullptr;
+        shader_bvh_node_default_buffer_srv = {};
+        shader_bvh_node_default_buffer = nullptr;
+        shader_bvh_primitive_default_buffer_srv = {};
+        shader_bvh_primitive_default_buffer = nullptr;
         shader_frame_buffer_cbv = {};
         shader_frame_buffer = nullptr;
         shader_camera_buffer_cbv = {};
@@ -1456,6 +1571,7 @@ namespace won::rendering
         ddgi_irradiance_texture_srv = {};
         ddgi_irradiance_texture = nullptr;
         ddgi_probe_update_pipeline = nullptr;
+        ddgi_probe_update_shader = nullptr;
         debug_state = {};
         ddgi_probe_counts = { 0, 0, 0 };
         back_buffers_rtv = {};

@@ -189,6 +189,8 @@ StructuredBuffer<ShaderGeometry> bindless_structured_geometry[] : register(t0, s
 StructuredBuffer<ShaderMaterial> bindless_structured_material[] : register(t0, space202);
 StructuredBuffer<ShaderLight> bindless_structured_light[] : register(t0, space203);
 StructuredBuffer<ShaderShadowCascade> bindless_structured_shadow_cascade[] : register(t0, space204);
+StructuredBuffer<ShaderBVHNode> bindless_structured_bvh_node[] : register(t0, space205);
+StructuredBuffer<ShaderBVHPrimitive> bindless_structured_bvh_primitive[] : register(t0, space206);
 
 // static samplers
 SamplerState sampler_linear_clamp : register(s100);
@@ -259,6 +261,16 @@ inline ShaderMaterial GetMaterial(uint material_index)
 inline ShaderMaterial GetMaterial()
 {
     return GetMaterial(push.material_index);
+}
+
+inline ShaderBVHNode GetBVHNode(uint node_index)
+{
+    return bindless_structured_bvh_node[DescriptorIndex(GetScene().bvh_node_buffer)][node_index];
+}
+
+inline ShaderBVHPrimitive GetBVHPrimitive(uint primitive_index)
+{
+    return bindless_structured_bvh_primitive[DescriptorIndex(GetScene().bvh_primitive_buffer)][primitive_index];
 }
 
 inline ShaderLightIterator lights(uint bucket_index = 0)

@@ -1346,6 +1346,10 @@ namespace won::editor
 						ImGui::DragFloat("Normal Bias", &ddgi_volume_comp->normal_bias, 0.001f, 0.0f, 100.0f);
 						ImGui::DragFloat("View Bias", &ddgi_volume_comp->view_bias, 0.001f, 0.0f, 100.0f);
 						ImGui::DragFloat("Max Distance", &ddgi_volume_comp->max_distance, 0.01f, 0.0f, 100000.0f);
+						if (ImGui::Button("Update Scene GPUBVH"))
+						{
+							main_view.scene->BuildGPUBVH();
+						}
 					}
 					else
 					{
