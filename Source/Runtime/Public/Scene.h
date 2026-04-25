@@ -15,6 +15,7 @@
 
 #include "Types.h"
 #include "MathUtils.h"
+#include "Profiler.h"
 
 #include <algorithm>
 #include <memory>
@@ -65,7 +66,6 @@ namespace won::ecs
         {
             Entity entity = ecs::CreateEntity();
             entities.push_back(entity);
-            scene_bvh_dirty = true;
             return entity;
         }
 
@@ -81,14 +81,12 @@ namespace won::ecs
                         return current == entity;
                     }),
                 entities.end());
-            scene_bvh_dirty = true;
         }
 
         template <typename Component, typename... Args>
         Component* AddComponent(Entity entity, Args&&... args)
         {
             Component component { std::forward<Args>(args)... };
-            scene_bvh_dirty = true;
             return component_manager.AddComponent<Component>(entity, component);
         }
 
@@ -102,7 +100,6 @@ namespace won::ecs
         void RemoveComponent(Entity entity)
         {
             component_manager.RemoveComponent<Component>(entity);
-            scene_bvh_dirty = true;
         }
 
         template <typename Component>
@@ -298,12 +295,27 @@ namespace won::ecs
                 }
                 jobsystem::Wait(ctx);
             }
-            scene_bvh_dirty = true;
+
+            if (cpu_bvh_dirty)
+            {
+                BuildBVH();
+            }
+
+            //if (gpu_bvh_dirty)
+            //{
+            //    BuildGPUBVH();
+            //}
         }
 
         const Vector<Entity>& GetEntities() const
         {
             return entities;
+        }
+
+        void SetBVHDirty(bool value = true)
+        {
+            cpu_bvh_dirty = value;
+            gpu_bvh_dirty = value;
         }
 
         void BuildBVH()
@@ -314,9 +326,10 @@ namespace won::ecs
             {
                 scene_bvh.Clear();
                 scene_bvh_entities.clear();
-                scene_bvh_dirty = false;
+                cpu_bvh_dirty = false;
                 return;
             }
+            profiler::ScopedRangeCPU range("Scene::BuildBVH");
 
             Vector<math::bvh::BVHPrimitive> primitives;
             primitives.reserve(geometry_array->GetSize());
@@ -343,7 +356,7 @@ namespace won::ecs
             }
 
             scene_bvh.Build(primitives);
-            scene_bvh_dirty = false;
+            cpu_bvh_dirty = false;
         }
 
         bool RayCastClosest(const math::Ray& ray, RayCastHit& out_hit, bool use_local_bvh = true)
@@ -585,7 +598,8 @@ namespace won::ecs
         Vector<Entity> scene_bvh_entities;
         Vector<std::shared_ptr<System>> systems;
         Vector<Vector<uint32>> system_execution_batches;
-        bool scene_bvh_dirty = true;
+        bool cpu_bvh_dirty = true;
+        bool gpu_bvh_dirty = true;
         bool system_schedule_dirty = true;
     };
 }

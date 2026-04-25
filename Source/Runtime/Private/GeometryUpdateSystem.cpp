@@ -13,6 +13,7 @@ namespace won::ecs
         Scene::RenderData& render_data = scene.GetRenderData();
         const auto geometry_array = scene.GetComponentArray<GeometryComponent>().get();
 
+        bool dirty = false;
         // compute prefix sum
         Size submesh_sum = 0;
         for (Size i = 0; i < geometry_array->GetSize(); ++i)
@@ -23,12 +24,16 @@ namespace won::ecs
             {
                 submesh_sum += geometry_comp.mesh->submeshes.size();
             }
+            dirty |= geometry_comp.IsDirty();
         }
+
+        if (!dirty)
+            return;
 
         render_data.shader_geometries.resize(submesh_sum);
 
         jobsystem::Dispatch(sub_ctx, (uint32_t)geometry_array->GetSize(), groupsize, [&](jobsystem::JobArgs args) {
-            const GeometryComponent& geometry_comp = geometry_array->data[args.job_index];
+            GeometryComponent& geometry_comp = geometry_array->data[args.job_index];
             if (!geometry_comp.mesh)
             {
                 return;
@@ -55,8 +60,11 @@ namespace won::ecs
                     shader_geometry.index_count = geometry_comp.mesh->submeshes[i].index_count;
                 }
             }
+
+            geometry_comp.SetDirty(false);
         });
 
+        scene.SetBVHDirty();
         jobsystem::Wait(sub_ctx);
     }
 }

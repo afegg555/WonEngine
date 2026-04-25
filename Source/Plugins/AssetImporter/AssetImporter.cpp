@@ -247,8 +247,8 @@ namespace won::plugin
             }
 
             ecs::GeometryComponent* geometry_comp = target_scene_in->AddComponent<ecs::GeometryComponent>(root_entity);
-            geometry_comp->mesh = std::make_shared<resource::Mesh>();
-            auto& mesh = *geometry_comp->mesh;
+            std::shared_ptr<resource::Mesh> mesh_ptr = std::make_shared<resource::Mesh>();
+            auto& mesh = *mesh_ptr;
             bool import_failed = false;
             struct NodeImportEntry
             {
@@ -373,8 +373,8 @@ namespace won::plugin
                 return false;
             }
 
-            geometry_comp->UpdateLocalBounds();
-            geometry_comp->mesh->CreateRenderData(device_in);
+            geometry_comp->SetMesh(mesh_ptr);
+            mesh_ptr->CreateRenderData(device_in);
             std::string log = "AssetImporter::Import succeeded: " + std::string(file_path_in);
             backlog::Post(log, backlog::LogLevel::Default);
 

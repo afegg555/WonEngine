@@ -2053,6 +2053,12 @@ namespace won::editor
 			api->Import(asset_importer.get(), file_path.c_str(), &scene, device.get(), root_entity);
 
 			{
+				auto transform = scene.GetComponent<ecs::TransformComponent>(root_entity);
+				if (transform)
+				{
+					transform->Translate({ 0.0f, -3.8f, 0.0f });
+				}
+
 				auto material_component = scene.GetComponent<ecs::MaterialComponent>(root_entity);
 				for (uint32 i = 0; i < (uint32)material_component->GetMaterialSlotCount(); i++)
 				{
@@ -2087,7 +2093,8 @@ namespace won::editor
 				
 				auto env = scene.AddComponent<ecs::SkyComponent>(env_entity);
 				env->SetActive(true);
-				scene.AddComponent<ecs::EnvironmentLightingComponent>(env_entity);
+				auto environment_lighting = scene.AddComponent<ecs::EnvironmentLightingComponent>(env_entity);
+				environment_lighting->gi_mode = ecs::EnvironmentLightingComponent::DDGI;
 				scene.AddComponent<ecs::DDGIVolumeComponent>(env_entity);
 
 				auto name = scene.AddComponent<ecs::NameComponent>(env_entity);
@@ -2133,8 +2140,7 @@ namespace won::editor
 					submesh.local_bounds.max = { 1.0f, 0.0f, 1.0f };
 					mesh->submeshes.push_back(submesh);
 
-					geometry->mesh = mesh;
-					geometry->local_bounds = submesh.local_bounds;
+					geometry->SetMesh(mesh);
 
 					mesh->CreateRenderData(device.get());
 				}
@@ -2144,7 +2150,7 @@ namespace won::editor
 				{
 					auto& material_slot = material->AddMaterialSlot();
 					material_slot.base_color = { 0.8f, 0.8f, 0.8f, 1.0f };
-					material_slot.metallic = 1.0f;
+					material_slot.metallic = 0.0f;
 					material_slot.roughness = 0.5f;
 					material_slot.flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW;
 				}

@@ -18,11 +18,17 @@ namespace won::ecs
         auto transform_array = scene.GetComponentArray<TransformComponent>().get();
         Scene::RenderData& render_data = scene.GetRenderData();
 
+        std::atomic<bool> dirty(false);
         // update local transform
         jobsystem::Dispatch(sub_ctx, (uint32_t)transform_array->data.size(), groupsize, [&](jobsystem::JobArgs args) {
 
             TransformComponent& transform = transform_array->data[args.job_index];
-            transform.UpdateTransform();
+            if (transform.IsDirty())
+            {
+                dirty.store(true);
+                transform.UpdateTransform();
+            }
+            
             });
 
         jobsystem::Wait(sub_ctx); // dependencies
@@ -81,6 +87,13 @@ namespace won::ecs
                 render_data.shadow_caster_world_bound.Merge(transform.world_bounds);
             }
         });
+
+        if (dirty.load() == true)
+        {
+            scene.SetBVHDirty(true);
+        }
+        
         jobsystem::Wait(sub_ctx);
+        
     }
 }
