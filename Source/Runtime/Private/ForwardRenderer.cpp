@@ -570,8 +570,11 @@ namespace won::rendering
         if ((render_data.shader_ddgi_volume.flags & SHADER_DDGI_FLAG_ACTIVE) == 0)
         {
             RemoveResourceDeferred(frame_context, ddgi_irradiance_texture);
+            RemoveResourceDeferred(frame_context, ddgi_visibility_texture);
             ddgi_irradiance_texture_srv = {};
             ddgi_irradiance_texture_uav = {};
+            ddgi_visibility_texture_srv = {};
+            ddgi_visibility_texture_uav = {};
             ddgi_probe_counts = { 0, 0, 0 };
         }
         else
@@ -580,6 +583,9 @@ namespace won::rendering
                 !ddgi_irradiance_texture ||
                 !ddgi_irradiance_texture_srv.IsValid() ||
                 !ddgi_irradiance_texture_uav.IsValid() ||
+                !ddgi_visibility_texture ||
+                !ddgi_visibility_texture_srv.IsValid() ||
+                !ddgi_visibility_texture_uav.IsValid() ||
                 ddgi_probe_counts.x != render_data.shader_ddgi_volume.probe_counts.x ||
                 ddgi_probe_counts.y != render_data.shader_ddgi_volume.probe_counts.y ||
                 ddgi_probe_counts.z != render_data.shader_ddgi_volume.probe_counts.z;
@@ -587,10 +593,15 @@ namespace won::rendering
             if (recreate_ddgi_texture)
             {
                 RemoveResourceDeferred(frame_context, ddgi_irradiance_texture);
+                RemoveResourceDeferred(frame_context, ddgi_visibility_texture);
+                ddgi_irradiance_texture_srv = {};
+                ddgi_irradiance_texture_uav = {};
+                ddgi_visibility_texture_srv = {};
+                ddgi_visibility_texture_uav = {};
                 RHITextureDesc ddgi_irradiance_texture_desc = {};
-                ddgi_irradiance_texture_desc.width = (std::max)(render_data.shader_ddgi_volume.probe_counts.x, 1u);
-                ddgi_irradiance_texture_desc.height = (std::max)(render_data.shader_ddgi_volume.probe_counts.y, 1u);
-                ddgi_irradiance_texture_desc.depth = (std::max)(render_data.shader_ddgi_volume.probe_counts.z, 1u);
+                ddgi_irradiance_texture_desc.width = (std::max)(render_data.shader_ddgi_volume.probe_counts.x, 1u) * DDGI_IRRADIANCE_RESOLUTION;
+                ddgi_irradiance_texture_desc.height = (std::max)(render_data.shader_ddgi_volume.probe_counts.y, 1u) * (std::max)(render_data.shader_ddgi_volume.probe_counts.z, 1u) * DDGI_IRRADIANCE_RESOLUTION;
+                ddgi_irradiance_texture_desc.depth = 1;
                 ddgi_irradiance_texture_desc.mip_levels = 1;
                 ddgi_irradiance_texture_desc.array_layers = 1;
                 ddgi_irradiance_texture_desc.sample_count = 1;
@@ -625,7 +636,7 @@ namespace won::rendering
                 ddgi_irradiance_uav_desc.first_mip = 0;
                 ddgi_irradiance_uav_desc.mip_count = 1;
                 ddgi_irradiance_uav_desc.first_slice = 0;
-                ddgi_irradiance_uav_desc.slice_count = ddgi_irradiance_texture_desc.depth;
+                ddgi_irradiance_uav_desc.slice_count = 1;
                 if (!device->CreateSubresource(*ddgi_irradiance_texture, ddgi_irradiance_uav_desc, &ddgi_irradiance_texture_uav))
                 {
                     backlog::Post("failed to create ddgi irradiance uav", backlog::LogLevel::Error);
@@ -634,6 +645,52 @@ namespace won::rendering
                 }
 
                 ddgi_probe_counts = render_data.shader_ddgi_volume.probe_counts;
+
+                RHITextureDesc ddgi_visibility_texture_desc = {};
+                ddgi_visibility_texture_desc.width = (std::max)(render_data.shader_ddgi_volume.probe_counts.x, 1u) * DDGI_VISIBILITY_RESOLUTION;
+                ddgi_visibility_texture_desc.height = (std::max)(render_data.shader_ddgi_volume.probe_counts.y, 1u) * (std::max)(render_data.shader_ddgi_volume.probe_counts.z, 1u) * DDGI_VISIBILITY_RESOLUTION;
+                ddgi_visibility_texture_desc.depth = 1;
+                ddgi_visibility_texture_desc.mip_levels = 1;
+                ddgi_visibility_texture_desc.array_layers = 1;
+                ddgi_visibility_texture_desc.sample_count = 1;
+                ddgi_visibility_texture_desc.format = RHIFormat::R16G16B16A16Float;
+                ddgi_visibility_texture_desc.usage = RHIResourceUsage::Default;
+                ddgi_visibility_texture_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
+                ddgi_visibility_texture = device->CreateTexture(ddgi_visibility_texture_desc);
+                if (!ddgi_visibility_texture)
+                {
+                    backlog::Post("failed to create ddgi visibility texture", backlog::LogLevel::Error);
+                    return false;
+                }
+                ddgi_visibility_texture->SetName("DDGI Visibility Texture");
+
+                ddgi_visibility_texture_srv = {};
+                RHISubresourceDesc ddgi_visibility_srv_desc = {};
+                ddgi_visibility_srv_desc.type = RHISubresourceType::ShaderResource;
+                ddgi_visibility_srv_desc.format = ddgi_visibility_texture_desc.format;
+                ddgi_visibility_srv_desc.first_mip = 0;
+                ddgi_visibility_srv_desc.mip_count = 1;
+                if (!device->CreateSubresource(*ddgi_visibility_texture, ddgi_visibility_srv_desc, &ddgi_visibility_texture_srv))
+                {
+                    backlog::Post("failed to create ddgi visibility srv", backlog::LogLevel::Error);
+                    ddgi_visibility_texture = nullptr;
+                    return false;
+                }
+
+                ddgi_visibility_texture_uav = {};
+                RHISubresourceDesc ddgi_visibility_uav_desc = {};
+                ddgi_visibility_uav_desc.type = RHISubresourceType::UnorderedAccess;
+                ddgi_visibility_uav_desc.format = ddgi_visibility_texture_desc.format;
+                ddgi_visibility_uav_desc.first_mip = 0;
+                ddgi_visibility_uav_desc.mip_count = 1;
+                ddgi_visibility_uav_desc.first_slice = 0;
+                ddgi_visibility_uav_desc.slice_count = 1;
+                if (!device->CreateSubresource(*ddgi_visibility_texture, ddgi_visibility_uav_desc, &ddgi_visibility_texture_uav))
+                {
+                    backlog::Post("failed to create ddgi visibility uav", backlog::LogLevel::Error);
+                    ddgi_visibility_texture = nullptr;
+                    return false;
+                }
             }
         }
 
@@ -655,6 +712,8 @@ namespace won::rendering
         shader_frame.ddgi_volume = render_data.shader_ddgi_volume;
         shader_frame.ddgi_volume.irradiance_texture = ddgi_irradiance_texture_srv.descriptor_index;
         shader_frame.ddgi_volume.irradiance_texture_uav = ddgi_irradiance_texture_uav.descriptor_index;
+        shader_frame.ddgi_volume.visibility_texture = ddgi_visibility_texture_srv.descriptor_index;
+        shader_frame.ddgi_volume.visibility_texture_uav = ddgi_visibility_texture_uav.descriptor_index;
 
         ShaderCamera shader_camera{};
         shader_camera.Init();
@@ -1208,8 +1267,13 @@ namespace won::rendering
         debug_state.ddgi.irradiance_texture_allocated = ddgi_irradiance_texture != nullptr;
         debug_state.ddgi.irradiance_srv_valid = ddgi_irradiance_texture_srv.IsValid();
         debug_state.ddgi.irradiance_uav_valid = ddgi_irradiance_texture_uav.IsValid();
+        debug_state.ddgi.visibility_texture_allocated = ddgi_visibility_texture != nullptr;
+        debug_state.ddgi.visibility_srv_valid = ddgi_visibility_texture_srv.IsValid();
+        debug_state.ddgi.visibility_uav_valid = ddgi_visibility_texture_uav.IsValid();
         debug_state.ddgi.irradiance_texture_srv = ddgi_irradiance_texture_srv.descriptor_index;
         debug_state.ddgi.irradiance_texture_uav = ddgi_irradiance_texture_uav.descriptor_index;
+        debug_state.ddgi.visibility_texture_srv = ddgi_visibility_texture_srv.descriptor_index;
+        debug_state.ddgi.visibility_texture_uav = ddgi_visibility_texture_uav.descriptor_index;
         if (render_data.shadow_map_atlas_size.x == 0 || render_data.shadow_map_atlas_size.y == 0)
         {
             RemoveResourceDeferred(frame_context, shadow_map_atlas);
@@ -1324,26 +1388,34 @@ namespace won::rendering
             (render_data.shader_ddgi_volume.flags & SHADER_DDGI_FLAG_ACTIVE) != 0 &&
             ddgi_probe_update_pipeline &&
             ddgi_irradiance_texture &&
+            ddgi_visibility_texture &&
             ddgi_irradiance_texture_srv.IsValid() &&
-            ddgi_irradiance_texture_uav.IsValid())
+            ddgi_irradiance_texture_uav.IsValid() &&
+            ddgi_visibility_texture_srv.IsValid() &&
+            ddgi_visibility_texture_uav.IsValid())
         {
+            const uint32 ddgi_visibility_atlas_width = (std::max)(render_data.shader_ddgi_volume.probe_counts.x, 1u) * DDGI_VISIBILITY_RESOLUTION;
+            const uint32 ddgi_visibility_atlas_height = (std::max)(render_data.shader_ddgi_volume.probe_counts.y, 1u) * (std::max)(render_data.shader_ddgi_volume.probe_counts.z, 1u) * DDGI_VISIBILITY_RESOLUTION;
             debug_state.ddgi.dispatch_groups = {
-                (render_data.shader_ddgi_volume.probe_counts.x + DISPATCH_THREAD_GROUP_3D - 1) / DISPATCH_THREAD_GROUP_3D,
-                (render_data.shader_ddgi_volume.probe_counts.y + DISPATCH_THREAD_GROUP_3D - 1) / DISPATCH_THREAD_GROUP_3D,
-                (render_data.shader_ddgi_volume.probe_counts.z + DISPATCH_THREAD_GROUP_3D - 1) / DISPATCH_THREAD_GROUP_3D
+                (ddgi_visibility_atlas_width + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D,
+                (ddgi_visibility_atlas_height + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D,
+                1
             };
             auto gpu_range = profiler::ScopedRangeGPU("DDGI Probe Update", *frame_context.command_list);
             frame_context.command_list->BeginEvent("DDGI Probe Update");
             frame_context.command_list->TransitionResource(*ddgi_irradiance_texture, RHIResourceState::ShaderWrite);
+            frame_context.command_list->TransitionResource(*ddgi_visibility_texture, RHIResourceState::ShaderWrite);
             frame_context.command_list->SetComputePipeline(*ddgi_probe_update_pipeline);
             frame_context.command_list->SetConstantBuffer(RHIShaderStage::Compute, 0, shader_frame_binding);
             frame_context.command_list->SetConstantBuffer(RHIShaderStage::Compute, 1, shader_camera_binding);
             frame_context.command_list->Dispatch(
-                (render_data.shader_ddgi_volume.probe_counts.x + DISPATCH_THREAD_GROUP_3D - 1) / DISPATCH_THREAD_GROUP_3D,
-                (render_data.shader_ddgi_volume.probe_counts.y + DISPATCH_THREAD_GROUP_3D - 1) / DISPATCH_THREAD_GROUP_3D,
-                (render_data.shader_ddgi_volume.probe_counts.z + DISPATCH_THREAD_GROUP_3D - 1) / DISPATCH_THREAD_GROUP_3D);
+                debug_state.ddgi.dispatch_groups.x,
+                debug_state.ddgi.dispatch_groups.y,
+                debug_state.ddgi.dispatch_groups.z);
             frame_context.command_list->UAVBarrier(*ddgi_irradiance_texture);
+            frame_context.command_list->UAVBarrier(*ddgi_visibility_texture);
             frame_context.command_list->TransitionResource(*ddgi_irradiance_texture, RHIResourceState::ShaderRead);
+            frame_context.command_list->TransitionResource(*ddgi_visibility_texture, RHIResourceState::ShaderRead);
             frame_context.command_list->EndEvent();
             debug_state.ddgi.probe_update_dispatched = true;
         }
@@ -1570,6 +1642,9 @@ namespace won::rendering
         ddgi_irradiance_texture_uav = {};
         ddgi_irradiance_texture_srv = {};
         ddgi_irradiance_texture = nullptr;
+        ddgi_visibility_texture_uav = {};
+        ddgi_visibility_texture_srv = {};
+        ddgi_visibility_texture = nullptr;
         ddgi_probe_update_pipeline = nullptr;
         ddgi_probe_update_shader = nullptr;
         debug_state = {};

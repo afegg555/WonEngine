@@ -1,4 +1,8 @@
 #include "Common.hlsli"
+#include "DDGICommon.hlsli"
+#include "RayTraceCommon.hlsli"
+
+static const bool ddgi_debug_probe_index = true;
 
 static float3 EvaluateDirectDiffuse(float3 position, float3 normal)
 {
@@ -68,34 +72,48 @@ static float3 EvaluateDirectDiffuse(float3 position, float3 normal)
     return radiance;
 }
 
-[numthreads(DISPATCH_THREAD_GROUP_3D, DISPATCH_THREAD_GROUP_3D, DISPATCH_THREAD_GROUP_3D)]
+[numthreads(DISPATCH_THREAD_GROUP_2D, DISPATCH_THREAD_GROUP_2D, 1)]
 void main(uint3 dispatch_thread_id : SV_DispatchThreadID)
 {
     ShaderDDGIVolume ddgi_volume = GetDDGIVolume();
-    if (!ddgi_volume.IsActive() || ddgi_volume.irradiance_texture_uav < 0)
+    if (!ddgi_volume.IsActive() || ddgi_volume.irradiance_texture_uav < 0 || ddgi_volume.visibility_texture_uav < 0)
     {
         return;
     }
 
-    if (dispatch_thread_id.x >= ddgi_volume.probe_counts.x ||
-        dispatch_thread_id.y >= ddgi_volume.probe_counts.y ||
-        dispatch_thread_id.z >= ddgi_volume.probe_counts.z)
+    uint atlas_width = ddgi_volume.probe_counts.x * DDGI_VISIBILITY_RESOLUTION;
+    uint atlas_height = ddgi_volume.probe_counts.y * ddgi_volume.probe_counts.z * DDGI_VISIBILITY_RESOLUTION;
+    if (dispatch_thread_id.x >= atlas_width || dispatch_thread_id.y >= atlas_height)
     {
         return;
     }
 
-    float3 probe_position = ddgi_volume.volume_min + float3(dispatch_thread_id) * ddgi_volume.probe_spacing;
-    uint ray_count = max(ddgi_volume.rays_per_probe, 1u);
+    uint3 probe_index;
+    uint2 probe_texel;
+    probe_index.x = dispatch_thread_id.x / DDGI_VISIBILITY_RESOLUTION;
+    probe_texel.x = dispatch_thread_id.x - probe_index.x * DDGI_VISIBILITY_RESOLUTION;
+    uint probe_yz = dispatch_thread_id.y / DDGI_VISIBILITY_RESOLUTION;
+    probe_texel.y = dispatch_thread_id.y - probe_yz * DDGI_VISIBILITY_RESOLUTION;
+    probe_index.y = probe_yz % ddgi_volume.probe_counts.y;
+    probe_index.z = probe_yz / ddgi_volume.probe_counts.y;
+    if (probe_index.x >= ddgi_volume.probe_counts.x || probe_index.z >= ddgi_volume.probe_counts.z)
+    {
+        return;
+    }
+
+    float3 probe_position = ddgi_volume.volume_min + float3(probe_index) * ddgi_volume.probe_spacing;
+    float3 direction = DecodeOctahedralTexel(probe_texel, DDGI_VISIBILITY_RESOLUTION);
     float3 irradiance = float3(0.0f, 0.0f, 0.0f);
-
-    [loop]
-    for (uint ray_index = 0; ray_index < ray_count; ++ray_index)
+    float distance = ddgi_volume.max_distance;
+    SceneRayHit hit = TraceSceneRay(probe_position, direction, 0.02f, ddgi_volume.max_distance);
+    if (hit.hit)
     {
-        float2 xi = Hammersley(ray_index, ray_count);
-        float3 direction = SampleSphere(xi);
-        irradiance += EvaluateDirectDiffuse(probe_position, direction);
+        distance = hit.distance;
+        float hit_weight = saturate(dot(hit.normal, -direction));
+        irradiance = EvaluateDirectDiffuse(hit.position + hit.normal * ddgi_volume.normal_bias, hit.normal) * hit_weight;
+        //irradiance += float3(1, 0, 0) * hit_weight;
     }
 
-    irradiance *= (4.0f * PI) / float(ray_count);
-    bindless_rwtextures3D[DescriptorIndex(ddgi_volume.irradiance_texture_uav)][dispatch_thread_id] = float4(irradiance, 1.0f);
+    bindless_rwtextures[DescriptorIndex(ddgi_volume.irradiance_texture_uav)][dispatch_thread_id.xy] = float4(irradiance, 1.0f);
+    bindless_rwtextures[DescriptorIndex(ddgi_volume.visibility_texture_uav)][dispatch_thread_id.xy] = float4(distance, distance * distance, hit.hit ? 1.0f : 0.0f, 1.0f);
 }

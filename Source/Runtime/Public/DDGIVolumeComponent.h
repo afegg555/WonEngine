@@ -15,13 +15,10 @@ namespace won::ecs
         uint32 flags = Active | Dynamic;
 
         uint3 probe_counts = { 8, 4, 8 };
-        uint32 rays_per_probe = 144;
 
         float3 probe_spacing = { 2.0f, 2.0f, 2.0f };
-        uint32 irradiance_resolution = 8;
 
         float3 volume_offset = { 0.0f, 0.0f, 0.0f };
-        uint32 visibility_resolution = 16;
 
         uint32 probes_per_frame = 32;
         uint32 priority = 0;

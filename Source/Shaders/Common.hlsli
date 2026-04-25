@@ -118,7 +118,7 @@ inline half4 UnpackHalf4(in uint2 value)
     return retVal;
 }
 
-static float RadicalInverseVdC(uint bits)
+inline float RadicalInverseVdC(uint bits)
 {
     // invert all bits and normalize by 2^32 (result in range[0,1))
     bits = (bits << 16u) | (bits >> 16u);
@@ -129,13 +129,13 @@ static float RadicalInverseVdC(uint bits)
     return float(bits) * 2.3283064365386963e-10f;
 }
 
-static float2 Hammersley(uint index, uint count)
+inline float2 Hammersley(uint index, uint count)
 {
     // result in range[0,1)
     return float2((float(index) + 0.5f) / max(float(count), 1.0f), RadicalInverseVdC(index));
 }
 
-static float3 SampleSphere(float2 xi)
+inline float3 SampleSphere(float2 xi)
 {
     float z = 1.0f - 2.0f * xi.x;
     float radius = sqrt(saturate(1.0f - z * z));

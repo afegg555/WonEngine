@@ -345,6 +345,9 @@ namespace won::editor
 				lines.push_back(String("Texture Allocated: ") + bool_text(ddgi_state.irradiance_texture_allocated));
 				lines.push_back(String("SRV Valid: ") + bool_text(ddgi_state.irradiance_srv_valid) + " (" + std::to_string(ddgi_state.irradiance_texture_srv) + ")");
 				lines.push_back(String("UAV Valid: ") + bool_text(ddgi_state.irradiance_uav_valid) + " (" + std::to_string(ddgi_state.irradiance_texture_uav) + ")");
+				lines.push_back(String("Visibility Allocated: ") + bool_text(ddgi_state.visibility_texture_allocated));
+				lines.push_back(String("Visibility SRV: ") + bool_text(ddgi_state.visibility_srv_valid) + " (" + std::to_string(ddgi_state.visibility_texture_srv) + ")");
+				lines.push_back(String("Visibility UAV: ") + bool_text(ddgi_state.visibility_uav_valid) + " (" + std::to_string(ddgi_state.visibility_texture_uav) + ")");
 				lines.push_back(String("Pipeline Ready: ") + bool_text(ddgi_state.probe_update_pipeline_ready));
 				lines.push_back(String("Probe Dispatch: ") + bool_text(ddgi_state.probe_update_dispatched));
 				lines.push_back("Dispatch Groups: " + std::to_string(ddgi_state.dispatch_groups.x) + ", " + std::to_string(ddgi_state.dispatch_groups.y) + ", " + std::to_string(ddgi_state.dispatch_groups.z));
@@ -1312,24 +1315,6 @@ namespace won::editor
 							ddgi_volume_comp->volume_offset = { volume_offset[0], volume_offset[1], volume_offset[2] };
 						}
 
-						int rays_per_probe = static_cast<int>(ddgi_volume_comp->rays_per_probe);
-						if (ImGui::InputInt("Rays Per Probe", &rays_per_probe))
-						{
-							ddgi_volume_comp->rays_per_probe = static_cast<uint32>((std::max)(1, rays_per_probe));
-						}
-
-						int irradiance_resolution = static_cast<int>(ddgi_volume_comp->irradiance_resolution);
-						if (ImGui::InputInt("Irradiance Resolution", &irradiance_resolution))
-						{
-							ddgi_volume_comp->irradiance_resolution = static_cast<uint32>((std::max)(1, irradiance_resolution));
-						}
-
-						int visibility_resolution = static_cast<int>(ddgi_volume_comp->visibility_resolution);
-						if (ImGui::InputInt("Visibility Resolution", &visibility_resolution))
-						{
-							ddgi_volume_comp->visibility_resolution = static_cast<uint32>((std::max)(1, visibility_resolution));
-						}
-
 						int probes_per_frame = static_cast<int>(ddgi_volume_comp->probes_per_frame);
 						if (ImGui::InputInt("Probes Per Frame", &probes_per_frame))
 						{
@@ -2060,7 +2045,8 @@ namespace won::editor
 				auto transform = scene.GetComponent<ecs::TransformComponent>(root_entity);
 				if (transform)
 				{
-					transform->Translate({ 0.0f, -3.8f, 0.0f });
+					transform->Translate({ 5.0f, 0.0f, 5.0f });
+					transform->Scale({ 3.0f, 3.0f, 3.0f });
 				}
 
 				auto material_component = scene.GetComponent<ecs::MaterialComponent>(root_entity);
@@ -2078,8 +2064,14 @@ namespace won::editor
 			{
 				ecs::Entity light_entity = scene.CreateEntity();
 				auto transform = scene.AddComponent<ecs::TransformComponent>(light_entity);
-				transform->RotateRollPitchYaw({ math::PI / 2.f, 0, 0 });
-				//transform->Translate({ 0,0,-1 });
+				{
+					const XMVECTOR source_direction = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+					const XMVECTOR target_direction = XMVector3Normalize(XMVectorSet(1.0f, -1.0f, 1.0f, 0.0f));
+					const XMVECTOR rotation_axis = XMVector3Normalize(XMVector3Cross(source_direction, target_direction));
+					const float rotation_angle = std::acos((std::max)(-1.0f, (std::min)(1.0f, XMVectorGetX(XMVector3Dot(source_direction, target_direction)))));
+					XMStoreFloat4(&transform->rotation, XMQuaternionRotationAxis(rotation_axis, rotation_angle));
+					transform->SetDirty();
+				}
 				auto light = scene.AddComponent<ecs::LightComponent>(light_entity);
 				light->type = ecs::LightComponent::LightType::Directional;
 				light->intensity = 100.f;
@@ -2099,7 +2091,12 @@ namespace won::editor
 				env->SetActive(true);
 				auto environment_lighting = scene.AddComponent<ecs::EnvironmentLightingComponent>(env_entity);
 				environment_lighting->gi_mode = ecs::EnvironmentLightingComponent::DDGI;
-				scene.AddComponent<ecs::DDGIVolumeComponent>(env_entity);
+				environment_lighting->indirect_diffuse_scale = 0.005f;
+				auto ddgi_volume = scene.AddComponent<ecs::DDGIVolumeComponent>(env_entity);
+				ddgi_volume->probe_counts = { 16, 16, 16 };
+				ddgi_volume->probe_spacing = { 1.0f, 1.0f, 1.0f };
+				ddgi_volume->volume_offset = { 5.0f, 0.0f, 5.0f };
+				ddgi_volume->normal_bias = 1.f;
 
 				auto name = scene.AddComponent<ecs::NameComponent>(env_entity);
 				name->value = "Environment";
@@ -2153,7 +2150,7 @@ namespace won::editor
 				if (material)
 				{
 					auto& material_slot = material->AddMaterialSlot();
-					material_slot.base_color = { 0.8f, 0.8f, 0.8f, 1.0f };
+					material_slot.base_color = { 0.78f, 0.78f, 0.72f, 1.0f };
 					material_slot.metallic = 0.0f;
 					material_slot.roughness = 0.5f;
 					material_slot.flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW;
@@ -2162,6 +2159,108 @@ namespace won::editor
 				auto name = scene.AddComponent<ecs::NameComponent>(plane_entity);
 				name->value = "Plane";
 
+			}
+
+			// side wall plane entity
+			{
+				ecs::Entity side_wall_entity = scene.CreateEntity();
+				scene.AddComponent<ecs::TransformComponent>(side_wall_entity);
+
+				auto geometry = scene.AddComponent<ecs::GeometryComponent>(side_wall_entity);
+				if (geometry)
+				{
+					auto mesh = std::make_shared<resource::Mesh>();
+					mesh->positions = {
+						{ 10.0f, 15.0f, 10.0f },
+						{ 10.0f, -5.0f, 10.0f },
+						{ 10.0f, 15.0f, -10.0f },
+						{ 10.0f, -5.0f, -10.0f },
+					};
+					mesh->normals = {
+						{ -1.0f, 0.0f, 0.0f },
+						{ -1.0f, 0.0f, 0.0f },
+						{ -1.0f, 0.0f, 0.0f },
+						{ -1.0f, 0.0f, 0.0f },
+					};
+
+					mesh->indices = { 1, 0, 2, 1, 2, 3 };
+
+					resource::Submesh submesh = {};
+					submesh.first_index = 0;
+					submesh.index_count = 6;
+					submesh.first_vertex = 0;
+					submesh.material_slot = 0;
+					submesh.local_bounds.min = { 9.999f, -5.0f, -10.0f };
+					submesh.local_bounds.max = { 10.001f, 15.0f, 10.0f };
+					mesh->submeshes.push_back(submesh);
+
+					geometry->SetMesh(mesh);
+					mesh->CreateRenderData(device.get());
+				}
+
+				auto material = scene.AddComponent<ecs::MaterialComponent>(side_wall_entity);
+				if (material)
+				{
+					auto& material_slot = material->AddMaterialSlot();
+					material_slot.base_color = { 0.9f, 0.35f, 0.35f, 1.0f };
+					material_slot.metallic = 0.0f;
+					material_slot.roughness = 0.5f;
+					material_slot.flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW;
+				}
+
+				auto name = scene.AddComponent<ecs::NameComponent>(side_wall_entity);
+				name->value = "Side Wall";
+			}
+
+			// back wall plane entity
+			{
+				ecs::Entity back_wall_entity = scene.CreateEntity();
+				scene.AddComponent<ecs::TransformComponent>(back_wall_entity);
+
+				auto geometry = scene.AddComponent<ecs::GeometryComponent>(back_wall_entity);
+				if (geometry)
+				{
+					auto mesh = std::make_shared<resource::Mesh>();
+					mesh->positions = {
+						{ -10.0f, 15.0f, 10.0f },
+						{ -10.0f, -5.0f, 10.0f },
+						{ 10.0f, 15.0f, 10.0f },
+						{ 10.0f, -5.0f, 10.0f },
+					};
+					mesh->normals = {
+						{ 0.0f, 0.0f, -1.0f },
+						{ 0.0f, 0.0f, -1.0f },
+						{ 0.0f, 0.0f, -1.0f },
+						{ 0.0f, 0.0f, -1.0f },
+					};
+
+					mesh->indices = { 1, 0, 2, 1, 2, 3 };
+
+					resource::Submesh submesh = {};
+					submesh.first_index = 0;
+					submesh.index_count = 6;
+					submesh.first_vertex = 0;
+					submesh.material_slot = 0;
+					submesh.local_bounds.min = { -10.0f, -5.0f, 9.999f };
+					submesh.local_bounds.max = { 10.0f, 15.0f, 10.001f };
+					mesh->submeshes.push_back(submesh);
+
+					geometry->SetMesh(mesh);
+					mesh->CreateRenderData(device.get());
+				}
+
+				auto material = scene.AddComponent<ecs::MaterialComponent>(back_wall_entity);
+				if (material)
+				{
+					auto& material_slot = material->AddMaterialSlot();
+					material_slot.base_color = { 0.35f, 0.45f, 0.9f, 1.0f };
+					material_slot.metallic = 0.0f;
+					material_slot.roughness = 0.5f;
+					material_slot.flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW;
+				}
+
+				auto name = scene.AddComponent<ecs::NameComponent>(back_wall_entity);
+				name->value = "Back Wall";
 			}
 		}
 		UpdateEntityList();

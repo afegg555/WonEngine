@@ -73,6 +73,10 @@ namespace won::rendering
         RHISubresourceHandle ddgi_irradiance_texture_srv = {};
         RHISubresourceHandle ddgi_irradiance_texture_uav = {};
 
+        std::shared_ptr<RHIResource> ddgi_visibility_texture;
+        RHISubresourceHandle ddgi_visibility_texture_srv = {};
+        RHISubresourceHandle ddgi_visibility_texture_uav = {};
+
         std::shared_ptr<RHIPipeline> ddgi_probe_update_pipeline;
         std::shared_ptr<RHIShader> ddgi_probe_update_shader;
         RendererDebugState debug_state = {};

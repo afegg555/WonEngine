@@ -242,6 +242,7 @@ set(SHADERS_HLSL
     Source/Shaders/BRDFCommon.hlsli
     Source/Shaders/FogCommon.hlsli
     Source/Shaders/RayTraceCommon.hlsli
+    Source/Shaders/DDGICommon.hlsli
     Source/Shaders/ObjectCommon.hlsli
     Source/Shaders/ObjectVS.hlsli
     Source/Shaders/ObjectVS_simple.hlsl

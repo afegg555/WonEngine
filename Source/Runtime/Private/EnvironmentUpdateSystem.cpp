@@ -96,7 +96,6 @@ namespace won::ecs
 
                 render_data.shader_ddgi_volume.flags = SHADER_DDGI_FLAG_ACTIVE;
                 render_data.ddgi_volume_entity = selected_ddgi_volume_entity;
-                render_data.shader_ddgi_volume.rays_per_probe = selected_ddgi_volume->rays_per_probe;
                 render_data.shader_ddgi_volume.probe_counts = selected_ddgi_volume->probe_counts;
                 render_data.shader_ddgi_volume.normal_bias = selected_ddgi_volume->normal_bias;
                 render_data.shader_ddgi_volume.view_bias = selected_ddgi_volume->view_bias;

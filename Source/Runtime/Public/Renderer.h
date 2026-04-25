@@ -31,6 +31,9 @@ namespace won::rendering
         bool irradiance_texture_allocated = false;
         bool irradiance_srv_valid = false;
         bool irradiance_uav_valid = false;
+        bool visibility_texture_allocated = false;
+        bool visibility_srv_valid = false;
+        bool visibility_uav_valid = false;
         bool probe_update_pipeline_ready = false;
         bool probe_update_dispatched = false;
 
@@ -44,6 +47,8 @@ namespace won::rendering
 
         int irradiance_texture_srv = -1;
         int irradiance_texture_uav = -1;
+        int visibility_texture_srv = -1;
+        int visibility_texture_uav = -1;
     };
 
     struct RendererDebugState
