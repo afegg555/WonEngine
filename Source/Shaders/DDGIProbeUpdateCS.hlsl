@@ -86,21 +86,13 @@ void main(uint3 group_id : SV_GroupID, uint3 group_thread_id : SV_GroupThreadID)
         return;
     }
 
-    if (group_id.x >= ddgi_volume.probe_counts.x || group_id.y >= ddgi_volume.probe_counts.y * ddgi_volume.probe_counts.z)
+    if (any(group_id >= ddgi_volume.probe_counts))
     {
         return;
     }
 
-    uint3 probe_index;
+    uint3 probe_index = group_id;
     uint2 probe_texel = group_thread_id.xy;
-    uint probe_yz = group_id.y;
-    probe_index.x = group_id.x;
-    probe_index.y = probe_yz % ddgi_volume.probe_counts.y;
-    probe_index.z = probe_yz / ddgi_volume.probe_counts.y;
-    if (probe_index.z >= ddgi_volume.probe_counts.z)
-    {
-        return;
-    }
 
     float3 probe_position = ddgi_volume.volume_min + float3(probe_index) * ddgi_volume.probe_spacing;
     float3 direction = DecodeOctahedralTexel(probe_texel, DDGI_VISIBILITY_RESOLUTION);

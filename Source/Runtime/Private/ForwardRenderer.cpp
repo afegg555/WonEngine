@@ -1399,8 +1399,8 @@ namespace won::rendering
         {
             debug_state.ddgi.dispatch_groups = {
                 render_data.shader_ddgi_volume.probe_counts.x,
-                render_data.shader_ddgi_volume.probe_counts.y * render_data.shader_ddgi_volume.probe_counts.z,
-                1
+                render_data.shader_ddgi_volume.probe_counts.y,
+                render_data.shader_ddgi_volume.probe_counts.z
             };
             auto gpu_range = profiler::ScopedRangeGPU("DDGI Probe Update", *frame_context.command_list);
             frame_context.command_list->BeginEvent("DDGI Probe Update");
