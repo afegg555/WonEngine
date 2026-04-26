@@ -3,6 +3,9 @@
 
 #include "ShaderInterop.h"
 
+#define DDGI_VISIBILITY_RESOLUTION 16
+#define DDGI_IRRADIANCE_RESOLUTION DDGI_VISIBILITY_RESOLUTION // Works even with a lower resolution than visibility, but kept the same for calculation convenience
+
 enum SHADER_OBJECT_FLAGS
 {
     SHADER_OBJECT_FLAG_NONE = 0,
@@ -63,9 +66,6 @@ enum SHADER_DDGI_FLAGS
     SHADER_DDGI_FLAG_NONE = 0,
     SHADER_DDGI_FLAG_ACTIVE = 1 << 0,
 };
-
-#define DDGI_IRRADIANCE_RESOLUTION 16
-#define DDGI_VISIBILITY_RESOLUTION 16
 
 enum SHADER_ENVIRONMENT_GI_MODE
 {

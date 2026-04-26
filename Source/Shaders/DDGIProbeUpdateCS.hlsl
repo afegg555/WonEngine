@@ -4,6 +4,11 @@
 
 static const bool ddgi_debug_probe_index = true;
 
+groupshared float shared_distance[DDGI_VISIBILITY_RESOLUTION * DDGI_VISIBILITY_RESOLUTION]; // 1KB
+groupshared float shared_distance_sq[DDGI_VISIBILITY_RESOLUTION * DDGI_VISIBILITY_RESOLUTION]; // 1KB
+groupshared float3 shared_irradiance[DDGI_VISIBILITY_RESOLUTION * DDGI_VISIBILITY_RESOLUTION]; // 3KB
+groupshared float shared_hit[DDGI_VISIBILITY_RESOLUTION * DDGI_VISIBILITY_RESOLUTION]; // 1KB
+
 static float3 EvaluateDirectDiffuse(float3 position, float3 normal)
 {
     float3 radiance = float3(0.0f, 0.0f, 0.0f);
@@ -72,8 +77,8 @@ static float3 EvaluateDirectDiffuse(float3 position, float3 normal)
     return radiance;
 }
 
-[numthreads(DISPATCH_THREAD_GROUP_2D, DISPATCH_THREAD_GROUP_2D, 1)]
-void main(uint3 dispatch_thread_id : SV_DispatchThreadID)
+[numthreads(DDGI_VISIBILITY_RESOLUTION, DDGI_VISIBILITY_RESOLUTION, 1)]
+void main(uint3 group_id : SV_GroupID, uint3 group_thread_id : SV_GroupThreadID)
 {
     ShaderDDGIVolume ddgi_volume = GetDDGIVolume();
     if (!ddgi_volume.IsActive() || ddgi_volume.irradiance_texture_uav < 0 || ddgi_volume.visibility_texture_uav < 0)
@@ -81,22 +86,18 @@ void main(uint3 dispatch_thread_id : SV_DispatchThreadID)
         return;
     }
 
-    uint atlas_width = ddgi_volume.probe_counts.x * DDGI_VISIBILITY_RESOLUTION;
-    uint atlas_height = ddgi_volume.probe_counts.y * ddgi_volume.probe_counts.z * DDGI_VISIBILITY_RESOLUTION;
-    if (dispatch_thread_id.x >= atlas_width || dispatch_thread_id.y >= atlas_height)
+    if (group_id.x >= ddgi_volume.probe_counts.x || group_id.y >= ddgi_volume.probe_counts.y * ddgi_volume.probe_counts.z)
     {
         return;
     }
 
     uint3 probe_index;
-    uint2 probe_texel;
-    probe_index.x = dispatch_thread_id.x / DDGI_VISIBILITY_RESOLUTION;
-    probe_texel.x = dispatch_thread_id.x - probe_index.x * DDGI_VISIBILITY_RESOLUTION;
-    uint probe_yz = dispatch_thread_id.y / DDGI_VISIBILITY_RESOLUTION;
-    probe_texel.y = dispatch_thread_id.y - probe_yz * DDGI_VISIBILITY_RESOLUTION;
+    uint2 probe_texel = group_thread_id.xy;
+    uint probe_yz = group_id.y;
+    probe_index.x = group_id.x;
     probe_index.y = probe_yz % ddgi_volume.probe_counts.y;
     probe_index.z = probe_yz / ddgi_volume.probe_counts.y;
-    if (probe_index.x >= ddgi_volume.probe_counts.x || probe_index.z >= ddgi_volume.probe_counts.z)
+    if (probe_index.z >= ddgi_volume.probe_counts.z)
     {
         return;
     }
@@ -114,6 +115,39 @@ void main(uint3 dispatch_thread_id : SV_DispatchThreadID)
         //irradiance += float3(1, 0, 0) * hit_weight;
     }
 
-    bindless_rwtextures[DescriptorIndex(ddgi_volume.irradiance_texture_uav)][dispatch_thread_id.xy] = float4(irradiance, 1.0f);
-    bindless_rwtextures[DescriptorIndex(ddgi_volume.visibility_texture_uav)][dispatch_thread_id.xy] = float4(distance, distance * distance, hit.hit ? 1.0f : 0.0f, 1.0f);
+    uint thread_index = group_thread_id.y * DDGI_VISIBILITY_RESOLUTION + group_thread_id.x;
+    shared_distance[thread_index] = distance;
+    shared_distance_sq[thread_index] = distance * distance;
+    shared_irradiance[thread_index] = irradiance;
+    shared_hit[thread_index] = hit.hit ? 1.0f : 0.0f;
+    GroupMemoryBarrierWithGroupSync();
+
+    float sum_weight = 0.0f;
+    float sum_distance = 0.0f;
+    float sum_distance_sq = 0.0f;
+    float3 sum_irradiance = float3(0.0f, 0.0f, 0.0f);
+    float sum_hit = 0.0f;
+
+    [unroll]
+    for (int sample_y = -1; sample_y <= 1; ++sample_y)
+    {
+        [unroll]
+        for (int sample_x = -1; sample_x <= 1; ++sample_x)
+        {
+            int2 sample_texel = clamp(int2(probe_texel) + int2(sample_x, sample_y), int2(0, 0), int2(DDGI_VISIBILITY_RESOLUTION - 1, DDGI_VISIBILITY_RESOLUTION - 1));
+            uint sample_index = sample_texel.y * DDGI_VISIBILITY_RESOLUTION + sample_texel.x;
+            float sample_weight = sample_x == 0 && sample_y == 0 ? 4.0f : (sample_x == 0 || sample_y == 0 ? 2.0f : 1.0f);
+            sum_weight += sample_weight;
+            sum_distance += shared_distance[sample_index] * sample_weight;
+            sum_distance_sq += shared_distance_sq[sample_index] * sample_weight;
+            sum_irradiance += shared_irradiance[sample_index] * sample_weight;
+            sum_hit += shared_hit[sample_index] * sample_weight;
+        }
+    }
+
+    float inv_weight = rcp(max(sum_weight, 0.0001f));
+    uint2 irradiance_atlas_texel = DDGIProbeAtlasBase(probe_index, ddgi_volume) + probe_texel;
+    uint2 visibility_atlas_texel = DDGIProbeVisibilityAtlasBase(probe_index, ddgi_volume) + probe_texel;
+    bindless_rwtextures[DescriptorIndex(ddgi_volume.irradiance_texture_uav)][irradiance_atlas_texel] = float4(sum_irradiance * inv_weight, 1.0f);
+    bindless_rwtextures[DescriptorIndex(ddgi_volume.visibility_texture_uav)][visibility_atlas_texel] = float4(sum_distance * inv_weight, sum_distance_sq * inv_weight, sum_hit * inv_weight, 1.0f);
 }

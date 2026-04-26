@@ -2091,7 +2091,7 @@ namespace won::editor
 				env->SetActive(true);
 				auto environment_lighting = scene.AddComponent<ecs::EnvironmentLightingComponent>(env_entity);
 				environment_lighting->gi_mode = ecs::EnvironmentLightingComponent::DDGI;
-				environment_lighting->indirect_diffuse_scale = 0.005f;
+				environment_lighting->indirect_diffuse_scale = 0.05f;
 				auto ddgi_volume = scene.AddComponent<ecs::DDGIVolumeComponent>(env_entity);
 				ddgi_volume->probe_counts = { 16, 16, 16 };
 				ddgi_volume->probe_spacing = { 1.0f, 1.0f, 1.0f };

@@ -3,14 +3,6 @@
 
 #include "Common.hlsli"
 
-#ifndef DDGI_IRRADIANCE_RESOLUTION
-#define DDGI_IRRADIANCE_RESOLUTION 8
-#endif
-
-#ifndef DDGI_VISIBILITY_RESOLUTION
-#define DDGI_VISIBILITY_RESOLUTION DDGI_IRRADIANCE_RESOLUTION
-#endif
-
 inline uint2 DDGIProbeAtlasBase(uint3 probe_index, ShaderDDGIVolume ddgi_volume)
 {
     return uint2(probe_index.x * DDGI_IRRADIANCE_RESOLUTION, (probe_index.y + probe_index.z * ddgi_volume.probe_counts.y) * DDGI_IRRADIANCE_RESOLUTION);

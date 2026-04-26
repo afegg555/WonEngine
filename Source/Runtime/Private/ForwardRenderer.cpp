@@ -1386,6 +1386,9 @@ namespace won::rendering
 
         if (render_data.shader_environment_lighting.gi_mode == SHADER_ENVIRONMENT_GI_MODE_DDGI &&
             (render_data.shader_ddgi_volume.flags & SHADER_DDGI_FLAG_ACTIVE) != 0 &&
+            render_data.shader_ddgi_volume.probe_counts.x > 0 &&
+            render_data.shader_ddgi_volume.probe_counts.y > 0 &&
+            render_data.shader_ddgi_volume.probe_counts.z > 0 &&
             ddgi_probe_update_pipeline &&
             ddgi_irradiance_texture &&
             ddgi_visibility_texture &&
@@ -1394,11 +1397,9 @@ namespace won::rendering
             ddgi_visibility_texture_srv.IsValid() &&
             ddgi_visibility_texture_uav.IsValid())
         {
-            const uint32 ddgi_visibility_atlas_width = (std::max)(render_data.shader_ddgi_volume.probe_counts.x, 1u) * DDGI_VISIBILITY_RESOLUTION;
-            const uint32 ddgi_visibility_atlas_height = (std::max)(render_data.shader_ddgi_volume.probe_counts.y, 1u) * (std::max)(render_data.shader_ddgi_volume.probe_counts.z, 1u) * DDGI_VISIBILITY_RESOLUTION;
             debug_state.ddgi.dispatch_groups = {
-                (ddgi_visibility_atlas_width + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D,
-                (ddgi_visibility_atlas_height + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D,
+                render_data.shader_ddgi_volume.probe_counts.x,
+                render_data.shader_ddgi_volume.probe_counts.y * render_data.shader_ddgi_volume.probe_counts.z,
                 1
             };
             auto gpu_range = profiler::ScopedRangeGPU("DDGI Probe Update", *frame_context.command_list);
