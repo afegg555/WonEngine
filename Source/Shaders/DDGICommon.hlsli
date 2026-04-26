@@ -3,14 +3,49 @@
 
 #include "Common.hlsli"
 
-inline uint2 DDGIProbeAtlasBase(uint3 probe_index, ShaderDDGIVolume ddgi_volume)
+inline uint3 DDGIProbeAtlasBase(uint3 probe_index, ShaderDDGIVolume ddgi_volume)
 {
-    return uint2(probe_index.x * DDGI_IRRADIANCE_RESOLUTION, (probe_index.y + probe_index.z * ddgi_volume.probe_counts.y) * DDGI_IRRADIANCE_RESOLUTION);
+    return uint3(probe_index.x * DDGI_IRRADIANCE_RESOLUTION, probe_index.y * DDGI_IRRADIANCE_RESOLUTION, probe_index.z);
 }
 
-inline uint2 DDGIProbeVisibilityAtlasBase(uint3 probe_index, ShaderDDGIVolume ddgi_volume)
+inline uint3 DDGIProbeVisibilityAtlasBase(uint3 probe_index, ShaderDDGIVolume ddgi_volume)
 {
-    return uint2(probe_index.x * DDGI_VISIBILITY_RESOLUTION, (probe_index.y + probe_index.z * ddgi_volume.probe_counts.y) * DDGI_VISIBILITY_RESOLUTION);
+    return uint3(probe_index.x * DDGI_VISIBILITY_RESOLUTION, probe_index.y * DDGI_VISIBILITY_RESOLUTION, probe_index.z);
+}
+
+inline uint DDGIProbeDataIndex(uint3 probe_index, ShaderDDGIVolume ddgi_volume)
+{
+    return probe_index.x + probe_index.y * ddgi_volume.probe_counts.x + probe_index.z * ddgi_volume.probe_counts.x * ddgi_volume.probe_counts.y;
+}
+
+inline uint3 DDGIProbeIndexFromLinear(uint probe_linear_index, ShaderDDGIVolume ddgi_volume)
+{
+    uint probe_xy_count = ddgi_volume.probe_counts.x * ddgi_volume.probe_counts.y;
+    uint3 probe_index;
+    probe_index.x = probe_linear_index % ddgi_volume.probe_counts.x;
+    probe_index.y = (probe_linear_index / ddgi_volume.probe_counts.x) % ddgi_volume.probe_counts.y;
+    probe_index.z = probe_linear_index / probe_xy_count;
+    return probe_index;
+}
+
+inline float4 LoadDDGIProbeData(ShaderDDGIVolume ddgi_volume, uint3 probe_index)
+{
+    if (!ddgi_volume.HasProbeDataBuffer())
+    {
+        return float4(0.0f, 0.0f, 0.0f, 1.0f);
+    }
+
+    return bindless_buffers_float4[DescriptorIndex(ddgi_volume.probe_data_buffer)][DDGIProbeDataIndex(probe_index, ddgi_volume)];
+}
+
+inline float3 DDGIProbeGridPosition(ShaderDDGIVolume ddgi_volume, uint3 probe_index)
+{
+    return ddgi_volume.volume_min + float3(probe_index) * ddgi_volume.probe_spacing;
+}
+
+inline float3 DDGIProbePosition(ShaderDDGIVolume ddgi_volume, uint3 probe_index, float4 probe_data)
+{
+    return DDGIProbeGridPosition(ddgi_volume, probe_index) + probe_data.xyz;
 }
 
 inline float2 EncodeOctahedralDirection(float3 direction)
@@ -60,22 +95,21 @@ inline bool IsInsideDDGIVolume(ShaderDDGIVolume ddgi_volume, float3 sample_posit
 
 inline float3 SampleDDGIIrradianceProbe(ShaderDDGIVolume ddgi_volume, uint3 probe_index, float3 normal)
 {
-    uint2 atlas_size = uint2(max(ddgi_volume.probe_counts.x, 1u) * DDGI_IRRADIANCE_RESOLUTION, max(ddgi_volume.probe_counts.y, 1u) * max(ddgi_volume.probe_counts.z, 1u) * DDGI_IRRADIANCE_RESOLUTION);
-    uint2 atlas_base = DDGIProbeAtlasBase(probe_index, ddgi_volume);
+    uint2 atlas_size = uint2(max(ddgi_volume.probe_counts.x, 1u) * DDGI_IRRADIANCE_RESOLUTION, max(ddgi_volume.probe_counts.y, 1u) * DDGI_IRRADIANCE_RESOLUTION);
+    uint3 atlas_base = DDGIProbeAtlasBase(probe_index, ddgi_volume);
     float2 oct_uv = EncodeOctahedralDirection(normal);
     float2 tile_texel = clamp(oct_uv * float(DDGI_IRRADIANCE_RESOLUTION), 0.5f, float(DDGI_IRRADIANCE_RESOLUTION) - 0.5f);
-    float2 atlas_uv = (float2(atlas_base) + tile_texel) / float2(atlas_size);
-    return bindless_textures[DescriptorIndex(ddgi_volume.irradiance_texture)].SampleLevel(sampler_linear_clamp, atlas_uv, 0).rgb;
+    float3 atlas_uv = float3((float2(atlas_base.xy) + tile_texel) / float2(atlas_size), float(atlas_base.z));
+    return bindless_textures2DArray[DescriptorIndex(ddgi_volume.irradiance_texture)].SampleLevel(sampler_linear_clamp, atlas_uv, 0).rgb;
 }
 
-inline float SampleDDGIVisibility(ShaderDDGIVolume ddgi_volume, uint3 probe_index, float3 sample_position)
+inline float SampleDDGIVisibility(ShaderDDGIVolume ddgi_volume, uint3 probe_index, float3 probe_position, float3 sample_position)
 {
     if (!ddgi_volume.HasVisibilityTexture())
     {
         return 1.0f;
     }
 
-    float3 probe_position = ddgi_volume.volume_min + float3(probe_index) * ddgi_volume.probe_spacing;
     float3 probe_to_sample = sample_position - probe_position;
     float distance = length(probe_to_sample);
     if (distance <= 0.0001f)
@@ -83,15 +117,16 @@ inline float SampleDDGIVisibility(ShaderDDGIVolume ddgi_volume, uint3 probe_inde
         return 1.0f;
     }
 
-    uint2 atlas_size = uint2(max(ddgi_volume.probe_counts.x, 1u) * DDGI_VISIBILITY_RESOLUTION, max(ddgi_volume.probe_counts.y, 1u) * max(ddgi_volume.probe_counts.z, 1u) * DDGI_VISIBILITY_RESOLUTION);
-    uint2 atlas_base = DDGIProbeVisibilityAtlasBase(probe_index, ddgi_volume);
+    uint2 atlas_size = uint2(max(ddgi_volume.probe_counts.x, 1u) * DDGI_VISIBILITY_RESOLUTION, max(ddgi_volume.probe_counts.y, 1u) * DDGI_VISIBILITY_RESOLUTION);
+    uint3 atlas_base = DDGIProbeVisibilityAtlasBase(probe_index, ddgi_volume);
     float2 oct_uv = EncodeOctahedralDirection(probe_to_sample / distance);
     float2 tile_texel = clamp(oct_uv * float(DDGI_VISIBILITY_RESOLUTION), 0.5f, float(DDGI_VISIBILITY_RESOLUTION) - 0.5f);
-    float2 atlas_uv = (float2(atlas_base) + tile_texel) / float2(atlas_size);
-    float2 moments = bindless_textures[DescriptorIndex(ddgi_volume.visibility_texture)].SampleLevel(sampler_linear_clamp, atlas_uv, 0).rg;
+    float3 atlas_uv = float3((float2(atlas_base.xy) + tile_texel) / float2(atlas_size), float(atlas_base.z));
+    float3 moments = bindless_textures2DArray[DescriptorIndex(ddgi_volume.visibility_texture)].SampleLevel(sampler_linear_clamp, atlas_uv, 0).rgb;
 
     float mean_distance = moments.x;
     float mean_distance_sq = moments.y;
+    float hit_ratio = saturate(moments.z);
     float variance = max(mean_distance_sq - mean_distance * mean_distance, 0.01f);
     float difference = distance - mean_distance;
     if (difference <= ddgi_volume.normal_bias)
@@ -99,7 +134,8 @@ inline float SampleDDGIVisibility(ShaderDDGIVolume ddgi_volume, uint3 probe_inde
         return 1.0f;
     }
 
-    return saturate(variance / (variance + difference * difference));
+    float chebyshev = saturate(variance / (variance + difference * difference));
+    return lerp(1.0f, chebyshev, hit_ratio);
 }
 
 float3 SampleDDGIIrradiance(ShaderDDGIVolume ddgi_volume, float3 sample_position, float3 normal)
@@ -122,6 +158,7 @@ float3 SampleDDGIIrradiance(ShaderDDGIVolume ddgi_volume, float3 sample_position
     uint3 base_probe = uint3(base_coord);
     uint3 max_probe = uint3(max_probe_coord);
     float3 irradiance = float3(0.0f, 0.0f, 0.0f);
+    float weight_sum = 0.0f;
 
     [unroll]
     for (uint z = 0; z < 2; ++z)
@@ -134,14 +171,25 @@ float3 SampleDDGIIrradiance(ShaderDDGIVolume ddgi_volume, float3 sample_position
             {
                 uint3 offset = uint3(x, y, z);
                 uint3 probe_index = min(base_probe + offset, max_probe);
+                float4 probe_data = LoadDDGIProbeData(ddgi_volume, probe_index);
+                if (probe_data.w <= 0.0f)
+                {
+                    continue;
+                }
+
                 float3 weight3 = lerp(1.0f - blend, blend, float3(offset));
-                float weight = weight3.x * weight3.y * weight3.z * SampleDDGIVisibility(ddgi_volume, probe_index, sample_position);
+                float3 probe_position = DDGIProbePosition(ddgi_volume, probe_index, probe_data);
+                float3 probe_to_sample = sample_position - probe_position;
+                float distance_sq = dot(probe_to_sample, probe_to_sample);
+                float normal_weight = distance_sq > 0.0001f ? saturate(dot(normal, -probe_to_sample * rsqrt(distance_sq))) : 1.0f;
+                float weight = weight3.x * weight3.y * weight3.z * normal_weight * probe_data.w * SampleDDGIVisibility(ddgi_volume, probe_index, probe_position, sample_position);
                 irradiance += SampleDDGIIrradianceProbe(ddgi_volume, probe_index, normal) * weight;
+                weight_sum += weight;
             }
         }
     }
 
-    return irradiance;
+    return weight_sum > 0.0001f ? irradiance / weight_sum : float3(0.0f, 0.0f, 0.0f);
 }
 
 #endif
