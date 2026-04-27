@@ -5,12 +5,12 @@
 
 inline uint3 DDGIProbeAtlasBase(uint3 probe_index, ShaderDDGIVolume ddgi_volume)
 {
-    return uint3(probe_index.x * DDGI_IRRADIANCE_RESOLUTION, probe_index.y * DDGI_IRRADIANCE_RESOLUTION, probe_index.z);
+    return uint3(probe_index.x * (DDGI_IRRADIANCE_RESOLUTION + 2), probe_index.y * (DDGI_IRRADIANCE_RESOLUTION + 2), probe_index.z);
 }
 
 inline uint3 DDGIProbeVisibilityAtlasBase(uint3 probe_index, ShaderDDGIVolume ddgi_volume)
 {
-    return uint3(probe_index.x * DDGI_VISIBILITY_RESOLUTION, probe_index.y * DDGI_VISIBILITY_RESOLUTION, probe_index.z);
+    return uint3(probe_index.x * (DDGI_VISIBILITY_RESOLUTION + 2), probe_index.y * (DDGI_VISIBILITY_RESOLUTION + 2), probe_index.z);
 }
 
 inline uint DDGIProbeDataIndex(uint3 probe_index, ShaderDDGIVolume ddgi_volume)
@@ -28,14 +28,19 @@ inline uint3 DDGIProbeIndexFromLinear(uint probe_linear_index, ShaderDDGIVolume 
     return probe_index;
 }
 
-inline float4 LoadDDGIProbeData(ShaderDDGIVolume ddgi_volume, uint3 probe_index)
+inline float4 LoadDDGIProbeData(ShaderDDGIVolume ddgi_volume, uint3 probe_index, int probe_data_buffer)
 {
-    if (!ddgi_volume.HasProbeDataBuffer())
+    if (probe_data_buffer < 0)
     {
         return float4(0.0f, 0.0f, 0.0f, 1.0f);
     }
 
-    return bindless_buffers_float4[DescriptorIndex(ddgi_volume.probe_data_buffer)][DDGIProbeDataIndex(probe_index, ddgi_volume)];
+    return bindless_buffers_float4[DescriptorIndex(probe_data_buffer)][DDGIProbeDataIndex(probe_index, ddgi_volume)];
+}
+
+inline float4 LoadDDGIProbeData(ShaderDDGIVolume ddgi_volume, uint3 probe_index)
+{
+    return LoadDDGIProbeData(ddgi_volume, probe_index, ddgi_volume.probe_data_buffer);
 }
 
 inline float3 DDGIProbeGridPosition(ShaderDDGIVolume ddgi_volume, uint3 probe_index)
@@ -93,19 +98,29 @@ inline bool IsInsideDDGIVolume(ShaderDDGIVolume ddgi_volume, float3 sample_posit
     return all(probe_coord >= float3(0.0f, 0.0f, 0.0f)) && all(probe_coord <= max_probe_coord);
 }
 
-inline float3 SampleDDGIIrradianceProbe(ShaderDDGIVolume ddgi_volume, uint3 probe_index, float3 normal)
+inline float3 SampleDDGIIrradiance(ShaderDDGIVolume ddgi_volume, uint3 probe_index, float3 normal, int irradiance_texture)
 {
-    uint2 atlas_size = uint2(max(ddgi_volume.probe_counts.x, 1u) * DDGI_IRRADIANCE_RESOLUTION, max(ddgi_volume.probe_counts.y, 1u) * DDGI_IRRADIANCE_RESOLUTION);
+    if (irradiance_texture < 0)
+    {
+        return float3(0.0f, 0.0f, 0.0f);
+    }
+
+    uint2 atlas_size = uint2(max(ddgi_volume.probe_counts.x, 1u) * (DDGI_IRRADIANCE_RESOLUTION + 2), max(ddgi_volume.probe_counts.y, 1u) * (DDGI_IRRADIANCE_RESOLUTION + 2));
     uint3 atlas_base = DDGIProbeAtlasBase(probe_index, ddgi_volume);
     float2 oct_uv = EncodeOctahedralDirection(normal);
-    float2 tile_texel = clamp(oct_uv * float(DDGI_IRRADIANCE_RESOLUTION), 0.5f, float(DDGI_IRRADIANCE_RESOLUTION) - 0.5f);
+    float2 tile_texel = clamp(oct_uv * float(DDGI_IRRADIANCE_RESOLUTION), 0.5f, float(DDGI_IRRADIANCE_RESOLUTION) - 0.5f) + 1.0f;
     float3 atlas_uv = float3((float2(atlas_base.xy) + tile_texel) / float2(atlas_size), float(atlas_base.z));
-    return bindless_textures2DArray[DescriptorIndex(ddgi_volume.irradiance_texture)].SampleLevel(sampler_linear_clamp, atlas_uv, 0).rgb;
+    return bindless_textures2DArray[DescriptorIndex(irradiance_texture)].SampleLevel(sampler_linear_clamp, atlas_uv, 0).rgb;
 }
 
-inline float SampleDDGIVisibility(ShaderDDGIVolume ddgi_volume, uint3 probe_index, float3 probe_position, float3 sample_position)
+inline float3 SampleDDGIIrradiance(ShaderDDGIVolume ddgi_volume, uint3 probe_index, float3 normal)
 {
-    if (!ddgi_volume.HasVisibilityTexture())
+    return SampleDDGIIrradiance(ddgi_volume, probe_index, normal, ddgi_volume.irradiance_texture);
+}
+
+inline float SampleDDGIVisibility(ShaderDDGIVolume ddgi_volume, uint3 probe_index, float3 probe_position, float3 sample_position, int visibility_texture)
+{
+    if (visibility_texture < 0)
     {
         return 1.0f;
     }
@@ -117,12 +132,12 @@ inline float SampleDDGIVisibility(ShaderDDGIVolume ddgi_volume, uint3 probe_inde
         return 1.0f;
     }
 
-    uint2 atlas_size = uint2(max(ddgi_volume.probe_counts.x, 1u) * DDGI_VISIBILITY_RESOLUTION, max(ddgi_volume.probe_counts.y, 1u) * DDGI_VISIBILITY_RESOLUTION);
+    uint2 atlas_size = uint2(max(ddgi_volume.probe_counts.x, 1u) * (DDGI_VISIBILITY_RESOLUTION + 2), max(ddgi_volume.probe_counts.y, 1u) * (DDGI_VISIBILITY_RESOLUTION + 2));
     uint3 atlas_base = DDGIProbeVisibilityAtlasBase(probe_index, ddgi_volume);
     float2 oct_uv = EncodeOctahedralDirection(probe_to_sample / distance);
-    float2 tile_texel = clamp(oct_uv * float(DDGI_VISIBILITY_RESOLUTION), 0.5f, float(DDGI_VISIBILITY_RESOLUTION) - 0.5f);
+    float2 tile_texel = clamp(oct_uv * float(DDGI_VISIBILITY_RESOLUTION), 0.5f, float(DDGI_VISIBILITY_RESOLUTION) - 0.5f) + 1.0f;
     float3 atlas_uv = float3((float2(atlas_base.xy) + tile_texel) / float2(atlas_size), float(atlas_base.z));
-    float3 moments = bindless_textures2DArray[DescriptorIndex(ddgi_volume.visibility_texture)].SampleLevel(sampler_linear_clamp, atlas_uv, 0).rgb;
+    float3 moments = bindless_textures2DArray[DescriptorIndex(visibility_texture)].SampleLevel(sampler_linear_clamp, atlas_uv, 0).rgb;
 
     float mean_distance = moments.x;
     float mean_distance_sq = moments.y;
@@ -138,7 +153,12 @@ inline float SampleDDGIVisibility(ShaderDDGIVolume ddgi_volume, uint3 probe_inde
     return lerp(1.0f, chebyshev, hit_ratio);
 }
 
-float3 SampleDDGIIrradiance(ShaderDDGIVolume ddgi_volume, float3 sample_position, float3 normal)
+inline float SampleDDGIVisibility(ShaderDDGIVolume ddgi_volume, uint3 probe_index, float3 probe_position, float3 sample_position)
+{
+    return SampleDDGIVisibility(ddgi_volume, probe_index, probe_position, sample_position, ddgi_volume.visibility_texture);
+}
+
+float3 SampleDDGI(ShaderDDGIVolume ddgi_volume, float3 sample_position, float3 normal, int irradiance_texture, int visibility_texture, int probe_data_buffer)
 {
     float3 safe_probe_spacing = max(ddgi_volume.probe_spacing, float3(0.001f, 0.001f, 0.001f));
     float3 probe_coord = (sample_position - ddgi_volume.volume_min) / safe_probe_spacing;
@@ -171,7 +191,7 @@ float3 SampleDDGIIrradiance(ShaderDDGIVolume ddgi_volume, float3 sample_position
             {
                 uint3 offset = uint3(x, y, z);
                 uint3 probe_index = min(base_probe + offset, max_probe);
-                float4 probe_data = LoadDDGIProbeData(ddgi_volume, probe_index);
+                float4 probe_data = LoadDDGIProbeData(ddgi_volume, probe_index, probe_data_buffer);
                 if (probe_data.w <= 0.0f)
                 {
                     continue;
@@ -182,14 +202,29 @@ float3 SampleDDGIIrradiance(ShaderDDGIVolume ddgi_volume, float3 sample_position
                 float3 probe_to_sample = sample_position - probe_position;
                 float distance_sq = dot(probe_to_sample, probe_to_sample);
                 float normal_weight = distance_sq > 0.0001f ? saturate(dot(normal, -probe_to_sample * rsqrt(distance_sq))) : 1.0f;
-                float weight = weight3.x * weight3.y * weight3.z * normal_weight * probe_data.w * SampleDDGIVisibility(ddgi_volume, probe_index, probe_position, sample_position);
-                irradiance += SampleDDGIIrradianceProbe(ddgi_volume, probe_index, normal) * weight;
+                float weight = weight3.x * weight3.y * weight3.z * normal_weight * probe_data.w * SampleDDGIVisibility(ddgi_volume, probe_index, probe_position, sample_position, visibility_texture);
+                irradiance += SampleDDGIIrradiance(ddgi_volume, probe_index, normal, irradiance_texture) * weight;
                 weight_sum += weight;
             }
         }
     }
 
     return weight_sum > 0.0001f ? irradiance / weight_sum : float3(0.0f, 0.0f, 0.0f);
+}
+
+float3 SampleDDGI(ShaderDDGIVolume ddgi_volume, float3 sample_position, float3 normal)
+{
+    return SampleDDGI(ddgi_volume, sample_position, normal, ddgi_volume.irradiance_texture, ddgi_volume.visibility_texture, ddgi_volume.probe_data_buffer);
+}
+
+float3 SamplePreviousDDGI(ShaderDDGIVolume ddgi_volume, float3 sample_position, float3 normal)
+{
+    if (!ddgi_volume.HasHistory())
+    {
+        return float3(0.0f, 0.0f, 0.0f);
+    }
+
+    return SampleDDGI(ddgi_volume, sample_position, normal, ddgi_volume.previous_irradiance_texture, ddgi_volume.previous_visibility_texture, ddgi_volume.previous_probe_data_buffer);
 }
 
 #endif

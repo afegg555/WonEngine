@@ -111,6 +111,52 @@ static float3 EvaluateDDGIDirectDiffuse(float3 position, float3 normal, float ma
     return radiance;
 }
 
+static void StoreDDGIProbeTexel(ShaderDDGIVolume ddgi_volume, uint3 irradiance_atlas_base, uint3 visibility_atlas_base, uint2 texel, float4 irradiance, float4 visibility)
+{
+    bindless_rwtextures2DArray[DescriptorIndex(ddgi_volume.irradiance_texture_uav)][irradiance_atlas_base + uint3(texel, 0)] = irradiance;
+    bindless_rwtextures2DArray[DescriptorIndex(ddgi_volume.visibility_texture_uav)][visibility_atlas_base + uint3(texel, 0)] = visibility;
+}
+
+static void StoreDDGIProbeTexelWithBorder(ShaderDDGIVolume ddgi_volume, uint3 irradiance_atlas_base, uint3 visibility_atlas_base, uint2 texel, float4 irradiance, float4 visibility)
+{
+    // fill border pixels with wrapped values from the opposite edge for seamless linear filtering
+    uint2 inner_texel = texel + uint2(1, 1);
+    StoreDDGIProbeTexel(ddgi_volume, irradiance_atlas_base, visibility_atlas_base, inner_texel, irradiance, visibility);
+
+    if (texel.x == 0)
+    {
+        StoreDDGIProbeTexel(ddgi_volume, irradiance_atlas_base, visibility_atlas_base, uint2(DDGI_IRRADIANCE_RESOLUTION + 1, DDGI_IRRADIANCE_RESOLUTION - texel.y), irradiance, visibility);
+    }
+    if (texel.x == DDGI_IRRADIANCE_RESOLUTION - 1)
+    {
+        StoreDDGIProbeTexel(ddgi_volume, irradiance_atlas_base, visibility_atlas_base, uint2(0, DDGI_IRRADIANCE_RESOLUTION - texel.y), irradiance, visibility);
+    }
+    if (texel.y == 0)
+    {
+        StoreDDGIProbeTexel(ddgi_volume, irradiance_atlas_base, visibility_atlas_base, uint2(DDGI_IRRADIANCE_RESOLUTION - texel.x, DDGI_IRRADIANCE_RESOLUTION + 1), irradiance, visibility);
+    }
+    if (texel.y == DDGI_IRRADIANCE_RESOLUTION - 1)
+    {
+        StoreDDGIProbeTexel(ddgi_volume, irradiance_atlas_base, visibility_atlas_base, uint2(DDGI_IRRADIANCE_RESOLUTION - texel.x, 0), irradiance, visibility);
+    }
+    if (texel.x == 0 && texel.y == 0)
+    {
+        StoreDDGIProbeTexel(ddgi_volume, irradiance_atlas_base, visibility_atlas_base, uint2(DDGI_IRRADIANCE_RESOLUTION + 1, DDGI_IRRADIANCE_RESOLUTION + 1), irradiance, visibility);
+    }
+    if (texel.x == DDGI_IRRADIANCE_RESOLUTION - 1 && texel.y == 0)
+    {
+        StoreDDGIProbeTexel(ddgi_volume, irradiance_atlas_base, visibility_atlas_base, uint2(0, DDGI_IRRADIANCE_RESOLUTION + 1), irradiance, visibility);
+    }
+    if (texel.x == 0 && texel.y == DDGI_IRRADIANCE_RESOLUTION - 1)
+    {
+        StoreDDGIProbeTexel(ddgi_volume, irradiance_atlas_base, visibility_atlas_base, uint2(DDGI_IRRADIANCE_RESOLUTION + 1, 0), irradiance, visibility);
+    }
+    if (texel.x == DDGI_IRRADIANCE_RESOLUTION - 1 && texel.y == DDGI_IRRADIANCE_RESOLUTION - 1)
+    {
+        StoreDDGIProbeTexel(ddgi_volume, irradiance_atlas_base, visibility_atlas_base, uint2(0, 0), irradiance, visibility);
+    }
+}
+
 [numthreads(DDGI_VISIBILITY_RESOLUTION, DDGI_VISIBILITY_RESOLUTION, 1)]
 void main(uint3 group_id : SV_GroupID, uint3 group_thread_id : SV_GroupThreadID)
 {
@@ -144,8 +190,11 @@ void main(uint3 group_id : SV_GroupID, uint3 group_thread_id : SV_GroupThreadID)
     {
         distance = hit.distance;
         float hit_weight = saturate(dot(hit.normal, -direction));
+        float3 sample_position = hit.position + hit.normal * ddgi_volume.normal_bias;
         float3 surface_albedo = LoadDDGISurfaceAlbedo(hit.material_index);
-        irradiance = EvaluateDDGIDirectDiffuse(hit.position + hit.normal * ddgi_volume.normal_bias, hit.normal, ddgi_volume.max_distance) * surface_albedo * hit_weight;
+        float3 direct_diffuse = EvaluateDDGIDirectDiffuse(sample_position, hit.normal, ddgi_volume.max_distance);
+        float3 previous_indirect = SamplePreviousDDGI(ddgi_volume, sample_position, hit.normal);
+        irradiance = (direct_diffuse + previous_indirect) * surface_albedo * hit_weight;
         //irradiance += float3(1, 0, 0) * hit_weight;
     }
 
@@ -221,18 +270,19 @@ void main(uint3 group_id : SV_GroupID, uint3 group_thread_id : SV_GroupThreadID)
     }
 
     float inv_weight = rcp(max(sum_weight, 0.0001f));
-    uint3 irradiance_atlas_texel = DDGIProbeAtlasBase(probe_index, ddgi_volume) + uint3(probe_texel, 0);
-    uint3 visibility_atlas_texel = DDGIProbeVisibilityAtlasBase(probe_index, ddgi_volume) + uint3(probe_texel, 0);
+    uint3 irradiance_atlas_base = DDGIProbeAtlasBase(probe_index, ddgi_volume);
+    uint3 visibility_atlas_base = DDGIProbeVisibilityAtlasBase(probe_index, ddgi_volume);
     float4 irradiance_output = float4(sum_irradiance * inv_weight, 1.0f);
     float4 visibility_output = float4(sum_distance * inv_weight, sum_distance_sq * inv_weight, sum_hit * inv_weight, 1.0f);
     if (ddgi_volume.HasHistory())
     {
+        uint3 irradiance_atlas_texel = irradiance_atlas_base + uint3(probe_texel + uint2(1, 1), 0);
+        uint3 visibility_atlas_texel = visibility_atlas_base + uint3(probe_texel + uint2(1, 1), 0);
         float4 previous_irradiance = bindless_textures2DArray[DescriptorIndex(ddgi_volume.previous_irradiance_texture)].Load(int4(irradiance_atlas_texel, 0));
         float4 previous_visibility = bindless_textures2DArray[DescriptorIndex(ddgi_volume.previous_visibility_texture)].Load(int4(visibility_atlas_texel, 0));
         irradiance_output.rgb = lerp(irradiance_output.rgb, previous_irradiance.rgb, ddgi_volume.hysteresis);
         visibility_output.rgb = lerp(visibility_output.rgb, previous_visibility.rgb, ddgi_volume.hysteresis);
     }
 
-    bindless_rwtextures2DArray[DescriptorIndex(ddgi_volume.irradiance_texture_uav)][irradiance_atlas_texel] = irradiance_output;
-    bindless_rwtextures2DArray[DescriptorIndex(ddgi_volume.visibility_texture_uav)][visibility_atlas_texel] = visibility_output;
+    StoreDDGIProbeTexelWithBorder(ddgi_volume, irradiance_atlas_base, visibility_atlas_base, probe_texel, irradiance_output, visibility_output);
 }

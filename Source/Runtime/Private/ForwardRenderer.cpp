@@ -200,8 +200,8 @@ namespace won::rendering
         ReleaseDDGIResources(frame_context);
 
         RHITextureDesc ddgi_irradiance_texture_desc = {};
-        ddgi_irradiance_texture_desc.width = (std::max)(ddgi_volume.probe_counts.x, 1u) * DDGI_IRRADIANCE_RESOLUTION;
-        ddgi_irradiance_texture_desc.height = (std::max)(ddgi_volume.probe_counts.y, 1u) * DDGI_IRRADIANCE_RESOLUTION;
+        ddgi_irradiance_texture_desc.width = (std::max)(ddgi_volume.probe_counts.x, 1u) * (DDGI_IRRADIANCE_RESOLUTION + 2);
+        ddgi_irradiance_texture_desc.height = (std::max)(ddgi_volume.probe_counts.y, 1u) * (DDGI_IRRADIANCE_RESOLUTION + 2);
         ddgi_irradiance_texture_desc.depth = 1;
         ddgi_irradiance_texture_desc.mip_levels = 1;
         ddgi_irradiance_texture_desc.array_layers = (std::max)(ddgi_volume.probe_counts.z, 1u);
@@ -260,8 +260,8 @@ namespace won::rendering
         }
 
         RHITextureDesc ddgi_visibility_texture_desc = {};
-        ddgi_visibility_texture_desc.width = (std::max)(ddgi_volume.probe_counts.x, 1u) * DDGI_VISIBILITY_RESOLUTION;
-        ddgi_visibility_texture_desc.height = (std::max)(ddgi_volume.probe_counts.y, 1u) * DDGI_VISIBILITY_RESOLUTION;
+        ddgi_visibility_texture_desc.width = (std::max)(ddgi_volume.probe_counts.x, 1u) * (DDGI_VISIBILITY_RESOLUTION + 2);
+        ddgi_visibility_texture_desc.height = (std::max)(ddgi_volume.probe_counts.y, 1u) * (DDGI_VISIBILITY_RESOLUTION + 2);
         ddgi_visibility_texture_desc.depth = 1;
         ddgi_visibility_texture_desc.mip_levels = 1;
         ddgi_visibility_texture_desc.array_layers = (std::max)(ddgi_volume.probe_counts.z, 1u);

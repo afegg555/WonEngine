@@ -103,7 +103,7 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
             float3 sample_position = surface.P + surface.N * ddgi_volume.normal_bias + surface.V * ddgi_volume.view_bias;
             if (IsInsideDDGIVolume(ddgi_volume, sample_position))
             {
-                ambient = SampleDDGIIrradiance(ddgi_volume, sample_position, surface.N);
+                ambient = SampleDDGI(ddgi_volume, sample_position, surface.N);
                 ambient *= environment_lighting.GetIndirectDiffuseScale();
                 //ambient = surface.N;
                 //return float4(ambient, 1.f);
