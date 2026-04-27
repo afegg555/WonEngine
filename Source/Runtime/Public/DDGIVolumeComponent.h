@@ -23,7 +23,7 @@ namespace won::ecs
         uint32 probes_per_frame = 32;
         uint32 priority = 0;
         float hysteresis = 0.97f; // hysteresis * prev_frame + (1 - hysteresis) * curr_frame
-        float normal_bias = 0.3f; // for preventing self-shadow
+        float normal_bias = 0.1f; // for preventing self-shadow
         float view_bias = 0.1f; // for preventing self-shadow
         float max_distance = 20.0f;
 

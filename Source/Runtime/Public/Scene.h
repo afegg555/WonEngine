@@ -366,6 +366,7 @@ namespace won::ecs
 
             auto geometry_array = GetComponentArray<GeometryComponent>().get();
             auto transform_array = GetComponentArray<TransformComponent>().get();
+            auto material_array = GetComponentArray<MaterialComponent>().get();
             if (!geometry_array || !transform_array)
             {
                 gpu_bvh_dirty = false;
@@ -390,11 +391,13 @@ namespace won::ecs
                 const TransformComponent& transform = transform_array->GetData(entity);
                 const XMMATRIX world_transform = transform.GetWorldTransform();
                 const resource::Mesh& mesh = *geometry.mesh;
+                const MaterialComponent* material = material_array && material_array->HasData(entity) ? &material_array->GetData(entity) : nullptr;
 
                 for (Size submesh_index = 0; submesh_index < mesh.submeshes.size(); ++submesh_index)
                 {
                     const resource::Submesh& submesh = mesh.submeshes[submesh_index];
                     const uint32 geometry_index = geometry.geometry_offset + static_cast<uint32>(submesh_index);
+                    const uint32 material_index = material && submesh.material_slot < material->GetMaterialSlotCount() ? material->material_offset + submesh.material_slot : 0;
                     const uint32 end_index = submesh.first_index + submesh.index_count;
                     for (uint32 index = submesh.first_index; index + 2 < end_index && index + 2 < mesh.indices.size(); index += 3)
                     {
@@ -412,6 +415,7 @@ namespace won::ecs
                         XMStoreFloat3(&shader_primitive.v2, XMVector3TransformCoord(XMLoadFloat3(&mesh.positions[i2]), world_transform));
                         shader_primitive.geometry_index = geometry_index;
                         shader_primitive.triangle_index = (index - submesh.first_index) / 3;
+                        shader_primitive.material_index = material_index;
 
                         math::AABB bounds = {};
                         bounds.Invalidate();

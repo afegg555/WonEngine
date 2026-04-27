@@ -11,6 +11,7 @@ struct SceneRayHit
     float distance;
     float3 position;
     float3 normal;
+    uint material_index;
 };
 
 bool IntersectAABB(float3 origin, float3 direction, float3 bounds_min, float3 bounds_max, float min_distance, float max_distance, out float out_distance)
@@ -111,6 +112,7 @@ SceneRayHit TraceSceneRay(float3 origin, float3 direction, float min_distance, f
     hit.distance = max_distance;
     hit.position = 0.0f;
     hit.normal = 0.0f;
+    hit.material_index = 0;
 
     ShaderScene scene = GetScene();
     if (scene.bvh_node_buffer < 0 || scene.bvh_primitive_buffer < 0 || scene.bvh_node_count == 0)
@@ -159,6 +161,7 @@ SceneRayHit TraceSceneRay(float3 origin, float3 direction, float min_distance, f
                     hit.position = origin + direction * triangle_distance;
                     float3 normal = normalize(cross(primitive.v1 - primitive.v0, primitive.v2 - primitive.v0));
                     hit.normal = dot(normal, -direction) < 0.0f ? -normal : normal;
+                    hit.material_index = primitive.material_index;
                 }
             }
             continue;

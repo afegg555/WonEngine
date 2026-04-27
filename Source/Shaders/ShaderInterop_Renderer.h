@@ -263,7 +263,7 @@ struct alignas(16) ShaderBVHPrimitive
     uint triangle_index;
 
     float3 v2;
-    uint padding;
+    uint material_index;
 };
 
 struct alignas(16) ShaderSky

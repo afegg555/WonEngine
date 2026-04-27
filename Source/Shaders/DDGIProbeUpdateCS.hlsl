@@ -9,7 +9,29 @@ groupshared float shared_distance_sq[DDGI_VISIBILITY_RESOLUTION * DDGI_VISIBILIT
 groupshared float3 shared_irradiance[DDGI_VISIBILITY_RESOLUTION * DDGI_VISIBILITY_RESOLUTION]; // 3KB
 groupshared float shared_hit[DDGI_VISIBILITY_RESOLUTION * DDGI_VISIBILITY_RESOLUTION]; // 1KB
 
-static float3 EvaluateDirectDiffuse(float3 position, float3 normal)
+static bool IsDDGILightVisible(float3 position, float3 direction, float max_distance)
+{
+    if (max_distance <= 0.02f)
+    {
+        return true;
+    }
+
+    SceneRayHit shadow_hit = TraceSceneRay(position, direction, 0.02f, max_distance);
+    return !shadow_hit.hit;
+}
+
+static float3 LoadDDGISurfaceAlbedo(uint material_index)
+{
+    if (GetScene().materialbuffer < 0)
+    {
+        return float3(1.0f, 1.0f, 1.0f);
+    }
+
+    ShaderMaterial material = GetMaterial(material_index);
+    return material.GetBaseColor().rgb * (1.0f - material.GetMetallic());
+}
+
+static float3 EvaluateDDGIDirectDiffuse(float3 position, float3 normal, float max_trace_distance)
 {
     float3 radiance = float3(0.0f, 0.0f, 0.0f);
 
@@ -30,7 +52,11 @@ static float3 EvaluateDirectDiffuse(float3 position, float3 normal)
             if (light.GetType() == SHADER_LIGHT_TYPE_DIRECTIONAL)
             {
                 float3 L = normalize(-light.GetDirection());
-                light_radiance = light.GetColor().xyz * saturate(dot(normal, L));
+                float NoL = saturate(dot(normal, L));
+                if (NoL > 0.0f && IsDDGILightVisible(position, L, max_trace_distance))
+                {
+                    light_radiance = light.GetColor().xyz * NoL;
+                }
             }
             else if (light.GetType() == SHADER_LIGHT_TYPE_POINT)
             {
@@ -41,10 +67,14 @@ static float3 EvaluateDirectDiffuse(float3 position, float3 normal)
                 if (distance_sq < range_sq)
                 {
                     float3 L = to_light * rsqrt(distance_sq);
-                    float factor = distance_sq / max(range_sq, 0.0001f);
-                    float smooth_factor = max(1.0f - factor * factor, 0.0f);
-                    float attenuation = (smooth_factor * smooth_factor) / distance_sq;
-                    light_radiance = light.GetColor().xyz * saturate(dot(normal, L)) * attenuation;
+                    float NoL = saturate(dot(normal, L));
+                    if (NoL > 0.0f && IsDDGILightVisible(position, L, sqrt(distance_sq) - 0.02f))
+                    {
+                        float factor = distance_sq / max(range_sq, 0.0001f);
+                        float smooth_factor = max(1.0f - factor * factor, 0.0f);
+                        float attenuation = (smooth_factor * smooth_factor) / distance_sq;
+                        light_radiance = light.GetColor().xyz * NoL * attenuation;
+                    }
                 }
             }
             else if (light.GetType() == SHADER_LIGHT_TYPE_SPOT)
@@ -56,17 +86,21 @@ static float3 EvaluateDirectDiffuse(float3 position, float3 normal)
                 if (distance_sq < range_sq)
                 {
                     float3 L = to_light * rsqrt(distance_sq);
-                    float factor = distance_sq / max(range_sq, 0.0001f);
-                    float smooth_factor = max(1.0f - factor * factor, 0.0f);
-                    float attenuation = (smooth_factor * smooth_factor) / distance_sq;
-                    float spot_factor = dot(-L, light.GetDirection());
-                    float outer_cone = light.GetOuterConeAngleCos();
-                    float inner_cone = light.GetInnerConeAngleCos();
-                    float spot_scale = rcp(max(inner_cone - outer_cone, 0.0001f));
-                    float spot_offset = -outer_cone * spot_scale;
-                    float spot_attenuation = saturate(spot_factor * spot_scale + spot_offset);
-                    spot_attenuation *= spot_attenuation;
-                    light_radiance = light.GetColor().xyz * saturate(dot(normal, L)) * attenuation * spot_attenuation;
+                    float NoL = saturate(dot(normal, L));
+                    if (NoL > 0.0f && IsDDGILightVisible(position, L, sqrt(distance_sq) - 0.02f))
+                    {
+                        float factor = distance_sq / max(range_sq, 0.0001f);
+                        float smooth_factor = max(1.0f - factor * factor, 0.0f);
+                        float attenuation = (smooth_factor * smooth_factor) / distance_sq;
+                        float spot_factor = dot(-L, light.GetDirection());
+                        float outer_cone = light.GetOuterConeAngleCos();
+                        float inner_cone = light.GetInnerConeAngleCos();
+                        float spot_scale = rcp(max(inner_cone - outer_cone, 0.0001f));
+                        float spot_offset = -outer_cone * spot_scale;
+                        float spot_attenuation = saturate(spot_factor * spot_scale + spot_offset);
+                        spot_attenuation *= spot_attenuation;
+                        light_radiance = light.GetColor().xyz * NoL * attenuation * spot_attenuation;
+                    }
                 }
             }
 
@@ -110,7 +144,8 @@ void main(uint3 group_id : SV_GroupID, uint3 group_thread_id : SV_GroupThreadID)
     {
         distance = hit.distance;
         float hit_weight = saturate(dot(hit.normal, -direction));
-        irradiance = EvaluateDirectDiffuse(hit.position + hit.normal * ddgi_volume.normal_bias, hit.normal) * hit_weight;
+        float3 surface_albedo = LoadDDGISurfaceAlbedo(hit.material_index);
+        irradiance = EvaluateDDGIDirectDiffuse(hit.position + hit.normal * ddgi_volume.normal_bias, hit.normal, ddgi_volume.max_distance) * surface_albedo * hit_weight;
         //irradiance += float3(1, 0, 0) * hit_weight;
     }
 
@@ -125,6 +160,7 @@ void main(uint3 group_id : SV_GroupID, uint3 group_thread_id : SV_GroupThreadID)
     {
         float near_hit_count = 0.0f;
         float3 relocation_delta = float3(0.0f, 0.0f, 0.0f);
+        float3 near_hit_direction_sum = float3(0.0f, 0.0f, 0.0f);
         [loop]
         for (uint sample_index = 0; sample_index < DDGI_VISIBILITY_RESOLUTION * DDGI_VISIBILITY_RESOLUTION; ++sample_index)
         {
@@ -132,10 +168,12 @@ void main(uint3 group_id : SV_GroupID, uint3 group_thread_id : SV_GroupThreadID)
             float3 sample_direction = DecodeOctahedralTexel(sample_texel, DDGI_VISIBILITY_RESOLUTION);
             float near_hit = shared_hit[sample_index] * (shared_distance[sample_index] <= ddgi_volume.normal_bias ? 1.0f : 0.0f);
             relocation_delta += -sample_direction * max(ddgi_volume.normal_bias - shared_distance[sample_index], 0.0f) * near_hit;
+            near_hit_direction_sum += sample_direction * near_hit;
             near_hit_count += near_hit;
         }
 
         float near_hit_ratio = near_hit_count / float(DDGI_VISIBILITY_RESOLUTION * DDGI_VISIBILITY_RESOLUTION);
+        float near_hit_directionality = near_hit_count > 0.0f ? length(near_hit_direction_sum) / near_hit_count : 0.0f;
         if (near_hit_count > 0.0f)
         {
             relocation_delta /= near_hit_count;
@@ -149,7 +187,7 @@ void main(uint3 group_id : SV_GroupID, uint3 group_thread_id : SV_GroupThreadID)
             target_offset *= max_relocation / relocation_length;
         }
 
-        float validity = near_hit_ratio < 0.75f ? 1.0f : 0.0f;
+        float validity = (near_hit_ratio > 0.75f && near_hit_directionality < 0.25f) ? 0.0f : 1.0f;
         float4 probe_data = float4(target_offset, validity);
         if (ddgi_volume.HasHistory())
         {

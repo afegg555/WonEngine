@@ -2126,7 +2126,6 @@ namespace won::editor
 				ddgi_volume->probe_counts = { 16, 16, 16 };
 				ddgi_volume->probe_spacing = { 1.0f, 1.0f, 1.0f };
 				ddgi_volume->volume_offset = { 5.0f, 0.0f, 5.0f };
-				ddgi_volume->normal_bias = 1.f;
 
 				auto name = scene.AddComponent<ecs::NameComponent>(env_entity);
 				name->value = "Environment";
@@ -2180,7 +2179,7 @@ namespace won::editor
 				if (material)
 				{
 					auto& material_slot = material->AddMaterialSlot();
-					material_slot.base_color = { 0.78f, 0.78f, 0.72f, 1.0f };
+					material_slot.base_color = { 0.70f, 0.82f, 0.68f, 1.0f };
 					material_slot.metallic = 0.0f;
 					material_slot.roughness = 0.5f;
 					material_slot.flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW;
