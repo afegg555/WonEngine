@@ -296,27 +296,46 @@ namespace won::editor
 
 			if (show_probes && ddgi_state.volume_active && ddgi_state.total_probe_count > 0)
 			{
-				const int clamped_max_probe_draw_count = (std::max)(1, max_probe_draw_count);
-				const float sample_ratio = static_cast<float>(ddgi_state.total_probe_count) / static_cast<float>(clamped_max_probe_draw_count);
-				const int sampling_step = sample_ratio > 1.0f ? (std::max)(1, static_cast<int>(std::ceil(std::cbrt(sample_ratio)))) : 1;
-
-				for (uint32 z = 0; z < ddgi_state.probe_counts.z; z += static_cast<uint32>(sampling_step))
+				if (!ddgi_state.probes.empty())
 				{
-					for (uint32 y = 0; y < ddgi_state.probe_counts.y; y += static_cast<uint32>(sampling_step))
+					for (const rendering::RendererDebugDDGIState::DDGIProbe& probe : ddgi_state.probes)
 					{
-						for (uint32 x = 0; x < ddgi_state.probe_counts.x; x += static_cast<uint32>(sampling_step))
+						ImVec2 screen_position = {};
+						if (ProjectWorldToScreen(camera, viewport_pos, viewport_size, probe.position, screen_position))
 						{
-							const float3 probe_position = {
-								ddgi_state.volume_min.x + static_cast<float>(x) * ddgi_state.probe_spacing.x,
-								ddgi_state.volume_min.y + static_cast<float>(y) * ddgi_state.probe_spacing.y,
-								ddgi_state.volume_min.z + static_cast<float>(z) * ddgi_state.probe_spacing.z
-							};
+							const float relocation_alpha = (std::min)(1.0f, probe.relocation / 0.45f);
+							const int green = static_cast<int>(180.0f + 60.0f * relocation_alpha);
+							const int blue = static_cast<int>(60.0f * (1.0f - relocation_alpha));
+							const ImU32 color = probe.validity > 0.0f ? IM_COL32(255, green, blue, 220) : IM_COL32(255, 60, 70, 230);
+							draw_list->AddRectFilled(screen_position - ImVec2(1.5f, 1.5f), screen_position + ImVec2(1.5f, 1.5f), color);
+							++drawn_probe_count;
+						}
+					}
+				}
+				else
+				{
+					const int clamped_max_probe_draw_count = (std::max)(1, max_probe_draw_count);
+					const float sample_ratio = static_cast<float>(ddgi_state.total_probe_count) / static_cast<float>(clamped_max_probe_draw_count);
+					const int sampling_step = sample_ratio > 1.0f ? (std::max)(1, static_cast<int>(std::ceil(std::cbrt(sample_ratio)))) : 1;
 
-							ImVec2 screen_position = {};
-							if (ProjectWorldToScreen(camera, viewport_pos, viewport_size, probe_position, screen_position))
+					for (uint32 z = 0; z < ddgi_state.probe_counts.z; z += static_cast<uint32>(sampling_step))
+					{
+						for (uint32 y = 0; y < ddgi_state.probe_counts.y; y += static_cast<uint32>(sampling_step))
+						{
+							for (uint32 x = 0; x < ddgi_state.probe_counts.x; x += static_cast<uint32>(sampling_step))
 							{
-								draw_list->AddCircleFilled(screen_position, 2.0f, IM_COL32(255, 180, 60, 220), 8);
-								++drawn_probe_count;
+								const float3 probe_position = {
+									ddgi_state.volume_min.x + static_cast<float>(x) * ddgi_state.probe_spacing.x,
+									ddgi_state.volume_min.y + static_cast<float>(y) * ddgi_state.probe_spacing.y,
+									ddgi_state.volume_min.z + static_cast<float>(z) * ddgi_state.probe_spacing.z
+								};
+
+								ImVec2 screen_position = {};
+								if (ProjectWorldToScreen(camera, viewport_pos, viewport_size, probe_position, screen_position))
+								{
+									draw_list->AddCircleFilled(screen_position, 2.0f, IM_COL32(255, 180, 60, 220), 8);
+									++drawn_probe_count;
+								}
 							}
 						}
 					}
@@ -341,6 +360,7 @@ namespace won::editor
 					lines.push_back("Probe Spacing: " + std::to_string(ddgi_state.probe_spacing.x) + ", " + std::to_string(ddgi_state.probe_spacing.y) + ", " + std::to_string(ddgi_state.probe_spacing.z));
 					lines.push_back("Total Probes: " + std::to_string(ddgi_state.total_probe_count));
 					lines.push_back("Drawn Probes: " + std::to_string(drawn_probe_count));
+					lines.push_back("Debug Probe Samples: " + std::to_string(ddgi_state.probes.size()));
 				}
 				lines.push_back(String("Texture Allocated: ") + bool_text(ddgi_state.irradiance_texture_allocated));
 				lines.push_back(String("SRV Valid: ") + bool_text(ddgi_state.irradiance_srv_valid) + " (" + std::to_string(ddgi_state.irradiance_texture_srv) + ")");
@@ -469,6 +489,12 @@ namespace won::editor
 	void EditorApplication::Update(float dt)
 	{
 		Application::Update(dt);
+		if (renderer)
+		{
+			rendering::RendererDebugOptions debug_options = {};
+			debug_options.ddgi_debug_enable = viewport_debug_settings.show_ddgi_overlay;
+			renderer->SetDebugOptions(debug_options);
+		}
 
 		if (won::io::IsPressed(io::Button('R')))
 		{

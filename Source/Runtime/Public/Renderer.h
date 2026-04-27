@@ -24,8 +24,20 @@ namespace won::rendering
         RendererType type = RendererType::Forward;
     };
 
+    struct RendererDebugOptions
+    {
+        bool ddgi_debug_enable = false;
+    };
+
     struct RendererDebugDDGIState
     {
+        struct DDGIProbe
+        {
+            float3 position = { 0.0f, 0.0f, 0.0f };
+            float relocation = 0.0f;
+            float validity = 1.0f;
+        };
+
         bool gi_mode_ddgi = false;
         bool volume_active = false;
         bool irradiance_texture_allocated = false;
@@ -55,6 +67,10 @@ namespace won::rendering
         int visibility_texture_uav = -1;
         int probe_data_buffer_srv = -1;
         int probe_data_buffer_uav = -1;
+
+        std::shared_ptr<RHIResource> probe_data_readback_buffer;
+        bool probe_data_readback_valid = false;
+        Vector<DDGIProbe> probes;
     };
 
     struct RendererDebugState
@@ -77,6 +93,7 @@ namespace won::rendering
         virtual void EndFrame() = 0;
         virtual void WaitIdle() = 0;
         virtual void Shutdown() = 0;
+        virtual void SetDebugOptions(const RendererDebugOptions& options) = 0;
         virtual RendererDebugState GetDebugState() const = 0;
 
         struct FrameContext

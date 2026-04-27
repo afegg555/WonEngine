@@ -17,6 +17,7 @@ namespace won::rendering
         void EndFrame() override;
         void WaitIdle() override;
         void Shutdown() override;
+        void SetDebugOptions(const RendererDebugOptions& options) override;
         RendererDebugState GetDebugState() const override;
 
         bool AllocateFrameUpload(FrameContext& frame_context, Size size, Size alignment, FrameUploadAllocation& out_allocation) override;
@@ -93,6 +94,7 @@ namespace won::rendering
 
         std::shared_ptr<RHIPipeline> ddgi_probe_update_pipeline;
         std::shared_ptr<RHIShader> ddgi_probe_update_shader;
+        RendererDebugOptions debug_options = {};
         RendererDebugState debug_state = {};
 
         uint2 shadow_map_atlas_size = { 0, 0 };
