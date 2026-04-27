@@ -6,4 +6,5 @@ Samples/
 build/
 
 *.ini
+*.log
 log.txt
