@@ -11,6 +11,9 @@ struct SceneRayHit
     float distance;
     float3 position;
     float3 normal;
+    float2 barycentric;
+    uint geometry_index;
+    uint triangle_index;
     uint material_index;
 };
 
@@ -112,6 +115,9 @@ SceneRayHit TraceSceneRay(float3 origin, float3 direction, float min_distance, f
     hit.distance = max_distance;
     hit.position = 0.0f;
     hit.normal = 0.0f;
+    hit.barycentric = 0.0f;
+    hit.geometry_index = 0;
+    hit.triangle_index = 0;
     hit.material_index = 0;
 
     ShaderScene scene = GetScene();
@@ -161,6 +167,9 @@ SceneRayHit TraceSceneRay(float3 origin, float3 direction, float min_distance, f
                     hit.position = origin + direction * triangle_distance;
                     float3 normal = normalize(cross(primitive.v1 - primitive.v0, primitive.v2 - primitive.v0));
                     hit.normal = dot(normal, -direction) < 0.0f ? -normal : normal;
+                    hit.barycentric = barycentric;
+                    hit.geometry_index = primitive.geometry_index;
+                    hit.triangle_index = primitive.triangle_index;
                     hit.material_index = primitive.material_index;
                 }
             }

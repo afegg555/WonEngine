@@ -142,7 +142,8 @@ struct alignas(16) ShaderGeometry
 
     int tangent_buffer_descriptor;
     int index_buffer_descriptor;
-    int2 padding;
+    uint first_index;
+    uint padding;
 
     float3 bounds_min;
     uint index_count;
@@ -158,6 +159,7 @@ struct alignas(16) ShaderGeometry
         texcoord_buffer_descriptor = -1;
         tangent_buffer_descriptor = -1;
         index_buffer_descriptor = -1;
+        first_index = 0;
     }
 #endif
 };

@@ -142,7 +142,9 @@ inline float SampleDDGIVisibility(ShaderDDGIVolume ddgi_volume, uint3 probe_inde
     float mean_distance = moments.x;
     float mean_distance_sq = moments.y;
     float hit_ratio = saturate(moments.z);
-    float variance = max(mean_distance_sq - mean_distance * mean_distance, 0.01f);
+    float min_probe_spacing = min(ddgi_volume.probe_spacing.x, min(ddgi_volume.probe_spacing.y, ddgi_volume.probe_spacing.z));
+    float min_variance = min_probe_spacing * min_probe_spacing * 0.01f;
+    float variance = max(mean_distance_sq - mean_distance * mean_distance, min_variance);
     float difference = distance - mean_distance;
     if (difference <= ddgi_volume.normal_bias)
     {
@@ -202,6 +204,7 @@ float3 SampleDDGI(ShaderDDGIVolume ddgi_volume, float3 sample_position, float3 n
                 float3 probe_to_sample = sample_position - probe_position;
                 float distance_sq = dot(probe_to_sample, probe_to_sample);
                 float normal_weight = distance_sq > 0.0001f ? saturate(dot(normal, -probe_to_sample * rsqrt(distance_sq))) : 1.0f;
+                normal_weight = max(normal_weight * normal_weight, 0.05f);
                 float weight = weight3.x * weight3.y * weight3.z * normal_weight * probe_data.w * SampleDDGIVisibility(ddgi_volume, probe_index, probe_position, sample_position, visibility_texture);
                 irradiance += SampleDDGIIrradiance(ddgi_volume, probe_index, normal, irradiance_texture) * weight;
                 weight_sum += weight;

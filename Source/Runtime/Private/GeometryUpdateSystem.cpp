@@ -58,6 +58,7 @@ namespace won::ecs
                     shader_geometry.tangent_buffer_descriptor = mesh_render_data->tangents.handle.descriptor_index;
                     shader_geometry.index_buffer_descriptor = mesh_render_data->indices.handle.descriptor_index;
                     shader_geometry.index_count = geometry_comp.mesh->submeshes[i].index_count;
+                    shader_geometry.first_index = geometry_comp.mesh->submeshes[i].first_index;
                 }
             }
 

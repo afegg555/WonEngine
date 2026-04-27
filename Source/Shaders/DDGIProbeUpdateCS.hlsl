@@ -20,15 +20,33 @@ static bool IsDDGILightVisible(float3 position, float3 direction, float max_dist
     return !shadow_hit.hit;
 }
 
-static float3 LoadDDGISurfaceAlbedo(uint material_index)
+static float3 LoadDDGISurfaceAlbedo(SceneRayHit hit)
 {
     if (GetScene().materialbuffer < 0)
     {
         return float3(1.0f, 1.0f, 1.0f);
     }
 
-    ShaderMaterial material = GetMaterial(material_index);
-    return material.GetBaseColor().rgb * (1.0f - material.GetMetallic());
+    ShaderMaterial material = GetMaterial(hit.material_index);
+    float4 base_color = material.GetBaseColor();
+    ShaderGeometry geometry = GetGeometry(hit.geometry_index);
+    if (material.textures[BASECOLORMAP].IsValid() && geometry.index_buffer_descriptor >= 0 && geometry.texcoord_buffer_descriptor >= 0)
+    {
+        uint index_offset = geometry.first_index + hit.triangle_index * 3;
+        uint3 vertex_indices = uint3(
+            bindless_buffers_uint[DescriptorIndex(geometry.index_buffer_descriptor)][index_offset],
+            bindless_buffers_uint[DescriptorIndex(geometry.index_buffer_descriptor)][index_offset + 1],
+            bindless_buffers_uint[DescriptorIndex(geometry.index_buffer_descriptor)][index_offset + 2]
+        );
+        float2 uv0 = bindless_buffers_float2[DescriptorIndex(geometry.texcoord_buffer_descriptor)][vertex_indices.x];
+        float2 uv1 = bindless_buffers_float2[DescriptorIndex(geometry.texcoord_buffer_descriptor)][vertex_indices.y];
+        float2 uv2 = bindless_buffers_float2[DescriptorIndex(geometry.texcoord_buffer_descriptor)][vertex_indices.z];
+        float3 barycentric = float3(1.0f - hit.barycentric.x - hit.barycentric.y, hit.barycentric.x, hit.barycentric.y);
+        float2 uv = uv0 * barycentric.x + uv1 * barycentric.y + uv2 * barycentric.z;
+        base_color *= material.textures[BASECOLORMAP].SampleLevel(sampler_linear_wrap, uv, 0);
+    }
+
+    return base_color.rgb * (1.0f - material.GetMetallic());
 }
 
 static float3 EvaluateDDGIDirectDiffuse(float3 position, float3 normal, float max_trace_distance)
@@ -191,7 +209,7 @@ void main(uint3 group_id : SV_GroupID, uint3 group_thread_id : SV_GroupThreadID)
         distance = hit.distance;
         float hit_weight = saturate(dot(hit.normal, -direction));
         float3 sample_position = hit.position + hit.normal * ddgi_volume.normal_bias;
-        float3 surface_albedo = LoadDDGISurfaceAlbedo(hit.material_index);
+        float3 surface_albedo = LoadDDGISurfaceAlbedo(hit);
         float3 direct_diffuse = EvaluateDDGIDirectDiffuse(sample_position, hit.normal, ddgi_volume.max_distance);
         float3 previous_indirect = SamplePreviousDDGI(ddgi_volume, sample_position, hit.normal);
         irradiance = (direct_diffuse + previous_indirect) * surface_albedo * hit_weight;
