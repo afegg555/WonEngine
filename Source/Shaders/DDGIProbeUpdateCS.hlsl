@@ -212,7 +212,7 @@ void main(uint3 group_id : SV_GroupID, uint3 group_thread_id : SV_GroupThreadID)
         float3 surface_albedo = LoadDDGISurfaceAlbedo(hit);
         float3 direct_diffuse = EvaluateDDGIDirectDiffuse(sample_position, hit.normal, ddgi_volume.max_distance);
         float3 previous_indirect = SamplePreviousDDGI(ddgi_volume, sample_position, hit.normal);
-        irradiance = (direct_diffuse + previous_indirect) * surface_albedo * hit_weight;
+        irradiance = (direct_diffuse + previous_indirect) * surface_albedo * (1.0f / PI) * hit_weight;
         //irradiance += float3(1, 0, 0) * hit_weight;
     }
 
