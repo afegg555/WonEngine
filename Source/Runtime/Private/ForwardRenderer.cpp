@@ -23,6 +23,20 @@ namespace won::rendering
 {
     namespace
     {
+        RHIPrimitiveTopology ToRHIPrimitiveTopology(resource::PrimitiveTopology topology)
+        {
+            switch (topology)
+            {
+            case resource::PrimitiveTopology::LineList:
+                return RHIPrimitiveTopology::LineList;
+            case resource::PrimitiveTopology::PointList:
+                return RHIPrimitiveTopology::PointList;
+            case resource::PrimitiveTopology::TriangleList:
+            default:
+                return RHIPrimitiveTopology::TriangleList;
+            }
+        }
+
         void RemoveResourceDeferred(Renderer::FrameContext& frame_context, std::shared_ptr<RHIResource>& resource)
         {
             frame_context.deferred_res_removal.push_back(resource);
@@ -1176,10 +1190,24 @@ namespace won::rendering
         shader_camera_binding.resource = shader_camera_buffer.get();
         shader_camera_binding.subresource = shader_camera_buffer_cbv;
         frame_context.command_list->SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_camera_binding);
-        frame_context.command_list->SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
 
         for (const auto& renderable : render_data.renderables)
         {
+            resource::PrimitiveTopology pass_topology = resource::PrimitiveTopology::TriangleList;
+            if (pass == RenderPassType::LinePass)
+            {
+                pass_topology = resource::PrimitiveTopology::LineList;
+            }
+            else if (pass == RenderPassType::PointPass)
+            {
+                pass_topology = resource::PrimitiveTopology::PointList;
+            }
+
+            if (renderable.primitive_topology != pass_topology)
+            {
+                continue;
+            }
+
             if (renderable.IsTransparent())
             {
                 if ((flags & DrawScene_Transparent) == 0)
@@ -1201,6 +1229,7 @@ namespace won::rendering
             }
 
             frame_context.command_list->SetIndexBuffer(*renderable.index_buffer, sizeof(uint32), renderable.index_offset, renderable.index_count * sizeof(uint32));
+            frame_context.command_list->SetPrimitiveTopology(ToRHIPrimitiveTopology(renderable.primitive_topology));
             frame_context.command_list->PushConstants(RHIShaderStage::Vertex, &renderable.push_constants, sizeof(ObjectPushConstants), 0);
             frame_context.command_list->DrawIndexed(renderable.index_count, 1, 0, 0, 0);
         }
@@ -1848,6 +1877,22 @@ namespace won::rendering
 
             frame_context.command_list->SetRenderTargets(color_targets, &depth_buffer_binding);
             DrawScene(view, frame_context, RenderPassType::MainPass, DrawScene_Opaque | DrawScene_Transparent);
+            frame_context.command_list->EndEvent();
+        }
+
+        {
+            auto gpu_range = profiler::ScopedRangeGPU("Line Primitive Pass", *frame_context.command_list);
+            frame_context.command_list->BeginEvent("Line Primitive Pass");
+            frame_context.command_list->SetRenderTargets(color_targets, &depth_buffer_binding);
+            DrawScene(view, frame_context, RenderPassType::LinePass, DrawScene_Opaque | DrawScene_Transparent);
+            frame_context.command_list->EndEvent();
+        }
+
+        {
+            auto gpu_range = profiler::ScopedRangeGPU("Point Primitive Pass", *frame_context.command_list);
+            frame_context.command_list->BeginEvent("Point Primitive Pass");
+            frame_context.command_list->SetRenderTargets(color_targets, &depth_buffer_binding);
+            DrawScene(view, frame_context, RenderPassType::PointPass, DrawScene_Opaque | DrawScene_Transparent);
             frame_context.command_list->EndEvent();
         }
     }

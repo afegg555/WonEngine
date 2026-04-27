@@ -71,6 +71,7 @@ namespace won::ecs
                     renderable.index_buffer = mesh_render_data->buffer;
                     renderable.index_offset = mesh_render_data->indices.offset + submesh.first_index * sizeof(uint32);
                     renderable.index_count = submesh.index_count;
+                    renderable.primitive_topology = submesh.primitive_topology;
                     renderable.flags = Scene::RenderData::Renderable::None;
                     if (geometry_comp.IsCastShadow())
                     {

@@ -14,6 +14,8 @@ namespace won::resource
         ShadowPass,
         DepthPrepass,
         MainPass,
+        LinePass,
+        PointPass,
         Count
     };
     // TODO: determine the responsibility for pipeline management;

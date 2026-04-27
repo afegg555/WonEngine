@@ -1833,6 +1833,7 @@ namespace won::editor
 		// Render command lists
 		int32_t vertexOffset = 0;
 		uint32_t indexOffset = 0;
+		frame_context.command_list->SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
 		for (uint32_t cmdListIdx = 0; cmdListIdx < (uint32_t)drawData->CmdListsCount; ++cmdListIdx)
 		{
 			const ImDrawList* drawList = drawData->CmdLists[cmdListIdx];

@@ -13,12 +13,20 @@
 
 namespace won::resource
 {
+    enum class PrimitiveTopology : uint8
+    {
+        TriangleList,
+        LineList,
+        PointList,
+    };
+
     struct Submesh
     {
         uint32 first_index = 0;
         uint32 index_count = 0;
         uint32 first_vertex = 0;
         uint32 material_slot = 0;
+        PrimitiveTopology primitive_topology = PrimitiveTopology::TriangleList;
         math::AABB local_bounds = {};
     };
 
@@ -42,30 +50,39 @@ namespace won::resource
         {
             Vector<math::bvh::BVHPrimitive> primitives;
             primitives.reserve(indices.size() / 3);
-            for (uint32 index = 0; index + 2 < indices.size(); index += 3)
+            for (const Submesh& submesh : submeshes)
             {
-                const uint32 i0 = indices[index];
-                const uint32 i1 = indices[index + 1];
-                const uint32 i2 = indices[index + 2];
-                if (i0 >= positions.size() || i1 >= positions.size() || i2 >= positions.size())
+                if (submesh.primitive_topology != PrimitiveTopology::TriangleList)
                 {
                     continue;
                 }
 
-                math::AABB bounds = {};
-                bounds.Invalidate();
-                math::AABB vertex_bounds = {};
-                vertex_bounds.min = positions[i0];
-                vertex_bounds.max = positions[i0];
-                bounds.Merge(vertex_bounds);
-                vertex_bounds.min = positions[i1];
-                vertex_bounds.max = positions[i1];
-                bounds.Merge(vertex_bounds);
-                vertex_bounds.min = positions[i2];
-                vertex_bounds.max = positions[i2];
-                bounds.Merge(vertex_bounds);
+                const uint32 end_index = submesh.first_index + submesh.index_count;
+                for (uint32 index = submesh.first_index; index + 2 < end_index && index + 2 < indices.size(); index += 3)
+                {
+                    const uint32 i0 = indices[index];
+                    const uint32 i1 = indices[index + 1];
+                    const uint32 i2 = indices[index + 2];
+                    if (i0 >= positions.size() || i1 >= positions.size() || i2 >= positions.size())
+                    {
+                        continue;
+                    }
 
-                primitives.push_back(math::bvh::MakePrimitive(bounds, index / 3));
+                    math::AABB bounds = {};
+                    bounds.Invalidate();
+                    math::AABB vertex_bounds = {};
+                    vertex_bounds.min = positions[i0];
+                    vertex_bounds.max = positions[i0];
+                    bounds.Merge(vertex_bounds);
+                    vertex_bounds.min = positions[i1];
+                    vertex_bounds.max = positions[i1];
+                    bounds.Merge(vertex_bounds);
+                    vertex_bounds.min = positions[i2];
+                    vertex_bounds.max = positions[i2];
+                    bounds.Merge(vertex_bounds);
+
+                    primitives.push_back(math::bvh::MakePrimitive(bounds, index / 3));
+                }
             }
 
             local_bvh.Build(primitives);

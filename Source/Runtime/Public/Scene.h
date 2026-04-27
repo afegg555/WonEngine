@@ -396,6 +396,11 @@ namespace won::ecs
                 for (Size submesh_index = 0; submesh_index < mesh.submeshes.size(); ++submesh_index)
                 {
                     const resource::Submesh& submesh = mesh.submeshes[submesh_index];
+                    if (submesh.primitive_topology != resource::PrimitiveTopology::TriangleList)
+                    {
+                        continue;
+                    }
+
                     const uint32 geometry_index = geometry.geometry_offset + static_cast<uint32>(submesh_index);
                     const uint32 material_index = material && submesh.material_slot < material->GetMaterialSlotCount() ? material->material_offset + submesh.material_slot : 0;
                     const uint32 end_index = submesh.first_index + submesh.index_count;
@@ -631,6 +636,7 @@ namespace won::ecs
                 uint32 index_offset = 0;
                 uint32 index_count = 0;
                 uint32 flags = None;
+                resource::PrimitiveTopology primitive_topology = resource::PrimitiveTopology::TriangleList;
 
                 bool IsTransparent() const
                 {

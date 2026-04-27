@@ -248,6 +248,8 @@ set(SHADERS_HLSL
     Source/Shaders/ObjectVS_simple.hlsl
     Source/Shaders/ObjectVS_common.hlsl
     Source/Shaders/ObjectVS_prepass.hlsl
+    Source/Shaders/PrimitiveVS.hlsl
+    Source/Shaders/PrimitivePS.hlsl
     Source/Shaders/ObjectPS.hlsli
     Source/Shaders/ObjectPS_simple.hlsl
     Source/Shaders/ObjectPS_common.hlsl
