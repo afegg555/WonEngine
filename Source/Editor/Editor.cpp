@@ -817,7 +817,7 @@ namespace won::editor
 				make_submesh(0, line_index_count, resource::PrimitiveTopology::LineList);
 			}
 
-			editor_primitive_mesh->CreateRenderData(device.get());
+			rendering::utils::CreateRenderData(*device, *editor_primitive_mesh);
 		}
 
 		if (auto geometry = scene.GetComponent<ecs::GeometryComponent>(editor_primitive_entity))
@@ -2176,7 +2176,7 @@ namespace won::editor
 			//		geometry->mesh = mesh;
 			//		geometry->local_bounds = submesh.local_bounds;
 
-			//		mesh->CreateRenderData(device.get());
+			//		rendering::utils::CreateRenderData(*device, *mesh);
 			//	}
 
 			//	auto* material = scene.AddComponent<ecs::MaterialComponent>(image_entity);
@@ -2317,7 +2317,7 @@ namespace won::editor
 
 					geometry->SetMesh(mesh);
 
-					mesh->CreateRenderData(device.get());
+					rendering::utils::CreateRenderData(*device, *mesh);
 				}
 
 				auto material = scene.AddComponent<ecs::MaterialComponent>(plane_entity);
@@ -2369,7 +2369,7 @@ namespace won::editor
 					mesh->submeshes.push_back(submesh);
 
 					geometry->SetMesh(mesh);
-					mesh->CreateRenderData(device.get());
+					rendering::utils::CreateRenderData(*device, *mesh);
 				}
 
 				auto material = scene.AddComponent<ecs::MaterialComponent>(side_wall_entity);
@@ -2420,7 +2420,7 @@ namespace won::editor
 					mesh->submeshes.push_back(submesh);
 
 					geometry->SetMesh(mesh);
-					mesh->CreateRenderData(device.get());
+					rendering::utils::CreateRenderData(*device, *mesh);
 				}
 
 				auto material = scene.AddComponent<ecs::MaterialComponent>(back_wall_entity);

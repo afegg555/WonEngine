@@ -44,8 +44,8 @@ namespace won::ecs
                     return;
                 }
 
-                const resource::Mesh::RenderData* mesh_render_data = geometry_comp.mesh->GetRenderData();
-                if (!mesh_render_data || !mesh_render_data->buffer)
+                const resource::Mesh::RenderData& mesh_render_data = geometry_comp.mesh->render_data;
+                if (!mesh_render_data.IsValid())
                 {
                     return;
                 }
@@ -68,8 +68,8 @@ namespace won::ecs
                     push_constants.material_index = material_comp.material_offset + submesh.material_slot;
                     push_constants.instance_index = (uint)transform_array->entity_to_index[entity];
 
-                    renderable.index_buffer = mesh_render_data->buffer;
-                    renderable.index_offset = mesh_render_data->indices.offset + submesh.first_index * sizeof(uint32);
+                    renderable.index_buffer = mesh_render_data.buffer;
+                    renderable.index_offset = mesh_render_data.indices.offset + submesh.first_index * sizeof(uint32);
                     renderable.index_count = submesh.index_count;
                     renderable.primitive_topology = submesh.primitive_topology;
                     renderable.flags = Scene::RenderData::Renderable::None;

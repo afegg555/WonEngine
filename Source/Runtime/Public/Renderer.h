@@ -86,7 +86,7 @@ namespace won::rendering
     public:
         virtual ~Renderer() = default;
 
-        virtual void Initialize(const RendererDesc& desc, std::shared_ptr<resource::ShaderLibrary> shader_lib) = 0;
+        virtual void Initialize(const RendererDesc& desc) = 0;
         virtual void BeginFrame(platform::Window& window) = 0;
         virtual void OnResize(platform::Window& window, uint32 width, uint32 height) = 0;
         virtual void Render(const View& view) = 0;
@@ -125,7 +125,6 @@ namespace won::rendering
         virtual bool UpdateDefaultBuffer(FrameContext& frame_context, RHIResource& destination_buffer, const void* source_data, Size data_size, RHIResourceState final_state, Size destination_offset = 0) = 0;
 
     protected:
-        std::shared_ptr<resource::ShaderLibrary> shader_library;
         std::array<FrameContext, max_frames_in_flight> frame_contexts = {};
 
         uint32 current_frame_slot = 0;

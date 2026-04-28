@@ -1,6 +1,6 @@
 #include "RenderingUtils.h"
 #include "Backlog.h"
-#include "ShaderCompiler.h"
+#include "Mesh.h"
 #include "ShaderLibrary.h"
 #include "ShaderInterop_Utility.h"
 
@@ -8,8 +8,23 @@ namespace won::rendering::utils
 {
     namespace
     {
-        std::shared_ptr<RHIShader> texture_mipgen_shader = nullptr;
         std::shared_ptr<RHIPipeline> texture_mipgen_pipeline = nullptr;
+
+        template<typename T>
+        void PackBufferSubresource(const Vector<T>& source, Vector<uint8>& packed_data, Size& out_offset, Size data_size, Size alignment, Size& current_offset)
+        {
+            if (data_size == 0)
+            {
+                out_offset = 0;
+                return;
+            }
+
+            current_offset = math::align(current_offset, alignment);
+            out_offset = current_offset;
+            std::memcpy(packed_data.data() + out_offset, source.data(), data_size);
+            current_offset += data_size;
+        }
+
     }
 
     bool GenerateTextureMips(RHIDevice& device,
@@ -27,43 +42,18 @@ namespace won::rendering::utils
             return true;
         }
 
-        if (!texture_mipgen_shader)
-        {
-            resource::ShaderCompilerOptions compiler_options = {};
-            compiler_options.shader_source_root_path = WONENGINE_SHADER_SOURCE_DIR;
-            compiler_options.shader_bin_root_path = WONENGINE_SHADER_BIN_DIR;
-
-            std::shared_ptr<resource::ShaderCompiler> shader_compiler = resource::CreateShaderCompiler(compiler_options);
-            if (!shader_compiler)
-            {
-                backlog::Post("Failed to create mip generation shader compiler", backlog::LogLevel::Error);
-                return false;
-            }
-
-            resource::ShaderCompileDesc compile_desc = {};
-            compile_desc.stage = RHIShaderStage::Compute;
-            compile_desc.source_file_name = "TextureMipGenCS.hlsl"; // TODO: as default manifest ?
-            compile_desc.entry_point = "main";
-
-            const resource::ShaderCompileResult compile_result = shader_compiler->Compile(compile_desc);
-            if (compile_result.bytecode.empty())
-            {
-                backlog::Post("Failed to compile TextureMipGenCS.hlsl", backlog::LogLevel::Error);
-                return false;
-            }
-
-            texture_mipgen_shader = std::make_shared<RHIShader>(RHIShaderStage::Compute, compile_result.bytecode.data(), compile_result.bytecode.size());
-            if (!texture_mipgen_shader)
-            {
-                return false;
-            }
-            texture_mipgen_shader->SetName("TextureMipGenCS");
-        }
-
         if (!texture_mipgen_pipeline)
         {
+            resource::ShaderLibrary& shader_library = resource::GetShaderLibrary();
+            std::shared_ptr<RHIShader> mipgen_shader = shader_library.GetShader(resource::ShaderId::CSTextureMipGen);
+            if (!mipgen_shader)
+            {
+                backlog::Post("Failed to load TextureMipGenCS.hlsl", backlog::LogLevel::Error);
+                return false;
+            }
+
             RHIComputePipelineDesc pipeline_desc = {};
-            pipeline_desc.compute_shader = texture_mipgen_shader.get();
+            pipeline_desc.compute_shader = mipgen_shader.get();
             texture_mipgen_pipeline = device.CreateComputePipeline(pipeline_desc);
             if (!texture_mipgen_pipeline)
             {
@@ -167,4 +157,112 @@ namespace won::rendering::utils
 
         return true;
     }
+
+    bool CreateRenderData(RHIDevice& device, resource::Mesh& mesh)
+    {
+        if (mesh.render_data.IsValid())
+        {
+            return true;
+        }
+
+        if (!mesh.IsValid())
+        {
+            return false;
+        }
+
+        const Size positions_size = mesh.positions.size() * sizeof(float3);
+        const Size colors_size = mesh.colors.size() * sizeof(float4);
+        const Size normals_size = mesh.normals.size() * sizeof(float3);
+        const Size tangents_size = mesh.tangents.size() * sizeof(float4);
+        const Size texcoords_size = mesh.texcoords.size() * sizeof(float2);
+        const Size indices_size = mesh.indices.size() * sizeof(uint32);
+        Size total_size = 0;
+        total_size = math::align(total_size, static_cast<Size>(sizeof(float3))) + positions_size;
+        total_size = math::align(total_size, static_cast<Size>(sizeof(float4))) + colors_size;
+        total_size = math::align(total_size, static_cast<Size>(sizeof(float3))) + normals_size;
+        total_size = math::align(total_size, static_cast<Size>(sizeof(float4))) + tangents_size;
+        total_size = math::align(total_size, static_cast<Size>(sizeof(float2))) + texcoords_size;
+        total_size = math::align(total_size, static_cast<Size>(sizeof(uint32))) + indices_size;
+        if (total_size == 0)
+        {
+            return false;
+        }
+
+        Vector<uint8> packed_data;
+        packed_data.resize(total_size);
+
+        resource::Mesh::RenderData new_render_data = {};
+        Size offset = 0;
+
+        Size positions_offset = 0;
+        Size colors_offset = 0;
+        Size normals_offset = 0;
+        Size tangents_offset = 0;
+        Size texcoords_offset = 0;
+        Size indices_offset = 0;
+
+        PackBufferSubresource(mesh.positions, packed_data, positions_offset, positions_size, sizeof(float3), offset);
+        PackBufferSubresource(mesh.colors, packed_data, colors_offset, colors_size, sizeof(float4), offset);
+        PackBufferSubresource(mesh.normals, packed_data, normals_offset, normals_size, sizeof(float3), offset);
+        PackBufferSubresource(mesh.tangents, packed_data, tangents_offset, tangents_size, sizeof(float4), offset);
+        PackBufferSubresource(mesh.texcoords, packed_data, texcoords_offset, texcoords_size, sizeof(float2), offset);
+        PackBufferSubresource(mesh.indices, packed_data, indices_offset, indices_size, sizeof(uint32), offset);
+
+        RHIBufferDesc buffer_desc = {};
+        buffer_desc.size = total_size;
+        buffer_desc.usage = RHIResourceUsage::Default;
+        buffer_desc.bind_flags = RHIBindFlags::VertexBuffer | RHIBindFlags::IndexBuffer | RHIBindFlags::ShaderResource;
+        new_render_data.buffer = device.CreateBuffer(buffer_desc, packed_data.data(), packed_data.size());
+        if (!new_render_data.buffer)
+        {
+            return false;
+        }
+
+        auto create_subresource = [&](RHISubresourceType type, Size buffer_offset, Size buffer_size, Size buffer_stride, resource::Mesh::VBSubresource& out_subresource) -> bool
+        {
+            if (buffer_size == 0)
+            {
+                return true;
+            }
+
+            out_subresource.offset = static_cast<uint32>(buffer_offset);
+            out_subresource.size = static_cast<uint32>(buffer_size);
+
+            RHISubresourceDesc subresource_desc = {};
+            subresource_desc.type = type;
+            subresource_desc.buffer_offset = buffer_offset;
+            subresource_desc.buffer_size = buffer_size;
+            subresource_desc.buffer_stride = buffer_stride;
+            return device.CreateSubresource(*new_render_data.buffer, subresource_desc, &out_subresource.handle);
+        };
+
+        if (!create_subresource(RHISubresourceType::ShaderResource, positions_offset, positions_size, sizeof(float3), new_render_data.positions))
+        {
+            return false;
+        }
+        if (!create_subresource(RHISubresourceType::ShaderResource, colors_offset, colors_size, sizeof(float4), new_render_data.colors))
+        {
+            return false;
+        }
+        if (!create_subresource(RHISubresourceType::ShaderResource, normals_offset, normals_size, sizeof(float3), new_render_data.normals))
+        {
+            return false;
+        }
+        if (!create_subresource(RHISubresourceType::ShaderResource, tangents_offset, tangents_size, sizeof(float4), new_render_data.tangents))
+        {
+            return false;
+        }
+        if (!create_subresource(RHISubresourceType::ShaderResource, texcoords_offset, texcoords_size, sizeof(float2), new_render_data.texcoords))
+        {
+            return false;
+        }
+        if (!create_subresource(RHISubresourceType::ShaderResource, indices_offset, indices_size, sizeof(uint32), new_render_data.indices))
+        {
+            return false;
+        }
+
+        mesh.render_data = std::move(new_render_data);
+        return true;
+    }
+
 }

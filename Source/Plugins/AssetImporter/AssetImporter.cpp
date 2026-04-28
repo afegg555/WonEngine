@@ -9,6 +9,7 @@
 #include "StringUtils.h"
 #include "FileSystem.h"
 #include "SceneComponents.h"
+#include "RenderingUtils.h"
 
 namespace won::plugin
 {
@@ -374,7 +375,10 @@ namespace won::plugin
             }
 
             geometry_comp->SetMesh(mesh_ptr);
-            mesh_ptr->CreateRenderData(device_in);
+            if (device_in)
+            {
+                rendering::utils::CreateRenderData(*device_in, *mesh_ptr);
+            }
             std::string log = "AssetImporter::Import succeeded: " + std::string(file_path_in);
             backlog::Post(log, backlog::LogLevel::Default);
 

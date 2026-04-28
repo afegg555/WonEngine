@@ -4,18 +4,12 @@
 
 #include <memory>
 
-namespace won::rendering
-{
-    class RHIDevice;
-}
-
 namespace won::resource
 {
     struct Resource
     {
         virtual ~Resource() = default;
         virtual bool IsValid() const = 0;
-        virtual bool CreateRenderData(rendering::RHIDevice* device) = 0;
     };
 
     struct Image : public Resource
@@ -30,10 +24,6 @@ namespace won::resource
             return width > 0 && height > 0 && channels > 0 && !pixels.empty();
         }
 
-        bool CreateRenderData(rendering::RHIDevice* device) override
-        {
-            return IsValid();
-        }
     };
 
     // Loads an image from disk and returns a cached shared_ptr when possible.

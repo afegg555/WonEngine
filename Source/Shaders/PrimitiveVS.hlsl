@@ -6,7 +6,6 @@ struct PrimitiveVertexOutput
     float4 color : COLOR;
 };
 
-[RootSignature(DEFAULT_ROOTSIGNATURE)]
 PrimitiveVertexOutput main(uint vertex_id : SV_VertexID)
 {
     PrimitiveVertexOutput output;

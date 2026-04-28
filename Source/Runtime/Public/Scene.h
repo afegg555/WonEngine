@@ -12,6 +12,7 @@
 #include "RenderableUpdateSystem.h"
 #include "ShaderInterop_Renderer.h"
 #include "BVH.h"
+#include "RenderingUtils.h"
 
 #include "Types.h"
 #include "MathUtils.h"

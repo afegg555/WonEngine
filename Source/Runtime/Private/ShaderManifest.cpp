@@ -16,6 +16,7 @@ namespace won::resource
             { ShaderId::PSObjectPrepass, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "ObjectPS_prepass.hlsl", "main" } },
             { ShaderId::PSPrimitive, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "PrimitivePS.hlsl", "main" } },
             { ShaderId::CSDDGIProbeUpdate, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "DDGIProbeUpdateCS.hlsl", "main" } },
+            { ShaderId::CSTextureMipGen, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TextureMipGenCS.hlsl", "main" } },
             { ShaderId::PSTestRed, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TestRedPS.hlsl", "main" } },
         };
 

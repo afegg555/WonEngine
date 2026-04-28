@@ -39,7 +39,7 @@ namespace won::ecs
                 return;
             }
 
-            const resource::Mesh::RenderData* mesh_render_data = geometry_comp.mesh->GetRenderData();
+            const resource::Mesh::RenderData& mesh_render_data = geometry_comp.mesh->render_data;
 
             for (Size i = 0; i < geometry_comp.mesh->submeshes.size(); ++i)
             {
@@ -49,14 +49,14 @@ namespace won::ecs
                 shader_geometry.bounds_max = geometry_comp.mesh->submeshes[i].local_bounds.max;
                 //shader_geometry.flags = geometry_comp.flags;
 
-                if (mesh_render_data)
+                if (mesh_render_data.IsValid())
                 {
-                    shader_geometry.position_buffer_descriptor = mesh_render_data->positions.handle.descriptor_index;
-                    shader_geometry.color_buffer_descriptor = mesh_render_data->colors.handle.descriptor_index;
-                    shader_geometry.normal_buffer_descriptor = mesh_render_data->normals.handle.descriptor_index;
-                    shader_geometry.texcoord_buffer_descriptor = mesh_render_data->texcoords.handle.descriptor_index;
-                    shader_geometry.tangent_buffer_descriptor = mesh_render_data->tangents.handle.descriptor_index;
-                    shader_geometry.index_buffer_descriptor = mesh_render_data->indices.handle.descriptor_index;
+                    shader_geometry.position_buffer_descriptor = mesh_render_data.positions.handle.descriptor_index;
+                    shader_geometry.color_buffer_descriptor = mesh_render_data.colors.handle.descriptor_index;
+                    shader_geometry.normal_buffer_descriptor = mesh_render_data.normals.handle.descriptor_index;
+                    shader_geometry.texcoord_buffer_descriptor = mesh_render_data.texcoords.handle.descriptor_index;
+                    shader_geometry.tangent_buffer_descriptor = mesh_render_data.tangents.handle.descriptor_index;
+                    shader_geometry.index_buffer_descriptor = mesh_render_data.indices.handle.descriptor_index;
                     shader_geometry.index_count = geometry_comp.mesh->submeshes[i].index_count;
                     shader_geometry.first_index = geometry_comp.mesh->submeshes[i].first_index;
                 }

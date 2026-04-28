@@ -62,6 +62,16 @@ namespace won::resource::shaderloader
 
             return true;
         }
+
+        String GetShaderBinaryFileName(const ShaderCompileDesc& desc)
+        {
+            String file_name = desc.source_file_name;
+            if (!desc.entry_point.empty() && desc.entry_point != "main")
+            {
+                file_name = io::ReplaceExtension(file_name, desc.entry_point + "." + io::GetExtension(file_name));
+            }
+            return io::ReplaceExtension(file_name, "cso");
+        }
     }
 
     bool LoadShader(const std::shared_ptr<ShaderCompiler>& shader_compiler, const ShaderManifestEntry& entry, std::shared_ptr<rendering::RHIShader>& out_shader)
@@ -75,7 +85,7 @@ namespace won::resource::shaderloader
         out_shader.reset();
 
         const ShaderCompileDesc& desc = entry.compile_desc;
-        String binary_file_name = shader_compiler->GetCompileOptions().shader_bin_root_path + "/" + io::ReplaceExtension(desc.source_file_name, "cso");
+        String binary_file_name = shader_compiler->GetCompileOptions().shader_bin_root_path + "/" + GetShaderBinaryFileName(desc);
 
         Vector<uint8> bytecode;
         if (IsShaderOutdated(binary_file_name))
