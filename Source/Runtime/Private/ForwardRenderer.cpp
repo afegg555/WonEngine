@@ -1568,6 +1568,8 @@ namespace won::rendering
             return;
         }
 
+        utils::BuildGPUBVH(device.get(), *view.scene);
+
         const Scene::RenderData& render_data = view.scene->GetRenderData();
         std::shared_ptr<RHIResource> ddgi_probe_data_readback_buffer = debug_state.ddgi.probe_data_readback_buffer;
         const bool ddgi_probe_data_readback_valid = debug_state.ddgi.probe_data_readback_valid;

@@ -1541,7 +1541,7 @@ namespace won::editor
 						ImGui::DragFloat("Max Distance", &ddgi_volume_comp->max_distance, 0.01f, 0.0f, 100000.0f);
 						if (ImGui::Button("Update Scene GPUBVH"))
 						{
-							main_view.scene->BuildGPUBVH();
+							rendering::utils::BuildGPUBVH(device.get(), *main_view.scene);
 						}
 					}
 					else

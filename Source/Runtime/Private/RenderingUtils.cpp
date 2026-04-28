@@ -1,6 +1,7 @@
 #include "RenderingUtils.h"
 #include "Backlog.h"
 #include "Mesh.h"
+#include "Scene.h"
 #include "ShaderLibrary.h"
 #include "ShaderInterop_Utility.h"
 
@@ -265,4 +266,13 @@ namespace won::rendering::utils
         return true;
     }
 
+    bool CreateGPUBVH(RHIDevice& device, resource::Mesh& mesh)
+    {
+        mesh.ClearGPUBVH();
+        return true;
+    }
+
+    void BuildGPUBVH(RHIDevice* device, ecs::Scene& scene)
+    {
+    }
 }
