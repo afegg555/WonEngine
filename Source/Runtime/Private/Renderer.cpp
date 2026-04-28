@@ -6,8 +6,6 @@
 
 namespace won::rendering
 {
-    static std::shared_ptr<resource::ShaderLibrary> shader_library = std::make_shared<resource::ShaderLibrary>();
-
     std::shared_ptr<Renderer> CreateRenderer(const RendererDesc& desc)
     {
         std::shared_ptr<Renderer> renderer;
@@ -21,7 +19,7 @@ namespace won::rendering
 
         if (renderer)
         {
-            renderer->Initialize(desc, shader_library);
+            renderer->Initialize(desc);
         }
 
         return renderer;
@@ -36,9 +34,10 @@ namespace won::rendering
             {
                 context->WaitIdle();
 
-                if (shader_library->LoadManifest(resource::GetDefaultShaderManifest()))
+                resource::ShaderLibrary& shader_library = resource::GetShaderLibrary();
+                if (shader_library.LoadManifest(resource::GetDefaultShaderManifest()))
                 {
-                    shader_library->BuildAllGraphicsPipelines(dev, RENDERTARGET_BUFFER_FORMAT, DEPTH_BUFFER_FORMAT, 1u);
+                    shader_library.BuildAllGraphicsPipelines(dev, RENDERTARGET_BUFFER_FORMAT, DEPTH_BUFFER_FORMAT, 1u);
                 }
             }
 

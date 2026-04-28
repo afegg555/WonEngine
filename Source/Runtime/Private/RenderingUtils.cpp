@@ -1,6 +1,7 @@
 #include "RenderingUtils.h"
 #include "Backlog.h"
 #include "ShaderCompiler.h"
+#include "ShaderLibrary.h"
 #include "ShaderInterop_Utility.h"
 
 namespace won::rendering::utils

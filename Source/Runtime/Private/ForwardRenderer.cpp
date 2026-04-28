@@ -3,6 +3,7 @@
 #include "Backlog.h"
 #include "Profiler.h"
 #include "Scene.h"
+#include "ShaderLibrary.h"
 #include "MathUtils.h"
 
 #include "Window.h"
@@ -1179,7 +1180,13 @@ namespace won::rendering
     {
         const Scene::RenderData& render_data = view.scene->GetRenderData();
 
-        frame_context.command_list->SetGraphicsPipeline(*shader_library->GetPipeline(pass).get());
+        resource::ShaderLibrary& shader_library = GetShaderLibrary();
+        std::shared_ptr<RHIPipeline> pipeline = shader_library.GetPipeline(pass);
+        if (!pipeline)
+        {
+            return false;
+        }
+        frame_context.command_list->SetGraphicsPipeline(*pipeline);
 
         RHISubresourceBinding shader_frame_binding = {};
         shader_frame_binding.resource = shader_frame_buffer.get();
@@ -1237,10 +1244,9 @@ namespace won::rendering
         return true;
     }
 
-    void ForwardRenderer::Initialize(const RendererDesc& desc, std::shared_ptr<resource::ShaderLibrary> shader_lib)
+    void ForwardRenderer::Initialize(const RendererDesc& desc)
     {
         device = desc.device;
-        shader_library = shader_lib;
 
         frame_contexts = {};
         for (uint32 i = 0; i < max_frames_in_flight; ++i)
@@ -1346,24 +1352,22 @@ namespace won::rendering
 
     void ForwardRenderer::UpdateDDGIProbe(const ShaderEnvironmentLighting& environment_lighting, const ShaderDDGIVolume& ddgi_volume, FrameContext& frame_context, const RHISubresourceBinding& shader_frame_binding, const RHISubresourceBinding& shader_camera_binding)
     {
-        if (shader_library)
+        resource::ShaderLibrary& shader_library = GetShaderLibrary();
+        std::shared_ptr<RHIShader> current_ddgi_probe_update_shader = shader_library.GetShader(ShaderId::CSDDGIProbeUpdate);
+        if (ddgi_probe_update_shader != current_ddgi_probe_update_shader)
         {
-            std::shared_ptr<RHIShader> current_ddgi_probe_update_shader = shader_library->GetShader(ShaderId::CSDDGIProbeUpdate);
-            if (ddgi_probe_update_shader != current_ddgi_probe_update_shader)
-            {
-                ddgi_probe_update_pipeline = nullptr;
-                ddgi_probe_update_shader = current_ddgi_probe_update_shader;
-            }
+            ddgi_probe_update_pipeline = nullptr;
+            ddgi_probe_update_shader = current_ddgi_probe_update_shader;
+        }
 
-            if (!ddgi_probe_update_pipeline && ddgi_probe_update_shader)
+        if (!ddgi_probe_update_pipeline && ddgi_probe_update_shader)
+        {
+            RHIComputePipelineDesc ddgi_probe_update_pipeline_desc = {};
+            ddgi_probe_update_pipeline_desc.compute_shader = ddgi_probe_update_shader.get();
+            ddgi_probe_update_pipeline = device->CreateComputePipeline(ddgi_probe_update_pipeline_desc);
+            if (ddgi_probe_update_pipeline)
             {
-                RHIComputePipelineDesc ddgi_probe_update_pipeline_desc = {};
-                ddgi_probe_update_pipeline_desc.compute_shader = ddgi_probe_update_shader.get();
-                ddgi_probe_update_pipeline = device->CreateComputePipeline(ddgi_probe_update_pipeline_desc);
-                if (ddgi_probe_update_pipeline)
-                {
-                    ddgi_probe_update_pipeline->SetName("DDGI Probe Update Pipeline");
-                }
+                ddgi_probe_update_pipeline->SetName("DDGI Probe Update Pipeline");
             }
         }
 
@@ -1760,7 +1764,14 @@ namespace won::rendering
             auto gpu_range = profiler::ScopedRangeGPU("Sky Pass", *frame_context.command_list);
             frame_context.command_list->BeginEvent("Sky Pass");
             frame_context.command_list->SetRenderTargets(color_targets, nullptr);
-            frame_context.command_list->SetGraphicsPipeline(*shader_library->GetPipeline(RenderPassType::SkyPass).get());
+            resource::ShaderLibrary& shader_library = GetShaderLibrary();
+            std::shared_ptr<RHIPipeline> sky_pipeline = shader_library.GetPipeline(RenderPassType::SkyPass);
+            if (!sky_pipeline)
+            {
+                frame_context.command_list->EndEvent();
+                return;
+            }
+            frame_context.command_list->SetGraphicsPipeline(*sky_pipeline);
             frame_context.command_list->SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
             frame_context.command_list->SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_camera_binding);
             frame_context.command_list->SetConstantBuffer(RHIShaderStage::Pixel, 0, shader_frame_binding);
