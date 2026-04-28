@@ -341,7 +341,7 @@ namespace won::ecs
             {
                 Entity entity = geometry_array->index_to_entity[i];
                 const GeometryComponent& geometry = geometry_array->data[i];
-                if (!geometry.mesh || !geometry.mesh->IsValid() || !transform_array->HasData(entity))
+                if (geometry.IsExcludeFromBVH() || !geometry.mesh || !geometry.mesh->IsValid() || !transform_array->HasData(entity))
                 {
                     continue;
                 }
@@ -562,16 +562,16 @@ namespace won::ecs
                     bool used_local_bvh = false;
                     if (use_local_bvh)
                     {
-                        if (!mesh.local_bvh.IsValid())
+                        if (!mesh.cpu_bvh.IsValid())
                         {
                             mesh.BuildBVH();
                         }
 
-                        if (mesh.local_bvh.IsValid())
+                        if (mesh.cpu_bvh.IsValid())
                         {
                             used_local_bvh = true;
                             math::bvh::BVHRayHit local_bvh_hit = {};
-                            math::bvh::IntersectClosest(mesh.local_bvh, local_ray, 0.0f, (std::numeric_limits<float>::max)(),
+                            math::bvh::IntersectClosest(mesh.cpu_bvh, local_ray, 0.0f, (std::numeric_limits<float>::max)(),
                                 [&](const math::bvh::BVHPrimitive& local_primitive, float local_min_distance, float local_max_distance, float& out_local_distance)
                                 {
                                     float local_bounds_distance = 0.0f;

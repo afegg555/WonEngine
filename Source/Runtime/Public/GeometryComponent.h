@@ -12,6 +12,7 @@ namespace won::ecs
             Empty = 0,
             Dirty = 1 << 0,
             CastShadow = 1 << 1,
+            ExcludeFromBVH = 1 << 2,
         };
 
         uint32 flags = Empty;
@@ -53,6 +54,8 @@ namespace won::ecs
         constexpr bool IsDirty() const { return (flags & Dirty) != 0; }
         constexpr void SetCastShadow(bool value = true) { if (IsCastShadow() == value) { return; } if (value) { flags |= CastShadow; } else { flags &= ~CastShadow; } SetDirty(); }
         constexpr bool IsCastShadow() const { return (flags & CastShadow) != 0; }
+        constexpr void SetExcludeFromBVH(bool value = true) { if (IsExcludeFromBVH() == value) { return; } if (value) { flags |= ExcludeFromBVH; } else { flags &= ~ExcludeFromBVH; } SetDirty(); }
+        constexpr bool IsExcludeFromBVH() const { return (flags & ExcludeFromBVH) != 0; }
 
     };
 }
