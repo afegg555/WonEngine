@@ -707,6 +707,10 @@ namespace won::editor
 			add_line({ position.x, position.y - size, position.z }, { position.x, position.y + size, position.z }, color);
 			add_line({ position.x, position.y, position.z - size }, { position.x, position.y, position.z + size }, color);
 		};
+		auto lerp_color = [](const float4& from, const float4& to, float value)
+		{
+			return float4{ from.x + (to.x - from.x) * value, from.y + (to.y - from.y) * value, from.z + (to.z - from.z) * value, from.w + (to.w - from.w) * value };
+		};
 
 		if (viewport_debug_settings.show_ddgi_overlay && renderer)
 		{
@@ -715,7 +719,7 @@ namespace won::editor
 			{
 				if (viewport_debug_settings.show_ddgi_volume)
 				{
-					add_box(ddgi_state.volume_min, ddgi_state.volume_max, { 0.25f, 0.95f, 0.45f, 1.0f });
+					add_box(ddgi_state.volume_min, ddgi_state.volume_max, theme::ddgi_volume_color);
 				}
 
 				if (viewport_debug_settings.show_ddgi_probes && ddgi_state.total_probe_count > 0)
@@ -733,7 +737,7 @@ namespace won::editor
 								break;
 							}
 							const float relocation_alpha = (std::min)(1.0f, probe.relocation / 0.45f);
-							const float4 color = probe.validity > 0.0f ? float4{ 1.0f, 0.70f + 0.25f * relocation_alpha, 0.15f * (1.0f - relocation_alpha), 1.0f } : float4{ 1.0f, 0.1f, 0.1f, 1.0f };
+							const float4 color = probe.validity > 0.0f ? lerp_color(theme::ddgi_probe_color, theme::ddgi_probe_relocated_color, relocation_alpha) : theme::ddgi_probe_invalid_color;
 							add_point(probe.position, point_size, color);
 							++drawn_probe_count;
 						}
@@ -757,7 +761,7 @@ namespace won::editor
 										ddgi_state.volume_min.y + static_cast<float>(y) * ddgi_state.probe_spacing.y,
 										ddgi_state.volume_min.z + static_cast<float>(z) * ddgi_state.probe_spacing.z
 									};
-									add_point(probe_position, point_size, { 1.0f, 0.70f, 0.20f, 1.0f });
+									add_point(probe_position, point_size, theme::ddgi_probe_color);
 									++drawn_probe_count;
 								}
 							}
