@@ -124,7 +124,7 @@ namespace won::rendering
         RemoveResourceDeferred(frame_context, ddgi_visibility_history_texture);
         RemoveResourceDeferred(frame_context, ddgi_probe_data_buffer);
         RemoveResourceDeferred(frame_context, ddgi_probe_data_history_buffer);
-        debug_state.ddgi.probe_data_readback_buffer = nullptr;
+        RemoveResourceDeferred(frame_context, debug_state.ddgi.probe_data_readback_buffer);
         debug_state.ddgi.probe_data_readback_valid = false;
         ddgi_irradiance_texture_srv = {};
         ddgi_irradiance_texture_uav = {};
@@ -189,7 +189,7 @@ namespace won::rendering
             }
             else if (!debug_options.ddgi_debug_enable && debug_state.ddgi.probe_data_readback_buffer)
             {
-                debug_state.ddgi.probe_data_readback_buffer = nullptr;
+                RemoveResourceDeferred(frame_context, debug_state.ddgi.probe_data_readback_buffer);
                 debug_state.ddgi.probe_data_readback_valid = false;
             }
 
@@ -1574,6 +1574,10 @@ namespace won::rendering
         debug_state.ddgi = {};
         debug_state.ddgi.probe_data_readback_buffer = ddgi_probe_data_readback_buffer;
         debug_state.ddgi.probe_data_readback_valid = ddgi_probe_data_readback_valid;
+        if (debug_options.bvh_debug_enable)
+        {
+            debug_state.bvh = {};
+        }
         debug_state.ddgi.gi_mode_ddgi = render_data.shader_environment_lighting.gi_mode == SHADER_ENVIRONMENT_GI_MODE_DDGI;
         debug_state.ddgi.volume_active = (render_data.shader_ddgi_volume.flags & SHADER_DDGI_FLAG_ACTIVE) != 0;
         if (debug_state.ddgi.volume_active)

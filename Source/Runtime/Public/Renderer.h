@@ -27,6 +27,7 @@ namespace won::rendering
     struct RendererDebugOptions
     {
         bool ddgi_debug_enable = false;
+        bool bvh_debug_enable = false;
     };
 
     struct RendererDebugDDGIState
@@ -73,9 +74,25 @@ namespace won::rendering
         Vector<DDGIProbe> probes;
     };
 
+    struct RendererDebugBVHState
+    {
+        struct BVHNode
+        {
+            float3 bounds_min = { 0.0f, 0.0f, 0.0f };
+            float3 bounds_max = { 0.0f, 0.0f, 0.0f };
+            bool is_leaf = false;
+        };
+
+        bool cpu_bvh_available = false;
+        bool gpu_bvh_available = false;
+        Vector<BVHNode> cpu_nodes;
+        Vector<BVHNode> gpu_nodes;
+    };
+
     struct RendererDebugState
     {
         RendererDebugDDGIState ddgi = {};
+        RendererDebugBVHState bvh = {};
     };
 
     constexpr RHIFormat RENDERTARGET_BUFFER_FORMAT = RHIFormat::R8G8B8A8Unorm;

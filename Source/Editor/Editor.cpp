@@ -438,6 +438,7 @@ namespace won::editor
 		{
 			rendering::RendererDebugOptions debug_options = {};
 			debug_options.ddgi_debug_enable = viewport_debug_settings.show_ddgi_overlay;
+			debug_options.bvh_debug_enable = viewport_debug_settings.show_bvh_debug;
 			renderer->SetDebugOptions(debug_options);
 		}
 		UpdateEditorPrimitiveMesh();
@@ -641,6 +642,7 @@ namespace won::editor
 			if (auto geometry = scene.AddComponent<ecs::GeometryComponent>(editor_primitive_entity))
 			{
 				geometry->SetMesh(editor_primitive_mesh);
+				geometry->SetExcludeFromBVH(true);
 			}
 
 			if (auto material = scene.AddComponent<ecs::MaterialComponent>(editor_primitive_entity))
@@ -771,11 +773,32 @@ namespace won::editor
 			}
 		}
 
-		if (const resource::Mesh::RenderData* render_data = editor_primitive_mesh->GetRenderData())
+		if (viewport_debug_settings.show_bvh_debug && renderer)
 		{
-			if (render_data->buffer)
+			const rendering::RendererDebugBVHState& bvh_state = renderer->GetDebugState().bvh;
+			if (viewport_debug_settings.show_cpu_bvh_nodes && bvh_state.cpu_bvh_available)
 			{
-				deferred_primitive_removal_buffers.push_back(render_data->buffer);
+				for (const rendering::RendererDebugBVHState::BVHNode& node : bvh_state.cpu_nodes)
+				{
+					const float4 color = node.is_leaf ? theme::cpu_bvh_leaf_color : theme::cpu_bvh_internal_color;
+					add_box(node.bounds_min, node.bounds_max, color);
+				}
+			}
+			if (viewport_debug_settings.show_gpu_bvh_nodes && bvh_state.gpu_bvh_available)
+			{
+				for (const rendering::RendererDebugBVHState::BVHNode& node : bvh_state.gpu_nodes)
+				{
+					const float4 color = node.is_leaf ? theme::gpu_bvh_leaf_color : theme::gpu_bvh_internal_color;
+					add_box(node.bounds_min, node.bounds_max, color);
+				}
+			}
+		}
+
+		if (editor_primitive_mesh->render_data.IsValid())
+		{
+			if (editor_primitive_mesh->render_data.buffer)
+			{
+				deferred_primitive_removal_buffers.push_back(editor_primitive_mesh->render_data.buffer);
 				constexpr Size max_retired_primitive_buffers = 8;
 				if (deferred_primitive_removal_buffers.size() > max_retired_primitive_buffers)
 				{
@@ -919,6 +942,17 @@ namespace won::editor
 							swapchain->SetVSync(vsync_enabled);
 						}
 					}
+				}
+
+				ImGui::Separator();
+				ImGui::Checkbox("BVH Debug", &viewport_debug_settings.show_bvh_debug);
+				if (viewport_debug_settings.show_bvh_debug)
+				{
+					ImGui::Checkbox("CPU BVH Nodes", &viewport_debug_settings.show_cpu_bvh_nodes);
+					viewport_debug_settings.show_gpu_bvh_nodes = false;
+					ImGui::BeginDisabled();
+					ImGui::Checkbox("GPU BVH Nodes", &viewport_debug_settings.show_gpu_bvh_nodes);
+					ImGui::EndDisabled();
 				}
 
 				ImGui::Separator();
