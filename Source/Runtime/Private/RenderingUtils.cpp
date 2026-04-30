@@ -571,7 +571,7 @@ namespace won::rendering::utils
                 continue;
             }
 
-            ShaderBVHGeneratePrimitivesPushConstants push_constants = {};
+            BVHGeneratePrimitivesPushConstants push_constants = {};
             push_constants.first_index = submesh.first_index;
             push_constants.primitive_offset = primitive_offset;
             push_constants.triangle_count = triangle_count;
@@ -594,7 +594,7 @@ namespace won::rendering::utils
             {
                 for (uint32 j = k >> 1; j > 0; j >>= 1)
                 {
-                    ShaderBVHSortPrimitivesPushConstants push_constants = {};
+                    BVHSortPrimitivesPushConstants push_constants = {};
                     push_constants.sort_merge_size = k;
                     push_constants.sort_compare_stride = j;
                     compute_command_list->PushConstants(RHIShaderStage::Compute, &push_constants, sizeof(push_constants), 0);
@@ -605,7 +605,7 @@ namespace won::rendering::utils
             }
         }
 
-        ShaderBVHPrimitiveCountPushConstants push_constants = {};
+        BVHPrimitiveCountPushConstants push_constants = {};
         push_constants.primitive_count = primitive_count;
         compute_command_list->SetComputePipeline(*gpu_bvh_build_pipelines[static_cast<uint32>(GPUBVHBuildPipelineType::BuildNodes)]);
         compute_command_list->SetUnorderedAccess(RHIShaderStage::Compute, 0, { gpu_bvh.primitive_buffer.get(), gpu_bvh.primitive_uav });
