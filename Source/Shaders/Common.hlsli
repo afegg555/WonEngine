@@ -35,11 +35,11 @@ inline int DescriptorIndex(in int descriptor_index)
     "RootConstants(num32BitConstants = 5, b999), " \
     "CBV(b0), " \
     "CBV(b1), " \
-	"DescriptorTable( " \
-		"CBV(b2, numDescriptors = 12, flags = DATA_STATIC_WHILE_SET_AT_EXECUTE)," \
-		"SRV(t0, numDescriptors = 16, flags = DESCRIPTORS_VOLATILE | DATA_STATIC_WHILE_SET_AT_EXECUTE)," \
-		"UAV(u0, numDescriptors = 16, flags = DESCRIPTORS_VOLATILE | DATA_STATIC_WHILE_SET_AT_EXECUTE)" \
-	")," \
+    "DescriptorTable( " \
+        "CBV(b2, numDescriptors = 12, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+        "SRV(t0, numDescriptors = 16, flags = DESCRIPTORS_VOLATILE | DATA_STATIC_WHILE_SET_AT_EXECUTE)," \
+        "UAV(u0, numDescriptors = 16, flags = DESCRIPTORS_VOLATILE | DATA_STATIC_WHILE_SET_AT_EXECUTE)" \
+    ")," \
 	"DescriptorTable( " \
 		"Sampler(s0, offset = 0, numDescriptors = 8, flags = DESCRIPTORS_VOLATILE)" \
 	")," \
