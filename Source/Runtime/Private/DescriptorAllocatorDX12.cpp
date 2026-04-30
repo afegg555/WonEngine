@@ -17,6 +17,10 @@ namespace won::rendering
         constexpr uint32 kSamplerCpuStagingDescriptorCount = 2048;
         constexpr uint32 kCbvSrvUavGpuDescriptorCount = 1000000;
         constexpr uint32 kSamplerGpuDescriptorCount = 2048;
+        constexpr uint32 kCbvSrvUavTransientDescriptorCount = 262144;
+        constexpr uint32 kSamplerTransientDescriptorCount = 1024;
+        constexpr uint32 kCbvSrvUavPersistentDescriptorCount = kCbvSrvUavGpuDescriptorCount - kCbvSrvUavTransientDescriptorCount;
+        constexpr uint32 kSamplerPersistentDescriptorCount = kSamplerGpuDescriptorCount - kSamplerTransientDescriptorCount;
 
         UINT AlignConstantBufferSize(UINT size)
         {
@@ -65,6 +69,10 @@ namespace won::rendering
         {
             return;
         }
+        if (!CreateNullDescriptors())
+        {
+            return;
+        }
     }
 
     bool DescriptorAllocatorDX12::IsValid() const
@@ -75,19 +83,25 @@ namespace won::rendering
             cbv_srv_uav_cpu_staging_heap.heap &&
             sampler_cpu_staging_heap.heap &&
             cbv_srv_uav_gpu_heap.gpu_heap.heap &&
-            sampler_gpu_heap.gpu_heap.heap;
+            sampler_gpu_heap.gpu_heap.heap &&
+            null_cbv_descriptor_index >= 0 &&
+            null_srv_descriptor_index >= 0 &&
+            null_uav_descriptor_index >= 0 &&
+            null_sampler_descriptor_index >= 0;
     }
 
     void DescriptorAllocatorDX12::BeginFrame(uint32 frame_slot)
     {
-        current_frame_slot = frame_slot;
+        current_frame_slot = frame_slot % max_frames_in_flight;
+        cbv_srv_uav_gpu_heap.allocation_offsets[current_frame_slot].store(0);
+        sampler_gpu_heap.allocation_offsets[current_frame_slot].store(0);
     }
 
     bool DescriptorAllocatorDX12::CreateSamplerDescriptor(const D3D12_SAMPLER_DESC& desc,
         int& out_descriptor_index)
     {
         int descriptor_index = -1;
-        if (!AllocateFromHeap(sampler_cpu_staging_heap, descriptor_index))
+        if (!AllocateFromHeap(sampler_cpu_staging_heap, kSamplerPersistentDescriptorCount, descriptor_index))
         {
             backlog::Post("Sampler descriptor heap allocation failed", backlog::LogLevel::Error);
             return false;
@@ -144,7 +158,10 @@ namespace won::rendering
         }
 
         int descriptor_index = -1;
-        if (!AllocateFromHeap(*target_heap, descriptor_index))
+        const uint32 max_descriptor_count = target_heap->heap_type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV ?
+            kCbvSrvUavPersistentDescriptorCount :
+            target_heap->capacity;
+        if (!AllocateFromHeap(*target_heap, max_descriptor_count, descriptor_index))
         {
             backlog::Post("Descriptor heap allocation failed", backlog::LogLevel::Error);
             return false;
@@ -260,6 +277,126 @@ namespace won::rendering
         return *out_heap != nullptr;
     }
 
+    bool DescriptorAllocatorDX12::AllocateTransientDescriptors(D3D12_DESCRIPTOR_HEAP_TYPE heap_type,
+        uint32 count,
+        DescriptorTableAllocation& out_allocation)
+    {
+        out_allocation = {};
+        if (count == 0)
+        {
+            return false;
+        }
+
+        GpuDescriptorRingHeap* ring_heap = nullptr;
+        uint32 transient_start = 0;
+        uint32 transient_count = 0;
+        switch (heap_type)
+        {
+        case D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV:
+            ring_heap = &cbv_srv_uav_gpu_heap;
+            transient_start = kCbvSrvUavPersistentDescriptorCount;
+            transient_count = kCbvSrvUavTransientDescriptorCount;
+            break;
+        case D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER:
+            ring_heap = &sampler_gpu_heap;
+            transient_start = kSamplerPersistentDescriptorCount;
+            transient_count = kSamplerTransientDescriptorCount;
+            break;
+        default:
+            return false;
+        }
+
+        const uint32 descriptors_per_frame = transient_count / max_frames_in_flight;
+        if (count > descriptors_per_frame)
+        {
+            backlog::Post("Transient descriptor heap allocation exceeds per-frame capacity", backlog::LogLevel::Error);
+            return false;
+        }
+
+        uint64 offset = ring_heap->allocation_offsets[current_frame_slot].load();
+        while (true)
+        {
+            if (offset + count > descriptors_per_frame)
+            {
+                backlog::Post("Transient descriptor heap allocation failed", backlog::LogLevel::Error);
+                return false;
+            }
+            if (ring_heap->allocation_offsets[current_frame_slot].compare_exchange_weak(offset, offset + count))
+            {
+                break;
+            }
+        }
+
+        out_allocation.descriptor_index = transient_start + current_frame_slot * descriptors_per_frame + static_cast<uint32>(offset);
+        out_allocation.count = count;
+        if (!GetCpuDescriptorHandle(heap_type, true, static_cast<int>(out_allocation.descriptor_index), out_allocation.cpu_handle) ||
+            !GetGpuDescriptorHandle(heap_type, static_cast<int>(out_allocation.descriptor_index), out_allocation.gpu_handle))
+        {
+            out_allocation = {};
+            return false;
+        }
+
+        return true;
+    }
+
+    bool DescriptorAllocatorDX12::CopyDescriptorToTransientTable(D3D12_DESCRIPTOR_HEAP_TYPE heap_type,
+        int source_descriptor_index,
+        const DescriptorTableAllocation& allocation,
+        uint32 table_offset)
+    {
+        if (!allocation.IsValid() || table_offset >= allocation.count)
+        {
+            return false;
+        }
+
+        D3D12_CPU_DESCRIPTOR_HANDLE source_handle = {};
+        if (!GetCpuDescriptorHandle(heap_type, false, source_descriptor_index, source_handle))
+        {
+            return false;
+        }
+
+        D3D12_CPU_DESCRIPTOR_HANDLE destination_handle = allocation.cpu_handle;
+        const DescriptorHeap* heap = GetDescriptorHeap(heap_type, true);
+        if (!heap)
+        {
+            return false;
+        }
+        destination_handle.ptr += static_cast<Size>(heap->descriptor_size) * static_cast<Size>(table_offset);
+        device->CopyDescriptorsSimple(1, destination_handle, source_handle, heap_type);
+        return true;
+    }
+
+    bool DescriptorAllocatorDX12::CopyNullDescriptorToTransientTable(D3D12_DESCRIPTOR_HEAP_TYPE heap_type,
+        D3D12_DESCRIPTOR_RANGE_TYPE range_type,
+        const DescriptorTableAllocation& allocation,
+        uint32 table_offset)
+    {
+        int descriptor_index = -1;
+        if (heap_type == D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER)
+        {
+            descriptor_index = null_sampler_descriptor_index;
+        }
+        else
+        {
+            switch (range_type)
+            {
+            case D3D12_DESCRIPTOR_RANGE_TYPE_CBV:
+                descriptor_index = null_cbv_descriptor_index;
+                break;
+            case D3D12_DESCRIPTOR_RANGE_TYPE_SRV:
+                descriptor_index = null_srv_descriptor_index;
+                break;
+            case D3D12_DESCRIPTOR_RANGE_TYPE_UAV:
+                descriptor_index = null_uav_descriptor_index;
+                break;
+            default:
+                break;
+            }
+        }
+
+        return CopyDescriptorToTransientTable(heap_type, descriptor_index, allocation, table_offset);
+    }
+
     void DescriptorAllocatorDX12::ReleaseDescriptor(D3D12_DESCRIPTOR_HEAP_TYPE heap_type, int descriptor_index)
     {
         DescriptorHeap* cpu_heap = GetDescriptorHeap(heap_type, false);
@@ -319,23 +456,89 @@ namespace won::rendering
 
     bool DescriptorAllocatorDX12::AllocateFromHeap(DescriptorHeap& heap, int& out_descriptor_index)
     {
+        return AllocateFromHeap(heap, heap.capacity, out_descriptor_index);
+    }
+
+    bool DescriptorAllocatorDX12::AllocateFromHeap(DescriptorHeap& heap, uint32 max_count, int& out_descriptor_index)
+    {
         std::lock_guard<std::mutex> lock(heap.mutex);
 
-        if (!heap.free_list.empty())
+        for (Size free_index = heap.free_list.size(); free_index > 0; --free_index)
         {
-            out_descriptor_index = heap.free_list.back();
-            heap.free_list.pop_back();
-
-            return true;
+            const int descriptor_index = heap.free_list[free_index - 1];
+            if (descriptor_index >= 0 && static_cast<uint32>(descriptor_index) < max_count)
+            {
+                out_descriptor_index = descriptor_index;
+                heap.free_list.erase(heap.free_list.begin() + static_cast<ptrdiff_t>(free_index - 1));
+                return true;
+            }
         }
 
-        if (heap.allocated_count >= heap.capacity)
+        if (heap.allocated_count >= heap.capacity || heap.allocated_count >= max_count)
         {
             return false;
         }
 
         out_descriptor_index = static_cast<int>(heap.allocated_count);
         ++heap.allocated_count;
+        return true;
+    }
+
+    bool DescriptorAllocatorDX12::CreateNullDescriptors()
+    {
+        if (!AllocateFromHeap(cbv_srv_uav_cpu_staging_heap, kCbvSrvUavPersistentDescriptorCount, null_cbv_descriptor_index) ||
+            !AllocateFromHeap(cbv_srv_uav_cpu_staging_heap, kCbvSrvUavPersistentDescriptorCount, null_srv_descriptor_index) ||
+            !AllocateFromHeap(cbv_srv_uav_cpu_staging_heap, kCbvSrvUavPersistentDescriptorCount, null_uav_descriptor_index) ||
+            !AllocateFromHeap(sampler_cpu_staging_heap, kSamplerPersistentDescriptorCount, null_sampler_descriptor_index))
+        {
+            backlog::Post("Failed to allocate null descriptors", backlog::LogLevel::Error);
+            return false;
+        }
+
+        D3D12_CPU_DESCRIPTOR_HANDLE null_cbv = {};
+        D3D12_CPU_DESCRIPTOR_HANDLE null_srv = {};
+        D3D12_CPU_DESCRIPTOR_HANDLE null_uav = {};
+        D3D12_CPU_DESCRIPTOR_HANDLE null_sampler = {};
+        if (!GetCpuDescriptorHandle(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, false, null_cbv_descriptor_index, null_cbv) ||
+            !GetCpuDescriptorHandle(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, false, null_srv_descriptor_index, null_srv) ||
+            !GetCpuDescriptorHandle(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, false, null_uav_descriptor_index, null_uav) ||
+            !GetCpuDescriptorHandle(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, false, null_sampler_descriptor_index, null_sampler))
+        {
+            return false;
+        }
+
+        device->CreateConstantBufferView(nullptr, null_cbv);
+
+        D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {};
+        srv_desc.Format = DXGI_FORMAT_R32_UINT;
+        srv_desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+        srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srv_desc.Buffer.NumElements = 1;
+        device->CreateShaderResourceView(nullptr, &srv_desc, null_srv);
+
+        D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc = {};
+        uav_desc.Format = DXGI_FORMAT_R32_UINT;
+        uav_desc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+        uav_desc.Buffer.NumElements = 1;
+        device->CreateUnorderedAccessView(nullptr, nullptr, &uav_desc, null_uav);
+
+        D3D12_SAMPLER_DESC sampler_desc = {};
+        sampler_desc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+        sampler_desc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+        sampler_desc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+        sampler_desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+        sampler_desc.MaxLOD = D3D12_FLOAT32_MAX;
+        device->CreateSampler(&sampler_desc, null_sampler);
+
+        D3D12_CPU_DESCRIPTOR_HANDLE gpu_visible_handle = {};
+        GetCpuDescriptorHandle(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true, null_cbv_descriptor_index, gpu_visible_handle);
+        device->CopyDescriptorsSimple(1, gpu_visible_handle, null_cbv, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        GetCpuDescriptorHandle(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true, null_srv_descriptor_index, gpu_visible_handle);
+        device->CopyDescriptorsSimple(1, gpu_visible_handle, null_srv, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        GetCpuDescriptorHandle(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true, null_uav_descriptor_index, gpu_visible_handle);
+        device->CopyDescriptorsSimple(1, gpu_visible_handle, null_uav, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        GetCpuDescriptorHandle(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, true, null_sampler_descriptor_index, gpu_visible_handle);
+        device->CopyDescriptorsSimple(1, gpu_visible_handle, null_sampler, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
         return true;
     }
 
