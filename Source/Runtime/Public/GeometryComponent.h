@@ -10,7 +10,9 @@ namespace won::ecs
         enum Flags
         {
             Empty = 0,
-            CastShadow = 1 << 0,
+            Dirty = 1 << 0,
+            CastShadow = 1 << 1,
+            ExcludeFromBVH = 1 << 2,
         };
 
         uint32 flags = Empty;
@@ -21,6 +23,18 @@ namespace won::ecs
         math::AABB local_bounds = {};
 
         uint32 geometry_offset = 0; // internal usage
+
+        void SetMesh(const std::shared_ptr<resource::Mesh>& value)
+        {
+            if (mesh == value)
+            {
+                return;
+            }
+
+            mesh = value;
+            UpdateLocalBounds();
+            SetDirty();
+        }
 
         void UpdateLocalBounds()
         {
@@ -36,8 +50,12 @@ namespace won::ecs
             }
         }
 
-        constexpr void SetCastShadow(bool value = true) { if (value) { flags |= CastShadow; } else { flags &= ~CastShadow; } }
-        constexpr bool IsCastShadow() const { return flags & CastShadow; }
+        constexpr void SetDirty(bool value = true) { if (value) { flags |= Dirty; } else { flags &= ~Dirty; } }
+        constexpr bool IsDirty() const { return (flags & Dirty) != 0; }
+        constexpr void SetCastShadow(bool value = true) { if (IsCastShadow() == value) { return; } if (value) { flags |= CastShadow; } else { flags &= ~CastShadow; } SetDirty(); }
+        constexpr bool IsCastShadow() const { return (flags & CastShadow) != 0; }
+        constexpr void SetExcludeFromBVH(bool value = true) { if (IsExcludeFromBVH() == value) { return; } if (value) { flags |= ExcludeFromBVH; } else { flags &= ~ExcludeFromBVH; } SetDirty(); }
+        constexpr bool IsExcludeFromBVH() const { return (flags & ExcludeFromBVH) != 0; }
 
     };
 }

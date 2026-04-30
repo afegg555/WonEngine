@@ -14,6 +14,8 @@ namespace won::resource
         ShadowPass,
         DepthPrepass,
         MainPass,
+        LinePass,
+        PointPass,
         Count
     };
     // TODO: determine the responsibility for pipeline management;
@@ -39,4 +41,6 @@ namespace won::resource
         std::array<std::shared_ptr<rendering::RHIShader>, static_cast<Size>(ShaderId::Count)> shaders;
         std::array<std::shared_ptr<rendering::RHIPipeline>, static_cast<Size>(RenderPassType::Count)> graphics_pipelines = {};
     };
+
+    ShaderLibrary& GetShaderLibrary(); // this function is not exposed externally
 }

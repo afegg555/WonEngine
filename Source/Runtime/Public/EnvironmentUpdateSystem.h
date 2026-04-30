@@ -9,7 +9,7 @@ namespace won::ecs
     class WONENGINE_API EnvironmentUpdateSystem final : public System
     {
     public:
-        ComponentMask GetReadMask() const override { return sky_component_mask | environment_lighting_component_mask; }
+        ComponentMask GetReadMask() const override { return sky_component_mask | environment_lighting_component_mask | ddgi_volume_component_mask | transform_component_mask; }
         ComponentMask GetWriteMask() const override { return 0; }
         void Update(Scene& scene, float delta_time) override;
     };

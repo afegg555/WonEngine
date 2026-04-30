@@ -24,6 +24,77 @@ namespace won::rendering
         RendererType type = RendererType::Forward;
     };
 
+    struct RendererDebugOptions
+    {
+        bool ddgi_debug_enable = false;
+        bool bvh_debug_enable = false;
+    };
+
+    struct RendererDebugDDGIState
+    {
+        struct DDGIProbe
+        {
+            float3 position = { 0.0f, 0.0f, 0.0f };
+            float relocation = 0.0f;
+            float validity = 1.0f;
+        };
+
+        bool gi_mode_ddgi = false;
+        bool volume_active = false;
+        bool irradiance_texture_allocated = false;
+        bool irradiance_srv_valid = false;
+        bool irradiance_uav_valid = false;
+        bool visibility_texture_allocated = false;
+        bool visibility_srv_valid = false;
+        bool visibility_uav_valid = false;
+        bool probe_data_buffer_allocated = false;
+        bool probe_data_srv_valid = false;
+        bool probe_data_uav_valid = false;
+        bool history_valid = false;
+        bool probe_update_pipeline_ready = false;
+        bool probe_update_dispatched = false;
+
+        ecs::Entity volume_entity = ecs::INVALID_ENTITY;
+        uint3 probe_counts = { 0, 0, 0 };
+        float3 volume_min = { 0.0f, 0.0f, 0.0f };
+        float3 volume_max = { 0.0f, 0.0f, 0.0f };
+        float3 probe_spacing = { 0.0f, 0.0f, 0.0f };
+        uint32 total_probe_count = 0;
+        uint3 dispatch_groups = { 0, 0, 0 };
+
+        int irradiance_texture_srv = -1;
+        int irradiance_texture_uav = -1;
+        int visibility_texture_srv = -1;
+        int visibility_texture_uav = -1;
+        int probe_data_buffer_srv = -1;
+        int probe_data_buffer_uav = -1;
+
+        std::shared_ptr<RHIResource> probe_data_readback_buffer;
+        bool probe_data_readback_valid = false;
+        Vector<DDGIProbe> probes;
+    };
+
+    struct RendererDebugBVHState
+    {
+        struct BVHNode
+        {
+            float3 bounds_min = { 0.0f, 0.0f, 0.0f };
+            float3 bounds_max = { 0.0f, 0.0f, 0.0f };
+            bool is_leaf = false;
+        };
+
+        bool cpu_bvh_available = false;
+        bool gpu_bvh_available = false;
+        Vector<BVHNode> cpu_nodes;
+        Vector<BVHNode> gpu_nodes;
+    };
+
+    struct RendererDebugState
+    {
+        RendererDebugDDGIState ddgi = {};
+        RendererDebugBVHState bvh = {};
+    };
+
     constexpr RHIFormat RENDERTARGET_BUFFER_FORMAT = RHIFormat::R8G8B8A8Unorm;
     constexpr RHIFormat DEPTH_BUFFER_FORMAT = RHIFormat::D32Float;
 
@@ -32,13 +103,15 @@ namespace won::rendering
     public:
         virtual ~Renderer() = default;
 
-        virtual void Initialize(const RendererDesc& desc, std::shared_ptr<resource::ShaderLibrary> shader_lib) = 0;
+        virtual void Initialize(const RendererDesc& desc) = 0;
         virtual void BeginFrame(platform::Window& window) = 0;
         virtual void OnResize(platform::Window& window, uint32 width, uint32 height) = 0;
         virtual void Render(const View& view) = 0;
         virtual void EndFrame() = 0;
         virtual void WaitIdle() = 0;
         virtual void Shutdown() = 0;
+        virtual void SetDebugOptions(const RendererDebugOptions& options) = 0;
+        virtual RendererDebugState GetDebugState() const = 0;
 
         struct FrameContext
         {
@@ -69,7 +142,6 @@ namespace won::rendering
         virtual bool UpdateDefaultBuffer(FrameContext& frame_context, RHIResource& destination_buffer, const void* source_data, Size data_size, RHIResourceState final_state, Size destination_offset = 0) = 0;
 
     protected:
-        std::shared_ptr<resource::ShaderLibrary> shader_library;
         std::array<FrameContext, max_frames_in_flight> frame_contexts = {};
 
         uint32 current_frame_slot = 0;

@@ -182,6 +182,148 @@ namespace won::editor
 
 			ImGui::DockBuilderFinish(dockspace_id);
 		}
+
+		bool ProjectWorldToScreen(const ecs::CameraComponent& camera, const ImVec2& viewport_pos, const ImVec2& viewport_size, const float3& world_position, ImVec2& out_screen_position)
+		{
+			const XMVECTOR projected = XMVector3Project(
+				XMLoadFloat3(&world_position),
+				viewport_pos.x,
+				viewport_pos.y,
+				viewport_size.x,
+				viewport_size.y,
+				0.0f,
+				1.0f,
+				XMLoadFloat4x4(&camera.projection),
+				XMLoadFloat4x4(&camera.view),
+				XMMatrixIdentity());
+
+			float3 projected_position = {};
+			XMStoreFloat3(&projected_position, projected);
+			if (projected_position.z < 0.0f || projected_position.z > 1.0f)
+			{
+				return false;
+			}
+
+			out_screen_position = ImVec2(projected_position.x, projected_position.y);
+			return true;
+		}
+
+		void DrawWorldLine(ImDrawList* draw_list, const ecs::CameraComponent& camera, const ImVec2& viewport_pos, const ImVec2& viewport_size, const float3& from, const float3& to, ImU32 color, float thickness = 1.0f)
+		{
+			ImVec2 from_screen = {};
+			ImVec2 to_screen = {};
+			if (!ProjectWorldToScreen(camera, viewport_pos, viewport_size, from, from_screen) ||
+				!ProjectWorldToScreen(camera, viewport_pos, viewport_size, to, to_screen))
+			{
+				return;
+			}
+
+			draw_list->AddLine(from_screen, to_screen, color, thickness);
+		}
+
+		void DrawWorldAABB(ImDrawList* draw_list, const ecs::CameraComponent& camera, const ImVec2& viewport_pos, const ImVec2& viewport_size, const float3& bounds_min, const float3& bounds_max, ImU32 color, float thickness = 1.0f)
+		{
+			const float3 corners[8] = {
+				{ bounds_min.x, bounds_min.y, bounds_min.z },
+				{ bounds_max.x, bounds_min.y, bounds_min.z },
+				{ bounds_min.x, bounds_max.y, bounds_min.z },
+				{ bounds_max.x, bounds_max.y, bounds_min.z },
+				{ bounds_min.x, bounds_min.y, bounds_max.z },
+				{ bounds_max.x, bounds_min.y, bounds_max.z },
+				{ bounds_min.x, bounds_max.y, bounds_max.z },
+				{ bounds_max.x, bounds_max.y, bounds_max.z }
+			};
+
+			const int edges[12][2] = {
+				{ 0, 1 }, { 1, 3 }, { 3, 2 }, { 2, 0 },
+				{ 4, 5 }, { 5, 7 }, { 7, 6 }, { 6, 4 },
+				{ 0, 4 }, { 1, 5 }, { 2, 6 }, { 3, 7 }
+			};
+
+			for (const auto& edge : edges)
+			{
+				DrawWorldLine(draw_list, camera, viewport_pos, viewport_size, corners[edge[0]], corners[edge[1]], color, thickness);
+			}
+		}
+
+		void DrawTextBlock(ImDrawList* draw_list, const ImVec2& start_position, const Vector<String>& lines, bool align_right = false)
+		{
+			if (lines.empty())
+			{
+				return;
+			}
+
+			float max_width = 0.0f;
+			for (const String& line : lines)
+			{
+				max_width = (std::max)(max_width, ImGui::CalcTextSize(line.c_str()).x);
+			}
+
+			const float line_height = ImGui::GetTextLineHeightWithSpacing();
+			const float block_width = max_width + 16.0f;
+			const float block_height = line_height * static_cast<float>(lines.size()) + 10.0f;
+			const ImVec2 bg_min = align_right ? ImVec2(start_position.x - block_width - 4.0f, start_position.y + 4.0f) : start_position + ImVec2(4.0f, 4.0f);
+			const ImVec2 bg_max = ImVec2(bg_min.x + block_width, bg_min.y + block_height);
+			ImVec2 text_cursor = bg_min + ImVec2(6.0f, 6.0f);
+			draw_list->AddRectFilled(bg_min, bg_max, IM_COL32(18, 18, 18, 180), 6.0f);
+			draw_list->AddRect(bg_min, bg_max, IM_COL32(90, 90, 90, 200), 6.0f);
+
+			for (const String& line : lines)
+			{
+				draw_list->AddText(text_cursor, IM_COL32(230, 230, 230, 255), line.c_str());
+				text_cursor.y += line_height;
+			}
+		}
+
+		void DrawDDGIDebugOverlay(
+			const ecs::CameraComponent& camera,
+			const rendering::RendererDebugState& renderer_debug_state,
+			const ImVec2& viewport_pos,
+			const ImVec2& viewport_size,
+			bool show_volume,
+			bool show_probes,
+			bool show_text,
+			int max_probe_draw_count)
+		{
+			ImDrawList* draw_list = ImGui::GetWindowDrawList();
+			const rendering::RendererDebugDDGIState& ddgi_state = renderer_debug_state.ddgi;
+
+			if (show_text)
+			{
+				auto bool_text = [](bool value) -> const char*
+				{
+					return value ? "Yes" : "No";
+				};
+
+				Vector<String> lines;
+				lines.push_back("DDGI Debug");
+				lines.push_back(String("GI Mode DDGI: ") + bool_text(ddgi_state.gi_mode_ddgi));
+				lines.push_back(String("Active Volume: ") + bool_text(ddgi_state.volume_active));
+				if (ddgi_state.volume_active)
+				{
+					lines.push_back("Volume Entity: " + std::to_string(ddgi_state.volume_entity));
+					lines.push_back("Probe Counts: " + std::to_string(ddgi_state.probe_counts.x) + ", " + std::to_string(ddgi_state.probe_counts.y) + ", " + std::to_string(ddgi_state.probe_counts.z));
+					lines.push_back("Probe Spacing: " + std::to_string(ddgi_state.probe_spacing.x) + ", " + std::to_string(ddgi_state.probe_spacing.y) + ", " + std::to_string(ddgi_state.probe_spacing.z));
+					lines.push_back("Total Probes: " + std::to_string(ddgi_state.total_probe_count));
+					lines.push_back("Debug Probe Samples: " + std::to_string(ddgi_state.probes.size()));
+				}
+				lines.push_back(String("Texture Allocated: ") + bool_text(ddgi_state.irradiance_texture_allocated));
+				lines.push_back(String("SRV Valid: ") + bool_text(ddgi_state.irradiance_srv_valid) + " (" + std::to_string(ddgi_state.irradiance_texture_srv) + ")");
+				lines.push_back(String("UAV Valid: ") + bool_text(ddgi_state.irradiance_uav_valid) + " (" + std::to_string(ddgi_state.irradiance_texture_uav) + ")");
+				lines.push_back(String("Visibility Allocated: ") + bool_text(ddgi_state.visibility_texture_allocated));
+				lines.push_back(String("Visibility SRV: ") + bool_text(ddgi_state.visibility_srv_valid) + " (" + std::to_string(ddgi_state.visibility_texture_srv) + ")");
+				lines.push_back(String("Visibility UAV: ") + bool_text(ddgi_state.visibility_uav_valid) + " (" + std::to_string(ddgi_state.visibility_texture_uav) + ")");
+				lines.push_back(String("Probe Data Allocated: ") + bool_text(ddgi_state.probe_data_buffer_allocated));
+				lines.push_back(String("Probe Data SRV: ") + bool_text(ddgi_state.probe_data_srv_valid) + " (" + std::to_string(ddgi_state.probe_data_buffer_srv) + ")");
+				lines.push_back(String("Probe Data UAV: ") + bool_text(ddgi_state.probe_data_uav_valid) + " (" + std::to_string(ddgi_state.probe_data_buffer_uav) + ")");
+				lines.push_back(String("History Valid: ") + bool_text(ddgi_state.history_valid));
+				lines.push_back(String("Pipeline Ready: ") + bool_text(ddgi_state.probe_update_pipeline_ready));
+				lines.push_back(String("Probe Dispatch: ") + bool_text(ddgi_state.probe_update_dispatched));
+				lines.push_back("Dispatch Groups: " + std::to_string(ddgi_state.dispatch_groups.x) + ", " + std::to_string(ddgi_state.dispatch_groups.y) + ", " + std::to_string(ddgi_state.dispatch_groups.z));
+
+				DrawTextBlock(draw_list, ImVec2(viewport_pos.x + viewport_size.x, viewport_pos.y), lines, true);
+			}
+		}
 	}
 
 	void EditorApplication::Initialize(const ApplicationDesc& desc)
@@ -292,6 +434,14 @@ namespace won::editor
 	void EditorApplication::Update(float dt)
 	{
 		Application::Update(dt);
+		if (renderer)
+		{
+			rendering::RendererDebugOptions debug_options = {};
+			debug_options.ddgi_debug_enable = viewport_debug_settings.show_ddgi_overlay;
+			debug_options.bvh_debug_enable = viewport_debug_settings.show_bvh_debug;
+			renderer->SetDebugOptions(debug_options);
+		}
+		UpdateEditorPrimitiveMesh();
 
 		if (won::io::IsPressed(io::Button('R')))
 		{
@@ -480,6 +630,226 @@ namespace won::editor
 		}
 	}
 
+	void EditorApplication::UpdateEditorPrimitiveMesh()
+	{
+		if (editor_primitive_entity == ecs::INVALID_ENTITY || !editor_primitive_mesh)
+		{
+			editor_primitive_entity = scene.CreateEntity();
+			editor_primitive_mesh = std::make_shared<resource::Mesh>();
+
+			scene.AddComponent<ecs::TransformComponent>(editor_primitive_entity);
+
+			if (auto geometry = scene.AddComponent<ecs::GeometryComponent>(editor_primitive_entity))
+			{
+				geometry->SetMesh(editor_primitive_mesh);
+				geometry->SetExcludeFromBVH(true);
+			}
+
+			if (auto material = scene.AddComponent<ecs::MaterialComponent>(editor_primitive_entity))
+			{
+				auto& material_slot = material->AddMaterialSlot();
+				material_slot.base_color = { 1.0f, 1.0f, 1.0f, 1.0f };
+				material_slot.metallic = 0.0f;
+				material_slot.roughness = 1.0f;
+			}
+
+			if (auto name = scene.AddComponent<ecs::NameComponent>(editor_primitive_entity))
+			{
+				name->value = "Editor Primitives";
+			}
+		}
+
+		if (!editor_primitive_mesh)
+		{
+			return;
+		}
+
+		editor_primitive_mesh->positions.clear();
+		editor_primitive_mesh->colors.clear();
+		editor_primitive_mesh->indices.clear();
+		editor_primitive_mesh->submeshes.clear();
+
+		auto add_line = [&](const float3& from, const float3& to, const float4& color)
+		{
+			const uint32 first_vertex = static_cast<uint32>(editor_primitive_mesh->positions.size());
+			editor_primitive_mesh->positions.push_back(from);
+			editor_primitive_mesh->positions.push_back(to);
+			editor_primitive_mesh->colors.push_back(color);
+			editor_primitive_mesh->colors.push_back(color);
+			editor_primitive_mesh->indices.push_back(first_vertex);
+			editor_primitive_mesh->indices.push_back(first_vertex + 1);
+		};
+
+		auto add_box = [&](const float3& bounds_min, const float3& bounds_max, const float4& color)
+		{
+			const float3 corners[8] = {
+				{ bounds_min.x, bounds_min.y, bounds_min.z },
+				{ bounds_max.x, bounds_min.y, bounds_min.z },
+				{ bounds_max.x, bounds_max.y, bounds_min.z },
+				{ bounds_min.x, bounds_max.y, bounds_min.z },
+				{ bounds_min.x, bounds_min.y, bounds_max.z },
+				{ bounds_max.x, bounds_min.y, bounds_max.z },
+				{ bounds_max.x, bounds_max.y, bounds_max.z },
+				{ bounds_min.x, bounds_max.y, bounds_max.z }
+			};
+			const uint32 edges[12][2] = {
+				{ 0, 1 }, { 1, 2 }, { 2, 3 }, { 3, 0 },
+				{ 4, 5 }, { 5, 6 }, { 6, 7 }, { 7, 4 },
+				{ 0, 4 }, { 1, 5 }, { 2, 6 }, { 3, 7 }
+			};
+			for (const auto& edge : edges)
+			{
+				add_line(corners[edge[0]], corners[edge[1]], color);
+			}
+		};
+
+		auto add_point = [&](const float3& position, float size, const float4& color)
+		{
+			add_line({ position.x - size, position.y, position.z }, { position.x + size, position.y, position.z }, color);
+			add_line({ position.x, position.y - size, position.z }, { position.x, position.y + size, position.z }, color);
+			add_line({ position.x, position.y, position.z - size }, { position.x, position.y, position.z + size }, color);
+		};
+		auto lerp_color = [](const float4& from, const float4& to, float value)
+		{
+			return float4{ from.x + (to.x - from.x) * value, from.y + (to.y - from.y) * value, from.z + (to.z - from.z) * value, from.w + (to.w - from.w) * value };
+		};
+
+		if (viewport_debug_settings.show_ddgi_overlay && renderer)
+		{
+			const rendering::RendererDebugDDGIState& ddgi_state = renderer->GetDebugState().ddgi;
+			if (ddgi_state.volume_active)
+			{
+				if (viewport_debug_settings.show_ddgi_volume)
+				{
+					add_box(ddgi_state.volume_min, ddgi_state.volume_max, theme::ddgi_volume_color);
+				}
+
+				if (viewport_debug_settings.show_ddgi_probes && ddgi_state.total_probe_count > 0)
+				{
+					const float min_probe_spacing = (std::min)(ddgi_state.probe_spacing.x, (std::min)(ddgi_state.probe_spacing.y, ddgi_state.probe_spacing.z));
+					const float point_size = (std::max)(0.04f, min_probe_spacing * 0.08f);
+					uint32 drawn_probe_count = 0;
+					const uint32 max_probe_draw_count = static_cast<uint32>((std::max)(1, viewport_debug_settings.ddgi_max_probe_draw_count));
+					if (!ddgi_state.probes.empty())
+					{
+						for (const rendering::RendererDebugDDGIState::DDGIProbe& probe : ddgi_state.probes)
+						{
+							if (drawn_probe_count >= max_probe_draw_count)
+							{
+								break;
+							}
+							const float relocation_alpha = (std::min)(1.0f, probe.relocation / 0.45f);
+							const float4 color = probe.validity > 0.0f ? lerp_color(theme::ddgi_probe_color, theme::ddgi_probe_relocated_color, relocation_alpha) : theme::ddgi_probe_invalid_color;
+							add_point(probe.position, point_size, color);
+							++drawn_probe_count;
+						}
+					}
+					else
+					{
+						const float sample_ratio = static_cast<float>(ddgi_state.total_probe_count) / static_cast<float>(max_probe_draw_count);
+						const uint32 sampling_step = sample_ratio > 1.0f ? static_cast<uint32>((std::max)(1, static_cast<int>(std::ceil(std::cbrt(sample_ratio))))) : 1u;
+						for (uint32 z = 0; z < ddgi_state.probe_counts.z; z += sampling_step)
+						{
+							for (uint32 y = 0; y < ddgi_state.probe_counts.y; y += sampling_step)
+							{
+								for (uint32 x = 0; x < ddgi_state.probe_counts.x; x += sampling_step)
+								{
+									if (drawn_probe_count >= max_probe_draw_count)
+									{
+										break;
+									}
+									const float3 probe_position = {
+										ddgi_state.volume_min.x + static_cast<float>(x) * ddgi_state.probe_spacing.x,
+										ddgi_state.volume_min.y + static_cast<float>(y) * ddgi_state.probe_spacing.y,
+										ddgi_state.volume_min.z + static_cast<float>(z) * ddgi_state.probe_spacing.z
+									};
+									add_point(probe_position, point_size, theme::ddgi_probe_color);
+									++drawn_probe_count;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		if (viewport_debug_settings.show_bvh_debug && renderer)
+		{
+			const rendering::RendererDebugBVHState& bvh_state = renderer->GetDebugState().bvh;
+			if (viewport_debug_settings.show_cpu_bvh_nodes && bvh_state.cpu_bvh_available)
+			{
+				for (const rendering::RendererDebugBVHState::BVHNode& node : bvh_state.cpu_nodes)
+				{
+					const float4 color = node.is_leaf ? theme::cpu_bvh_leaf_color : theme::cpu_bvh_internal_color;
+					add_box(node.bounds_min, node.bounds_max, color);
+				}
+			}
+			if (viewport_debug_settings.show_gpu_bvh_nodes && bvh_state.gpu_bvh_available)
+			{
+				for (const rendering::RendererDebugBVHState::BVHNode& node : bvh_state.gpu_nodes)
+				{
+					const float4 color = node.is_leaf ? theme::gpu_bvh_leaf_color : theme::gpu_bvh_internal_color;
+					add_box(node.bounds_min, node.bounds_max, color);
+				}
+			}
+		}
+
+		if (editor_primitive_mesh->render_data.IsValid())
+		{
+			if (editor_primitive_mesh->render_data.buffer)
+			{
+				deferred_primitive_removal_buffers.push_back(editor_primitive_mesh->render_data.buffer);
+				constexpr Size max_retired_primitive_buffers = 8;
+				if (deferred_primitive_removal_buffers.size() > max_retired_primitive_buffers)
+				{
+					deferred_primitive_removal_buffers.erase(deferred_primitive_removal_buffers.begin());
+				}
+			}
+		}
+
+		editor_primitive_mesh->ClearRenderData();
+		if (!editor_primitive_mesh->indices.empty())
+		{
+			auto make_submesh = [&](uint32 first_index, uint32 index_count, resource::PrimitiveTopology topology)
+			{
+				resource::Submesh submesh = {};
+				submesh.first_index = first_index;
+				submesh.index_count = index_count;
+				submesh.first_vertex = 0;
+				submesh.material_slot = 0;
+				submesh.primitive_topology = topology;
+				submesh.local_bounds.Invalidate();
+				for (uint32 index = first_index; index < first_index + index_count; ++index)
+				{
+					const uint32 vertex_index = editor_primitive_mesh->indices[index];
+					if (vertex_index >= editor_primitive_mesh->positions.size())
+					{
+						continue;
+					}
+					math::AABB vertex_bounds = {};
+					vertex_bounds.min = editor_primitive_mesh->positions[vertex_index];
+					vertex_bounds.max = editor_primitive_mesh->positions[vertex_index];
+					submesh.local_bounds.Merge(vertex_bounds);
+				}
+				editor_primitive_mesh->submeshes.push_back(submesh);
+			};
+
+			const uint32 line_index_count = static_cast<uint32>(editor_primitive_mesh->indices.size());
+			if (line_index_count > 0)
+			{
+				make_submesh(0, line_index_count, resource::PrimitiveTopology::LineList);
+			}
+
+			rendering::utils::CreateRenderData(*device, *editor_primitive_mesh);
+		}
+
+		if (auto geometry = scene.GetComponent<ecs::GeometryComponent>(editor_primitive_entity))
+		{
+			geometry->UpdateLocalBounds();
+			geometry->SetDirty();
+		}
+	}
+
 	void EditorApplication::OnWindowResized(int width, int height)
 	{
 		auto* camera = scene.GetComponent<ecs::CameraComponent>(camera_entity);
@@ -575,6 +945,28 @@ namespace won::editor
 				}
 
 				ImGui::Separator();
+				ImGui::Checkbox("BVH Debug", &viewport_debug_settings.show_bvh_debug);
+				if (viewport_debug_settings.show_bvh_debug)
+				{
+					ImGui::Checkbox("CPU BVH Nodes", &viewport_debug_settings.show_cpu_bvh_nodes);
+					viewport_debug_settings.show_gpu_bvh_nodes = false;
+					ImGui::BeginDisabled();
+					ImGui::Checkbox("GPU BVH Nodes", &viewport_debug_settings.show_gpu_bvh_nodes);
+					ImGui::EndDisabled();
+				}
+
+				ImGui::Separator();
+				ImGui::Checkbox("DDGI Debug Overlay", &viewport_debug_settings.show_ddgi_overlay);
+				if (viewport_debug_settings.show_ddgi_overlay)
+				{
+					ImGui::Checkbox("DDGI Volume", &viewport_debug_settings.show_ddgi_volume);
+					ImGui::Checkbox("DDGI Probes", &viewport_debug_settings.show_ddgi_probes);
+					ImGui::Checkbox("DDGI Text", &viewport_debug_settings.show_ddgi_text);
+					ImGui::InputInt("DDGI Max Probe Draw", &viewport_debug_settings.ddgi_max_probe_draw_count);
+					viewport_debug_settings.ddgi_max_probe_draw_count = (std::max)(1, viewport_debug_settings.ddgi_max_probe_draw_count);
+				}
+
+				ImGui::Separator();
 				if (ImGui::Button("Close")) ImGui::CloseCurrentPopup();
 
 				ImGui::EndPopup();
@@ -599,6 +991,24 @@ namespace won::editor
 			if (auto* camera = scene.GetComponent<ecs::CameraComponent>(camera_entity))
 			{
 				camera->SetAspectRatio(static_cast<float>(main_view.viewport.width) / static_cast<float>(main_view.viewport.height));
+				if (viewport_debug_settings.show_ddgi_overlay)
+				{
+					rendering::RendererDebugState renderer_debug_state = {};
+					if (renderer)
+					{
+						renderer_debug_state = renderer->GetDebugState();
+					}
+
+					DrawDDGIDebugOverlay(
+						*camera,
+						renderer_debug_state,
+						viewport_pos,
+						viewport_size,
+						viewport_debug_settings.show_ddgi_volume,
+						viewport_debug_settings.show_ddgi_probes,
+						viewport_debug_settings.show_ddgi_text,
+						viewport_debug_settings.ddgi_max_probe_draw_count);
+				}
 			}
 		}
 		ImGui::End();
@@ -1075,7 +1485,64 @@ namespace won::editor
 
 					if (!remove_component)
 					{
+						bool is_active = ddgi_volume_comp->IsActive();
+						if (ImGui::Checkbox("Active", &is_active))
+						{
+							ddgi_volume_comp->SetActive(is_active);
+						}
 
+						bool is_dynamic = ddgi_volume_comp->IsDynamic();
+						if (ImGui::Checkbox("Dynamic", &is_dynamic))
+						{
+							ddgi_volume_comp->SetDynamic(is_dynamic);
+						}
+
+						int probe_counts[3] = {
+							static_cast<int>(ddgi_volume_comp->probe_counts.x),
+							static_cast<int>(ddgi_volume_comp->probe_counts.y),
+							static_cast<int>(ddgi_volume_comp->probe_counts.z)
+						};
+						if (ImGui::InputInt3("Probe Counts", probe_counts))
+						{
+							ddgi_volume_comp->probe_counts = {
+								static_cast<uint32>((std::max)(1, probe_counts[0])),
+								static_cast<uint32>((std::max)(1, probe_counts[1])),
+								static_cast<uint32>((std::max)(1, probe_counts[2]))
+							};
+						}
+
+						float probe_spacing[3] = { ddgi_volume_comp->probe_spacing.x, ddgi_volume_comp->probe_spacing.y, ddgi_volume_comp->probe_spacing.z };
+						if (ImGui::InputFloat3("Probe Spacing", probe_spacing))
+						{
+							ddgi_volume_comp->probe_spacing = { probe_spacing[0], probe_spacing[1], probe_spacing[2] };
+						}
+
+						float volume_offset[3] = { ddgi_volume_comp->volume_offset.x, ddgi_volume_comp->volume_offset.y, ddgi_volume_comp->volume_offset.z };
+						if (ImGui::InputFloat3("Volume Offset", volume_offset))
+						{
+							ddgi_volume_comp->volume_offset = { volume_offset[0], volume_offset[1], volume_offset[2] };
+						}
+
+						int probes_per_frame = static_cast<int>(ddgi_volume_comp->probes_per_frame);
+						if (ImGui::InputInt("Probes Per Frame", &probes_per_frame))
+						{
+							ddgi_volume_comp->probes_per_frame = static_cast<uint32>((std::max)(1, probes_per_frame));
+						}
+
+						int priority = static_cast<int>(ddgi_volume_comp->priority);
+						if (ImGui::InputInt("Priority", &priority))
+						{
+							ddgi_volume_comp->priority = static_cast<uint32>((std::max)(0, priority));
+						}
+
+						ImGui::SliderFloat("Hysteresis", &ddgi_volume_comp->hysteresis, 0.0f, 1.0f);
+						ImGui::DragFloat("Normal Bias", &ddgi_volume_comp->normal_bias, 0.001f, 0.0f, 100.0f);
+						ImGui::DragFloat("View Bias", &ddgi_volume_comp->view_bias, 0.001f, 0.0f, 100.0f);
+						ImGui::DragFloat("Max Distance", &ddgi_volume_comp->max_distance, 0.01f, 0.0f, 100000.0f);
+						if (ImGui::Button("Update Scene GPUBVH"))
+						{
+							rendering::utils::BuildGPUBVH(device.get(), *main_view.scene);
+						}
 					}
 					else
 					{
@@ -1544,6 +2011,7 @@ namespace won::editor
 		// Render command lists
 		int32_t vertexOffset = 0;
 		uint32_t indexOffset = 0;
+		frame_context.command_list->SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
 		for (uint32_t cmdListIdx = 0; cmdListIdx < (uint32_t)drawData->CmdListsCount; ++cmdListIdx)
 		{
 			const ImDrawList* drawList = drawData->CmdLists[cmdListIdx];
@@ -1742,7 +2210,7 @@ namespace won::editor
 			//		geometry->mesh = mesh;
 			//		geometry->local_bounds = submesh.local_bounds;
 
-			//		mesh->CreateRenderData(device.get());
+			//		rendering::utils::CreateRenderData(*device, *mesh);
 			//	}
 
 			//	auto* material = scene.AddComponent<ecs::MaterialComponent>(image_entity);
@@ -1783,6 +2251,13 @@ namespace won::editor
 			api->Import(asset_importer.get(), file_path.c_str(), &scene, device.get(), root_entity);
 
 			{
+				auto transform = scene.GetComponent<ecs::TransformComponent>(root_entity);
+				if (transform)
+				{
+					transform->Translate({ 5.0f, 0.0f, 5.0f });
+					transform->Scale({ 3.0f, 3.0f, 3.0f });
+				}
+
 				auto material_component = scene.GetComponent<ecs::MaterialComponent>(root_entity);
 				for (uint32 i = 0; i < (uint32)material_component->GetMaterialSlotCount(); i++)
 				{
@@ -1798,8 +2273,14 @@ namespace won::editor
 			{
 				ecs::Entity light_entity = scene.CreateEntity();
 				auto transform = scene.AddComponent<ecs::TransformComponent>(light_entity);
-				transform->RotateRollPitchYaw({ math::PI / 2.f, 0, 0 });
-				//transform->Translate({ 0,0,-1 });
+				{
+					const XMVECTOR source_direction = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+					const XMVECTOR target_direction = XMVector3Normalize(XMVectorSet(1.0f, -1.0f, 1.0f, 0.0f));
+					const XMVECTOR rotation_axis = XMVector3Normalize(XMVector3Cross(source_direction, target_direction));
+					const float rotation_angle = std::acos((std::max)(-1.0f, (std::min)(1.0f, XMVectorGetX(XMVector3Dot(source_direction, target_direction)))));
+					XMStoreFloat4(&transform->rotation, XMQuaternionRotationAxis(rotation_axis, rotation_angle));
+					transform->SetDirty();
+				}
 				auto light = scene.AddComponent<ecs::LightComponent>(light_entity);
 				light->type = ecs::LightComponent::LightType::Directional;
 				light->intensity = 100.f;
@@ -1817,8 +2298,13 @@ namespace won::editor
 				
 				auto env = scene.AddComponent<ecs::SkyComponent>(env_entity);
 				env->SetActive(true);
-				scene.AddComponent<ecs::EnvironmentLightingComponent>(env_entity);
-				scene.AddComponent<ecs::DDGIVolumeComponent>(env_entity);
+				auto environment_lighting = scene.AddComponent<ecs::EnvironmentLightingComponent>(env_entity);
+				environment_lighting->gi_mode = ecs::EnvironmentLightingComponent::DDGI;
+				environment_lighting->indirect_diffuse_scale = 0.05f;
+				auto ddgi_volume = scene.AddComponent<ecs::DDGIVolumeComponent>(env_entity);
+				ddgi_volume->probe_counts = { 16, 16, 16 };
+				ddgi_volume->probe_spacing = { 1.0f, 1.0f, 1.0f };
+				ddgi_volume->volume_offset = { 5.0f, 0.0f, 5.0f };
 
 				auto name = scene.AddComponent<ecs::NameComponent>(env_entity);
 				name->value = "Environment";
@@ -1863,18 +2349,17 @@ namespace won::editor
 					submesh.local_bounds.max = { 1.0f, 0.0f, 1.0f };
 					mesh->submeshes.push_back(submesh);
 
-					geometry->mesh = mesh;
-					geometry->local_bounds = submesh.local_bounds;
+					geometry->SetMesh(mesh);
 
-					mesh->CreateRenderData(device.get());
+					rendering::utils::CreateRenderData(*device, *mesh);
 				}
 
 				auto material = scene.AddComponent<ecs::MaterialComponent>(plane_entity);
 				if (material)
 				{
 					auto& material_slot = material->AddMaterialSlot();
-					material_slot.base_color = { 0.8f, 0.8f, 0.8f, 1.0f };
-					material_slot.metallic = 1.0f;
+					material_slot.base_color = { 0.70f, 0.82f, 0.68f, 1.0f };
+					material_slot.metallic = 0.0f;
 					material_slot.roughness = 0.5f;
 					material_slot.flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW;
 				}
@@ -1882,6 +2367,108 @@ namespace won::editor
 				auto name = scene.AddComponent<ecs::NameComponent>(plane_entity);
 				name->value = "Plane";
 
+			}
+
+			// side wall plane entity
+			{
+				ecs::Entity side_wall_entity = scene.CreateEntity();
+				scene.AddComponent<ecs::TransformComponent>(side_wall_entity);
+
+				auto geometry = scene.AddComponent<ecs::GeometryComponent>(side_wall_entity);
+				if (geometry)
+				{
+					auto mesh = std::make_shared<resource::Mesh>();
+					mesh->positions = {
+						{ 10.0f, 15.0f, 10.0f },
+						{ 10.0f, -5.0f, 10.0f },
+						{ 10.0f, 15.0f, -10.0f },
+						{ 10.0f, -5.0f, -10.0f },
+					};
+					mesh->normals = {
+						{ -1.0f, 0.0f, 0.0f },
+						{ -1.0f, 0.0f, 0.0f },
+						{ -1.0f, 0.0f, 0.0f },
+						{ -1.0f, 0.0f, 0.0f },
+					};
+
+					mesh->indices = { 1, 0, 2, 1, 2, 3 };
+
+					resource::Submesh submesh = {};
+					submesh.first_index = 0;
+					submesh.index_count = 6;
+					submesh.first_vertex = 0;
+					submesh.material_slot = 0;
+					submesh.local_bounds.min = { 9.999f, -5.0f, -10.0f };
+					submesh.local_bounds.max = { 10.001f, 15.0f, 10.0f };
+					mesh->submeshes.push_back(submesh);
+
+					geometry->SetMesh(mesh);
+					rendering::utils::CreateRenderData(*device, *mesh);
+				}
+
+				auto material = scene.AddComponent<ecs::MaterialComponent>(side_wall_entity);
+				if (material)
+				{
+					auto& material_slot = material->AddMaterialSlot();
+					material_slot.base_color = { 0.9f, 0.35f, 0.35f, 1.0f };
+					material_slot.metallic = 0.0f;
+					material_slot.roughness = 0.5f;
+					material_slot.flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW;
+				}
+
+				auto name = scene.AddComponent<ecs::NameComponent>(side_wall_entity);
+				name->value = "Side Wall";
+			}
+
+			// back wall plane entity
+			{
+				ecs::Entity back_wall_entity = scene.CreateEntity();
+				scene.AddComponent<ecs::TransformComponent>(back_wall_entity);
+
+				auto geometry = scene.AddComponent<ecs::GeometryComponent>(back_wall_entity);
+				if (geometry)
+				{
+					auto mesh = std::make_shared<resource::Mesh>();
+					mesh->positions = {
+						{ -10.0f, 15.0f, 10.0f },
+						{ -10.0f, -5.0f, 10.0f },
+						{ 10.0f, 15.0f, 10.0f },
+						{ 10.0f, -5.0f, 10.0f },
+					};
+					mesh->normals = {
+						{ 0.0f, 0.0f, -1.0f },
+						{ 0.0f, 0.0f, -1.0f },
+						{ 0.0f, 0.0f, -1.0f },
+						{ 0.0f, 0.0f, -1.0f },
+					};
+
+					mesh->indices = { 1, 0, 2, 1, 2, 3 };
+
+					resource::Submesh submesh = {};
+					submesh.first_index = 0;
+					submesh.index_count = 6;
+					submesh.first_vertex = 0;
+					submesh.material_slot = 0;
+					submesh.local_bounds.min = { -10.0f, -5.0f, 9.999f };
+					submesh.local_bounds.max = { 10.0f, 15.0f, 10.001f };
+					mesh->submeshes.push_back(submesh);
+
+					geometry->SetMesh(mesh);
+					rendering::utils::CreateRenderData(*device, *mesh);
+				}
+
+				auto material = scene.AddComponent<ecs::MaterialComponent>(back_wall_entity);
+				if (material)
+				{
+					auto& material_slot = material->AddMaterialSlot();
+					material_slot.base_color = { 0.35f, 0.45f, 0.9f, 1.0f };
+					material_slot.metallic = 0.0f;
+					material_slot.roughness = 0.5f;
+					material_slot.flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW;
+				}
+
+				auto name = scene.AddComponent<ecs::NameComponent>(back_wall_entity);
+				name->value = "Back Wall";
 			}
 		}
 		UpdateEntityList();

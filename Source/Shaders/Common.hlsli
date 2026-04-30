@@ -35,11 +35,11 @@ inline int DescriptorIndex(in int descriptor_index)
     "RootConstants(num32BitConstants = 5, b999), " \
     "CBV(b0), " \
     "CBV(b1), " \
-	"DescriptorTable( " \
-		"CBV(b2, numDescriptors = 12, flags = DATA_STATIC_WHILE_SET_AT_EXECUTE)," \
-		"SRV(t0, numDescriptors = 16, flags = DESCRIPTORS_VOLATILE | DATA_STATIC_WHILE_SET_AT_EXECUTE)," \
-		"UAV(u0, numDescriptors = 16, flags = DESCRIPTORS_VOLATILE | DATA_STATIC_WHILE_SET_AT_EXECUTE)" \
-	")," \
+    "DescriptorTable( " \
+        "CBV(b2, numDescriptors = 12, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+        "SRV(t0, numDescriptors = 16, flags = DESCRIPTORS_VOLATILE | DATA_STATIC_WHILE_SET_AT_EXECUTE)," \
+        "UAV(u0, numDescriptors = 16, flags = DESCRIPTORS_VOLATILE | DATA_STATIC_WHILE_SET_AT_EXECUTE)" \
+    ")," \
 	"DescriptorTable( " \
 		"Sampler(s0, offset = 0, numDescriptors = 8, flags = DESCRIPTORS_VOLATILE)" \
 	")," \
@@ -88,7 +88,8 @@ inline int DescriptorIndex(in int descriptor_index)
         "SRV(t0, space = 203, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
         "SRV(t0, space = 204, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
         "SRV(t0, space = 205, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
-        "SRV(t0, space = 206, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE) " \
+        "SRV(t0, space = 206, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
+        "SRV(t0, space = 207, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE) " \
     "), " \
     "StaticSampler(s100, addressU = TEXTURE_ADDRESS_CLAMP, addressV = TEXTURE_ADDRESS_CLAMP, addressW = TEXTURE_ADDRESS_CLAMP, filter = FILTER_MIN_MAG_MIP_LINEAR)," \
 	"StaticSampler(s101, addressU = TEXTURE_ADDRESS_WRAP, addressV = TEXTURE_ADDRESS_WRAP, addressW = TEXTURE_ADDRESS_WRAP, filter = FILTER_MIN_MAG_MIP_LINEAR)," \
@@ -116,6 +117,31 @@ inline half4 UnpackHalf4(in uint2 value)
     retVal.z = (half) f16tof32(value.y);
     retVal.w = (half) f16tof32(value.y >> 16u);
     return retVal;
+}
+
+inline float RadicalInverseVdC(uint bits)
+{
+    // invert all bits and normalize by 2^32 (result in range[0,1))
+    bits = (bits << 16u) | (bits >> 16u);
+    bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
+    bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
+    bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
+    bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
+    return float(bits) * 2.3283064365386963e-10f;
+}
+
+inline float2 Hammersley(uint index, uint count)
+{
+    // result in range[0,1)
+    return float2((float(index) + 0.5f) / max(float(count), 1.0f), RadicalInverseVdC(index));
+}
+
+inline float3 SampleSphere(float2 xi)
+{
+    float z = 1.0f - 2.0f * xi.x;
+    float radius = sqrt(saturate(1.0f - z * z));
+    float phi = 2.0f * PI * xi.y;
+    return float3(cos(phi) * radius, sin(phi) * radius, z);
 }
 
 SamplerState bindless_samplers[] : register(s0, space1);
@@ -164,6 +190,9 @@ StructuredBuffer<ShaderGeometry> bindless_structured_geometry[] : register(t0, s
 StructuredBuffer<ShaderMaterial> bindless_structured_material[] : register(t0, space202);
 StructuredBuffer<ShaderLight> bindless_structured_light[] : register(t0, space203);
 StructuredBuffer<ShaderShadowCascade> bindless_structured_shadow_cascade[] : register(t0, space204);
+StructuredBuffer<ShaderBVHNode> bindless_structured_bvh_node[] : register(t0, space205);
+StructuredBuffer<ShaderBVHPrimitive> bindless_structured_bvh_primitive[] : register(t0, space206);
+StructuredBuffer<ShaderBVHInstance> bindless_structured_bvh_instance[] : register(t0, space207);
 
 // static samplers
 SamplerState sampler_linear_clamp : register(s100);
@@ -196,6 +225,11 @@ inline ShaderEnvironmentLighting GetEnvironmentLighting()
     return g_frame.environment_lighting;
 }
 
+inline ShaderDDGIVolume GetDDGIVolume()
+{
+    return g_frame.ddgi_volume;
+}
+
 inline ShaderCamera GetCamera()
 {
     return g_camera;
@@ -206,29 +240,55 @@ inline ShaderInstance GetInstance(uint instance_index)
     return bindless_structured_instance[DescriptorIndex(GetScene().instancebuffer)][instance_index];
 }
 
+#ifndef WON_DISABLE_RENDERER_PUSHCONSTANT
 inline ShaderInstance GetInstance()
 {
     return GetInstance(push.instance_index);
 }
+#endif
 
 inline ShaderGeometry GetGeometry(uint geometry_index)
 {
     return bindless_structured_geometry[DescriptorIndex(GetScene().geometrybuffer)][geometry_index];
 }
 
+#ifndef WON_DISABLE_RENDERER_PUSHCONSTANT
 inline ShaderGeometry GetGeometry()
 {
     return GetGeometry(push.geometry_index);
 }
+#endif
 
 inline ShaderMaterial GetMaterial(uint material_index)
 {
     return bindless_structured_material[DescriptorIndex(GetScene().materialbuffer)][material_index];
 }
 
+#ifndef WON_DISABLE_RENDERER_PUSHCONSTANT
 inline ShaderMaterial GetMaterial()
 {
     return GetMaterial(push.material_index);
+}
+#endif
+
+inline ShaderBVHNode GetBVHNodeFromBuffer(int node_buffer, uint node_index)
+{
+    return bindless_structured_bvh_node[DescriptorIndex(node_buffer)][node_index];
+}
+
+inline ShaderBVHNode GetBVHNode(uint node_index)
+{
+    return GetBVHNodeFromBuffer(GetScene().bvh_node_buffer, node_index);
+}
+
+inline ShaderBVHPrimitive GetBVHPrimitiveFromBuffer(int primitive_buffer, uint primitive_index)
+{
+    return bindless_structured_bvh_primitive[DescriptorIndex(primitive_buffer)][primitive_index];
+}
+
+inline ShaderBVHInstance GetBVHInstance(uint instance_index)
+{
+    return bindless_structured_bvh_instance[DescriptorIndex(GetScene().bvh_instance_buffer)][instance_index];
 }
 
 inline ShaderLightIterator lights(uint bucket_index = 0)

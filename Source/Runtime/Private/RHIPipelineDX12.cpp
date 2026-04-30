@@ -1,5 +1,7 @@
 #include "RHIPipelineDX12.h"
 
+#include <algorithm>
+
 namespace won::rendering
 {
     RHIPipelineDX12::RHIPipelineDX12(bool is_compute_pipeline,
@@ -39,7 +41,7 @@ namespace won::rendering
     void RHIPipelineDX12::RootSignatureBindingTable::Init()
     {
         slot_usage = 0ull;
-        slot_infos.clear();
+        param_infos.clear();
 
         for (size_t i = 0; i < descriptor_binder_cbv_count; i++)
         {
@@ -69,102 +71,127 @@ namespace won::rendering
         {
             const auto& param = rs.pParameters[i];
             slot_usage |= (1ull << i);
-            auto& slot_info = slot_infos.emplace_back();
+            auto& param_info = param_infos.emplace_back();
             switch (param.ParameterType)
             {
             case D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE:
             {
                 if (param.DescriptorTable.NumDescriptorRanges == 0)
                 {
-                    slot_info.slot_type = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+                    param_info.slot_type = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
                     break;
-                }
-
-                if (param.DescriptorTable.pDescriptorRanges[0].RangeType == D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER)
-                {
-                    slot_info.is_sampler = true;
                 }
 
                 if (param.DescriptorTable.pDescriptorRanges[0].RegisterSpace > 0)
                 {
-                    slot_info.is_bindless = true;
+                    param_info.is_bindless = true;
                 }
-                else
+                if (param.DescriptorTable.pDescriptorRanges[0].RangeType == D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER)
                 {
-                    for (uint32 range_index = 0; range_index < param.DescriptorTable.NumDescriptorRanges; ++range_index)
-                    {
-                        const auto& range = param.DescriptorTable.pDescriptorRanges[range_index];
-                        if (range.NumDescriptors == UINT_MAX)
-                        {
-                            continue;
-                        }
+                    param_info.is_sampler = true;
+                }
+                uint32 next_table_offset = 0;
+                for (uint32 range_index = 0; range_index < param.DescriptorTable.NumDescriptorRanges; ++range_index)
+                {
+                    const auto& range = param.DescriptorTable.pDescriptorRanges[range_index];
+                    const uint32 descriptor_count = range.NumDescriptors == UINT_MAX ? 0 : range.NumDescriptors;
+                    const uint32 table_offset = range.OffsetInDescriptorsFromTableStart == D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND ?
+                        next_table_offset :
+                        range.OffsetInDescriptorsFromTableStart;
+                    next_table_offset = descriptor_count > 0 ? (std::max)(next_table_offset, table_offset + descriptor_count) : next_table_offset;
 
-                        for (uint32 descriptor_index = 0; descriptor_index < range.NumDescriptors; ++descriptor_index)
+                    RHIPipelineDX12::RootSignatureBindingTable::ParamInfo::DescriptorRangeInfo range_info = {};
+                    range_info.range_type = range.RangeType;
+                    range_info.base_register = range.BaseShaderRegister;
+                    range_info.register_space = range.RegisterSpace;
+                    range_info.descriptor_count = descriptor_count;
+                    range_info.table_offset = table_offset;
+                    param_info.descriptor_ranges.push_back(range_info);
+
+                    if (param_info.is_bindless || descriptor_count == 0)
+                    {
+                        continue;
+                    }
+
+                    param_info.table_descriptor_count = (std::max)(param_info.table_descriptor_count, table_offset + descriptor_count);
+
+                    for (uint32 descriptor_index = 0; descriptor_index < descriptor_count; ++descriptor_index)
+                    {
+                        const uint32 shader_register = range.BaseShaderRegister + descriptor_index;
+                        switch (range.RangeType)
                         {
-                            const uint32 shader_register = range.BaseShaderRegister + descriptor_index;
-                            switch (range.RangeType)
+                        case D3D12_DESCRIPTOR_RANGE_TYPE_CBV:
+                            if (shader_register < descriptor_binder_cbv_count)
                             {
-                            case D3D12_DESCRIPTOR_RANGE_TYPE_SRV:
-                                if (shader_register < descriptor_binder_srv_count)
-                                {
-                                    srv[shader_register] = static_cast<uint8>(i);
-                                }
-                                break;
-                            case D3D12_DESCRIPTOR_RANGE_TYPE_UAV:
-                                if (shader_register < descriptor_binder_uav_count)
-                                {
-                                    uav[shader_register] = static_cast<uint8>(i);
-                                }
-                                break;
-                            case D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER:
-                                if (shader_register < descriptor_binder_sampler_count)
-                                {
-                                    sam[shader_register] = static_cast<uint8>(i);
-                                }
-                                break;
-                            default:
-                                break;
+                                cbv[shader_register] = static_cast<uint8>(i);
                             }
+                            break;
+                        case D3D12_DESCRIPTOR_RANGE_TYPE_SRV:
+                            if (shader_register < descriptor_binder_srv_count)
+                            {
+                                srv[shader_register] = static_cast<uint8>(i);
+                            }
+                            break;
+                        case D3D12_DESCRIPTOR_RANGE_TYPE_UAV:
+                            if (shader_register < descriptor_binder_uav_count)
+                            {
+                                uav[shader_register] = static_cast<uint8>(i);
+                            }
+                            break;
+                        case D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER:
+                            if (shader_register < descriptor_binder_sampler_count)
+                            {
+                                sam[shader_register] = static_cast<uint8>(i);
+                            }
+                            break;
+                        default:
+                            break;
                         }
                     }
                 }
 
-                slot_info.slot_type = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+                param_info.slot_type = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
                 break;
             }
             case D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS:
             {
-                slot_info.slot_type = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+                param_info.slot_type = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
                 break;
             }
             case D3D12_ROOT_PARAMETER_TYPE_CBV:
             {
+                param_info.shader_register = param.Descriptor.ShaderRegister;
+                param_info.register_space = param.Descriptor.RegisterSpace;
                 if (param.Descriptor.RegisterSpace == 0 && param.Descriptor.ShaderRegister < descriptor_binder_cbv_count)
                 {
                     cbv[param.Descriptor.ShaderRegister] = static_cast<uint8>(i);
                 }
 
-                slot_info.slot_type = D3D12_ROOT_PARAMETER_TYPE_CBV;
+                param_info.slot_type = D3D12_ROOT_PARAMETER_TYPE_CBV;
                 break;
             }
             case D3D12_ROOT_PARAMETER_TYPE_SRV:
             {
+                param_info.shader_register = param.Descriptor.ShaderRegister;
+                param_info.register_space = param.Descriptor.RegisterSpace;
                 if (param.Descriptor.RegisterSpace == 0 && param.Descriptor.ShaderRegister < descriptor_binder_srv_count)
                 {
                     srv[param.Descriptor.ShaderRegister] = static_cast<uint8>(i);
                 }
 
-                slot_info.slot_type = D3D12_ROOT_PARAMETER_TYPE_SRV;
+                param_info.slot_type = D3D12_ROOT_PARAMETER_TYPE_SRV;
                 break;
             }
             case D3D12_ROOT_PARAMETER_TYPE_UAV:
             {
+                param_info.shader_register = param.Descriptor.ShaderRegister;
+                param_info.register_space = param.Descriptor.RegisterSpace;
                 if (param.Descriptor.RegisterSpace == 0 && param.Descriptor.ShaderRegister < descriptor_binder_uav_count)
                 {
                     uav[param.Descriptor.ShaderRegister] = static_cast<uint8>(i);
                 }
 
-                slot_info.slot_type = D3D12_ROOT_PARAMETER_TYPE_UAV;
+                param_info.slot_type = D3D12_ROOT_PARAMETER_TYPE_UAV;
                 break;
             }
             default:

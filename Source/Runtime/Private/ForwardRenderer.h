@@ -3,19 +3,22 @@
 #include "RHISwapchain.h"
 #include "Types.h"
 #include "ShaderLibrary.h"
+#include "ShaderInterop_Renderer.h"
 
 namespace won::rendering
 {
     class ForwardRenderer final : public Renderer
     {
     public:
-        void Initialize(const RendererDesc& desc, std::shared_ptr<resource::ShaderLibrary> shader_lib) override;
+        void Initialize(const RendererDesc& desc) override;
         void BeginFrame(platform::Window& window) override;
         void OnResize(platform::Window& window, uint32 width, uint32 height) override;
         void Render(const View& view) override;
         void EndFrame() override;
         void WaitIdle() override;
         void Shutdown() override;
+        void SetDebugOptions(const RendererDebugOptions& options) override;
+        RendererDebugState GetDebugState() const override;
 
         bool AllocateFrameUpload(FrameContext& frame_context, Size size, Size alignment, FrameUploadAllocation& out_allocation) override;
         bool BuildFrameContext(const View& view, FrameContext& frame_context) override;
@@ -31,6 +34,9 @@ namespace won::rendering
 
         bool BuildShadowCascades(const View& view);
         bool DrawScene(const View& view, const FrameContext& frame_context, resource::RenderPassType pass, uint32 flags);
+        void ReleaseDDGIResources(FrameContext& frame_context);
+        bool CreateDDGIResources(FrameContext& frame_context, const ShaderDDGIVolume& ddgi_volume);
+        void UpdateDDGIProbe(const ShaderEnvironmentLighting& environment_lighting, const ShaderDDGIVolume& ddgi_volume, FrameContext& frame_context, const RHISubresourceBinding& shader_frame_binding, const RHISubresourceBinding& shader_camera_binding);
 
         std::shared_ptr<RHIDevice> device;
 
@@ -49,6 +55,12 @@ namespace won::rendering
         std::shared_ptr<RHIResource> shader_shadow_cascade_default_buffer;
         RHISubresourceHandle shader_shadow_cascade_default_buffer_srv = {};
 
+        std::shared_ptr<RHIResource> shader_bvh_node_default_buffer;
+        RHISubresourceHandle shader_bvh_node_default_buffer_srv = {};
+
+        std::shared_ptr<RHIResource> shader_bvh_instance_default_buffer;
+        RHISubresourceHandle shader_bvh_instance_default_buffer_srv = {};
+
         std::shared_ptr<RHIResource> shader_frame_buffer;
         RHISubresourceHandle shader_frame_buffer_cbv = {};
 
@@ -62,7 +74,36 @@ namespace won::rendering
         RHISubresourceHandle shadow_map_atlas_dsv = {};
         RHISubresourceHandle shadow_map_atlas_srv = {};
 
+        std::shared_ptr<RHIResource> ddgi_irradiance_texture;
+        RHISubresourceHandle ddgi_irradiance_texture_srv = {};
+        RHISubresourceHandle ddgi_irradiance_texture_uav = {};
+        std::shared_ptr<RHIResource> ddgi_irradiance_history_texture;
+        RHISubresourceHandle ddgi_irradiance_history_texture_srv = {};
+
+        std::shared_ptr<RHIResource> ddgi_visibility_texture;
+        RHISubresourceHandle ddgi_visibility_texture_srv = {};
+        RHISubresourceHandle ddgi_visibility_texture_uav = {};
+        std::shared_ptr<RHIResource> ddgi_visibility_history_texture;
+        RHISubresourceHandle ddgi_visibility_history_texture_srv = {};
+
+        std::shared_ptr<RHIResource> ddgi_probe_data_buffer;
+        RHISubresourceHandle ddgi_probe_data_buffer_srv = {};
+        RHISubresourceHandle ddgi_probe_data_buffer_uav = {};
+        std::shared_ptr<RHIResource> ddgi_probe_data_history_buffer;
+        RHISubresourceHandle ddgi_probe_data_history_buffer_srv = {};
+
+        std::shared_ptr<RHIPipeline> ddgi_probe_update_pipeline;
+        std::shared_ptr<RHIShader> ddgi_probe_update_shader;
+        RendererDebugOptions debug_options = {};
+        RendererDebugState debug_state = {};
+
         uint2 shadow_map_atlas_size = { 0, 0 };
+        uint3 ddgi_probe_counts = { 0, 0, 0 };
+        float3 ddgi_probe_spacing = { 0.0f, 0.0f, 0.0f };
+        float3 ddgi_volume_min = { 0.0f, 0.0f, 0.0f };
+        float ddgi_max_distance = 0.0f;
+        uint32 ddgi_probe_update_offset = 0;
+        bool ddgi_history_valid = false;
         std::array<RHISubresourceHandle, max_frames_in_flight> back_buffers_rtv = {};
 
         platform::Window* current_window = nullptr;

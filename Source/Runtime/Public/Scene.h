@@ -12,9 +12,11 @@
 #include "RenderableUpdateSystem.h"
 #include "ShaderInterop_Renderer.h"
 #include "BVH.h"
+#include "RenderingUtils.h"
 
 #include "Types.h"
 #include "MathUtils.h"
+#include "Profiler.h"
 
 #include <algorithm>
 #include <memory>
@@ -23,6 +25,7 @@
 namespace won::rendering
 {
     class RHIResource;
+    class RHIDevice;
 }
 
 namespace won::ecs
@@ -65,7 +68,6 @@ namespace won::ecs
         {
             Entity entity = ecs::CreateEntity();
             entities.push_back(entity);
-            scene_bvh_dirty = true;
             return entity;
         }
 
@@ -81,14 +83,12 @@ namespace won::ecs
                         return current == entity;
                     }),
                 entities.end());
-            scene_bvh_dirty = true;
         }
 
         template <typename Component, typename... Args>
         Component* AddComponent(Entity entity, Args&&... args)
         {
             Component component { std::forward<Args>(args)... };
-            scene_bvh_dirty = true;
             return component_manager.AddComponent<Component>(entity, component);
         }
 
@@ -102,7 +102,6 @@ namespace won::ecs
         void RemoveComponent(Entity entity)
         {
             component_manager.RemoveComponent<Component>(entity);
-            scene_bvh_dirty = true;
         }
 
         template <typename Component>
@@ -298,12 +297,23 @@ namespace won::ecs
                 }
                 jobsystem::Wait(ctx);
             }
-            scene_bvh_dirty = true;
+
+            if (cpu_bvh_dirty)
+            {
+                BuildBVH();
+            }
+
         }
 
         const Vector<Entity>& GetEntities() const
         {
             return entities;
+        }
+
+        void SetBVHDirty(bool value = true)
+        {
+            cpu_bvh_dirty = value;
+            gpu_bvh_dirty = value;
         }
 
         void BuildBVH()
@@ -314,9 +324,10 @@ namespace won::ecs
             {
                 scene_bvh.Clear();
                 scene_bvh_entities.clear();
-                scene_bvh_dirty = false;
+                cpu_bvh_dirty = false;
                 return;
             }
+            profiler::ScopedRangeCPU range("Scene::BuildBVH");
 
             Vector<math::bvh::BVHPrimitive> primitives;
             primitives.reserve(geometry_array->GetSize());
@@ -327,7 +338,7 @@ namespace won::ecs
             {
                 Entity entity = geometry_array->index_to_entity[i];
                 const GeometryComponent& geometry = geometry_array->data[i];
-                if (!geometry.mesh || !geometry.mesh->IsValid() || !transform_array->HasData(entity))
+                if (geometry.IsExcludeFromBVH() || !geometry.mesh || !geometry.mesh->IsValid() || !transform_array->HasData(entity))
                 {
                     continue;
                 }
@@ -342,18 +353,13 @@ namespace won::ecs
                 scene_bvh_entities.push_back(entity);
             }
 
-            scene_bvh.Build(primitives);
-            scene_bvh_dirty = false;
+            scene_bvh.Build(primitives, 1);
+            cpu_bvh_dirty = false;
         }
 
         bool RayCastClosest(const math::Ray& ray, RayCastHit& out_hit, bool use_local_bvh = true)
         {
             out_hit = {};
-
-            if (scene_bvh_dirty)
-            {
-                BuildBVH();
-            }
 
             if (!scene_bvh.IsValid())
             {
@@ -438,16 +444,16 @@ namespace won::ecs
                     bool used_local_bvh = false;
                     if (use_local_bvh)
                     {
-                        if (!mesh.local_bvh.IsValid())
+                        if (!mesh.cpu_bvh.IsValid())
                         {
                             mesh.BuildBVH();
                         }
 
-                        if (mesh.local_bvh.IsValid())
+                        if (mesh.cpu_bvh.IsValid())
                         {
                             used_local_bvh = true;
                             math::bvh::BVHRayHit local_bvh_hit = {};
-                            math::bvh::IntersectClosest(mesh.local_bvh, local_ray, 0.0f, (std::numeric_limits<float>::max)(),
+                            math::bvh::IntersectClosest(mesh.cpu_bvh, local_ray, 0.0f, (std::numeric_limits<float>::max)(),
                                 [&](const math::bvh::BVHPrimitive& local_primitive, float local_min_distance, float local_max_distance, float& out_local_distance)
                                 {
                                     float local_bounds_distance = 0.0f;
@@ -513,6 +519,7 @@ namespace won::ecs
                 uint32 index_offset = 0;
                 uint32 index_count = 0;
                 uint32 flags = None;
+                resource::PrimitiveTopology primitive_topology = resource::PrimitiveTopology::TriangleList;
 
                 bool IsTransparent() const
                 {
@@ -537,6 +544,8 @@ namespace won::ecs
             Vector<ShaderInstance> shader_instances;
             Vector<ShaderGeometry> shader_geometries;
             Vector<ShaderMaterial> shader_materials;
+            Vector<ShaderBVHNode> shader_bvh_nodes;
+            Vector<ShaderBVHInstance> shader_bvh_instances;
             Vector<Renderable> renderables;
 
             Vector<ShaderLight> shader_lights; // all lights
@@ -548,12 +557,16 @@ namespace won::ecs
 
             ShaderSky shader_sky;
             ShaderEnvironmentLighting shader_environment_lighting;
+            ShaderDDGIVolume shader_ddgi_volume;
+            Entity ddgi_volume_entity = INVALID_ENTITY;
 
             void Clear()
             {
                 shader_instances.clear();
                 shader_geometries.clear();
                 shader_materials.clear();
+                shader_bvh_nodes.clear();
+                shader_bvh_instances.clear();
                 renderables.clear();
 
                 shader_lights.clear();
@@ -564,6 +577,8 @@ namespace won::ecs
                 shadow_caster_world_bound.Invalidate();
                 shader_sky.Init();
                 shader_environment_lighting.Init();
+                shader_ddgi_volume.Init();
+                ddgi_volume_entity = INVALID_ENTITY;
             }
         };
 
@@ -572,7 +587,13 @@ namespace won::ecs
             return render_data;
         }
 
+        const math::bvh::BVH& GetSceneBVH() const
+        {
+            return scene_bvh;
+        }
+
     private:
+        friend void rendering::utils::BuildGPUBVH(rendering::RHIDevice* device, Scene& scene);
 
         RenderData render_data;
         ComponentManager component_manager;
@@ -581,7 +602,8 @@ namespace won::ecs
         Vector<Entity> scene_bvh_entities;
         Vector<std::shared_ptr<System>> systems;
         Vector<Vector<uint32>> system_execution_batches;
-        bool scene_bvh_dirty = true;
+        bool cpu_bvh_dirty = true;
+        bool gpu_bvh_dirty = true;
         bool system_schedule_dirty = true;
     };
 }

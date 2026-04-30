@@ -9,11 +9,22 @@ namespace won::resource
         VSObjectCommon,
         VSObjectSimple,
         VSObjectPrepass,
+        VSPrimitive,
+
         PSSky,
         PSObjectCommon,
         PSObjectSimple,
         PSObjectPrepass,
+        PSPrimitive,
         PSTestRed,
+
+        CSDDGIProbeUpdate,
+        CSTextureMipGen,
+        CSGPUBVHBuildGeneratePrimitives,
+        CSGPUBVHBuildSortPrimitives,
+        CSGPUBVHBuildBuildNodes,
+        CSGPUBVHBuildReduceBounds,
+
         Count
     };
 

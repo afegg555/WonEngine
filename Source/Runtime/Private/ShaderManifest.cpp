@@ -9,10 +9,18 @@ namespace won::resource
             { ShaderId::VSObjectCommon, { rendering::RHIShaderStage::Vertex, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "ObjectVS_common.hlsl", "main" } },
             { ShaderId::VSObjectSimple, { rendering::RHIShaderStage::Vertex, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "ObjectVS_simple.hlsl", "main" } },
             { ShaderId::VSObjectPrepass, { rendering::RHIShaderStage::Vertex, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "ObjectVS_prepass.hlsl", "main" } },
+            { ShaderId::VSPrimitive, { rendering::RHIShaderStage::Vertex, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "PrimitiveVS.hlsl", "main" } },
             { ShaderId::PSSky, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "SkyPS.hlsl", "main" } },
             { ShaderId::PSObjectCommon, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "ObjectPS_common.hlsl", "main" } },
             { ShaderId::PSObjectSimple, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "ObjectPS_simple.hlsl", "main" } },
             { ShaderId::PSObjectPrepass, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "ObjectPS_prepass.hlsl", "main" } },
+            { ShaderId::PSPrimitive, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "PrimitivePS.hlsl", "main" } },
+            { ShaderId::CSDDGIProbeUpdate, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "DDGIProbeUpdateCS.hlsl", "main" } },
+            { ShaderId::CSTextureMipGen, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TextureMipGenCS.hlsl", "main" } },
+            { ShaderId::CSGPUBVHBuildGeneratePrimitives, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "GPUBVHGeneratePrimitivesCS.hlsl", "main" } },
+            { ShaderId::CSGPUBVHBuildSortPrimitives, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "GPUBVHSortPrimitivesCS.hlsl", "main" } },
+            { ShaderId::CSGPUBVHBuildBuildNodes, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "GPUBVHBuildNodesCS.hlsl", "main" } },
+            { ShaderId::CSGPUBVHBuildReduceBounds, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "GPUBVHReduceBoundsCS.hlsl", "main" } },
             { ShaderId::PSTestRed, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TestRedPS.hlsl", "main" } },
         };
 

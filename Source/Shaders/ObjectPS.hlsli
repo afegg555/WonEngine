@@ -2,6 +2,7 @@
 #define OBJECT_PS
 #include "ObjectCommon.hlsli"
 #include "ShadingCommon.hlsli"
+#include "DDGICommon.hlsli"
 
 float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
 {
@@ -93,6 +94,21 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
     if (environment_lighting.IsActive() && environment_lighting.gi_mode == SHADER_ENVIRONMENT_GI_MODE_AMBIENT)
     {
         ambient = environment_lighting.GetAmbientColor() * environment_lighting.GetAmbientIntensity();
+    }
+    else if (environment_lighting.IsActive() && environment_lighting.gi_mode == SHADER_ENVIRONMENT_GI_MODE_DDGI)
+    {
+        ShaderDDGIVolume ddgi_volume = GetDDGIVolume();
+        if (ddgi_volume.IsActive() && ddgi_volume.HasIrradianceTexture())
+        {
+            float3 sample_position = surface.P + surface.N * ddgi_volume.normal_bias + surface.V * ddgi_volume.view_bias;
+            if (IsInsideDDGIVolume(ddgi_volume, sample_position))
+            {
+                ambient = SampleDDGI(ddgi_volume, sample_position, surface.N);
+                ambient *= environment_lighting.GetIndirectDiffuseScale();
+                //return float4(ambient, 1.f);
+            }
+
+        }
     }
 
     Lighting lighting;

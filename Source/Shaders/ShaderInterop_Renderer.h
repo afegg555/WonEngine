@@ -2,6 +2,10 @@
 #define WON_SHADERINTEROP_RENDERER_H
 
 #include "ShaderInterop.h"
+#include "ShaderInterop_BVH.h"
+
+#define DDGI_VISIBILITY_RESOLUTION 16
+#define DDGI_IRRADIANCE_RESOLUTION DDGI_VISIBILITY_RESOLUTION // Works even with a lower resolution than visibility, but kept the same for calculation convenience
 
 enum SHADER_OBJECT_FLAGS
 {
@@ -56,6 +60,12 @@ enum SHADER_ENVIRONMENT_LIGHTING_FLAGS
 {
     SHADER_ENVIRONMENT_LIGHTING_FLAG_NONE = 0,
     SHADER_ENVIRONMENT_LIGHTING_FLAG_ACTIVE = 1 << 0,
+};
+
+enum SHADER_DDGI_FLAGS
+{
+    SHADER_DDGI_FLAG_NONE = 0,
+    SHADER_DDGI_FLAG_ACTIVE = 1 << 0,
 };
 
 enum SHADER_ENVIRONMENT_GI_MODE
@@ -133,7 +143,8 @@ struct alignas(16) ShaderGeometry
 
     int tangent_buffer_descriptor;
     int index_buffer_descriptor;
-    int2 padding;
+    uint first_index;
+    uint padding;
 
     float3 bounds_min;
     uint index_count;
@@ -149,6 +160,7 @@ struct alignas(16) ShaderGeometry
         texcoord_buffer_descriptor = -1;
         tangent_buffer_descriptor = -1;
         index_buffer_descriptor = -1;
+        first_index = 0;
     }
 #endif
 };
@@ -204,7 +216,12 @@ struct alignas(16) ShaderScene
 
     int shadow_atlas;
     int shadow_cascade_buffer;
-    int2 padding;
+    int bvh_node_buffer;
+    int bvh_instance_buffer;
+
+    uint bvh_node_count;
+    uint bvh_instance_count;
+    uint2 padding;
 
     uint4 lights; // supports indexing 128 lights
 #ifdef __cplusplus
@@ -217,6 +234,10 @@ struct alignas(16) ShaderScene
 
         shadow_atlas = -1;
         shadow_cascade_buffer = -1;
+        bvh_node_buffer = -1;
+        bvh_instance_buffer = -1;
+        bvh_node_count = 0;
+        bvh_instance_count = 0;
 
         lights = { 0,0,0,0 };
     }
@@ -352,11 +373,78 @@ struct alignas(16) ShaderEnvironmentLighting
 #endif
 };
 
+struct alignas(16) ShaderDDGIVolume
+{
+    uint flags;
+    int irradiance_texture;
+    int irradiance_texture_uav;
+    int visibility_texture;
+
+    int visibility_texture_uav;
+    int probe_data_buffer;
+    int probe_data_buffer_uav;
+    int previous_irradiance_texture;
+
+    int previous_visibility_texture;
+    int previous_probe_data_buffer;
+    uint history_valid;
+    float hysteresis;
+
+    uint probe_update_start;
+    uint total_probe_count;
+    uint probes_per_frame;
+    uint probe_update_dispatch_width;
+
+    uint3 probe_counts;
+    float normal_bias;
+
+    float3 volume_min;
+    float view_bias;
+
+    float3 probe_spacing;
+    float max_distance;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        flags = SHADER_DDGI_FLAG_NONE;
+        irradiance_texture = -1;
+        irradiance_texture_uav = -1;
+        visibility_texture = -1;
+        visibility_texture_uav = -1;
+        probe_data_buffer = -1;
+        probe_data_buffer_uav = -1;
+        previous_irradiance_texture = -1;
+        previous_visibility_texture = -1;
+        previous_probe_data_buffer = -1;
+        history_valid = 0;
+        hysteresis = 0.0f;
+        probe_update_start = 0;
+        total_probe_count = 1;
+        probes_per_frame = 1;
+        probe_update_dispatch_width = 1;
+        probe_counts = { 1, 1, 1 };
+        normal_bias = 0.0f;
+        volume_min = { 0.0f, 0.0f, 0.0f };
+        view_bias = 0.0f;
+        probe_spacing = { 1.0f, 1.0f, 1.0f };
+        max_distance = 0.0f;
+    }
+#else
+    inline bool IsActive() { return (flags & SHADER_DDGI_FLAG_ACTIVE) != 0; }
+    inline bool HasIrradianceTexture() { return irradiance_texture >= 0; }
+    inline bool HasVisibilityTexture() { return visibility_texture >= 0; }
+    inline bool HasProbeDataBuffer() { return probe_data_buffer >= 0; }
+    inline bool HasHistory() { return history_valid != 0 && previous_irradiance_texture >= 0 && previous_visibility_texture >= 0 && previous_probe_data_buffer >= 0; }
+#endif
+};
+
 struct alignas(16) ShaderFrame
 {
     ShaderScene scene;
     ShaderSky sky;
     ShaderEnvironmentLighting environment_lighting;
+    ShaderDDGIVolume ddgi_volume;
 
 #ifdef __cplusplus
     inline void Init()
@@ -364,6 +452,7 @@ struct alignas(16) ShaderFrame
         scene.Init();
         sky.Init();
         environment_lighting.Init();
+        ddgi_volume.Init();
     }
 #endif
 };
@@ -608,7 +697,9 @@ struct alignas(16) ShaderInstance
 CONSTANTBUFFER(g_frame, ShaderFrame, CBSLOT_RENDERER_FRAME);
 CONSTANTBUFFER(g_camera, ShaderCamera, CBSLOT_RENDERER_CAMERA);
 
+#ifndef WON_DISABLE_RENDERER_PUSHCONSTANT
 PUSHCONSTANT(push, ObjectPushConstants);
+#endif
 
 //CBUFFER(ForwardLightMaskCB, CBSLOT_RENDERER_FORWARD_LIGHTMASK)
 //{
@@ -619,10 +710,11 @@ PUSHCONSTANT(push, ObjectPushConstants);
 static_assert(sizeof(ShaderTextureSlot) == 16, "ShaderTextureSlot layout mismatch");
 static_assert(sizeof(ShaderGeometry) == 64, "ShaderGeometry layout mismatch");
 static_assert(sizeof(ShaderMaterial) == 272, "ShaderMaterial layout mismatch");
-static_assert(sizeof(ShaderScene) == 48, "ShaderScene layout mismatch");
+static_assert(sizeof(ShaderScene) == 64, "ShaderScene layout mismatch");
 static_assert(sizeof(ShaderSky) == 64, "ShaderSky layout mismatch");
 static_assert(sizeof(ShaderEnvironmentLighting) == 32, "ShaderEnvironmentLighting layout mismatch");
-static_assert(sizeof(ShaderFrame) == 144, "ShaderFrame layout mismatch");
+static_assert(sizeof(ShaderDDGIVolume) == 112, "ShaderDDGIVolume layout mismatch");
+static_assert(sizeof(ShaderFrame) == 272, "ShaderFrame layout mismatch");
 static_assert(sizeof(ShaderCamera) == 320, "ShaderCamera layout mismatch");
 static_assert(sizeof(ShaderLight) == 48, "ShaderLight layout mismatch");
 static_assert(sizeof(ShaderShadowCascade) == 96, "ShaderShadowCascade layout mismatch");

@@ -110,6 +110,23 @@ namespace won::resource
         pipeline_desc.render_target_formats = { rtv_format };
         graphics_pipelines[ToIndex(RenderPassType::MainPass)] = device->CreateGraphicsPipeline(pipeline_desc);
 
+        pipeline_desc = {};
+        pipeline_desc.vertex_shader = GetShader(ShaderId::VSPrimitive).get();
+        pipeline_desc.pixel_shader = GetShader(ShaderId::PSPrimitive).get();
+        pipeline_desc.sample_count = sample_count;
+        pipeline_desc.depth_stencil_format = dsv_format;
+        pipeline_desc.depth_stencil.depth_test = true;
+        pipeline_desc.depth_stencil.depth_write = false;
+        pipeline_desc.depth_stencil.depth_compare = RHICompareOp::GreaterEqual;
+        pipeline_desc.blend.enable = true;
+        pipeline_desc.raster.cull_mode = RHICullMode::None;
+        pipeline_desc.render_target_formats = { rtv_format };
+        pipeline_desc.topology = RHIPrimitiveTopology::LineList;
+        graphics_pipelines[ToIndex(RenderPassType::LinePass)] = device->CreateGraphicsPipeline(pipeline_desc);
+
+        pipeline_desc.topology = RHIPrimitiveTopology::PointList;
+        graphics_pipelines[ToIndex(RenderPassType::PointPass)] = device->CreateGraphicsPipeline(pipeline_desc);
+
         return true;
     }
 
@@ -175,5 +192,11 @@ namespace won::resource
             }
         }
         return count;
+    }
+
+    ShaderLibrary& GetShaderLibrary()
+    {
+        static ShaderLibrary shader_library;
+        return shader_library;
     }
 }

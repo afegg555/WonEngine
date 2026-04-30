@@ -3,12 +3,15 @@
 #include "Backlog.h"
 #include "Profiler.h"
 #include "Scene.h"
+#include "ShaderLibrary.h"
 #include "MathUtils.h"
 
 #include "Window.h"
 #include "Entity.h"
 #include "CameraComponent.h"
 #include "RectPacker.h"
+
+#include "ShaderInterop.h"
 
 #include <cstring>
 #include <cmath>
@@ -21,11 +24,35 @@ namespace won::rendering
 {
     namespace
     {
+        RHIPrimitiveTopology ToRHIPrimitiveTopology(resource::PrimitiveTopology topology)
+        {
+            switch (topology)
+            {
+            case resource::PrimitiveTopology::LineList:
+                return RHIPrimitiveTopology::LineList;
+            case resource::PrimitiveTopology::PointList:
+                return RHIPrimitiveTopology::PointList;
+            case resource::PrimitiveTopology::TriangleList:
+            default:
+                return RHIPrimitiveTopology::TriangleList;
+            }
+        }
+
         void RemoveResourceDeferred(Renderer::FrameContext& frame_context, std::shared_ptr<RHIResource>& resource)
         {
             frame_context.deferred_res_removal.push_back(resource);
             resource = nullptr;
         }
+    }
+
+    RendererDebugState ForwardRenderer::GetDebugState() const
+    {
+        return debug_state;
+    }
+
+    void ForwardRenderer::SetDebugOptions(const RendererDebugOptions& options)
+    {
+        debug_options = options;
     }
 
     bool ForwardRenderer::AllocateFrameUpload(FrameContext& frame_context, Size size, Size alignment, FrameUploadAllocation& out_allocation)
@@ -89,6 +116,298 @@ namespace won::rendering
         return true;
     }
 
+    void ForwardRenderer::ReleaseDDGIResources(FrameContext& frame_context)
+    {
+        RemoveResourceDeferred(frame_context, ddgi_irradiance_texture);
+        RemoveResourceDeferred(frame_context, ddgi_irradiance_history_texture);
+        RemoveResourceDeferred(frame_context, ddgi_visibility_texture);
+        RemoveResourceDeferred(frame_context, ddgi_visibility_history_texture);
+        RemoveResourceDeferred(frame_context, ddgi_probe_data_buffer);
+        RemoveResourceDeferred(frame_context, ddgi_probe_data_history_buffer);
+        RemoveResourceDeferred(frame_context, debug_state.ddgi.probe_data_readback_buffer);
+        debug_state.ddgi.probe_data_readback_valid = false;
+        ddgi_irradiance_texture_srv = {};
+        ddgi_irradiance_texture_uav = {};
+        ddgi_irradiance_history_texture_srv = {};
+        ddgi_visibility_texture_srv = {};
+        ddgi_visibility_texture_uav = {};
+        ddgi_visibility_history_texture_srv = {};
+        ddgi_probe_data_buffer_srv = {};
+        ddgi_probe_data_buffer_uav = {};
+        ddgi_probe_data_history_buffer_srv = {};
+        ddgi_probe_counts = { 0, 0, 0 };
+        ddgi_probe_spacing = { 0.0f, 0.0f, 0.0f };
+        ddgi_volume_min = { 0.0f, 0.0f, 0.0f };
+        ddgi_max_distance = 0.0f;
+        ddgi_probe_update_offset = 0;
+        ddgi_history_valid = false;
+    }
+
+    bool ForwardRenderer::CreateDDGIResources(FrameContext& frame_context, const ShaderDDGIVolume& ddgi_volume)
+    {
+        if ((ddgi_volume.flags & SHADER_DDGI_FLAG_ACTIVE) == 0)
+        {
+            ReleaseDDGIResources(frame_context);
+            return true;
+        }
+
+        const bool recreate_ddgi_texture =
+            !ddgi_irradiance_texture ||
+            !ddgi_irradiance_texture_srv.IsValid() ||
+            !ddgi_irradiance_texture_uav.IsValid() ||
+            !ddgi_irradiance_history_texture ||
+            !ddgi_irradiance_history_texture_srv.IsValid() ||
+            !ddgi_visibility_texture ||
+            !ddgi_visibility_texture_srv.IsValid() ||
+            !ddgi_visibility_texture_uav.IsValid() ||
+            !ddgi_visibility_history_texture ||
+            !ddgi_visibility_history_texture_srv.IsValid() ||
+            !ddgi_probe_data_buffer ||
+            !ddgi_probe_data_buffer_srv.IsValid() ||
+            !ddgi_probe_data_buffer_uav.IsValid() ||
+            !ddgi_probe_data_history_buffer ||
+            !ddgi_probe_data_history_buffer_srv.IsValid() ||
+            ddgi_probe_counts.x != ddgi_volume.probe_counts.x ||
+            ddgi_probe_counts.y != ddgi_volume.probe_counts.y ||
+            ddgi_probe_counts.z != ddgi_volume.probe_counts.z;
+
+        if (!recreate_ddgi_texture)
+        {
+            if (debug_options.ddgi_debug_enable && !debug_state.ddgi.probe_data_readback_buffer && ddgi_probe_data_buffer)
+            {
+                RHIBufferDesc probe_data_readback_buffer_desc = {};
+                probe_data_readback_buffer_desc.size = ddgi_probe_data_buffer->GetDesc().buffer_desc.size;
+                probe_data_readback_buffer_desc.usage = RHIResourceUsage::Readback;
+                debug_state.ddgi.probe_data_readback_buffer = device->CreateBuffer(probe_data_readback_buffer_desc);
+                if (!debug_state.ddgi.probe_data_readback_buffer)
+                {
+                    backlog::Post("failed to create ddgi debug probe data readback buffer", backlog::LogLevel::Error);
+                    return false;
+                }
+                debug_state.ddgi.probe_data_readback_buffer->SetName("DDGI Debug Probe Data Readback Buffer");
+                debug_state.ddgi.probe_data_readback_valid = false;
+            }
+            else if (!debug_options.ddgi_debug_enable && debug_state.ddgi.probe_data_readback_buffer)
+            {
+                RemoveResourceDeferred(frame_context, debug_state.ddgi.probe_data_readback_buffer);
+                debug_state.ddgi.probe_data_readback_valid = false;
+            }
+
+            const bool reset_ddgi_history =
+                ddgi_probe_spacing.x != ddgi_volume.probe_spacing.x ||
+                ddgi_probe_spacing.y != ddgi_volume.probe_spacing.y ||
+                ddgi_probe_spacing.z != ddgi_volume.probe_spacing.z ||
+                ddgi_volume_min.x != ddgi_volume.volume_min.x ||
+                ddgi_volume_min.y != ddgi_volume.volume_min.y ||
+                ddgi_volume_min.z != ddgi_volume.volume_min.z ||
+                ddgi_max_distance != ddgi_volume.max_distance;
+            if (reset_ddgi_history)
+            {
+                ddgi_probe_spacing = ddgi_volume.probe_spacing;
+                ddgi_volume_min = ddgi_volume.volume_min;
+                ddgi_max_distance = ddgi_volume.max_distance;
+                ddgi_probe_update_offset = 0;
+                ddgi_history_valid = false;
+            }
+            return true;
+        }
+
+        ReleaseDDGIResources(frame_context);
+
+        RHITextureDesc ddgi_irradiance_texture_desc = {};
+        ddgi_irradiance_texture_desc.width = (std::max)(ddgi_volume.probe_counts.x, 1u) * (DDGI_IRRADIANCE_RESOLUTION + 2);
+        ddgi_irradiance_texture_desc.height = (std::max)(ddgi_volume.probe_counts.y, 1u) * (DDGI_IRRADIANCE_RESOLUTION + 2);
+        ddgi_irradiance_texture_desc.depth = 1;
+        ddgi_irradiance_texture_desc.mip_levels = 1;
+        ddgi_irradiance_texture_desc.array_layers = (std::max)(ddgi_volume.probe_counts.z, 1u);
+        ddgi_irradiance_texture_desc.sample_count = 1;
+        ddgi_irradiance_texture_desc.format = RHIFormat::R16G16B16A16Float;
+        ddgi_irradiance_texture_desc.usage = RHIResourceUsage::Default;
+        ddgi_irradiance_texture_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
+        ddgi_irradiance_texture = device->CreateTexture(ddgi_irradiance_texture_desc);
+        if (!ddgi_irradiance_texture)
+        {
+            backlog::Post("failed to create ddgi irradiance texture", backlog::LogLevel::Error);
+            return false;
+        }
+        ddgi_irradiance_texture->SetName("DDGI Irradiance Texture");
+
+        RHISubresourceDesc ddgi_irradiance_srv_desc = {};
+        ddgi_irradiance_srv_desc.type = RHISubresourceType::ShaderResource;
+        ddgi_irradiance_srv_desc.format = ddgi_irradiance_texture_desc.format;
+        ddgi_irradiance_srv_desc.first_slice = 0;
+        ddgi_irradiance_srv_desc.slice_count = ddgi_irradiance_texture_desc.array_layers;
+        ddgi_irradiance_srv_desc.first_mip = 0;
+        ddgi_irradiance_srv_desc.mip_count = 1;
+        if (!device->CreateSubresource(*ddgi_irradiance_texture, ddgi_irradiance_srv_desc, &ddgi_irradiance_texture_srv))
+        {
+            backlog::Post("failed to create ddgi irradiance srv", backlog::LogLevel::Error);
+            ddgi_irradiance_texture = nullptr;
+            return false;
+        }
+
+        RHISubresourceDesc ddgi_irradiance_uav_desc = {};
+        ddgi_irradiance_uav_desc.type = RHISubresourceType::UnorderedAccess;
+        ddgi_irradiance_uav_desc.format = ddgi_irradiance_texture_desc.format;
+        ddgi_irradiance_uav_desc.first_mip = 0;
+        ddgi_irradiance_uav_desc.mip_count = 1;
+        ddgi_irradiance_uav_desc.first_slice = 0;
+        ddgi_irradiance_uav_desc.slice_count = ddgi_irradiance_texture_desc.array_layers;
+        if (!device->CreateSubresource(*ddgi_irradiance_texture, ddgi_irradiance_uav_desc, &ddgi_irradiance_texture_uav))
+        {
+            backlog::Post("failed to create ddgi irradiance uav", backlog::LogLevel::Error);
+            ddgi_irradiance_texture = nullptr;
+            return false;
+        }
+
+        ddgi_irradiance_history_texture = device->CreateTexture(ddgi_irradiance_texture_desc);
+        if (!ddgi_irradiance_history_texture)
+        {
+            backlog::Post("failed to create ddgi irradiance history texture", backlog::LogLevel::Error);
+            return false;
+        }
+        ddgi_irradiance_history_texture->SetName("DDGI Irradiance History Texture");
+        if (!device->CreateSubresource(*ddgi_irradiance_history_texture, ddgi_irradiance_srv_desc, &ddgi_irradiance_history_texture_srv))
+        {
+            backlog::Post("failed to create ddgi irradiance history srv", backlog::LogLevel::Error);
+            ddgi_irradiance_history_texture = nullptr;
+            return false;
+        }
+
+        RHITextureDesc ddgi_visibility_texture_desc = {};
+        ddgi_visibility_texture_desc.width = (std::max)(ddgi_volume.probe_counts.x, 1u) * (DDGI_VISIBILITY_RESOLUTION + 2);
+        ddgi_visibility_texture_desc.height = (std::max)(ddgi_volume.probe_counts.y, 1u) * (DDGI_VISIBILITY_RESOLUTION + 2);
+        ddgi_visibility_texture_desc.depth = 1;
+        ddgi_visibility_texture_desc.mip_levels = 1;
+        ddgi_visibility_texture_desc.array_layers = (std::max)(ddgi_volume.probe_counts.z, 1u);
+        ddgi_visibility_texture_desc.sample_count = 1;
+        ddgi_visibility_texture_desc.format = RHIFormat::R16G16B16A16Float;
+        ddgi_visibility_texture_desc.usage = RHIResourceUsage::Default;
+        ddgi_visibility_texture_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
+        ddgi_visibility_texture = device->CreateTexture(ddgi_visibility_texture_desc);
+        if (!ddgi_visibility_texture)
+        {
+            backlog::Post("failed to create ddgi visibility texture", backlog::LogLevel::Error);
+            return false;
+        }
+        ddgi_visibility_texture->SetName("DDGI Visibility Texture");
+
+        RHISubresourceDesc ddgi_visibility_srv_desc = {};
+        ddgi_visibility_srv_desc.type = RHISubresourceType::ShaderResource;
+        ddgi_visibility_srv_desc.format = ddgi_visibility_texture_desc.format;
+        ddgi_visibility_srv_desc.first_slice = 0;
+        ddgi_visibility_srv_desc.slice_count = ddgi_visibility_texture_desc.array_layers;
+        ddgi_visibility_srv_desc.first_mip = 0;
+        ddgi_visibility_srv_desc.mip_count = 1;
+        if (!device->CreateSubresource(*ddgi_visibility_texture, ddgi_visibility_srv_desc, &ddgi_visibility_texture_srv))
+        {
+            backlog::Post("failed to create ddgi visibility srv", backlog::LogLevel::Error);
+            ddgi_visibility_texture = nullptr;
+            return false;
+        }
+
+        RHISubresourceDesc ddgi_visibility_uav_desc = {};
+        ddgi_visibility_uav_desc.type = RHISubresourceType::UnorderedAccess;
+        ddgi_visibility_uav_desc.format = ddgi_visibility_texture_desc.format;
+        ddgi_visibility_uav_desc.first_mip = 0;
+        ddgi_visibility_uav_desc.mip_count = 1;
+        ddgi_visibility_uav_desc.first_slice = 0;
+        ddgi_visibility_uav_desc.slice_count = ddgi_visibility_texture_desc.array_layers;
+        if (!device->CreateSubresource(*ddgi_visibility_texture, ddgi_visibility_uav_desc, &ddgi_visibility_texture_uav))
+        {
+            backlog::Post("failed to create ddgi visibility uav", backlog::LogLevel::Error);
+            ddgi_visibility_texture = nullptr;
+            return false;
+        }
+
+        ddgi_visibility_history_texture = device->CreateTexture(ddgi_visibility_texture_desc);
+        if (!ddgi_visibility_history_texture)
+        {
+            backlog::Post("failed to create ddgi visibility history texture", backlog::LogLevel::Error);
+            return false;
+        }
+        ddgi_visibility_history_texture->SetName("DDGI Visibility History Texture");
+        if (!device->CreateSubresource(*ddgi_visibility_history_texture, ddgi_visibility_srv_desc, &ddgi_visibility_history_texture_srv))
+        {
+            backlog::Post("failed to create ddgi visibility history srv", backlog::LogLevel::Error);
+            ddgi_visibility_history_texture = nullptr;
+            return false;
+        }
+
+        const uint32 total_probe_count = (std::max)(ddgi_volume.total_probe_count, 1u);
+        RHIBufferDesc ddgi_probe_data_buffer_desc = {};
+        ddgi_probe_data_buffer_desc.size = sizeof(float4) * total_probe_count;
+        ddgi_probe_data_buffer_desc.usage = RHIResourceUsage::Default;
+        ddgi_probe_data_buffer_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
+        ddgi_probe_data_buffer = device->CreateBuffer(ddgi_probe_data_buffer_desc);
+        if (!ddgi_probe_data_buffer)
+        {
+            backlog::Post("failed to create ddgi probe data buffer", backlog::LogLevel::Error);
+            return false;
+        }
+        ddgi_probe_data_buffer->SetName("DDGI Probe Data Buffer");
+
+        RHISubresourceDesc ddgi_probe_data_srv_desc = {};
+        ddgi_probe_data_srv_desc.type = RHISubresourceType::ShaderResource;
+        ddgi_probe_data_srv_desc.buffer_offset = 0;
+        ddgi_probe_data_srv_desc.buffer_size = ddgi_probe_data_buffer->GetDesc().buffer_desc.size;
+        ddgi_probe_data_srv_desc.buffer_stride = sizeof(float4);
+        if (!device->CreateSubresource(*ddgi_probe_data_buffer, ddgi_probe_data_srv_desc, &ddgi_probe_data_buffer_srv))
+        {
+            backlog::Post("failed to create ddgi probe data srv", backlog::LogLevel::Error);
+            ddgi_probe_data_buffer = nullptr;
+            return false;
+        }
+
+        RHISubresourceDesc ddgi_probe_data_uav_desc = {};
+        ddgi_probe_data_uav_desc.type = RHISubresourceType::UnorderedAccess;
+        ddgi_probe_data_uav_desc.buffer_offset = 0;
+        ddgi_probe_data_uav_desc.buffer_size = ddgi_probe_data_buffer->GetDesc().buffer_desc.size;
+        ddgi_probe_data_uav_desc.buffer_stride = sizeof(float4);
+        if (!device->CreateSubresource(*ddgi_probe_data_buffer, ddgi_probe_data_uav_desc, &ddgi_probe_data_buffer_uav))
+        {
+            backlog::Post("failed to create ddgi probe data uav", backlog::LogLevel::Error);
+            ddgi_probe_data_buffer = nullptr;
+            return false;
+        }
+
+        ddgi_probe_data_history_buffer = device->CreateBuffer(ddgi_probe_data_buffer_desc);
+        if (!ddgi_probe_data_history_buffer)
+        {
+            backlog::Post("failed to create ddgi probe data history buffer", backlog::LogLevel::Error);
+            return false;
+        }
+        ddgi_probe_data_history_buffer->SetName("DDGI Probe Data History Buffer");
+        if (!device->CreateSubresource(*ddgi_probe_data_history_buffer, ddgi_probe_data_srv_desc, &ddgi_probe_data_history_buffer_srv))
+        {
+            backlog::Post("failed to create ddgi probe data history srv", backlog::LogLevel::Error);
+            ddgi_probe_data_history_buffer = nullptr;
+            return false;
+        }
+
+        if (debug_options.ddgi_debug_enable)
+        {
+            RHIBufferDesc probe_data_readback_buffer_desc = {};
+            probe_data_readback_buffer_desc.size = ddgi_probe_data_buffer_desc.size;
+            probe_data_readback_buffer_desc.usage = RHIResourceUsage::Readback;
+            debug_state.ddgi.probe_data_readback_buffer = device->CreateBuffer(probe_data_readback_buffer_desc);
+            if (!debug_state.ddgi.probe_data_readback_buffer)
+            {
+                backlog::Post("failed to create ddgi debug probe data readback buffer", backlog::LogLevel::Error);
+                return false;
+            }
+            debug_state.ddgi.probe_data_readback_buffer->SetName("DDGI Debug Probe Data Readback Buffer");
+        }
+        debug_state.ddgi.probe_data_readback_valid = false;
+
+        ddgi_probe_counts = ddgi_volume.probe_counts;
+        ddgi_probe_spacing = ddgi_volume.probe_spacing;
+        ddgi_volume_min = ddgi_volume.volume_min;
+        ddgi_max_distance = ddgi_volume.max_distance;
+        ddgi_probe_update_offset = 0;
+        return true;
+    }
+
     bool ForwardRenderer::BuildFrameContext(const View& view, FrameContext& frame_context)
     {
         const Scene::RenderData& render_data = view.scene->GetRenderData();
@@ -97,12 +416,16 @@ namespace won::rendering
         const Vector<ShaderMaterial>& shader_materials = render_data.shader_materials;
         const Vector<ShaderLight>& shader_lights = render_data.shader_lights;
         const Vector<ShaderShadowCascade>& shader_shadow_cascades = render_data.shader_shadow_cascades;
+        const Vector<ShaderBVHNode>& shader_bvh_nodes = render_data.shader_bvh_nodes;
+        const Vector<ShaderBVHInstance>& shader_bvh_instances = render_data.shader_bvh_instances;
 
         const Size required_instance_buffer_size = shader_instances.size() * sizeof(ShaderInstance);
         const Size required_geometry_buffer_size = shader_geometries.size() * sizeof(ShaderGeometry);
         const Size required_material_buffer_size = shader_materials.size() * sizeof(ShaderMaterial);
         const Size required_light_buffer_size = shader_lights.size() * sizeof(ShaderLight);
         const Size required_shadow_cascade_buffer_size = shader_shadow_cascades.size() * sizeof(ShaderShadowCascade);
+        const Size required_bvh_node_buffer_size = shader_bvh_nodes.size() * sizeof(ShaderBVHNode);
+        const Size required_bvh_instance_buffer_size = shader_bvh_instances.size() * sizeof(ShaderBVHInstance);
 
         if (required_instance_buffer_size == 0)
         {
@@ -460,6 +783,107 @@ namespace won::rendering
             }
         }
 
+        if (required_bvh_node_buffer_size == 0)
+        {
+            RemoveResourceDeferred(frame_context, shader_bvh_node_default_buffer);
+            shader_bvh_node_default_buffer_srv = {};
+        }
+        else
+        {
+            Size current_default_buffer_size = 0;
+            if (shader_bvh_node_default_buffer)
+            {
+                current_default_buffer_size = shader_bvh_node_default_buffer->GetDesc().buffer_desc.size;
+            }
+
+            if (!shader_bvh_node_default_buffer || current_default_buffer_size < required_bvh_node_buffer_size)
+            {
+                RemoveResourceDeferred(frame_context, shader_bvh_node_default_buffer);
+                RHIBufferDesc shader_bvh_node_default_buffer_desc = {};
+                shader_bvh_node_default_buffer_desc.size = required_bvh_node_buffer_size;
+                shader_bvh_node_default_buffer_desc.usage = RHIResourceUsage::Default;
+                shader_bvh_node_default_buffer_desc.bind_flags = RHIBindFlags::ShaderResource;
+                shader_bvh_node_default_buffer = device->CreateBuffer(shader_bvh_node_default_buffer_desc);
+                if (!shader_bvh_node_default_buffer)
+                {
+                    backlog::Post("failed to create shader bvh node default buffer", backlog::LogLevel::Error);
+                    return false;
+                }
+                shader_bvh_node_default_buffer->SetName("Shader BVH Node Default Buffer");
+
+                shader_bvh_node_default_buffer_srv = {};
+                RHISubresourceDesc shader_bvh_node_default_subresource_desc = {};
+                shader_bvh_node_default_subresource_desc.type = RHISubresourceType::ShaderResource;
+                shader_bvh_node_default_subresource_desc.buffer_offset = 0;
+                shader_bvh_node_default_subresource_desc.buffer_size = shader_bvh_node_default_buffer->GetDesc().buffer_desc.size;
+                shader_bvh_node_default_subresource_desc.buffer_stride = sizeof(ShaderBVHNode);
+                if (!device->CreateSubresource(*shader_bvh_node_default_buffer, shader_bvh_node_default_subresource_desc, &shader_bvh_node_default_buffer_srv))
+                {
+                    backlog::Post("failed to create shader bvh node default subresource", backlog::LogLevel::Error);
+                    shader_bvh_node_default_buffer = nullptr;
+                    return false;
+                }
+            }
+
+            if (!UpdateDefaultBuffer(frame_context, *shader_bvh_node_default_buffer, shader_bvh_nodes.data(), required_bvh_node_buffer_size, RHIResourceState::ShaderRead))
+            {
+                return false;
+            }
+        }
+
+        if (required_bvh_instance_buffer_size == 0)
+        {
+            RemoveResourceDeferred(frame_context, shader_bvh_instance_default_buffer);
+            shader_bvh_instance_default_buffer_srv = {};
+        }
+        else
+        {
+            Size current_default_buffer_size = 0;
+            if (shader_bvh_instance_default_buffer)
+            {
+                current_default_buffer_size = shader_bvh_instance_default_buffer->GetDesc().buffer_desc.size;
+            }
+
+            if (!shader_bvh_instance_default_buffer || current_default_buffer_size < required_bvh_instance_buffer_size)
+            {
+                RemoveResourceDeferred(frame_context, shader_bvh_instance_default_buffer);
+                RHIBufferDesc shader_bvh_instance_default_buffer_desc = {};
+                shader_bvh_instance_default_buffer_desc.size = required_bvh_instance_buffer_size;
+                shader_bvh_instance_default_buffer_desc.usage = RHIResourceUsage::Default;
+                shader_bvh_instance_default_buffer_desc.bind_flags = RHIBindFlags::ShaderResource;
+                shader_bvh_instance_default_buffer = device->CreateBuffer(shader_bvh_instance_default_buffer_desc);
+                if (!shader_bvh_instance_default_buffer)
+                {
+                    backlog::Post("failed to create shader bvh instance default buffer", backlog::LogLevel::Error);
+                    return false;
+                }
+                shader_bvh_instance_default_buffer->SetName("Shader BVH Instance Default Buffer");
+
+                shader_bvh_instance_default_buffer_srv = {};
+                RHISubresourceDesc shader_bvh_instance_default_subresource_desc = {};
+                shader_bvh_instance_default_subresource_desc.type = RHISubresourceType::ShaderResource;
+                shader_bvh_instance_default_subresource_desc.buffer_offset = 0;
+                shader_bvh_instance_default_subresource_desc.buffer_size = shader_bvh_instance_default_buffer->GetDesc().buffer_desc.size;
+                shader_bvh_instance_default_subresource_desc.buffer_stride = sizeof(ShaderBVHInstance);
+                if (!device->CreateSubresource(*shader_bvh_instance_default_buffer, shader_bvh_instance_default_subresource_desc, &shader_bvh_instance_default_buffer_srv))
+                {
+                    backlog::Post("failed to create shader bvh instance default subresource", backlog::LogLevel::Error);
+                    shader_bvh_instance_default_buffer = nullptr;
+                    return false;
+                }
+            }
+
+            if (!UpdateDefaultBuffer(frame_context, *shader_bvh_instance_default_buffer, shader_bvh_instances.data(), required_bvh_instance_buffer_size, RHIResourceState::ShaderRead))
+            {
+                return false;
+            }
+        }
+
+        if (!CreateDDGIResources(frame_context, render_data.shader_ddgi_volume))
+        {
+            return false;
+        }
+
         ShaderFrame shader_frame{};
         shader_frame.Init();
         shader_frame.scene.instancebuffer = shader_instance_default_buffer_srv.descriptor_index;
@@ -469,8 +893,26 @@ namespace won::rendering
         shader_frame.scene.lights = render_data.forward_light_mask;
         shader_frame.scene.shadow_atlas = shadow_map_atlas_srv.descriptor_index;
         shader_frame.scene.shadow_cascade_buffer = shader_shadow_cascade_default_buffer_srv.descriptor_index;
+        shader_frame.scene.bvh_node_buffer = shader_bvh_node_default_buffer_srv.descriptor_index;
+        shader_frame.scene.bvh_instance_buffer = shader_bvh_instance_default_buffer_srv.descriptor_index;
+        shader_frame.scene.bvh_node_count = static_cast<uint32>(shader_bvh_nodes.size());
+        shader_frame.scene.bvh_instance_count = static_cast<uint32>(shader_bvh_instances.size());
         shader_frame.sky = render_data.shader_sky;
         shader_frame.environment_lighting = render_data.shader_environment_lighting;
+        shader_frame.ddgi_volume = render_data.shader_ddgi_volume;
+        shader_frame.ddgi_volume.irradiance_texture = ddgi_irradiance_texture_srv.descriptor_index;
+        shader_frame.ddgi_volume.irradiance_texture_uav = ddgi_irradiance_texture_uav.descriptor_index;
+        shader_frame.ddgi_volume.visibility_texture = ddgi_visibility_texture_srv.descriptor_index;
+        shader_frame.ddgi_volume.visibility_texture_uav = ddgi_visibility_texture_uav.descriptor_index;
+        shader_frame.ddgi_volume.probe_data_buffer = ddgi_probe_data_buffer_srv.descriptor_index;
+        shader_frame.ddgi_volume.probe_data_buffer_uav = ddgi_probe_data_buffer_uav.descriptor_index;
+        shader_frame.ddgi_volume.previous_irradiance_texture = ddgi_irradiance_history_texture_srv.descriptor_index;
+        shader_frame.ddgi_volume.previous_visibility_texture = ddgi_visibility_history_texture_srv.descriptor_index;
+        shader_frame.ddgi_volume.previous_probe_data_buffer = ddgi_probe_data_history_buffer_srv.descriptor_index;
+        shader_frame.ddgi_volume.history_valid = ddgi_history_valid ? 1u : 0u;
+        shader_frame.ddgi_volume.probe_update_start = shader_frame.ddgi_volume.total_probe_count > 0 ? ddgi_probe_update_offset % shader_frame.ddgi_volume.total_probe_count : 0;
+        shader_frame.ddgi_volume.probes_per_frame = ddgi_history_valid ? (std::min)(shader_frame.ddgi_volume.probes_per_frame, shader_frame.ddgi_volume.total_probe_count) : shader_frame.ddgi_volume.total_probe_count;
+        shader_frame.ddgi_volume.probe_update_dispatch_width = (std::min)(shader_frame.ddgi_volume.probes_per_frame, 65535u);
 
         ShaderCamera shader_camera{};
         shader_camera.Init();
@@ -738,7 +1180,13 @@ namespace won::rendering
     {
         const Scene::RenderData& render_data = view.scene->GetRenderData();
 
-        frame_context.command_list->SetGraphicsPipeline(*shader_library->GetPipeline(pass).get());
+        resource::ShaderLibrary& shader_library = GetShaderLibrary();
+        std::shared_ptr<RHIPipeline> pipeline = shader_library.GetPipeline(pass);
+        if (!pipeline)
+        {
+            return false;
+        }
+        frame_context.command_list->SetGraphicsPipeline(*pipeline);
 
         RHISubresourceBinding shader_frame_binding = {};
         shader_frame_binding.resource = shader_frame_buffer.get();
@@ -749,10 +1197,24 @@ namespace won::rendering
         shader_camera_binding.resource = shader_camera_buffer.get();
         shader_camera_binding.subresource = shader_camera_buffer_cbv;
         frame_context.command_list->SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_camera_binding);
-        frame_context.command_list->SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
 
         for (const auto& renderable : render_data.renderables)
         {
+            resource::PrimitiveTopology pass_topology = resource::PrimitiveTopology::TriangleList;
+            if (pass == RenderPassType::LinePass)
+            {
+                pass_topology = resource::PrimitiveTopology::LineList;
+            }
+            else if (pass == RenderPassType::PointPass)
+            {
+                pass_topology = resource::PrimitiveTopology::PointList;
+            }
+
+            if (renderable.primitive_topology != pass_topology)
+            {
+                continue;
+            }
+
             if (renderable.IsTransparent())
             {
                 if ((flags & DrawScene_Transparent) == 0)
@@ -774,6 +1236,7 @@ namespace won::rendering
             }
 
             frame_context.command_list->SetIndexBuffer(*renderable.index_buffer, sizeof(uint32), renderable.index_offset, renderable.index_count * sizeof(uint32));
+            frame_context.command_list->SetPrimitiveTopology(ToRHIPrimitiveTopology(renderable.primitive_topology));
             frame_context.command_list->PushConstants(RHIShaderStage::Vertex, &renderable.push_constants, sizeof(ObjectPushConstants), 0);
             frame_context.command_list->DrawIndexed(renderable.index_count, 1, 0, 0, 0);
         }
@@ -781,10 +1244,9 @@ namespace won::rendering
         return true;
     }
 
-    void ForwardRenderer::Initialize(const RendererDesc& desc, std::shared_ptr<resource::ShaderLibrary> shader_lib)
+    void ForwardRenderer::Initialize(const RendererDesc& desc)
     {
         device = desc.device;
-        shader_library = shader_lib;
 
         frame_contexts = {};
         for (uint32 i = 0; i < max_frames_in_flight; ++i)
@@ -888,6 +1350,117 @@ namespace won::rendering
         }
     }
 
+    void ForwardRenderer::UpdateDDGIProbe(const ShaderEnvironmentLighting& environment_lighting, const ShaderDDGIVolume& ddgi_volume, FrameContext& frame_context, const RHISubresourceBinding& shader_frame_binding, const RHISubresourceBinding& shader_camera_binding)
+    {
+        resource::ShaderLibrary& shader_library = GetShaderLibrary();
+        std::shared_ptr<RHIShader> current_ddgi_probe_update_shader = shader_library.GetShader(ShaderId::CSDDGIProbeUpdate);
+        if (ddgi_probe_update_shader != current_ddgi_probe_update_shader)
+        {
+            ddgi_probe_update_pipeline = nullptr;
+            ddgi_probe_update_shader = current_ddgi_probe_update_shader;
+        }
+
+        if (!ddgi_probe_update_pipeline && ddgi_probe_update_shader)
+        {
+            RHIComputePipelineDesc ddgi_probe_update_pipeline_desc = {};
+            ddgi_probe_update_pipeline_desc.compute_shader = ddgi_probe_update_shader.get();
+            ddgi_probe_update_pipeline = device->CreateComputePipeline(ddgi_probe_update_pipeline_desc);
+            if (ddgi_probe_update_pipeline)
+            {
+                ddgi_probe_update_pipeline->SetName("DDGI Probe Update Pipeline");
+            }
+        }
+
+        debug_state.ddgi.probe_update_pipeline_ready = ddgi_probe_update_pipeline != nullptr;
+
+        const uint32 probe_update_start = ddgi_volume.total_probe_count > 0 ? ddgi_probe_update_offset % ddgi_volume.total_probe_count : 0;
+        const uint32 probes_per_frame = ddgi_history_valid ? (std::min)(ddgi_volume.probes_per_frame, ddgi_volume.total_probe_count) : ddgi_volume.total_probe_count;
+        const uint32 probe_update_dispatch_width = (std::min)(probes_per_frame, 65535u);
+
+        if (environment_lighting.gi_mode != SHADER_ENVIRONMENT_GI_MODE_DDGI ||
+            (ddgi_volume.flags & SHADER_DDGI_FLAG_ACTIVE) == 0 ||
+            ddgi_volume.probe_counts.x == 0 ||
+            ddgi_volume.probe_counts.y == 0 ||
+            ddgi_volume.probe_counts.z == 0 ||
+            ddgi_volume.total_probe_count == 0 ||
+            probes_per_frame == 0 ||
+            !ddgi_probe_update_pipeline ||
+            !ddgi_irradiance_texture ||
+            !ddgi_irradiance_history_texture ||
+            !ddgi_visibility_texture ||
+            !ddgi_visibility_history_texture ||
+            !ddgi_probe_data_buffer ||
+            !ddgi_probe_data_history_buffer ||
+            !ddgi_irradiance_texture_srv.IsValid() ||
+            !ddgi_irradiance_texture_uav.IsValid() ||
+            !ddgi_irradiance_history_texture_srv.IsValid() ||
+            !ddgi_visibility_texture_srv.IsValid() ||
+            !ddgi_visibility_texture_uav.IsValid() ||
+            !ddgi_visibility_history_texture_srv.IsValid() ||
+            !ddgi_probe_data_buffer_srv.IsValid() ||
+            !ddgi_probe_data_buffer_uav.IsValid() ||
+            !ddgi_probe_data_history_buffer_srv.IsValid())
+        {
+            return;
+        }
+
+        const uint32 dispatch_width = (std::max)(probe_update_dispatch_width, 1u);
+        debug_state.ddgi.dispatch_groups = {
+            dispatch_width,
+            (probes_per_frame + dispatch_width - 1) / dispatch_width,
+            1
+        };
+
+        auto gpu_range = profiler::ScopedRangeGPU("DDGI Probe Update", *frame_context.command_list);
+        frame_context.command_list->BeginEvent("DDGI Probe Update");
+        frame_context.command_list->TransitionResource(*ddgi_irradiance_texture, RHIResourceState::ShaderWrite);
+        frame_context.command_list->TransitionResource(*ddgi_visibility_texture, RHIResourceState::ShaderWrite);
+        frame_context.command_list->TransitionResource(*ddgi_probe_data_buffer, RHIResourceState::ShaderWrite);
+        if (ddgi_history_valid)
+        {
+            frame_context.command_list->TransitionResource(*ddgi_irradiance_history_texture, RHIResourceState::ShaderRead);
+            frame_context.command_list->TransitionResource(*ddgi_visibility_history_texture, RHIResourceState::ShaderRead);
+            frame_context.command_list->TransitionResource(*ddgi_probe_data_history_buffer, RHIResourceState::ShaderRead);
+        }
+
+        frame_context.command_list->SetComputePipeline(*ddgi_probe_update_pipeline);
+        frame_context.command_list->SetConstantBuffer(RHIShaderStage::Compute, 0, shader_frame_binding);
+        frame_context.command_list->SetConstantBuffer(RHIShaderStage::Compute, 1, shader_camera_binding);
+        frame_context.command_list->Dispatch(debug_state.ddgi.dispatch_groups.x, debug_state.ddgi.dispatch_groups.y, debug_state.ddgi.dispatch_groups.z);
+
+        frame_context.command_list->UAVBarrier(*ddgi_irradiance_texture);
+        frame_context.command_list->UAVBarrier(*ddgi_visibility_texture);
+        frame_context.command_list->UAVBarrier(*ddgi_probe_data_buffer);
+
+        frame_context.command_list->TransitionResource(*ddgi_irradiance_texture, RHIResourceState::CopySource);
+        frame_context.command_list->TransitionResource(*ddgi_visibility_texture, RHIResourceState::CopySource);
+        frame_context.command_list->TransitionResource(*ddgi_probe_data_buffer, RHIResourceState::CopySource);
+        frame_context.command_list->TransitionResource(*ddgi_irradiance_history_texture, RHIResourceState::CopyDest);
+        frame_context.command_list->TransitionResource(*ddgi_visibility_history_texture, RHIResourceState::CopyDest);
+        frame_context.command_list->TransitionResource(*ddgi_probe_data_history_buffer, RHIResourceState::CopyDest);
+
+        frame_context.command_list->CopyResource(*ddgi_irradiance_history_texture, *ddgi_irradiance_texture);
+        frame_context.command_list->CopyResource(*ddgi_visibility_history_texture, *ddgi_visibility_texture);
+        frame_context.command_list->CopyResource(*ddgi_probe_data_history_buffer, *ddgi_probe_data_buffer);
+        if (debug_options.ddgi_debug_enable && debug_state.ddgi.probe_data_readback_buffer)
+        {
+            frame_context.command_list->CopyBuffer(*debug_state.ddgi.probe_data_readback_buffer, 0, *ddgi_probe_data_buffer, 0, ddgi_probe_data_buffer->GetDesc().buffer_desc.size);
+        }
+
+        frame_context.command_list->TransitionResource(*ddgi_irradiance_texture, RHIResourceState::ShaderRead);
+        frame_context.command_list->TransitionResource(*ddgi_visibility_texture, RHIResourceState::ShaderRead);
+        frame_context.command_list->TransitionResource(*ddgi_probe_data_buffer, RHIResourceState::ShaderRead);
+        frame_context.command_list->TransitionResource(*ddgi_irradiance_history_texture, RHIResourceState::ShaderRead);
+        frame_context.command_list->TransitionResource(*ddgi_visibility_history_texture, RHIResourceState::ShaderRead);
+        frame_context.command_list->TransitionResource(*ddgi_probe_data_history_buffer, RHIResourceState::ShaderRead);
+        frame_context.command_list->EndEvent();
+
+        debug_state.ddgi.probe_update_dispatched = true;
+        ddgi_probe_update_offset = (probe_update_start + probes_per_frame) % ddgi_volume.total_probe_count;
+        ddgi_history_valid = true;
+        debug_state.ddgi.probe_data_readback_valid = debug_options.ddgi_debug_enable && debug_state.ddgi.probe_data_readback_buffer != nullptr;
+    }
+
     void ForwardRenderer::Render(const View& view)
     {
         if (!view.scene || view.camera_entity == ecs::INVALID_ENTITY || !current_window)
@@ -952,12 +1525,13 @@ namespace won::rendering
         FrameContext& frame_context = GetFrameContext();
         if (frame_context.fence_value > 0)
         {
+            profiler::ScopedRangeCPU wait_range("Frame Context Fence Wait");
             frame_context.fence->Wait(frame_context.fence_value);
             frame_context.fence_value = 0;
         }
+        device->BeginFrame(current_frame_slot);
 
         frame_context.deferred_res_removal.clear();
-
         if (recreate_depth_buffer)
         {
             RemoveResourceDeferred(frame_context, depth_buffer);
@@ -996,7 +1570,108 @@ namespace won::rendering
             return;
         }
 
+        utils::BuildGPUBVH(device.get(), *view.scene);
+
         const Scene::RenderData& render_data = view.scene->GetRenderData();
+        std::shared_ptr<RHIResource> ddgi_probe_data_readback_buffer = debug_state.ddgi.probe_data_readback_buffer;
+        const bool ddgi_probe_data_readback_valid = debug_state.ddgi.probe_data_readback_valid;
+        debug_state.ddgi = {};
+        debug_state.ddgi.probe_data_readback_buffer = ddgi_probe_data_readback_buffer;
+        debug_state.ddgi.probe_data_readback_valid = ddgi_probe_data_readback_valid;
+        if (debug_options.bvh_debug_enable)
+        {
+            debug_state.bvh = {};
+            const math::bvh::BVH& cpu_bvh = view.scene->GetSceneBVH();
+            debug_state.bvh.cpu_bvh_available = cpu_bvh.IsValid();
+            debug_state.bvh.cpu_nodes.reserve(cpu_bvh.nodes.size());
+            for (const math::bvh::BVHNode& node : cpu_bvh.nodes)
+            {
+                RendererDebugBVHState::BVHNode debug_node = {};
+                debug_node.bounds_min = node.bounds.min;
+                debug_node.bounds_max = node.bounds.max;
+                debug_node.is_leaf = node.IsLeaf();
+                debug_state.bvh.cpu_nodes.push_back(debug_node);
+            }
+        }
+        else
+        {
+            debug_state.bvh = {};
+        }
+        debug_state.ddgi.gi_mode_ddgi = render_data.shader_environment_lighting.gi_mode == SHADER_ENVIRONMENT_GI_MODE_DDGI;
+        debug_state.ddgi.volume_active = (render_data.shader_ddgi_volume.flags & SHADER_DDGI_FLAG_ACTIVE) != 0;
+        if (debug_state.ddgi.volume_active)
+        {
+            const uint3& probe_counts = render_data.shader_ddgi_volume.probe_counts;
+            const float3& probe_spacing = render_data.shader_ddgi_volume.probe_spacing;
+            const float3 probe_span = {
+                static_cast<float>((probe_counts.x > 0 ? probe_counts.x - 1 : 0)) * probe_spacing.x,
+                static_cast<float>((probe_counts.y > 0 ? probe_counts.y - 1 : 0)) * probe_spacing.y,
+                static_cast<float>((probe_counts.z > 0 ? probe_counts.z - 1 : 0)) * probe_spacing.z
+            };
+
+            debug_state.ddgi.volume_entity = render_data.ddgi_volume_entity;
+            debug_state.ddgi.probe_counts = probe_counts;
+            debug_state.ddgi.volume_min = render_data.shader_ddgi_volume.volume_min;
+            debug_state.ddgi.volume_max = {
+                render_data.shader_ddgi_volume.volume_min.x + probe_span.x,
+                render_data.shader_ddgi_volume.volume_min.y + probe_span.y,
+                render_data.shader_ddgi_volume.volume_min.z + probe_span.z
+            };
+            debug_state.ddgi.probe_spacing = probe_spacing;
+            debug_state.ddgi.total_probe_count = render_data.shader_ddgi_volume.total_probe_count;
+        }
+        debug_state.ddgi.irradiance_texture_allocated = ddgi_irradiance_texture != nullptr;
+        debug_state.ddgi.irradiance_srv_valid = ddgi_irradiance_texture_srv.IsValid();
+        debug_state.ddgi.irradiance_uav_valid = ddgi_irradiance_texture_uav.IsValid();
+        debug_state.ddgi.visibility_texture_allocated = ddgi_visibility_texture != nullptr;
+        debug_state.ddgi.visibility_srv_valid = ddgi_visibility_texture_srv.IsValid();
+        debug_state.ddgi.visibility_uav_valid = ddgi_visibility_texture_uav.IsValid();
+        debug_state.ddgi.probe_data_buffer_allocated = ddgi_probe_data_buffer != nullptr;
+        debug_state.ddgi.probe_data_srv_valid = ddgi_probe_data_buffer_srv.IsValid();
+        debug_state.ddgi.probe_data_uav_valid = ddgi_probe_data_buffer_uav.IsValid();
+        debug_state.ddgi.history_valid = ddgi_history_valid;
+        debug_state.ddgi.irradiance_texture_srv = ddgi_irradiance_texture_srv.descriptor_index;
+        debug_state.ddgi.irradiance_texture_uav = ddgi_irradiance_texture_uav.descriptor_index;
+        debug_state.ddgi.visibility_texture_srv = ddgi_visibility_texture_srv.descriptor_index;
+        debug_state.ddgi.visibility_texture_uav = ddgi_visibility_texture_uav.descriptor_index;
+        debug_state.ddgi.probe_data_buffer_srv = ddgi_probe_data_buffer_srv.descriptor_index;
+        debug_state.ddgi.probe_data_buffer_uav = ddgi_probe_data_buffer_uav.descriptor_index;
+        if (debug_options.ddgi_debug_enable && debug_state.ddgi.gi_mode_ddgi && debug_state.ddgi.volume_active && debug_state.ddgi.probe_data_readback_valid && debug_state.ddgi.probe_data_readback_buffer && debug_state.ddgi.probe_data_readback_buffer->GetMappedData())
+        {
+            const uint32 max_debug_probe_count = 4096;
+            const uint32 total_probe_count = render_data.shader_ddgi_volume.total_probe_count;
+            const float sample_ratio = total_probe_count > max_debug_probe_count ? static_cast<float>(total_probe_count) / static_cast<float>(max_debug_probe_count) : 1.0f;
+            const uint32 sampling_step = sample_ratio > 1.0f ? static_cast<uint32>((std::max)(1.0f, std::ceil(std::cbrt(sample_ratio)))) : 1u;
+            const float4* probe_data = static_cast<const float4*>(debug_state.ddgi.probe_data_readback_buffer->GetMappedData());
+            const Size readback_probe_count = debug_state.ddgi.probe_data_readback_buffer->GetDesc().buffer_desc.size / sizeof(float4);
+            debug_state.ddgi.probes.reserve((std::min)(total_probe_count, max_debug_probe_count));
+
+            for (uint32 z = 0; z < render_data.shader_ddgi_volume.probe_counts.z; z += sampling_step)
+            {
+                for (uint32 y = 0; y < render_data.shader_ddgi_volume.probe_counts.y; y += sampling_step)
+                {
+                    for (uint32 x = 0; x < render_data.shader_ddgi_volume.probe_counts.x; x += sampling_step)
+                    {
+                        const uint32 probe_linear_index = x + y * render_data.shader_ddgi_volume.probe_counts.x + z * render_data.shader_ddgi_volume.probe_counts.x * render_data.shader_ddgi_volume.probe_counts.y;
+                        if (probe_linear_index >= readback_probe_count)
+                        {
+                            continue;
+                        }
+
+                        const float4 data = probe_data[probe_linear_index];
+                        RendererDebugDDGIState::DDGIProbe debug_probe = {};
+                        debug_probe.position = {
+                            render_data.shader_ddgi_volume.volume_min.x + static_cast<float>(x) * render_data.shader_ddgi_volume.probe_spacing.x + data.x,
+                            render_data.shader_ddgi_volume.volume_min.y + static_cast<float>(y) * render_data.shader_ddgi_volume.probe_spacing.y + data.y,
+                            render_data.shader_ddgi_volume.volume_min.z + static_cast<float>(z) * render_data.shader_ddgi_volume.probe_spacing.z + data.z
+                        };
+                        debug_probe.relocation = std::sqrt(data.x * data.x + data.y * data.y + data.z * data.z);
+                        debug_probe.validity = data.w;
+                        debug_state.ddgi.probes.push_back(debug_probe);
+                    }
+                }
+            }
+        }
         if (render_data.shadow_map_atlas_size.x == 0 || render_data.shadow_map_atlas_size.y == 0)
         {
             RemoveResourceDeferred(frame_context, shadow_map_atlas);
@@ -1085,6 +1760,8 @@ namespace won::rendering
         shader_camera_binding.resource = shader_camera_buffer.get();
         shader_camera_binding.subresource = shader_camera_buffer_cbv;
 
+        UpdateDDGIProbe(render_data.shader_environment_lighting, render_data.shader_ddgi_volume, frame_context, shader_frame_binding, shader_camera_binding);
+
         frame_context.command_list->TransitionResource(*back_buffer, RHIResourceState::RenderTarget);
         frame_context.command_list->TransitionResource(*depth_buffer, RHIResourceState::DepthWrite);
         frame_context.command_list->ClearRenderTarget(back_buffer_binding, { 0.f, 0.3f, 0.3f, 1.f });
@@ -1110,7 +1787,14 @@ namespace won::rendering
             auto gpu_range = profiler::ScopedRangeGPU("Sky Pass", *frame_context.command_list);
             frame_context.command_list->BeginEvent("Sky Pass");
             frame_context.command_list->SetRenderTargets(color_targets, nullptr);
-            frame_context.command_list->SetGraphicsPipeline(*shader_library->GetPipeline(RenderPassType::SkyPass).get());
+            resource::ShaderLibrary& shader_library = GetShaderLibrary();
+            std::shared_ptr<RHIPipeline> sky_pipeline = shader_library.GetPipeline(RenderPassType::SkyPass);
+            if (!sky_pipeline)
+            {
+                frame_context.command_list->EndEvent();
+                return;
+            }
+            frame_context.command_list->SetGraphicsPipeline(*sky_pipeline);
             frame_context.command_list->SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
             frame_context.command_list->SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_camera_binding);
             frame_context.command_list->SetConstantBuffer(RHIShaderStage::Pixel, 0, shader_frame_binding);
@@ -1229,6 +1913,22 @@ namespace won::rendering
             DrawScene(view, frame_context, RenderPassType::MainPass, DrawScene_Opaque | DrawScene_Transparent);
             frame_context.command_list->EndEvent();
         }
+
+        {
+            auto gpu_range = profiler::ScopedRangeGPU("Line Primitive Pass", *frame_context.command_list);
+            frame_context.command_list->BeginEvent("Line Primitive Pass");
+            frame_context.command_list->SetRenderTargets(color_targets, &depth_buffer_binding);
+            DrawScene(view, frame_context, RenderPassType::LinePass, DrawScene_Opaque | DrawScene_Transparent);
+            frame_context.command_list->EndEvent();
+        }
+
+        {
+            auto gpu_range = profiler::ScopedRangeGPU("Point Primitive Pass", *frame_context.command_list);
+            frame_context.command_list->BeginEvent("Point Primitive Pass");
+            frame_context.command_list->SetRenderTargets(color_targets, &depth_buffer_binding);
+            DrawScene(view, frame_context, RenderPassType::PointPass, DrawScene_Opaque | DrawScene_Transparent);
+            frame_context.command_list->EndEvent();
+        }
     }
 
     void ForwardRenderer::EndFrame()
@@ -1292,6 +1992,10 @@ namespace won::rendering
         shader_light_default_buffer = nullptr;
         shader_shadow_cascade_default_buffer_srv = {};
         shader_shadow_cascade_default_buffer = nullptr;
+        shader_bvh_node_default_buffer_srv = {};
+        shader_bvh_node_default_buffer = nullptr;
+        shader_bvh_instance_default_buffer_srv = {};
+        shader_bvh_instance_default_buffer = nullptr;
         shader_frame_buffer_cbv = {};
         shader_frame_buffer = nullptr;
         shader_camera_buffer_cbv = {};
@@ -1300,6 +2004,32 @@ namespace won::rendering
         shadow_map_atlas_srv = {};
         shadow_map_atlas = nullptr;
         shadow_map_atlas_size = { 0, 0 };
+        ddgi_irradiance_texture_uav = {};
+        ddgi_irradiance_texture_srv = {};
+        ddgi_irradiance_texture = nullptr;
+        ddgi_irradiance_history_texture_srv = {};
+        ddgi_irradiance_history_texture = nullptr;
+        ddgi_visibility_texture_uav = {};
+        ddgi_visibility_texture_srv = {};
+        ddgi_visibility_texture = nullptr;
+        ddgi_visibility_history_texture_srv = {};
+        ddgi_visibility_history_texture = nullptr;
+        ddgi_probe_data_buffer_uav = {};
+        ddgi_probe_data_buffer_srv = {};
+        ddgi_probe_data_buffer = nullptr;
+        ddgi_probe_data_history_buffer_srv = {};
+        ddgi_probe_data_history_buffer = nullptr;
+        debug_state.ddgi.probe_data_readback_buffer = nullptr;
+        debug_state.ddgi.probe_data_readback_valid = false;
+        ddgi_probe_update_pipeline = nullptr;
+        ddgi_probe_update_shader = nullptr;
+        debug_state = {};
+        ddgi_probe_counts = { 0, 0, 0 };
+        ddgi_probe_spacing = { 0.0f, 0.0f, 0.0f };
+        ddgi_volume_min = { 0.0f, 0.0f, 0.0f };
+        ddgi_max_distance = 0.0f;
+        ddgi_probe_update_offset = 0;
+        ddgi_history_valid = false;
         back_buffers_rtv = {};
         depth_buffer_dsv = {};
         depth_buffer = nullptr;

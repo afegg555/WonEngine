@@ -2,6 +2,7 @@
 
 #include "Types.h"
 #include "RHIResource.h"
+#include "RHISwapchain.h"
 
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -9,6 +10,7 @@
 #include "DirectX-Headers/d3d12.h"
 
 #include <atomic>
+#include <array>
 #include <mutex>
 #include <wrl/client.h>
 
@@ -50,6 +52,33 @@ namespace won::rendering
         bool GetGPUVisibleHeap(D3D12_DESCRIPTOR_HEAP_TYPE heap_type,
             ID3D12DescriptorHeap** out_heap) const;
 
+        struct DescriptorTableAllocation
+        {
+            D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
+            D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = {};
+            uint32 descriptor_index = 0;
+            uint32 count = 0;
+
+            bool IsValid() const
+            {
+                return count > 0;
+            }
+        };
+
+        bool AllocateTransientDescriptors(D3D12_DESCRIPTOR_HEAP_TYPE heap_type,
+            uint32 count,
+            DescriptorTableAllocation& out_allocation);
+
+        bool CopyDescriptorToTransientTable(D3D12_DESCRIPTOR_HEAP_TYPE heap_type,
+            int source_descriptor_index,
+            const DescriptorTableAllocation& allocation,
+            uint32 table_offset);
+
+        bool CopyNullDescriptorToTransientTable(D3D12_DESCRIPTOR_HEAP_TYPE heap_type,
+            D3D12_DESCRIPTOR_RANGE_TYPE range_type,
+            const DescriptorTableAllocation& allocation,
+            uint32 table_offset);
+
         void ReleaseDescriptor(D3D12_DESCRIPTOR_HEAP_TYPE heap_type, int descriptor_index);
 
     private:
@@ -68,7 +97,7 @@ namespace won::rendering
         {
             // Shader-visible heap used by bindless and transient allocations.
             DescriptorHeap gpu_heap;
-            std::atomic<uint64> allocation_offset{ 0 };
+            std::array<std::atomic<uint64>, max_frames_in_flight> allocation_offsets = {};
             ComPtr<ID3D12Fence> fence;
             uint64 fence_value = 0;
             uint64 cached_completed_value = 0;
@@ -80,7 +109,9 @@ namespace won::rendering
 
         bool CreateDescriptorHeap(DescriptorHeap& state, uint32 capacity, bool shader_visible) const;
         bool AllocateFromHeap(DescriptorHeap& state, int& out_descriptor_index);
+        bool AllocateFromHeap(DescriptorHeap& state, uint32 max_count, int& out_descriptor_index);
         void FreeToHeap(DescriptorHeap& state, int descriptor_index);
+        bool CreateNullDescriptors();
 
         bool CreateRenderTargetView(RHIResourceDX12& resource,
             const RHISubresourceDesc& desc,
@@ -113,5 +144,9 @@ namespace won::rendering
         GpuDescriptorRingHeap sampler_gpu_heap;
 
         uint32 current_frame_slot = 0;
+        int null_cbv_descriptor_index = -1;
+        int null_srv_descriptor_index = -1;
+        int null_uav_descriptor_index = -1;
+        int null_sampler_descriptor_index = -1;
     };
 }
