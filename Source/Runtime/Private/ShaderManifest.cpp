@@ -17,6 +17,10 @@ namespace won::resource
             { ShaderId::PSPrimitive, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "PrimitivePS.hlsl", "main" } },
             { ShaderId::CSDDGIProbeUpdate, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "DDGIProbeUpdateCS.hlsl", "main" } },
             { ShaderId::CSTextureMipGen, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TextureMipGenCS.hlsl", "main" } },
+            { ShaderId::CSGPUBVHBuildGeneratePrimitives, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "GPUBVHGeneratePrimitivesCS.hlsl", "main" } },
+            { ShaderId::CSGPUBVHBuildSortPrimitives, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "GPUBVHSortPrimitivesCS.hlsl", "main" } },
+            { ShaderId::CSGPUBVHBuildBuildNodes, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "GPUBVHBuildNodesCS.hlsl", "main" } },
+            { ShaderId::CSGPUBVHBuildReduceBounds, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "GPUBVHReduceBoundsCS.hlsl", "main" } },
             { ShaderId::PSTestRed, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TestRedPS.hlsl", "main" } },
         };
 

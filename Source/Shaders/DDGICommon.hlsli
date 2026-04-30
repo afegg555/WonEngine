@@ -104,7 +104,7 @@ inline float3 SampleDDGIIrradiance(ShaderDDGIVolume ddgi_volume, uint3 probe_ind
     {
         return float3(0.0f, 0.0f, 0.0f);
     }
-
+    
     uint2 atlas_size = uint2(max(ddgi_volume.probe_counts.x, 1u) * (DDGI_IRRADIANCE_RESOLUTION + 2), max(ddgi_volume.probe_counts.y, 1u) * (DDGI_IRRADIANCE_RESOLUTION + 2));
     uint3 atlas_base = DDGIProbeAtlasBase(probe_index, ddgi_volume);
     float2 oct_uv = EncodeOctahedralDirection(normal);
@@ -201,12 +201,16 @@ float3 SampleDDGI(ShaderDDGIVolume ddgi_volume, float3 sample_position, float3 n
 
                 float3 weight3 = lerp(1.0f - blend, blend, float3(offset));
                 float3 probe_position = DDGIProbePosition(ddgi_volume, probe_index, probe_data);
-                float3 probe_to_sample = sample_position - probe_position;
-                float distance_sq = dot(probe_to_sample, probe_to_sample);
-                float normal_weight = distance_sq > 0.0001f ? saturate(dot(normal, -probe_to_sample * rsqrt(distance_sq))) : 1.0f;
+                
+                float3 sample_to_probe = probe_position - sample_position;
+                float distance_sq = dot(sample_to_probe, sample_to_probe);
+                float normal_weight = distance_sq > 0.0001f ? saturate(dot(normal, sample_to_probe * rsqrt(distance_sq))) : 1.0f;
                 normal_weight = max(normal_weight * normal_weight, 0.05f);
                 float weight = weight3.x * weight3.y * weight3.z * normal_weight * probe_data.w * SampleDDGIVisibility(ddgi_volume, probe_index, probe_position, sample_position, visibility_texture);
                 irradiance += SampleDDGIIrradiance(ddgi_volume, probe_index, normal, irradiance_texture) * weight;
+                //float3 lookup_direction = distance_sq > 0.0001f ? sample_to_probe * rsqrt(distance_sq) : normal;
+                //irradiance += SampleDDGIIrradiance(ddgi_volume, probe_index, lookup_direction, irradiance_texture) * weight;
+                
                 weight_sum += weight;
             }
         }

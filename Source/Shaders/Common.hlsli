@@ -88,7 +88,8 @@ inline int DescriptorIndex(in int descriptor_index)
         "SRV(t0, space = 203, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
         "SRV(t0, space = 204, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
         "SRV(t0, space = 205, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
-        "SRV(t0, space = 206, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE) " \
+        "SRV(t0, space = 206, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
+        "SRV(t0, space = 207, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE) " \
     "), " \
     "StaticSampler(s100, addressU = TEXTURE_ADDRESS_CLAMP, addressV = TEXTURE_ADDRESS_CLAMP, addressW = TEXTURE_ADDRESS_CLAMP, filter = FILTER_MIN_MAG_MIP_LINEAR)," \
 	"StaticSampler(s101, addressU = TEXTURE_ADDRESS_WRAP, addressV = TEXTURE_ADDRESS_WRAP, addressW = TEXTURE_ADDRESS_WRAP, filter = FILTER_MIN_MAG_MIP_LINEAR)," \
@@ -191,6 +192,7 @@ StructuredBuffer<ShaderLight> bindless_structured_light[] : register(t0, space20
 StructuredBuffer<ShaderShadowCascade> bindless_structured_shadow_cascade[] : register(t0, space204);
 StructuredBuffer<ShaderBVHNode> bindless_structured_bvh_node[] : register(t0, space205);
 StructuredBuffer<ShaderBVHPrimitive> bindless_structured_bvh_primitive[] : register(t0, space206);
+StructuredBuffer<ShaderBVHInstance> bindless_structured_bvh_instance[] : register(t0, space207);
 
 // static samplers
 SamplerState sampler_linear_clamp : register(s100);
@@ -238,39 +240,55 @@ inline ShaderInstance GetInstance(uint instance_index)
     return bindless_structured_instance[DescriptorIndex(GetScene().instancebuffer)][instance_index];
 }
 
+#ifndef WON_DISABLE_RENDERER_PUSHCONSTANT
 inline ShaderInstance GetInstance()
 {
     return GetInstance(push.instance_index);
 }
+#endif
 
 inline ShaderGeometry GetGeometry(uint geometry_index)
 {
     return bindless_structured_geometry[DescriptorIndex(GetScene().geometrybuffer)][geometry_index];
 }
 
+#ifndef WON_DISABLE_RENDERER_PUSHCONSTANT
 inline ShaderGeometry GetGeometry()
 {
     return GetGeometry(push.geometry_index);
 }
+#endif
 
 inline ShaderMaterial GetMaterial(uint material_index)
 {
     return bindless_structured_material[DescriptorIndex(GetScene().materialbuffer)][material_index];
 }
 
+#ifndef WON_DISABLE_RENDERER_PUSHCONSTANT
 inline ShaderMaterial GetMaterial()
 {
     return GetMaterial(push.material_index);
 }
+#endif
+
+inline ShaderBVHNode GetBVHNodeFromBuffer(int node_buffer, uint node_index)
+{
+    return bindless_structured_bvh_node[DescriptorIndex(node_buffer)][node_index];
+}
 
 inline ShaderBVHNode GetBVHNode(uint node_index)
 {
-    return bindless_structured_bvh_node[DescriptorIndex(GetScene().bvh_node_buffer)][node_index];
+    return GetBVHNodeFromBuffer(GetScene().bvh_node_buffer, node_index);
 }
 
-inline ShaderBVHPrimitive GetBVHPrimitive(uint primitive_index)
+inline ShaderBVHPrimitive GetBVHPrimitiveFromBuffer(int primitive_buffer, uint primitive_index)
 {
-    return bindless_structured_bvh_primitive[DescriptorIndex(GetScene().bvh_primitive_buffer)][primitive_index];
+    return bindless_structured_bvh_primitive[DescriptorIndex(primitive_buffer)][primitive_index];
+}
+
+inline ShaderBVHInstance GetBVHInstance(uint instance_index)
+{
+    return bindless_structured_bvh_instance[DescriptorIndex(GetScene().bvh_instance_buffer)][instance_index];
 }
 
 inline ShaderLightIterator lights(uint bucket_index = 0)

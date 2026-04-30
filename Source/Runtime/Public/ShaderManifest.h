@@ -20,6 +20,10 @@ namespace won::resource
 
         CSDDGIProbeUpdate,
         CSTextureMipGen,
+        CSGPUBVHBuildGeneratePrimitives,
+        CSGPUBVHBuildSortPrimitives,
+        CSGPUBVHBuildBuildNodes,
+        CSGPUBVHBuildReduceBounds,
 
         Count
     };

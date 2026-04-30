@@ -417,7 +417,7 @@ namespace won::rendering
         const Vector<ShaderLight>& shader_lights = render_data.shader_lights;
         const Vector<ShaderShadowCascade>& shader_shadow_cascades = render_data.shader_shadow_cascades;
         const Vector<ShaderBVHNode>& shader_bvh_nodes = render_data.shader_bvh_nodes;
-        const Vector<ShaderBVHPrimitive>& shader_bvh_primitives = render_data.shader_bvh_primitives;
+        const Vector<ShaderBVHInstance>& shader_bvh_instances = render_data.shader_bvh_instances;
 
         const Size required_instance_buffer_size = shader_instances.size() * sizeof(ShaderInstance);
         const Size required_geometry_buffer_size = shader_geometries.size() * sizeof(ShaderGeometry);
@@ -425,7 +425,7 @@ namespace won::rendering
         const Size required_light_buffer_size = shader_lights.size() * sizeof(ShaderLight);
         const Size required_shadow_cascade_buffer_size = shader_shadow_cascades.size() * sizeof(ShaderShadowCascade);
         const Size required_bvh_node_buffer_size = shader_bvh_nodes.size() * sizeof(ShaderBVHNode);
-        const Size required_bvh_primitive_buffer_size = shader_bvh_primitives.size() * sizeof(ShaderBVHPrimitive);
+        const Size required_bvh_instance_buffer_size = shader_bvh_instances.size() * sizeof(ShaderBVHInstance);
 
         if (required_instance_buffer_size == 0)
         {
@@ -831,49 +831,49 @@ namespace won::rendering
             }
         }
 
-        if (required_bvh_primitive_buffer_size == 0)
+        if (required_bvh_instance_buffer_size == 0)
         {
-            RemoveResourceDeferred(frame_context, shader_bvh_primitive_default_buffer);
-            shader_bvh_primitive_default_buffer_srv = {};
+            RemoveResourceDeferred(frame_context, shader_bvh_instance_default_buffer);
+            shader_bvh_instance_default_buffer_srv = {};
         }
         else
         {
             Size current_default_buffer_size = 0;
-            if (shader_bvh_primitive_default_buffer)
+            if (shader_bvh_instance_default_buffer)
             {
-                current_default_buffer_size = shader_bvh_primitive_default_buffer->GetDesc().buffer_desc.size;
+                current_default_buffer_size = shader_bvh_instance_default_buffer->GetDesc().buffer_desc.size;
             }
 
-            if (!shader_bvh_primitive_default_buffer || current_default_buffer_size < required_bvh_primitive_buffer_size)
+            if (!shader_bvh_instance_default_buffer || current_default_buffer_size < required_bvh_instance_buffer_size)
             {
-                RemoveResourceDeferred(frame_context, shader_bvh_primitive_default_buffer);
-                RHIBufferDesc shader_bvh_primitive_default_buffer_desc = {};
-                shader_bvh_primitive_default_buffer_desc.size = required_bvh_primitive_buffer_size;
-                shader_bvh_primitive_default_buffer_desc.usage = RHIResourceUsage::Default;
-                shader_bvh_primitive_default_buffer_desc.bind_flags = RHIBindFlags::ShaderResource;
-                shader_bvh_primitive_default_buffer = device->CreateBuffer(shader_bvh_primitive_default_buffer_desc);
-                if (!shader_bvh_primitive_default_buffer)
+                RemoveResourceDeferred(frame_context, shader_bvh_instance_default_buffer);
+                RHIBufferDesc shader_bvh_instance_default_buffer_desc = {};
+                shader_bvh_instance_default_buffer_desc.size = required_bvh_instance_buffer_size;
+                shader_bvh_instance_default_buffer_desc.usage = RHIResourceUsage::Default;
+                shader_bvh_instance_default_buffer_desc.bind_flags = RHIBindFlags::ShaderResource;
+                shader_bvh_instance_default_buffer = device->CreateBuffer(shader_bvh_instance_default_buffer_desc);
+                if (!shader_bvh_instance_default_buffer)
                 {
-                    backlog::Post("failed to create shader bvh primitive default buffer", backlog::LogLevel::Error);
+                    backlog::Post("failed to create shader bvh instance default buffer", backlog::LogLevel::Error);
                     return false;
                 }
-                shader_bvh_primitive_default_buffer->SetName("Shader BVH Primitive Default Buffer");
+                shader_bvh_instance_default_buffer->SetName("Shader BVH Instance Default Buffer");
 
-                shader_bvh_primitive_default_buffer_srv = {};
-                RHISubresourceDesc shader_bvh_primitive_default_subresource_desc = {};
-                shader_bvh_primitive_default_subresource_desc.type = RHISubresourceType::ShaderResource;
-                shader_bvh_primitive_default_subresource_desc.buffer_offset = 0;
-                shader_bvh_primitive_default_subresource_desc.buffer_size = shader_bvh_primitive_default_buffer->GetDesc().buffer_desc.size;
-                shader_bvh_primitive_default_subresource_desc.buffer_stride = sizeof(ShaderBVHPrimitive);
-                if (!device->CreateSubresource(*shader_bvh_primitive_default_buffer, shader_bvh_primitive_default_subresource_desc, &shader_bvh_primitive_default_buffer_srv))
+                shader_bvh_instance_default_buffer_srv = {};
+                RHISubresourceDesc shader_bvh_instance_default_subresource_desc = {};
+                shader_bvh_instance_default_subresource_desc.type = RHISubresourceType::ShaderResource;
+                shader_bvh_instance_default_subresource_desc.buffer_offset = 0;
+                shader_bvh_instance_default_subresource_desc.buffer_size = shader_bvh_instance_default_buffer->GetDesc().buffer_desc.size;
+                shader_bvh_instance_default_subresource_desc.buffer_stride = sizeof(ShaderBVHInstance);
+                if (!device->CreateSubresource(*shader_bvh_instance_default_buffer, shader_bvh_instance_default_subresource_desc, &shader_bvh_instance_default_buffer_srv))
                 {
-                    backlog::Post("failed to create shader bvh primitive default subresource", backlog::LogLevel::Error);
-                    shader_bvh_primitive_default_buffer = nullptr;
+                    backlog::Post("failed to create shader bvh instance default subresource", backlog::LogLevel::Error);
+                    shader_bvh_instance_default_buffer = nullptr;
                     return false;
                 }
             }
 
-            if (!UpdateDefaultBuffer(frame_context, *shader_bvh_primitive_default_buffer, shader_bvh_primitives.data(), required_bvh_primitive_buffer_size, RHIResourceState::ShaderRead))
+            if (!UpdateDefaultBuffer(frame_context, *shader_bvh_instance_default_buffer, shader_bvh_instances.data(), required_bvh_instance_buffer_size, RHIResourceState::ShaderRead))
             {
                 return false;
             }
@@ -894,9 +894,9 @@ namespace won::rendering
         shader_frame.scene.shadow_atlas = shadow_map_atlas_srv.descriptor_index;
         shader_frame.scene.shadow_cascade_buffer = shader_shadow_cascade_default_buffer_srv.descriptor_index;
         shader_frame.scene.bvh_node_buffer = shader_bvh_node_default_buffer_srv.descriptor_index;
-        shader_frame.scene.bvh_primitive_buffer = shader_bvh_primitive_default_buffer_srv.descriptor_index;
+        shader_frame.scene.bvh_instance_buffer = shader_bvh_instance_default_buffer_srv.descriptor_index;
         shader_frame.scene.bvh_node_count = static_cast<uint32>(shader_bvh_nodes.size());
-        shader_frame.scene.bvh_primitive_count = static_cast<uint32>(shader_bvh_primitives.size());
+        shader_frame.scene.bvh_instance_count = static_cast<uint32>(shader_bvh_instances.size());
         shader_frame.sky = render_data.shader_sky;
         shader_frame.environment_lighting = render_data.shader_environment_lighting;
         shader_frame.ddgi_volume = render_data.shader_ddgi_volume;
@@ -1525,9 +1525,11 @@ namespace won::rendering
         FrameContext& frame_context = GetFrameContext();
         if (frame_context.fence_value > 0)
         {
+            profiler::ScopedRangeCPU wait_range("Frame Context Fence Wait");
             frame_context.fence->Wait(frame_context.fence_value);
             frame_context.fence_value = 0;
         }
+        device->BeginFrame(current_frame_slot);
 
         frame_context.deferred_res_removal.clear();
         if (recreate_depth_buffer)
@@ -1577,6 +1579,21 @@ namespace won::rendering
         debug_state.ddgi.probe_data_readback_buffer = ddgi_probe_data_readback_buffer;
         debug_state.ddgi.probe_data_readback_valid = ddgi_probe_data_readback_valid;
         if (debug_options.bvh_debug_enable)
+        {
+            debug_state.bvh = {};
+            const math::bvh::BVH& cpu_bvh = view.scene->GetSceneBVH();
+            debug_state.bvh.cpu_bvh_available = cpu_bvh.IsValid();
+            debug_state.bvh.cpu_nodes.reserve(cpu_bvh.nodes.size());
+            for (const math::bvh::BVHNode& node : cpu_bvh.nodes)
+            {
+                RendererDebugBVHState::BVHNode debug_node = {};
+                debug_node.bounds_min = node.bounds.min;
+                debug_node.bounds_max = node.bounds.max;
+                debug_node.is_leaf = node.IsLeaf();
+                debug_state.bvh.cpu_nodes.push_back(debug_node);
+            }
+        }
+        else
         {
             debug_state.bvh = {};
         }
@@ -1977,8 +1994,8 @@ namespace won::rendering
         shader_shadow_cascade_default_buffer = nullptr;
         shader_bvh_node_default_buffer_srv = {};
         shader_bvh_node_default_buffer = nullptr;
-        shader_bvh_primitive_default_buffer_srv = {};
-        shader_bvh_primitive_default_buffer = nullptr;
+        shader_bvh_instance_default_buffer_srv = {};
+        shader_bvh_instance_default_buffer = nullptr;
         shader_frame_buffer_cbv = {};
         shader_frame_buffer = nullptr;
         shader_camera_buffer_cbv = {};

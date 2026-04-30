@@ -545,7 +545,7 @@ namespace won::ecs
             Vector<ShaderGeometry> shader_geometries;
             Vector<ShaderMaterial> shader_materials;
             Vector<ShaderBVHNode> shader_bvh_nodes;
-            Vector<ShaderBVHPrimitive> shader_bvh_primitives;
+            Vector<ShaderBVHInstance> shader_bvh_instances;
             Vector<Renderable> renderables;
 
             Vector<ShaderLight> shader_lights; // all lights
@@ -566,7 +566,7 @@ namespace won::ecs
                 shader_geometries.clear();
                 shader_materials.clear();
                 shader_bvh_nodes.clear();
-                shader_bvh_primitives.clear();
+                shader_bvh_instances.clear();
                 renderables.clear();
 
                 shader_lights.clear();

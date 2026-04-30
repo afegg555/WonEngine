@@ -3,13 +3,26 @@
 #include "Mesh.h"
 #include "Scene.h"
 #include "ShaderLibrary.h"
+#include "ShaderInterop_BVH.h"
 #include "ShaderInterop_Utility.h"
+#include "Timer.h"
 
 namespace won::rendering::utils
 {
     namespace
     {
         std::shared_ptr<RHIPipeline> texture_mipgen_pipeline = nullptr;
+
+        enum class GPUBVHBuildPipelineType : uint32
+        {
+            GeneratePrimitives,
+            SortPrimitives,
+            BuildNodes,
+            ReduceBounds,
+            Count
+        };
+
+        std::shared_ptr<RHIPipeline> gpu_bvh_build_pipelines[static_cast<uint32>(GPUBVHBuildPipelineType::Count)] = {};
 
         template<typename T>
         void PackBufferSubresource(const Vector<T>& source, Vector<uint8>& packed_data, Size& out_offset, Size data_size, Size alignment, Size& current_offset)
@@ -268,11 +281,521 @@ namespace won::rendering::utils
 
     bool CreateGPUBVH(RHIDevice& device, resource::Mesh& mesh)
     {
+        // fast BVH Generation - Karras 2012 LBVH
+        won::utils::Timer build_timer;
         mesh.ClearGPUBVH();
+        if (!mesh.IsValid() || !CreateRenderData(device, mesh) || !mesh.render_data.IsValid())
+        {
+            return false;
+        }
+
+        math::AABB mesh_bounds = {};
+        mesh_bounds.Invalidate();
+        uint32 primitive_count = 0;
+
+        for (Size submesh_index = 0; submesh_index < mesh.submeshes.size(); ++submesh_index)
+        {
+            const resource::Submesh& submesh = mesh.submeshes[submesh_index];
+            if (submesh.primitive_topology != resource::PrimitiveTopology::TriangleList)
+            {
+                continue;
+            }
+
+            if (submesh.first_index >= mesh.indices.size())
+            {
+                continue;
+            }
+            const uint32 available_index_count = (std::min)(submesh.index_count, static_cast<uint32>(mesh.indices.size()) - submesh.first_index);
+            const uint32 triangle_count = available_index_count / 3;
+            if (triangle_count == 0)
+            {
+                continue;
+            }
+
+            primitive_count += triangle_count;
+
+            if (submesh.local_bounds.IsValid())
+            {
+                mesh_bounds.Merge(submesh.local_bounds);
+            }
+        }
+
+        if (primitive_count == 0)
+        {
+            mesh.gpu_bvh.dirty = false;
+            return true;
+        }
+        if (!mesh_bounds.IsValid())
+        {
+            for (const float3& position : mesh.positions)
+            {
+                math::AABB vertex_bounds = {};
+                vertex_bounds.min = position;
+                vertex_bounds.max = position;
+                mesh_bounds.Merge(vertex_bounds);
+            }
+        }
+        if (!mesh_bounds.IsValid())
+        {
+            mesh.gpu_bvh.dirty = false;
+            return true;
+        }
+
+        static const resource::ShaderId gpu_bvh_build_shader_ids[] =
+        {
+            resource::ShaderId::CSGPUBVHBuildGeneratePrimitives,
+            resource::ShaderId::CSGPUBVHBuildSortPrimitives,
+            resource::ShaderId::CSGPUBVHBuildBuildNodes,
+            resource::ShaderId::CSGPUBVHBuildReduceBounds,
+        };
+
+        resource::ShaderLibrary& shader_library = resource::GetShaderLibrary();
+
+        for (uint32 pipeline_index = 0; pipeline_index < static_cast<uint32>(GPUBVHBuildPipelineType::Count); ++pipeline_index)
+        {
+            if (!gpu_bvh_build_pipelines[pipeline_index])
+            {
+                std::shared_ptr<RHIShader> build_shader = shader_library.GetShader(gpu_bvh_build_shader_ids[pipeline_index]);
+                if (!build_shader)
+                {
+                    backlog::Post("Failed to get GPU BVH build shader", backlog::LogLevel::Error);
+                    return false;
+                }
+
+                RHIComputePipelineDesc pipeline_desc = {};
+                pipeline_desc.compute_shader = build_shader.get();
+                gpu_bvh_build_pipelines[pipeline_index] = device.CreateComputePipeline(pipeline_desc);
+                if (!gpu_bvh_build_pipelines[pipeline_index])
+                {
+                    backlog::Post("Failed to create GPU BVH build pipeline", backlog::LogLevel::Error);
+                    return false;
+                }
+                gpu_bvh_build_pipelines[pipeline_index]->SetName("GPUBVHBuildPipeline");
+            }
+        }
+
+        const uint32 sort_count = math::GetNextPowerOfTwo(primitive_count);
+        const uint32 node_count = primitive_count * 2 - 1;
+        // internal node: N - 1
+        // leaf node: N
+        // total node: 2N - 1
+
+        resource::Mesh::GPUBVH gpu_bvh = {};
+        std::shared_ptr<RHIResource> sort_buffer;
+        std::shared_ptr<RHIResource> parent_buffer;
+        std::shared_ptr<RHIResource> counter_buffer;
+        std::shared_ptr<RHIResource> build_constants_buffer;
+        RHISubresourceHandle sort_uav = {};
+        RHISubresourceHandle parent_uav = {};
+        RHISubresourceHandle counter_uav = {};
+        RHISubresourceHandle build_constants_cbv = {};
+
+        struct alignas(16) ShaderBVHBuildConstants
+        {
+            float3 bounds_min;
+            float padding0;
+            float3 bounds_rcp_extent;
+            float padding1;
+            uint8 padding2[224];
+        };
+        static_assert(sizeof(ShaderBVHBuildConstants) == 256, "ShaderBVHBuildConstants layout mismatch");
+
+        const float3 bounds_extent = {
+            mesh_bounds.max.x - mesh_bounds.min.x,
+            mesh_bounds.max.y - mesh_bounds.min.y,
+            mesh_bounds.max.z - mesh_bounds.min.z
+        };
+        ShaderBVHBuildConstants build_constants = {};
+        build_constants.bounds_min = mesh_bounds.min;
+        build_constants.bounds_rcp_extent = {
+            1.0f / (std::max)(bounds_extent.x, FLT_EPSILON),
+            1.0f / (std::max)(bounds_extent.y, FLT_EPSILON),
+            1.0f / (std::max)(bounds_extent.z, FLT_EPSILON)
+        };
+
+        Vector<uint32> zero_counters;
+        zero_counters.resize(node_count, 0);
+        Vector<uint2> sort_keys;
+        sort_keys.resize(sort_count);
+        for (uint32 sort_index = 0; sort_index < sort_count; ++sort_index)
+        {
+            sort_keys[sort_index] = { 0xFFFFFFFFu, sort_index };
+        }
+
+        auto create_structured_buffer = [&device](const char* buffer_name,
+            Size buffer_size,
+            Size stride,
+            RHIBindFlags bind_flags,
+            const void* data,
+            std::shared_ptr<RHIResource>& out_buffer,
+            RHISubresourceHandle* out_srv,
+            RHISubresourceHandle* out_uav) -> bool
+        {
+            if (buffer_size == 0 || stride == 0)
+            {
+                return false;
+            }
+
+            RHIBufferDesc buffer_desc = {};
+            buffer_desc.size = buffer_size;
+            buffer_desc.usage = RHIResourceUsage::Default;
+            buffer_desc.bind_flags = bind_flags;
+            out_buffer = device.CreateBuffer(buffer_desc, data, data ? buffer_size : 0);
+            if (!out_buffer)
+            {
+                backlog::Post(String("failed to create ") + buffer_name, backlog::LogLevel::Error);
+                return false;
+            }
+            out_buffer->SetName(buffer_name);
+
+            if (out_srv)
+            {
+                RHISubresourceDesc srv_desc = {};
+                srv_desc.type = RHISubresourceType::ShaderResource;
+                srv_desc.buffer_offset = 0;
+                srv_desc.buffer_size = buffer_size;
+                srv_desc.buffer_stride = stride;
+                if (!device.CreateSubresource(*out_buffer, srv_desc, out_srv))
+                {
+                    backlog::Post(String("failed to create ") + buffer_name + " SRV", backlog::LogLevel::Error);
+                    return false;
+                }
+            }
+
+            if (out_uav)
+            {
+                RHISubresourceDesc uav_desc = {};
+                uav_desc.type = RHISubresourceType::UnorderedAccess;
+                uav_desc.buffer_offset = 0;
+                uav_desc.buffer_size = buffer_size;
+                uav_desc.buffer_stride = stride;
+                if (!device.CreateSubresource(*out_buffer, uav_desc, out_uav))
+                {
+                    backlog::Post(String("failed to create ") + buffer_name + " UAV", backlog::LogLevel::Error);
+                    return false;
+                }
+            }
+
+            return true;
+        };
+
+        if (!create_structured_buffer("Mesh GPU BVH Node Buffer",
+            node_count * sizeof(ShaderBVHNode), sizeof(ShaderBVHNode),
+            RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess, nullptr, gpu_bvh.node_buffer, &gpu_bvh.node_srv, &gpu_bvh.node_uav))
+        {
+            return false;
+        }
+        if (!create_structured_buffer("Mesh GPU BVH Primitive Buffer",
+            sort_count * sizeof(ShaderBVHPrimitive), sizeof(ShaderBVHPrimitive),
+            RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess, nullptr, gpu_bvh.primitive_buffer, &gpu_bvh.primitive_srv, &gpu_bvh.primitive_uav))
+        {
+            return false;
+        }
+        if (!create_structured_buffer("Mesh GPU BVH Sort Buffer",
+            sort_count * sizeof(uint2), sizeof(uint2),
+            RHIBindFlags::UnorderedAccess, sort_keys.data(), sort_buffer, nullptr, &sort_uav))
+        {
+            return false;
+        }
+        if (!create_structured_buffer("Mesh GPU BVH Parent Buffer",
+            node_count * sizeof(uint32), sizeof(uint32),
+            RHIBindFlags::UnorderedAccess, nullptr, parent_buffer, nullptr, &parent_uav))
+        {
+            return false;
+        }
+        if (!create_structured_buffer("Mesh GPU BVH Counter Buffer",
+            node_count * sizeof(uint32), sizeof(uint32),
+            RHIBindFlags::UnorderedAccess, zero_counters.data(), counter_buffer, nullptr, &counter_uav))
+        {
+            return false;
+        }
+        RHIBufferDesc build_constants_buffer_desc = {};
+        build_constants_buffer_desc.size = sizeof(ShaderBVHBuildConstants);
+        build_constants_buffer_desc.usage = RHIResourceUsage::Default;
+        build_constants_buffer_desc.bind_flags = RHIBindFlags::ConstantBuffer;
+        build_constants_buffer = device.CreateBuffer(build_constants_buffer_desc, &build_constants, sizeof(build_constants));
+        if (!build_constants_buffer)
+        {
+            backlog::Post("failed to create Mesh GPU BVH Build Constants Buffer", backlog::LogLevel::Error);
+            return false;
+        }
+        build_constants_buffer->SetName("Mesh GPU BVH Build Constants Buffer");
+
+        RHISubresourceDesc build_constants_cbv_desc = {};
+        build_constants_cbv_desc.type = RHISubresourceType::ConstantBuffer;
+        build_constants_cbv_desc.buffer_offset = 0;
+        build_constants_cbv_desc.buffer_size = sizeof(ShaderBVHBuildConstants);
+        if (!device.CreateSubresource(*build_constants_buffer, build_constants_cbv_desc, &build_constants_cbv))
+        {
+            backlog::Post("failed to create Mesh GPU BVH Build Constants CBV", backlog::LogLevel::Error);
+            return false;
+        }
+
+        std::shared_ptr<RHIContext> compute_context = device.GetContext(RHIQueueType::Compute);
+        std::shared_ptr<RHICommandAllocator> compute_allocator = device.CreateCommandAllocator(RHIQueueType::Compute);
+        std::shared_ptr<RHICommandList> compute_command_list = device.CreateCommandList(RHIQueueType::Compute);
+        if (!compute_context || !compute_allocator || !compute_command_list)
+        {
+            return false;
+        }
+
+        compute_allocator->Reset();
+        compute_command_list->Begin(*compute_allocator);
+        compute_command_list->TransitionResource(*mesh.render_data.buffer, RHIResourceState::ShaderRead);
+        compute_command_list->TransitionResource(*gpu_bvh.node_buffer, RHIResourceState::ShaderWrite);
+        compute_command_list->TransitionResource(*gpu_bvh.primitive_buffer, RHIResourceState::ShaderWrite);
+        compute_command_list->TransitionResource(*sort_buffer, RHIResourceState::ShaderWrite);
+        compute_command_list->TransitionResource(*parent_buffer, RHIResourceState::ShaderWrite);
+        compute_command_list->TransitionResource(*counter_buffer, RHIResourceState::ShaderWrite);
+        compute_command_list->TransitionResource(*build_constants_buffer, RHIResourceState::ConstantBuffer);
+
+        compute_command_list->SetComputePipeline(*gpu_bvh_build_pipelines[static_cast<uint32>(GPUBVHBuildPipelineType::GeneratePrimitives)]);
+        compute_command_list->SetConstantBuffer(RHIShaderStage::Compute, 2, { build_constants_buffer.get(), build_constants_cbv });
+        compute_command_list->SetShaderResource(RHIShaderStage::Compute, 0, { mesh.render_data.buffer.get(), mesh.render_data.positions.handle });
+        compute_command_list->SetShaderResource(RHIShaderStage::Compute, 1, { mesh.render_data.buffer.get(), mesh.render_data.indices.handle });
+        compute_command_list->SetUnorderedAccess(RHIShaderStage::Compute, 0, { gpu_bvh.primitive_buffer.get(), gpu_bvh.primitive_uav });
+        compute_command_list->SetUnorderedAccess(RHIShaderStage::Compute, 2, { sort_buffer.get(), sort_uav });
+        uint32 primitive_offset = 0;
+        for (Size submesh_index = 0; submesh_index < mesh.submeshes.size(); ++submesh_index)
+        {
+            const resource::Submesh& submesh = mesh.submeshes[submesh_index];
+            if (submesh.primitive_topology != resource::PrimitiveTopology::TriangleList || submesh.first_index >= mesh.indices.size())
+            {
+                continue;
+            }
+
+            const uint32 available_index_count = (std::min)(submesh.index_count, static_cast<uint32>(mesh.indices.size()) - submesh.first_index);
+            const uint32 triangle_count = available_index_count / 3;
+            if (triangle_count == 0)
+            {
+                continue;
+            }
+
+            ShaderBVHGeneratePrimitivesPushConstants push_constants = {};
+            push_constants.first_index = submesh.first_index;
+            push_constants.primitive_offset = primitive_offset;
+            push_constants.triangle_count = triangle_count;
+            push_constants.submesh_index = static_cast<uint32>(submesh_index);
+            push_constants.material_slot = submesh.material_slot;
+            compute_command_list->PushConstants(RHIShaderStage::Compute, &push_constants, sizeof(push_constants), 0);
+            compute_command_list->Dispatch((triangle_count + BVH_BUILDER_GROUPSIZE - 1) / BVH_BUILDER_GROUPSIZE, 1, 1);
+            primitive_offset += triangle_count;
+        }
+        compute_command_list->UAVBarrier(*gpu_bvh.primitive_buffer);
+        compute_command_list->UAVBarrier(*sort_buffer);
+
+        // bitonic sort
+        if (sort_count > 1)
+        {
+            compute_command_list->SetComputePipeline(*gpu_bvh_build_pipelines[static_cast<uint32>(GPUBVHBuildPipelineType::SortPrimitives)]);
+            compute_command_list->SetUnorderedAccess(RHIShaderStage::Compute, 0, { gpu_bvh.primitive_buffer.get(), gpu_bvh.primitive_uav });
+            compute_command_list->SetUnorderedAccess(RHIShaderStage::Compute, 2, { sort_buffer.get(), sort_uav });
+            for (uint32 k = 2; k <= sort_count; k <<= 1)
+            {
+                for (uint32 j = k >> 1; j > 0; j >>= 1)
+                {
+                    ShaderBVHSortPrimitivesPushConstants push_constants = {};
+                    push_constants.sort_merge_size = k;
+                    push_constants.sort_compare_stride = j;
+                    compute_command_list->PushConstants(RHIShaderStage::Compute, &push_constants, sizeof(push_constants), 0);
+                    compute_command_list->Dispatch((sort_count + BVH_BUILDER_GROUPSIZE - 1) / BVH_BUILDER_GROUPSIZE, 1, 1);
+                    compute_command_list->UAVBarrier(*gpu_bvh.primitive_buffer);
+                    compute_command_list->UAVBarrier(*sort_buffer);
+                }
+            }
+        }
+
+        ShaderBVHPrimitiveCountPushConstants push_constants = {};
+        push_constants.primitive_count = primitive_count;
+        compute_command_list->SetComputePipeline(*gpu_bvh_build_pipelines[static_cast<uint32>(GPUBVHBuildPipelineType::BuildNodes)]);
+        compute_command_list->SetUnorderedAccess(RHIShaderStage::Compute, 0, { gpu_bvh.primitive_buffer.get(), gpu_bvh.primitive_uav });
+        compute_command_list->SetUnorderedAccess(RHIShaderStage::Compute, 1, { gpu_bvh.node_buffer.get(), gpu_bvh.node_uav });
+        compute_command_list->SetUnorderedAccess(RHIShaderStage::Compute, 2, { sort_buffer.get(), sort_uav });
+        compute_command_list->SetUnorderedAccess(RHIShaderStage::Compute, 3, { parent_buffer.get(), parent_uav });
+        compute_command_list->PushConstants(RHIShaderStage::Compute, &push_constants, sizeof(push_constants), 0);
+        compute_command_list->Dispatch((primitive_count + BVH_BUILDER_GROUPSIZE - 1) / BVH_BUILDER_GROUPSIZE, 1, 1);
+        compute_command_list->UAVBarrier(*gpu_bvh.node_buffer);
+        compute_command_list->UAVBarrier(*parent_buffer);
+
+        if (primitive_count > 1)
+        {
+            push_constants = {};
+            push_constants.primitive_count = primitive_count;
+            compute_command_list->SetComputePipeline(*gpu_bvh_build_pipelines[static_cast<uint32>(GPUBVHBuildPipelineType::ReduceBounds)]);
+            compute_command_list->SetUnorderedAccess(RHIShaderStage::Compute, 1, { gpu_bvh.node_buffer.get(), gpu_bvh.node_uav });
+            compute_command_list->SetUnorderedAccess(RHIShaderStage::Compute, 3, { parent_buffer.get(), parent_uav });
+            compute_command_list->SetUnorderedAccess(RHIShaderStage::Compute, 4, { counter_buffer.get(), counter_uav });
+            compute_command_list->PushConstants(RHIShaderStage::Compute, &push_constants, sizeof(push_constants), 0);
+            compute_command_list->Dispatch((primitive_count + BVH_BUILDER_GROUPSIZE - 1) / BVH_BUILDER_GROUPSIZE, 1, 1);
+            compute_command_list->UAVBarrier(*gpu_bvh.node_buffer);
+        }
+
+        compute_command_list->TransitionResource(*gpu_bvh.node_buffer, RHIResourceState::ShaderRead);
+        compute_command_list->TransitionResource(*gpu_bvh.primitive_buffer, RHIResourceState::ShaderRead);
+        compute_command_list->TransitionResource(*mesh.render_data.buffer, RHIResourceState::Undefined);
+        compute_command_list->End();
+
+        std::shared_ptr<RHIFence> compute_fence = device.CreateFence(0);
+        if (!compute_fence)
+        {
+            return false;
+        }
+
+        const uint64 compute_fence_value = compute_context->Submit(*compute_command_list, compute_fence.get());
+        if (compute_fence_value > 0)
+        {
+            compute_fence->Wait(compute_fence_value);
+        }
+        else
+        {
+            compute_context->WaitIdle();
+        }
+
+        gpu_bvh.node_count = node_count;
+        gpu_bvh.primitive_count = primitive_count;
+        gpu_bvh.dirty = false;
+        mesh.gpu_bvh = std::move(gpu_bvh);
+        backlog::Post("GPU BVH built: mesh=" + std::to_string(reinterpret_cast<uintptr_t>(&mesh)) +
+            ", primitives=" + std::to_string(primitive_count) +
+            ", nodes=" + std::to_string(node_count) +
+            ", time=" + std::to_string(build_timer.ElapsedMilliSeconds()) + " ms");
         return true;
     }
 
     void BuildGPUBVH(RHIDevice* device, ecs::Scene& scene)
     {
+        ecs::Scene::RenderData& render_data = scene.render_data;
+        const bool ddgi_trace_required = render_data.shader_environment_lighting.gi_mode == SHADER_ENVIRONMENT_GI_MODE_DDGI &&
+            (render_data.shader_ddgi_volume.flags & SHADER_DDGI_FLAG_ACTIVE) != 0 &&
+            render_data.shader_ddgi_volume.total_probe_count > 0;
+        if (!ddgi_trace_required)
+        {
+            render_data.shader_bvh_nodes.clear();
+            render_data.shader_bvh_instances.clear();
+            scene.gpu_bvh_dirty = true;
+            return;
+        }
+
+        auto geometry_array = scene.GetComponentArray<ecs::GeometryComponent>().get();
+        auto transform_array = scene.GetComponentArray<ecs::TransformComponent>().get();
+        auto material_array = scene.GetComponentArray<ecs::MaterialComponent>().get();
+        if (!geometry_array || !transform_array)
+        {
+            render_data.shader_bvh_nodes.clear();
+            render_data.shader_bvh_instances.clear();
+            scene.gpu_bvh_dirty = false;
+            return;
+        }
+
+        profiler::ScopedRangeCPU range("RenderingUtils::BuildGPUBVH");
+
+        bool mesh_gpu_bvh_updated = false;
+        bool mesh_gpu_bvh_pending = false;
+        for (Size geometry_component_index = 0; geometry_component_index < geometry_array->GetSize(); ++geometry_component_index)
+        {
+            const ecs::GeometryComponent& geometry = geometry_array->data[geometry_component_index];
+            if (geometry.IsExcludeFromBVH() || !geometry.mesh || !geometry.mesh->IsValid() || !geometry.mesh->gpu_bvh.dirty)
+            {
+                continue;
+            }
+
+            if (!device)
+            {
+                mesh_gpu_bvh_pending = true;
+                continue;
+            }
+
+            if (CreateGPUBVH(*device, *geometry.mesh))
+            {
+                mesh_gpu_bvh_updated = true;
+            }
+            else
+            {
+                mesh_gpu_bvh_pending = true;
+            }
+        }
+
+        if (!scene.gpu_bvh_dirty && !mesh_gpu_bvh_updated)
+        {
+            scene.gpu_bvh_dirty = mesh_gpu_bvh_pending;
+            return;
+        }
+
+        render_data.shader_bvh_nodes.clear();
+        render_data.shader_bvh_instances.clear();
+
+        math::bvh::BVH bvh;
+        Vector<math::bvh::BVHPrimitive> primitives;
+        Vector<ShaderBVHInstance> source_instances;
+
+        for (Size geometry_component_index = 0; geometry_component_index < geometry_array->GetSize(); ++geometry_component_index)
+        {
+            const ecs::Entity entity = geometry_array->index_to_entity[geometry_component_index];
+            const ecs::GeometryComponent& geometry = geometry_array->data[geometry_component_index];
+            if (geometry.IsExcludeFromBVH() || !geometry.mesh || !geometry.mesh->IsValid() || !geometry.mesh->gpu_bvh.IsValid() || !transform_array->HasData(entity))
+            {
+                continue;
+            }
+
+            const ecs::TransformComponent& transform = transform_array->GetData(entity);
+            const resource::Mesh& mesh = *geometry.mesh;
+            const resource::Mesh::GPUBVH& gpu_bvh = mesh.gpu_bvh;
+            const ecs::MaterialComponent* material = material_array && material_array->HasData(entity) ? &material_array->GetData(entity) : nullptr;
+
+            if (!transform.world_bounds.IsValid())
+            {
+                continue;
+            }
+
+            ShaderBVHInstance shader_instance = {};
+            const XMMATRIX world_transform = transform.GetWorldTransform();
+            const XMMATRIX world_to_local = XMMatrixInverse(nullptr, world_transform);
+            XMStoreFloat4x4(&shader_instance.local_to_world, world_transform);
+            XMStoreFloat4x4(&shader_instance.world_to_local, world_to_local);
+            shader_instance.bounds_min = transform.world_bounds.min;
+            shader_instance.bounds_max = transform.world_bounds.max;
+            shader_instance.blas_node_buffer = gpu_bvh.node_srv.descriptor_index;
+            shader_instance.blas_primitive_buffer = gpu_bvh.primitive_srv.descriptor_index;
+            shader_instance.blas_node_count = gpu_bvh.node_count;
+            shader_instance.blas_primitive_count = gpu_bvh.primitive_count;
+            shader_instance.geometry_offset = geometry.geometry_offset;
+            shader_instance.material_offset = material ? material->material_offset : 0;
+            shader_instance.material_count = material ? static_cast<uint32>(material->GetMaterialSlotCount()) : 0;
+
+            primitives.push_back(math::bvh::MakePrimitive(transform.world_bounds, static_cast<uint32>(source_instances.size())));
+            source_instances.push_back(shader_instance);
+        }
+
+        bvh.Build(primitives);
+        if (!bvh.IsValid())
+        {
+            scene.gpu_bvh_dirty = mesh_gpu_bvh_pending;
+            return;
+        }
+
+        render_data.shader_bvh_nodes.resize(bvh.nodes.size());
+        for (Size i = 0; i < bvh.nodes.size(); ++i)
+        {
+            const math::bvh::BVHNode& node = bvh.nodes[i];
+            ShaderBVHNode& shader_node = render_data.shader_bvh_nodes[i];
+            shader_node.bounds_min = node.bounds.min;
+            shader_node.bounds_max = node.bounds.max;
+            shader_node.left_index = node.left_index;
+            shader_node.right_index = node.right_index;
+            shader_node.first_primitive = static_cast<uint32>(node.first_primitive);
+            shader_node.primitive_count = static_cast<uint32>(node.primitive_count);
+            shader_node.padding = { 0, 0 };
+        }
+
+        render_data.shader_bvh_instances.resize(bvh.primitive_indices.size());
+        for (Size i = 0; i < bvh.primitive_indices.size(); ++i)
+        {
+            const uint32 source_index = bvh.primitives[bvh.primitive_indices[i]].user_data;
+            if (source_index < source_instances.size())
+            {
+                render_data.shader_bvh_instances[i] = source_instances[source_index];
+            }
+        }
+        scene.gpu_bvh_dirty = mesh_gpu_bvh_pending;
     }
 }

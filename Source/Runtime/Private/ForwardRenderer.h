@@ -58,8 +58,8 @@ namespace won::rendering
         std::shared_ptr<RHIResource> shader_bvh_node_default_buffer;
         RHISubresourceHandle shader_bvh_node_default_buffer_srv = {};
 
-        std::shared_ptr<RHIResource> shader_bvh_primitive_default_buffer;
-        RHISubresourceHandle shader_bvh_primitive_default_buffer_srv = {};
+        std::shared_ptr<RHIResource> shader_bvh_instance_default_buffer;
+        RHISubresourceHandle shader_bvh_instance_default_buffer_srv = {};
 
         std::shared_ptr<RHIResource> shader_frame_buffer;
         RHISubresourceHandle shader_frame_buffer_cbv = {};

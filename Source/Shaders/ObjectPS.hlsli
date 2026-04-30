@@ -105,7 +105,6 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
             {
                 ambient = SampleDDGI(ddgi_volume, sample_position, surface.N);
                 ambient *= environment_lighting.GetIndirectDiffuseScale();
-                //ambient = surface.N;
                 //return float4(ambient, 1.f);
             }
 

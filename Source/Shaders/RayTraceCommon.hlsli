@@ -121,11 +121,11 @@ SceneRayHit TraceSceneRay(float3 origin, float3 direction, float min_distance, f
     hit.material_index = 0;
 
     ShaderScene scene = GetScene();
-    if (scene.bvh_node_buffer < 0 || scene.bvh_primitive_buffer < 0 || scene.bvh_node_count == 0)
+    if (scene.bvh_node_buffer < 0 || scene.bvh_instance_buffer < 0 || scene.bvh_node_count == 0)
     {
         return hit;
     }
-
+    
     uint node_stack[MAX_SCENE_TRACE_STACK];
     uint stack_count = 0;
     node_stack[stack_count++] = 0;
@@ -151,26 +151,102 @@ SceneRayHit TraceSceneRay(float3 origin, float3 direction, float min_distance, f
             [loop]
             for (uint i = 0; i < node.primitive_count; ++i)
             {
-                uint primitive_index = node.first_primitive + i;
-                if (primitive_index >= scene.bvh_primitive_count)
+                uint instance_index = node.first_primitive + i;
+                if (instance_index >= scene.bvh_instance_count)
                 {
                     continue;
                 }
 
-                ShaderBVHPrimitive primitive = GetBVHPrimitive(primitive_index);
-                float triangle_distance = 0.0f;
-                float2 barycentric = 0.0f;
-                if (IntersectTriangle(origin, direction, primitive.v0, primitive.v1, primitive.v2, min_distance, hit.distance, triangle_distance, barycentric))
+                ShaderBVHInstance instance = GetBVHInstance(instance_index);
+                if (instance.blas_node_buffer < 0 || instance.blas_primitive_buffer < 0 || instance.blas_node_count == 0)
                 {
-                    hit.hit = true;
-                    hit.distance = triangle_distance;
-                    hit.position = origin + direction * triangle_distance;
-                    float3 normal = normalize(cross(primitive.v1 - primitive.v0, primitive.v2 - primitive.v0));
-                    hit.normal = dot(normal, -direction) < 0.0f ? -normal : normal;
-                    hit.barycentric = barycentric;
-                    hit.geometry_index = primitive.geometry_index;
-                    hit.triangle_index = primitive.triangle_index;
-                    hit.material_index = primitive.material_index;
+                    continue;
+                }
+
+                float instance_distance = 0.0f;
+                if (!IntersectAABB(origin, direction, instance.bounds_min, instance.bounds_max, min_distance, hit.distance, instance_distance))
+                {
+                    continue;
+                }
+
+                float3 local_origin = mul(instance.world_to_local, float4(origin, 1.0f)).xyz;
+                float3 local_direction_unorm = mul(instance.world_to_local, float4(direction, 0.0f)).xyz;
+                float local_direction_length = length(local_direction_unorm);
+                if (local_direction_length < 0.000001f)
+                {
+                    continue;
+                }
+                float3 local_direction = local_direction_unorm / local_direction_length;
+
+                uint blas_stack[MAX_SCENE_TRACE_STACK];
+                uint blas_stack_count = 0;
+                blas_stack[blas_stack_count++] = 0;
+
+                [loop]
+                while (blas_stack_count > 0)
+                {
+                    uint blas_node_index = blas_stack[--blas_stack_count];
+                    if (blas_node_index >= instance.blas_node_count)
+                    {
+                        continue;
+                    }
+                    
+                    ShaderBVHNode blas_node = GetBVHNodeFromBuffer(instance.blas_node_buffer, blas_node_index);                    
+                    float blas_node_distance = 0.0f;
+                    if (!IntersectAABB(local_origin, local_direction, blas_node.bounds_min, blas_node.bounds_max, 0.0f, FLT_MAX, blas_node_distance))
+                    {
+                        continue;
+                    }
+                    
+                    if (blas_node.primitive_count > 0)
+                    {
+                        [loop]
+                        for (uint primitive_offset = 0; primitive_offset < blas_node.primitive_count; ++primitive_offset)
+                        {
+                            uint blas_primitive_index = blas_node.first_primitive + primitive_offset;
+                            if (blas_primitive_index >= instance.blas_primitive_count)
+                            {
+                                continue;
+                            }
+                            
+                            ShaderBVHPrimitive primitive = GetBVHPrimitiveFromBuffer(instance.blas_primitive_buffer, blas_primitive_index);
+                            float triangle_distance = 0.0f;
+                            float2 barycentric = 0.0f;
+                            if (!IntersectTriangle(local_origin, local_direction, primitive.v0, primitive.v1, primitive.v2, 0.0f, FLT_MAX, triangle_distance, barycentric))
+                            {
+                                continue;
+                            }
+                            
+                            float3 local_position = local_origin + local_direction * triangle_distance;
+                            float3 world_position = mul(instance.local_to_world, float4(local_position, 1.0f)).xyz;
+                            float world_distance = length(world_position - origin);
+                            if (world_distance < min_distance || world_distance > hit.distance)
+                            {
+                                continue;
+                            }
+
+                            hit.hit = true;
+                            hit.distance = world_distance;
+                            hit.position = world_position;
+                            float3 local_normal = normalize(cross(primitive.v1 - primitive.v0, primitive.v2 - primitive.v0));
+                            float3 normal = normalize(mul(transpose((float3x3)instance.world_to_local), local_normal));
+                            hit.normal = dot(normal, -direction) < 0.0f ? -normal : normal;
+                            hit.barycentric = barycentric;
+                            hit.geometry_index = instance.geometry_offset + primitive.submesh_index;
+                            hit.triangle_index = primitive.triangle_index;
+                            hit.material_index = primitive.material_slot < instance.material_count ? instance.material_offset + primitive.material_slot : 0;
+                        }
+                        continue;
+                    }
+
+                    if (blas_node.left_index >= 0 && blas_stack_count < MAX_SCENE_TRACE_STACK)
+                    {
+                        blas_stack[blas_stack_count++] = (uint)blas_node.left_index;
+                    }
+                    if (blas_node.right_index >= 0 && blas_stack_count < MAX_SCENE_TRACE_STACK)
+                    {
+                        blas_stack[blas_stack_count++] = (uint)blas_node.right_index;
+                    }
                 }
             }
             continue;

@@ -229,6 +229,7 @@ set(RUNTIME_VERSION
 
 set(SHADERS_INTEROP
     Source/Shaders/ShaderInterop.h
+    Source/Shaders/ShaderInterop_BVH.h
     Source/Shaders/ShaderInterop_Renderer.h
     Source/Shaders/ShaderInterop_Utility.h
 )
@@ -255,6 +256,11 @@ set(SHADERS_HLSL
     Source/Shaders/ObjectPS_common.hlsl
     Source/Shaders/ObjectPS_prepass.hlsl
     Source/Shaders/DDGIProbeUpdateCS.hlsl
+    Source/Shaders/GPUBVHBuildCommon.hlsli
+    Source/Shaders/GPUBVHGeneratePrimitivesCS.hlsl
+    Source/Shaders/GPUBVHSortPrimitivesCS.hlsl
+    Source/Shaders/GPUBVHBuildNodesCS.hlsl
+    Source/Shaders/GPUBVHReduceBoundsCS.hlsl
     Source/Shaders/TextureMipGenCS.hlsl
 )
 

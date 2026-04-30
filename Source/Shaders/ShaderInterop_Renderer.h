@@ -2,6 +2,7 @@
 #define WON_SHADERINTEROP_RENDERER_H
 
 #include "ShaderInterop.h"
+#include "ShaderInterop_BVH.h"
 
 #define DDGI_VISIBILITY_RESOLUTION 16
 #define DDGI_IRRADIANCE_RESOLUTION DDGI_VISIBILITY_RESOLUTION // Works even with a lower resolution than visibility, but kept the same for calculation convenience
@@ -216,10 +217,10 @@ struct alignas(16) ShaderScene
     int shadow_atlas;
     int shadow_cascade_buffer;
     int bvh_node_buffer;
-    int bvh_primitive_buffer;
+    int bvh_instance_buffer;
 
     uint bvh_node_count;
-    uint bvh_primitive_count;
+    uint bvh_instance_count;
     uint2 padding;
 
     uint4 lights; // supports indexing 128 lights
@@ -234,38 +235,13 @@ struct alignas(16) ShaderScene
         shadow_atlas = -1;
         shadow_cascade_buffer = -1;
         bvh_node_buffer = -1;
-        bvh_primitive_buffer = -1;
+        bvh_instance_buffer = -1;
         bvh_node_count = 0;
-        bvh_primitive_count = 0;
+        bvh_instance_count = 0;
 
         lights = { 0,0,0,0 };
     }
 #endif
-};
-
-struct alignas(16) ShaderBVHNode
-{
-    float3 bounds_min;
-    int left_index;
-
-    float3 bounds_max;
-    int right_index;
-
-    uint first_primitive;
-    uint primitive_count;
-    uint2 padding;
-};
-
-struct alignas(16) ShaderBVHPrimitive
-{
-    float3 v0;
-    uint geometry_index;
-
-    float3 v1;
-    uint triangle_index;
-
-    float3 v2;
-    uint material_index;
 };
 
 struct alignas(16) ShaderSky
@@ -721,7 +697,9 @@ struct alignas(16) ShaderInstance
 CONSTANTBUFFER(g_frame, ShaderFrame, CBSLOT_RENDERER_FRAME);
 CONSTANTBUFFER(g_camera, ShaderCamera, CBSLOT_RENDERER_CAMERA);
 
+#ifndef WON_DISABLE_RENDERER_PUSHCONSTANT
 PUSHCONSTANT(push, ObjectPushConstants);
+#endif
 
 //CBUFFER(ForwardLightMaskCB, CBSLOT_RENDERER_FORWARD_LIGHTMASK)
 //{
@@ -733,8 +711,6 @@ static_assert(sizeof(ShaderTextureSlot) == 16, "ShaderTextureSlot layout mismatc
 static_assert(sizeof(ShaderGeometry) == 64, "ShaderGeometry layout mismatch");
 static_assert(sizeof(ShaderMaterial) == 272, "ShaderMaterial layout mismatch");
 static_assert(sizeof(ShaderScene) == 64, "ShaderScene layout mismatch");
-static_assert(sizeof(ShaderBVHNode) == 48, "ShaderBVHNode layout mismatch");
-static_assert(sizeof(ShaderBVHPrimitive) == 48, "ShaderBVHPrimitive layout mismatch");
 static_assert(sizeof(ShaderSky) == 64, "ShaderSky layout mismatch");
 static_assert(sizeof(ShaderEnvironmentLighting) == 32, "ShaderEnvironmentLighting layout mismatch");
 static_assert(sizeof(ShaderDDGIVolume) == 112, "ShaderDDGIVolume layout mismatch");
