@@ -1,6 +1,6 @@
 #include "GPUBVHBuildCommon.hlsli"
 
-PUSHCONSTANT(bvh_sort_push, ShaderBVHSortPrimitivesPushConstants);
+PUSHCONSTANT(bvh_sort_push, BVHSortPrimitivesPushConstants);
 
 // bitonic sort
 [numthreads(BVH_BUILDER_GROUPSIZE, 1, 1)]

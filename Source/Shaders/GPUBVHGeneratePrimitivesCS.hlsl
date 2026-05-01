@@ -1,6 +1,6 @@
 #include "GPUBVHBuildCommon.hlsli"
 
-PUSHCONSTANT(bvh_generate_push, ShaderBVHGeneratePrimitivesPushConstants);
+PUSHCONSTANT(bvh_generate_push, BVHGeneratePrimitivesPushConstants);
 
 [numthreads(BVH_BUILDER_GROUPSIZE, 1, 1)]
 void main(uint3 dispatch_thread_id : SV_DispatchThreadID, uint3 group_id : SV_GroupID)
