@@ -83,6 +83,44 @@ namespace won::rendering
         return dx12_fence->Signal(*queue.Get());
     }
 
+    uint64 RHIContextDX12::Submit(const Vector<RHICommandList*>& command_lists, RHIFence* fence)
+    {
+        if (!queue || command_lists.empty())
+        {
+            backlog::Post("Invalid DX12 command list submission", backlog::LogLevel::Error);
+            return 0;
+        }
+
+        Vector<ID3D12CommandList*> native_command_lists;
+        native_command_lists.reserve(command_lists.size());
+        for (RHICommandList* command_list : command_lists)
+        {
+            auto dx12_command_list = dynamic_cast<RHICommandListDX12*>(command_list);
+            if (!dx12_command_list || !dx12_command_list->GetCommandList())
+            {
+                backlog::Post("Invalid DX12 command list submission", backlog::LogLevel::Error);
+                return 0;
+            }
+            native_command_lists.push_back(dx12_command_list->GetCommandList());
+        }
+
+        queue->ExecuteCommandLists(static_cast<UINT>(native_command_lists.size()), native_command_lists.data());
+
+        if (!fence)
+        {
+            return 0;
+        }
+
+        auto* dx12_fence = dynamic_cast<RHIFenceDX12*>(fence);
+        if (!dx12_fence)
+        {
+            backlog::Post("Submit fence type mismatch", backlog::LogLevel::Error);
+            return 0;
+        }
+
+        return dx12_fence->Signal(*queue.Get());
+    }
+
     void RHIContextDX12::Wait(RHIFence& fence, uint64 value)
     {
         if (!queue)

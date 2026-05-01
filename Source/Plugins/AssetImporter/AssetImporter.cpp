@@ -228,6 +228,7 @@ namespace won::plugin
                         {
                             continue;
                         }
+                        rendering::utils::EnqueueTextureMipGeneration(x.texture);
 
                         RHISubresourceDesc texture_srv_desc = {};
                         texture_srv_desc.type = RHISubresourceType::ShaderResource;

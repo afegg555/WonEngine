@@ -17,6 +17,7 @@ namespace won::rendering
 
         RHIQueueType GetType() const override;
         uint64 Submit(RHICommandList& command_list, RHIFence* fence = nullptr) override;
+        uint64 Submit(const Vector<RHICommandList*>& command_lists, RHIFence* fence = nullptr) override;
         void Wait(RHIFence& fence, uint64 value) override;
         void WaitIdle() override;
         uint64 GetTimestampFrequency() const override;

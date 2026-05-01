@@ -25,7 +25,6 @@
 namespace won::rendering
 {
     class RHIResource;
-    class RHIDevice;
 }
 
 namespace won::ecs
@@ -357,6 +356,140 @@ namespace won::ecs
             cpu_bvh_dirty = false;
         }
 
+        bool BuildGPUBVH()
+        {
+            const bool ddgi_trace_required = render_data.shader_environment_lighting.gi_mode == SHADER_ENVIRONMENT_GI_MODE_DDGI &&
+                (render_data.shader_ddgi_volume.flags & SHADER_DDGI_FLAG_ACTIVE) != 0 &&
+                render_data.shader_ddgi_volume.total_probe_count > 0;
+            if (!ddgi_trace_required)
+            {
+                render_data.shader_bvh_nodes.clear();
+                render_data.shader_bvh_instances.clear();
+                gpu_bvh_dirty = true;
+                return true;
+            }
+
+            auto geometry_array = GetComponentArray<GeometryComponent>().get();
+            auto transform_array = GetComponentArray<TransformComponent>().get();
+            auto material_array = GetComponentArray<MaterialComponent>().get();
+            if (!geometry_array || !transform_array)
+            {
+                render_data.shader_bvh_nodes.clear();
+                render_data.shader_bvh_instances.clear();
+                gpu_bvh_dirty = false;
+                return true;
+            }
+
+            profiler::ScopedRangeCPU range("Scene::BuildGPUBVH");
+
+            bool mesh_gpu_bvh_pending = false;
+            for (Size geometry_component_index = 0; geometry_component_index < geometry_array->GetSize(); ++geometry_component_index)
+            {
+                const GeometryComponent& geometry = geometry_array->data[geometry_component_index];
+                if (geometry.IsExcludeFromBVH() || !geometry.mesh || !geometry.mesh->IsValid() || !geometry.mesh->gpu_bvh.dirty)
+                {
+                    continue;
+                }
+
+                mesh_gpu_bvh_pending = true;
+                rendering::utils::EnqueueGPUBVHBuild(geometry.mesh);
+            }
+            if (!gpu_bvh_dirty && !mesh_gpu_bvh_pending)
+            {
+                return true;
+            }
+
+            render_data.shader_bvh_nodes.clear();
+            render_data.shader_bvh_instances.clear();
+
+            math::bvh::BVH bvh;
+            Vector<math::bvh::BVHPrimitive> primitives;
+            Vector<ShaderBVHInstance> source_instances;
+
+            for (Size geometry_component_index = 0; geometry_component_index < geometry_array->GetSize(); ++geometry_component_index)
+            {
+                const Entity entity = geometry_array->index_to_entity[geometry_component_index];
+                const GeometryComponent& geometry = geometry_array->data[geometry_component_index];
+                if (geometry.IsExcludeFromBVH() || !geometry.mesh || !geometry.mesh->IsValid() || !transform_array->HasData(entity))
+                {
+                    continue;
+                }
+
+                const resource::Mesh::GPUBVH& gpu_bvh = geometry.mesh->gpu_bvh;
+                if (gpu_bvh.dirty)
+                {
+                    mesh_gpu_bvh_pending = true;
+                    if (!gpu_bvh.IsValid())
+                    {
+                        continue;
+                    }
+                }
+                else if (!gpu_bvh.IsValid())
+                {
+                    continue;
+                }
+
+                const TransformComponent& transform = transform_array->GetData(entity);
+                if (!transform.world_bounds.IsValid())
+                {
+                    continue;
+                }
+
+                const MaterialComponent* material = material_array && material_array->HasData(entity) ? &material_array->GetData(entity) : nullptr;
+
+                ShaderBVHInstance shader_instance = {};
+                const XMMATRIX world_transform = transform.GetWorldTransform();
+                const XMMATRIX world_to_local = XMMatrixInverse(nullptr, world_transform);
+                XMStoreFloat4x4(&shader_instance.local_to_world, world_transform);
+                XMStoreFloat4x4(&shader_instance.world_to_local, world_to_local);
+                shader_instance.bounds_min = transform.world_bounds.min;
+                shader_instance.bounds_max = transform.world_bounds.max;
+                shader_instance.blas_node_buffer = gpu_bvh.node_srv.descriptor_index;
+                shader_instance.blas_primitive_buffer = gpu_bvh.primitive_srv.descriptor_index;
+                shader_instance.blas_node_count = gpu_bvh.node_count;
+                shader_instance.blas_primitive_count = gpu_bvh.primitive_count;
+                shader_instance.geometry_offset = geometry.geometry_offset;
+                shader_instance.material_offset = material ? material->material_offset : 0;
+                shader_instance.material_count = material ? static_cast<uint32>(material->GetMaterialSlotCount()) : 0;
+
+                primitives.push_back(math::bvh::MakePrimitive(transform.world_bounds, static_cast<uint32>(source_instances.size())));
+                source_instances.push_back(shader_instance);
+            }
+
+            bvh.Build(primitives);
+            if (!bvh.IsValid())
+            {
+                gpu_bvh_dirty = mesh_gpu_bvh_pending;
+                return !mesh_gpu_bvh_pending;
+            }
+
+            render_data.shader_bvh_nodes.resize(bvh.nodes.size());
+            for (Size i = 0; i < bvh.nodes.size(); ++i)
+            {
+                const math::bvh::BVHNode& node = bvh.nodes[i];
+                ShaderBVHNode& shader_node = render_data.shader_bvh_nodes[i];
+                shader_node.bounds_min = node.bounds.min;
+                shader_node.bounds_max = node.bounds.max;
+                shader_node.left_index = node.left_index;
+                shader_node.right_index = node.right_index;
+                shader_node.first_primitive = static_cast<uint32>(node.first_primitive);
+                shader_node.primitive_count = static_cast<uint32>(node.primitive_count);
+                shader_node.padding = { 0, 0 };
+            }
+
+            render_data.shader_bvh_instances.resize(bvh.primitive_indices.size());
+            for (Size i = 0; i < bvh.primitive_indices.size(); ++i)
+            {
+                const uint32 source_index = bvh.primitives[bvh.primitive_indices[i]].user_data;
+                if (source_index < source_instances.size())
+                {
+                    render_data.shader_bvh_instances[i] = source_instances[source_index];
+                }
+            }
+            gpu_bvh_dirty = mesh_gpu_bvh_pending;
+            return !mesh_gpu_bvh_pending;
+        }
+
         bool RayCastClosest(const math::Ray& ray, RayCastHit& out_hit, bool use_local_bvh = true)
         {
             out_hit = {};
@@ -593,8 +726,6 @@ namespace won::ecs
         }
 
     private:
-        friend void rendering::utils::BuildGPUBVH(rendering::RHIDevice* device, Scene& scene);
-
         RenderData render_data;
         ComponentManager component_manager;
         Vector<Entity> entities;

@@ -19,10 +19,8 @@ namespace won::rendering
         void Shutdown() override;
         void SetDebugOptions(const RendererDebugOptions& options) override;
         RendererDebugState GetDebugState() const override;
-
-        bool AllocateFrameUpload(FrameContext& frame_context, Size size, Size alignment, FrameUploadAllocation& out_allocation) override;
-        bool BuildFrameContext(const View& view, FrameContext& frame_context) override;
-        bool UpdateDefaultBuffer(FrameContext& frame_context, RHIResource& destination_buffer, const void* source_data, Size data_size, RHIResourceState final_state, Size destination_offset = 0) override;
+        bool GetCurrentBackBufferBinding(RHISubresourceBinding& out_binding) const override;
+        bool UpdateDefaultBuffer(FrameContext& frame_context, RHIResource& destination_buffer, const void* source_data, Size data_size, RHIResourceState final_state, Size destination_offset, RHICommandList& command_list) override;
     private:
         
         enum DrawSceneFlags : uint32
@@ -32,11 +30,21 @@ namespace won::rendering
             DrawScene_ShadowCaster = 1 << 2, // include shadow casters only
         };
 
-        bool BuildShadowCascades(const View& view);
-        bool DrawScene(const View& view, const FrameContext& frame_context, resource::RenderPassType pass, uint32 flags);
-        void ReleaseDDGIResources(FrameContext& frame_context);
+        // resource creation
         bool CreateDDGIResources(FrameContext& frame_context, const ShaderDDGIVolume& ddgi_volume);
-        void UpdateDDGIProbe(const ShaderEnvironmentLighting& environment_lighting, const ShaderDDGIVolume& ddgi_volume, FrameContext& frame_context, const RHISubresourceBinding& shader_frame_binding, const RHISubresourceBinding& shader_camera_binding);
+        void ReleaseDDGIResources(FrameContext& frame_context);
+        bool CreateShadowMapAtlasResources(FrameContext& frame_context, const ecs::Scene::RenderData& render_data);
+        bool CreateRenderTargetResources(FrameContext& frame_context);
+
+        // gpu call
+        bool UpdateSceneGPUData(FrameContext& frame_context, const ecs::Scene::RenderData& render_data, RHICommandList& command_list);
+        bool UpdateFrameConstants(FrameContext& frame_context, const View& view, const ecs::Scene::RenderData& render_data, RHICommandList& command_list);
+        bool DrawScene(const FrameContext& frame_context, const View& view, resource::RenderPassType pass, uint32 flags, RHICommandList& command_list);
+        void UpdateDDGIProbe(FrameContext& frame_context, const ShaderEnvironmentLighting& environment_lighting, const ShaderDDGIVolume& ddgi_volume, const RHISubresourceBinding& shader_frame_binding, const RHISubresourceBinding& shader_camera_binding, RHICommandList& command_list);
+
+        // etc
+        bool BuildShadowCascades(const View& view);
+        void UpdateDebugState(const View& view, const ecs::Scene::RenderData& render_data);
 
         std::shared_ptr<RHIDevice> device;
 
@@ -94,6 +102,12 @@ namespace won::rendering
 
         std::shared_ptr<RHIPipeline> ddgi_probe_update_pipeline;
         std::shared_ptr<RHIShader> ddgi_probe_update_shader;
+        std::shared_ptr<RHICommandAllocator> enqueued_work_command_allocator;
+        std::shared_ptr<RHICommandList> enqueued_work_command_list;
+        std::shared_ptr<RHIFence> enqueued_work_fence;
+        Vector<std::shared_ptr<RHIResource>> enqueued_work_scratch_resources;
+        uint64 enqueued_work_fence_value = 0;
+        bool enqueued_work_succeeded = true;
         RendererDebugOptions debug_options = {};
         RendererDebugState debug_state = {};
 

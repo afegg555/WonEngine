@@ -1,14 +1,16 @@
-﻿#include "Editor.h"
+#include "Editor.h"
 #include "Input.h"
 #include "ShaderCompiler.h"
 #include "RHIResource.h"
 #include "RHIShader.h"
 #include "RHIPipeline.h"
+#include "RenderingUtils.h"
 #include "ShaderCompiler.h"
 #include "FileSystem.h"
 #include "Backlog.h"
 #include "Profiler.h"
 #include "SceneComponents.h"
+#include "JobSystem.h"
 
 #include "AssetImporter/AssetImporter.h"
 #include "CameraController/CameraController.h"
@@ -127,8 +129,8 @@ namespace won::editor
 			static const ImWchar generic_ranges_most_needed[] =
 			{
 				0x0020, 0x00FF, // Basic Latin + Latin Supplement
-				0x0100, 0x017F,	//0100 — 017F  	Latin Extended-A
-				0x0180, 0x024F,	//0180 — 024F  	Latin Extended-B
+				0x0100, 0x017F,	//0100 - 017F  	Latin Extended-A
+				0x0180, 0x024F,	//0180 - 024F  	Latin Extended-B
 				0,
 			};
 
@@ -1541,7 +1543,7 @@ namespace won::editor
 						ImGui::DragFloat("Max Distance", &ddgi_volume_comp->max_distance, 0.01f, 0.0f, 100000.0f);
 						if (ImGui::Button("Update Scene GPUBVH"))
 						{
-							rendering::utils::BuildGPUBVH(device.get(), *main_view.scene);
+							main_view.scene->BuildGPUBVH();
 						}
 					}
 					else
@@ -1922,151 +1924,172 @@ namespace won::editor
 			return;
 
 		Renderer::FrameContext& frame_context = renderer->GetFrameContext();
-		Renderer::FrameUploadAllocation allocation{};
-		auto gpu_range = profiler::ScopedRangeGPU("ImGui", *frame_context.command_list);
-
-		// Setup orthographic projection matrix into our constant buffer
-		struct ImGuiConstants
+		RHICommandList* command_list = frame_context.BeginCommandList(*device);
+		if (!command_list)
 		{
-			float   mvp[4][4];
-		};
-
-		// Get memory for vertex and index buffers
-		const uint64_t vbSize = sizeof(ImDrawVert) * drawData->TotalVtxCount;
-		const uint64_t ibSize = sizeof(ImDrawIdx) * drawData->TotalIdxCount;
-		const uint64_t cbSize = sizeof(ImGuiConstants);
-		const uint64_t totalSize = vbSize + ibSize + cbSize;
-
-		RHIBufferDesc buffer_desc;
-		buffer_desc.bind_flags = RHIBindFlags::VertexBuffer | RHIBindFlags::IndexBuffer | RHIBindFlags::ConstantBuffer;
-		auto buffer_align = device->GetMinOffsetAlignment(buffer_desc);
-		renderer->AllocateFrameUpload(frame_context, totalSize, buffer_align, allocation);
-
-		RHIViewport viewport;
-		viewport.width = (float)fb_width;
-		viewport.height = (float)fb_height;
-		frame_context.command_list->SetViewport(viewport);
-		frame_context.command_list->SetGraphicsPipeline(*imgui_pso);
-		frame_context.command_list->SetSampler(RHIShaderStage::Pixel, 0, *imgui_sampler);
-
-		const Size cb_data_offset = 0;
-		const Size vb_data_offset = cb_data_offset + cbSize;
-		const Size ib_data_offset = vb_data_offset + vbSize;
-		const Size cb_buffer_offset = allocation.buffer_offset + cb_data_offset;
-		const Size vb_buffer_offset = allocation.buffer_offset + vb_data_offset;
-		const Size ib_buffer_offset = allocation.buffer_offset + ib_data_offset;
-		uint8* allocation_base = static_cast<uint8*>(allocation.mapped_data);
-
-		// Copy and convert all vertices into a single contiguous buffer
-		ImDrawVert* vertexCPUMem = reinterpret_cast<ImDrawVert*>(allocation_base + vb_data_offset);
-		ImDrawIdx* indexCPUMem = reinterpret_cast<ImDrawIdx*>(allocation_base + ib_data_offset);
-		for (int cmdListIdx = 0; cmdListIdx < drawData->CmdListsCount; cmdListIdx++)
-		{
-			const ImDrawList* drawList = drawData->CmdLists[cmdListIdx];
-			memcpy(vertexCPUMem, &drawList->VtxBuffer[0], drawList->VtxBuffer.Size * sizeof(ImDrawVert));
-			memcpy(indexCPUMem, &drawList->IdxBuffer[0], drawList->IdxBuffer.Size * sizeof(ImDrawIdx));
-			vertexCPUMem += drawList->VtxBuffer.Size;
-			indexCPUMem += drawList->IdxBuffer.Size;
+			return;
 		}
 
-		{
-			const float L = drawData->DisplayPos.x;
-			const float R = drawData->DisplayPos.x + drawData->DisplaySize.x;
-			const float T = drawData->DisplayPos.y;
-			const float B = drawData->DisplayPos.y + drawData->DisplaySize.y;
+		jobsystem::Execute(renderer->GetRenderingWorkContext(), [this, drawData, fb_width, fb_height, command_list](jobsystem::JobArgs args) {
 
-			float mvp[4][4] =
+			Renderer::FrameContext& frame_context = renderer->GetFrameContext();
+			RHISubresourceBinding back_buffer_binding = {};
+			if (!renderer->GetCurrentBackBufferBinding(back_buffer_binding))
 			{
-				{ 2.0f / (R - L),   0.0f,           0.0f,       0.0f },
-				{ 0.0f,         2.0f / (T - B),     0.0f,       0.0f },
-				{ 0.0f,         0.0f,           0.5f,       0.0f },
-				{ (R + L) / (L - R),  (T + B) / (B - T),    0.5f,       1.0f },
+				return;
+			}
+			Vector<RHISubresourceBinding> color_targets = { back_buffer_binding };
+
+			Renderer::FrameUploadAllocation allocation{};
+			auto gpu_range = profiler::ScopedRangeGPU("ImGui", *command_list);
+
+			// Setup orthographic projection matrix into our constant buffer
+			struct ImGuiConstants
+			{
+				float   mvp[4][4];
 			};
-			std::memcpy(allocation_base + cb_data_offset, mvp, sizeof(mvp));
 
-			RHISubresourceHandle cb_subresource_handle{};
+			// Get memory for vertex and index buffers
+			const uint64_t vbSize = sizeof(ImDrawVert) * drawData->TotalVtxCount;
+			const uint64_t ibSize = sizeof(ImDrawIdx) * drawData->TotalIdxCount;
+			const uint64_t cbSize = sizeof(ImGuiConstants);
+			const uint64_t totalSize = vbSize + ibSize + cbSize;
 
-			RHISubresourceDesc subresource_desc{};
-			subresource_desc.type = RHISubresourceType::ConstantBuffer;
-			subresource_desc.buffer_offset = cb_buffer_offset;
-			subresource_desc.buffer_size = cbSize;
-			subresource_desc.buffer_stride = sizeof(ImGuiConstants);
-			device->CreateSubresource(*frame_context.frame_upload_buffer, subresource_desc, &cb_subresource_handle);
-
-			RHISubresourceBinding cb_binding;
-			cb_binding.resource = frame_context.frame_upload_buffer.get();
-			cb_binding.subresource = cb_subresource_handle;
-
-			frame_context.command_list->SetVertexBuffer(*frame_context.frame_upload_buffer, sizeof(ImDrawVert), vb_buffer_offset, vbSize);
-			frame_context.command_list->SetIndexBuffer(*frame_context.frame_upload_buffer, sizeof(ImDrawIdx), ib_buffer_offset, ibSize);
-			frame_context.command_list->SetConstantBuffer(RHIShaderStage::Vertex, 0, cb_binding);
-		}
-
-		// Will project scissor/clipping rectangles into framebuffer space
-		ImVec2 clip_off = drawData->DisplayPos;         // (0,0) unless using multi-viewports
-		ImVec2 clip_scale = drawData->FramebufferScale; // (1,1) unless using retina display which are often (2,2)
-
-		//passEncoder->SetSampler(0, Sampler::LinearWrap());
-
-		// Render command lists
-		int32_t vertexOffset = 0;
-		uint32_t indexOffset = 0;
-		frame_context.command_list->SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
-		for (uint32_t cmdListIdx = 0; cmdListIdx < (uint32_t)drawData->CmdListsCount; ++cmdListIdx)
-		{
-			const ImDrawList* drawList = drawData->CmdLists[cmdListIdx];
-			for (uint32_t cmdIndex = 0; cmdIndex < (uint32_t)drawList->CmdBuffer.size(); ++cmdIndex)
+			RHIBufferDesc buffer_desc;
+			buffer_desc.bind_flags = RHIBindFlags::VertexBuffer | RHIBindFlags::IndexBuffer | RHIBindFlags::ConstantBuffer;
+			auto buffer_align = device->GetMinOffsetAlignment(buffer_desc);
+			if (!frame_context.AllocateFrameUpload(*device, totalSize, buffer_align, allocation))
 			{
-				const ImDrawCmd* drawCmd = &drawList->CmdBuffer[cmdIndex];
-				if (drawCmd->UserCallback)
+				return;
+			}
+
+			RHIViewport viewport;
+			viewport.width = (float)fb_width;
+			viewport.height = (float)fb_height;
+			command_list->SetRenderTargets(color_targets, nullptr);
+			command_list->SetViewport(viewport);
+			command_list->SetGraphicsPipeline(*imgui_pso);
+			command_list->SetSampler(RHIShaderStage::Pixel, 0, *imgui_sampler);
+
+			const Size cb_data_offset = 0;
+			const Size vb_data_offset = cb_data_offset + cbSize;
+			const Size ib_data_offset = vb_data_offset + vbSize;
+			const Size cb_buffer_offset = allocation.buffer_offset + cb_data_offset;
+			const Size vb_buffer_offset = allocation.buffer_offset + vb_data_offset;
+			const Size ib_buffer_offset = allocation.buffer_offset + ib_data_offset;
+			uint8* allocation_base = static_cast<uint8*>(allocation.mapped_data);
+
+			// Copy and convert all vertices into a single contiguous buffer
+			ImDrawVert* vertexCPUMem = reinterpret_cast<ImDrawVert*>(allocation_base + vb_data_offset);
+			ImDrawIdx* indexCPUMem = reinterpret_cast<ImDrawIdx*>(allocation_base + ib_data_offset);
+			for (int cmdListIdx = 0; cmdListIdx < drawData->CmdListsCount; cmdListIdx++)
+			{
+				const ImDrawList* drawList = drawData->CmdLists[cmdListIdx];
+				memcpy(vertexCPUMem, &drawList->VtxBuffer[0], drawList->VtxBuffer.Size * sizeof(ImDrawVert));
+				memcpy(indexCPUMem, &drawList->IdxBuffer[0], drawList->IdxBuffer.Size * sizeof(ImDrawIdx));
+				vertexCPUMem += drawList->VtxBuffer.Size;
+				indexCPUMem += drawList->IdxBuffer.Size;
+			}
+
+			{
+				const float L = drawData->DisplayPos.x;
+				const float R = drawData->DisplayPos.x + drawData->DisplaySize.x;
+				const float T = drawData->DisplayPos.y;
+				const float B = drawData->DisplayPos.y + drawData->DisplaySize.y;
+
+				float mvp[4][4] =
 				{
-					// User callback, registered via ImDrawList::AddCallback()
-					// (ImDrawCallback_ResetRenderState is a special callback value used by the user to request the renderer to reset render state.)
-					if (drawCmd->UserCallback == ImDrawCallback_ResetRenderState)
+					{ 2.0f / (R - L),   0.0f,           0.0f,       0.0f },
+					{ 0.0f,         2.0f / (T - B),     0.0f,       0.0f },
+					{ 0.0f,         0.0f,           0.5f,       0.0f },
+					{ (R + L) / (L - R),  (T + B) / (B - T),    0.5f,       1.0f },
+				};
+				std::memcpy(allocation_base + cb_data_offset, mvp, sizeof(mvp));
+
+				RHISubresourceHandle cb_subresource_handle{};
+
+				RHISubresourceDesc subresource_desc{};
+				subresource_desc.type = RHISubresourceType::ConstantBuffer;
+				subresource_desc.buffer_offset = cb_buffer_offset;
+				subresource_desc.buffer_size = cbSize;
+				subresource_desc.buffer_stride = sizeof(ImGuiConstants);
+				device->CreateSubresource(*allocation.buffer, subresource_desc, &cb_subresource_handle);
+
+				RHISubresourceBinding cb_binding;
+				cb_binding.resource = allocation.buffer.get();
+				cb_binding.subresource = cb_subresource_handle;
+
+				command_list->SetVertexBuffer(*allocation.buffer, sizeof(ImDrawVert), vb_buffer_offset, vbSize);
+				command_list->SetIndexBuffer(*allocation.buffer, sizeof(ImDrawIdx), ib_buffer_offset, ibSize);
+				command_list->SetConstantBuffer(RHIShaderStage::Vertex, 0, cb_binding);
+			}
+
+			// Will project scissor/clipping rectangles into framebuffer space
+			ImVec2 clip_off = drawData->DisplayPos;         // (0,0) unless using multi-viewports
+			ImVec2 clip_scale = drawData->FramebufferScale; // (1,1) unless using retina display which are often (2,2)
+
+			//passEncoder->SetSampler(0, Sampler::LinearWrap());
+
+			// Render command lists
+			int32_t vertexOffset = 0;
+			uint32_t indexOffset = 0;
+			command_list->SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
+			for (uint32_t cmdListIdx = 0; cmdListIdx < (uint32_t)drawData->CmdListsCount; ++cmdListIdx)
+			{
+				const ImDrawList* drawList = drawData->CmdLists[cmdListIdx];
+				for (uint32_t cmdIndex = 0; cmdIndex < (uint32_t)drawList->CmdBuffer.size(); ++cmdIndex)
+				{
+					const ImDrawCmd* drawCmd = &drawList->CmdBuffer[cmdIndex];
+					if (drawCmd->UserCallback)
 					{
+						// User callback, registered via ImDrawList::AddCallback()
+						// (ImDrawCallback_ResetRenderState is a special callback value used by the user to request the renderer to reset render state.)
+						if (drawCmd->UserCallback == ImDrawCallback_ResetRenderState)
+						{
+						}
+						else
+						{
+							drawCmd->UserCallback(drawList, drawCmd);
+						}
 					}
 					else
 					{
-						drawCmd->UserCallback(drawList, drawCmd);
+						// Project scissor/clipping rectangles into framebuffer space
+						ImVec2 clip_min(drawCmd->ClipRect.x - clip_off.x, drawCmd->ClipRect.y - clip_off.y);
+						ImVec2 clip_max(drawCmd->ClipRect.z - clip_off.x, drawCmd->ClipRect.w - clip_off.y);
+						if (clip_max.x < clip_min.x || clip_max.y < clip_min.y)
+							continue;
+
+						// Apply scissor/clipping rectangle
+						RHIRect scissor;
+						scissor.x = (int32)(clip_min.x);
+						scissor.y = (int32)(clip_min.y);
+						scissor.width = (int32)(clip_max.x - clip_min.x);
+						scissor.height = (int32)(clip_max.y - clip_min.y);
+						command_list->SetScissor(scissor);
+
+						const RHIResource* texture = (const RHIResource*)drawCmd->GetTexID();
+						RHISubresourceBinding binding;
+						binding.resource = imgui_font.get();
+						binding.subresource = imgui_font_subresource;
+						command_list->SetShaderResource(RHIShaderStage::Pixel, 0, binding);
+						command_list->DrawIndexed(drawCmd->ElemCount, 1, indexOffset + drawCmd->IdxOffset, vertexOffset + drawCmd->VtxOffset, 0);
 					}
 				}
-				else
-				{
-					// Project scissor/clipping rectangles into framebuffer space
-					ImVec2 clip_min(drawCmd->ClipRect.x - clip_off.x, drawCmd->ClipRect.y - clip_off.y);
-					ImVec2 clip_max(drawCmd->ClipRect.z - clip_off.x, drawCmd->ClipRect.w - clip_off.y);
-					if (clip_max.x < clip_min.x || clip_max.y < clip_min.y)
-						continue;
-
-					// Apply scissor/clipping rectangle
-					RHIRect scissor;
-					scissor.x = (int32)(clip_min.x);
-					scissor.y = (int32)(clip_min.y);
-					scissor.width = (int32)(clip_max.x - clip_min.x);
-					scissor.height = (int32)(clip_max.y - clip_min.y);
-					frame_context.command_list->SetScissor(scissor);
-
-					const RHIResource* texture = (const RHIResource*)drawCmd->GetTexID();
-					RHISubresourceBinding binding;
-					binding.resource = imgui_font.get();
-					binding.subresource = imgui_font_subresource;
-					frame_context.command_list->SetShaderResource(RHIShaderStage::Pixel, 0, binding);
-					frame_context.command_list->DrawIndexed(drawCmd->ElemCount, 1, indexOffset + drawCmd->IdxOffset, vertexOffset + drawCmd->VtxOffset, 0);
-				}
+				indexOffset += drawList->IdxBuffer.size();
+				vertexOffset += drawList->VtxBuffer.size();
 			}
-			indexOffset += drawList->IdxBuffer.size();
-			vertexOffset += drawList->VtxBuffer.size();
-		}
 
-		// Restore Scissor
-		{
-			RHIRect scissor;
-			scissor.x = 0;
-			scissor.y = 0;
-			scissor.width = (int32_t)viewport.width;
-			scissor.height = (int32_t)viewport.height;
-			frame_context.command_list->SetScissor(scissor);
-		}
+			//// Restore Scissor
+			//{
+			//	RHIRect scissor;
+			//	scissor.x = 0;
+			//	scissor.y = 0;
+			//	scissor.width = (int32_t)viewport.width;
+			//	scissor.height = (int32_t)viewport.height;
+			//	command_list->SetScissor(scissor);
+			//}
+		});
 	}
 
 	void EditorApplication::InitImGui()
@@ -2487,5 +2510,3 @@ namespace won::editor
 		std::sort(sorted_entities.begin(), sorted_entities.end());
 	}
 }
-
-

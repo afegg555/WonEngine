@@ -133,12 +133,12 @@ namespace won
             return;
         }
 
-        auto range = profiler::BeginRangeCPU("Render");
+        //auto range = profiler::BeginRangeCPU("Render");
         renderer->BeginFrame(*window);
         RenderScene();
         RenderUI();
         renderer->EndFrame();
-        profiler::EndRange(range);
+        //profiler::EndRange(range);
     }
 
     void Application::WaitIdle()
