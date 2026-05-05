@@ -1747,22 +1747,22 @@ namespace won::rendering
             UpdateDebugState(view, render_data);
         }
 
-        //view.scene->BuildGPUBVH();
-        //if (enqueued_work_fence_value > 0 && enqueued_work_fence->GetCompletedValue() >= enqueued_work_fence_value)
-        //{
-        //    enqueued_work_fence_value = 0;
-        //    enqueued_work_scratch_resources.clear();
-        //}
-        //if (enqueued_work_fence_value == 0)
-        //{
-        //    enqueued_work_scratch_resources.clear();
-        //    enqueued_work_succeeded = true;
-        //    jobsystem::Execute(GetRenderingWorkContext(), [this](jobsystem::JobArgs args) {
-        //        enqueued_work_command_allocator->Reset();
-        //        enqueued_work_command_list->Begin(*enqueued_work_command_allocator);
-        //        enqueued_work_succeeded = utils::FlushEnqueuedRenderingWork(*device, *enqueued_work_command_list, enqueued_work_scratch_resources);
-        //    });
-        //}
+        view.scene->BuildGPUBVH();
+        if (enqueued_work_fence_value > 0 && enqueued_work_fence->GetCompletedValue() >= enqueued_work_fence_value)
+        {
+            enqueued_work_fence_value = 0;
+            enqueued_work_scratch_resources.clear();
+        }
+        if (enqueued_work_fence_value == 0)
+        {
+            enqueued_work_scratch_resources.clear();
+            enqueued_work_succeeded = true;
+            jobsystem::Execute(GetRenderingWorkContext(), [this](jobsystem::JobArgs args) {
+                enqueued_work_command_allocator->Reset();
+                enqueued_work_command_list->Begin(*enqueued_work_command_allocator);
+                enqueued_work_succeeded = utils::FlushEnqueuedRenderingWork(*device, *enqueued_work_command_list, enqueued_work_scratch_resources);
+            });
+        }
 
         RHICommandList* command_list = frame_context.BeginCommandList(*device);
         if (!command_list)
@@ -2032,14 +2032,14 @@ namespace won::rendering
         ++frame_count;
         current_frame_slot = (current_frame_slot + 1) % static_cast<uint32>(frame_contexts.size());
 
-        //if (enqueued_work_fence_value == 0)
-        //{
-        //    enqueued_work_fence_value = graphics_context->Submit(*enqueued_work_command_list, enqueued_work_fence.get());
-        //    if (!enqueued_work_succeeded)
-        //    {
-        //        backlog::Post("failed to flush enqueued rendering work", backlog::LogLevel::Warning);
-        //    }
-        //}
+        if (enqueued_work_fence_value == 0)
+        {
+            enqueued_work_fence_value = graphics_context->Submit(*enqueued_work_command_list, enqueued_work_fence.get());
+            if (!enqueued_work_succeeded)
+            {
+                backlog::Post("failed to flush enqueued rendering work", backlog::LogLevel::Warning);
+            }
+        }
     }
 
     void ForwardRenderer::WaitIdle()
