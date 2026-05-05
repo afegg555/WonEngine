@@ -674,6 +674,10 @@ namespace won::ecs
                 bool HasShadowMapAtlasRect() const { return shadow_map_atlas_rect.z > 0 && shadow_map_atlas_rect.w > 0; }
             };
 
+            ShaderSky shader_sky;
+            ShaderEnvironmentLighting shader_environment_lighting;
+            ShaderDDGIVolume shader_ddgi_volume;
+
             Vector<ShaderInstance> shader_instances;
             Vector<ShaderGeometry> shader_geometries;
             Vector<ShaderMaterial> shader_materials;
@@ -688,9 +692,6 @@ namespace won::ecs
             uint2 shadow_map_atlas_size = { 0, 0 };
             math::AABB shadow_caster_world_bound;
 
-            ShaderSky shader_sky;
-            ShaderEnvironmentLighting shader_environment_lighting;
-            ShaderDDGIVolume shader_ddgi_volume;
             Entity ddgi_volume_entity = INVALID_ENTITY;
 
             void Clear()
