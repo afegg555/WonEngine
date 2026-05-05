@@ -424,6 +424,9 @@ namespace won::editor
 		imgui_font.reset();
 		imgui_font_subresource = {};
 		imgui_sampler.reset();
+		editor_primitive_mesh.reset();
+		deferred_primitive_removal_buffers.clear();
+		editor_primitive_entity = ecs::INVALID_ENTITY;
 		scene = {};
 
 		plugin_manager = {};
@@ -714,6 +717,21 @@ namespace won::editor
 			return float4{ from.x + (to.x - from.x) * value, from.y + (to.y - from.y) * value, from.z + (to.z - from.z) * value, from.w + (to.w - from.w) * value };
 		};
 
+		if (viewport_debug_settings.show_grid)
+		{
+			constexpr int grid_half_extent = 20;
+			constexpr float grid_spacing = 1.0f;
+			constexpr float grid_extent = static_cast<float>(grid_half_extent) * grid_spacing;
+			for (int line = -grid_half_extent; line <= grid_half_extent; ++line)
+			{
+				const float offset = static_cast<float>(line) * grid_spacing;
+				const float4 x_line_color = line == 0 ? theme::editor_grid_axis_x_color : theme::editor_grid_color;
+				const float4 z_line_color = line == 0 ? theme::editor_grid_axis_z_color : theme::editor_grid_color;
+				add_line({ -grid_extent, 0.0f, offset }, { grid_extent, 0.0f, offset }, x_line_color);
+				add_line({ offset, 0.0f, -grid_extent }, { offset, 0.0f, grid_extent }, z_line_color);
+			}
+		}
+
 		if (viewport_debug_settings.show_ddgi_overlay && renderer)
 		{
 			const rendering::RendererDebugDDGIState& ddgi_state = renderer->GetDebugState().ddgi;
@@ -944,6 +962,8 @@ namespace won::editor
 					}
 				}
 
+				ImGui::Separator();
+				ImGui::Checkbox("Editor Grid", &viewport_debug_settings.show_grid);
 				ImGui::Separator();
 				ImGui::Checkbox("BVH Debug", &viewport_debug_settings.show_bvh_debug);
 				if (viewport_debug_settings.show_bvh_debug)
