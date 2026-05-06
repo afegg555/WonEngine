@@ -70,6 +70,8 @@ namespace won::resource
             VBSubresource normals = {};
             VBSubresource tangents = {};
             VBSubresource texcoords = {};
+            VBSubresource bone_indices = {};
+            VBSubresource bone_weights = {};
             VBSubresource indices = {};
 
             bool IsValid() const

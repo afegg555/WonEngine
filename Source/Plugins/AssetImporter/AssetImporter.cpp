@@ -12,6 +12,7 @@
 #include "RenderingUtils.h"
 #include "EventHandler.h"
 #include "JobSystem.h"
+#include "Animation.h"
 #include "Image.h"
 
 #include <algorithm>
@@ -409,10 +410,10 @@ namespace won::plugin
                 imported_data.timestamp = timestamp;
             }
 
-            String ext = io::GetExtension(file_path);
+            String ext = utils::ToLower(io::GetExtension(file_path));
             String dir = io::GetDirectoryFromPath(file_path);
             imported_data.name = io::GetFilename(file_path);
-            if (ext == "obj" || ext == "gltf")
+            if (ext == "obj" || ext == "gltf" || ext == "glb")
             {
 
             }
@@ -441,6 +442,136 @@ namespace won::plugin
             {
                 backlog::Post("AssetImporter::ImportAssetData failed: " + file_path, backlog::LogLevel::Warning);
                 return false;
+            }
+
+            auto to_float4x4 = [](const aiMatrix4x4& matrix) -> float4x4
+            {
+                return float4x4(
+                    matrix.a1, matrix.a2, matrix.a3, matrix.a4,
+                    matrix.b1, matrix.b2, matrix.b3, matrix.b4,
+                    matrix.c1, matrix.c2, matrix.c3, matrix.c4,
+                    matrix.d1, matrix.d2, matrix.d3, matrix.d4);
+            };
+
+            // collect name of nodes that should be in skeleton
+            UnorderedMap<String, const aiNode*> nodes_by_name;
+            Vector<const aiNode*> node_stack_for_names;
+            node_stack_for_names.push_back(aiscene->mRootNode);
+            while (!node_stack_for_names.empty())
+            {
+                const aiNode* node = node_stack_for_names.back();
+                node_stack_for_names.pop_back();
+                nodes_by_name[node->mName.C_Str()] = node;
+                for (uint32 child_index = 0; child_index < node->mNumChildren; ++child_index)
+                {
+                    node_stack_for_names.push_back(node->mChildren[child_index]);
+                }
+            }
+
+            UnorderedMap<String, aiMatrix4x4> inverse_bind_matrices;
+            UnorderedMap<String, bool> skeleton_node_names;
+            for (uint32 mesh_index = 0; mesh_index < aiscene->mNumMeshes; ++mesh_index)
+            {
+                const aiMesh* ai_mesh = aiscene->mMeshes[mesh_index];
+                if (!ai_mesh || !ai_mesh->HasBones())
+                {
+                    continue;
+                }
+
+                for (uint32 bone_index = 0; bone_index < ai_mesh->mNumBones; ++bone_index)
+                {
+                    const aiBone* ai_bone = ai_mesh->mBones[bone_index];
+                    if (!ai_bone)
+                    {
+                        continue;
+                    }
+
+                    const String bone_name = ai_bone->mName.C_Str();
+                    inverse_bind_matrices[bone_name] = ai_bone->mOffsetMatrix;
+
+                    auto node_it = nodes_by_name.find(bone_name);
+                    if (node_it == nodes_by_name.end())
+                    {
+                        // fallback
+                        // could not found bone name in nodes, but keep this now
+                        skeleton_node_names[bone_name] = true;
+                        continue;
+                    }
+
+                    const aiNode* bone_node = node_it->second;
+                    while (bone_node)
+                    {
+                        skeleton_node_names[bone_node->mName.C_Str()] = true;
+                        bone_node = bone_node->mParent;
+                    }
+                }
+            }
+
+            std::shared_ptr<resource::Skeleton> skeleton = nullptr;
+            if (!inverse_bind_matrices.empty())
+            {
+                skeleton = std::make_shared<resource::Skeleton>();
+                struct SkeletonNodeEntry
+                {
+                    const aiNode* node = nullptr;
+                    int32 parent_index = -1;
+                };
+
+                Vector<SkeletonNodeEntry> skeleton_node_stack;
+                skeleton_node_stack.push_back({ aiscene->mRootNode, -1 });
+                while (!skeleton_node_stack.empty())
+                {
+                    const SkeletonNodeEntry entry = skeleton_node_stack.back();
+                    skeleton_node_stack.pop_back();
+
+                    const aiNode* node = entry.node;
+                    const String node_name = node->mName.C_Str();
+                    int32 current_parent_index = entry.parent_index;
+                    if (skeleton_node_names.find(node_name) != skeleton_node_names.end())
+                    {
+                        resource::Bone bone = {};
+                        bone.name = node_name;
+                        bone.parent_index = entry.parent_index;
+                        bone.bind_local_transform = to_float4x4(node->mTransformation);
+
+                        auto inverse_bind_it = inverse_bind_matrices.find(node_name);
+                        if (inverse_bind_it != inverse_bind_matrices.end())
+                        {
+                            bone.inverse_bind_matrix = to_float4x4(inverse_bind_it->second);
+                        }
+
+                        const uint32 bone_index = static_cast<uint32>(skeleton->bones.size());
+                        skeleton->bone_name_to_index[bone.name] = bone_index;
+                        skeleton->bones.push_back(bone);
+                        current_parent_index = static_cast<int32>(bone_index);
+                    }
+
+                    for (uint32 child_index = node->mNumChildren; child_index > 0; --child_index)
+                    {
+                        skeleton_node_stack.push_back({ node->mChildren[child_index - 1], current_parent_index });
+                    }
+                }
+
+                // fallback for bone names without scene node
+                for (const auto& entry : inverse_bind_matrices)
+                {
+                    if (skeleton->bone_name_to_index.find(entry.first) != skeleton->bone_name_to_index.end())
+                    {
+                        continue;
+                    }
+
+                    resource::Bone bone = {};
+                    bone.name = entry.first;
+                    bone.inverse_bind_matrix = to_float4x4(entry.second);
+                    const uint32 bone_index = static_cast<uint32>(skeleton->bones.size());
+                    skeleton->bone_name_to_index[bone.name] = bone_index;
+                    skeleton->bones.push_back(bone);
+                }
+
+                if (!skeleton->IsValid())
+                {
+                    skeleton = nullptr;
+                }
             }
 
             imported_data.material_slots.clear();
@@ -592,6 +723,7 @@ namespace won::plugin
 
             imported_data.mesh = std::make_shared<resource::Mesh>();
             resource::Mesh& mesh = *imported_data.mesh;
+            mesh.skeleton = skeleton;
             bool import_failed = false;
             struct NodeImportEntry
             {
@@ -601,6 +733,42 @@ namespace won::plugin
 
             Vector<NodeImportEntry> node_stack;
             node_stack.push_back({ aiscene->mRootNode, aiMatrix4x4() });
+
+            auto add_bone_weight = [](uint4& bone_indices, float4& bone_weights, uint32 bone_index, float weight)
+            {
+                if (weight <= 0.0f)
+                {
+                    return;
+                }
+
+                uint32 indices[4] = { bone_indices.x, bone_indices.y, bone_indices.z, bone_indices.w };
+                float weights[4] = { bone_weights.x, bone_weights.y, bone_weights.z, bone_weights.w };
+
+                // find top 4 weights
+                uint32 target_index = 0;
+                for (uint32 influence_index = 0; influence_index < 4; ++influence_index)
+                {
+                    if (weights[influence_index] == 0.0f)
+                    {
+                        target_index = influence_index;
+                        break;
+                    }
+                    if (weights[influence_index] < weights[target_index])
+                    {
+                        target_index = influence_index;
+                    }
+                }
+
+                if (weights[target_index] > weight)
+                {
+                    return;
+                }
+
+                indices[target_index] = bone_index;
+                weights[target_index] = weight;
+                bone_indices = { indices[0], indices[1], indices[2], indices[3] };
+                bone_weights = { weights[0], weights[1], weights[2], weights[3] };
+            };
 
             while (!node_stack.empty() && !import_failed)
             {
@@ -643,6 +811,11 @@ namespace won::plugin
                     {
                         mesh.tangents.reserve(mesh.tangents.size() + ai_mesh->mNumVertices);
                     }
+                    if (mesh.skeleton)
+                    {
+                        mesh.bone_indices.reserve(mesh.bone_indices.size() + ai_mesh->mNumVertices);
+                        mesh.bone_weights.reserve(mesh.bone_weights.size() + ai_mesh->mNumVertices);
+                    }
 
                     for (uint32_t vertex_index = 0; vertex_index < ai_mesh->mNumVertices; ++vertex_index)
                     {
@@ -653,6 +826,11 @@ namespace won::plugin
                         const float3 position = { transformed_position.x, transformed_position.y, transformed_position.z };
                         mesh.positions.push_back(position);
                         mesh.normals.push_back({ transformed_normal.x, transformed_normal.y, transformed_normal.z });
+                        if (mesh.skeleton)
+                        {
+                            mesh.bone_indices.push_back({ 0, 0, 0, 0 });
+                            mesh.bone_weights.push_back({ 0.0f, 0.0f, 0.0f, 0.0f });
+                        }
 
                         if (has_uv)
                         {
@@ -684,6 +862,54 @@ namespace won::plugin
                         submesh.local_bounds.max.x = std::max(submesh.local_bounds.max.x, position.x);
                         submesh.local_bounds.max.y = std::max(submesh.local_bounds.max.y, position.y);
                         submesh.local_bounds.max.z = std::max(submesh.local_bounds.max.z, position.z);
+                    }
+
+                    if (mesh.skeleton && ai_mesh->HasBones())
+                    {
+                        for (uint32_t bone_index = 0; bone_index < ai_mesh->mNumBones; ++bone_index)
+                        {
+                            const aiBone* ai_bone = ai_mesh->mBones[bone_index];
+                            if (!ai_bone)
+                            {
+                                continue;
+                            }
+
+                            auto skeleton_bone_it = mesh.skeleton->bone_name_to_index.find(ai_bone->mName.C_Str()); // all bone names, including those not associated with a scene node
+                            if (skeleton_bone_it == mesh.skeleton->bone_name_to_index.end())
+                            {
+                                continue;
+                            }
+
+                            const uint32 skeleton_bone_index = skeleton_bone_it->second;
+                            for (uint32_t weight_index = 0; weight_index < ai_bone->mNumWeights; ++weight_index)
+                            {
+                                const aiVertexWeight& vertex_weight = ai_bone->mWeights[weight_index];
+                                if (vertex_weight.mVertexId >= ai_mesh->mNumVertices)
+                                {
+                                    continue;
+                                }
+
+                                const uint32 mesh_vertex_index = vertex_offset + vertex_weight.mVertexId;
+                                // add if this weight is in top4
+                                add_bone_weight(mesh.bone_indices[mesh_vertex_index], mesh.bone_weights[mesh_vertex_index], skeleton_bone_index, vertex_weight.mWeight);
+                            }
+                        }
+
+                        const uint32 vertex_end = vertex_offset + ai_mesh->mNumVertices;
+                        for (uint32 vertex_index = vertex_offset; vertex_index < vertex_end; ++vertex_index)
+                        {
+                            float4& bone_weights = mesh.bone_weights[vertex_index];
+                            const float weight_sum = bone_weights.x + bone_weights.y + bone_weights.z + bone_weights.w;
+                            if (weight_sum <= 0.0f)
+                            {
+                                continue;
+                            }
+
+                            bone_weights.x /= weight_sum;
+                            bone_weights.y /= weight_sum;
+                            bone_weights.z /= weight_sum;
+                            bone_weights.w /= weight_sum;
+                        }
                     }
 
                     if (ai_mesh->HasFaces())

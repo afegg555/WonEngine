@@ -598,6 +598,9 @@ namespace won::rendering::utils
         const Size normals_size = mesh.normals.size() * sizeof(float3);
         const Size tangents_size = mesh.tangents.size() * sizeof(float4);
         const Size texcoords_size = mesh.texcoords.size() * sizeof(float2);
+        const bool has_skinning_stream = mesh.bone_indices.size() == mesh.positions.size() && mesh.bone_weights.size() == mesh.positions.size();
+        const Size bone_indices_size = has_skinning_stream ? mesh.bone_indices.size() * sizeof(uint4) : 0;
+        const Size bone_weights_size = has_skinning_stream ? mesh.bone_weights.size() * sizeof(float4) : 0;
         const Size indices_size = mesh.indices.size() * sizeof(uint32);
         Size total_size = 0;
         total_size = math::align(total_size, static_cast<Size>(sizeof(float3))) + positions_size;
@@ -605,6 +608,8 @@ namespace won::rendering::utils
         total_size = math::align(total_size, static_cast<Size>(sizeof(float3))) + normals_size;
         total_size = math::align(total_size, static_cast<Size>(sizeof(float4))) + tangents_size;
         total_size = math::align(total_size, static_cast<Size>(sizeof(float2))) + texcoords_size;
+        total_size = math::align(total_size, static_cast<Size>(sizeof(uint4))) + bone_indices_size;
+        total_size = math::align(total_size, static_cast<Size>(sizeof(float4))) + bone_weights_size;
         total_size = math::align(total_size, static_cast<Size>(sizeof(uint32))) + indices_size;
         if (total_size == 0)
         {
@@ -622,6 +627,8 @@ namespace won::rendering::utils
         Size normals_offset = 0;
         Size tangents_offset = 0;
         Size texcoords_offset = 0;
+        Size bone_indices_offset = 0;
+        Size bone_weights_offset = 0;
         Size indices_offset = 0;
 
         PackBufferSubresource(mesh.positions, packed_data, positions_offset, positions_size, sizeof(float3), offset);
@@ -629,6 +636,8 @@ namespace won::rendering::utils
         PackBufferSubresource(mesh.normals, packed_data, normals_offset, normals_size, sizeof(float3), offset);
         PackBufferSubresource(mesh.tangents, packed_data, tangents_offset, tangents_size, sizeof(float4), offset);
         PackBufferSubresource(mesh.texcoords, packed_data, texcoords_offset, texcoords_size, sizeof(float2), offset);
+        PackBufferSubresource(mesh.bone_indices, packed_data, bone_indices_offset, bone_indices_size, sizeof(uint4), offset);
+        PackBufferSubresource(mesh.bone_weights, packed_data, bone_weights_offset, bone_weights_size, sizeof(float4), offset);
         PackBufferSubresource(mesh.indices, packed_data, indices_offset, indices_size, sizeof(uint32), offset);
 
         RHIBufferDesc buffer_desc = {};
@@ -676,6 +685,14 @@ namespace won::rendering::utils
             return false;
         }
         if (!create_subresource(RHISubresourceType::ShaderResource, texcoords_offset, texcoords_size, sizeof(float2), new_render_data.texcoords))
+        {
+            return false;
+        }
+        if (!create_subresource(RHISubresourceType::ShaderResource, bone_indices_offset, bone_indices_size, sizeof(uint4), new_render_data.bone_indices))
+        {
+            return false;
+        }
+        if (!create_subresource(RHISubresourceType::ShaderResource, bone_weights_offset, bone_weights_size, sizeof(float4), new_render_data.bone_weights))
         {
             return false;
         }
