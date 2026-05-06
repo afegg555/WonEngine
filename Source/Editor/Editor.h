@@ -31,7 +31,7 @@ namespace won::editor
 	private:
 		struct ViewportDebugSettings
 		{
-			bool show_grid = true;
+			bool show_grid = false;
 			bool show_ddgi_overlay = false;
 			bool show_ddgi_volume = true;
 			bool show_ddgi_probes = true;
@@ -39,7 +39,7 @@ namespace won::editor
 			bool show_bvh_debug = false;
 			bool show_cpu_bvh_nodes = true;
 			bool show_gpu_bvh_nodes = true;
-			int ddgi_max_probe_draw_count = 256;
+			int ddgi_max_probe_draw_count = 4096;
 		};
 
 		std::shared_ptr<RHIPipeline> imgui_pso;
