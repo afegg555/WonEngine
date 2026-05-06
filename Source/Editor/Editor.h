@@ -3,6 +3,11 @@
 #include "Entity.h"
 #include "Mesh.h"
 
+namespace won::plugin
+{
+	struct AssetImportTask;
+}
+
 namespace won::editor
 {
 	class EditorApplication : public Application
@@ -49,6 +54,7 @@ namespace won::editor
 		ecs::Entity editor_primitive_entity = ecs::INVALID_ENTITY;
 		std::shared_ptr<resource::Mesh> editor_primitive_mesh;
 		std::vector<std::shared_ptr<RHIResource>> deferred_primitive_removal_buffers;
+		std::shared_ptr<plugin::AssetImportTask> asset_import_task;
 		ecs::Entity picked_entity = ecs::INVALID_ENTITY;
 		ViewportDebugSettings viewport_debug_settings = {};
 

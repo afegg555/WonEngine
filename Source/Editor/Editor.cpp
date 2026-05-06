@@ -439,6 +439,40 @@ namespace won::editor
 	void EditorApplication::Update(float dt)
 	{
 		Application::Update(dt);
+		if (asset_import_task && asset_import_task->committed.load())
+		{
+			ecs::Entity root_entity = asset_import_task->root_entity.load();
+			auto transform = scene.GetComponent<ecs::TransformComponent>(root_entity);
+			if (transform)
+			{
+				transform->Translate({ 5.0f, 0.0f, 5.0f });
+				transform->Scale({ 3.0f, 3.0f, 3.0f });
+			}
+
+			auto material_component = scene.GetComponent<ecs::MaterialComponent>(root_entity);
+			if (material_component)
+			{
+				for (uint32 i = 0; i < (uint32)material_component->GetMaterialSlotCount(); i++)
+				{
+					//auto& slot = material_component->GetMaterialSlot(i);
+					//slot.shader_type =
+				}
+			}
+
+			auto geometry_component = scene.GetComponent<ecs::GeometryComponent>(root_entity);
+			if (geometry_component)
+			{
+				geometry_component->SetCastShadow(true);
+			}
+
+			UpdateEntityList();
+			asset_import_task.reset();
+		}
+		else if (asset_import_task && asset_import_task->failed.load())
+		{
+			asset_import_task.reset();
+		}
+
 		if (renderer)
 		{
 			rendering::RendererDebugOptions debug_options = {};
@@ -1045,6 +1079,15 @@ namespace won::editor
 		{
 			static int selected_index = -1;
 			ecs::Entity delete_entity = INVALID_ENTITY;
+
+			if (asset_import_task && !asset_import_task->finished.load())
+			{
+				const int dot_count = static_cast<int>(ImGui::GetTime() * 3.0) % 4;
+				std::string import_status = "Importing asset";
+				import_status.append(dot_count, '.');
+				ImGui::TextDisabled("%s", import_status.c_str());
+				ImGui::Separator();
+			}
 
 			if (ImGui::Button("+"))
 			{
@@ -2290,27 +2333,28 @@ namespace won::editor
 
 			//std::string file_path = contents_root_dir + "/Models/glTF/Sponza/glTF/Sponza.gltf";
 			std::string file_path = contents_root_dir + "/Models/Obj/Sphere/sphere.obj";
-			ecs::Entity root_entity{};
-			api->Import(asset_importer.get(), file_path.c_str(), &scene, device.get(), root_entity);
+			asset_import_task = api->ImportAsync(asset_importer.get(), file_path.c_str(), &scene, device.get());
 
-			{
-				auto transform = scene.GetComponent<ecs::TransformComponent>(root_entity);
-				if (transform)
-				{
-					transform->Translate({ 5.0f, 0.0f, 5.0f });
-					transform->Scale({ 3.0f, 3.0f, 3.0f });
-				}
+			//ecs::Entity root_entity{};
+			//api->Import(asset_importer.get(), file_path.c_str(), &scene, device.get(), root_entity);
 
-				auto material_component = scene.GetComponent<ecs::MaterialComponent>(root_entity);
-				for (uint32 i = 0; i < (uint32)material_component->GetMaterialSlotCount(); i++)
-				{
-					//auto& slot = material_component->GetMaterialSlot(i);
-					//slot.shader_type = 
-				}
-				auto geometry_component = scene.GetComponent<ecs::GeometryComponent>(root_entity);
-				geometry_component->SetCastShadow(true);
-			}
+			//{
+			//	auto transform = scene.GetComponent<ecs::TransformComponent>(root_entity);
+			//	if (transform)
+			//	{
+			//		transform->Translate({ 5.0f, 0.0f, 5.0f });
+			//		transform->Scale({ 3.0f, 3.0f, 3.0f });
+			//	}
 
+			//	auto material_component = scene.GetComponent<ecs::MaterialComponent>(root_entity);
+			//	for (uint32 i = 0; i < (uint32)material_component->GetMaterialSlotCount(); i++)
+			//	{
+			//		//auto& slot = material_component->GetMaterialSlot(i);
+			//		//slot.shader_type =
+			//	}
+			//	auto geometry_component = scene.GetComponent<ecs::GeometryComponent>(root_entity);
+			//	geometry_component->SetCastShadow(true);
+			//}
 
 			// light entity
 			{
