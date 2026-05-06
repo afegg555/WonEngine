@@ -3,7 +3,7 @@
 #include "Primitives.h"
 #include "BVH.h"
 #include "Backlog.h"
-#include "ResourceLoader.h"
+#include "Resource.h"
 #include "RHIResource.h"
 #include "Types.h"
 
@@ -11,6 +11,8 @@
 
 namespace won::resource
 {
+    struct Skeleton;
+
     enum class PrimitiveTopology : uint8
     {
         TriangleList,
@@ -81,8 +83,11 @@ namespace won::resource
         Vector<float3> normals;
         Vector<float4> tangents;
         Vector<float2> texcoords;
+        Vector<uint4> bone_indices;
+        Vector<float4> bone_weights;
         Vector<uint32> indices;
         Vector<Submesh> submeshes;
+        std::shared_ptr<Skeleton> skeleton;
         math::bvh::BVH cpu_bvh; // local space bvh
         GPUBVH gpu_bvh = {}; // BLAS
         RenderData render_data = {};

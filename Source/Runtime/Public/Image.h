@@ -1,4 +1,5 @@
 #pragma once
+#include "Resource.h"
 #include "RuntimeExport.h"
 #include "Types.h"
 
@@ -6,12 +7,6 @@
 
 namespace won::resource
 {
-    struct Resource
-    {
-        virtual ~Resource() = default;
-        virtual bool IsValid() const = 0;
-    };
-
     struct Image : public Resource
     {
         int32 width = 0;
@@ -23,7 +18,6 @@ namespace won::resource
         {
             return width > 0 && height > 0 && channels > 0 && !pixels.empty();
         }
-
     };
 
     // Loads an image from disk and returns a cached shared_ptr when possible.

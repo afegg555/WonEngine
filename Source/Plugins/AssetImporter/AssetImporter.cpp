@@ -12,7 +12,7 @@
 #include "RenderingUtils.h"
 #include "EventHandler.h"
 #include "JobSystem.h"
-#include "ResourceLoader.h"
+#include "Image.h"
 
 #include <algorithm>
 #include <mutex>

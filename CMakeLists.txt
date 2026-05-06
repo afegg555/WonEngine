@@ -102,13 +102,14 @@ set(RUNTIME_RHI_DX12
 )
 
 set(RUNTIME_RESOURCE
+    Source/Runtime/Public/Resource.h
+    Source/Runtime/Public/Image.h
     Source/Runtime/Public/Mesh.h
-    Source/Runtime/Public/ResourceLoader.h
     Source/Runtime/Public/ShaderCompiler.h
     Source/Runtime/Public/ShaderManifest.h
     Source/Runtime/Public/ShaderLoader.h
     Source/Runtime/Private/ShaderLibrary.h
-    Source/Runtime/Private/ResourceLoader.cpp
+    Source/Runtime/Private/Image.cpp
     Source/Runtime/Private/ShaderCompiler.cpp
     Source/Runtime/Private/ShaderManifest.cpp
     Source/Runtime/Private/ShaderLoader.cpp
