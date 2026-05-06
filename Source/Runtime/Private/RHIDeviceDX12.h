@@ -60,6 +60,7 @@ namespace won::rendering
         std::shared_ptr<RHISampler> CreateSampler(const RHISamplerDesc& desc) override;
         std::shared_ptr<RHIContext> GetContext(RHIQueueType type) override;
         std::shared_ptr<RHISwapchain> CreateSwapchain(platform::Window& window) override;
+        bool GetMemoryUsage(RHIMemoryUsage& out_usage) override;
 
     private:
         RHIDeviceDesc device_desc = {};

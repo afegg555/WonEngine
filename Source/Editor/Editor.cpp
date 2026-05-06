@@ -2044,9 +2044,15 @@ namespace won::editor
 			ImGui::SetCursorPos(ImGui::GetCursorPos() + ImVec2(0, -3));
 
 			static bool profiler_enabled = false;
+			static double last_profiler_ui_update_time = -1.0;
+			static std::string cached_performance;
+			static std::string cached_res_usage;
 			if (ImGui::Checkbox("Enable Profiler", &profiler_enabled))
 			{
 				profiler::SetEnabled(profiler_enabled);
+				last_profiler_ui_update_time = -1.0;
+				cached_performance = profiler_enabled ? "Profiler starting..." : "";
+				cached_res_usage.clear();
 			}
 
 			if (profiler_enabled)
@@ -2056,10 +2062,15 @@ namespace won::editor
 
 				ImGui::SetCursorPos(ImGui::GetCursorPos() + ImVec2(0, 3));
 
-				std::string performance, res_usage;
-				profiler::GetProfileInfo(performance, res_usage);
+				constexpr double profiler_ui_update_interval = 0.5;
+				const double profiler_ui_time = ImGui::GetTime();
+				if (profiler::IsEnabled() && (last_profiler_ui_update_time < 0.0 || profiler_ui_time - last_profiler_ui_update_time >= profiler_ui_update_interval))
+				{
+					profiler::GetProfileInfo(cached_performance, cached_res_usage);
+					last_profiler_ui_update_time = profiler_ui_time;
+				}
 
-				std::string profile = performance + "\n" + res_usage;
+				std::string profile = cached_performance + "\n" + cached_res_usage;
 				ImGui::BeginChild("##Profiler", ImVec2(0.0f, 0.0f), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
 				ImGui::Text("%s", profile.c_str());
 

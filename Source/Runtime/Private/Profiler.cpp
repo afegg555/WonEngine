@@ -7,6 +7,7 @@
 #include "RHIResource.h"
 #include "StringUtils.h"
 #include "Timer.h"
+#include "Platform.h"
 
 #include <array>
 #include <mutex>
@@ -47,6 +48,7 @@ namespace won::profiler
         uint32 active_frame_slot = 0;
         uint32 next_query_index = 0;
         double timestamp_per_ms = 0.0;
+        rendering::RHIDevice* active_device = nullptr;
         std::mutex lock;
         UnorderedMap<range_id, Range> ranges;
         std::shared_ptr<rendering::RHIQueryHeap> query_heap;
@@ -137,6 +139,8 @@ namespace won::profiler
         {
             return;
         }
+
+        active_device = &device;
 
         auto context = device.GetContext(command_list.GetType());
         if (!context)
@@ -482,6 +486,56 @@ namespace won::profiler
         }
 
         performance_profile = ss.str();
-        resource_profile.clear();
+
+        auto format_gb = [](uint64 bytes)
+        {
+            const double value = static_cast<double>(bytes) / (1024.0 * 1024.0 * 1024.0);
+
+            std::stringstream bytes_ss;
+            bytes_ss.precision(2);
+            bytes_ss << std::fixed << value << " GB";
+            return bytes_ss.str();
+        };
+
+        std::stringstream resources;
+        resources.precision(2);
+        resources << "Resources\n";
+
+        platform::ProcessMemoryUsage process_memory = {};
+        if (platform::GetProcessMemoryUsage(process_memory))
+        {
+            resources << "RAM\n";
+            resources << "\tCommitted: " << format_gb(process_memory.committed_bytes) << "\n";
+            resources << "\tWorking Set: " << format_gb(process_memory.working_set_bytes) << "\n";
+        }
+        else
+        {
+            resources << "RAM: unavailable\n";
+        }
+
+        rendering::RHIMemoryUsage gpu_memory = {};
+        if (active_device && active_device->GetMemoryUsage(gpu_memory))
+        {
+            auto append_gpu_segment = [&](const char* name, const rendering::RHIMemorySegmentUsage& usage)
+            {
+                resources << "\t" << name << ": " << format_gb(usage.usage_bytes);
+                if (usage.budget_bytes > 0)
+                {
+                    const double budget_percent = static_cast<double>(usage.usage_bytes) / static_cast<double>(usage.budget_bytes) * 100.0;
+                    resources << " / " << format_gb(usage.budget_bytes) << " (" << std::fixed << budget_percent << "%)";
+                }
+                resources << "\n";
+            };
+
+            resources << "VRAM\n";
+            append_gpu_segment("Local", gpu_memory.local);
+            append_gpu_segment("Shared", gpu_memory.non_local);
+        }
+        else
+        {
+            resources << "VRAM: unavailable\n";
+        }
+
+        resource_profile = resources.str();
     }
 }
