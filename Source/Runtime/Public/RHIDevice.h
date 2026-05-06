@@ -56,6 +56,20 @@ namespace won::rendering
         bool enable_gpu_validation = false;
     };
 
+    struct RHIMemorySegmentUsage
+    {
+        uint64 allocation_bytes = 0;
+        uint64 block_bytes = 0;
+        uint64 usage_bytes = 0;
+        uint64 budget_bytes = 0;
+    };
+
+    struct RHIMemoryUsage
+    {
+        RHIMemorySegmentUsage local;
+        RHIMemorySegmentUsage non_local;
+    };
+
     class WONENGINE_API RHIDevice
     {
     public:
@@ -91,6 +105,7 @@ namespace won::rendering
         virtual std::shared_ptr<RHISampler> CreateSampler(const RHISamplerDesc& desc) = 0;
         virtual std::shared_ptr<RHIContext> GetContext(RHIQueueType type) = 0;
         virtual std::shared_ptr<RHISwapchain> CreateSwapchain(platform::Window& window) = 0;
+        virtual bool GetMemoryUsage(RHIMemoryUsage& out_usage) = 0;
     };
 
     WONENGINE_API std::shared_ptr<RHIDevice> CreateRHIDevice(const RHIDeviceDesc& desc);

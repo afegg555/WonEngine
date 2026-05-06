@@ -926,6 +926,29 @@ namespace won::rendering
         return resource_dx12->CreateSubresource(desc, out_handle);
     }
 
+    bool RHIDeviceDX12::GetMemoryUsage(RHIMemoryUsage& out_usage)
+    {
+        out_usage = {};
+        if (!resource_allocator)
+        {
+            return false;
+        }
+
+        D3D12MA::Budget local_budget = {};
+        D3D12MA::Budget non_local_budget = {};
+        resource_allocator->GetBudget(&local_budget, &non_local_budget);
+
+        out_usage.local.allocation_bytes = local_budget.Stats.AllocationBytes;
+        out_usage.local.block_bytes = local_budget.Stats.BlockBytes;
+        out_usage.local.usage_bytes = local_budget.UsageBytes;
+        out_usage.local.budget_bytes = local_budget.BudgetBytes;
+        out_usage.non_local.allocation_bytes = non_local_budget.Stats.AllocationBytes;
+        out_usage.non_local.block_bytes = non_local_budget.Stats.BlockBytes;
+        out_usage.non_local.usage_bytes = non_local_budget.UsageBytes;
+        out_usage.non_local.budget_bytes = non_local_budget.BudgetBytes;
+        return true;
+    }
+
     std::shared_ptr<RHIPipeline> RHIDeviceDX12::CreateGraphicsPipeline(
         const RHIGraphicsPipelineDesc& desc)
     {
