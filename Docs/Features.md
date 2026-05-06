@@ -46,7 +46,7 @@ This document tracks user-facing and developer-facing features available in WonE
 - [ ] Scene save / load
 - [ ] Project save / load
 - [ ] Undo / redo
-- [ ] Editor grid
+- [x] Editor grid
 - [ ] Splash screen
 
 ---
