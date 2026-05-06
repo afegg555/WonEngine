@@ -47,6 +47,11 @@ namespace won::ecs
             Entity parent_id = hierarchy.parent_id;
             while (parent_id != INVALID_ENTITY)
             {
+                if (!transform_array->HasData(parent_id))
+                {
+                    break;
+                }
+
                 TransformComponent& transform_parent = transform_array->GetData(parent_id);
                 worldmatrix *= transform_parent.GetLocalTransform();
 

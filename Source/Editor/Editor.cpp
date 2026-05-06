@@ -11,6 +11,7 @@
 #include "Profiler.h"
 #include "SceneComponents.h"
 #include "JobSystem.h"
+#include "EventHandler.h"
 
 #include "AssetImporter/AssetImporter.h"
 #include "CameraController/CameraController.h"
@@ -389,7 +390,8 @@ namespace won::editor
 			auto camera_transform = scene.AddComponent<ecs::TransformComponent>(camera_entity);
 			if (camera_transform)
 			{
-				camera_transform->position = { 0.0f, 0.0f, -20.0f };
+				camera_transform->position = { -4.7f, 2.0f, 0.3f };
+				camera_transform->RotateRollPitchYaw({ 0.f, math::PI / 2.f, 0} );
 				camera_transform->SetDirty();
 			}
 
@@ -428,6 +430,7 @@ namespace won::editor
 		imgui_sampler.reset();
 		editor_primitive_mesh.reset();
 		deferred_primitive_removal_buffers.clear();
+		deferred_entity_removal_resources.clear();
 		editor_primitive_entity = ecs::INVALID_ENTITY;
 		scene = {};
 
@@ -439,6 +442,56 @@ namespace won::editor
 	void EditorApplication::Update(float dt)
 	{
 		Application::Update(dt);
+		for (auto it = deferred_entity_removal_resources.begin(); it != deferred_entity_removal_resources.end();)
+		{
+			if (it->frames_left > 0)
+			{
+				--it->frames_left;
+			}
+			if (it->frames_left == 0)
+			{
+				it = deferred_entity_removal_resources.erase(it);
+			}
+			else
+			{
+				++it;
+			}
+		}
+
+		if (asset_import_task && asset_import_task->committed.load())
+		{
+			ecs::Entity root_entity = asset_import_task->root_entity.load();
+			auto transform = scene.GetComponent<ecs::TransformComponent>(root_entity);
+			if (transform)
+			{
+				//transform->Translate({ 5.0f, 0.0f, 5.0f });
+				//transform->Scale({ 3.0f, 3.0f, 3.0f });
+			}
+
+			auto material_component = scene.GetComponent<ecs::MaterialComponent>(root_entity);
+			if (material_component)
+			{
+				for (uint32 i = 0; i < (uint32)material_component->GetMaterialSlotCount(); i++)
+				{
+					//auto& slot = material_component->GetMaterialSlot(i);
+					//slot.shader_type =
+				}
+			}
+
+			auto geometry_component = scene.GetComponent<ecs::GeometryComponent>(root_entity);
+			if (geometry_component)
+			{
+				geometry_component->SetCastShadow(true);
+			}
+
+			UpdateEntityList();
+			asset_import_task.reset();
+		}
+		else if (asset_import_task && asset_import_task->failed.load())
+		{
+			asset_import_task.reset();
+		}
+
 		if (renderer)
 		{
 			rendering::RendererDebugOptions debug_options = {};
@@ -1046,6 +1099,15 @@ namespace won::editor
 			static int selected_index = -1;
 			ecs::Entity delete_entity = INVALID_ENTITY;
 
+			if (asset_import_task && !asset_import_task->finished.load())
+			{
+				const int dot_count = static_cast<int>(ImGui::GetTime() * 3.0) % 4;
+				std::string import_status = "Importing asset";
+				import_status.append(dot_count, '.');
+				ImGui::TextDisabled("%s", import_status.c_str());
+				ImGui::Separator();
+			}
+
 			if (ImGui::Button("+"))
 			{
 				ecs::Entity entity = scene.CreateEntity();
@@ -1118,14 +1180,94 @@ namespace won::editor
 
 			if (delete_entity != INVALID_ENTITY)
 			{
-				scene.DestroyEntity(delete_entity);
-				UpdateEntityList();
-				selected_index = -1;
-
 				if (picked_entity == delete_entity)
 				{
 					picked_entity = INVALID_ENTITY;
 				}
+				selected_index = -1;
+
+				eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, delete_entity](uint64) {
+					if (delete_entity == camera_entity)
+					{
+						return;
+					}
+
+					Vector<ecs::Entity> entities_to_delete;
+					entities_to_delete.push_back(delete_entity);
+
+					auto hierarchy_array = scene.GetComponentArray<ecs::HierarchyComponent>();
+					if (hierarchy_array)
+					{
+						for (Size delete_index = 0; delete_index < entities_to_delete.size(); ++delete_index)
+						{
+							const ecs::Entity parent = entities_to_delete[delete_index];
+							for (Size hierarchy_index = 0; hierarchy_index < hierarchy_array->data.size(); ++hierarchy_index)
+							{
+								if (hierarchy_array->data[hierarchy_index].parent_id != parent)
+								{
+									continue;
+								}
+
+								const ecs::Entity child = hierarchy_array->index_to_entity[hierarchy_index];
+								if (std::find(entities_to_delete.begin(), entities_to_delete.end(), child) == entities_to_delete.end())
+								{
+									entities_to_delete.push_back(child);
+								}
+							}
+						}
+					}
+
+					DeferredEntityRemovalResources deferred_resources = {};
+					deferred_resources.frames_left = 8;
+					for (ecs::Entity entity : entities_to_delete)
+					{
+						ecs::GeometryComponent* geometry = scene.GetComponent<ecs::GeometryComponent>(entity);
+						if (geometry && geometry->mesh)
+						{
+							deferred_resources.meshes.push_back(geometry->mesh);
+							if (geometry->mesh->render_data.buffer)
+							{
+								deferred_resources.resources.push_back(geometry->mesh->render_data.buffer);
+							}
+							if (geometry->mesh->gpu_bvh.node_buffer)
+							{
+								deferred_resources.resources.push_back(geometry->mesh->gpu_bvh.node_buffer);
+							}
+							if (geometry->mesh->gpu_bvh.primitive_buffer)
+							{
+								deferred_resources.resources.push_back(geometry->mesh->gpu_bvh.primitive_buffer);
+							}
+						}
+
+						ecs::MaterialComponent* material = scene.GetComponent<ecs::MaterialComponent>(entity);
+						if (material)
+						{
+							for (ecs::MaterialSlot& material_slot : material->material_slots)
+							{
+								for (uint32 texture_slot = 0; texture_slot < TEXTURESLOT_COUNT; ++texture_slot)
+								{
+									if (material_slot.textures[texture_slot].texture)
+									{
+										deferred_resources.resources.push_back(material_slot.textures[texture_slot].texture);
+									}
+								}
+							}
+						}
+					}
+
+					if (!deferred_resources.meshes.empty() || !deferred_resources.resources.empty())
+					{
+						deferred_entity_removal_resources.push_back(std::move(deferred_resources));
+					}
+
+					scene.DestroyEntity(delete_entity);
+					const Vector<ecs::Entity>& entities = scene.GetEntities();
+					if (std::find(entities.begin(), entities.end(), picked_entity) == entities.end())
+					{
+						picked_entity = INVALID_ENTITY;
+					}
+					UpdateEntityList();
+				});
 			}
 		}
 		ImGui::End();
@@ -2288,29 +2430,30 @@ namespace won::editor
 			auto asset_importer = plugin_manager.GetPlugin(WON_IID_ASSET_IMPORTER);
 			AssetImporterAPI* api = (AssetImporterAPI*)asset_importer->QueryInterface(WON_IID_ASSET_IMPORTER, WON_VID_ASSET_IMPORTER);
 
-			//std::string file_path = contents_root_dir + "/Models/glTF/Sponza/glTF/Sponza.gltf";
-			std::string file_path = contents_root_dir + "/Models/Obj/Sphere/sphere.obj";
-			ecs::Entity root_entity{};
-			api->Import(asset_importer.get(), file_path.c_str(), &scene, device.get(), root_entity);
+			std::string file_path = contents_root_dir + "/Models/glTF/Sponza/glTF/Sponza.gltf";
+			//std::string file_path = contents_root_dir + "/Models/Obj/Sphere/sphere.obj";
+			asset_import_task = api->ImportAsync(asset_importer.get(), file_path.c_str(), &scene, device.get());
 
-			{
-				auto transform = scene.GetComponent<ecs::TransformComponent>(root_entity);
-				if (transform)
-				{
-					transform->Translate({ 5.0f, 0.0f, 5.0f });
-					transform->Scale({ 3.0f, 3.0f, 3.0f });
-				}
+			//ecs::Entity root_entity{};
+			//api->Import(asset_importer.get(), file_path.c_str(), &scene, device.get(), root_entity);
 
-				auto material_component = scene.GetComponent<ecs::MaterialComponent>(root_entity);
-				for (uint32 i = 0; i < (uint32)material_component->GetMaterialSlotCount(); i++)
-				{
-					//auto& slot = material_component->GetMaterialSlot(i);
-					//slot.shader_type = 
-				}
-				auto geometry_component = scene.GetComponent<ecs::GeometryComponent>(root_entity);
-				geometry_component->SetCastShadow(true);
-			}
+			//{
+			//	auto transform = scene.GetComponent<ecs::TransformComponent>(root_entity);
+			//	if (transform)
+			//	{
+			//		transform->Translate({ 5.0f, 0.0f, 5.0f });
+			//		transform->Scale({ 3.0f, 3.0f, 3.0f });
+			//	}
 
+			//	auto material_component = scene.GetComponent<ecs::MaterialComponent>(root_entity);
+			//	for (uint32 i = 0; i < (uint32)material_component->GetMaterialSlotCount(); i++)
+			//	{
+			//		//auto& slot = material_component->GetMaterialSlot(i);
+			//		//slot.shader_type =
+			//	}
+			//	auto geometry_component = scene.GetComponent<ecs::GeometryComponent>(root_entity);
+			//	geometry_component->SetCastShadow(true);
+			//}
 
 			// light entity
 			{
@@ -2343,176 +2486,178 @@ namespace won::editor
 				env->SetActive(true);
 				auto environment_lighting = scene.AddComponent<ecs::EnvironmentLightingComponent>(env_entity);
 				environment_lighting->gi_mode = ecs::EnvironmentLightingComponent::DDGI;
-				environment_lighting->indirect_diffuse_scale = 0.05f;
+				environment_lighting->indirect_diffuse_scale = 1.f;
 				auto ddgi_volume = scene.AddComponent<ecs::DDGIVolumeComponent>(env_entity);
 				ddgi_volume->probe_counts = { 16, 16, 16 };
-				ddgi_volume->probe_spacing = { 1.0f, 1.0f, 1.0f };
-				ddgi_volume->volume_offset = { 5.0f, 0.0f, 5.0f };
+				ddgi_volume->probe_spacing = { 2.0f, 2.0f, 2.0f };
+				ddgi_volume->max_distance = 4.f;
+				ddgi_volume->probes_per_frame = 128u;
+				//ddgi_volume->volume_offset = { 5.0f, 0.0f, 5.0f };
 
 				auto name = scene.AddComponent<ecs::NameComponent>(env_entity);
 				name->value = "Environment";
 			}
 
-			// plane entity
-			{
-				ecs::Entity plane_entity = scene.CreateEntity();
-				auto transform = scene.AddComponent<ecs::TransformComponent>(plane_entity);
-				if (transform)
-				{
-					transform->Translate({ 0.f, -5.f, 0.f });
-					transform->Scale({ 10.f, 10.f, 10.f });
-				}
-				auto geometry = scene.AddComponent<ecs::GeometryComponent>(plane_entity);
-				if (geometry)
-				{
-					//geometry->SetCastShadow(true);
+			//// plane entity
+			//{
+			//	ecs::Entity plane_entity = scene.CreateEntity();
+			//	auto transform = scene.AddComponent<ecs::TransformComponent>(plane_entity);
+			//	if (transform)
+			//	{
+			//		transform->Translate({ 0.f, -5.f, 0.f });
+			//		transform->Scale({ 10.f, 10.f, 10.f });
+			//	}
+			//	auto geometry = scene.AddComponent<ecs::GeometryComponent>(plane_entity);
+			//	if (geometry)
+			//	{
+			//		//geometry->SetCastShadow(true);
 
-					auto mesh = std::make_shared<resource::Mesh>();
-					mesh->positions = {
-						{ 1.0f, 0.0f, 1.0f },
-						{ -1.0f, 0.0f, 1.0f },
-						{ 1.0f, 0.0f, -1.0f },
-						{ -1.0f, 0.0f, -1.0f },
-					};
-					mesh->normals = {
-						{ 0.0f, 1.0f, 0.f },
-						{ 0.0f, 1.0f, 0.f },
-						{ 0.0f, 1.0f, 0.f },
-						{ 0.0f, 1.0f, 0.f },
-					};
+			//		auto mesh = std::make_shared<resource::Mesh>();
+			//		mesh->positions = {
+			//			{ 1.0f, 0.0f, 1.0f },
+			//			{ -1.0f, 0.0f, 1.0f },
+			//			{ 1.0f, 0.0f, -1.0f },
+			//			{ -1.0f, 0.0f, -1.0f },
+			//		};
+			//		mesh->normals = {
+			//			{ 0.0f, 1.0f, 0.f },
+			//			{ 0.0f, 1.0f, 0.f },
+			//			{ 0.0f, 1.0f, 0.f },
+			//			{ 0.0f, 1.0f, 0.f },
+			//		};
 
-					mesh->indices = { 1, 0, 2, 1, 2, 3 };
+			//		mesh->indices = { 1, 0, 2, 1, 2, 3 };
 
-					resource::Submesh submesh = {};
-					submesh.first_index = 0;
-					submesh.index_count = 6;
-					submesh.first_vertex = 0;
-					submesh.material_slot = 0;
-					submesh.local_bounds.min = { -1.0f, 0.0f, -1.0f };
-					submesh.local_bounds.max = { 1.0f, 0.0f, 1.0f };
-					mesh->submeshes.push_back(submesh);
+			//		resource::Submesh submesh = {};
+			//		submesh.first_index = 0;
+			//		submesh.index_count = 6;
+			//		submesh.first_vertex = 0;
+			//		submesh.material_slot = 0;
+			//		submesh.local_bounds.min = { -1.0f, 0.0f, -1.0f };
+			//		submesh.local_bounds.max = { 1.0f, 0.0f, 1.0f };
+			//		mesh->submeshes.push_back(submesh);
 
-					geometry->SetMesh(mesh);
+			//		geometry->SetMesh(mesh);
 
-					rendering::utils::CreateRenderData(*device, *mesh);
-				}
+			//		rendering::utils::CreateRenderData(*device, *mesh);
+			//	}
 
-				auto material = scene.AddComponent<ecs::MaterialComponent>(plane_entity);
-				if (material)
-				{
-					auto& material_slot = material->AddMaterialSlot();
-					material_slot.base_color = { 0.70f, 0.82f, 0.68f, 1.0f };
-					material_slot.metallic = 0.0f;
-					material_slot.roughness = 0.5f;
-					material_slot.flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW;
-				}
+			//	auto material = scene.AddComponent<ecs::MaterialComponent>(plane_entity);
+			//	if (material)
+			//	{
+			//		auto& material_slot = material->AddMaterialSlot();
+			//		material_slot.base_color = { 0.70f, 0.82f, 0.68f, 1.0f };
+			//		material_slot.metallic = 0.0f;
+			//		material_slot.roughness = 0.5f;
+			//		material_slot.flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW;
+			//	}
 
-				auto name = scene.AddComponent<ecs::NameComponent>(plane_entity);
-				name->value = "Plane";
+			//	auto name = scene.AddComponent<ecs::NameComponent>(plane_entity);
+			//	name->value = "Plane";
 
-			}
+			//}
 
-			// side wall plane entity
-			{
-				ecs::Entity side_wall_entity = scene.CreateEntity();
-				scene.AddComponent<ecs::TransformComponent>(side_wall_entity);
+			//// side wall plane entity
+			//{
+			//	ecs::Entity side_wall_entity = scene.CreateEntity();
+			//	scene.AddComponent<ecs::TransformComponent>(side_wall_entity);
 
-				auto geometry = scene.AddComponent<ecs::GeometryComponent>(side_wall_entity);
-				if (geometry)
-				{
-					auto mesh = std::make_shared<resource::Mesh>();
-					mesh->positions = {
-						{ 10.0f, 15.0f, 10.0f },
-						{ 10.0f, -5.0f, 10.0f },
-						{ 10.0f, 15.0f, -10.0f },
-						{ 10.0f, -5.0f, -10.0f },
-					};
-					mesh->normals = {
-						{ -1.0f, 0.0f, 0.0f },
-						{ -1.0f, 0.0f, 0.0f },
-						{ -1.0f, 0.0f, 0.0f },
-						{ -1.0f, 0.0f, 0.0f },
-					};
+			//	auto geometry = scene.AddComponent<ecs::GeometryComponent>(side_wall_entity);
+			//	if (geometry)
+			//	{
+			//		auto mesh = std::make_shared<resource::Mesh>();
+			//		mesh->positions = {
+			//			{ 10.0f, 15.0f, 10.0f },
+			//			{ 10.0f, -5.0f, 10.0f },
+			//			{ 10.0f, 15.0f, -10.0f },
+			//			{ 10.0f, -5.0f, -10.0f },
+			//		};
+			//		mesh->normals = {
+			//			{ -1.0f, 0.0f, 0.0f },
+			//			{ -1.0f, 0.0f, 0.0f },
+			//			{ -1.0f, 0.0f, 0.0f },
+			//			{ -1.0f, 0.0f, 0.0f },
+			//		};
 
-					mesh->indices = { 1, 0, 2, 1, 2, 3 };
+			//		mesh->indices = { 1, 0, 2, 1, 2, 3 };
 
-					resource::Submesh submesh = {};
-					submesh.first_index = 0;
-					submesh.index_count = 6;
-					submesh.first_vertex = 0;
-					submesh.material_slot = 0;
-					submesh.local_bounds.min = { 9.999f, -5.0f, -10.0f };
-					submesh.local_bounds.max = { 10.001f, 15.0f, 10.0f };
-					mesh->submeshes.push_back(submesh);
+			//		resource::Submesh submesh = {};
+			//		submesh.first_index = 0;
+			//		submesh.index_count = 6;
+			//		submesh.first_vertex = 0;
+			//		submesh.material_slot = 0;
+			//		submesh.local_bounds.min = { 9.999f, -5.0f, -10.0f };
+			//		submesh.local_bounds.max = { 10.001f, 15.0f, 10.0f };
+			//		mesh->submeshes.push_back(submesh);
 
-					geometry->SetMesh(mesh);
-					rendering::utils::CreateRenderData(*device, *mesh);
-				}
+			//		geometry->SetMesh(mesh);
+			//		rendering::utils::CreateRenderData(*device, *mesh);
+			//	}
 
-				auto material = scene.AddComponent<ecs::MaterialComponent>(side_wall_entity);
-				if (material)
-				{
-					auto& material_slot = material->AddMaterialSlot();
-					material_slot.base_color = { 0.9f, 0.35f, 0.35f, 1.0f };
-					material_slot.metallic = 0.0f;
-					material_slot.roughness = 0.5f;
-					material_slot.flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW;
-				}
+			//	auto material = scene.AddComponent<ecs::MaterialComponent>(side_wall_entity);
+			//	if (material)
+			//	{
+			//		auto& material_slot = material->AddMaterialSlot();
+			//		material_slot.base_color = { 0.9f, 0.35f, 0.35f, 1.0f };
+			//		material_slot.metallic = 0.0f;
+			//		material_slot.roughness = 0.5f;
+			//		material_slot.flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW;
+			//	}
 
-				auto name = scene.AddComponent<ecs::NameComponent>(side_wall_entity);
-				name->value = "Side Wall";
-			}
+			//	auto name = scene.AddComponent<ecs::NameComponent>(side_wall_entity);
+			//	name->value = "Side Wall";
+			//}
 
-			// back wall plane entity
-			{
-				ecs::Entity back_wall_entity = scene.CreateEntity();
-				scene.AddComponent<ecs::TransformComponent>(back_wall_entity);
+			//// back wall plane entity
+			//{
+			//	ecs::Entity back_wall_entity = scene.CreateEntity();
+			//	scene.AddComponent<ecs::TransformComponent>(back_wall_entity);
 
-				auto geometry = scene.AddComponent<ecs::GeometryComponent>(back_wall_entity);
-				if (geometry)
-				{
-					auto mesh = std::make_shared<resource::Mesh>();
-					mesh->positions = {
-						{ -10.0f, 15.0f, 10.0f },
-						{ -10.0f, -5.0f, 10.0f },
-						{ 10.0f, 15.0f, 10.0f },
-						{ 10.0f, -5.0f, 10.0f },
-					};
-					mesh->normals = {
-						{ 0.0f, 0.0f, -1.0f },
-						{ 0.0f, 0.0f, -1.0f },
-						{ 0.0f, 0.0f, -1.0f },
-						{ 0.0f, 0.0f, -1.0f },
-					};
+			//	auto geometry = scene.AddComponent<ecs::GeometryComponent>(back_wall_entity);
+			//	if (geometry)
+			//	{
+			//		auto mesh = std::make_shared<resource::Mesh>();
+			//		mesh->positions = {
+			//			{ -10.0f, 15.0f, 10.0f },
+			//			{ -10.0f, -5.0f, 10.0f },
+			//			{ 10.0f, 15.0f, 10.0f },
+			//			{ 10.0f, -5.0f, 10.0f },
+			//		};
+			//		mesh->normals = {
+			//			{ 0.0f, 0.0f, -1.0f },
+			//			{ 0.0f, 0.0f, -1.0f },
+			//			{ 0.0f, 0.0f, -1.0f },
+			//			{ 0.0f, 0.0f, -1.0f },
+			//		};
 
-					mesh->indices = { 1, 0, 2, 1, 2, 3 };
+			//		mesh->indices = { 1, 0, 2, 1, 2, 3 };
 
-					resource::Submesh submesh = {};
-					submesh.first_index = 0;
-					submesh.index_count = 6;
-					submesh.first_vertex = 0;
-					submesh.material_slot = 0;
-					submesh.local_bounds.min = { -10.0f, -5.0f, 9.999f };
-					submesh.local_bounds.max = { 10.0f, 15.0f, 10.001f };
-					mesh->submeshes.push_back(submesh);
+			//		resource::Submesh submesh = {};
+			//		submesh.first_index = 0;
+			//		submesh.index_count = 6;
+			//		submesh.first_vertex = 0;
+			//		submesh.material_slot = 0;
+			//		submesh.local_bounds.min = { -10.0f, -5.0f, 9.999f };
+			//		submesh.local_bounds.max = { 10.0f, 15.0f, 10.001f };
+			//		mesh->submeshes.push_back(submesh);
 
-					geometry->SetMesh(mesh);
-					rendering::utils::CreateRenderData(*device, *mesh);
-				}
+			//		geometry->SetMesh(mesh);
+			//		rendering::utils::CreateRenderData(*device, *mesh);
+			//	}
 
-				auto material = scene.AddComponent<ecs::MaterialComponent>(back_wall_entity);
-				if (material)
-				{
-					auto& material_slot = material->AddMaterialSlot();
-					material_slot.base_color = { 0.35f, 0.45f, 0.9f, 1.0f };
-					material_slot.metallic = 0.0f;
-					material_slot.roughness = 0.5f;
-					material_slot.flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW;
-				}
+			//	auto material = scene.AddComponent<ecs::MaterialComponent>(back_wall_entity);
+			//	if (material)
+			//	{
+			//		auto& material_slot = material->AddMaterialSlot();
+			//		material_slot.base_color = { 0.35f, 0.45f, 0.9f, 1.0f };
+			//		material_slot.metallic = 0.0f;
+			//		material_slot.roughness = 0.5f;
+			//		material_slot.flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW;
+			//	}
 
-				auto name = scene.AddComponent<ecs::NameComponent>(back_wall_entity);
-				name->value = "Back Wall";
-			}
+			//	auto name = scene.AddComponent<ecs::NameComponent>(back_wall_entity);
+			//	name->value = "Back Wall";
+			//}
 		}
 		UpdateEntityList();
 	}

@@ -10,11 +10,31 @@
 #include "FileSystem.h"
 #include "SceneComponents.h"
 #include "RenderingUtils.h"
+#include "EventHandler.h"
+#include "JobSystem.h"
+#include "ResourceLoader.h"
+
+#include <algorithm>
 
 namespace won::plugin
 {
     class AssetImporter : public IPlugin
     {
+        struct ImportedTextureData
+        {
+            uint32 material_index = 0;
+            uint32 texture_slot = 0;
+            std::shared_ptr<resource::Image> image;
+        };
+
+        struct ImportedAssetData
+        {
+            String name;
+            Vector<ecs::MaterialSlot> material_slots;
+            Vector<ImportedTextureData> textures;
+            std::shared_ptr<resource::Mesh> mesh;
+        };
+
     public:
         virtual const char* GetName() const override { return WON_IID_ASSET_IMPORTER; }
         virtual const char* GetVersion() const override { return WON_VID_ASSET_IMPORTER; }
@@ -36,17 +56,240 @@ namespace won::plugin
 
         bool Import(const char* file_path_in, ecs::Scene* target_scene_in, RHIDevice* device_in, ecs::Entity& root_entity_out)
         {
-            
-            std::string ext = io::GetExtension(file_path_in);
-            std::string dir = io::GetDirectoryFromPath(file_path_in);
-            std::string name = io::GetFilename(file_path_in);
+            if (file_path_in == nullptr || file_path_in[0] == '\0' || target_scene_in == nullptr)
+            {
+                return false;
+            }
+
+            String file_path = file_path_in;
+            ImportedAssetData imported_data;
+            if (!ImportAssetData(file_path, imported_data))
+            {
+                return false;
+            }
+
+            ecs::Entity root_entity = target_scene_in->CreateEntity();
+            target_scene_in->AddComponent<ecs::NameComponent>(root_entity)->value = imported_data.name;
+            target_scene_in->AddComponent<ecs::TransformComponent>(root_entity);
+
+            ecs::MaterialComponent* material_comp = target_scene_in->AddComponent<ecs::MaterialComponent>(root_entity);
+            if (material_comp)
+            {
+                material_comp->material_slots = imported_data.material_slots;
+
+                if (device_in)
+                {
+                    for (const ImportedTextureData& texture_data : imported_data.textures)
+                    {
+                        if (texture_data.material_index >= material_comp->material_slots.size() ||
+                            texture_data.texture_slot >= TEXTURESLOT_COUNT ||
+                            !texture_data.image ||
+                            !texture_data.image->IsValid())
+                        {
+                            continue;
+                        }
+
+                        ecs::MaterialSlot::TextureMap& texture_map = material_comp->material_slots[texture_data.material_index].textures[texture_data.texture_slot];
+
+                        RHITextureDesc texture_desc = {};
+                        texture_desc.width = static_cast<uint32>(texture_data.image->width);
+                        texture_desc.height = static_cast<uint32>(texture_data.image->height);
+                        texture_desc.depth = 1;
+                        texture_desc.mip_levels = 1;
+                        texture_desc.array_layers = 1;
+                        texture_desc.sample_count = 1;
+                        texture_desc.format = (texture_data.texture_slot == BASECOLORMAP || texture_data.texture_slot == EMISSIVEMAP || texture_data.texture_slot == SHEENCOLORMAP)
+                            ? RHIFormat::R8G8B8A8UnormSrgb
+                            : RHIFormat::R8G8B8A8Unorm;
+                        texture_desc.usage = RHIResourceUsage::Default;
+                        texture_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
+
+                        uint32 mip_width = texture_desc.width;
+                        uint32 mip_height = texture_desc.height;
+                        while (mip_width > 1 || mip_height > 1)
+                        {
+                            mip_width = std::max(1u, mip_width / 2u);
+                            mip_height = std::max(1u, mip_height / 2u);
+                            ++texture_desc.mip_levels;
+                        }
+
+                        texture_map.texture = device_in->CreateTexture(texture_desc, texture_data.image->pixels.data(), texture_data.image->pixels.size());
+                        if (!texture_map.texture)
+                        {
+                            continue;
+                        }
+                        rendering::utils::EnqueueTextureMipGeneration(texture_map.texture);
+
+                        RHISubresourceDesc texture_srv_desc = {};
+                        texture_srv_desc.type = RHISubresourceType::ShaderResource;
+                        texture_srv_desc.first_slice = 0;
+                        texture_srv_desc.slice_count = 1;
+                        texture_srv_desc.first_mip = 0;
+                        texture_srv_desc.mip_count = texture_desc.mip_levels;
+
+                        device_in->CreateSubresource(*texture_map.texture, texture_srv_desc, &texture_map.res_handle);
+                    }
+                }
+            }
+
+            ecs::GeometryComponent* geometry_comp = target_scene_in->AddComponent<ecs::GeometryComponent>(root_entity);
+            if (geometry_comp)
+            {
+                geometry_comp->SetMesh(imported_data.mesh);
+            }
+            if (device_in && imported_data.mesh)
+            {
+                rendering::utils::CreateRenderData(*device_in, *imported_data.mesh);
+            }
+
+            target_scene_in->SetBVHDirty();
+            root_entity_out = root_entity;
+            backlog::Post("AssetImporter::Import succeeded: " + file_path, backlog::LogLevel::Default);
+            return true;
+        }
+
+        std::shared_ptr<AssetImportTask> ImportAsync(const char* file_path_in, ecs::Scene* target_scene_in, RHIDevice* device_in)
+        {
+            auto task = std::make_shared<AssetImportTask>();
+            if (file_path_in == nullptr || file_path_in[0] == '\0' || target_scene_in == nullptr)
+            {
+                task->failed.store(true);
+                task->finished.store(true);
+                return task;
+            }
+
+            String file_path = file_path_in;
+            auto job_context = std::make_shared<jobsystem::Context>();
+            job_context->priority = jobsystem::Priority::Low;
+            jobsystem::Execute(*job_context, [file_path, target_scene_in, device_in, task, job_context](jobsystem::JobArgs args)
+            {
+                (void)args;
+                (void)job_context;
+
+                if (jobsystem::IsShuttingDown())
+                {
+                    task->failed.store(true);
+                    task->finished.store(true);
+                    return;
+                }
+
+                auto imported_data = std::make_shared<ImportedAssetData>();
+                if (!ImportAssetData(file_path, *imported_data))
+                {
+                    task->failed.store(true);
+                    task->finished.store(true);
+                    return;
+                }
+
+                eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [task, imported_data, target_scene_in, device_in, file_path](uint64 userdata)
+                {
+                    (void)userdata;
+
+                    if (jobsystem::IsShuttingDown() || target_scene_in == nullptr)
+                    {
+                        task->failed.store(true);
+                        task->finished.store(true);
+                        return;
+                    }
+
+                    ecs::Entity root_entity = target_scene_in->CreateEntity();
+                    target_scene_in->AddComponent<ecs::NameComponent>(root_entity)->value = imported_data->name;
+                    target_scene_in->AddComponent<ecs::TransformComponent>(root_entity);
+
+                    ecs::MaterialComponent* material_comp = target_scene_in->AddComponent<ecs::MaterialComponent>(root_entity);
+                    if (material_comp)
+                    {
+                        material_comp->material_slots = imported_data->material_slots;
+
+                        if (device_in)
+                        {
+                            for (const ImportedTextureData& texture_data : imported_data->textures)
+                            {
+                                if (texture_data.material_index >= material_comp->material_slots.size() ||
+                                    texture_data.texture_slot >= TEXTURESLOT_COUNT ||
+                                    !texture_data.image ||
+                                    !texture_data.image->IsValid())
+                                {
+                                    continue;
+                                }
+
+                                ecs::MaterialSlot::TextureMap& texture_map = material_comp->material_slots[texture_data.material_index].textures[texture_data.texture_slot];
+
+                                RHITextureDesc texture_desc = {};
+                                texture_desc.width = static_cast<uint32>(texture_data.image->width);
+                                texture_desc.height = static_cast<uint32>(texture_data.image->height);
+                                texture_desc.depth = 1;
+                                texture_desc.mip_levels = 1;
+                                texture_desc.array_layers = 1;
+                                texture_desc.sample_count = 1;
+                                texture_desc.format = (texture_data.texture_slot == BASECOLORMAP || texture_data.texture_slot == EMISSIVEMAP || texture_data.texture_slot == SHEENCOLORMAP)
+                                    ? RHIFormat::R8G8B8A8UnormSrgb
+                                    : RHIFormat::R8G8B8A8Unorm;
+                                texture_desc.usage = RHIResourceUsage::Default;
+                                texture_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
+
+                                uint32 mip_width = texture_desc.width;
+                                uint32 mip_height = texture_desc.height;
+                                while (mip_width > 1 || mip_height > 1)
+                                {
+                                    mip_width = std::max(1u, mip_width / 2u);
+                                    mip_height = std::max(1u, mip_height / 2u);
+                                    ++texture_desc.mip_levels;
+                                }
+
+                                texture_map.texture = device_in->CreateTexture(texture_desc, texture_data.image->pixels.data(), texture_data.image->pixels.size());
+                                if (!texture_map.texture)
+                                {
+                                    continue;
+                                }
+                                rendering::utils::EnqueueTextureMipGeneration(texture_map.texture);
+
+                                RHISubresourceDesc texture_srv_desc = {};
+                                texture_srv_desc.type = RHISubresourceType::ShaderResource;
+                                texture_srv_desc.first_slice = 0;
+                                texture_srv_desc.slice_count = 1;
+                                texture_srv_desc.first_mip = 0;
+                                texture_srv_desc.mip_count = texture_desc.mip_levels;
+
+                                device_in->CreateSubresource(*texture_map.texture, texture_srv_desc, &texture_map.res_handle);
+                            }
+                        }
+                    }
+
+                    ecs::GeometryComponent* geometry_comp = target_scene_in->AddComponent<ecs::GeometryComponent>(root_entity);
+                    if (geometry_comp)
+                    {
+                        geometry_comp->SetMesh(imported_data->mesh);
+                    }
+                    if (device_in && imported_data->mesh)
+                    {
+                        rendering::utils::CreateRenderData(*device_in, *imported_data->mesh);
+                    }
+
+                    target_scene_in->SetBVHDirty();
+                    task->root_entity.store(root_entity);
+                    task->committed.store(true);
+                    task->finished.store(true);
+
+                    backlog::Post("AssetImporter::ImportAsync committed: " + file_path, backlog::LogLevel::Default);
+                });
+            });
+
+            return task;
+        }
+    private:
+        static bool ImportAssetData(const String& file_path, ImportedAssetData& imported_data)
+        {
+            String ext = io::GetExtension(file_path);
+            String dir = io::GetDirectoryFromPath(file_path);
+            imported_data.name = io::GetFilename(file_path);
             if (ext == "obj" || ext == "gltf")
             {
 
             }
             else
             {
-                backlog::Post("AssetImporter::Import : format(" + ext + ") not supported", backlog::LogLevel::Warning);
+                backlog::Post("AssetImporter::ImportAssetData : format(" + ext + ") not supported", backlog::LogLevel::Warning);
                 return false;
             }
 
@@ -64,28 +307,24 @@ namespace won::plugin
                 aiProcess_FlipUVs | // upper left origin
                 aiProcess_FlipWindingOrder; // use CW order
 
-            const aiScene* aiscene = importer.ReadFile(file_path_in, flags);
+            const aiScene* aiscene = importer.ReadFile(file_path, flags);
             if (!aiscene || !aiscene->mRootNode)
             {
-                std::string log = "AssetImporter::Import failed: " + std::string(file_path_in);
-                backlog::Post(log, backlog::LogLevel::Warning);
+                backlog::Post("AssetImporter::ImportAssetData failed: " + file_path, backlog::LogLevel::Warning);
                 return false;
             }
 
-            ecs::Entity root_entity = target_scene_in->CreateEntity();
-            target_scene_in->AddComponent<ecs::NameComponent>(root_entity)->value = name;
-            target_scene_in->AddComponent<ecs::TransformComponent>(root_entity);
-
-            ecs::MaterialComponent* material_comp = target_scene_in->AddComponent<ecs::MaterialComponent>(root_entity);
-            material_comp->material_slots.clear();
-            material_comp->material_slots.reserve(aiscene->mNumMaterials);
+            imported_data.material_slots.clear();
+            imported_data.textures.clear();
+            imported_data.mesh = nullptr;
+            imported_data.material_slots.reserve(aiscene->mNumMaterials);
 
             // TODO : check slot
             for (uint32_t i = 0; i < aiscene->mNumMaterials; ++i)
             {
                 const aiMaterial* ai_mat = aiscene->mMaterials[i];
-
-                ecs::MaterialSlot& material_slot = material_comp->AddMaterialSlot();
+                const uint32 material_index = static_cast<uint32>(imported_data.material_slots.size());
+                ecs::MaterialSlot& material_slot = imported_data.material_slots.emplace_back();
                 aiColor4D c;
                 float v = 0.f;
 
@@ -179,7 +418,12 @@ namespace won::plugin
                 {
                     material_slot.textures[ANISOTROPYMAP].name = tex.C_Str();
                 }
-                if (ai_mat->GetTexture(aiTextureType_DIFFUSE_ROUGHNESS, 0, &tex) == AI_SUCCESS)
+                if (ai_mat->GetTexture(aiTextureType_GLTF_METALLIC_ROUGHNESS, 0, &tex) == AI_SUCCESS)
+                {
+                    material_slot.textures[ROUGHNESSMAP].name = tex.C_Str();
+                    material_slot.textures[METALLICMAP].name = tex.C_Str();
+                }
+                else if (ai_mat->GetTexture(aiTextureType_DIFFUSE_ROUGHNESS, 0, &tex) == AI_SUCCESS)
                 {
                     material_slot.textures[ROUGHNESSMAP].name = tex.C_Str();
                 }
@@ -190,67 +434,35 @@ namespace won::plugin
 
                 for (uint32 texture_slot = 0; texture_slot < TEXTURESLOT_COUNT; ++texture_slot)
                 {
-                    auto& x = material_slot.textures[texture_slot];
-                    if (!x.name.empty())
+                    ecs::MaterialSlot::TextureMap& texture_map = material_slot.textures[texture_slot];
+                    if (texture_map.name.empty())
                     {
-                        x.name = dir + "/" + x.name;
-
-                        std::shared_ptr<resource::Image> image = resource::LoadImageFile(x.name, 4);
-                        if (!image || !image->IsValid())
-                        {
-                            continue;
-                        }
-
-                        RHITextureDesc texture_desc = {};
-                        texture_desc.width = static_cast<uint32>(image->width);
-                        texture_desc.height = static_cast<uint32>(image->height);
-                        texture_desc.depth = 1;
-                        texture_desc.mip_levels = 1;
-                        texture_desc.array_layers = 1;
-                        texture_desc.sample_count = 1;
-                        texture_desc.format = (texture_slot == BASECOLORMAP || texture_slot == EMISSIVEMAP || texture_slot == SHEENCOLORMAP)
-                            ? RHIFormat::R8G8B8A8UnormSrgb
-                            : RHIFormat::R8G8B8A8Unorm;
-                        texture_desc.usage = RHIResourceUsage::Default;
-                        texture_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
-
-                        uint32 mip_width = texture_desc.width;
-                        uint32 mip_height = texture_desc.height;
-                        while (mip_width > 1 || mip_height > 1)
-                        {
-                            mip_width = std::max(1u, mip_width / 2u);
-                            mip_height = std::max(1u, mip_height / 2u);
-                            ++texture_desc.mip_levels;
-                        }
-
-                        x.texture = device_in->CreateTexture(texture_desc, image->pixels.data(), image->pixels.size());
-                        if (!x.texture)
-                        {
-                            continue;
-                        }
-                        rendering::utils::EnqueueTextureMipGeneration(x.texture);
-
-                        RHISubresourceDesc texture_srv_desc = {};
-                        texture_srv_desc.type = RHISubresourceType::ShaderResource;
-                        texture_srv_desc.first_slice = 0;
-                        texture_srv_desc.slice_count = 1;
-                        texture_srv_desc.first_mip = 0;
-                        texture_srv_desc.mip_count = texture_desc.mip_levels;
-
-                        device_in->CreateSubresource(*x.texture, texture_srv_desc, &x.res_handle);
+                        continue;
                     }
+
+                    texture_map.name = dir + "/" + texture_map.name;
+                    std::shared_ptr<resource::Image> image = resource::LoadImageFile(texture_map.name, 4);
+                    if (!image || !image->IsValid())
+                    {
+                        continue;
+                    }
+
+                    ImportedTextureData texture_data = {};
+                    texture_data.material_index = material_index;
+                    texture_data.texture_slot = texture_slot;
+                    texture_data.image = image;
+                    imported_data.textures.push_back(texture_data);
                 }
             }
 
-            if (material_comp->material_slots.empty())
+            if (imported_data.material_slots.empty())
             {
                 // default fallback
-                ecs::MaterialSlot& material_slot = material_comp->AddMaterialSlot();
+                imported_data.material_slots.emplace_back();
             }
 
-            ecs::GeometryComponent* geometry_comp = target_scene_in->AddComponent<ecs::GeometryComponent>(root_entity);
-            std::shared_ptr<resource::Mesh> mesh_ptr = std::make_shared<resource::Mesh>();
-            auto& mesh = *mesh_ptr;
+            imported_data.mesh = std::make_shared<resource::Mesh>();
+            resource::Mesh& mesh = *imported_data.mesh;
             bool import_failed = false;
             struct NodeImportEntry
             {
@@ -283,7 +495,7 @@ namespace won::plugin
                     submesh.local_bounds.Invalidate();
                     submesh.first_vertex = vertex_offset;
                     submesh.first_index = index_offset;
-                    submesh.material_slot = ai_mesh->mMaterialIndex < material_comp->GetMaterialSlotCount() ? ai_mesh->mMaterialIndex : 0;
+                    submesh.material_slot = ai_mesh->mMaterialIndex < imported_data.material_slots.size() ? ai_mesh->mMaterialIndex : 0;
 
                     if (!(ai_mesh->HasPositions() && ai_mesh->HasNormals()))
                     {
@@ -303,7 +515,6 @@ namespace won::plugin
                         mesh.tangents.reserve(mesh.tangents.size() + ai_mesh->mNumVertices);
                     }
 
-                    bool submesh_bounds_initialized = false;
                     for (uint32_t vertex_index = 0; vertex_index < ai_mesh->mNumVertices; ++vertex_index)
                     {
                         const aiVector3D transformed_position = node_transform * ai_mesh->mVertices[vertex_index];
@@ -369,31 +580,28 @@ namespace won::plugin
                 }
             }
 
-            if (import_failed)
+            if (import_failed || !mesh.IsValid())
             {
-                assert(0);
+                backlog::Post("AssetImporter::ImportAssetData failed to build mesh: " + file_path, backlog::LogLevel::Warning);
                 return false;
             }
 
-            geometry_comp->SetMesh(mesh_ptr);
-            if (device_in)
-            {
-                rendering::utils::CreateRenderData(*device_in, *mesh_ptr);
-            }
-            std::string log = "AssetImporter::Import succeeded: " + std::string(file_path_in);
-            backlog::Post(log, backlog::LogLevel::Default);
-
-            root_entity_out = root_entity;
             return true;
         }
-    private:
+
         static bool ImportThunk(IPlugin* self, const char* file_path_in, ecs::Scene* target_scene_in, RHIDevice* device_in, ecs::Entity& root_entity_out)
         {
             return static_cast<AssetImporter*>(self)->Import(file_path_in, target_scene_in, device_in, root_entity_out);
         }
 
+        static std::shared_ptr<AssetImportTask> ImportAsyncThunk(IPlugin* self, const char* file_path_in, ecs::Scene* target_scene_in, RHIDevice* device_in)
+        {
+            return static_cast<AssetImporter*>(self)->ImportAsync(file_path_in, target_scene_in, device_in);
+        }
+
         inline static AssetImporterAPI s_api{
-            &ImportThunk
+            &ImportThunk,
+            &ImportAsyncThunk
         };
     };
 

@@ -3,6 +3,11 @@
 #include "Entity.h"
 #include "Mesh.h"
 
+namespace won::plugin
+{
+	struct AssetImportTask;
+}
+
 namespace won::editor
 {
 	class EditorApplication : public Application
@@ -26,7 +31,7 @@ namespace won::editor
 	private:
 		struct ViewportDebugSettings
 		{
-			bool show_grid = true;
+			bool show_grid = false;
 			bool show_ddgi_overlay = false;
 			bool show_ddgi_volume = true;
 			bool show_ddgi_probes = true;
@@ -34,7 +39,14 @@ namespace won::editor
 			bool show_bvh_debug = false;
 			bool show_cpu_bvh_nodes = true;
 			bool show_gpu_bvh_nodes = true;
-			int ddgi_max_probe_draw_count = 256;
+			int ddgi_max_probe_draw_count = 4096;
+		};
+
+		struct DeferredEntityRemovalResources
+		{
+			uint32 frames_left = 0;
+			std::vector<std::shared_ptr<resource::Mesh>> meshes;
+			std::vector<std::shared_ptr<RHIResource>> resources;
 		};
 
 		std::shared_ptr<RHIPipeline> imgui_pso;
@@ -49,6 +61,8 @@ namespace won::editor
 		ecs::Entity editor_primitive_entity = ecs::INVALID_ENTITY;
 		std::shared_ptr<resource::Mesh> editor_primitive_mesh;
 		std::vector<std::shared_ptr<RHIResource>> deferred_primitive_removal_buffers;
+		std::vector<DeferredEntityRemovalResources> deferred_entity_removal_resources;
+		std::shared_ptr<plugin::AssetImportTask> asset_import_task;
 		ecs::Entity picked_entity = ecs::INVALID_ENTITY;
 		ViewportDebugSettings viewport_debug_settings = {};
 

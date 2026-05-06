@@ -72,16 +72,51 @@ namespace won::ecs
 
         void DestroyEntity(Entity entity)
         {
-            component_manager.EntityDestroyed(entity);
+            if (entity == INVALID_ENTITY)
+            {
+                return;
+            }
+
+            Vector<Entity> entities_to_destroy;
+            entities_to_destroy.push_back(entity);
+
+            auto hierarchy_array = GetComponentArray<HierarchyComponent>();
+            if (hierarchy_array)
+            {
+                for (Size destroy_index = 0; destroy_index < entities_to_destroy.size(); ++destroy_index)
+                {
+                    const Entity parent = entities_to_destroy[destroy_index];
+                    for (Size hierarchy_index = 0; hierarchy_index < hierarchy_array->data.size(); ++hierarchy_index)
+                    {
+                        if (hierarchy_array->data[hierarchy_index].parent_id != parent)
+                        {
+                            continue;
+                        }
+
+                        const Entity child = hierarchy_array->index_to_entity[hierarchy_index];
+                        if (std::find(entities_to_destroy.begin(), entities_to_destroy.end(), child) == entities_to_destroy.end())
+                        {
+                            entities_to_destroy.push_back(child);
+                        }
+                    }
+                }
+            }
+
+            for (Entity current : entities_to_destroy)
+            {
+                component_manager.EntityDestroyed(current);
+            }
+
             entities.erase(
                 std::remove_if(
                     entities.begin(),
                     entities.end(),
-                    [entity](const Entity& current)
+                    [&entities_to_destroy](const Entity& current)
                     {
-                        return current == entity;
+                        return std::find(entities_to_destroy.begin(), entities_to_destroy.end(), current) != entities_to_destroy.end();
                     }),
                 entities.end());
+            SetBVHDirty();
         }
 
         template <typename Component, typename... Args>
