@@ -236,7 +236,7 @@ namespace won::rendering
         command_list->SetPipelineState(dx12_pipeline->GetPipelineState());
         command_list->SetComputeRootSignature(dx12_pipeline->GetRootSignature());
         active_compute_binding_table = &dx12_pipeline->binding_table;
-        compute_dirty_params = dx12_pipeline->binding_table.slot_usage;
+        //compute_dirty_params = dx12_pipeline->binding_table.slot_usage;
 
         const RHIPipelineDX12::RootSignatureBindingTable& binding_table = dx12_pipeline->binding_table;
         for (Size index = 0; index < binding_table.param_infos.size(); ++index)

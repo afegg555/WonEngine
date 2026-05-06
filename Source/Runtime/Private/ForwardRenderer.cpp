@@ -2,6 +2,7 @@
 
 #include "Backlog.h"
 #include "Profiler.h"
+#include "RenderingUtils.h"
 #include "Scene.h"
 #include "ShaderLibrary.h"
 #include "MathUtils.h"
@@ -37,12 +38,6 @@ namespace won::rendering
                 return RHIPrimitiveTopology::TriangleList;
             }
         }
-
-        void RemoveResourceDeferred(Renderer::FrameContext& frame_context, std::shared_ptr<RHIResource>& resource)
-        {
-            frame_context.deferred_res_removal.push_back(resource);
-            resource = nullptr;
-        }
     }
 
     RendererDebugState ForwardRenderer::GetDebugState() const
@@ -50,81 +45,64 @@ namespace won::rendering
         return debug_state;
     }
 
+    bool ForwardRenderer::GetCurrentBackBufferBinding(RHISubresourceBinding& out_binding) const
+    {
+        if (!current_window)
+        {
+            return false;
+        }
+
+        std::shared_ptr<RHISwapchain> swapchain = current_window->GetRHISwapchain();
+        if (!swapchain)
+        {
+            return false;
+        }
+
+        const uint32 back_buffer_index = swapchain->GetCurrentBackBufferIndex();
+        std::shared_ptr<RHIResource> back_buffer = swapchain->GetCurrentBackBuffer();
+        if (!back_buffer || back_buffer_index >= back_buffers_rtv.size() || !back_buffers_rtv[back_buffer_index].IsValid())
+        {
+            return false;
+        }
+
+        out_binding.resource = back_buffer.get();
+        out_binding.subresource = back_buffers_rtv[back_buffer_index];
+        return true;
+    }
+
     void ForwardRenderer::SetDebugOptions(const RendererDebugOptions& options)
     {
         debug_options = options;
     }
 
-    bool ForwardRenderer::AllocateFrameUpload(FrameContext& frame_context, Size size, Size alignment, FrameUploadAllocation& out_allocation)
-    {
-        Size aligned_offset = 0;
-        if (!frame_context.frame_upload_buffer)
-        {
-            RHIBufferDesc frame_upload_buffer_desc = {};
-            frame_upload_buffer_desc.size = align((Size)1024 * 20, alignment); // initial_size
-            frame_upload_buffer_desc.usage = RHIResourceUsage::Upload;
-            frame_upload_buffer_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::VertexBuffer | RHIBindFlags::IndexBuffer;
-            frame_context.frame_upload_buffer = device->CreateBuffer(frame_upload_buffer_desc);
-            if (frame_context.frame_upload_buffer)
-            {
-                frame_context.frame_upload_buffer->SetName("Frame Upload Buffer");
-            }
-            frame_context.frame_upload_offset = 0;
-        }
-
-        Size buffer_size = frame_context.frame_upload_buffer->GetDesc().buffer_desc.size;
-        aligned_offset = align(frame_context.frame_upload_offset, alignment);
-        Size required_size = aligned_offset + size;
-        
-        if (buffer_size < required_size)
-        {
-            RHIBufferDesc new_desc = frame_context.frame_upload_buffer->GetDesc().buffer_desc;
-            new_desc.size = align(required_size * 2, alignment);
-            RemoveResourceDeferred(frame_context, frame_context.frame_upload_buffer);
-            frame_context.frame_upload_buffer = device->CreateBuffer(new_desc);
-            if (frame_context.frame_upload_buffer)
-            {
-                frame_context.frame_upload_buffer->SetName("Frame Upload Buffer");
-            }
-        }
-        frame_context.frame_upload_offset = aligned_offset + size;
-
-        void* mapped_data = frame_context.frame_upload_buffer->GetMappedData();
-
-        out_allocation.mapped_data = static_cast<uint8*>(mapped_data) + aligned_offset;
-        out_allocation.buffer_offset = aligned_offset;
-
-        return true;
-    }
-
-    bool ForwardRenderer::UpdateDefaultBuffer(FrameContext& frame_context, RHIResource& destination_buffer, const void* source_data, Size data_size, RHIResourceState final_state, Size destination_offset)
+    bool ForwardRenderer::UpdateDefaultBuffer(FrameContext& frame_context, RHIResource& destination_buffer, const void* source_data, Size data_size, RHIResourceState final_state, Size destination_offset, RHICommandList& command_list)
     {
         const RHIResourceDesc& destination_desc = destination_buffer.GetDesc();
         Size upload_alignment = device->GetMinOffsetAlignment(destination_desc.buffer_desc);
 
         FrameUploadAllocation upload_allocation = {};
-        if (!AllocateFrameUpload(frame_context, data_size, upload_alignment, upload_allocation))
+        if (!frame_context.AllocateFrameUpload(*device, data_size, upload_alignment, upload_allocation))
         {
             return false;
         }
 
         std::memcpy(upload_allocation.mapped_data, source_data, data_size);
 
-        frame_context.command_list->TransitionResource(destination_buffer, RHIResourceState::CopyDest);
-        frame_context.command_list->CopyBuffer(destination_buffer, destination_offset, *frame_context.frame_upload_buffer, upload_allocation.buffer_offset, data_size);
-        frame_context.command_list->TransitionResource(destination_buffer, final_state);
+        command_list.TransitionResource(destination_buffer, RHIResourceState::CopyDest);
+        command_list.CopyBuffer(destination_buffer, destination_offset, *upload_allocation.buffer, upload_allocation.buffer_offset, data_size);
+        command_list.TransitionResource(destination_buffer, final_state);
         return true;
     }
 
     void ForwardRenderer::ReleaseDDGIResources(FrameContext& frame_context)
     {
-        RemoveResourceDeferred(frame_context, ddgi_irradiance_texture);
-        RemoveResourceDeferred(frame_context, ddgi_irradiance_history_texture);
-        RemoveResourceDeferred(frame_context, ddgi_visibility_texture);
-        RemoveResourceDeferred(frame_context, ddgi_visibility_history_texture);
-        RemoveResourceDeferred(frame_context, ddgi_probe_data_buffer);
-        RemoveResourceDeferred(frame_context, ddgi_probe_data_history_buffer);
-        RemoveResourceDeferred(frame_context, debug_state.ddgi.probe_data_readback_buffer);
+        frame_context.RemoveResourceDeferred(ddgi_irradiance_texture);
+        frame_context.RemoveResourceDeferred(ddgi_irradiance_history_texture);
+        frame_context.RemoveResourceDeferred(ddgi_visibility_texture);
+        frame_context.RemoveResourceDeferred(ddgi_visibility_history_texture);
+        frame_context.RemoveResourceDeferred(ddgi_probe_data_buffer);
+        frame_context.RemoveResourceDeferred(ddgi_probe_data_history_buffer);
+        frame_context.RemoveResourceDeferred(debug_state.ddgi.probe_data_readback_buffer);
         debug_state.ddgi.probe_data_readback_valid = false;
         ddgi_irradiance_texture_srv = {};
         ddgi_irradiance_texture_uav = {};
@@ -189,7 +167,7 @@ namespace won::rendering
             }
             else if (!debug_options.ddgi_debug_enable && debug_state.ddgi.probe_data_readback_buffer)
             {
-                RemoveResourceDeferred(frame_context, debug_state.ddgi.probe_data_readback_buffer);
+                frame_context.RemoveResourceDeferred(debug_state.ddgi.probe_data_readback_buffer);
                 debug_state.ddgi.probe_data_readback_valid = false;
             }
 
@@ -408,9 +386,165 @@ namespace won::rendering
         return true;
     }
 
-    bool ForwardRenderer::BuildFrameContext(const View& view, FrameContext& frame_context)
+    bool ForwardRenderer::CreateShadowMapAtlasResources(FrameContext& frame_context, const Scene::RenderData& render_data)
     {
-        const Scene::RenderData& render_data = view.scene->GetRenderData();
+        if (render_data.shadow_map_atlas_size.x == 0 || render_data.shadow_map_atlas_size.y == 0)
+        {
+            frame_context.RemoveResourceDeferred(shadow_map_atlas);
+            shadow_map_atlas_dsv = {};
+            shadow_map_atlas_srv = {};
+            shadow_map_atlas_size = { 0, 0 };
+            return true;
+        }
+
+        const bool recreate_shadowmap_atlas =
+            !shadow_map_atlas ||
+            !shadow_map_atlas_dsv.IsValid() ||
+            !shadow_map_atlas_srv.IsValid() ||
+            shadow_map_atlas_size.x != render_data.shadow_map_atlas_size.x ||
+            shadow_map_atlas_size.y != render_data.shadow_map_atlas_size.y;
+
+        if (!recreate_shadowmap_atlas)
+        {
+            return true;
+        }
+
+        frame_context.RemoveResourceDeferred(shadow_map_atlas);
+        RHITextureDesc shadow_map_atlas_desc = {};
+        shadow_map_atlas_desc.width = render_data.shadow_map_atlas_size.x;
+        shadow_map_atlas_desc.height = render_data.shadow_map_atlas_size.y;
+        shadow_map_atlas_desc.depth = 1;
+        shadow_map_atlas_desc.mip_levels = 1;
+        shadow_map_atlas_desc.array_layers = 1;
+        shadow_map_atlas_desc.sample_count = 1;
+        shadow_map_atlas_desc.format = RHIFormat::D32Float;
+        shadow_map_atlas_desc.usage = RHIResourceUsage::Default;
+        shadow_map_atlas_desc.bind_flags = RHIBindFlags::DepthStencil | RHIBindFlags::ShaderResource;
+        shadow_map_atlas = device->CreateTexture(shadow_map_atlas_desc);
+        if (!shadow_map_atlas)
+        {
+            backlog::Post("failed to create shadow map atlas", backlog::LogLevel::Error);
+            return false;
+        }
+        shadow_map_atlas->SetName("Shadow Map Atlas");
+
+        shadow_map_atlas_dsv = {};
+        RHISubresourceDesc shadow_map_atlas_subresource_desc = {};
+        shadow_map_atlas_subresource_desc.type = RHISubresourceType::DepthStencil;
+        shadow_map_atlas_subresource_desc.format = shadow_map_atlas_desc.format;
+        if (!device->CreateSubresource(*shadow_map_atlas, shadow_map_atlas_subresource_desc, &shadow_map_atlas_dsv))
+        {
+            backlog::Post("failed to create shadow map atlas subresource", backlog::LogLevel::Error);
+            shadow_map_atlas = nullptr;
+            return false;
+        }
+        shadow_map_atlas_subresource_desc.type = RHISubresourceType::ShaderResource;
+        if (!device->CreateSubresource(*shadow_map_atlas, shadow_map_atlas_subresource_desc, &shadow_map_atlas_srv))
+        {
+            backlog::Post("failed to create shadow map atlas subresource", backlog::LogLevel::Error);
+            shadow_map_atlas = nullptr;
+            return false;
+        }
+
+        shadow_map_atlas_size = render_data.shadow_map_atlas_size;
+        return true;
+    }
+
+    bool ForwardRenderer::CreateRenderTargetResources(FrameContext& frame_context)
+    {
+        std::shared_ptr<RHISwapchain> swapchain = current_window->GetRHISwapchain();
+        if (!swapchain)
+        {
+            swapchain = device->CreateSwapchain(*current_window);
+            if (!swapchain)
+            {
+                backlog::Post("failed to create swapchain", backlog::LogLevel::Error);
+                return false;
+            }
+            current_window->SetRHISwapchain(swapchain);
+        }
+
+        std::shared_ptr<RHIResource> back_buffer = swapchain->GetCurrentBackBuffer();
+        if (!back_buffer)
+        {
+            backlog::Post("failed to get swapchain back buffer", backlog::LogLevel::Error);
+            return false;
+        }
+
+        for (uint32 i = 0; i < swapchain->GetBackBufferCount() && i < static_cast<uint32>(back_buffers_rtv.size()); ++i)
+        {
+            if (back_buffers_rtv[i].IsValid())
+            {
+                continue;
+            }
+
+            std::shared_ptr<RHIResource> swapchain_back_buffer = swapchain->GetBackBuffer(i);
+            if (!swapchain_back_buffer)
+            {
+                backlog::Post("failed to get swapchain back buffer for RTV creation", backlog::LogLevel::Error);
+                return false;
+            }
+
+            RHISubresourceDesc back_buffer_subresource_desc = {};
+            back_buffer_subresource_desc.type = RHISubresourceType::RenderTarget;
+            if (!device->CreateSubresource(*swapchain_back_buffer, back_buffer_subresource_desc, &back_buffers_rtv[i]))
+            {
+                backlog::Post("failed to create back buffer RTV", backlog::LogLevel::Error);
+                return false;
+            }
+        }
+
+        const RHIResourceDesc& back_buffer_desc = back_buffer->GetDesc();
+        const RHITextureDesc& back_buffer_texture_desc = back_buffer_desc.texture_desc;
+        const uint32 target_sample_count = back_buffer_texture_desc.sample_count > 0 ? back_buffer_texture_desc.sample_count : 1;
+        bool recreate_depth_buffer = !depth_buffer || !depth_buffer_dsv.IsValid();
+        if (!recreate_depth_buffer)
+        {
+            const RHITextureDesc& depth_texture_desc = depth_buffer->GetDesc().texture_desc;
+            recreate_depth_buffer =
+                depth_texture_desc.width != back_buffer_texture_desc.width ||
+                depth_texture_desc.height != back_buffer_texture_desc.height ||
+                depth_texture_desc.sample_count != target_sample_count ||
+                depth_texture_desc.format != RHIFormat::D32Float;
+        }
+
+        if (recreate_depth_buffer)
+        {
+            frame_context.RemoveResourceDeferred(depth_buffer);
+            RHITextureDesc depth_desc = {};
+            depth_desc.width = back_buffer_texture_desc.width;
+            depth_desc.height = back_buffer_texture_desc.height;
+            depth_desc.depth = 1;
+            depth_desc.mip_levels = 1;
+            depth_desc.array_layers = 1;
+            depth_desc.sample_count = target_sample_count;
+            depth_desc.format = RHIFormat::D32Float;
+            depth_desc.usage = RHIResourceUsage::Default;
+            depth_desc.bind_flags = RHIBindFlags::DepthStencil;
+            depth_buffer = device->CreateTexture(depth_desc);
+            if (!depth_buffer)
+            {
+                backlog::Post("failed to create depth buffer", backlog::LogLevel::Error);
+                return false;
+            }
+            depth_buffer->SetName("Scene Depth Buffer");
+
+            depth_buffer_dsv = {};
+            RHISubresourceDesc depth_subresource_desc = {};
+            depth_subresource_desc.type = RHISubresourceType::DepthStencil;
+            depth_subresource_desc.format = depth_desc.format;
+            if (!device->CreateSubresource(*depth_buffer, depth_subresource_desc, &depth_buffer_dsv))
+            {
+                backlog::Post("failed to create depth buffer subresource", backlog::LogLevel::Error);
+                depth_buffer = nullptr;
+                return false;
+            }
+        }
+        return true;
+    }
+
+    bool ForwardRenderer::UpdateSceneGPUData(FrameContext& frame_context, const Scene::RenderData& render_data, RHICommandList& command_list)
+    {
         const Vector<ShaderInstance>& shader_instances = render_data.shader_instances;
         const Vector<ShaderGeometry>& shader_geometries = render_data.shader_geometries;
         const Vector<ShaderMaterial>& shader_materials = render_data.shader_materials;
@@ -430,7 +564,7 @@ namespace won::rendering
         if (required_instance_buffer_size == 0)
         {
             frame_context.shader_instance_upload_buffer = nullptr;
-            RemoveResourceDeferred(frame_context, shader_instance_default_buffer);
+            frame_context.RemoveResourceDeferred(shader_instance_default_buffer);
             shader_instance_default_buffer_srv = {};
         }
         else
@@ -443,7 +577,7 @@ namespace won::rendering
 
             if (!shader_instance_default_buffer || current_default_buffer_size < required_instance_buffer_size)
             {
-                RemoveResourceDeferred(frame_context, shader_instance_default_buffer);
+                frame_context.RemoveResourceDeferred(shader_instance_default_buffer);
                 RHIBufferDesc shader_instance_default_buffer_desc = {};
                 shader_instance_default_buffer_desc.size = required_instance_buffer_size;
                 shader_instance_default_buffer_desc.usage = RHIResourceUsage::Default;
@@ -499,15 +633,15 @@ namespace won::rendering
             }
             std::memcpy(mapped_data, shader_instances.data(), required_instance_buffer_size);
 
-            frame_context.command_list->TransitionResource(*shader_instance_default_buffer, RHIResourceState::CopyDest);
-            frame_context.command_list->CopyResource(*shader_instance_default_buffer, *frame_context.shader_instance_upload_buffer);
-            frame_context.command_list->TransitionResource(*shader_instance_default_buffer, RHIResourceState::ShaderRead);
+            command_list.TransitionResource(*shader_instance_default_buffer, RHIResourceState::CopyDest);
+            command_list.CopyResource(*shader_instance_default_buffer, *frame_context.shader_instance_upload_buffer);
+            command_list.TransitionResource(*shader_instance_default_buffer, RHIResourceState::ShaderRead);
         }
 
         if (required_geometry_buffer_size == 0)
         {
             frame_context.shader_geometry_upload_buffer = nullptr;
-            RemoveResourceDeferred(frame_context, shader_geometry_default_buffer);
+            frame_context.RemoveResourceDeferred(shader_geometry_default_buffer);
             shader_geometry_default_buffer_srv = {};
         }
         else
@@ -520,7 +654,7 @@ namespace won::rendering
 
             if (!shader_geometry_default_buffer || current_default_buffer_size < required_geometry_buffer_size)
             {
-                RemoveResourceDeferred(frame_context, shader_geometry_default_buffer);
+                frame_context.RemoveResourceDeferred(shader_geometry_default_buffer);
                 RHIBufferDesc shader_geometry_default_buffer_desc = {};
                 shader_geometry_default_buffer_desc.size = required_geometry_buffer_size;
                 shader_geometry_default_buffer_desc.usage = RHIResourceUsage::Default;
@@ -576,15 +710,15 @@ namespace won::rendering
             }
             std::memcpy(mapped_data, shader_geometries.data(), required_geometry_buffer_size);
 
-            frame_context.command_list->TransitionResource(*shader_geometry_default_buffer, RHIResourceState::CopyDest);
-            frame_context.command_list->CopyResource(*shader_geometry_default_buffer, *frame_context.shader_geometry_upload_buffer);
-            frame_context.command_list->TransitionResource(*shader_geometry_default_buffer, RHIResourceState::ShaderRead);
+            command_list.TransitionResource(*shader_geometry_default_buffer, RHIResourceState::CopyDest);
+            command_list.CopyResource(*shader_geometry_default_buffer, *frame_context.shader_geometry_upload_buffer);
+            command_list.TransitionResource(*shader_geometry_default_buffer, RHIResourceState::ShaderRead);
         }
 
         if (required_material_buffer_size == 0)
         {
             frame_context.shader_material_upload_buffer = nullptr;
-            RemoveResourceDeferred(frame_context, shader_material_default_buffer);
+            frame_context.RemoveResourceDeferred(shader_material_default_buffer);
             shader_material_default_buffer_srv = {};
         }
         else
@@ -597,7 +731,7 @@ namespace won::rendering
 
             if (!shader_material_default_buffer || current_default_buffer_size < required_material_buffer_size)
             {
-                RemoveResourceDeferred(frame_context, shader_material_default_buffer);
+                frame_context.RemoveResourceDeferred(shader_material_default_buffer);
                 RHIBufferDesc shader_material_default_buffer_desc = {};
                 shader_material_default_buffer_desc.size = required_material_buffer_size;
                 shader_material_default_buffer_desc.usage = RHIResourceUsage::Default;
@@ -653,15 +787,15 @@ namespace won::rendering
             }
             std::memcpy(mapped_data, shader_materials.data(), required_material_buffer_size);
 
-            frame_context.command_list->TransitionResource(*shader_material_default_buffer, RHIResourceState::CopyDest);
-            frame_context.command_list->CopyResource(*shader_material_default_buffer, *frame_context.shader_material_upload_buffer);
-            frame_context.command_list->TransitionResource(*shader_material_default_buffer, RHIResourceState::ShaderRead);
+            command_list.TransitionResource(*shader_material_default_buffer, RHIResourceState::CopyDest);
+            command_list.CopyResource(*shader_material_default_buffer, *frame_context.shader_material_upload_buffer);
+            command_list.TransitionResource(*shader_material_default_buffer, RHIResourceState::ShaderRead);
         }
 
         if (required_light_buffer_size == 0)
         {
             frame_context.shader_light_upload_buffer = nullptr;
-            RemoveResourceDeferred(frame_context, shader_light_default_buffer);
+            frame_context.RemoveResourceDeferred(shader_light_default_buffer);
             shader_light_default_buffer_srv = {};
         }
         else
@@ -674,7 +808,7 @@ namespace won::rendering
 
             if (!shader_light_default_buffer || current_default_buffer_size < required_light_buffer_size)
             {
-                RemoveResourceDeferred(frame_context, shader_light_default_buffer);
+                frame_context.RemoveResourceDeferred(shader_light_default_buffer);
                 RHIBufferDesc shader_light_default_buffer_desc = {};
                 shader_light_default_buffer_desc.size = required_light_buffer_size;
                 shader_light_default_buffer_desc.usage = RHIResourceUsage::Default;
@@ -730,14 +864,14 @@ namespace won::rendering
             }
             std::memcpy(mapped_data, shader_lights.data(), required_light_buffer_size);
 
-            frame_context.command_list->TransitionResource(*shader_light_default_buffer, RHIResourceState::CopyDest);
-            frame_context.command_list->CopyResource(*shader_light_default_buffer, *frame_context.shader_light_upload_buffer);
-            frame_context.command_list->TransitionResource(*shader_light_default_buffer, RHIResourceState::ShaderRead);
+            command_list.TransitionResource(*shader_light_default_buffer, RHIResourceState::CopyDest);
+            command_list.CopyResource(*shader_light_default_buffer, *frame_context.shader_light_upload_buffer);
+            command_list.TransitionResource(*shader_light_default_buffer, RHIResourceState::ShaderRead);
         }
 
         if (required_shadow_cascade_buffer_size == 0)
         {
-            RemoveResourceDeferred(frame_context, shader_shadow_cascade_default_buffer);
+            frame_context.RemoveResourceDeferred(shader_shadow_cascade_default_buffer);
             shader_shadow_cascade_default_buffer_srv = {};
         }
         else
@@ -750,7 +884,7 @@ namespace won::rendering
 
             if (!shader_shadow_cascade_default_buffer || current_default_buffer_size < required_shadow_cascade_buffer_size)
             {
-                RemoveResourceDeferred(frame_context, shader_shadow_cascade_default_buffer);
+                frame_context.RemoveResourceDeferred(shader_shadow_cascade_default_buffer);
                 RHIBufferDesc shader_shadow_cascade_default_buffer_desc = {};
                 shader_shadow_cascade_default_buffer_desc.size = required_shadow_cascade_buffer_size;
                 shader_shadow_cascade_default_buffer_desc.usage = RHIResourceUsage::Default;
@@ -777,7 +911,7 @@ namespace won::rendering
                 }
             }
 
-            if (!UpdateDefaultBuffer(frame_context, *shader_shadow_cascade_default_buffer, shader_shadow_cascades.data(), required_shadow_cascade_buffer_size, RHIResourceState::ShaderRead))
+            if (!UpdateDefaultBuffer(frame_context, *shader_shadow_cascade_default_buffer, shader_shadow_cascades.data(), required_shadow_cascade_buffer_size, RHIResourceState::ShaderRead, 0, command_list))
             {
                 return false;
             }
@@ -785,7 +919,7 @@ namespace won::rendering
 
         if (required_bvh_node_buffer_size == 0)
         {
-            RemoveResourceDeferred(frame_context, shader_bvh_node_default_buffer);
+            frame_context.RemoveResourceDeferred(shader_bvh_node_default_buffer);
             shader_bvh_node_default_buffer_srv = {};
         }
         else
@@ -798,7 +932,7 @@ namespace won::rendering
 
             if (!shader_bvh_node_default_buffer || current_default_buffer_size < required_bvh_node_buffer_size)
             {
-                RemoveResourceDeferred(frame_context, shader_bvh_node_default_buffer);
+                frame_context.RemoveResourceDeferred(shader_bvh_node_default_buffer);
                 RHIBufferDesc shader_bvh_node_default_buffer_desc = {};
                 shader_bvh_node_default_buffer_desc.size = required_bvh_node_buffer_size;
                 shader_bvh_node_default_buffer_desc.usage = RHIResourceUsage::Default;
@@ -825,7 +959,7 @@ namespace won::rendering
                 }
             }
 
-            if (!UpdateDefaultBuffer(frame_context, *shader_bvh_node_default_buffer, shader_bvh_nodes.data(), required_bvh_node_buffer_size, RHIResourceState::ShaderRead))
+            if (!UpdateDefaultBuffer(frame_context, *shader_bvh_node_default_buffer, shader_bvh_nodes.data(), required_bvh_node_buffer_size, RHIResourceState::ShaderRead, 0, command_list))
             {
                 return false;
             }
@@ -833,7 +967,7 @@ namespace won::rendering
 
         if (required_bvh_instance_buffer_size == 0)
         {
-            RemoveResourceDeferred(frame_context, shader_bvh_instance_default_buffer);
+            frame_context.RemoveResourceDeferred(shader_bvh_instance_default_buffer);
             shader_bvh_instance_default_buffer_srv = {};
         }
         else
@@ -846,7 +980,7 @@ namespace won::rendering
 
             if (!shader_bvh_instance_default_buffer || current_default_buffer_size < required_bvh_instance_buffer_size)
             {
-                RemoveResourceDeferred(frame_context, shader_bvh_instance_default_buffer);
+                frame_context.RemoveResourceDeferred(shader_bvh_instance_default_buffer);
                 RHIBufferDesc shader_bvh_instance_default_buffer_desc = {};
                 shader_bvh_instance_default_buffer_desc.size = required_bvh_instance_buffer_size;
                 shader_bvh_instance_default_buffer_desc.usage = RHIResourceUsage::Default;
@@ -873,17 +1007,17 @@ namespace won::rendering
                 }
             }
 
-            if (!UpdateDefaultBuffer(frame_context, *shader_bvh_instance_default_buffer, shader_bvh_instances.data(), required_bvh_instance_buffer_size, RHIResourceState::ShaderRead))
+            if (!UpdateDefaultBuffer(frame_context, *shader_bvh_instance_default_buffer, shader_bvh_instances.data(), required_bvh_instance_buffer_size, RHIResourceState::ShaderRead, 0, command_list))
             {
                 return false;
             }
         }
 
-        if (!CreateDDGIResources(frame_context, render_data.shader_ddgi_volume))
-        {
-            return false;
-        }
+        return true;
+    }
 
+    bool ForwardRenderer::UpdateFrameConstants(FrameContext& frame_context, const View& view, const Scene::RenderData& render_data, RHICommandList& command_list)
+    {
         ShaderFrame shader_frame{};
         shader_frame.Init();
         shader_frame.scene.instancebuffer = shader_instance_default_buffer_srv.descriptor_index;
@@ -895,8 +1029,8 @@ namespace won::rendering
         shader_frame.scene.shadow_cascade_buffer = shader_shadow_cascade_default_buffer_srv.descriptor_index;
         shader_frame.scene.bvh_node_buffer = shader_bvh_node_default_buffer_srv.descriptor_index;
         shader_frame.scene.bvh_instance_buffer = shader_bvh_instance_default_buffer_srv.descriptor_index;
-        shader_frame.scene.bvh_node_count = static_cast<uint32>(shader_bvh_nodes.size());
-        shader_frame.scene.bvh_instance_count = static_cast<uint32>(shader_bvh_instances.size());
+        shader_frame.scene.bvh_node_count = static_cast<uint32>(render_data.shader_bvh_nodes.size());
+        shader_frame.scene.bvh_instance_count = static_cast<uint32>(render_data.shader_bvh_instances.size());
         shader_frame.sky = render_data.shader_sky;
         shader_frame.environment_lighting = render_data.shader_environment_lighting;
         shader_frame.ddgi_volume = render_data.shader_ddgi_volume;
@@ -938,11 +1072,11 @@ namespace won::rendering
             }
         }
 
-        if (!UpdateDefaultBuffer(frame_context, *shader_frame_buffer, &shader_frame, sizeof(ShaderFrame), RHIResourceState::ConstantBuffer))
+        if (!UpdateDefaultBuffer(frame_context, *shader_frame_buffer, &shader_frame, sizeof(ShaderFrame), RHIResourceState::ConstantBuffer, 0, command_list))
         {
             return false;
         }
-        if (!UpdateDefaultBuffer(frame_context, *shader_camera_buffer, &shader_camera, sizeof(ShaderCamera), RHIResourceState::ConstantBuffer))
+        if (!UpdateDefaultBuffer(frame_context, *shader_camera_buffer, &shader_camera, sizeof(ShaderCamera), RHIResourceState::ConstantBuffer, 0, command_list))
         {
             return false;
         }
@@ -1176,7 +1310,7 @@ namespace won::rendering
         return true;
     }
 
-    bool ForwardRenderer::DrawScene(const View& view, const FrameContext& frame_context, RenderPassType pass, uint32 flags)
+    bool ForwardRenderer::DrawScene(const FrameContext& frame_context, const View& view, RenderPassType pass, uint32 flags, RHICommandList& command_list)
     {
         const Scene::RenderData& render_data = view.scene->GetRenderData();
 
@@ -1186,17 +1320,17 @@ namespace won::rendering
         {
             return false;
         }
-        frame_context.command_list->SetGraphicsPipeline(*pipeline);
+        command_list.SetGraphicsPipeline(*pipeline);
 
         RHISubresourceBinding shader_frame_binding = {};
         shader_frame_binding.resource = shader_frame_buffer.get();
         shader_frame_binding.subresource = shader_frame_buffer_cbv;
-        frame_context.command_list->SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
+        command_list.SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
 
         RHISubresourceBinding shader_camera_binding = {};
         shader_camera_binding.resource = shader_camera_buffer.get();
         shader_camera_binding.subresource = shader_camera_buffer_cbv;
-        frame_context.command_list->SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_camera_binding);
+        command_list.SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_camera_binding);
 
         for (const auto& renderable : render_data.renderables)
         {
@@ -1235,10 +1369,10 @@ namespace won::rendering
                 continue;
             }
 
-            frame_context.command_list->SetIndexBuffer(*renderable.index_buffer, sizeof(uint32), renderable.index_offset, renderable.index_count * sizeof(uint32));
-            frame_context.command_list->SetPrimitiveTopology(ToRHIPrimitiveTopology(renderable.primitive_topology));
-            frame_context.command_list->PushConstants(RHIShaderStage::Vertex, &renderable.push_constants, sizeof(ObjectPushConstants), 0);
-            frame_context.command_list->DrawIndexed(renderable.index_count, 1, 0, 0, 0);
+            command_list.SetIndexBuffer(*renderable.index_buffer, sizeof(uint32), renderable.index_offset, renderable.index_count * sizeof(uint32));
+            command_list.SetPrimitiveTopology(ToRHIPrimitiveTopology(renderable.primitive_topology));
+            command_list.PushConstants(RHIShaderStage::Vertex, &renderable.push_constants, sizeof(ObjectPushConstants), 0);
+            command_list.DrawIndexed(renderable.index_count, 1, 0, 0, 0);
         }
 
         return true;
@@ -1248,19 +1382,27 @@ namespace won::rendering
     {
         device = desc.device;
 
-        frame_contexts = {};
         for (uint32 i = 0; i < max_frames_in_flight; ++i)
         {
             FrameContext& frame_context = frame_contexts[i];
-            frame_context.command_allocator = device->CreateCommandAllocator(RHIQueueType::Graphics);
-            frame_context.command_list = device->CreateCommandList(RHIQueueType::Graphics);
             frame_context.fence = device->CreateFence(0);
-            if (!frame_context.command_allocator || !frame_context.command_list || !frame_context.fence)
+            if (!frame_context.fence)
             {
                 backlog::Post("failed to create frame contexts", backlog::LogLevel::Error);
-                frame_contexts = {};
                 return;
             }
+        }
+
+        enqueued_work_command_allocator = device->CreateCommandAllocator(RHIQueueType::Graphics);
+        enqueued_work_command_list = device->CreateCommandList(RHIQueueType::Graphics);
+        enqueued_work_fence = device->CreateFence(0);
+        if (!enqueued_work_command_allocator || !enqueued_work_command_list || !enqueued_work_fence)
+        {
+            backlog::Post("failed to create enqueued rendering work command objects", backlog::LogLevel::Error);
+            enqueued_work_command_allocator = nullptr;
+            enqueued_work_command_list = nullptr;
+            enqueued_work_fence = nullptr;
+            return;
         }
 
         RHIBufferDesc shader_frame_buffer_desc = {};
@@ -1323,6 +1465,18 @@ namespace won::rendering
         }
 
         current_window = &window;
+        const uint32 frame_slot = current_frame_slot;
+        FrameContext& frame_context = GetFrameContext();
+
+        // wait for fence here
+        frame_context.BeginFrame();
+
+        RHICommandList* command_list = frame_context.BeginCommandList(*device);
+        profiler::BeginFrameGPU(*device, frame_slot, *command_list);
+
+        device->BeginFrame(frame_slot);
+
+        CreateRenderTargetResources(frame_context);
     }
 
     void ForwardRenderer::OnResize(platform::Window& window, uint32 width, uint32 height)
@@ -1350,7 +1504,7 @@ namespace won::rendering
         }
     }
 
-    void ForwardRenderer::UpdateDDGIProbe(const ShaderEnvironmentLighting& environment_lighting, const ShaderDDGIVolume& ddgi_volume, FrameContext& frame_context, const RHISubresourceBinding& shader_frame_binding, const RHISubresourceBinding& shader_camera_binding)
+    void ForwardRenderer::UpdateDDGIProbe(FrameContext& frame_context, const ShaderEnvironmentLighting& environment_lighting, const ShaderDDGIVolume& ddgi_volume, const RHISubresourceBinding& shader_frame_binding, const RHISubresourceBinding& shader_camera_binding, RHICommandList& command_list)
     {
         resource::ShaderLibrary& shader_library = GetShaderLibrary();
         std::shared_ptr<RHIShader> current_ddgi_probe_update_shader = shader_library.GetShader(ShaderId::CSDDGIProbeUpdate);
@@ -1411,49 +1565,49 @@ namespace won::rendering
             1
         };
 
-        auto gpu_range = profiler::ScopedRangeGPU("DDGI Probe Update", *frame_context.command_list);
-        frame_context.command_list->BeginEvent("DDGI Probe Update");
-        frame_context.command_list->TransitionResource(*ddgi_irradiance_texture, RHIResourceState::ShaderWrite);
-        frame_context.command_list->TransitionResource(*ddgi_visibility_texture, RHIResourceState::ShaderWrite);
-        frame_context.command_list->TransitionResource(*ddgi_probe_data_buffer, RHIResourceState::ShaderWrite);
+        auto gpu_range = profiler::ScopedRangeGPU("DDGI Probe Update", command_list);
+        command_list.BeginEvent("DDGI Probe Update");
+        command_list.TransitionResource(*ddgi_irradiance_texture, RHIResourceState::ShaderWrite);
+        command_list.TransitionResource(*ddgi_visibility_texture, RHIResourceState::ShaderWrite);
+        command_list.TransitionResource(*ddgi_probe_data_buffer, RHIResourceState::ShaderWrite);
         if (ddgi_history_valid)
         {
-            frame_context.command_list->TransitionResource(*ddgi_irradiance_history_texture, RHIResourceState::ShaderRead);
-            frame_context.command_list->TransitionResource(*ddgi_visibility_history_texture, RHIResourceState::ShaderRead);
-            frame_context.command_list->TransitionResource(*ddgi_probe_data_history_buffer, RHIResourceState::ShaderRead);
+            command_list.TransitionResource(*ddgi_irradiance_history_texture, RHIResourceState::ShaderRead);
+            command_list.TransitionResource(*ddgi_visibility_history_texture, RHIResourceState::ShaderRead);
+            command_list.TransitionResource(*ddgi_probe_data_history_buffer, RHIResourceState::ShaderRead);
         }
 
-        frame_context.command_list->SetComputePipeline(*ddgi_probe_update_pipeline);
-        frame_context.command_list->SetConstantBuffer(RHIShaderStage::Compute, 0, shader_frame_binding);
-        frame_context.command_list->SetConstantBuffer(RHIShaderStage::Compute, 1, shader_camera_binding);
-        frame_context.command_list->Dispatch(debug_state.ddgi.dispatch_groups.x, debug_state.ddgi.dispatch_groups.y, debug_state.ddgi.dispatch_groups.z);
+        command_list.SetComputePipeline(*ddgi_probe_update_pipeline);
+        command_list.SetConstantBuffer(RHIShaderStage::Compute, 0, shader_frame_binding);
+        command_list.SetConstantBuffer(RHIShaderStage::Compute, 1, shader_camera_binding);
+        command_list.Dispatch(debug_state.ddgi.dispatch_groups.x, debug_state.ddgi.dispatch_groups.y, debug_state.ddgi.dispatch_groups.z);
 
-        frame_context.command_list->UAVBarrier(*ddgi_irradiance_texture);
-        frame_context.command_list->UAVBarrier(*ddgi_visibility_texture);
-        frame_context.command_list->UAVBarrier(*ddgi_probe_data_buffer);
+        command_list.UAVBarrier(*ddgi_irradiance_texture);
+        command_list.UAVBarrier(*ddgi_visibility_texture);
+        command_list.UAVBarrier(*ddgi_probe_data_buffer);
 
-        frame_context.command_list->TransitionResource(*ddgi_irradiance_texture, RHIResourceState::CopySource);
-        frame_context.command_list->TransitionResource(*ddgi_visibility_texture, RHIResourceState::CopySource);
-        frame_context.command_list->TransitionResource(*ddgi_probe_data_buffer, RHIResourceState::CopySource);
-        frame_context.command_list->TransitionResource(*ddgi_irradiance_history_texture, RHIResourceState::CopyDest);
-        frame_context.command_list->TransitionResource(*ddgi_visibility_history_texture, RHIResourceState::CopyDest);
-        frame_context.command_list->TransitionResource(*ddgi_probe_data_history_buffer, RHIResourceState::CopyDest);
+        command_list.TransitionResource(*ddgi_irradiance_texture, RHIResourceState::CopySource);
+        command_list.TransitionResource(*ddgi_visibility_texture, RHIResourceState::CopySource);
+        command_list.TransitionResource(*ddgi_probe_data_buffer, RHIResourceState::CopySource);
+        command_list.TransitionResource(*ddgi_irradiance_history_texture, RHIResourceState::CopyDest);
+        command_list.TransitionResource(*ddgi_visibility_history_texture, RHIResourceState::CopyDest);
+        command_list.TransitionResource(*ddgi_probe_data_history_buffer, RHIResourceState::CopyDest);
 
-        frame_context.command_list->CopyResource(*ddgi_irradiance_history_texture, *ddgi_irradiance_texture);
-        frame_context.command_list->CopyResource(*ddgi_visibility_history_texture, *ddgi_visibility_texture);
-        frame_context.command_list->CopyResource(*ddgi_probe_data_history_buffer, *ddgi_probe_data_buffer);
+        command_list.CopyResource(*ddgi_irradiance_history_texture, *ddgi_irradiance_texture);
+        command_list.CopyResource(*ddgi_visibility_history_texture, *ddgi_visibility_texture);
+        command_list.CopyResource(*ddgi_probe_data_history_buffer, *ddgi_probe_data_buffer);
         if (debug_options.ddgi_debug_enable && debug_state.ddgi.probe_data_readback_buffer)
         {
-            frame_context.command_list->CopyBuffer(*debug_state.ddgi.probe_data_readback_buffer, 0, *ddgi_probe_data_buffer, 0, ddgi_probe_data_buffer->GetDesc().buffer_desc.size);
+            command_list.CopyBuffer(*debug_state.ddgi.probe_data_readback_buffer, 0, *ddgi_probe_data_buffer, 0, ddgi_probe_data_buffer->GetDesc().buffer_desc.size);
         }
 
-        frame_context.command_list->TransitionResource(*ddgi_irradiance_texture, RHIResourceState::ShaderRead);
-        frame_context.command_list->TransitionResource(*ddgi_visibility_texture, RHIResourceState::ShaderRead);
-        frame_context.command_list->TransitionResource(*ddgi_probe_data_buffer, RHIResourceState::ShaderRead);
-        frame_context.command_list->TransitionResource(*ddgi_irradiance_history_texture, RHIResourceState::ShaderRead);
-        frame_context.command_list->TransitionResource(*ddgi_visibility_history_texture, RHIResourceState::ShaderRead);
-        frame_context.command_list->TransitionResource(*ddgi_probe_data_history_buffer, RHIResourceState::ShaderRead);
-        frame_context.command_list->EndEvent();
+        command_list.TransitionResource(*ddgi_irradiance_texture, RHIResourceState::ShaderRead);
+        command_list.TransitionResource(*ddgi_visibility_texture, RHIResourceState::ShaderRead);
+        command_list.TransitionResource(*ddgi_probe_data_buffer, RHIResourceState::ShaderRead);
+        command_list.TransitionResource(*ddgi_irradiance_history_texture, RHIResourceState::ShaderRead);
+        command_list.TransitionResource(*ddgi_visibility_history_texture, RHIResourceState::ShaderRead);
+        command_list.TransitionResource(*ddgi_probe_data_history_buffer, RHIResourceState::ShaderRead);
+        command_list.EndEvent();
 
         debug_state.ddgi.probe_update_dispatched = true;
         ddgi_probe_update_offset = (probe_update_start + probes_per_frame) % ddgi_volume.total_probe_count;
@@ -1461,118 +1615,8 @@ namespace won::rendering
         debug_state.ddgi.probe_data_readback_valid = debug_options.ddgi_debug_enable && debug_state.ddgi.probe_data_readback_buffer != nullptr;
     }
 
-    void ForwardRenderer::Render(const View& view)
+    void ForwardRenderer::UpdateDebugState(const View& view, const Scene::RenderData& render_data)
     {
-        if (!view.scene || view.camera_entity == ecs::INVALID_ENTITY || !current_window)
-            return;
-
-        std::shared_ptr<RHISwapchain> swapchain = current_window->GetRHISwapchain();
-        if (!swapchain)
-        {
-            swapchain = device->CreateSwapchain(*current_window);
-            if (!swapchain)
-            {
-                backlog::Post("failed to create swapchain", backlog::LogLevel::Error);
-                return;
-            }
-            current_window->SetRHISwapchain(swapchain);
-        }
-
-        std::shared_ptr<RHIResource> back_buffer = swapchain->GetCurrentBackBuffer();
-        if (!back_buffer)
-        {
-            backlog::Post("failed to get swapchain back buffer", backlog::LogLevel::Error);
-            return;
-        }
-
-        for (uint32 i = 0; i < swapchain->GetBackBufferCount() && i < static_cast<uint32>(back_buffers_rtv.size()); ++i)
-        {
-            if (back_buffers_rtv[i].IsValid())
-            {
-                continue;
-            }
-
-            std::shared_ptr<RHIResource> swapchain_back_buffer = swapchain->GetBackBuffer(i);
-            if (!swapchain_back_buffer)
-            {
-                backlog::Post("failed to get swapchain back buffer for RTV creation", backlog::LogLevel::Error);
-                return;
-            }
-
-            RHISubresourceDesc back_buffer_subresource_desc = {};
-            back_buffer_subresource_desc.type = RHISubresourceType::RenderTarget;
-            if (!device->CreateSubresource(*swapchain_back_buffer, back_buffer_subresource_desc, &back_buffers_rtv[i]))
-            {
-                backlog::Post("failed to create back buffer RTV", backlog::LogLevel::Error);
-                return;
-            }
-        }
-
-        const RHIResourceDesc& back_buffer_desc = back_buffer->GetDesc();
-        const RHITextureDesc& back_buffer_texture_desc = back_buffer_desc.texture_desc;
-        const uint32 target_sample_count = back_buffer_texture_desc.sample_count > 0 ? back_buffer_texture_desc.sample_count : 1;
-        bool recreate_depth_buffer = !depth_buffer || !depth_buffer_dsv.IsValid();
-        if (!recreate_depth_buffer)
-        {
-            const RHITextureDesc& depth_texture_desc = depth_buffer->GetDesc().texture_desc;
-            recreate_depth_buffer =
-                depth_texture_desc.width != back_buffer_texture_desc.width ||
-                depth_texture_desc.height != back_buffer_texture_desc.height ||
-                depth_texture_desc.sample_count != target_sample_count ||
-                depth_texture_desc.format != RHIFormat::D32Float;
-        }
-
-        FrameContext& frame_context = GetFrameContext();
-        if (frame_context.fence_value > 0)
-        {
-            profiler::ScopedRangeCPU wait_range("Frame Context Fence Wait");
-            frame_context.fence->Wait(frame_context.fence_value);
-            frame_context.fence_value = 0;
-        }
-        device->BeginFrame(current_frame_slot);
-
-        frame_context.deferred_res_removal.clear();
-        if (recreate_depth_buffer)
-        {
-            RemoveResourceDeferred(frame_context, depth_buffer);
-            RHITextureDesc depth_desc = {};
-            depth_desc.width = back_buffer_texture_desc.width;
-            depth_desc.height = back_buffer_texture_desc.height;
-            depth_desc.depth = 1;
-            depth_desc.mip_levels = 1;
-            depth_desc.array_layers = 1;
-            depth_desc.sample_count = target_sample_count;
-            depth_desc.format = RHIFormat::D32Float;
-            depth_desc.usage = RHIResourceUsage::Default;
-            depth_desc.bind_flags = RHIBindFlags::DepthStencil;
-            depth_buffer = device->CreateTexture(depth_desc);
-            if (!depth_buffer)
-            {
-                backlog::Post("failed to create depth buffer", backlog::LogLevel::Error);
-                return;
-            }
-            depth_buffer->SetName("Scene Depth Buffer");
-
-            depth_buffer_dsv = {};
-            RHISubresourceDesc depth_subresource_desc = {};
-            depth_subresource_desc.type = RHISubresourceType::DepthStencil;
-            depth_subresource_desc.format = depth_desc.format;
-            if (!device->CreateSubresource(*depth_buffer, depth_subresource_desc, &depth_buffer_dsv))
-            {
-                backlog::Post("failed to create depth buffer subresource", backlog::LogLevel::Error);
-                depth_buffer = nullptr;
-                return;
-            }
-        }
-
-        if (!BuildShadowCascades(view))
-        {
-            return;
-        }
-
-        utils::BuildGPUBVH(device.get(), *view.scene);
-
-        const Scene::RenderData& render_data = view.scene->GetRenderData();
         std::shared_ptr<RHIResource> ddgi_probe_data_readback_buffer = debug_state.ddgi.probe_data_readback_buffer;
         const bool ddgi_probe_data_readback_valid = debug_state.ddgi.probe_data_readback_valid;
         debug_state.ddgi = {};
@@ -1672,263 +1716,286 @@ namespace won::rendering
                 }
             }
         }
-        if (render_data.shadow_map_atlas_size.x == 0 || render_data.shadow_map_atlas_size.y == 0)
-        {
-            RemoveResourceDeferred(frame_context, shadow_map_atlas);
-            shadow_map_atlas_dsv = {};
-            shadow_map_atlas_srv = {};
-            shadow_map_atlas_size = { 0, 0 };
-        }
-        else
-        {
-            const bool recreate_shadowmap_atlas =
-                !shadow_map_atlas ||
-                !shadow_map_atlas_dsv.IsValid() ||
-                !shadow_map_atlas_srv.IsValid() ||
-                shadow_map_atlas_size.x != render_data.shadow_map_atlas_size.x ||
-                shadow_map_atlas_size.y != render_data.shadow_map_atlas_size.y;
+    }
 
-            if (recreate_shadowmap_atlas)
-            {
-                RemoveResourceDeferred(frame_context, shadow_map_atlas);
-                RHITextureDesc shadow_map_atlas_desc = {};
-                shadow_map_atlas_desc.width = render_data.shadow_map_atlas_size.x;
-                shadow_map_atlas_desc.height = render_data.shadow_map_atlas_size.y;
-                shadow_map_atlas_desc.depth = 1;
-                shadow_map_atlas_desc.mip_levels = 1;
-                shadow_map_atlas_desc.array_layers = 1;
-                shadow_map_atlas_desc.sample_count = 1;
-                shadow_map_atlas_desc.format = RHIFormat::D32Float;
-                shadow_map_atlas_desc.usage = RHIResourceUsage::Default;
-                shadow_map_atlas_desc.bind_flags = RHIBindFlags::DepthStencil | RHIBindFlags::ShaderResource;
-                shadow_map_atlas = device->CreateTexture(shadow_map_atlas_desc);
-                if (!shadow_map_atlas)
-                {
-                    backlog::Post("failed to create shadow map atlas", backlog::LogLevel::Error);
-                    return;
-                }
-                shadow_map_atlas->SetName("Shadow Map Atlas");
+    void ForwardRenderer::Render(const View& view)
+    {
+        auto render_cpu_range = profiler::ScopedRangeCPU("ForwardRenderer::Render");
 
-                shadow_map_atlas_dsv = {};
-                RHISubresourceDesc shadow_map_atlas_subresource_desc = {};
-                shadow_map_atlas_subresource_desc.type = RHISubresourceType::DepthStencil;
-                shadow_map_atlas_subresource_desc.format = shadow_map_atlas_desc.format;
-                if (!device->CreateSubresource(*shadow_map_atlas, shadow_map_atlas_subresource_desc, &shadow_map_atlas_dsv))
-                {
-                    backlog::Post("failed to create shadow map atlas subresource", backlog::LogLevel::Error);
-                    shadow_map_atlas = nullptr;
-                    return;
-                }
-                shadow_map_atlas_subresource_desc.type = RHISubresourceType::ShaderResource;
-                if (!device->CreateSubresource(*shadow_map_atlas, shadow_map_atlas_subresource_desc, &shadow_map_atlas_srv))
-                {
-                    backlog::Post("failed to create shadow map atlas subresource", backlog::LogLevel::Error);
-                    shadow_map_atlas = nullptr;
-                    return;
-                }
+        if (!view.scene || view.camera_entity == ecs::INVALID_ENTITY || !current_window)
+            return;
 
-                shadow_map_atlas_size = render_data.shadow_map_atlas_size;
-            }
-        }
+        FrameContext& frame_context = GetFrameContext();
 
-        frame_context.command_allocator->Reset();
-        frame_context.command_list->Begin(*frame_context.command_allocator);
-        frame_context.frame_upload_offset = 0;
-        profiler::BeginFrameGPU(*device, current_frame_slot, *frame_context.command_list);
+        const Scene::RenderData render_data = view.scene->GetRenderData();
 
         {
-            auto gpu_range = profiler::ScopedRangeGPU("Build Frame Context", *frame_context.command_list);
-            if (!BuildFrameContext(view, frame_context))
+            auto cpu_range = profiler::ScopedRangeCPU("Create Render Resources");
+            if (!CreateShadowMapAtlasResources(frame_context, render_data) ||
+                !CreateDDGIResources(frame_context, render_data.shader_ddgi_volume))
             {
                 return;
             }
         }
 
-        const uint32 back_buffer_index = swapchain->GetCurrentBackBufferIndex();
-
-        RHISubresourceBinding back_buffer_binding = {};
-        back_buffer_binding.resource = back_buffer.get();
-        back_buffer_binding.subresource = back_buffers_rtv[back_buffer_index];
-        RHISubresourceBinding depth_buffer_binding = {};
-        depth_buffer_binding.resource = depth_buffer.get();
-        depth_buffer_binding.subresource = depth_buffer_dsv;
-        Vector<RHISubresourceBinding> color_targets = { back_buffer_binding };
-        RHISubresourceBinding shader_frame_binding = {};
-        shader_frame_binding.resource = shader_frame_buffer.get();
-        shader_frame_binding.subresource = shader_frame_buffer_cbv;
-        RHISubresourceBinding shader_camera_binding = {};
-        shader_camera_binding.resource = shader_camera_buffer.get();
-        shader_camera_binding.subresource = shader_camera_buffer_cbv;
-
-        UpdateDDGIProbe(render_data.shader_environment_lighting, render_data.shader_ddgi_volume, frame_context, shader_frame_binding, shader_camera_binding);
-
-        frame_context.command_list->TransitionResource(*back_buffer, RHIResourceState::RenderTarget);
-        frame_context.command_list->TransitionResource(*depth_buffer, RHIResourceState::DepthWrite);
-        frame_context.command_list->ClearRenderTarget(back_buffer_binding, { 0.f, 0.3f, 0.3f, 1.f });
-        frame_context.command_list->ClearDepthStencil(depth_buffer_binding, 0.0f, 0u);
-
-        RHIViewport viewport = {};
-        viewport.x = static_cast<float>(view.viewport.x);
-        viewport.y = static_cast<float>(view.viewport.y);
-        viewport.width = static_cast<float>(view.viewport.width);
-        viewport.height = static_cast<float>(view.viewport.height);
-        viewport.min_depth = 0.0f;
-        viewport.max_depth = 1.0f;
-        frame_context.command_list->SetViewport(viewport);
-
-        RHIRect scissor = {};
-        scissor.x = view.scissor.x;
-        scissor.y = view.scissor.y;
-        scissor.width = view.scissor.width;
-        scissor.height = view.scissor.height;
-        frame_context.command_list->SetScissor(scissor);
-
         {
-            auto gpu_range = profiler::ScopedRangeGPU("Sky Pass", *frame_context.command_list);
-            frame_context.command_list->BeginEvent("Sky Pass");
-            frame_context.command_list->SetRenderTargets(color_targets, nullptr);
-            resource::ShaderLibrary& shader_library = GetShaderLibrary();
-            std::shared_ptr<RHIPipeline> sky_pipeline = shader_library.GetPipeline(RenderPassType::SkyPass);
-            if (!sky_pipeline)
-            {
-                frame_context.command_list->EndEvent();
-                return;
-            }
-            frame_context.command_list->SetGraphicsPipeline(*sky_pipeline);
-            frame_context.command_list->SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
-            frame_context.command_list->SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_camera_binding);
-            frame_context.command_list->SetConstantBuffer(RHIShaderStage::Pixel, 0, shader_frame_binding);
-            frame_context.command_list->SetConstantBuffer(RHIShaderStage::Pixel, 1, shader_camera_binding);
-            frame_context.command_list->SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
-            frame_context.command_list->Draw(3, 1, 0, 0);
-            frame_context.command_list->EndEvent();
+            auto cpu_range = profiler::ScopedRangeCPU("Build Shadow Cascades");
+            BuildShadowCascades(view);
+        }
+        {
+            auto cpu_range = profiler::ScopedRangeCPU("Update Debug State");
+            UpdateDebugState(view, render_data);
         }
 
-        if (shadow_map_atlas && shadow_map_atlas_dsv.IsValid() && !render_data.render_shadow_slices.empty())
+        view.scene->BuildGPUBVH();
+        if (enqueued_work_fence_value > 0 && enqueued_work_fence->GetCompletedValue() >= enqueued_work_fence_value)
         {
-            auto gpu_range = profiler::ScopedRangeGPU("Shadow Pass", *frame_context.command_list);
-            frame_context.command_list->BeginEvent("Fill Shadow Map Atlas");
+            enqueued_work_fence_value = 0;
+            enqueued_work_scratch_resources.clear();
+        }
+        if (enqueued_work_fence_value == 0)
+        {
+            enqueued_work_scratch_resources.clear();
+            enqueued_work_succeeded = true;
+            jobsystem::Execute(GetRenderingWorkContext(), [this](jobsystem::JobArgs args) {
+                enqueued_work_command_allocator->Reset();
+                enqueued_work_command_list->Begin(*enqueued_work_command_allocator);
+                enqueued_work_succeeded = utils::FlushEnqueuedRenderingWork(*device, *enqueued_work_command_list, enqueued_work_scratch_resources);
+            });
+        }
 
-            RHISubresourceBinding shadow_map_atlas_binding = {};
-            shadow_map_atlas_binding.resource = shadow_map_atlas.get();
-            shadow_map_atlas_binding.subresource = shadow_map_atlas_dsv;
+        RHICommandList* command_list = frame_context.BeginCommandList(*device);
+        if (!command_list)
+        {
+            return;
+        }
 
-            frame_context.command_list->TransitionResource(*shadow_map_atlas, RHIResourceState::DepthWrite);
-            frame_context.command_list->ClearDepthStencil(shadow_map_atlas_binding, 0.0f, 0u);
-            frame_context.command_list->SetRenderTargets({}, &shadow_map_atlas_binding);
+        jobsystem::Execute(GetRenderingWorkContext(), [this, view, command_list](jobsystem::JobArgs args) {
+            FrameContext& frame_context = GetFrameContext();
+            const Scene::RenderData render_data = view.scene->GetRenderData();
 
-            for (const auto& shadow_slice : render_data.render_shadow_slices)
             {
-                if (!shadow_slice.HasShadowMapAtlasRect())
+                auto cpu_range = profiler::ScopedRangeCPU("Update Scene GPU Data");
+                auto gpu_range = profiler::ScopedRangeGPU("Update Scene GPU Data", *command_list);
+                if (!UpdateSceneGPUData(frame_context, render_data, *command_list))
                 {
-                    continue;
+                    return;
+                }
+            }
+
+            {
+                auto cpu_range = profiler::ScopedRangeCPU("Update Frame Constants");
+                auto gpu_range = profiler::ScopedRangeGPU("Update Frame Constants", *command_list);
+                if (!UpdateFrameConstants(frame_context, view, render_data, *command_list))
+                {
+                    return;
+                }
+            }
+
+
+            RHISubresourceBinding back_buffer_binding = {};
+            if (!GetCurrentBackBufferBinding(back_buffer_binding) || !depth_buffer || !depth_buffer_dsv.IsValid())
+            {
+                return;
+            }
+
+            RHISubresourceBinding depth_buffer_binding = {};
+            depth_buffer_binding.resource = depth_buffer.get();
+            depth_buffer_binding.subresource = depth_buffer_dsv;
+            Vector<RHISubresourceBinding> color_targets = { back_buffer_binding };
+            RHISubresourceBinding shader_frame_binding = {};
+            shader_frame_binding.resource = shader_frame_buffer.get();
+            shader_frame_binding.subresource = shader_frame_buffer_cbv;
+            RHISubresourceBinding shader_camera_binding = {};
+            shader_camera_binding.resource = shader_camera_buffer.get();
+            shader_camera_binding.subresource = shader_camera_buffer_cbv;
+
+            RHIViewport viewport = {};
+            viewport.x = static_cast<float>(view.viewport.x);
+            viewport.y = static_cast<float>(view.viewport.y);
+            viewport.width = static_cast<float>(view.viewport.width);
+            viewport.height = static_cast<float>(view.viewport.height);
+            viewport.min_depth = 0.0f;
+            viewport.max_depth = 1.0f;
+
+            RHIRect scissor = {};
+            scissor.x = view.scissor.x;
+            scissor.y = view.scissor.y;
+            scissor.width = view.scissor.width;
+            scissor.height = view.scissor.height;
+
+            {
+                auto cpu_range = profiler::ScopedRangeCPU("DDGI Probe Update");
+                UpdateDDGIProbe(frame_context, render_data.shader_environment_lighting, render_data.shader_ddgi_volume, shader_frame_binding, shader_camera_binding, *command_list);
+            }
+
+            command_list->TransitionResource(*back_buffer_binding.resource, RHIResourceState::RenderTarget);
+            command_list->TransitionResource(*depth_buffer_binding.resource, RHIResourceState::DepthWrite);
+            command_list->ClearRenderTarget(back_buffer_binding, { 0.f, 0.3f, 0.3f, 1.f });
+            command_list->ClearDepthStencil(depth_buffer_binding, 0.0f, 0u);
+            command_list->SetViewport(viewport);
+            command_list->SetScissor(scissor);
+
+            {
+                auto gpu_range = profiler::ScopedRangeGPU("Sky Pass", *command_list);
+                command_list->BeginEvent("Sky Pass");
+                command_list->SetRenderTargets(color_targets, nullptr);
+                resource::ShaderLibrary& shader_library = GetShaderLibrary();
+                std::shared_ptr<RHIPipeline> sky_pipeline = shader_library.GetPipeline(RenderPassType::SkyPass);
+                if (!sky_pipeline)
+                {
+                    command_list->EndEvent();
+                    return;
+                }
+                command_list->SetGraphicsPipeline(*sky_pipeline);
+                command_list->SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
+                command_list->SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_camera_binding);
+                command_list->SetConstantBuffer(RHIShaderStage::Pixel, 0, shader_frame_binding);
+                command_list->SetConstantBuffer(RHIShaderStage::Pixel, 1, shader_camera_binding);
+                command_list->SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
+                command_list->Draw(3, 1, 0, 0);
+                command_list->EndEvent();
+            }
+
+            if (shadow_map_atlas && shadow_map_atlas_dsv.IsValid() && !render_data.render_shadow_slices.empty())
+            {
+                auto cpu_range = profiler::ScopedRangeCPU("Shadow Pass");
+                auto gpu_range = profiler::ScopedRangeGPU("Shadow Pass", *command_list);
+                command_list->BeginEvent("Fill Shadow Map Atlas");
+
+                RHISubresourceBinding shadow_map_atlas_binding = {};
+                shadow_map_atlas_binding.resource = shadow_map_atlas.get();
+                shadow_map_atlas_binding.subresource = shadow_map_atlas_dsv;
+
+                command_list->TransitionResource(*shadow_map_atlas, RHIResourceState::DepthWrite);
+                command_list->ClearDepthStencil(shadow_map_atlas_binding, 0.0f, 0u);
+                command_list->SetRenderTargets({}, &shadow_map_atlas_binding);
+
+                for (const auto& shadow_slice : render_data.render_shadow_slices)
+                {
+                    if (!shadow_slice.HasShadowMapAtlasRect())
+                    {
+                        continue;
+                    }
+
+                    ShaderCamera shadow_camera = {};
+                    shadow_camera.Init();
+
+                    shadow_camera.view_projection = shadow_slice.view_projection;
+
+                    if (!UpdateDefaultBuffer(frame_context, *shader_camera_buffer, &shadow_camera, sizeof(ShaderCamera), RHIResourceState::ConstantBuffer, 0, *command_list))
+                    {
+                        return;
+                    }
+
+                    RHIViewport shadow_viewport = {};
+                    shadow_viewport.x = static_cast<float>(shadow_slice.shadow_map_atlas_rect.x);
+                    shadow_viewport.y = static_cast<float>(shadow_slice.shadow_map_atlas_rect.y);
+                    shadow_viewport.width = static_cast<float>(shadow_slice.shadow_map_atlas_rect.z);
+                    shadow_viewport.height = static_cast<float>(shadow_slice.shadow_map_atlas_rect.w);
+                    shadow_viewport.min_depth = 0.0f;
+                    shadow_viewport.max_depth = 1.0f;
+                    command_list->SetViewport(shadow_viewport);
+
+                    RHIRect shadow_scissor = {};
+                    shadow_scissor.x = shadow_slice.shadow_map_atlas_rect.x;
+                    shadow_scissor.y = shadow_slice.shadow_map_atlas_rect.y;
+                    shadow_scissor.width = shadow_slice.shadow_map_atlas_rect.z;
+                    shadow_scissor.height = shadow_slice.shadow_map_atlas_rect.w;
+                    command_list->SetScissor(shadow_scissor);
+
+                    DrawScene(frame_context, view, RenderPassType::ShadowPass, DrawScene_Opaque | DrawScene_ShadowCaster, *command_list);
+                }
+                command_list->TransitionResource(*shadow_map_atlas, RHIResourceState::ShaderRead);
+                command_list->EndEvent();
+
+                command_list->BeginEvent("Restore Render State");
+                ShaderCamera shader_camera{};
+                shader_camera.Init();
+                shader_camera.view = IDENTITY_MATRIX;
+                shader_camera.projection = IDENTITY_MATRIX;
+                shader_camera.view_projection = IDENTITY_MATRIX;
+                shader_camera.inv_view_projection = IDENTITY_MATRIX;
+                if (view.camera_entity != ecs::INVALID_ENTITY)
+                {
+                    const ecs::CameraComponent* camera_component = view.scene->GetComponent<ecs::CameraComponent>(view.camera_entity);
+                    if (camera_component)
+                    {
+                        shader_camera.position = camera_component->eye;
+                        shader_camera.forward = camera_component->forward;
+                        shader_camera.up = camera_component->up;
+                        shader_camera.z_near = camera_component->near_plane;
+                        shader_camera.z_far = camera_component->far_plane;
+                        shader_camera.internal_resolution = { static_cast<uint32>(view.viewport.width), static_cast<uint32>(view.viewport.height) };
+                        shader_camera.internal_resolution_rcp = {
+                            view.viewport.width > 0 ? 1.0f / static_cast<float>(view.viewport.width) : 0.0f,
+                            view.viewport.height > 0 ? 1.0f / static_cast<float>(view.viewport.height) : 0.0f
+                        };
+                        shader_camera.view = camera_component->view;
+                        shader_camera.projection = camera_component->projection;
+                        shader_camera.view_projection = camera_component->view_projection;
+                        shader_camera.inv_view_projection = camera_component->inv_view_projection;
+                    }
                 }
 
-                ShaderCamera shadow_camera = {};
-                shadow_camera.Init();
-
-                shadow_camera.view_projection = shadow_slice.view_projection;
-
-                if (!UpdateDefaultBuffer(frame_context, *shader_camera_buffer, &shadow_camera, sizeof(ShaderCamera), RHIResourceState::ConstantBuffer))
+                if (!UpdateDefaultBuffer(frame_context, *shader_camera_buffer, &shader_camera, sizeof(ShaderCamera), RHIResourceState::ConstantBuffer, 0, *command_list))
                 {
                     return;
                 }
 
-                RHIViewport shadow_viewport = {};
-                shadow_viewport.x = static_cast<float>(shadow_slice.shadow_map_atlas_rect.x);
-                shadow_viewport.y = static_cast<float>(shadow_slice.shadow_map_atlas_rect.y);
-                shadow_viewport.width = static_cast<float>(shadow_slice.shadow_map_atlas_rect.z);
-                shadow_viewport.height = static_cast<float>(shadow_slice.shadow_map_atlas_rect.w);
-                shadow_viewport.min_depth = 0.0f;
-                shadow_viewport.max_depth = 1.0f;
-                frame_context.command_list->SetViewport(shadow_viewport);
-
-                RHIRect shadow_scissor = {};
-                shadow_scissor.x = shadow_slice.shadow_map_atlas_rect.x;
-                shadow_scissor.y = shadow_slice.shadow_map_atlas_rect.y;
-                shadow_scissor.width = shadow_slice.shadow_map_atlas_rect.z;
-                shadow_scissor.height = shadow_slice.shadow_map_atlas_rect.w;
-                frame_context.command_list->SetScissor(shadow_scissor);
-
-                DrawScene(view, frame_context, RenderPassType::ShadowPass, DrawScene_Opaque | DrawScene_ShadowCaster);
+                command_list->EndEvent();
             }
-            frame_context.command_list->TransitionResource(*shadow_map_atlas, RHIResourceState::ShaderRead);
-            frame_context.command_list->EndEvent();
 
-            frame_context.command_list->BeginEvent("Restore Render State");
-            ShaderCamera shader_camera{};
-            shader_camera.Init();
-            shader_camera.view = IDENTITY_MATRIX;
-            shader_camera.projection = IDENTITY_MATRIX;
-            shader_camera.view_projection = IDENTITY_MATRIX;
-            shader_camera.inv_view_projection = IDENTITY_MATRIX;
-            if (view.camera_entity != ecs::INVALID_ENTITY)
+            command_list->SetViewport(viewport);
+            command_list->SetScissor(scissor);
+
+            // prepass
             {
-                const ecs::CameraComponent* camera_component = view.scene->GetComponent<ecs::CameraComponent>(view.camera_entity);
-                if (camera_component)
+                auto gpu_range = profiler::ScopedRangeGPU("Prepass", *command_list);
+                command_list->BeginEvent("Prepass");
+                command_list->SetRenderTargets({}, & depth_buffer_binding);
                 {
-                    shader_camera.position = camera_component->eye;
-                    shader_camera.forward = camera_component->forward;
-                    shader_camera.up = camera_component->up;
-                    shader_camera.z_near = camera_component->near_plane;
-                    shader_camera.z_far = camera_component->far_plane;
-                    shader_camera.internal_resolution = { static_cast<uint32>(view.viewport.width), static_cast<uint32>(view.viewport.height) };
-                    shader_camera.internal_resolution_rcp = {
-                        view.viewport.width > 0 ? 1.0f / static_cast<float>(view.viewport.width) : 0.0f,
-                        view.viewport.height > 0 ? 1.0f / static_cast<float>(view.viewport.height) : 0.0f
-                    };
-                    shader_camera.view = camera_component->view;
-                    shader_camera.projection = camera_component->projection;
-                    shader_camera.view_projection = camera_component->view_projection;
-                    shader_camera.inv_view_projection = camera_component->inv_view_projection;
+                    auto cpu_range = profiler::ScopedRangeCPU("Draw Prepass");
+                    DrawScene(frame_context, view, RenderPassType::DepthPrepass, DrawScene_Opaque, *command_list);
                 }
+                command_list->EndEvent();
             }
-
-            if (!UpdateDefaultBuffer(frame_context, *shader_camera_buffer, &shader_camera, sizeof(ShaderCamera), RHIResourceState::ConstantBuffer))
-            {
-                return;
-            }
-
-            frame_context.command_list->EndEvent();
-        }
-
-        frame_context.command_list->SetViewport(viewport);
-        frame_context.command_list->SetScissor(scissor);
-
-        // prepass
-        {
-            auto gpu_range = profiler::ScopedRangeGPU("Prepass", *frame_context.command_list);
-            frame_context.command_list->BeginEvent("Prepass");
-            frame_context.command_list->SetRenderTargets({}, & depth_buffer_binding);
-            DrawScene(view, frame_context, RenderPassType::DepthPrepass, DrawScene_Opaque);
-            frame_context.command_list->EndEvent();
-        }
         
-        // main pass
-        {
-            auto gpu_range = profiler::ScopedRangeGPU("Main Pass", *frame_context.command_list);
-            frame_context.command_list->BeginEvent("Restore Camera State");
+            // main pass
+            {
+                auto gpu_range = profiler::ScopedRangeGPU("Main Pass", *command_list);
+                command_list->BeginEvent("Restore Camera State");
 
-            frame_context.command_list->SetRenderTargets(color_targets, &depth_buffer_binding);
-            DrawScene(view, frame_context, RenderPassType::MainPass, DrawScene_Opaque | DrawScene_Transparent);
-            frame_context.command_list->EndEvent();
-        }
+                command_list->SetRenderTargets(color_targets, &depth_buffer_binding);
+                {
+                    auto cpu_range = profiler::ScopedRangeCPU("Draw Main Pass");
+                    DrawScene(frame_context, view, RenderPassType::MainPass, DrawScene_Opaque | DrawScene_Transparent, *command_list);
+                }
+                command_list->EndEvent();
+            }
 
-        {
-            auto gpu_range = profiler::ScopedRangeGPU("Line Primitive Pass", *frame_context.command_list);
-            frame_context.command_list->BeginEvent("Line Primitive Pass");
-            frame_context.command_list->SetRenderTargets(color_targets, &depth_buffer_binding);
-            DrawScene(view, frame_context, RenderPassType::LinePass, DrawScene_Opaque | DrawScene_Transparent);
-            frame_context.command_list->EndEvent();
-        }
+            {
+                auto gpu_range = profiler::ScopedRangeGPU("Line Primitive Pass", *command_list);
+                command_list->BeginEvent("Line Primitive Pass");
+                command_list->SetRenderTargets(color_targets, &depth_buffer_binding);
+                {
+                    auto cpu_range = profiler::ScopedRangeCPU("Draw Line Pass");
+                    DrawScene(frame_context, view, RenderPassType::LinePass, DrawScene_Opaque | DrawScene_Transparent, *command_list);
+                }
+                command_list->EndEvent();
+            }
 
-        {
-            auto gpu_range = profiler::ScopedRangeGPU("Point Primitive Pass", *frame_context.command_list);
-            frame_context.command_list->BeginEvent("Point Primitive Pass");
-            frame_context.command_list->SetRenderTargets(color_targets, &depth_buffer_binding);
-            DrawScene(view, frame_context, RenderPassType::PointPass, DrawScene_Opaque | DrawScene_Transparent);
-            frame_context.command_list->EndEvent();
-        }
+            {
+                auto gpu_range = profiler::ScopedRangeGPU("Point Primitive Pass", *command_list);
+                command_list->BeginEvent("Point Primitive Pass");
+                command_list->SetRenderTargets(color_targets, &depth_buffer_binding);
+                {
+                    auto cpu_range = profiler::ScopedRangeCPU("Draw Point Pass");
+                    DrawScene(frame_context, view, RenderPassType::PointPass, DrawScene_Opaque | DrawScene_Transparent, *command_list);
+                }
+                command_list->EndEvent();
+            }
+        });
     }
 
     void ForwardRenderer::EndFrame()
@@ -1941,19 +2008,20 @@ namespace won::rendering
             return;
         }
 
-        std::shared_ptr<RHIResource> back_buffer = swapchain->GetCurrentBackBuffer();
-
-        if (!back_buffer)
+        RHISubresourceBinding back_buffer_binding = {};
+        if (!GetCurrentBackBufferBinding(back_buffer_binding))
         {
             return;
         }
 
-        profiler::EndFrameGPU(*frame_context.command_list);
-        frame_context.command_list->TransitionResource(*back_buffer, RHIResourceState::Present);
+        jobsystem::Wait(GetRenderingWorkContext());
+        RHICommandList* final_command_list = frame_context.BeginCommandList(*device);
+
+        profiler::EndFrameGPU(*final_command_list);
+        final_command_list->TransitionResource(*back_buffer_binding.resource, RHIResourceState::Present);
 
         const std::shared_ptr<RHIContext> graphics_context = device->GetContext(RHIQueueType::Graphics);
-        frame_context.command_list->End();
-        frame_context.fence_value = graphics_context->Submit(*frame_context.command_list, frame_context.fence.get());
+        frame_context.SubmitCommandLists(*graphics_context);
 
         if (!swapchain->Present())
         {
@@ -1964,15 +2032,26 @@ namespace won::rendering
         ++frame_count;
         current_frame_slot = (current_frame_slot + 1) % static_cast<uint32>(frame_contexts.size());
 
+        if (enqueued_work_fence_value == 0)
+        {
+            enqueued_work_fence_value = graphics_context->Submit(*enqueued_work_command_list, enqueued_work_fence.get());
+            if (!enqueued_work_succeeded)
+            {
+                backlog::Post("failed to flush enqueued rendering work", backlog::LogLevel::Warning);
+            }
+        }
     }
 
     void ForwardRenderer::WaitIdle()
     {
+        jobsystem::Wait(GetRenderingWorkContext());
         for (Size i = 0; i < static_cast<Size>(RHIQueueType::Count); ++i)
         {
             auto context = device->GetContext(static_cast<RHIQueueType>(i));
             context->WaitIdle();
         }
+        enqueued_work_fence_value = 0;
+        enqueued_work_scratch_resources.clear();
     }
 
     void ForwardRenderer::Shutdown()
@@ -1980,7 +2059,32 @@ namespace won::rendering
         WaitIdle();
 
         current_window = nullptr;
-        frame_contexts = {};
+        for (FrameContext& frame_context : frame_contexts)
+        {
+            for (Vector<FrameCommandList>& command_lists : frame_context.command_lists)
+            {
+                command_lists.clear();
+            }
+            for (std::atomic<Size>& command_list_count : frame_context.command_list_counts)
+            {
+                command_list_count.store(0, std::memory_order_relaxed);
+            }
+            frame_context.fence = nullptr;
+            frame_context.shader_instance_upload_buffer = nullptr;
+            frame_context.shader_geometry_upload_buffer = nullptr;
+            frame_context.shader_material_upload_buffer = nullptr;
+            frame_context.shader_light_upload_buffer = nullptr;
+            {
+                std::scoped_lock lock(frame_context.frame_upload_mutex);
+                frame_context.frame_upload_buffer = nullptr;
+                frame_context.frame_upload_offset = 0;
+            }
+            frame_context.fence_value = 0;
+            {
+                std::scoped_lock lock(frame_context.deferred_res_removal_mutex);
+                frame_context.deferred_res_removal.clear();
+            }
+        }
         current_frame_slot = 0;
         shader_instance_default_buffer_srv = {};
         shader_instance_default_buffer = nullptr;

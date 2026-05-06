@@ -28,6 +28,6 @@ void main(uint3 dispatch_thread_id : SV_DispatchThreadID, uint3 group_id : SV_Gr
     bvh_build_primitives[primitive_index] = primitive;
 
     float3 triangle_centroid = (primitive.v0 + primitive.v1 + primitive.v2) * (1.0f / 3.0f);
-    float3 normalized_centroid = (triangle_centroid - bvh_build_bounds_min) * bvh_build_bounds_rcp_extent;
+    float3 normalized_centroid = (triangle_centroid - bvh_generate_push.bounds_min) * bvh_generate_push.bounds_rcp_extent;
     bvh_build_sort_keys[primitive_index] = uint2(EncodeMorton3D(normalized_centroid), primitive_index);
 }

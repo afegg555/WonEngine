@@ -15,7 +15,6 @@
 #include "RHIFormatDX12.h"
 #include "DescriptorAllocatorDX12.h"
 #include "RHIFenceDX12.h"
-#include "RenderingUtils.h"
 
 #include "DirectX-Headers/d3dx12_default.h"
 #include "DirectX-Headers/d3dx12_check_feature_support.h"
@@ -870,14 +869,7 @@ namespace won::rendering
                 );
             }
 
-            if (desc.mip_levels > 1)
-            {
-                upload_command_list->TransitionResource(*texture_resource, RHIResourceState::ShaderWrite);
-            }
-            else
-            {
-                upload_command_list->TransitionResource(*texture_resource, RHIResourceState::ShaderRead);
-            }
+            upload_command_list->TransitionResource(*texture_resource, RHIResourceState::ShaderRead);
             
             upload_command_list->End();
 
@@ -898,14 +890,6 @@ namespace won::rendering
             {
                 upload_context->Submit(*upload_command_list);
                 upload_context->WaitIdle();
-            }
-            
-            if (desc.mip_levels > 1)
-            {
-                if (!won::rendering::utils::GenerateTextureMips(*this, *texture_resource, desc))
-                {
-                    backlog::Post("Failed to generate texture mips", backlog::LogLevel::Warning);
-                }
             }
         }
 

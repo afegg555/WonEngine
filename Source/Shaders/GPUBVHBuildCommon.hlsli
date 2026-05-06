@@ -9,14 +9,6 @@ RWStructuredBuffer<uint2> bvh_build_sort_keys : register(u2);
 RWStructuredBuffer<uint> bvh_build_parent_indices : register(u3);
 RWStructuredBuffer<uint> bvh_build_node_counters : register(u4);
 
-cbuffer BVHBuildConstants : register(b2)
-{
-    float3 bvh_build_bounds_min;
-    float bvh_build_padding0;
-    float3 bvh_build_bounds_rcp_extent;
-    float bvh_build_padding1;
-};
-
 static const uint BVH_INVALID_PARENT = 0xFFFFFFFFu;
 
 uint CountLeadingZeros32(uint value)

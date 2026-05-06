@@ -46,7 +46,8 @@ static float3 LoadDDGISurfaceAlbedo(SceneRayHit hit)
         base_color *= material.textures[BASECOLORMAP].SampleLevel(sampler_linear_wrap, uv, 0);
     }
 
-    return base_color.rgb * (1.0f - material.GetMetallic());
+    //base_color.rgb *= (1.0f - material.GetMetallic());
+    return base_color.rgb;
 }
 
 static float3 EvaluateDDGIDirectDiffuse(float3 position, float3 normal, float max_trace_distance)

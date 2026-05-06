@@ -242,7 +242,17 @@ namespace won::profiler
             return;
         }
 
-        EndRange(gpu_frame);
+        int32 query_end = -1;
+        {
+            std::scoped_lock guard(lock);
+            auto iter = ranges.find(gpu_frame);
+            if (iter != ranges.end())
+            {
+                query_end = AllocateQuery();
+                iter->second.query_end[active_frame_slot] = query_end;
+            }
+        }
+        WriteTimestamp(command_list, query_end);
 
         if (next_query_index == 0)
         {
@@ -285,22 +295,27 @@ namespace won::profiler
         }
 
         range_id id = static_cast<range_id>(won::utils::Hash(name));
+        int32 query_begin = -1;
 
-        std::scoped_lock guard(lock);
-        Size differentiator = 0;
-        while (ranges[id].in_use)
         {
-            id = CombineHash(id, differentiator++);
+            std::scoped_lock guard(lock);
+            Size differentiator = 0;
+            while (ranges[id].in_use)
+            {
+                id = CombineHash(id, differentiator++);
+            }
+
+            Range& range = ranges[id];
+            range.in_use = true;
+            range.type = RangeType::GPU;
+            range.name = name;
+            range.command_list = &command_list;
+            query_begin = AllocateQuery();
+            range.query_begin[active_frame_slot] = query_begin;
+            range.query_end[active_frame_slot] = -1;
         }
 
-        Range& range = ranges[id];
-        range.in_use = true;
-        range.type = RangeType::GPU;
-        range.name = name;
-        range.command_list = &command_list;
-        range.query_begin[active_frame_slot] = AllocateQuery();
-        range.query_end[active_frame_slot] = -1;
-        WriteTimestamp(command_list, range.query_begin[active_frame_slot]);
+        WriteTimestamp(command_list, query_begin);
 
         return id;
     }
@@ -312,27 +327,34 @@ namespace won::profiler
             return;
         }
 
-        std::scoped_lock guard(lock);
-        auto iter = ranges.find(id);
-        if (iter == ranges.end())
+        rendering::RHICommandList* command_list = nullptr;
+        int32 query_end = -1;
         {
-            return;
+            std::scoped_lock guard(lock);
+            auto iter = ranges.find(id);
+            if (iter == ranges.end())
+            {
+                return;
+            }
+
+            Range& range = iter->second;
+            if (range.type == RangeType::CPU)
+            {
+                range.time_ms = static_cast<float>(range.cpu_timer.ElapsedMilliSeconds());
+                return;
+            }
+
+            if (!range.command_list)
+            {
+                return;
+            }
+
+            command_list = range.command_list;
+            query_end = AllocateQuery();
+            range.query_end[active_frame_slot] = query_end;
         }
 
-        Range& range = iter->second;
-        if (range.type == RangeType::CPU)
-        {
-            range.time_ms = static_cast<float>(range.cpu_timer.ElapsedMilliSeconds());
-            return;
-        }
-
-        if (!range.command_list)
-        {
-            return;
-        }
-
-        range.query_end[active_frame_slot] = AllocateQuery();
-        WriteTimestamp(*range.command_list, range.query_end[active_frame_slot]);
+        WriteTimestamp(*command_list, query_end);
     }
 
     ScopedRangeCPU::ScopedRangeCPU(const char* name)
