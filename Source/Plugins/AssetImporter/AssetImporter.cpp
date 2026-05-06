@@ -15,6 +15,7 @@
 #include "ResourceLoader.h"
 
 #include <algorithm>
+#include <mutex>
 
 namespace won::plugin
 {
@@ -25,14 +26,19 @@ namespace won::plugin
             uint32 material_index = 0;
             uint32 texture_slot = 0;
             std::shared_ptr<resource::Image> image;
+            std::weak_ptr<RHIResource> texture;
+            RHISubresourceHandle res_handle = {};
         };
 
         struct ImportedAssetData
         {
             String name;
+            String cache_key;
+            uint64 timestamp = 0;
             Vector<ecs::MaterialSlot> material_slots;
             Vector<ImportedTextureData> textures;
             std::shared_ptr<resource::Mesh> mesh;
+            std::weak_ptr<resource::Mesh> cached_mesh;
         };
 
     public:
@@ -63,7 +69,7 @@ namespace won::plugin
 
             String file_path = file_path_in;
             ImportedAssetData imported_data;
-            if (!ImportAssetData(file_path, imported_data))
+            if (!ImportAssetData(file_path, device_in, imported_data))
             {
                 return false;
             }
@@ -137,10 +143,11 @@ namespace won::plugin
             {
                 geometry_comp->SetMesh(imported_data.mesh);
             }
-            if (device_in && imported_data.mesh)
+            if (device_in && imported_data.mesh && !imported_data.mesh->render_data.IsValid())
             {
                 rendering::utils::CreateRenderData(*device_in, *imported_data.mesh);
             }
+            StoreCachedAssetData(imported_data, material_comp);
 
             target_scene_in->SetBVHDirty();
             root_entity_out = root_entity;
@@ -174,7 +181,7 @@ namespace won::plugin
                 }
 
                 auto imported_data = std::make_shared<ImportedAssetData>();
-                if (!ImportAssetData(file_path, *imported_data))
+                if (!ImportAssetData(file_path, device_in, *imported_data))
                 {
                     task->failed.store(true);
                     task->finished.store(true);
@@ -261,10 +268,11 @@ namespace won::plugin
                     {
                         geometry_comp->SetMesh(imported_data->mesh);
                     }
-                    if (device_in && imported_data->mesh)
+                    if (device_in && imported_data->mesh && !imported_data->mesh->render_data.IsValid())
                     {
                         rendering::utils::CreateRenderData(*device_in, *imported_data->mesh);
                     }
+                    StoreCachedAssetData(*imported_data, material_comp);
 
                     target_scene_in->SetBVHDirty();
                     task->root_entity.store(root_entity);
@@ -278,8 +286,129 @@ namespace won::plugin
             return task;
         }
     private:
-        static bool ImportAssetData(const String& file_path, ImportedAssetData& imported_data)
+        inline static std::mutex s_asset_cache_mutex;
+        inline static UnorderedMap<String, ImportedAssetData> s_asset_cache;
+
+        static String MakeAssetCacheKey(const String& file_path, RHIDevice* device_in)
         {
+            String normalized_path = file_path;
+            std::replace(normalized_path.begin(), normalized_path.end(), '\\', '/');
+#if defined(_WIN32)
+            normalized_path = utils::ToLower(normalized_path);
+#endif
+            return normalized_path + "|" + std::to_string(reinterpret_cast<uintptr_t>(device_in));
+        }
+
+        static bool LoadCachedAssetData(const String& cache_key, uint64 timestamp, ImportedAssetData& imported_data)
+        {
+            std::lock_guard<std::mutex> lock(s_asset_cache_mutex);
+            auto it = s_asset_cache.find(cache_key);
+            if (it == s_asset_cache.end())
+            {
+                return false;
+            }
+
+            ImportedAssetData& cached = it->second;
+            if (cached.timestamp != timestamp)
+            {
+                s_asset_cache.erase(it);
+                return false;
+            }
+
+            std::shared_ptr<resource::Mesh> mesh = cached.cached_mesh.lock();
+            if (!mesh || !mesh->IsValid())
+            {
+                s_asset_cache.erase(it);
+                return false;
+            }
+
+            ImportedAssetData cached_data = {};
+            cached_data.name = cached.name;
+            cached_data.cache_key = cache_key;
+            cached_data.timestamp = timestamp;
+            cached_data.material_slots = cached.material_slots;
+            cached_data.mesh = mesh;
+
+            for (const ImportedTextureData& cached_texture : cached.textures)
+            {
+                if (cached_texture.material_index >= cached_data.material_slots.size() || cached_texture.texture_slot >= TEXTURESLOT_COUNT)
+                {
+                    s_asset_cache.erase(it);
+                    return false;
+                }
+
+                std::shared_ptr<RHIResource> texture = cached_texture.texture.lock();
+                if (!texture || !cached_texture.res_handle.IsValid())
+                {
+                    s_asset_cache.erase(it);
+                    return false;
+                }
+
+                ecs::MaterialSlot::TextureMap& texture_map = cached_data.material_slots[cached_texture.material_index].textures[cached_texture.texture_slot];
+                texture_map.texture = texture;
+                texture_map.res_handle = cached_texture.res_handle;
+            }
+
+            imported_data = cached_data;
+            return true;
+        }
+
+        static void StoreCachedAssetData(const ImportedAssetData& imported_data, const ecs::MaterialComponent* material_comp)
+        {
+            if (imported_data.cache_key.empty() || imported_data.timestamp == 0 || !imported_data.mesh)
+            {
+                return;
+            }
+
+            ImportedAssetData cached = {};
+            cached.name = imported_data.name;
+            cached.cache_key = imported_data.cache_key;
+            cached.timestamp = imported_data.timestamp;
+            cached.mesh = nullptr;
+            cached.cached_mesh = imported_data.mesh;
+            cached.material_slots = material_comp ? material_comp->material_slots : imported_data.material_slots;
+
+            for (uint32 material_index = 0; material_index < cached.material_slots.size(); ++material_index)
+            {
+                ecs::MaterialSlot& material_slot = cached.material_slots[material_index];
+                for (uint32 texture_slot = 0; texture_slot < TEXTURESLOT_COUNT; ++texture_slot)
+                {
+                    ecs::MaterialSlot::TextureMap& texture_map = material_slot.textures[texture_slot];
+                    if (texture_map.texture && texture_map.res_handle.IsValid())
+                    {
+                        ImportedTextureData cached_texture = {};
+                        cached_texture.material_index = material_index;
+                        cached_texture.texture_slot = texture_slot;
+                        cached_texture.texture = texture_map.texture;
+                        cached_texture.res_handle = texture_map.res_handle;
+                        cached.textures.push_back(cached_texture);
+                    }
+
+                    texture_map.texture = nullptr;
+                    texture_map.res_handle = {};
+                }
+            }
+
+            std::lock_guard<std::mutex> lock(s_asset_cache_mutex);
+            s_asset_cache[imported_data.cache_key] = cached;
+        }
+
+        static bool ImportAssetData(const String& file_path, RHIDevice* device_in, ImportedAssetData& imported_data)
+        {
+            imported_data = {};
+            uint64 timestamp = 0;
+            if (io::GetLastTimestamp(file_path, &timestamp))
+            {
+                const String cache_key = MakeAssetCacheKey(file_path, device_in);
+                if (LoadCachedAssetData(cache_key, timestamp, imported_data))
+                {
+                    backlog::Post("AssetImporter cache hit: " + file_path, backlog::LogLevel::Default);
+                    return true;
+                }
+                imported_data.cache_key = cache_key;
+                imported_data.timestamp = timestamp;
+            }
+
             String ext = io::GetExtension(file_path);
             String dir = io::GetDirectoryFromPath(file_path);
             imported_data.name = io::GetFilename(file_path);

@@ -7,6 +7,7 @@
 #include "RenderingUtils.h"
 #include "ShaderCompiler.h"
 #include "FileSystem.h"
+#include "StringUtils.h"
 #include "Backlog.h"
 #include "Profiler.h"
 #include "SceneComponents.h"
@@ -432,6 +433,7 @@ namespace won::editor
 		editor_primitive_mesh.reset();
 		deferred_primitive_removal_buffers.clear();
 		deferred_entity_removal_resources.clear();
+		asset_import_tasks.clear();
 		editor_primitive_entity = ecs::INVALID_ENTITY;
 		scene = {};
 
@@ -459,38 +461,56 @@ namespace won::editor
 			}
 		}
 
-		if (asset_import_task && asset_import_task->committed.load())
+		bool entity_list_dirty = false;
+		for (auto it = asset_import_tasks.begin(); it != asset_import_tasks.end();)
 		{
-			ecs::Entity root_entity = asset_import_task->root_entity.load();
-			auto transform = scene.GetComponent<ecs::TransformComponent>(root_entity);
-			if (transform)
+			std::shared_ptr<AssetImportTask> task = *it;
+			if (!task)
 			{
-				//transform->Translate({ 5.0f, 0.0f, 5.0f });
-				//transform->Scale({ 3.0f, 3.0f, 3.0f });
+				it = asset_import_tasks.erase(it);
+				continue;
 			}
 
-			auto material_component = scene.GetComponent<ecs::MaterialComponent>(root_entity);
-			if (material_component)
+			if (task->committed.load())
 			{
-				for (uint32 i = 0; i < (uint32)material_component->GetMaterialSlotCount(); i++)
+				ecs::Entity root_entity = task->root_entity.load();
+				auto transform = scene.GetComponent<ecs::TransformComponent>(root_entity);
+				if (transform)
 				{
-					//auto& slot = material_component->GetMaterialSlot(i);
-					//slot.shader_type =
+					//transform->Translate({ 5.0f, 0.0f, 5.0f });
+					//transform->Scale({ 3.0f, 3.0f, 3.0f });
 				}
-			}
 
-			auto geometry_component = scene.GetComponent<ecs::GeometryComponent>(root_entity);
-			if (geometry_component)
+				auto material_component = scene.GetComponent<ecs::MaterialComponent>(root_entity);
+				if (material_component)
+				{
+					for (uint32 i = 0; i < (uint32)material_component->GetMaterialSlotCount(); i++)
+					{
+						//auto& slot = material_component->GetMaterialSlot(i);
+						//slot.shader_type =
+					}
+				}
+
+				auto geometry_component = scene.GetComponent<ecs::GeometryComponent>(root_entity);
+				if (geometry_component)
+				{
+					geometry_component->SetCastShadow(true);
+				}
+
+				entity_list_dirty = true;
+				it = asset_import_tasks.erase(it);
+				continue;
+			}
+			if (task->failed.load() || task->finished.load())
 			{
-				geometry_component->SetCastShadow(true);
+				it = asset_import_tasks.erase(it);
+				continue;
 			}
-
-			UpdateEntityList();
-			asset_import_task.reset();
+			++it;
 		}
-		else if (asset_import_task && asset_import_task->failed.load())
+		if (entity_list_dirty)
 		{
-			asset_import_task.reset();
+			UpdateEntityList();
 		}
 
 		if (renderer)
@@ -935,6 +955,467 @@ namespace won::editor
 		camera->SetAspectRatio(static_cast<float>(width) / static_cast<float>(height));
 	}
 
+	void EditorApplication::RebuildContentBrowser()
+	{
+		content_browser.assets.clear();
+		content_browser.folders.clear();
+		content_browser.folders.push_back("/Contents");
+		content_browser.initialized = true;
+
+		auto guess_type = [](const String& extension) -> ContentAssetType
+		{
+			const String ext = won::utils::ToLower(extension);
+			if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "dds" || ext == "tga" || ext == "bmp") return ContentAssetType::Texture;
+			if (ext == "mat") return ContentAssetType::Material;
+			if (ext == "fbx" || ext == "obj" || ext == "gltf" || ext == "glb") return ContentAssetType::Mesh;
+			if (ext == "scene" || ext == "json") return ContentAssetType::Scene;
+			if (ext == "hlsl" || ext == "hlsli") return ContentAssetType::Shader;
+			if (ext == "ttf" || ext == "otf") return ContentAssetType::Font;
+			return ContentAssetType::Unknown;
+		};
+
+		Vector<io::DirectoryEntry> entries;
+		if (!io::EnumerateDirectoryRecursive(contents_root_dir, &entries))
+		{
+			content_browser.current_folder = "/Contents";
+			return;
+		}
+
+		for (const io::DirectoryEntry& entry : entries)
+		{
+			String relative = io::GetRelativePath(contents_root_dir, entry.path);
+			if (relative.empty())
+			{
+				continue;
+			}
+
+			String virtual_path = "/Contents/" + relative;
+			if (entry.is_directory)
+			{
+				content_browser.folders.push_back(virtual_path);
+				continue;
+			}
+			if (!entry.is_file)
+			{
+				continue;
+			}
+
+			ContentBrowserAsset asset = {};
+			asset.disk_path = entry.path;
+			asset.virtual_path = virtual_path;
+			asset.name = io::GetFilename(entry.path);
+			String extension = io::GetExtension(entry.path);
+			if (!extension.empty() && asset.name.size() > extension.size() + 1)
+			{
+				asset.name.resize(asset.name.size() - extension.size() - 1);
+			}
+			asset.type = guess_type(extension);
+			asset.id = won::utils::Hash(asset.virtual_path);
+			content_browser.assets.push_back(asset);
+		}
+
+		std::sort(content_browser.folders.begin(), content_browser.folders.end());
+		content_browser.folders.erase(std::unique(content_browser.folders.begin(), content_browser.folders.end()), content_browser.folders.end());
+		std::sort(content_browser.assets.begin(), content_browser.assets.end(), [](const ContentBrowserAsset& lhs, const ContentBrowserAsset& rhs)
+		{
+			return lhs.virtual_path < rhs.virtual_path;
+		});
+
+		if (std::find(content_browser.folders.begin(), content_browser.folders.end(), content_browser.current_folder) == content_browser.folders.end())
+		{
+			content_browser.current_folder = "/Contents";
+		}
+	}
+
+	void EditorApplication::DrawContentFolderNode(const String& virtual_path, const String& name)
+	{
+		Vector<String> child_folders;
+		const String prefix = virtual_path == "/Contents" ? "/Contents/" : virtual_path + "/";
+		for (const String& folder : content_browser.folders)
+		{
+			if (folder == virtual_path || !won::utils::StartsWith(folder, prefix))
+			{
+				continue;
+			}
+
+			const String rest = folder.substr(prefix.size());
+			if (!rest.empty() && rest.find('/') == String::npos)
+			{
+				child_folders.push_back(folder);
+			}
+		}
+
+		ImGui::PushID(virtual_path.c_str());
+		ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth;
+		if (content_browser.current_folder == virtual_path)
+		{
+			flags |= ImGuiTreeNodeFlags_Selected;
+		}
+		if (child_folders.empty())
+		{
+			flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
+		}
+		if (virtual_path == "/Contents")
+		{
+			ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+		}
+
+		const String label = String(child_folders.empty() ? ICON_MD_FOLDER " " : ICON_MD_FOLDER_OPEN " ") + name;
+		const bool open_node = ImGui::TreeNodeEx(label.c_str(), flags);
+		if (ImGui::IsItemClicked())
+		{
+			content_browser.current_folder = virtual_path;
+		}
+		if (!child_folders.empty() && open_node)
+		{
+			for (const String& child_path : child_folders)
+			{
+				Size slash_pos = child_path.find_last_of('/');
+				DrawContentFolderNode(child_path, slash_pos == String::npos ? child_path : child_path.substr(slash_pos + 1));
+			}
+			ImGui::TreePop();
+		}
+		ImGui::PopID();
+	}
+
+	void EditorApplication::DrawContentAssetTile(const ContentBrowserAsset& asset, float tile_size)
+	{
+		auto type_name = [](ContentAssetType type) -> const char*
+		{
+			switch (type)
+			{
+			case ContentAssetType::Texture: return "Texture";
+			case ContentAssetType::Material: return "Material";
+			case ContentAssetType::Mesh: return "Mesh";
+			case ContentAssetType::Scene: return "Scene";
+			case ContentAssetType::Shader: return "Shader";
+			case ContentAssetType::Font: return "Font";
+			case ContentAssetType::Unknown: return "Unknown";
+			default: return "Asset";
+			}
+		};
+		auto type_icon = [](ContentAssetType type) -> const char*
+		{
+			switch (type)
+			{
+			case ContentAssetType::Texture: return ICON_MD_IMAGE;
+			case ContentAssetType::Material: return ICON_MD_PALETTE;
+			case ContentAssetType::Mesh: return ICON_MD_VIEW_IN_AR;
+			case ContentAssetType::Scene: return ICON_MD_DATA_OBJECT;
+			case ContentAssetType::Shader: return ICON_MD_CODE;
+			case ContentAssetType::Font: return ICON_MD_FONT_DOWNLOAD;
+			default: return ICON_MD_INSERT_DRIVE_FILE;
+			}
+		};
+
+		ImGui::PushID(asset.virtual_path.c_str());
+		ImGui::BeginGroup();
+		const bool can_import_asset = asset.type == ContentAssetType::Mesh;
+		ImGui::Button(type_icon(asset.type), ImVec2(tile_size, tile_size));
+		if (ImGui::BeginDragDropSource())
+		{
+			ImGui::SetDragDropPayload("CONTENT_ASSET_PATH", asset.disk_path.c_str(), asset.disk_path.size() + 1);
+			ImGui::TextUnformatted(asset.name.c_str());
+			ImGui::EndDragDropSource();
+		}
+
+		ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + tile_size);
+		ImGui::TextWrapped("%s", asset.name.c_str());
+		ImGui::TextDisabled("%s", type_name(asset.type));
+		ImGui::PopTextWrapPos();
+		ImGui::EndGroup();
+
+		if (can_import_asset && ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+		{
+			content_browser.pending_import_name = asset.name;
+			content_browser.pending_import_virtual_path = asset.virtual_path;
+			content_browser.pending_import_disk_path = asset.disk_path;
+			content_browser.pending_import_type = asset.type;
+			content_browser.open_import_confirm = true;
+		}
+		if (ImGui::BeginPopupContextItem("ContentAssetContext"))
+		{
+			if (ImGui::MenuItem("Import to Scene", nullptr, false, can_import_asset))
+			{
+				content_browser.pending_import_name = asset.name;
+				content_browser.pending_import_virtual_path = asset.virtual_path;
+				content_browser.pending_import_disk_path = asset.disk_path;
+				content_browser.pending_import_type = asset.type;
+				content_browser.open_import_confirm = true;
+			}
+			ImGui::Separator();
+			if (ImGui::MenuItem("Copy Disk Path"))
+			{
+				ImGui::SetClipboardText(asset.disk_path.c_str());
+			}
+			if (ImGui::MenuItem("Copy Virtual Path"))
+			{
+				ImGui::SetClipboardText(asset.virtual_path.c_str());
+			}
+			ImGui::EndPopup();
+		}
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::BeginTooltip();
+			ImGui::TextUnformatted(asset.virtual_path.c_str());
+			ImGui::TextDisabled("%s", asset.disk_path.c_str());
+			ImGui::EndTooltip();
+		}
+		ImGui::PopID();
+	}
+
+	void EditorApplication::DrawContentsBrowser()
+	{
+		if (!content_browser.initialized)
+		{
+			RebuildContentBrowser();
+		}
+
+		auto type_name = [](ContentAssetType type) -> const char*
+		{
+			switch (type)
+			{
+			case ContentAssetType::All: return "All Types";
+			case ContentAssetType::Texture: return "Texture";
+			case ContentAssetType::Material: return "Material";
+			case ContentAssetType::Mesh: return "Mesh";
+			case ContentAssetType::Scene: return "Scene";
+			case ContentAssetType::Shader: return "Shader";
+			case ContentAssetType::Font: return "Font";
+			case ContentAssetType::Unknown: return "Unknown";
+			default: return "All Types";
+			}
+		};
+
+		ImGui::TextUnformatted("Path:");
+		ImGui::SameLine();
+		String current_folder = content_browser.current_folder;
+		Vector<String> breadcrumb_parts;
+		breadcrumb_parts.push_back("Contents");
+		if (current_folder != "/Contents" && won::utils::StartsWith(current_folder, "/Contents/"))
+		{
+			String rest = current_folder.substr(10);
+			Size start = 0;
+			while (start < rest.size())
+			{
+				Size slash_pos = rest.find('/', start);
+				if (slash_pos == String::npos)
+				{
+					breadcrumb_parts.push_back(rest.substr(start));
+					break;
+				}
+				breadcrumb_parts.push_back(rest.substr(start, slash_pos - start));
+				start = slash_pos + 1;
+			}
+		}
+
+		String breadcrumb_path = "/Contents";
+		for (Size i = 0; i < breadcrumb_parts.size(); ++i)
+		{
+			if (i > 0)
+			{
+				breadcrumb_path += "/" + breadcrumb_parts[i];
+				ImGui::SameLine();
+				ImGui::TextUnformatted(ICON_MD_CHEVRON_RIGHT);
+			}
+			ImGui::SameLine();
+			if (ImGui::SmallButton(breadcrumb_parts[i].c_str()))
+			{
+				content_browser.current_folder = breadcrumb_path;
+			}
+		}
+
+		ImGui::SameLine();
+		ImGui::SetNextItemWidth(220.0f);
+		ImGui::InputTextWithHint("##content_search", ICON_MD_SEARCH " Search", content_browser.search, arraysize(content_browser.search));
+
+		ImGui::SameLine();
+		ImGui::SetNextItemWidth(150.0f);
+		if (ImGui::BeginCombo("##content_type_filter", type_name(content_browser.type_filter)))
+		{
+			const ContentAssetType filters[] = { ContentAssetType::All, ContentAssetType::Texture, ContentAssetType::Material, ContentAssetType::Mesh, ContentAssetType::Scene, ContentAssetType::Shader, ContentAssetType::Font, ContentAssetType::Unknown };
+			for (ContentAssetType filter : filters)
+			{
+				if (ImGui::Selectable(type_name(filter), content_browser.type_filter == filter))
+				{
+					content_browser.type_filter = filter;
+				}
+			}
+			ImGui::EndCombo();
+		}
+
+		ImGui::SameLine();
+		ImGui::SetNextItemWidth(120.0f);
+		ImGui::SliderFloat("##content_tile_size", &content_browser.tile_size, 48.0f, 128.0f, "Size %.0f");
+
+		ImGui::SameLine();
+		if (ImGui::Button(ICON_MD_REFRESH))
+		{
+			RebuildContentBrowser();
+		}
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("Refresh");
+		}
+
+		ImGui::Separator();
+		ImGui::Columns(2, "contents_browser_columns", true);
+		ImGui::SetColumnWidth(0, 260.0f);
+
+		ImGui::BeginChild("ContentFolderTree", ImVec2(0.0f, 0.0f), true);
+		DrawContentFolderNode("/Contents", "Contents");
+		ImGui::EndChild();
+
+		ImGui::NextColumn();
+		ImGui::BeginChild("ContentAssetView", ImVec2(0.0f, 0.0f), false);
+
+		Vector<String> child_folders;
+		const String prefix = content_browser.current_folder == "/Contents" ? "/Contents/" : content_browser.current_folder + "/";
+		for (const String& folder : content_browser.folders)
+		{
+			if (folder == content_browser.current_folder || !won::utils::StartsWith(folder, prefix))
+			{
+				continue;
+			}
+			const String rest = folder.substr(prefix.size());
+			if (!rest.empty() && rest.find('/') == String::npos)
+			{
+				child_folders.push_back(folder);
+			}
+		}
+
+		const float tile_size = content_browser.tile_size;
+		const float cell_size = tile_size + 16.0f;
+		const int column_count = (std::max)(1, static_cast<int>(ImGui::GetContentRegionAvail().x / cell_size));
+		if (!child_folders.empty())
+		{
+			ImGui::Columns(column_count, "content_folder_grid", false);
+			for (const String& folder_path : child_folders)
+			{
+				Size slash_pos = folder_path.find_last_of('/');
+				String folder_name = slash_pos == String::npos ? folder_path : folder_path.substr(slash_pos + 1);
+				ImGui::PushID(folder_path.c_str());
+				ImGui::BeginGroup();
+				ImGui::Button(ICON_MD_FOLDER, ImVec2(tile_size, tile_size));
+				if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+				{
+					content_browser.current_folder = folder_path;
+				}
+				ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + tile_size);
+				ImGui::TextWrapped("%s", folder_name.c_str());
+				ImGui::TextDisabled("Folder");
+				ImGui::PopTextWrapPos();
+				ImGui::EndGroup();
+				ImGui::PopID();
+				ImGui::NextColumn();
+			}
+			ImGui::Columns(1);
+			ImGui::Separator();
+		}
+
+		Vector<const ContentBrowserAsset*> filtered_assets;
+		const String search_lower = won::utils::ToLower(content_browser.search);
+		for (const ContentBrowserAsset& asset : content_browser.assets)
+		{
+			if (!won::utils::StartsWith(asset.virtual_path, prefix))
+			{
+				continue;
+			}
+			String rest = asset.virtual_path.substr(prefix.size());
+			if (rest.find('/') != String::npos)
+			{
+				continue;
+			}
+			if (content_browser.type_filter != ContentAssetType::All && asset.type != content_browser.type_filter)
+			{
+				continue;
+			}
+			if (!search_lower.empty())
+			{
+				String name_lower = won::utils::ToLower(asset.name);
+				String path_lower = won::utils::ToLower(asset.virtual_path);
+				if (name_lower.find(search_lower) == String::npos && path_lower.find(search_lower) == String::npos)
+				{
+					continue;
+				}
+			}
+			filtered_assets.push_back(&asset);
+		}
+
+		if (filtered_assets.empty() && child_folders.empty())
+		{
+			ImGui::TextDisabled("Folder is empty.");
+		}
+		else
+		{
+			ImGui::Columns(column_count, "content_asset_grid", false);
+			for (const ContentBrowserAsset* asset : filtered_assets)
+			{
+				DrawContentAssetTile(*asset, tile_size);
+				ImGui::NextColumn();
+			}
+			ImGui::Columns(1);
+		}
+
+		ImGui::EndChild();
+		ImGui::Columns(1);
+
+		if (content_browser.open_import_confirm)
+		{
+			ImGui::OpenPopup("Import Content Asset");
+			content_browser.open_import_confirm = false;
+		}
+
+		if (ImGui::BeginPopupModal("Import Content Asset", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+		{
+			ImGui::TextUnformatted("Import this asset to Scene?");
+			ImGui::TextUnformatted(content_browser.pending_import_name.c_str());
+			ImGui::TextDisabled("%s", content_browser.pending_import_virtual_path.c_str());
+			const bool can_import = content_browser.pending_import_type == ContentAssetType::Mesh && !content_browser.pending_import_disk_path.empty();
+			if (!can_import)
+			{
+				ImGui::BeginDisabled();
+			}
+			if (ImGui::Button("Import"))
+			{
+				auto asset_importer = plugin_manager.GetPlugin(WON_IID_ASSET_IMPORTER);
+				AssetImporterAPI* api = asset_importer ? (AssetImporterAPI*)asset_importer->QueryInterface(WON_IID_ASSET_IMPORTER, WON_VID_ASSET_IMPORTER) : nullptr;
+				std::shared_ptr<AssetImportTask> import_task;
+				if (api)
+				{
+					import_task = api->ImportAsync(asset_importer.get(), content_browser.pending_import_disk_path.c_str(), &scene, device.get());
+				}
+				if (import_task)
+				{
+					asset_import_tasks.push_back(import_task);
+				}
+				else
+				{
+					backlog::Post("Content Browser import failed: " + content_browser.pending_import_disk_path, backlog::LogLevel::Warning);
+				}
+				content_browser.pending_import_name.clear();
+				content_browser.pending_import_virtual_path.clear();
+				content_browser.pending_import_disk_path.clear();
+				content_browser.pending_import_type = ContentAssetType::Unknown;
+				ImGui::CloseCurrentPopup();
+			}
+			if (!can_import)
+			{
+				ImGui::EndDisabled();
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Cancel"))
+			{
+				content_browser.pending_import_name.clear();
+				content_browser.pending_import_virtual_path.clear();
+				content_browser.pending_import_disk_path.clear();
+				content_browser.pending_import_type = ContentAssetType::Unknown;
+				ImGui::CloseCurrentPopup();
+			}
+			ImGui::EndPopup();
+		}
+	}
+
 	void EditorApplication::RenderUI()
 	{
 #ifdef _WIN32
@@ -1100,10 +1581,18 @@ namespace won::editor
 			static int selected_index = -1;
 			ecs::Entity delete_entity = INVALID_ENTITY;
 
-			if (asset_import_task && !asset_import_task->finished.load())
+			Size running_import_count = 0;
+			for (const std::shared_ptr<AssetImportTask>& task : asset_import_tasks)
+			{
+				if (task && !task->finished.load())
+				{
+					++running_import_count;
+				}
+			}
+			if (running_import_count > 0)
 			{
 				const int dot_count = static_cast<int>(ImGui::GetTime() * 3.0) % 4;
-				std::string import_status = "Importing asset";
+				std::string import_status = running_import_count == 1 ? "Importing asset" : "Importing assets (" + std::to_string(running_import_count) + ")";
 				import_status.append(dot_count, '.');
 				ImGui::TextDisabled("%s", import_status.c_str());
 				ImGui::Separator();
@@ -2035,7 +2524,7 @@ namespace won::editor
 
 		if (ImGui::Begin("Contents Browser", nullptr))
 		{
-
+			DrawContentsBrowser();
 		}
 		ImGui::End();
 
@@ -2444,7 +2933,10 @@ namespace won::editor
 
 			std::string file_path = contents_root_dir + "/Models/glTF/Sponza/glTF/Sponza.gltf";
 			//std::string file_path = contents_root_dir + "/Models/Obj/Sphere/sphere.obj";
-			asset_import_task = api->ImportAsync(asset_importer.get(), file_path.c_str(), &scene, device.get());
+			if (std::shared_ptr<AssetImportTask> import_task = api->ImportAsync(asset_importer.get(), file_path.c_str(), &scene, device.get()))
+			{
+				asset_import_tasks.push_back(import_task);
+			}
 
 			//ecs::Entity root_entity{};
 			//api->Import(asset_importer.get(), file_path.c_str(), &scene, device.get(), root_entity);

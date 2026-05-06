@@ -145,6 +145,11 @@ namespace won::utils
         return output;
     }
 
+    bool StartsWith(StringView input, StringView prefix)
+    {
+        return input.size() >= prefix.size() && input.compare(0, prefix.size(), prefix) == 0;
+    }
+
     uint64 Hash(StringView input)
     {
         const uint64 fnv_offset_basis = 14695981039346656037ull;

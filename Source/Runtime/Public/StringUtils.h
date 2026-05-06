@@ -11,5 +11,6 @@ namespace won::utils
     WONENGINE_API String ToString(const WString& wstr);
     WONENGINE_API String ToUpper(StringView input);
     WONENGINE_API String ToLower(StringView input);
+    WONENGINE_API bool StartsWith(StringView input, StringView prefix);
     WONENGINE_API uint64 Hash(StringView input);
 }
