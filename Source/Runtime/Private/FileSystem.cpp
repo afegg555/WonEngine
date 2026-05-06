@@ -101,6 +101,43 @@ namespace won::io
         return true;
     }
 
+    bool EnumerateDirectoryRecursive(const String& root_path, Vector<DirectoryEntry>* out_entries)
+    {
+        if (out_entries == nullptr)
+        {
+            return false;
+        }
+
+        out_entries->clear();
+
+        std::error_code error;
+        const std::filesystem::path fs_root_path = std::filesystem::absolute(std::filesystem::u8path(root_path), error).lexically_normal();
+        if (error || !std::filesystem::is_directory(fs_root_path, error))
+        {
+            return false;
+        }
+
+        std::filesystem::recursive_directory_iterator it(fs_root_path, std::filesystem::directory_options::skip_permission_denied, error);
+        std::filesystem::recursive_directory_iterator end;
+        for (; !error && it != end; it.increment(error))
+        {
+            std::error_code status_error;
+            const std::filesystem::file_status status = std::filesystem::status(it->path(), status_error);
+            if (status_error)
+            {
+                continue;
+            }
+
+            DirectoryEntry entry = {};
+            entry.path = it->path().generic_string();
+            entry.is_directory = status.type() == std::filesystem::file_type::directory;
+            entry.is_file = status.type() == std::filesystem::file_type::regular;
+            out_entries->push_back(entry);
+        }
+
+        return true;
+    }
+
     String GetWorkingDirectory()
     {
         return std::filesystem::current_path().u8string();
@@ -166,6 +203,31 @@ namespace won::io
             return fs_path.lexically_normal().u8string();
         }
         return fs_path.parent_path().u8string();
+    }
+
+    String GetRelativePath(const String& root_path, const String& path)
+    {
+        std::error_code error;
+        const std::filesystem::path fs_root_path = std::filesystem::absolute(std::filesystem::u8path(root_path), error).lexically_normal();
+        if (error)
+        {
+            return String();
+        }
+
+        const std::filesystem::path fs_path = std::filesystem::absolute(std::filesystem::u8path(path), error).lexically_normal();
+        if (error)
+        {
+            return String();
+        }
+
+        std::filesystem::path relative_path = fs_path.lexically_relative(fs_root_path);
+        String relative = relative_path.generic_string();
+        if (relative.empty() || relative == "." || relative.rfind("..", 0) == 0)
+        {
+            return String();
+        }
+
+        return relative;
     }
 
     bool CreateFolder(const String& path)

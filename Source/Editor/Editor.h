@@ -29,6 +29,48 @@ namespace won::editor
 		void UpdateEditorPrimitiveMesh();
 
 	private:
+		enum class ContentAssetType
+		{
+			All,
+			Texture,
+			Material,
+			Mesh,
+			Scene,
+			Shader,
+			Font,
+			Unknown,
+		};
+
+		struct ContentBrowserAsset
+		{
+			uint64 id = 0;
+			String name;
+			String virtual_path;
+			String disk_path;
+			ContentAssetType type = ContentAssetType::Unknown;
+		};
+
+		struct ContentBrowserState
+		{
+			bool initialized = false;
+			String current_folder = "/Contents";
+			char search[256] = {};
+			ContentAssetType type_filter = ContentAssetType::All;
+			float tile_size = 72.0f;
+			std::vector<ContentBrowserAsset> assets;
+			std::vector<String> folders;
+			bool open_import_confirm = false;
+			String pending_import_name;
+			String pending_import_virtual_path;
+			String pending_import_disk_path;
+			ContentAssetType pending_import_type = ContentAssetType::Unknown;
+		};
+
+		void RebuildContentBrowser();
+		void DrawContentsBrowser();
+		void DrawContentFolderNode(const String& virtual_path, const String& name);
+		void DrawContentAssetTile(const ContentBrowserAsset& asset, float tile_size);
+
 		struct ViewportDebugSettings
 		{
 			bool show_grid = false;
@@ -65,6 +107,7 @@ namespace won::editor
 		std::vector<std::shared_ptr<plugin::AssetImportTask>> asset_import_tasks;
 		ecs::Entity picked_entity = ecs::INVALID_ENTITY;
 		ViewportDebugSettings viewport_debug_settings = {};
+		ContentBrowserState content_browser = {};
 
 		plugin::PluginManager plugin_manager;
 	};
