@@ -431,6 +431,7 @@ namespace won::editor
 		editor_primitive_mesh.reset();
 		deferred_primitive_removal_buffers.clear();
 		deferred_entity_removal_resources.clear();
+		asset_import_tasks.clear();
 		editor_primitive_entity = ecs::INVALID_ENTITY;
 		scene = {};
 
@@ -458,38 +459,56 @@ namespace won::editor
 			}
 		}
 
-		if (asset_import_task && asset_import_task->committed.load())
+		bool entity_list_dirty = false;
+		for (auto it = asset_import_tasks.begin(); it != asset_import_tasks.end();)
 		{
-			ecs::Entity root_entity = asset_import_task->root_entity.load();
-			auto transform = scene.GetComponent<ecs::TransformComponent>(root_entity);
-			if (transform)
+			std::shared_ptr<AssetImportTask> task = *it;
+			if (!task)
 			{
-				//transform->Translate({ 5.0f, 0.0f, 5.0f });
-				//transform->Scale({ 3.0f, 3.0f, 3.0f });
+				it = asset_import_tasks.erase(it);
+				continue;
 			}
 
-			auto material_component = scene.GetComponent<ecs::MaterialComponent>(root_entity);
-			if (material_component)
+			if (task->committed.load())
 			{
-				for (uint32 i = 0; i < (uint32)material_component->GetMaterialSlotCount(); i++)
+				ecs::Entity root_entity = task->root_entity.load();
+				auto transform = scene.GetComponent<ecs::TransformComponent>(root_entity);
+				if (transform)
 				{
-					//auto& slot = material_component->GetMaterialSlot(i);
-					//slot.shader_type =
+					//transform->Translate({ 5.0f, 0.0f, 5.0f });
+					//transform->Scale({ 3.0f, 3.0f, 3.0f });
 				}
-			}
 
-			auto geometry_component = scene.GetComponent<ecs::GeometryComponent>(root_entity);
-			if (geometry_component)
+				auto material_component = scene.GetComponent<ecs::MaterialComponent>(root_entity);
+				if (material_component)
+				{
+					for (uint32 i = 0; i < (uint32)material_component->GetMaterialSlotCount(); i++)
+					{
+						//auto& slot = material_component->GetMaterialSlot(i);
+						//slot.shader_type =
+					}
+				}
+
+				auto geometry_component = scene.GetComponent<ecs::GeometryComponent>(root_entity);
+				if (geometry_component)
+				{
+					geometry_component->SetCastShadow(true);
+				}
+
+				entity_list_dirty = true;
+				it = asset_import_tasks.erase(it);
+				continue;
+			}
+			if (task->failed.load() || task->finished.load())
 			{
-				geometry_component->SetCastShadow(true);
+				it = asset_import_tasks.erase(it);
+				continue;
 			}
-
-			UpdateEntityList();
-			asset_import_task.reset();
+			++it;
 		}
-		else if (asset_import_task && asset_import_task->failed.load())
+		if (entity_list_dirty)
 		{
-			asset_import_task.reset();
+			UpdateEntityList();
 		}
 
 		if (renderer)
@@ -1099,10 +1118,18 @@ namespace won::editor
 			static int selected_index = -1;
 			ecs::Entity delete_entity = INVALID_ENTITY;
 
-			if (asset_import_task && !asset_import_task->finished.load())
+			Size running_import_count = 0;
+			for (const std::shared_ptr<AssetImportTask>& task : asset_import_tasks)
+			{
+				if (task && !task->finished.load())
+				{
+					++running_import_count;
+				}
+			}
+			if (running_import_count > 0)
 			{
 				const int dot_count = static_cast<int>(ImGui::GetTime() * 3.0) % 4;
-				std::string import_status = "Importing asset";
+				std::string import_status = running_import_count == 1 ? "Importing asset" : "Importing assets (" + std::to_string(running_import_count) + ")";
 				import_status.append(dot_count, '.');
 				ImGui::TextDisabled("%s", import_status.c_str());
 				ImGui::Separator();
@@ -2432,7 +2459,10 @@ namespace won::editor
 
 			std::string file_path = contents_root_dir + "/Models/glTF/Sponza/glTF/Sponza.gltf";
 			//std::string file_path = contents_root_dir + "/Models/Obj/Sphere/sphere.obj";
-			asset_import_task = api->ImportAsync(asset_importer.get(), file_path.c_str(), &scene, device.get());
+			if (std::shared_ptr<AssetImportTask> import_task = api->ImportAsync(asset_importer.get(), file_path.c_str(), &scene, device.get()))
+			{
+				asset_import_tasks.push_back(import_task);
+			}
 
 			//ecs::Entity root_entity{};
 			//api->Import(asset_importer.get(), file_path.c_str(), &scene, device.get(), root_entity);
