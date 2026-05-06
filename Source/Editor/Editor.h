@@ -66,6 +66,6 @@ namespace won::editor
 		ecs::Entity picked_entity = ecs::INVALID_ENTITY;
 		ViewportDebugSettings viewport_debug_settings = {};
 
-		plugin::PluginManager plugin_manager;
+		std::shared_ptr<plugin::PluginManager> plugin_manager;
 	};
 }

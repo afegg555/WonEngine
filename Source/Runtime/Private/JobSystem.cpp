@@ -154,10 +154,16 @@ namespace won::jobsystem
 
             alive.store(false);
 
-            for (auto& res : resources)
-            {
-                res.sleeping_condition.notify_all();
-            }
+            std::atomic_bool wake_loop{ true };
+            std::thread waker([&] {
+                while (wake_loop.load(std::memory_order_relaxed))
+                {
+                    for (auto& res : resources)
+                    {
+                        res.sleeping_condition.notify_all();
+                    }
+                }
+            });
 
             for (auto& res : resources)
             {
@@ -166,6 +172,9 @@ namespace won::jobsystem
                     thread.join();
                 }
             }
+
+            wake_loop.store(false, std::memory_order_relaxed);
+            waker.join();
 
             for (auto& res : resources)
             {
