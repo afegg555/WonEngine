@@ -382,6 +382,7 @@ namespace won::editor
 
 		InitImGui();
 
+		plugin_manager = std::make_shared<plugin::PluginManager>();
 		LoadDefaultPlugins();
 
 		// camera entity
@@ -510,7 +511,7 @@ namespace won::editor
 		static IPlugin* camera_controller = nullptr;
 		if (!controller_api)
 		{
-			camera_controller = plugin_manager.GetPlugin(WON_IID_CAMERA_CONTROLLER).get();
+			camera_controller = plugin_manager->GetPlugin(WON_IID_CAMERA_CONTROLLER).get();
 			controller_api = (CameraControllerAPI*)camera_controller->QueryInterface(WON_IID_CAMERA_CONTROLLER, WON_VID_CAMERA_CONTROLLER);
 		}
 
@@ -678,11 +679,11 @@ namespace won::editor
 
 	void EditorApplication::LoadDefaultPlugins()
 	{
-		if (!plugin_manager.LoadPlugin(WON_IID_ASSET_IMPORTER))
+		if (!plugin_manager->LoadPlugin(WON_IID_ASSET_IMPORTER))
 		{
 
 		}
-		if (!plugin_manager.LoadPlugin(WON_IID_CAMERA_CONTROLLER))
+		if (!plugin_manager->LoadPlugin(WON_IID_CAMERA_CONTROLLER))
 		{
 
 		}
@@ -2427,7 +2428,7 @@ namespace won::editor
 		}
 
 		{
-			auto asset_importer = plugin_manager.GetPlugin(WON_IID_ASSET_IMPORTER);
+			auto asset_importer = plugin_manager->GetPlugin(WON_IID_ASSET_IMPORTER);
 			AssetImporterAPI* api = (AssetImporterAPI*)asset_importer->QueryInterface(WON_IID_ASSET_IMPORTER, WON_VID_ASSET_IMPORTER);
 
 			std::string file_path = contents_root_dir + "/Models/glTF/Sponza/glTF/Sponza.gltf";
