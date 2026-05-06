@@ -27,8 +27,11 @@ namespace won::ecs
             dirty |= geometry_comp.IsDirty();
         }
 
-        if (!dirty)
+        const bool geometry_structure_changed = render_data.shader_geometries.size() != submesh_sum;
+        if (!dirty && !geometry_structure_changed)
+        {
             return;
+        }
 
         render_data.shader_geometries.resize(submesh_sum);
 

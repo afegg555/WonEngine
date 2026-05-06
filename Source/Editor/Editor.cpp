@@ -430,6 +430,7 @@ namespace won::editor
 		imgui_sampler.reset();
 		editor_primitive_mesh.reset();
 		deferred_primitive_removal_buffers.clear();
+		deferred_entity_removal_resources.clear();
 		editor_primitive_entity = ecs::INVALID_ENTITY;
 		scene = {};
 
@@ -441,6 +442,22 @@ namespace won::editor
 	void EditorApplication::Update(float dt)
 	{
 		Application::Update(dt);
+		for (auto it = deferred_entity_removal_resources.begin(); it != deferred_entity_removal_resources.end();)
+		{
+			if (it->frames_left > 0)
+			{
+				--it->frames_left;
+			}
+			if (it->frames_left == 0)
+			{
+				it = deferred_entity_removal_resources.erase(it);
+			}
+			else
+			{
+				++it;
+			}
+		}
+
 		if (asset_import_task && asset_import_task->committed.load())
 		{
 			ecs::Entity root_entity = asset_import_task->root_entity.load();
@@ -1163,14 +1180,94 @@ namespace won::editor
 
 			if (delete_entity != INVALID_ENTITY)
 			{
-				scene.DestroyEntity(delete_entity);
-				UpdateEntityList();
-				selected_index = -1;
-
 				if (picked_entity == delete_entity)
 				{
 					picked_entity = INVALID_ENTITY;
 				}
+				selected_index = -1;
+
+				eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, delete_entity](uint64) {
+					if (delete_entity == camera_entity)
+					{
+						return;
+					}
+
+					Vector<ecs::Entity> entities_to_delete;
+					entities_to_delete.push_back(delete_entity);
+
+					auto hierarchy_array = scene.GetComponentArray<ecs::HierarchyComponent>();
+					if (hierarchy_array)
+					{
+						for (Size delete_index = 0; delete_index < entities_to_delete.size(); ++delete_index)
+						{
+							const ecs::Entity parent = entities_to_delete[delete_index];
+							for (Size hierarchy_index = 0; hierarchy_index < hierarchy_array->data.size(); ++hierarchy_index)
+							{
+								if (hierarchy_array->data[hierarchy_index].parent_id != parent)
+								{
+									continue;
+								}
+
+								const ecs::Entity child = hierarchy_array->index_to_entity[hierarchy_index];
+								if (std::find(entities_to_delete.begin(), entities_to_delete.end(), child) == entities_to_delete.end())
+								{
+									entities_to_delete.push_back(child);
+								}
+							}
+						}
+					}
+
+					DeferredEntityRemovalResources deferred_resources = {};
+					deferred_resources.frames_left = 8;
+					for (ecs::Entity entity : entities_to_delete)
+					{
+						ecs::GeometryComponent* geometry = scene.GetComponent<ecs::GeometryComponent>(entity);
+						if (geometry && geometry->mesh)
+						{
+							deferred_resources.meshes.push_back(geometry->mesh);
+							if (geometry->mesh->render_data.buffer)
+							{
+								deferred_resources.resources.push_back(geometry->mesh->render_data.buffer);
+							}
+							if (geometry->mesh->gpu_bvh.node_buffer)
+							{
+								deferred_resources.resources.push_back(geometry->mesh->gpu_bvh.node_buffer);
+							}
+							if (geometry->mesh->gpu_bvh.primitive_buffer)
+							{
+								deferred_resources.resources.push_back(geometry->mesh->gpu_bvh.primitive_buffer);
+							}
+						}
+
+						ecs::MaterialComponent* material = scene.GetComponent<ecs::MaterialComponent>(entity);
+						if (material)
+						{
+							for (ecs::MaterialSlot& material_slot : material->material_slots)
+							{
+								for (uint32 texture_slot = 0; texture_slot < TEXTURESLOT_COUNT; ++texture_slot)
+								{
+									if (material_slot.textures[texture_slot].texture)
+									{
+										deferred_resources.resources.push_back(material_slot.textures[texture_slot].texture);
+									}
+								}
+							}
+						}
+					}
+
+					if (!deferred_resources.meshes.empty() || !deferred_resources.resources.empty())
+					{
+						deferred_entity_removal_resources.push_back(std::move(deferred_resources));
+					}
+
+					scene.DestroyEntity(delete_entity);
+					const Vector<ecs::Entity>& entities = scene.GetEntities();
+					if (std::find(entities.begin(), entities.end(), picked_entity) == entities.end())
+					{
+						picked_entity = INVALID_ENTITY;
+					}
+					UpdateEntityList();
+				});
 			}
 		}
 		ImGui::End();
