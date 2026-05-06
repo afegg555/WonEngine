@@ -1378,7 +1378,7 @@ namespace won::editor
 			}
 			if (ImGui::Button("Import"))
 			{
-				auto asset_importer = plugin_manager.GetPlugin(WON_IID_ASSET_IMPORTER);
+				auto asset_importer = plugin_manager->GetPlugin(WON_IID_ASSET_IMPORTER);
 				AssetImporterAPI* api = asset_importer ? (AssetImporterAPI*)asset_importer->QueryInterface(WON_IID_ASSET_IMPORTER, WON_VID_ASSET_IMPORTER) : nullptr;
 				std::shared_ptr<AssetImportTask> import_task;
 				if (api)
