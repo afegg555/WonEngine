@@ -118,6 +118,7 @@ namespace won::rendering
         virtual void SetDebugOptions(const RendererDebugOptions& options) = 0;
         virtual RendererDebugState GetDebugState() const = 0;
         virtual bool GetCurrentBackBufferBinding(RHISubresourceBinding& out_binding) const = 0;
+        virtual bool GetCurrentDepthBufferBinding(RHISubresourceBinding& out_binding) const = 0;
 
         struct FrameCommandList
         {

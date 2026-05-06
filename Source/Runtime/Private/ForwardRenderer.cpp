@@ -70,6 +70,18 @@ namespace won::rendering
         return true;
     }
 
+    bool ForwardRenderer::GetCurrentDepthBufferBinding(RHISubresourceBinding& out_binding) const
+    {
+        if (!depth_buffer || !depth_buffer_dsv.IsValid())
+        {
+            return false;
+        }
+
+        out_binding.resource = depth_buffer.get();
+        out_binding.subresource = depth_buffer_dsv;
+        return true;
+    }
+
     void ForwardRenderer::SetDebugOptions(const RendererDebugOptions& options)
     {
         debug_options = options;
