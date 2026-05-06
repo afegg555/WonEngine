@@ -74,11 +74,25 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
     {
 		// Metallic-roughness workflow:
         half perceptual_roughness = material.GetRoughness();
+        half metallic = material.GetMetallic();
+
+#ifdef OBJECTSHADER_USE_UVSETS
+        [branch]
+        if (material.textures[ROUGHNESSMAP].IsValid())
+        {
+            perceptual_roughness *= material.textures[ROUGHNESSMAP].Sample(sampler_objectshader, uvsets).g;
+        }
+        [branch]
+        if (material.textures[METALLICMAP].IsValid())
+        {
+            metallic *= material.textures[METALLICMAP].Sample(sampler_objectshader, uvsets).b;
+        }
+#endif // OBJECTSHADER_USE_UVSETS
+
         perceptual_roughness = clamp(perceptual_roughness, 0.045, 1.0); // fp32
         //perceptual_roughness = clamp(perceptual_roughness, 0.089, 1.0); // fp16
         surface.roughness = perceptual_roughness * perceptual_roughness; // perceptually linear roughness to roughness
-        
-        half metallic = material.GetMetallic();
+        metallic = saturate(metallic);
         half reflectance = material.GetReflectance();
 
         surface.albedo = base_color.rgb * (1 - metallic);

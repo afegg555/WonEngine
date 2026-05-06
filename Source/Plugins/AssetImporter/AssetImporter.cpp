@@ -418,7 +418,12 @@ namespace won::plugin
                 {
                     material_slot.textures[ANISOTROPYMAP].name = tex.C_Str();
                 }
-                if (ai_mat->GetTexture(aiTextureType_DIFFUSE_ROUGHNESS, 0, &tex) == AI_SUCCESS)
+                if (ai_mat->GetTexture(aiTextureType_GLTF_METALLIC_ROUGHNESS, 0, &tex) == AI_SUCCESS)
+                {
+                    material_slot.textures[ROUGHNESSMAP].name = tex.C_Str();
+                    material_slot.textures[METALLICMAP].name = tex.C_Str();
+                }
+                else if (ai_mat->GetTexture(aiTextureType_DIFFUSE_ROUGHNESS, 0, &tex) == AI_SUCCESS)
                 {
                     material_slot.textures[ROUGHNESSMAP].name = tex.C_Str();
                 }
