@@ -14,10 +14,71 @@ namespace won::resource
         ShadowPass,
         DepthPrepass,
         MainPass,
-        LinePass,
-        PointPass,
         Count
     };
+
+    struct GraphicsPipelineHash
+    {
+        union
+        {
+            uint64 value;
+            struct
+            {
+                uint64 render_pass_type : 5;
+                uint64 topology : 3;
+                uint64 depth_compare : 4;
+                uint64 cull_mode : 2;
+                uint64 fill_mode : 1;
+                uint64 reserved : 49;
+            };
+        };
+
+        GraphicsPipelineHash()
+            : value(0)
+        {
+        }
+
+        bool IsValid() const
+        {
+            return value != 0;
+        }
+
+        bool operator==(const GraphicsPipelineHash& other) const
+        {
+            return value == other.value;
+        }
+    };
+
+    struct ComputePipelineHash
+    {
+        union
+        {
+            uint64 value;
+            struct
+            {
+                uint64 compute_shader : 12;
+                uint64 reserved : 52;
+            };
+        };
+
+        ComputePipelineHash()
+            : value(0)
+        {
+        }
+
+        bool IsValid() const
+        {
+            return value != 0;
+        }
+
+        bool operator==(const ComputePipelineHash& other) const
+        {
+            return value == other.value;
+        }
+    };
+    static_assert(sizeof(GraphicsPipelineHash) == sizeof(uint64), "GraphicsPipelineHash must be 8 bytes");
+    static_assert(sizeof(ComputePipelineHash) == sizeof(uint64), "ComputePipelineHash must be 8 bytes");
+
     // TODO: determine the responsibility for pipeline management;
     // graphics / compute shader pipeline management.
     class ShaderLibrary
@@ -29,7 +90,8 @@ namespace won::resource
         void SetShader(ShaderId shader_id, const std::shared_ptr<rendering::RHIShader>& shader);
         
         std::shared_ptr<rendering::RHIShader> GetShader(ShaderId shader_id) const;
-        std::shared_ptr<rendering::RHIPipeline> GetPipeline(RenderPassType pass_type) const;
+        std::shared_ptr<rendering::RHIPipeline> GetPipeline(GraphicsPipelineHash pipeline_hash) const;
+        std::shared_ptr<rendering::RHIPipeline> GetPipeline(ComputePipelineHash pipeline_hash) const;
         void ClearPipelines();
         void ClearShaders();
         void ClearAll();
@@ -39,7 +101,8 @@ namespace won::resource
         ShaderCompilerOptions compiler_options = {};
         std::shared_ptr<ShaderCompiler> shader_compiler = {};
         std::array<std::shared_ptr<rendering::RHIShader>, static_cast<Size>(ShaderId::Count)> shaders;
-        std::array<std::shared_ptr<rendering::RHIPipeline>, static_cast<Size>(RenderPassType::Count)> graphics_pipelines = {};
+        UnorderedMap<uint64, std::shared_ptr<rendering::RHIPipeline>> graphics_pipeline_cache;
+        UnorderedMap<uint64, std::shared_ptr<rendering::RHIPipeline>> compute_pipeline_cache;
     };
 
     ShaderLibrary& GetShaderLibrary(); // this function is not exposed externally

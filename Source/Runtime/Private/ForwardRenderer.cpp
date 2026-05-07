@@ -1377,12 +1377,20 @@ namespace won::rendering
         const Scene::RenderData& render_data = view.scene->GetRenderData();
 
         resource::ShaderLibrary& shader_library = GetShaderLibrary();
-        std::shared_ptr<RHIPipeline> pipeline = shader_library.GetPipeline(pass);
-        if (!pipeline)
+        RHICompareOp depth_compare = RHICompareOp::GreaterEqual;
+        const bool draw_wireframe = pass == RenderPassType::MainPass && debug_options.wireframe_enable;
+        const bool draw_primitives = pass == RenderPassType::MainPass && (flags & DrawScene_Primitive) != 0;
+        if (pass == RenderPassType::MainPass && !draw_wireframe)
         {
-            return false;
+            depth_compare = RHICompareOp::Equal;
         }
-        command_list.SetGraphicsPipeline(*pipeline);
+
+        GraphicsPipelineHash pipeline_hash = {};
+        pipeline_hash.render_pass_type = static_cast<uint64>(pass);
+        pipeline_hash.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
+        pipeline_hash.cull_mode = static_cast<uint64>(RHICullMode::Back);
+        pipeline_hash.fill_mode = static_cast<uint64>(draw_wireframe ? RHIFillMode::Wireframe : RHIFillMode::Solid);
+        pipeline_hash.depth_compare = static_cast<uint64>(depth_compare);
 
         RHISubresourceBinding shader_frame_binding = {};
         shader_frame_binding.resource = shader_frame_buffer.get();
@@ -1394,47 +1402,155 @@ namespace won::rendering
         shader_camera_binding.subresource = shader_camera_buffer_cbv;
         command_list.SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_camera_binding);
 
-        for (const auto& renderable : render_data.renderables)
+        if (!render_data.mesh_renderables.empty())
         {
-            resource::PrimitiveTopology pass_topology = resource::PrimitiveTopology::TriangleList;
-            if (pass == RenderPassType::LinePass)
+            std::shared_ptr<RHIPipeline> pipeline = shader_library.GetPipeline(pipeline_hash);
+            if (!pipeline)
             {
-                pass_topology = resource::PrimitiveTopology::LineList;
+                return false;
             }
-            else if (pass == RenderPassType::PointPass)
-            {
-                pass_topology = resource::PrimitiveTopology::PointList;
-            }
+            command_list.SetGraphicsPipeline(*pipeline);
 
-            if (renderable.primitive_topology != pass_topology)
+            for (const auto& renderable : render_data.mesh_renderables)
             {
-                continue;
-            }
+                if (renderable.IsTransparent())
+                {
+                    if ((flags & DrawScene_Transparent) == 0)
+                    {
+                        continue;
+                    }
+                }
+                else
+                {
+                    if ((flags & DrawScene_Opaque) == 0)
+                    {
+                        continue;
+                    }
+                }
 
-            if (renderable.IsTransparent())
-            {
-                if ((flags & DrawScene_Transparent) == 0)
+                if (pass == RenderPassType::ShadowPass && !renderable.IsCastShadow())
                 {
                     continue;
                 }
+
+                command_list.SetIndexBuffer(*renderable.index_buffer, sizeof(uint32), renderable.index_offset, renderable.index_count * sizeof(uint32));
+                command_list.SetPrimitiveTopology(ToRHIPrimitiveTopology(renderable.primitive_topology));
+                command_list.PushConstants(RHIShaderStage::Vertex, &renderable.push_constants, sizeof(ObjectPushConstants), 0);
+                command_list.DrawIndexed(renderable.index_count, 1, 0, 0, 0);
             }
-            else
+        }
+
+        if (!render_data.double_sided_renderables.empty())
+        {
+            GraphicsPipelineHash double_sided_pipeline_hash = pipeline_hash;
+            double_sided_pipeline_hash.cull_mode = static_cast<uint64>(RHICullMode::None);
+            std::shared_ptr<RHIPipeline> pipeline = shader_library.GetPipeline(double_sided_pipeline_hash);
+            if (!pipeline)
             {
-                if ((flags & DrawScene_Opaque) == 0)
+                return false;
+            }
+            command_list.SetGraphicsPipeline(*pipeline);
+
+            for (const auto& renderable : render_data.double_sided_renderables)
+            {
+                if (renderable.IsTransparent())
+                {
+                    if ((flags & DrawScene_Transparent) == 0)
+                    {
+                        continue;
+                    }
+                }
+                else
+                {
+                    if ((flags & DrawScene_Opaque) == 0)
+                    {
+                        continue;
+                    }
+                }
+
+                if (pass == RenderPassType::ShadowPass && !renderable.IsCastShadow())
                 {
                     continue;
                 }
-            }
 
-            if ((flags & DrawScene_ShadowCaster) != 0 && !renderable.IsCastShadow())
+                command_list.SetIndexBuffer(*renderable.index_buffer, sizeof(uint32), renderable.index_offset, renderable.index_count * sizeof(uint32));
+                command_list.SetPrimitiveTopology(ToRHIPrimitiveTopology(renderable.primitive_topology));
+                command_list.PushConstants(RHIShaderStage::Vertex, &renderable.push_constants, sizeof(ObjectPushConstants), 0);
+                command_list.DrawIndexed(renderable.index_count, 1, 0, 0, 0);
+            }
+        }
+
+        if (draw_primitives)
+        {
+            GraphicsPipelineHash line_pipeline_hash = pipeline_hash;
+            line_pipeline_hash.topology = static_cast<uint64>(RHIPrimitiveTopology::LineList);
+            line_pipeline_hash.cull_mode = static_cast<uint64>(RHICullMode::None);
+            line_pipeline_hash.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
+            line_pipeline_hash.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
+
+            std::shared_ptr<RHIPipeline> line_pipeline = shader_library.GetPipeline(line_pipeline_hash);
+            if (line_pipeline)
             {
-                continue;
+                command_list.SetGraphicsPipeline(*line_pipeline);
+
+                for (const auto& renderable : render_data.line_renderables)
+                {
+                    if (renderable.IsTransparent())
+                    {
+                        if ((flags & DrawScene_Transparent) == 0)
+                        {
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        if ((flags & DrawScene_Opaque) == 0)
+                        {
+                            continue;
+                        }
+                    }
+
+                    command_list.SetIndexBuffer(*renderable.index_buffer, sizeof(uint32), renderable.index_offset, renderable.index_count * sizeof(uint32));
+                    command_list.SetPrimitiveTopology(ToRHIPrimitiveTopology(renderable.primitive_topology));
+                    command_list.PushConstants(RHIShaderStage::Vertex, &renderable.push_constants, sizeof(ObjectPushConstants), 0);
+                    command_list.DrawIndexed(renderable.index_count, 1, 0, 0, 0);
+                }
             }
 
-            command_list.SetIndexBuffer(*renderable.index_buffer, sizeof(uint32), renderable.index_offset, renderable.index_count * sizeof(uint32));
-            command_list.SetPrimitiveTopology(ToRHIPrimitiveTopology(renderable.primitive_topology));
-            command_list.PushConstants(RHIShaderStage::Vertex, &renderable.push_constants, sizeof(ObjectPushConstants), 0);
-            command_list.DrawIndexed(renderable.index_count, 1, 0, 0, 0);
+            GraphicsPipelineHash point_pipeline_hash = pipeline_hash;
+            point_pipeline_hash.topology = static_cast<uint64>(RHIPrimitiveTopology::PointList);
+            point_pipeline_hash.cull_mode = static_cast<uint64>(RHICullMode::None);
+            point_pipeline_hash.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
+            point_pipeline_hash.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
+
+            std::shared_ptr<RHIPipeline> point_pipeline = shader_library.GetPipeline(point_pipeline_hash);
+            if (point_pipeline)
+            {
+                command_list.SetGraphicsPipeline(*point_pipeline);
+
+                for (const auto& renderable : render_data.point_renderables)
+                {
+                    if (renderable.IsTransparent())
+                    {
+                        if ((flags & DrawScene_Transparent) == 0)
+                        {
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        if ((flags & DrawScene_Opaque) == 0)
+                        {
+                            continue;
+                        }
+                    }
+
+                    command_list.SetIndexBuffer(*renderable.index_buffer, sizeof(uint32), renderable.index_offset, renderable.index_count * sizeof(uint32));
+                    command_list.SetPrimitiveTopology(ToRHIPrimitiveTopology(renderable.primitive_topology));
+                    command_list.PushConstants(RHIShaderStage::Vertex, &renderable.push_constants, sizeof(ObjectPushConstants), 0);
+                    command_list.DrawIndexed(renderable.index_count, 1, 0, 0, 0);
+                }
+            }
         }
 
         return true;
@@ -1903,7 +2019,13 @@ namespace won::rendering
                 command_list->BeginEvent("Sky Pass");
                 command_list->SetRenderTargets(color_targets, nullptr);
                 resource::ShaderLibrary& shader_library = GetShaderLibrary();
-                std::shared_ptr<RHIPipeline> sky_pipeline = shader_library.GetPipeline(RenderPassType::SkyPass);
+                GraphicsPipelineHash sky_pipeline_hash = {};
+                sky_pipeline_hash.render_pass_type = static_cast<uint64>(RenderPassType::SkyPass);
+                sky_pipeline_hash.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
+                sky_pipeline_hash.cull_mode = static_cast<uint64>(RHICullMode::None);
+                sky_pipeline_hash.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
+                sky_pipeline_hash.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
+                std::shared_ptr<RHIPipeline> sky_pipeline = shader_library.GetPipeline(sky_pipeline_hash);
                 if (!sky_pipeline)
                 {
                     command_list->EndEvent();
@@ -1966,7 +2088,7 @@ namespace won::rendering
                     shadow_scissor.height = shadow_slice.shadow_map_atlas_rect.w;
                     command_list->SetScissor(shadow_scissor);
 
-                    DrawScene(frame_context, view, RenderPassType::ShadowPass, DrawScene_Opaque | DrawScene_ShadowCaster, *command_list);
+                    DrawScene(frame_context, view, RenderPassType::ShadowPass, DrawScene_Opaque, *command_list);
                 }
                 command_list->TransitionResource(*shadow_map_atlas, RHIResourceState::ShaderRead);
                 command_list->EndEvent();
@@ -2031,29 +2153,7 @@ namespace won::rendering
                 command_list->SetRenderTargets(color_targets, &depth_buffer_binding);
                 {
                     auto cpu_range = profiler::ScopedRangeCPU("Draw Main Pass");
-                    DrawScene(frame_context, view, RenderPassType::MainPass, DrawScene_Opaque | DrawScene_Transparent, *command_list);
-                }
-                command_list->EndEvent();
-            }
-
-            {
-                auto gpu_range = profiler::ScopedRangeGPU("Line Primitive Pass", *command_list);
-                command_list->BeginEvent("Line Primitive Pass");
-                command_list->SetRenderTargets(color_targets, &depth_buffer_binding);
-                {
-                    auto cpu_range = profiler::ScopedRangeCPU("Draw Line Pass");
-                    DrawScene(frame_context, view, RenderPassType::LinePass, DrawScene_Opaque | DrawScene_Transparent, *command_list);
-                }
-                command_list->EndEvent();
-            }
-
-            {
-                auto gpu_range = profiler::ScopedRangeGPU("Point Primitive Pass", *command_list);
-                command_list->BeginEvent("Point Primitive Pass");
-                command_list->SetRenderTargets(color_targets, &depth_buffer_binding);
-                {
-                    auto cpu_range = profiler::ScopedRangeCPU("Draw Point Pass");
-                    DrawScene(frame_context, view, RenderPassType::PointPass, DrawScene_Opaque | DrawScene_Transparent, *command_list);
+                    DrawScene(frame_context, view, RenderPassType::MainPass, DrawScene_Opaque | DrawScene_Transparent | DrawScene_Primitive, *command_list);
                 }
                 command_list->EndEvent();
             }

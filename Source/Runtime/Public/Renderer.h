@@ -32,6 +32,7 @@ namespace won::rendering
     {
         bool ddgi_debug_enable = false;
         bool bvh_debug_enable = false;
+        bool wireframe_enable = false;
     };
 
     struct RendererDebugDDGIState

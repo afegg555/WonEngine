@@ -22,6 +22,7 @@ namespace won::jobsystem
         uint32 job_index = 0;
         uint32 group_id = 0;
         uint32 group_index = 0;
+        uint32 worker_index = 0;
         bool is_first_job_in_group = false;
         bool is_last_job_in_group = false;
         void* sharedmemory = nullptr;

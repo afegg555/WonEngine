@@ -24,10 +24,11 @@ namespace won::jobsystem
         uint32 group_job_end = 0;
         uint32 sharedmemory_size = 0;
 
-        uint32 Execute() const
+        uint32 Execute(uint32 worker_index) const
         {
             JobArgs args;
             args.group_id = group_id;
+            args.worker_index = worker_index;
 
             if (sharedmemory_size > 0)
             {
@@ -119,7 +120,7 @@ namespace won::jobsystem
             return job_queue_per_thread[GetNextQueueIndex()];
         }
 
-        void Work(uint32 starting_queue)
+        void Work(uint32 starting_queue, uint32 worker_index)
         {
             Job job;
             for (uint32 i = 0; i < num_threads; ++i)
@@ -127,7 +128,7 @@ namespace won::jobsystem
                 JobQueue& job_queue = job_queue_per_thread[ConstrainQueueIndex(static_cast<uint8>(starting_queue))];
                 while (job_queue.PopFront(job))
                 {
-                    uint32 progress_before = job.Execute();
+                    uint32 progress_before = job.Execute(worker_index);
                     if (progress_before == 1)
                     {
                         std::unique_lock<std::mutex> lock(waiting_mutex);
@@ -244,7 +245,7 @@ namespace won::jobsystem
                 std::thread& worker = res.threads.emplace_back([thread_id, priority, &res] {
                     while (internal_state.alive.load(std::memory_order_relaxed))
                     {
-                        res.Work(thread_id);
+                        res.Work(thread_id, thread_id);
                         std::unique_lock<std::mutex> lock(res.sleeping_mutex);
                         res.sleeping_condition.wait(lock);
                     }
@@ -333,7 +334,7 @@ namespace won::jobsystem
 
         if (res.num_threads < 1)
         {
-            job.Execute();
+            job.Execute(0);
             return;
         }
 
@@ -366,7 +367,7 @@ namespace won::jobsystem
 
             if (res.num_threads < 1)
             {
-                job.Execute();
+                job.Execute(0);
             }
             else
             {
@@ -397,7 +398,7 @@ namespace won::jobsystem
             PriorityResources& res = internal_state.resources[int(ctx.priority)];
 
             res.sleeping_condition.notify_all();
-            res.Work(res.GetNextQueueIndex());
+            res.Work(res.GetNextQueueIndex(), res.num_threads);
 
             while (IsBusy(ctx))
             {

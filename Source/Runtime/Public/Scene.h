@@ -683,6 +683,7 @@ namespace won::ecs
                     None = 0,
                     CastShadow = 1 << 0,
                     Transparent = 1 << 1,
+                    DoubleSided = 1 << 2,
                 };
 
                 ObjectPushConstants push_constants;
@@ -700,6 +701,11 @@ namespace won::ecs
                 bool IsCastShadow() const
                 {
                     return (flags & CastShadow) != 0;
+                }
+
+                bool IsDoubleSided() const
+                {
+                    return (flags & DoubleSided) != 0;
                 }
             };
 
@@ -722,7 +728,10 @@ namespace won::ecs
             Vector<float4> shader_bone_matrices;
             Vector<ShaderBVHNode> shader_bvh_nodes;
             Vector<ShaderBVHInstance> shader_bvh_instances;
-            Vector<Renderable> renderables;
+            Vector<Renderable> mesh_renderables;
+            Vector<Renderable> double_sided_renderables;
+            Vector<Renderable> line_renderables;
+            Vector<Renderable> point_renderables;
 
             Vector<ShaderLight> shader_lights; // all lights
             Vector<ShaderShadowCascade> shader_shadow_cascades; // lights with shadow map
@@ -741,7 +750,10 @@ namespace won::ecs
                 shader_bone_matrices.clear();
                 shader_bvh_nodes.clear();
                 shader_bvh_instances.clear();
-                renderables.clear();
+                mesh_renderables.clear();
+                double_sided_renderables.clear();
+                line_renderables.clear();
+                point_renderables.clear();
 
                 shader_lights.clear();
                 shader_shadow_cascades.clear();
