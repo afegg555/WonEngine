@@ -27,7 +27,7 @@ namespace won::rendering
         {
             DrawScene_Opaque = 1 << 0, // include opaque objects
             DrawScene_Transparent = 1 << 1, // include transparent objects
-            DrawScene_ShadowCaster = 1 << 2, // include shadow casters only
+            DrawScene_Primitive = 1 << 2, // include line/point ..
         };
 
         // resource creation

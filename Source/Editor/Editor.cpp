@@ -518,6 +518,7 @@ namespace won::editor
 			rendering::RendererDebugOptions debug_options = {};
 			debug_options.ddgi_debug_enable = viewport_debug_settings.show_ddgi_overlay;
 			debug_options.bvh_debug_enable = viewport_debug_settings.show_bvh_debug;
+			debug_options.wireframe_enable = viewport_debug_settings.use_wireframe;
 			renderer->SetDebugOptions(debug_options);
 		}
 		UpdateEditorPrimitiveMesh();
@@ -1482,11 +1483,7 @@ namespace won::editor
 			ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(500, 500));
 			if (ImGui::BeginPopup("OptionsPopup"))
 			{
-				static bool use_wireframe = false;
-				if (ImGui::Checkbox("WireFrame", &use_wireframe))
-				{
-					// TODO: WireFrame
-				}
+				ImGui::Checkbox("WireFrame", &viewport_debug_settings.use_wireframe);
 
 				if (window)
 				{
