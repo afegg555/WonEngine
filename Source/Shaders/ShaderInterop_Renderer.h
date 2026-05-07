@@ -17,6 +17,7 @@ enum SHADER_OBJECT_FLAGS
 enum SHADER_GEOMETRY_FLAGS
 {
     SHADER_GEOMETRY_FLAG_NONE = 0,
+    SHADER_GEOMETRY_FLAG_SKINNED = 1 << 0,
 };
 
 enum SHADER_MATERIAL_FLAGS
@@ -143,13 +144,18 @@ struct alignas(16) ShaderGeometry
 
     int tangent_buffer_descriptor;
     int index_buffer_descriptor;
+    int bone_indices_buffer_descriptor;
+    int bone_weights_buffer_descriptor;
+
     uint first_index;
+    uint index_count;
+    uint flags;
     uint padding;
 
     float3 bounds_min;
-    uint index_count;
+    uint padding0;
     float3 bounds_max;
-    uint flags;
+    uint padding1;
 
 #ifdef __cplusplus
     inline void Init()
@@ -160,7 +166,14 @@ struct alignas(16) ShaderGeometry
         texcoord_buffer_descriptor = -1;
         tangent_buffer_descriptor = -1;
         index_buffer_descriptor = -1;
+        bone_indices_buffer_descriptor = -1;
+        bone_weights_buffer_descriptor = -1;
         first_index = 0;
+        index_count = 0;
+        flags = SHADER_GEOMETRY_FLAG_NONE;
+        padding = 0;
+        padding0 = 0;
+        padding1 = 0;
     }
 #endif
 };
@@ -685,11 +698,16 @@ struct alignas(16) ShaderInstance
 {
     float4x4 world_transform;
     float3x3 normal_transform; // will be removed
-    float3 padding;
+    int bone_matrix_buffer_descriptor;
+    uint bone_count;
+    uint bone_matrix_offset;
 
 #ifdef __cplusplus
     inline void Init()
     {
+        bone_matrix_buffer_descriptor = -1;
+        bone_count = 0;
+        bone_matrix_offset = 0;
     }
 #endif
 };
@@ -708,7 +726,7 @@ PUSHCONSTANT(push, ObjectPushConstants);
 
 #ifdef __cplusplus
 static_assert(sizeof(ShaderTextureSlot) == 16, "ShaderTextureSlot layout mismatch");
-static_assert(sizeof(ShaderGeometry) == 64, "ShaderGeometry layout mismatch");
+static_assert(sizeof(ShaderGeometry) == 80, "ShaderGeometry layout mismatch");
 static_assert(sizeof(ShaderMaterial) == 272, "ShaderMaterial layout mismatch");
 static_assert(sizeof(ShaderScene) == 64, "ShaderScene layout mismatch");
 static_assert(sizeof(ShaderSky) == 64, "ShaderSky layout mismatch");

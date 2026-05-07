@@ -2233,6 +2233,94 @@ namespace won::editor
 					ImGui::Separator();
 				}
 
+				AnimationComponent* animation_comp = main_view.scene->GetComponent<AnimationComponent>(picked_entity);
+				if (animation_comp)
+				{
+					ImGui::PushID("AnimationComponent");
+					ImGui::Text("AnimationComponent");
+					bool remove_component = DrawComponentRemoveButton("AnimationComponent");
+
+					if (!remove_component)
+					{
+						const int clip_count = static_cast<int>(animation_comp->clips.size());
+						ImGui::Text("Clips: %d", clip_count);
+
+						if (clip_count > 0)
+						{
+							if (animation_comp->current_clip_index >= animation_comp->clips.size())
+							{
+								animation_comp->current_clip_index = 0;
+							}
+
+							int current_clip_index = static_cast<int>(animation_comp->current_clip_index);
+							std::shared_ptr<resource::AnimationClip> current_clip = animation_comp->clips[animation_comp->current_clip_index];
+							String current_clip_name = current_clip && !current_clip->name.empty() ? current_clip->name : "Clip " + std::to_string(current_clip_index);
+							if (ImGui::BeginCombo("Clip", current_clip_name.c_str()))
+							{
+								for (int clip_index = 0; clip_index < clip_count; ++clip_index)
+								{
+									const std::shared_ptr<resource::AnimationClip>& clip = animation_comp->clips[clip_index];
+									String clip_name = clip && !clip->name.empty() ? clip->name : "Clip " + std::to_string(clip_index);
+									const bool is_selected = current_clip_index == clip_index;
+									if (ImGui::Selectable(clip_name.c_str(), is_selected))
+									{
+										animation_comp->current_clip_index = static_cast<uint32>(clip_index);
+										animation_comp->time = 0.0f;
+										animation_comp->bone_matrices_dirty = true;
+									}
+									if (is_selected)
+									{
+										ImGui::SetItemDefaultFocus();
+									}
+								}
+								ImGui::EndCombo();
+							}
+
+							current_clip = animation_comp->clips[animation_comp->current_clip_index];
+							const float ticks_per_second = current_clip && current_clip->ticks_per_second > 0.0f ? current_clip->ticks_per_second : 1.0f;
+							const float duration_seconds = current_clip ? current_clip->duration / ticks_per_second : 0.0f;
+
+							if (ImGui::Button(animation_comp->playing ? "Pause" : "Play"))
+							{
+								animation_comp->playing = !animation_comp->playing;
+							}
+							ImGui::SameLine();
+							ImGui::Checkbox("Loop", &animation_comp->loop);
+
+							ImGui::DragFloat("Speed", &animation_comp->speed, 0.01f, -10.0f, 10.0f);
+
+							if (duration_seconds > 0.0f)
+							{
+								float time = std::clamp(animation_comp->time, 0.0f, duration_seconds);
+								if (ImGui::SliderFloat("Time", &time, 0.0f, duration_seconds))
+								{
+									animation_comp->time = time;
+									animation_comp->bone_matrices_dirty = true;
+								}
+								ImGui::Text("Duration: %.3fs", duration_seconds);
+							}
+							else
+							{
+								ImGui::TextDisabled("Duration: 0.000s");
+							}
+						}
+						else
+						{
+							ImGui::TextDisabled("No animation clips");
+						}
+
+						ImGui::Text("Bone Matrices: %d", static_cast<int>(animation_comp->bone_matrices.size()));
+						ImGui::Text("Bone Matrix Offset: %u", animation_comp->bone_matrix_offset);
+					}
+					else
+					{
+						main_view.scene->RemoveComponent<AnimationComponent>(picked_entity);
+					}
+
+					ImGui::PopID();
+					ImGui::Separator();
+				}
+
 				MaterialComponent* material_comp = main_view.scene->GetComponent<MaterialComponent>(picked_entity);
 				if (material_comp)
 				{
@@ -2473,6 +2561,14 @@ namespace won::editor
 						if (main_view.scene->GetComponent<GeometryComponent>(picked_entity) == nullptr)
 						{
 							main_view.scene->AddComponent<GeometryComponent>(picked_entity);
+						}
+					}
+
+					if (ImGui::MenuItem("AnimationComponent"))
+					{
+						if (main_view.scene->GetComponent<AnimationComponent>(picked_entity) == nullptr)
+						{
+							main_view.scene->AddComponent<AnimationComponent>(picked_entity);
 						}
 					}
 
@@ -2936,6 +3032,12 @@ namespace won::editor
 			if (std::shared_ptr<AssetImportTask> import_task = api->ImportAsync(asset_importer.get(), file_path.c_str(), &scene, device.get()))
 			{
 				asset_import_tasks.push_back(import_task);
+			}
+
+			std::string cesium_man_file_path = contents_root_dir + "/Models/glTF/CesiumMan/glTF/CesiumMan.gltf";
+			if (std::shared_ptr<AssetImportTask> cesium_man_import_task = api->ImportAsync(asset_importer.get(), cesium_man_file_path.c_str(), &scene, device.get()))
+			{
+				asset_import_tasks.push_back(cesium_man_import_task);
 			}
 
 			//ecs::Entity root_entity{};

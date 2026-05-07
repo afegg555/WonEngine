@@ -50,7 +50,6 @@ namespace won::ecs
                 shader_geometry.Init();
                 shader_geometry.bounds_min = geometry_comp.mesh->submeshes[i].local_bounds.min;
                 shader_geometry.bounds_max = geometry_comp.mesh->submeshes[i].local_bounds.max;
-                //shader_geometry.flags = geometry_comp.flags;
 
                 if (mesh_render_data.IsValid())
                 {
@@ -62,6 +61,12 @@ namespace won::ecs
                     shader_geometry.index_buffer_descriptor = mesh_render_data.indices.handle.descriptor_index;
                     shader_geometry.index_count = geometry_comp.mesh->submeshes[i].index_count;
                     shader_geometry.first_index = geometry_comp.mesh->submeshes[i].first_index;
+                    if (mesh_render_data.bone_indices.IsValid() && mesh_render_data.bone_weights.IsValid())
+                    {
+                        shader_geometry.bone_indices_buffer_descriptor = mesh_render_data.bone_indices.handle.descriptor_index;
+                        shader_geometry.bone_weights_buffer_descriptor = mesh_render_data.bone_weights.handle.descriptor_index;
+                        shader_geometry.flags |= SHADER_GEOMETRY_FLAG_SKINNED;
+                    }
                 }
             }
 

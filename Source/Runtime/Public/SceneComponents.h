@@ -11,6 +11,7 @@
 #include "FogVolumeComponent.h"
 #include "EnvironmentLightingComponent.h"
 #include "DDGIVolumeComponent.h"
+#include "AnimationComponent.h"
 
 namespace won::ecs
 {
@@ -29,7 +30,8 @@ namespace won::ecs
         Sky,
         FogVolume,
         EnvironmentLighting,
-        DDGIVolume
+        DDGIVolume,
+        Animation
     };
 
     constexpr ComponentMask ComponentMaskFromBit(SceneComponentBit bit)
@@ -49,4 +51,5 @@ namespace won::ecs
     inline constexpr ComponentMask fog_volume_component_mask = ComponentMaskFromBit(SceneComponentBit::FogVolume);
     inline constexpr ComponentMask environment_lighting_component_mask = ComponentMaskFromBit(SceneComponentBit::EnvironmentLighting);
     inline constexpr ComponentMask ddgi_volume_component_mask = ComponentMaskFromBit(SceneComponentBit::DDGIVolume);
+    inline constexpr ComponentMask animation_component_mask = ComponentMaskFromBit(SceneComponentBit::Animation);
 }

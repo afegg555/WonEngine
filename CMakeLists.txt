@@ -183,6 +183,7 @@ set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/FogVolumeComponent.h
     Source/Runtime/Public/EnvironmentLightingComponent.h
     Source/Runtime/Public/DDGIVolumeComponent.h
+    Source/Runtime/Public/AnimationComponent.h
 )
 
 set(RUNTIME_ECS_SYSTEMS
@@ -191,6 +192,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Public/GeometryUpdateSystem.h
     Source/Runtime/Public/LightUpdateSystem.h
     Source/Runtime/Public/MaterialUpdateSystem.h
+    Source/Runtime/Public/AnimationUpdateSystem.h
     Source/Runtime/Public/TransformUpdateSystem.h
     Source/Runtime/Public/RenderableUpdateSystem.h
     Source/Runtime/Private/EnvironmentUpdateSystem.cpp
@@ -198,6 +200,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Private/GeometryUpdateSystem.cpp
     Source/Runtime/Private/LightUpdateSystem.cpp
     Source/Runtime/Private/MaterialUpdateSystem.cpp
+    Source/Runtime/Private/AnimationUpdateSystem.cpp
     Source/Runtime/Private/TransformUpdateSystem.cpp
     Source/Runtime/Private/RenderableUpdateSystem.cpp
 )

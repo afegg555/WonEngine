@@ -548,6 +548,7 @@ namespace won::rendering
         const Vector<ShaderInstance>& shader_instances = render_data.shader_instances;
         const Vector<ShaderGeometry>& shader_geometries = render_data.shader_geometries;
         const Vector<ShaderMaterial>& shader_materials = render_data.shader_materials;
+        const Vector<float4>& shader_bone_matrices = render_data.shader_bone_matrices;
         const Vector<ShaderLight>& shader_lights = render_data.shader_lights;
         const Vector<ShaderShadowCascade>& shader_shadow_cascades = render_data.shader_shadow_cascades;
         const Vector<ShaderBVHNode>& shader_bvh_nodes = render_data.shader_bvh_nodes;
@@ -556,10 +557,59 @@ namespace won::rendering
         const Size required_instance_buffer_size = shader_instances.size() * sizeof(ShaderInstance);
         const Size required_geometry_buffer_size = shader_geometries.size() * sizeof(ShaderGeometry);
         const Size required_material_buffer_size = shader_materials.size() * sizeof(ShaderMaterial);
+        const Size required_bone_matrix_buffer_size = shader_bone_matrices.size() * sizeof(float4);
         const Size required_light_buffer_size = shader_lights.size() * sizeof(ShaderLight);
         const Size required_shadow_cascade_buffer_size = shader_shadow_cascades.size() * sizeof(ShaderShadowCascade);
         const Size required_bvh_node_buffer_size = shader_bvh_nodes.size() * sizeof(ShaderBVHNode);
         const Size required_bvh_instance_buffer_size = shader_bvh_instances.size() * sizeof(ShaderBVHInstance);
+
+        if (required_bone_matrix_buffer_size == 0)
+        {
+            frame_context.RemoveResourceDeferred(shader_bone_matrix_default_buffer);
+            shader_bone_matrix_default_buffer_srv = {};
+        }
+        else
+        {
+            Size current_default_buffer_size = 0;
+            if (shader_bone_matrix_default_buffer)
+            {
+                current_default_buffer_size = shader_bone_matrix_default_buffer->GetDesc().buffer_desc.size;
+            }
+
+            if (!shader_bone_matrix_default_buffer || current_default_buffer_size < required_bone_matrix_buffer_size)
+            {
+                frame_context.RemoveResourceDeferred(shader_bone_matrix_default_buffer);
+                RHIBufferDesc shader_bone_matrix_default_buffer_desc = {};
+                shader_bone_matrix_default_buffer_desc.size = required_bone_matrix_buffer_size;
+                shader_bone_matrix_default_buffer_desc.usage = RHIResourceUsage::Default;
+                shader_bone_matrix_default_buffer_desc.bind_flags = RHIBindFlags::ShaderResource;
+                shader_bone_matrix_default_buffer = device->CreateBuffer(shader_bone_matrix_default_buffer_desc);
+                if (!shader_bone_matrix_default_buffer)
+                {
+                    backlog::Post("failed to create shader bone matrix default buffer", backlog::LogLevel::Error);
+                    return false;
+                }
+                shader_bone_matrix_default_buffer->SetName("Shader Bone Matrix Default Buffer");
+
+                shader_bone_matrix_default_buffer_srv = {};
+                RHISubresourceDesc shader_bone_matrix_default_subresource_desc = {};
+                shader_bone_matrix_default_subresource_desc.type = RHISubresourceType::ShaderResource;
+                shader_bone_matrix_default_subresource_desc.buffer_offset = 0;
+                shader_bone_matrix_default_subresource_desc.buffer_size = shader_bone_matrix_default_buffer->GetDesc().buffer_desc.size;
+                shader_bone_matrix_default_subresource_desc.buffer_stride = sizeof(float4);
+                if (!device->CreateSubresource(*shader_bone_matrix_default_buffer, shader_bone_matrix_default_subresource_desc, &shader_bone_matrix_default_buffer_srv))
+                {
+                    backlog::Post("failed to create shader bone matrix default subresource", backlog::LogLevel::Error);
+                    shader_bone_matrix_default_buffer = nullptr;
+                    return false;
+                }
+            }
+
+            if (!UpdateDefaultBuffer(frame_context, *shader_bone_matrix_default_buffer, shader_bone_matrices.data(), required_bone_matrix_buffer_size, RHIResourceState::ShaderRead, 0, command_list))
+            {
+                return false;
+            }
+        }
 
         if (required_instance_buffer_size == 0)
         {
@@ -625,13 +675,25 @@ namespace won::rendering
                 frame_context.shader_instance_upload_buffer->SetName("Shader Instance Upload Buffer");
             }
 
+            Vector<ShaderInstance> patched_shader_instances = shader_instances;
+            if (shader_bone_matrix_default_buffer_srv.IsValid())
+            {
+                for (ShaderInstance& shader_instance : patched_shader_instances)
+                {
+                    if (shader_instance.bone_count > 0)
+                    {
+                        shader_instance.bone_matrix_buffer_descriptor = shader_bone_matrix_default_buffer_srv.descriptor_index;
+                    }
+                }
+            }
+
             void* mapped_data = frame_context.shader_instance_upload_buffer->GetMappedData();
             if (!mapped_data)
             {
                 backlog::Post("failed to access mapped instance upload buffer", backlog::LogLevel::Error);
                 return false;
             }
-            std::memcpy(mapped_data, shader_instances.data(), required_instance_buffer_size);
+            std::memcpy(mapped_data, patched_shader_instances.data(), required_instance_buffer_size);
 
             command_list.TransitionResource(*shader_instance_default_buffer, RHIResourceState::CopyDest);
             command_list.CopyResource(*shader_instance_default_buffer, *frame_context.shader_instance_upload_buffer);
@@ -2092,6 +2154,8 @@ namespace won::rendering
         shader_geometry_default_buffer = nullptr;
         shader_material_default_buffer_srv = {};
         shader_material_default_buffer = nullptr;
+        shader_bone_matrix_default_buffer_srv = {};
+        shader_bone_matrix_default_buffer = nullptr;
         shader_light_default_buffer_srv = {};
         shader_light_default_buffer = nullptr;
         shader_shadow_cascade_default_buffer_srv = {};

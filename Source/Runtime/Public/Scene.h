@@ -9,6 +9,7 @@
 #include "LightUpdateSystem.h"
 #include "GeometryUpdateSystem.h"
 #include "MaterialUpdateSystem.h"
+#include "AnimationUpdateSystem.h"
 #include "RenderableUpdateSystem.h"
 #include "ShaderInterop_Renderer.h"
 #include "BVH.h"
@@ -53,6 +54,7 @@ namespace won::ecs
             component_manager.RegisterComponent<FogVolumeComponent>();
             component_manager.RegisterComponent<EnvironmentLightingComponent>();
             component_manager.RegisterComponent<DDGIVolumeComponent>();
+            component_manager.RegisterComponent<AnimationComponent>();
 
             AddSystem(std::make_shared<TransformUpdateSystem>());
             AddSystem(std::make_shared<EnvironmentUpdateSystem>());
@@ -60,6 +62,7 @@ namespace won::ecs
             AddSystem(std::make_shared<LightUpdateSystem>());
             AddSystem(std::make_shared<GeometryUpdateSystem>());
             AddSystem(std::make_shared<MaterialUpdateSystem>());
+            AddSystem(std::make_shared<AnimationUpdateSystem>());
             AddSystem(std::make_shared<RenderableUpdateSystem>());
         }
 
@@ -716,6 +719,7 @@ namespace won::ecs
             Vector<ShaderInstance> shader_instances;
             Vector<ShaderGeometry> shader_geometries;
             Vector<ShaderMaterial> shader_materials;
+            Vector<float4> shader_bone_matrices;
             Vector<ShaderBVHNode> shader_bvh_nodes;
             Vector<ShaderBVHInstance> shader_bvh_instances;
             Vector<Renderable> renderables;
@@ -734,6 +738,7 @@ namespace won::ecs
                 shader_instances.clear();
                 shader_geometries.clear();
                 shader_materials.clear();
+                shader_bone_matrices.clear();
                 shader_bvh_nodes.clear();
                 shader_bvh_instances.clear();
                 renderables.clear();

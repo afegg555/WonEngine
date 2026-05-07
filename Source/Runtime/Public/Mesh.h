@@ -12,6 +12,7 @@
 namespace won::resource
 {
     struct Skeleton;
+    struct AnimationClip;
 
     enum class PrimitiveTopology : uint8
     {
@@ -90,6 +91,7 @@ namespace won::resource
         Vector<uint32> indices;
         Vector<Submesh> submeshes;
         std::shared_ptr<Skeleton> skeleton;
+        Vector<std::shared_ptr<AnimationClip>> animation_clips; // run, jump...
         math::bvh::BVH cpu_bvh; // local space bvh
         GPUBVH gpu_bvh = {}; // BLAS
         RenderData render_data = {};

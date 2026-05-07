@@ -57,6 +57,9 @@ namespace won::rendering
         std::shared_ptr<RHIResource> shader_material_default_buffer;
         RHISubresourceHandle shader_material_default_buffer_srv = {};
 
+        std::shared_ptr<RHIResource> shader_bone_matrix_default_buffer;
+        RHISubresourceHandle shader_bone_matrix_default_buffer_srv = {};
+
         std::shared_ptr<RHIResource> shader_light_default_buffer;
         RHISubresourceHandle shader_light_default_buffer_srv = {};
 

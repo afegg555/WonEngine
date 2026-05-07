@@ -5,6 +5,7 @@
 #include "TransformComponent.h"
 #include "GeometryComponent.h"
 #include "MaterialComponent.h"
+#include "AnimationComponent.h"
 
 namespace won::ecs
 {
@@ -16,6 +17,7 @@ namespace won::ecs
         const auto geometry_array = scene.GetComponentArray<GeometryComponent>().get();
         const auto material_array = scene.GetComponentArray<MaterialComponent>().get();
         const auto transform_array = scene.GetComponentArray<TransformComponent>().get();
+        const auto animation_array = scene.GetComponentArray<AnimationComponent>().get();
         render_data.shader_instances.resize(transform_array->GetSize());
 
         render_data.renderables.resize(render_data.shader_geometries.size());
@@ -35,6 +37,16 @@ namespace won::ecs
             XMStoreFloat3x3(&shader_instance.normal_transform, x_normal_mat);
 
             Entity entity = transform_array->index_to_entity[args.job_index];
+            if (animation_array && animation_array->HasData(entity))
+            {
+                const AnimationComponent& animation = animation_array->GetData(entity);
+                if (!animation.bone_matrices.empty())
+                {
+                    shader_instance.bone_matrix_offset = animation.bone_matrix_offset;
+                    shader_instance.bone_count = static_cast<uint32>(animation.bone_matrices.size());
+                }
+            }
+
             if (geometry_array->HasData(entity) && material_array->HasData(entity))
             {
                 const GeometryComponent& geometry_comp = geometry_array->GetData(entity);

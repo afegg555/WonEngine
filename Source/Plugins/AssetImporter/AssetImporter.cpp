@@ -3,6 +3,7 @@
 #include "assimp/Importer.hpp"
 #include "assimp/scene.h"
 #include "assimp/postprocess.h"
+#include "assimp/anim.h"
 
 #include "Backlog.h"
 #include "MathUtils.h"
@@ -16,6 +17,7 @@
 #include "Image.h"
 
 #include <algorithm>
+#include <cstring>
 #include <mutex>
 
 namespace won::plugin
@@ -39,6 +41,7 @@ namespace won::plugin
             Vector<ecs::MaterialSlot> material_slots;
             Vector<ImportedTextureData> textures;
             std::shared_ptr<resource::Mesh> mesh;
+            Vector<std::shared_ptr<resource::AnimationClip>> animation_clips;
             std::weak_ptr<resource::Mesh> cached_mesh;
         };
 
@@ -143,6 +146,21 @@ namespace won::plugin
             if (geometry_comp)
             {
                 geometry_comp->SetMesh(imported_data.mesh);
+            }
+            if (imported_data.mesh && !imported_data.mesh->animation_clips.empty())
+            {
+                ecs::AnimationComponent* animation_comp = target_scene_in->AddComponent<ecs::AnimationComponent>(root_entity);
+                if (animation_comp)
+                {
+                    animation_comp->clips = imported_data.mesh->animation_clips;
+                    animation_comp->current_clip_index = 0;
+                    animation_comp->time = 0.0f;
+                    animation_comp->speed = 1.0f;
+                    animation_comp->loop = true;
+                    animation_comp->playing = true;
+                    animation_comp->bone_matrices.assign(imported_data.mesh->skeleton ? imported_data.mesh->skeleton->bones.size() : 0, math::IDENTITY_MATRIX);
+                    animation_comp->bone_matrices_dirty = true;
+                }
             }
             if (device_in && imported_data.mesh && !imported_data.mesh->render_data.IsValid())
             {
@@ -269,6 +287,21 @@ namespace won::plugin
                     {
                         geometry_comp->SetMesh(imported_data->mesh);
                     }
+                    if (imported_data->mesh && !imported_data->mesh->animation_clips.empty())
+                    {
+                        ecs::AnimationComponent* animation_comp = target_scene_in->AddComponent<ecs::AnimationComponent>(root_entity);
+                        if (animation_comp)
+                        {
+                            animation_comp->clips = imported_data->mesh->animation_clips;
+                            animation_comp->current_clip_index = 0;
+                            animation_comp->time = 0.0f;
+                            animation_comp->speed = 1.0f;
+                            animation_comp->loop = true;
+                            animation_comp->playing = true;
+                            animation_comp->bone_matrices.assign(imported_data->mesh->skeleton ? imported_data->mesh->skeleton->bones.size() : 0, math::IDENTITY_MATRIX);
+                            animation_comp->bone_matrices_dirty = true;
+                        }
+                    }
                     if (device_in && imported_data->mesh && !imported_data->mesh->render_data.IsValid())
                     {
                         rendering::utils::CreateRenderData(*device_in, *imported_data->mesh);
@@ -329,6 +362,7 @@ namespace won::plugin
             cached_data.timestamp = timestamp;
             cached_data.material_slots = cached.material_slots;
             cached_data.mesh = mesh;
+            cached_data.animation_clips = mesh->animation_clips;
 
             for (const ImportedTextureData& cached_texture : cached.textures)
             {
@@ -367,6 +401,7 @@ namespace won::plugin
             cached.timestamp = imported_data.timestamp;
             cached.mesh = nullptr;
             cached.cached_mesh = imported_data.mesh;
+            cached.animation_clips = imported_data.mesh->animation_clips;
             cached.material_slots = material_comp ? material_comp->material_slots : imported_data.material_slots;
 
             for (uint32 material_index = 0; material_index < cached.material_slots.size(); ++material_index)
@@ -431,8 +466,6 @@ namespace won::plugin
                 aiProcess_GenSmoothNormals |
                 aiProcess_CalcTangentSpace |
                 aiProcess_ImproveCacheLocality |
-                aiProcess_OptimizeMeshes |
-                aiProcess_OptimizeGraph |
                 aiProcess_MakeLeftHanded | // LHS
                 aiProcess_FlipUVs | // upper left origin
                 aiProcess_FlipWindingOrder; // use CW order
@@ -446,11 +479,10 @@ namespace won::plugin
 
             auto to_float4x4 = [](const aiMatrix4x4& matrix) -> float4x4
             {
-                return float4x4(
-                    matrix.a1, matrix.a2, matrix.a3, matrix.a4,
-                    matrix.b1, matrix.b2, matrix.b3, matrix.b4,
-                    matrix.c1, matrix.c2, matrix.c3, matrix.c4,
-                    matrix.d1, matrix.d2, matrix.d3, matrix.d4);
+                static_assert(sizeof(float4x4) == sizeof(aiMatrix4x4));
+                float4x4 result = {};
+                std::memcpy(&result, &matrix, sizeof(result));
+                return result;
             };
 
             // collect name of nodes that should be in skeleton
@@ -571,6 +603,82 @@ namespace won::plugin
                 if (!skeleton->IsValid())
                 {
                     skeleton = nullptr;
+                }
+            }
+
+            imported_data.animation_clips.clear();
+            if (skeleton && aiscene->HasAnimations())
+            {
+                imported_data.animation_clips.reserve(aiscene->mNumAnimations);
+                for (uint32 animation_index = 0; animation_index < aiscene->mNumAnimations; ++animation_index)
+                {
+                    const aiAnimation* ai_animation = aiscene->mAnimations[animation_index]; // one animation clip: run, jump..
+                    if (!ai_animation)
+                    {
+                        continue;
+                    }
+
+                    auto clip = std::make_shared<resource::AnimationClip>();
+                    clip->name = ai_animation->mName.length > 0 ? ai_animation->mName.C_Str() : imported_data.name + "_Animation_" + std::to_string(animation_index);
+                    clip->ticks_per_second = ai_animation->mTicksPerSecond > 0.0 ? static_cast<float>(ai_animation->mTicksPerSecond) : 1.0f;
+                    clip->channels.reserve(ai_animation->mNumChannels);
+                    float computed_duration = 0.0f;
+
+                    for (uint32 channel_index = 0; channel_index < ai_animation->mNumChannels; ++channel_index)
+                    {
+                        const aiNodeAnim* ai_channel = ai_animation->mChannels[channel_index]; // per bone transform per key frame
+                        if (!ai_channel)
+                        {
+                            continue;
+                        }
+
+                        auto bone_it = skeleton->bone_name_to_index.find(ai_channel->mNodeName.C_Str());
+                        if (bone_it == skeleton->bone_name_to_index.end())
+                        {
+                            continue;
+                        }
+
+                        resource::AnimationChannel channel = {};
+                        channel.bone_index = bone_it->second;
+                        channel.positions.reserve(ai_channel->mNumPositionKeys);
+                        channel.rotations.reserve(ai_channel->mNumRotationKeys);
+                        channel.scales.reserve(ai_channel->mNumScalingKeys);
+
+                        for (uint32 key_index = 0; key_index < ai_channel->mNumPositionKeys; ++key_index)
+                        {
+                            const aiVectorKey& key = ai_channel->mPositionKeys[key_index];
+                            const float time = static_cast<float>(key.mTime);
+                            channel.positions.push_back({ time, { key.mValue.x, key.mValue.y, key.mValue.z } });
+                            computed_duration = std::max(computed_duration, time);
+                        }
+                        for (uint32 key_index = 0; key_index < ai_channel->mNumRotationKeys; ++key_index)
+                        {
+                            const aiQuatKey& key = ai_channel->mRotationKeys[key_index];
+                            const float time = static_cast<float>(key.mTime);
+                            float4 rotation = { key.mValue.x, key.mValue.y, key.mValue.z, key.mValue.w };
+                            XMStoreFloat4(&rotation, XMQuaternionNormalize(XMLoadFloat4(&rotation)));
+                            channel.rotations.push_back({ time, rotation });
+                            computed_duration = std::max(computed_duration, time);
+                        }
+                        for (uint32 key_index = 0; key_index < ai_channel->mNumScalingKeys; ++key_index)
+                        {
+                            const aiVectorKey& key = ai_channel->mScalingKeys[key_index];
+                            const float time = static_cast<float>(key.mTime);
+                            channel.scales.push_back({ time, { key.mValue.x, key.mValue.y, key.mValue.z } });
+                            computed_duration = std::max(computed_duration, time);
+                        }
+
+                        if (channel.IsValid())
+                        {
+                            clip->channels.push_back(std::move(channel));
+                        }
+                    }
+
+                    clip->duration = ai_animation->mDuration > 0.0 ? static_cast<float>(ai_animation->mDuration) : computed_duration;
+                    if (clip->IsValid())
+                    {
+                        imported_data.animation_clips.push_back(std::move(clip));
+                    }
                 }
             }
 
@@ -724,6 +832,7 @@ namespace won::plugin
             imported_data.mesh = std::make_shared<resource::Mesh>();
             resource::Mesh& mesh = *imported_data.mesh;
             mesh.skeleton = skeleton;
+            mesh.animation_clips = imported_data.animation_clips;
             bool import_failed = false;
             struct NodeImportEntry
             {
@@ -786,6 +895,7 @@ namespace won::plugin
                     const aiMesh* ai_mesh = aiscene->mMeshes[node->mMeshes[node_mesh_index]];
                     const bool has_uv = ai_mesh->HasTextureCoords(0);
                     const bool has_tb = ai_mesh->HasTangentsAndBitangents();
+                    const bool use_skinning_mesh_space = mesh.skeleton && ai_mesh->HasBones();
                     const uint32 vertex_offset = static_cast<uint32>(mesh.positions.size());
                     const uint32 index_offset = static_cast<uint32>(mesh.indices.size());
                     resource::Submesh& submesh = mesh.submeshes.emplace_back();
@@ -819,11 +929,13 @@ namespace won::plugin
 
                     for (uint32_t vertex_index = 0; vertex_index < ai_mesh->mNumVertices; ++vertex_index)
                     {
-                        const aiVector3D transformed_position = node_transform * ai_mesh->mVertices[vertex_index];
-                        aiVector3D transformed_normal = normal_matrix * ai_mesh->mNormals[vertex_index];
+                        const aiVector3D transformed_position = use_skinning_mesh_space ? ai_mesh->mVertices[vertex_index] : node_transform * ai_mesh->mVertices[vertex_index];
+                        const aiVector3D bounds_position = use_skinning_mesh_space ? node_transform * ai_mesh->mVertices[vertex_index] : transformed_position;
+                        aiVector3D transformed_normal = use_skinning_mesh_space ? ai_mesh->mNormals[vertex_index] : normal_matrix * ai_mesh->mNormals[vertex_index];
                         transformed_normal.NormalizeSafe();
 
                         const float3 position = { transformed_position.x, transformed_position.y, transformed_position.z };
+                        const float3 bound_position = { bounds_position.x, bounds_position.y, bounds_position.z };
                         mesh.positions.push_back(position);
                         mesh.normals.push_back({ transformed_normal.x, transformed_normal.y, transformed_normal.z });
                         if (mesh.skeleton)
@@ -838,8 +950,8 @@ namespace won::plugin
                         }
                         if (has_tb)
                         {
-                            aiVector3D transformed_tangent = tangent_matrix * ai_mesh->mTangents[vertex_index];
-                            aiVector3D transformed_bitangent = tangent_matrix * ai_mesh->mBitangents[vertex_index];
+                            aiVector3D transformed_tangent = use_skinning_mesh_space ? ai_mesh->mTangents[vertex_index] : tangent_matrix * ai_mesh->mTangents[vertex_index];
+                            aiVector3D transformed_bitangent = use_skinning_mesh_space ? ai_mesh->mBitangents[vertex_index] : tangent_matrix * ai_mesh->mBitangents[vertex_index];
                             transformed_tangent.NormalizeSafe();
                             transformed_bitangent.NormalizeSafe();
 
@@ -856,12 +968,12 @@ namespace won::plugin
                             mesh.tangents.push_back({ transformed_tangent.x, transformed_tangent.y, transformed_tangent.z, tangent_sign });
                         }
 
-                        submesh.local_bounds.min.x = std::min(submesh.local_bounds.min.x, position.x);
-                        submesh.local_bounds.min.y = std::min(submesh.local_bounds.min.y, position.y);
-                        submesh.local_bounds.min.z = std::min(submesh.local_bounds.min.z, position.z);
-                        submesh.local_bounds.max.x = std::max(submesh.local_bounds.max.x, position.x);
-                        submesh.local_bounds.max.y = std::max(submesh.local_bounds.max.y, position.y);
-                        submesh.local_bounds.max.z = std::max(submesh.local_bounds.max.z, position.z);
+                        submesh.local_bounds.min.x = std::min(submesh.local_bounds.min.x, bound_position.x);
+                        submesh.local_bounds.min.y = std::min(submesh.local_bounds.min.y, bound_position.y);
+                        submesh.local_bounds.min.z = std::min(submesh.local_bounds.min.z, bound_position.z);
+                        submesh.local_bounds.max.x = std::max(submesh.local_bounds.max.x, bound_position.x);
+                        submesh.local_bounds.max.y = std::max(submesh.local_bounds.max.y, bound_position.y);
+                        submesh.local_bounds.max.z = std::max(submesh.local_bounds.max.z, bound_position.z);
                     }
 
                     if (mesh.skeleton && ai_mesh->HasBones())
