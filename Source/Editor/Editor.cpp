@@ -98,7 +98,7 @@ namespace won::editor
 			}
 
 			bool remove_component = false;
-			if (ImGui::BeginPopupModal("Remove Component", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+			if (ImGui::BeginPopup("Remove Component", ImGuiWindowFlags_AlwaysAutoResize))
 			{
 				ImGui::Text("Remove %s?", component_name);
 				ImGui::TextDisabled("This action cannot be undone.");
@@ -583,7 +583,8 @@ namespace won::editor
 		static float2 prev_mouse_pos{};
 		static CameraInteractionMode active_interaction = CameraInteractionMode::None;
 
-		if (0 <= viewport_mouse_pos.x && viewport_mouse_pos.x <= main_viewport_size.x &&
+		if (viewport_input_enabled &&
+			0 <= viewport_mouse_pos.x && viewport_mouse_pos.x <= main_viewport_size.x &&
 			0 <= viewport_mouse_pos.y && viewport_mouse_pos.y <= main_viewport_size.y)
 		{
 			if (io::IsPressed(io::Button::MOUSE_BUTTON_LEFT))
@@ -1366,7 +1367,7 @@ namespace won::editor
 			content_browser.open_import_confirm = false;
 		}
 
-		if (ImGui::BeginPopupModal("Import Content Asset", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+		if (ImGui::BeginPopup("Import Content Asset", ImGuiWindowFlags_AlwaysAutoResize))
 		{
 			ImGui::TextUnformatted("Import this asset to Scene?");
 			ImGui::TextUnformatted(content_browser.pending_import_name.c_str());
@@ -1469,6 +1470,7 @@ namespace won::editor
 		ImGui::End();
 
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+		viewport_input_enabled = false;
 		if (ImGui::Begin("Viewport"))
 		{
 			if (ImGui::Button("Options"))
@@ -1535,6 +1537,7 @@ namespace won::editor
 			ImVec2 window_pos = ImGui::GetWindowPos();
 			ImVec2 viewport_pos = ImVec2(window_pos.x + viewport_region_min.x, window_pos.y + viewport_region_min.y);
 			ImVec2 viewport_size = ImVec2(viewport_region_max.x - viewport_region_min.x, viewport_region_max.y - viewport_region_min.y);
+			viewport_input_enabled = ImGui::IsWindowHovered() && !ImGui::IsAnyItemHovered() && !ImGui::IsAnyItemActive();
 
 			main_view.viewport.x = static_cast<uint32>(viewport_pos.x);
 			main_view.viewport.y = static_cast<uint32>(viewport_pos.y);
@@ -1579,7 +1582,10 @@ namespace won::editor
 		if (ImGui::Begin("Entity List"))
 		{
 			static int selected_index = -1;
+			static ecs::Entity pending_delete_entity = INVALID_ENTITY;
+			static ImVec2 delete_entity_popup_pos = {};
 			ecs::Entity delete_entity = INVALID_ENTITY;
+			bool open_delete_entity_confirm = false;
 
 			Size running_import_count = 0;
 			for (const std::shared_ptr<AssetImportTask>& task : asset_import_tasks)
@@ -1649,7 +1655,9 @@ namespace won::editor
 
 							if (ImGui::MenuItem("Delete Entity", nullptr, false, id != camera_entity))
 							{
-								delete_entity = id;
+								pending_delete_entity = id;
+								delete_entity_popup_pos = ImGui::GetMousePos();
+								open_delete_entity_confirm = true;
 							}
 
 							ImGui::EndPopup();
@@ -1667,6 +1675,48 @@ namespace won::editor
 			}
 
 			ImGui::EndChild();
+
+			if (open_delete_entity_confirm)
+			{
+				ImGui::OpenPopup("Delete Entity Confirm");
+			}
+
+			ImGui::SetNextWindowPos(delete_entity_popup_pos, ImGuiCond_Appearing);
+			if (ImGui::BeginPopup("Delete Entity Confirm", ImGuiWindowFlags_AlwaysAutoResize))
+			{
+				String entity_label = "Entity " + std::to_string(pending_delete_entity);
+				if (ecs::NameComponent* name = main_view.scene->GetComponent<ecs::NameComponent>(pending_delete_entity))
+				{
+					entity_label += " (" + name->value + ")";
+				}
+
+				ImGui::Text("Delete %s?", entity_label.c_str());
+				ImGui::TextDisabled("Children and components will also be removed.");
+
+				const bool can_delete_entity = pending_delete_entity != INVALID_ENTITY && pending_delete_entity != camera_entity;
+				if (!can_delete_entity)
+				{
+					ImGui::BeginDisabled();
+				}
+				if (ImGui::Button("Delete"))
+				{
+					delete_entity = pending_delete_entity;
+					pending_delete_entity = INVALID_ENTITY;
+					ImGui::CloseCurrentPopup();
+				}
+				if (!can_delete_entity)
+				{
+					ImGui::EndDisabled();
+				}
+				ImGui::SameLine();
+				if (ImGui::Button("Cancel"))
+				{
+					pending_delete_entity = INVALID_ENTITY;
+					ImGui::CloseCurrentPopup();
+				}
+
+				ImGui::EndPopup();
+			}
 
 			if (delete_entity != INVALID_ENTITY)
 			{
@@ -1786,7 +1836,10 @@ namespace won::editor
 					}
 					else
 					{
-						main_view.scene->RemoveComponent<NameComponent>(picked_entity);
+						const ecs::Entity entity = picked_entity;
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+							scene.RemoveComponent<NameComponent>(entity);
+						});
 					}
 
 					ImGui::PopID();
@@ -1827,7 +1880,11 @@ namespace won::editor
 					}
 					else if (can_remove_transform)
 					{
-						main_view.scene->RemoveComponent<TransformComponent>(picked_entity);
+						const ecs::Entity entity = picked_entity;
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+							scene.RemoveComponent<TransformComponent>(entity);
+							scene.SetBVHDirty();
+						});
 					}
 
 					ImGui::PopID();
@@ -1851,7 +1908,10 @@ namespace won::editor
 					}
 					else
 					{
-						main_view.scene->RemoveComponent<HierarchyComponent>(picked_entity);
+						const ecs::Entity entity = picked_entity;
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+							scene.RemoveComponent<HierarchyComponent>(entity);
+						});
 					}
 
 					ImGui::PopID();
@@ -1921,7 +1981,10 @@ namespace won::editor
 					}
 					else
 					{
-						main_view.scene->RemoveComponent<LightComponent>(picked_entity);
+						const ecs::Entity entity = picked_entity;
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+							scene.RemoveComponent<LightComponent>(entity);
+						});
 					}
 
 					ImGui::PopID();
@@ -1980,7 +2043,13 @@ namespace won::editor
 					}
 					else if (can_remove_camera)
 					{
-						main_view.scene->RemoveComponent<CameraComponent>(picked_entity);
+						const ecs::Entity entity = picked_entity;
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+							if (entity != camera_entity)
+							{
+								scene.RemoveComponent<CameraComponent>(entity);
+							}
+						});
 					}
 
 					ImGui::PopID();
@@ -2062,7 +2131,10 @@ namespace won::editor
 					}
 					else
 					{
-						main_view.scene->RemoveComponent<SkyComponent>(picked_entity);
+						const ecs::Entity entity = picked_entity;
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+							scene.RemoveComponent<SkyComponent>(entity);
+						});
 					}
 
 					ImGui::PopID();
@@ -2082,7 +2154,10 @@ namespace won::editor
 					}
 					else
 					{
-						main_view.scene->RemoveComponent<FogVolumeComponent>(picked_entity);
+						const ecs::Entity entity = picked_entity;
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+							scene.RemoveComponent<FogVolumeComponent>(entity);
+						});
 					}
 
 					ImGui::PopID();
@@ -2123,7 +2198,10 @@ namespace won::editor
 					}
 					else
 					{
-						main_view.scene->RemoveComponent<EnvironmentLightingComponent>(picked_entity);
+						const ecs::Entity entity = picked_entity;
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+							scene.RemoveComponent<EnvironmentLightingComponent>(entity);
+						});
 					}
 
 					ImGui::PopID();
@@ -2200,7 +2278,10 @@ namespace won::editor
 					}
 					else
 					{
-						main_view.scene->RemoveComponent<DDGIVolumeComponent>(picked_entity);
+						const ecs::Entity entity = picked_entity;
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+							scene.RemoveComponent<DDGIVolumeComponent>(entity);
+						});
 					}
 
 					ImGui::PopID();
@@ -2226,7 +2307,37 @@ namespace won::editor
 					}
 					else
 					{
-						main_view.scene->RemoveComponent<GeometryComponent>(picked_entity);
+						const ecs::Entity entity = picked_entity;
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+							DeferredEntityRemovalResources deferred_resources = {};
+							deferred_resources.frames_left = 8;
+
+							ecs::GeometryComponent* geometry = scene.GetComponent<ecs::GeometryComponent>(entity);
+							if (geometry && geometry->mesh)
+							{
+								deferred_resources.meshes.push_back(geometry->mesh);
+								if (geometry->mesh->render_data.buffer)
+								{
+									deferred_resources.resources.push_back(geometry->mesh->render_data.buffer);
+								}
+								if (geometry->mesh->gpu_bvh.node_buffer)
+								{
+									deferred_resources.resources.push_back(geometry->mesh->gpu_bvh.node_buffer);
+								}
+								if (geometry->mesh->gpu_bvh.primitive_buffer)
+								{
+									deferred_resources.resources.push_back(geometry->mesh->gpu_bvh.primitive_buffer);
+								}
+							}
+
+							if (!deferred_resources.meshes.empty() || !deferred_resources.resources.empty())
+							{
+								deferred_entity_removal_resources.push_back(std::move(deferred_resources));
+							}
+
+							scene.RemoveComponent<GeometryComponent>(entity);
+							scene.SetBVHDirty();
+						});
 					}
 
 					ImGui::PopID();
@@ -2314,7 +2425,10 @@ namespace won::editor
 					}
 					else
 					{
-						main_view.scene->RemoveComponent<AnimationComponent>(picked_entity);
+						const ecs::Entity entity = picked_entity;
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+							scene.RemoveComponent<AnimationComponent>(entity);
+						});
 					}
 
 					ImGui::PopID();
@@ -2467,7 +2581,33 @@ namespace won::editor
 					}
 					else
 					{
-						main_view.scene->RemoveComponent<MaterialComponent>(picked_entity);
+						const ecs::Entity entity = picked_entity;
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+							DeferredEntityRemovalResources deferred_resources = {};
+							deferred_resources.frames_left = 8;
+
+							ecs::MaterialComponent* material = scene.GetComponent<ecs::MaterialComponent>(entity);
+							if (material)
+							{
+								for (ecs::MaterialSlot& material_slot : material->material_slots)
+								{
+									for (uint32 texture_slot = 0; texture_slot < TEXTURESLOT_COUNT; ++texture_slot)
+									{
+										if (material_slot.textures[texture_slot].texture)
+										{
+											deferred_resources.resources.push_back(material_slot.textures[texture_slot].texture);
+										}
+									}
+								}
+							}
+
+							if (!deferred_resources.meshes.empty() || !deferred_resources.resources.empty())
+							{
+								deferred_entity_removal_resources.push_back(std::move(deferred_resources));
+							}
+
+							scene.RemoveComponent<MaterialComponent>(entity);
+						});
 					}
 
 					ImGui::PopID();
