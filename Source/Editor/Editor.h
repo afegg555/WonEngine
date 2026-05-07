@@ -106,6 +106,7 @@ namespace won::editor
 		std::vector<DeferredEntityRemovalResources> deferred_entity_removal_resources;
 		std::vector<std::shared_ptr<plugin::AssetImportTask>> asset_import_tasks;
 		ecs::Entity picked_entity = ecs::INVALID_ENTITY;
+		bool viewport_input_enabled = false;
 		ViewportDebugSettings viewport_debug_settings = {};
 		ContentBrowserState content_browser = {};
 
