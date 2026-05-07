@@ -7,10 +7,20 @@
 #include "MaterialComponent.h"
 #include "AnimationComponent.h"
 
+#include <iterator>
+
 namespace won::ecs
 {
     void RenderableUpdateSystem::Update(Scene& scene, float delta_time)
     {
+        struct RenderableBucket
+        {
+            Vector<Scene::RenderData::Renderable> mesh_renderables;
+            Vector<Scene::RenderData::Renderable> double_sided_renderables;
+            Vector<Scene::RenderData::Renderable> line_renderables;
+            Vector<Scene::RenderData::Renderable> point_renderables;
+        };
+
         jobsystem::Context sub_ctx;
 
         Scene::RenderData& render_data = scene.GetRenderData();
@@ -20,10 +30,15 @@ namespace won::ecs
         const auto animation_array = scene.GetComponentArray<AnimationComponent>().get();
         render_data.shader_instances.resize(transform_array->GetSize());
 
-        render_data.renderables.resize(render_data.shader_geometries.size());
-        std::atomic<uint32> renderable_count{ 0 };
+        render_data.mesh_renderables.clear();
+        render_data.double_sided_renderables.clear();
+        render_data.line_renderables.clear();
+        render_data.point_renderables.clear();
+
+        Vector<RenderableBucket> renderable_buckets(jobsystem::GetThreadCount() + 1); // this works as thread local storage
 
         jobsystem::Dispatch(sub_ctx, (uint32_t)transform_array->GetSize(), groupsize, [&](jobsystem::JobArgs args) {
+            RenderableBucket& bucket = renderable_buckets[args.worker_index];
 
             const TransformComponent& transform = transform_array->data[args.job_index];
             ShaderInstance& shader_instance = render_data.shader_instances[args.job_index];
@@ -62,8 +77,6 @@ namespace won::ecs
                     return;
                 }
 
-                const uint32 submesh_count = static_cast<uint32>(geometry_comp.mesh->submeshes.size());
-                uint32 index = renderable_count.fetch_add(submesh_count);
                 for (Size i = 0; i < geometry_comp.mesh->submeshes.size(); ++i)
                 {
                     const resource::Submesh& submesh = geometry_comp.mesh->submeshes[i];
@@ -73,7 +86,7 @@ namespace won::ecs
                     }
 
                     const MaterialSlot& material_slot = material_comp.material_slots[submesh.material_slot];
-                    Scene::RenderData::Renderable& renderable = render_data.renderables[index + i];
+                    Scene::RenderData::Renderable renderable = {};
                     ObjectPushConstants& push_constants = renderable.push_constants;
                     push_constants.Init();
                     push_constants.geometry_index = geometry_comp.geometry_offset + (uint)i;
@@ -93,12 +106,55 @@ namespace won::ecs
                     {
                         renderable.flags |= Scene::RenderData::Renderable::Transparent;
                     }
+                    if ((material_slot.flags & SHADER_MATERIAL_FLAG_DOUBLE_SIDED) != 0)
+                    {
+                        renderable.flags |= Scene::RenderData::Renderable::DoubleSided;
+                    }
+
+                    if (submesh.primitive_topology == resource::PrimitiveTopology::LineList)
+                    {
+                        bucket.line_renderables.push_back(renderable);
+                    }
+                    else if (submesh.primitive_topology == resource::PrimitiveTopology::PointList)
+                    {
+                        bucket.point_renderables.push_back(renderable);
+                    }
+                    else if (submesh.primitive_topology == resource::PrimitiveTopology::TriangleList && renderable.IsDoubleSided())
+                    {
+                        bucket.double_sided_renderables.push_back(renderable);
+                    }
+                    else if (submesh.primitive_topology == resource::PrimitiveTopology::TriangleList)
+                    {
+                        bucket.mesh_renderables.push_back(renderable);
+                    }
                 }
             }
 
         });
         jobsystem::Wait(sub_ctx);
 
-        render_data.renderables.resize(renderable_count.load());
+        Size mesh_renderable_count = 0;
+        Size double_sided_renderable_count = 0;
+        Size line_renderable_count = 0;
+        Size point_renderable_count = 0;
+        for (const RenderableBucket& bucket : renderable_buckets)
+        {
+            mesh_renderable_count += bucket.mesh_renderables.size();
+            double_sided_renderable_count += bucket.double_sided_renderables.size();
+            line_renderable_count += bucket.line_renderables.size();
+            point_renderable_count += bucket.point_renderables.size();
+        }
+
+        render_data.mesh_renderables.reserve(mesh_renderable_count);
+        render_data.double_sided_renderables.reserve(double_sided_renderable_count);
+        render_data.line_renderables.reserve(line_renderable_count);
+        render_data.point_renderables.reserve(point_renderable_count);
+        for (RenderableBucket& bucket : renderable_buckets)
+        {
+            render_data.mesh_renderables.insert(render_data.mesh_renderables.end(), std::make_move_iterator(bucket.mesh_renderables.begin()), std::make_move_iterator(bucket.mesh_renderables.end()));
+            render_data.double_sided_renderables.insert(render_data.double_sided_renderables.end(), std::make_move_iterator(bucket.double_sided_renderables.begin()), std::make_move_iterator(bucket.double_sided_renderables.end()));
+            render_data.line_renderables.insert(render_data.line_renderables.end(), std::make_move_iterator(bucket.line_renderables.begin()), std::make_move_iterator(bucket.line_renderables.end()));
+            render_data.point_renderables.insert(render_data.point_renderables.end(), std::make_move_iterator(bucket.point_renderables.begin()), std::make_move_iterator(bucket.point_renderables.end()));
+        }
     }
 }
