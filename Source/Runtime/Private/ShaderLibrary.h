@@ -19,61 +19,69 @@ namespace won::resource
 
     struct GraphicsPipelineHash
     {
-        union
+        struct Bits
         {
-            uint64 value;
-            struct
-            {
-                uint64 render_pass_type : 5;
-                uint64 topology : 3;
-                uint64 depth_compare : 4;
-                uint64 cull_mode : 2;
-                uint64 fill_mode : 1;
-                uint64 reserved : 49;
-            };
+            uint64 render_pass_type : 5;
+            uint64 topology : 3;
+            uint64 depth_compare : 4;
+            uint64 cull_mode : 2;
+            uint64 fill_mode : 1;
+            uint64 reserved : 49;
         };
 
-        GraphicsPipelineHash()
-            : value(0)
+        union Storage
         {
-        }
+            uint64 value;
+            Bits bits;
+
+            Storage()
+                : value(0)
+            {
+            }
+        } storage;
+
+        GraphicsPipelineHash() = default;
 
         bool IsValid() const
         {
-            return value != 0;
+            return storage.value != 0;
         }
 
         bool operator==(const GraphicsPipelineHash& other) const
         {
-            return value == other.value;
+            return storage.value == other.storage.value;
         }
     };
 
     struct ComputePipelineHash
     {
-        union
+        struct Bits
         {
-            uint64 value;
-            struct
-            {
-                uint64 compute_shader : 12;
-                uint64 reserved : 52;
-            };
+            uint64 compute_shader : 12;
+            uint64 reserved : 52;
         };
 
-        ComputePipelineHash()
-            : value(0)
+        union Storage
         {
-        }
+            uint64 value;
+            Bits bits;
+
+            Storage()
+                : value(0)
+            {
+            }
+        } storage;
+
+        ComputePipelineHash() = default;
 
         bool IsValid() const
         {
-            return value != 0;
+            return storage.value != 0;
         }
 
         bool operator==(const ComputePipelineHash& other) const
         {
-            return value == other.value;
+            return storage.value == other.storage.value;
         }
     };
     static_assert(sizeof(GraphicsPipelineHash) == sizeof(uint64), "GraphicsPipelineHash must be 8 bytes");

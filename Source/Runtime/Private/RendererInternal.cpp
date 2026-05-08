@@ -1398,11 +1398,11 @@ namespace won::rendering
         }
 
         GraphicsPipelineHash pipeline_hash = {};
-        pipeline_hash.render_pass_type = static_cast<uint64>(pass);
-        pipeline_hash.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
-        pipeline_hash.cull_mode = static_cast<uint64>(RHICullMode::Back);
-        pipeline_hash.fill_mode = static_cast<uint64>(draw_wireframe ? RHIFillMode::Wireframe : RHIFillMode::Solid);
-        pipeline_hash.depth_compare = static_cast<uint64>(depth_compare);
+        pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(pass);
+        pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
+        pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::Back);
+        pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(draw_wireframe ? RHIFillMode::Wireframe : RHIFillMode::Solid);
+        pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(depth_compare);
 
         RHISubresourceBinding shader_frame_binding = {};
         shader_frame_binding.resource = shader_frame_buffer.get();
@@ -1455,7 +1455,7 @@ namespace won::rendering
         if (!render_data.double_sided_renderables.empty())
         {
             GraphicsPipelineHash double_sided_pipeline_hash = pipeline_hash;
-            double_sided_pipeline_hash.cull_mode = static_cast<uint64>(RHICullMode::None);
+            double_sided_pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
             std::shared_ptr<RHIPipeline> pipeline = shader_library.GetPipeline(double_sided_pipeline_hash);
             if (!pipeline)
             {
@@ -1495,10 +1495,10 @@ namespace won::rendering
         if (draw_primitives)
         {
             GraphicsPipelineHash line_pipeline_hash = pipeline_hash;
-            line_pipeline_hash.topology = static_cast<uint64>(RHIPrimitiveTopology::LineList);
-            line_pipeline_hash.cull_mode = static_cast<uint64>(RHICullMode::None);
-            line_pipeline_hash.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
-            line_pipeline_hash.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
+            line_pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::LineList);
+            line_pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
+            line_pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
+            line_pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
 
             std::shared_ptr<RHIPipeline> line_pipeline = shader_library.GetPipeline(line_pipeline_hash);
             if (line_pipeline)
@@ -1530,10 +1530,10 @@ namespace won::rendering
             }
 
             GraphicsPipelineHash point_pipeline_hash = pipeline_hash;
-            point_pipeline_hash.topology = static_cast<uint64>(RHIPrimitiveTopology::PointList);
-            point_pipeline_hash.cull_mode = static_cast<uint64>(RHICullMode::None);
-            point_pipeline_hash.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
-            point_pipeline_hash.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
+            point_pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::PointList);
+            point_pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
+            point_pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
+            point_pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
 
             std::shared_ptr<RHIPipeline> point_pipeline = shader_library.GetPipeline(point_pipeline_hash);
             if (point_pipeline)
@@ -2043,11 +2043,11 @@ namespace won::rendering
                 command_list->SetRenderTargets(color_targets, nullptr);
                 resource::ShaderLibrary& shader_library = GetShaderLibrary();
                 GraphicsPipelineHash sky_pipeline_hash = {};
-                sky_pipeline_hash.render_pass_type = static_cast<uint64>(RenderPassType::SkyPass);
-                sky_pipeline_hash.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
-                sky_pipeline_hash.cull_mode = static_cast<uint64>(RHICullMode::None);
-                sky_pipeline_hash.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
-                sky_pipeline_hash.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
+                sky_pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::SkyPass);
+                sky_pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
+                sky_pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
+                sky_pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
+                sky_pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
                 std::shared_ptr<RHIPipeline> sky_pipeline = shader_library.GetPipeline(sky_pipeline_hash);
                 if (!sky_pipeline)
                 {
