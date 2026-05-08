@@ -29,7 +29,6 @@ namespace won
         rendering::ReloadShaderLibrary(device);
 
         rendering::RendererDesc renderer_desc;
-        renderer_desc.type = desc.renderer_type;
         renderer_desc.device = device;
         renderer = rendering::CreateRenderer(renderer_desc);
 

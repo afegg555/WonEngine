@@ -7,7 +7,6 @@ int main()
 	ApplicationDesc app_desc;
 	app_desc.window.title = "Won Engine";
 	app_desc.window.fullscreen = false;
-	app_desc.renderer_type = rendering::RendererType::Forward;
 	app_desc.backend_type = rendering::RHIBackend::DirectX12;
 	app_desc.jobsystem_thread_count = ~0;
 

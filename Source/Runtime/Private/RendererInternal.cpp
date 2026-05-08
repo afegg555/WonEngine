@@ -1,4 +1,4 @@
-#include "ForwardRenderer.h"
+#include "RendererInternal.h"
 
 #include "Backlog.h"
 #include "Profiler.h"
@@ -40,12 +40,12 @@ namespace won::rendering
         }
     }
 
-    RendererDebugState ForwardRenderer::GetDebugState() const
+    RendererDebugState RendererInternal::GetDebugState() const
     {
         return debug_state;
     }
 
-    bool ForwardRenderer::GetCurrentBackBufferBinding(RHISubresourceBinding& out_binding) const
+    bool RendererInternal::GetCurrentBackBufferBinding(RHISubresourceBinding& out_binding) const
     {
         if (!current_window)
         {
@@ -70,7 +70,7 @@ namespace won::rendering
         return true;
     }
 
-    bool ForwardRenderer::GetCurrentDepthBufferBinding(RHISubresourceBinding& out_binding) const
+    bool RendererInternal::GetCurrentDepthBufferBinding(RHISubresourceBinding& out_binding) const
     {
         if (!depth_buffer || !depth_buffer_dsv.IsValid())
         {
@@ -82,12 +82,12 @@ namespace won::rendering
         return true;
     }
 
-    void ForwardRenderer::SetDebugOptions(const RendererDebugOptions& options)
+    void RendererInternal::SetDebugOptions(const RendererDebugOptions& options)
     {
         debug_options = options;
     }
 
-    bool ForwardRenderer::UpdateDefaultBuffer(FrameContext& frame_context, RHIResource& destination_buffer, const void* source_data, Size data_size, RHIResourceState final_state, Size destination_offset, RHICommandList& command_list)
+    bool RendererInternal::UpdateDefaultBuffer(FrameContext& frame_context, RHIResource& destination_buffer, const void* source_data, Size data_size, RHIResourceState final_state, Size destination_offset, RHICommandList& command_list)
     {
         const RHIResourceDesc& destination_desc = destination_buffer.GetDesc();
         Size upload_alignment = device->GetMinOffsetAlignment(destination_desc.buffer_desc);
@@ -106,7 +106,7 @@ namespace won::rendering
         return true;
     }
 
-    void ForwardRenderer::ReleaseDDGIResources(FrameContext& frame_context)
+    void RendererInternal::ReleaseDDGIResources(FrameContext& frame_context)
     {
         frame_context.RemoveResourceDeferred(ddgi_irradiance_texture);
         frame_context.RemoveResourceDeferred(ddgi_irradiance_history_texture);
@@ -133,7 +133,7 @@ namespace won::rendering
         ddgi_history_valid = false;
     }
 
-    bool ForwardRenderer::CreateDDGIResources(FrameContext& frame_context, const ShaderDDGIVolume& ddgi_volume)
+    bool RendererInternal::CreateDDGIResources(FrameContext& frame_context, const ShaderDDGIVolume& ddgi_volume)
     {
         if ((ddgi_volume.flags & SHADER_DDGI_FLAG_ACTIVE) == 0)
         {
@@ -398,7 +398,7 @@ namespace won::rendering
         return true;
     }
 
-    bool ForwardRenderer::CreateShadowMapAtlasResources(FrameContext& frame_context, const Scene::RenderData& render_data)
+    bool RendererInternal::CreateShadowMapAtlasResources(FrameContext& frame_context, const Scene::RenderData& render_data)
     {
         if (render_data.shadow_map_atlas_size.x == 0 || render_data.shadow_map_atlas_size.y == 0)
         {
@@ -462,7 +462,7 @@ namespace won::rendering
         return true;
     }
 
-    bool ForwardRenderer::CreateRenderTargetResources(FrameContext& frame_context)
+    bool RendererInternal::CreateRenderTargetResources(FrameContext& frame_context)
     {
         std::shared_ptr<RHISwapchain> swapchain = current_window->GetRHISwapchain();
         if (!swapchain)
@@ -555,7 +555,7 @@ namespace won::rendering
         return true;
     }
 
-    bool ForwardRenderer::UpdateSceneGPUData(FrameContext& frame_context, const Scene::RenderData& render_data, RHICommandList& command_list)
+    bool RendererInternal::UpdateSceneGPUData(FrameContext& frame_context, const Scene::RenderData& render_data, RHICommandList& command_list)
     {
         const Vector<ShaderInstance>& shader_instances = render_data.shader_instances;
         const Vector<ShaderGeometry>& shader_geometries = render_data.shader_geometries;
@@ -1090,7 +1090,7 @@ namespace won::rendering
         return true;
     }
 
-    bool ForwardRenderer::UpdateFrameConstants(FrameContext& frame_context, const View& view, const Scene::RenderData& render_data, RHICommandList& command_list)
+    bool RendererInternal::UpdateFrameConstants(FrameContext& frame_context, const View& view, const Scene::RenderData& render_data, RHICommandList& command_list)
     {
         ShaderFrame shader_frame{};
         shader_frame.Init();
@@ -1158,7 +1158,7 @@ namespace won::rendering
         return true;
     }
 
-    bool ForwardRenderer::BuildShadowCascades(const View& view)
+    bool RendererInternal::BuildShadowCascades(const View& view)
     {
         if (!view.scene || view.camera_entity == INVALID_ENTITY)
         {
@@ -1384,7 +1384,7 @@ namespace won::rendering
         return true;
     }
 
-    bool ForwardRenderer::DrawScene(const FrameContext& frame_context, const View& view, RenderPassType pass, uint32 flags, RHICommandList& command_list)
+    bool RendererInternal::DrawScene(const FrameContext& frame_context, const View& view, RenderPassType pass, uint32 flags, RHICommandList& command_list)
     {
         const Scene::RenderData& render_data = view.scene->GetRenderData();
 
@@ -1568,7 +1568,7 @@ namespace won::rendering
         return true;
     }
 
-    void ForwardRenderer::Initialize(const RendererDesc& desc)
+    void RendererInternal::Initialize(const RendererDesc& desc)
     {
         device = desc.device;
 
@@ -1644,7 +1644,7 @@ namespace won::rendering
         current_frame_slot = 0;
     }
 
-    void ForwardRenderer::BeginFrame(platform::Window& window)
+    void RendererInternal::BeginFrame(platform::Window& window)
     {
         if (current_window != &window)
         {
@@ -1669,7 +1669,7 @@ namespace won::rendering
         CreateRenderTargetResources(frame_context);
     }
 
-    void ForwardRenderer::OnResize(platform::Window& window, uint32 width, uint32 height)
+    void RendererInternal::OnResize(platform::Window& window, uint32 width, uint32 height)
     {
         if (width == 0 || height == 0)
         {
@@ -1694,7 +1694,7 @@ namespace won::rendering
         }
     }
 
-    void ForwardRenderer::UpdateDDGIProbe(FrameContext& frame_context, const ShaderEnvironmentLighting& environment_lighting, const ShaderDDGIVolume& ddgi_volume, const RHISubresourceBinding& shader_frame_binding, const RHISubresourceBinding& shader_camera_binding, RHICommandList& command_list)
+    void RendererInternal::UpdateDDGIProbe(FrameContext& frame_context, const ShaderEnvironmentLighting& environment_lighting, const ShaderDDGIVolume& ddgi_volume, const RHISubresourceBinding& shader_frame_binding, const RHISubresourceBinding& shader_camera_binding, RHICommandList& command_list)
     {
         resource::ShaderLibrary& shader_library = GetShaderLibrary();
         std::shared_ptr<RHIShader> current_ddgi_probe_update_shader = shader_library.GetShader(ShaderId::CSDDGIProbeUpdate);
@@ -1805,7 +1805,7 @@ namespace won::rendering
         debug_state.ddgi.probe_data_readback_valid = debug_options.ddgi_debug_enable && debug_state.ddgi.probe_data_readback_buffer != nullptr;
     }
 
-    void ForwardRenderer::UpdateDebugState(const View& view, const Scene::RenderData& render_data)
+    void RendererInternal::UpdateDebugState(const View& view, const Scene::RenderData& render_data)
     {
         std::shared_ptr<RHIResource> ddgi_probe_data_readback_buffer = debug_state.ddgi.probe_data_readback_buffer;
         const bool ddgi_probe_data_readback_valid = debug_state.ddgi.probe_data_readback_valid;
@@ -1908,9 +1908,20 @@ namespace won::rendering
         }
     }
 
-    void ForwardRenderer::Render(const View& view)
+    void RendererInternal::Render(const View& view)
     {
-        auto render_cpu_range = profiler::ScopedRangeCPU("ForwardRenderer::Render");
+        switch (view.render_path_type)
+        {
+        case RenderPathType::Forward:
+        default:
+            RenderForwardPath(view);
+            break;
+        }
+    }
+
+    void RendererInternal::RenderForwardPath(const View& view)
+    {
+        auto render_cpu_range = profiler::ScopedRangeCPU("RendererInternal::RenderForwardPath");
 
         if (!view.scene || view.camera_entity == ecs::INVALID_ENTITY || !current_window)
             return;
@@ -2172,7 +2183,7 @@ namespace won::rendering
         });
     }
 
-    void ForwardRenderer::EndFrame()
+    void RendererInternal::EndFrame()
     {
         FrameContext& frame_context = GetFrameContext();
 
@@ -2216,7 +2227,7 @@ namespace won::rendering
         }
     }
 
-    void ForwardRenderer::WaitIdle()
+    void RendererInternal::WaitIdle()
     {
         jobsystem::Wait(GetRenderingWorkContext());
         for (Size i = 0; i < static_cast<Size>(RHIQueueType::Count); ++i)
@@ -2228,7 +2239,7 @@ namespace won::rendering
         enqueued_work_scratch_resources.clear();
     }
 
-    void ForwardRenderer::Shutdown()
+    void RendererInternal::Shutdown()
     {
         WaitIdle();
 

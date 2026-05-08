@@ -16,7 +16,6 @@ namespace won
     struct ApplicationDesc
     {
         platform::WindowDesc window = {};
-        rendering::RendererType renderer_type = rendering::RendererType::Forward;
         rendering::RHIBackend backend_type = rendering::RHIBackend::DirectX12;
         uint32 jobsystem_thread_count = ~0u;
     };

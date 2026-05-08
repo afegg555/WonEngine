@@ -17,15 +17,9 @@ namespace won::resource
 }
 namespace won::rendering
 {
-    enum class RendererType
-    {
-        Forward
-    };
-
     struct RendererDesc
     {
         std::shared_ptr<RHIDevice> device;
-        RendererType type = RendererType::Forward;
     };
 
     struct RendererDebugOptions
