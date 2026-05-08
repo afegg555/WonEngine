@@ -20,6 +20,7 @@ namespace won::rendering
         void SetDebugOptions(const RendererDebugOptions& options) override;
         RendererDebugState GetDebugState() const override;
         bool GetCurrentBackBufferBinding(RHISubresourceBinding& out_binding) const override;
+        bool GetCurrentDepthBufferBinding(RHISubresourceBinding& out_binding) const override;
         bool UpdateDefaultBuffer(FrameContext& frame_context, RHIResource& destination_buffer, const void* source_data, Size data_size, RHIResourceState final_state, Size destination_offset, RHICommandList& command_list) override;
     private:
         

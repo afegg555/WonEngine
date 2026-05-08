@@ -39,6 +39,8 @@ namespace won::editor
 
 	static RHIShader imgui_vs;
 	static RHIShader imgui_ps;
+	static RHIShader editor_grid_vs;
+	static RHIShader editor_grid_ps;
 	static String contents_root_dir = String(CONTENTS_ROOT_DIR) + "/";
 	namespace
 	{
@@ -352,6 +354,18 @@ namespace won::editor
 			compile_result = compiler->Compile(compile_desc);
 
 			imgui_ps = { RHIShaderStage::Pixel, compile_result.bytecode.data(), compile_result.bytecode.size() };
+
+			compile_desc.stage = RHIShaderStage::Vertex;
+			compile_desc.source_file_name = "EditorGridVS.hlsl";
+			compile_result = compiler->Compile(compile_desc);
+
+			editor_grid_vs = { RHIShaderStage::Vertex, compile_result.bytecode.data(), compile_result.bytecode.size() };
+
+			compile_desc.stage = RHIShaderStage::Pixel;
+			compile_desc.source_file_name = "EditorGridPS.hlsl";
+			compile_result = compiler->Compile(compile_desc);
+
+			editor_grid_ps = { RHIShaderStage::Pixel, compile_result.bytecode.data(), compile_result.bytecode.size() };
 		}
 
 		
@@ -382,6 +396,7 @@ namespace won::editor
 		AddImGuiFont(font_folder_path, "WantedSansStd-Regular.ttf");
 
 		InitImGui();
+		InitEditorGrid();
 
 		plugin_manager = std::make_shared<plugin::PluginManager>();
 		LoadDefaultPlugins();
@@ -427,6 +442,7 @@ namespace won::editor
 	void EditorApplication::Shutdown()
 	{
 		imgui_pso.reset();
+		editor_grid_pso.reset();
 		imgui_font.reset();
 		imgui_font_subresource = {};
 		imgui_sampler.reset();
@@ -794,21 +810,6 @@ namespace won::editor
 		{
 			return float4{ from.x + (to.x - from.x) * value, from.y + (to.y - from.y) * value, from.z + (to.z - from.z) * value, from.w + (to.w - from.w) * value };
 		};
-
-		if (viewport_debug_settings.show_grid)
-		{
-			constexpr int grid_half_extent = 20;
-			constexpr float grid_spacing = 1.0f;
-			constexpr float grid_extent = static_cast<float>(grid_half_extent) * grid_spacing;
-			for (int line = -grid_half_extent; line <= grid_half_extent; ++line)
-			{
-				const float offset = static_cast<float>(line) * grid_spacing;
-				const float4 x_line_color = line == 0 ? theme::editor_grid_axis_x_color : theme::editor_grid_color;
-				const float4 z_line_color = line == 0 ? theme::editor_grid_axis_z_color : theme::editor_grid_color;
-				add_line({ -grid_extent, 0.0f, offset }, { grid_extent, 0.0f, offset }, x_line_color);
-				add_line({ offset, 0.0f, -grid_extent }, { offset, 0.0f, grid_extent }, z_line_color);
-			}
-		}
 
 		if (viewport_debug_settings.show_ddgi_overlay && renderer)
 		{
@@ -1416,6 +1417,110 @@ namespace won::editor
 			}
 			ImGui::EndPopup();
 		}
+	}
+
+	void EditorApplication::DrawEditorGrid()
+	{
+		if (!viewport_debug_settings.show_grid || !editor_grid_pso || !renderer)
+		{
+			return;
+		}
+
+		const ecs::CameraComponent* camera = scene.GetComponent<ecs::CameraComponent>(camera_entity);
+		if (!camera)
+		{
+			return;
+		}
+
+		struct EditorGridConstants
+		{
+			float4x4 view_projection = {};
+			float4x4 inv_view_projection = {};
+			float4 camera_position = {};
+			float4 grid_color = {};
+			float4 axis_x_color = {};
+			float4 axis_z_color = {};
+		};
+
+		EditorGridConstants constants = {};
+		constants.view_projection = camera->view_projection;
+		constants.inv_view_projection = camera->inv_view_projection;
+		constants.camera_position = { camera->eye.x, camera->eye.y, camera->eye.z, 1.0f };
+		constants.grid_color = theme::editor_grid_color;
+		constants.axis_x_color = theme::editor_grid_axis_x_color;
+		constants.axis_z_color = theme::editor_grid_axis_z_color;
+
+		Renderer::FrameContext& frame_context = renderer->GetFrameContext();
+		RHICommandList* command_list = frame_context.BeginCommandList(*device);
+		if (!command_list)
+		{
+			return;
+		}
+
+		jobsystem::Execute(renderer->GetRenderingWorkContext(), [this, command_list, constants](jobsystem::JobArgs args) {
+			Renderer::FrameContext& frame_context = renderer->GetFrameContext();
+
+			RHISubresourceBinding back_buffer_binding = {};
+			RHISubresourceBinding depth_buffer_binding = {};
+			if (!renderer->GetCurrentBackBufferBinding(back_buffer_binding) ||
+				!renderer->GetCurrentDepthBufferBinding(depth_buffer_binding))
+			{
+				return;
+			}
+
+			RHIBufferDesc buffer_desc = {};
+			buffer_desc.bind_flags = RHIBindFlags::ConstantBuffer;
+			Renderer::FrameUploadAllocation allocation = {};
+			if (!frame_context.AllocateFrameUpload(*device, sizeof(EditorGridConstants), device->GetMinOffsetAlignment(buffer_desc), allocation))
+			{
+				return;
+			}
+			std::memcpy(allocation.mapped_data, &constants, sizeof(EditorGridConstants));
+
+			RHISubresourceHandle constants_subresource = {};
+			RHISubresourceDesc subresource_desc = {};
+			subresource_desc.type = RHISubresourceType::ConstantBuffer;
+			subresource_desc.buffer_offset = allocation.buffer_offset;
+			subresource_desc.buffer_size = sizeof(EditorGridConstants);
+			subresource_desc.buffer_stride = sizeof(EditorGridConstants);
+			if (!device->CreateSubresource(*allocation.buffer, subresource_desc, &constants_subresource))
+			{
+				return;
+			}
+
+			RHISubresourceBinding constants_binding = {};
+			constants_binding.resource = allocation.buffer.get();
+			constants_binding.subresource = constants_subresource;
+
+			RHIViewport viewport = {};
+			viewport.x = static_cast<float>(main_view.viewport.x);
+			viewport.y = static_cast<float>(main_view.viewport.y);
+			viewport.width = static_cast<float>(main_view.viewport.width);
+			viewport.height = static_cast<float>(main_view.viewport.height);
+			viewport.min_depth = 0.0f;
+			viewport.max_depth = 1.0f;
+
+			RHIRect scissor = {};
+			scissor.x = main_view.scissor.x;
+			scissor.y = main_view.scissor.y;
+			scissor.width = main_view.scissor.width;
+			scissor.height = main_view.scissor.height;
+
+			Vector<RHISubresourceBinding> color_targets = { back_buffer_binding };
+			auto gpu_range = profiler::ScopedRangeGPU("Editor Grid Pass", *command_list);
+			command_list->BeginEvent("Editor Grid Pass");
+			command_list->TransitionResource(*back_buffer_binding.resource, RHIResourceState::RenderTarget);
+			command_list->TransitionResource(*depth_buffer_binding.resource, RHIResourceState::DepthWrite);
+			command_list->SetRenderTargets(color_targets, &depth_buffer_binding);
+			command_list->SetViewport(viewport);
+			command_list->SetScissor(scissor);
+			command_list->SetGraphicsPipeline(*editor_grid_pso);
+			command_list->SetConstantBuffer(RHIShaderStage::Vertex, 0, constants_binding);
+			command_list->SetConstantBuffer(RHIShaderStage::Pixel, 0, constants_binding);
+			command_list->SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
+			command_list->Draw(3, 1, 0, 0);
+			command_list->EndEvent();
+		});
 	}
 
 	void EditorApplication::RenderUI()
@@ -2819,6 +2924,8 @@ namespace won::editor
 		if (fb_width <= 0 || fb_height <= 0)
 			return;
 
+		DrawEditorGrid();
+
 		Renderer::FrameContext& frame_context = renderer->GetFrameContext();
 		RHICommandList* command_list = frame_context.BeginCommandList(*device);
 		if (!command_list)
@@ -3038,6 +3145,23 @@ namespace won::editor
 		imgui_pso = device->CreateGraphicsPipeline(pipeline_desc);
 
 		return;
+	}
+
+	void EditorApplication::InitEditorGrid()
+	{
+		RHIGraphicsPipelineDesc pipeline_desc = {};
+		pipeline_desc.vertex_shader = &editor_grid_vs;
+		pipeline_desc.pixel_shader = &editor_grid_ps;
+		pipeline_desc.depth_stencil.depth_test = true;
+		pipeline_desc.depth_stencil.depth_write = false;
+		pipeline_desc.depth_stencil.depth_compare = RHICompareOp::GreaterEqual;
+		pipeline_desc.render_target_formats = { RENDERTARGET_BUFFER_FORMAT };
+		pipeline_desc.depth_stencil_format = DEPTH_BUFFER_FORMAT;
+		pipeline_desc.raster.cull_mode = RHICullMode::None;
+		pipeline_desc.blend.enable = true;
+		pipeline_desc.topology = RHIPrimitiveTopology::TriangleList;
+
+		editor_grid_pso = device->CreateGraphicsPipeline(pipeline_desc);
 	}
 
 	void EditorApplication::LoadSampleScene()
