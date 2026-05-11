@@ -1,4 +1,5 @@
 #pragma once
+#include "RHIResource.h"
 #include "Resource.h"
 #include "RuntimeExport.h"
 #include "Types.h"
@@ -9,14 +10,33 @@ namespace won::resource
 {
     struct Image : public Resource
     {
+        struct RenderData
+        {
+            std::shared_ptr<rendering::RHIResource> texture;
+            rendering::RHISubresourceHandle srv = {};
+            rendering::RHIFormat format = rendering::RHIFormat::Unknown;
+            uint32 mip_levels = 0;
+
+            bool IsValid() const
+            {
+                return texture != nullptr && srv.IsValid();
+            }
+        };
+
         int32 width = 0;
         int32 height = 0;
         int32 channels = 0;
         Vector<uint8> pixels;
+        RenderData render_data = {};
 
         bool IsValid() const override
         {
             return width > 0 && height > 0 && channels > 0 && !pixels.empty();
+        }
+
+        void ClearRenderData()
+        {
+            render_data = {};
         }
     };
 

@@ -7,6 +7,7 @@
 #include "RenderingUtils.h"
 #include "ShaderCompiler.h"
 #include "FileSystem.h"
+#include "Image.h"
 #include "StringUtils.h"
 #include "Backlog.h"
 #include "Profiler.h"
@@ -3223,6 +3224,45 @@ namespace won::editor
 	void EditorApplication::LoadSampleScene()
 	{
 		{
+			String file_path = contents_root_dir + "/Images/env_comp.png";
+			std::shared_ptr<resource::Image> image = resource::LoadImageFile(file_path, 4);
+			if (image && image->IsValid())
+			{
+				rendering::utils::CreateRenderData(*device, *image, RHIFormat::R8G8B8A8Unorm, true);
+				if (image->render_data.IsValid())
+				{
+					ecs::Entity sprite_entity = scene.CreateEntity();
+					if (auto* transform = scene.AddComponent<ecs::TransformComponent>(sprite_entity))
+					{
+						transform->position = { 0.0f, 2.0f, 0.0f };
+						transform->SetDirty();
+					}
+
+					if (auto* sprite = scene.AddComponent<ecs::Sprite3DComponent>(sprite_entity))
+					{
+						const float sprite_height = 2.0f;
+						const float sprite_aspect = static_cast<float>(image->width) / static_cast<float>(image->height);
+						sprite->size = { sprite_height * sprite_aspect, sprite_height };
+						sprite->SetBillboard(false);
+					}
+
+					if (auto* material = scene.AddComponent<ecs::MaterialComponent>(sprite_entity))
+					{
+						MaterialSlot& material_slot = material->AddMaterialSlot();
+						material_slot.flags = SHADER_MATERIAL_FLAG_TRANSPARENT;
+						material_slot.base_color = { 1.0f, 1.0f, 1.0f, 1.0f };
+						material_slot.textures[BASECOLORMAP].name = "Test Sprite BaseColorMap";
+						material_slot.textures[BASECOLORMAP].texture = image->render_data.texture;
+						material_slot.textures[BASECOLORMAP].res_handle = image->render_data.srv;
+					}
+
+					if (auto* name = scene.AddComponent<ecs::NameComponent>(sprite_entity))
+					{
+						name->value = "Test 3D Sprite";
+					}
+				}
+			}
+
 			//String file_path = io::GetWorkingDirectory() + "/../Contents/Images/env_comp.png";
 			//std::shared_ptr<resource::Image> image = resource::LoadImageFile(file_path, 4);
 			//if (!image || !image->IsValid())

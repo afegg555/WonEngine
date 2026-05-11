@@ -1,5 +1,6 @@
 #include "RenderingUtils.h"
 #include "Backlog.h"
+#include "Image.h"
 #include "Mesh.h"
 #include "ShaderLibrary.h"
 #include "ShaderInterop_BVH.h"
@@ -702,6 +703,76 @@ namespace won::rendering::utils
         }
 
         mesh.render_data = std::move(new_render_data);
+        return true;
+    }
+
+    bool CreateRenderData(RHIDevice& device, resource::Image& image, RHIFormat format, bool generate_mips)
+    {
+        if (!image.IsValid() || image.channels != 4)
+        {
+            return false;
+        }
+
+        uint32 mip_levels = 1;
+        if (generate_mips)
+        {
+            uint32 mip_width = static_cast<uint32>(image.width);
+            uint32 mip_height = static_cast<uint32>(image.height);
+            while (mip_width > 1 || mip_height > 1)
+            {
+                mip_width = (std::max)(1u, mip_width / 2u);
+                mip_height = (std::max)(1u, mip_height / 2u);
+                ++mip_levels;
+            }
+        }
+
+        if (image.render_data.IsValid() && image.render_data.format == format && image.render_data.mip_levels == mip_levels)
+        {
+            return true;
+        }
+
+        RHITextureDesc texture_desc = {};
+        texture_desc.width = static_cast<uint32>(image.width);
+        texture_desc.height = static_cast<uint32>(image.height);
+        texture_desc.depth = 1;
+        texture_desc.mip_levels = mip_levels;
+        texture_desc.array_layers = 1;
+        texture_desc.sample_count = 1;
+        texture_desc.format = format;
+        texture_desc.usage = RHIResourceUsage::Default;
+        texture_desc.bind_flags = RHIBindFlags::ShaderResource;
+        if (generate_mips)
+        {
+            texture_desc.bind_flags = texture_desc.bind_flags | RHIBindFlags::UnorderedAccess;
+        }
+        image.ClearRenderData();
+
+        resource::Image::RenderData new_render_data = {};
+        new_render_data.texture = device.CreateTexture(texture_desc, image.pixels.data(), image.pixels.size());
+        if (!new_render_data.texture)
+        {
+            return false;
+        }
+
+        RHISubresourceDesc texture_srv_desc = {};
+        texture_srv_desc.type = RHISubresourceType::ShaderResource;
+        texture_srv_desc.first_slice = 0;
+        texture_srv_desc.slice_count = 1;
+        texture_srv_desc.first_mip = 0;
+        texture_srv_desc.mip_count = texture_desc.mip_levels;
+        if (!device.CreateSubresource(*new_render_data.texture, texture_srv_desc, &new_render_data.srv))
+        {
+            return false;
+        }
+
+        if (generate_mips)
+        {
+            EnqueueTextureMipGeneration(new_render_data.texture);
+        }
+
+        new_render_data.format = format;
+        new_render_data.mip_levels = texture_desc.mip_levels;
+        image.render_data = std::move(new_render_data);
         return true;
     }
 
