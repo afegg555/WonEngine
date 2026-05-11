@@ -127,9 +127,9 @@ set(RUNTIME_RENDERING
     Source/Runtime/Public/View.h
 )
 
-set(RUNTIME_RENDERING_FORWARD
-    Source/Runtime/Private/ForwardRenderer.h
-    Source/Runtime/Private/ForwardRenderer.cpp
+set(RUNTIME_RENDERING_INTERNAL
+    Source/Runtime/Private/RendererInternal.h
+    Source/Runtime/Private/RendererInternal.cpp
 )
 
 set(RUNTIME_CONFIGURATION
@@ -277,7 +277,7 @@ add_library(Runtime SHARED
     ${RUNTIME_RHI_DX12}
     ${RUNTIME_RESOURCE}
     ${RUNTIME_RENDERING}
-    ${RUNTIME_RENDERING_FORWARD}
+    ${RUNTIME_RENDERING_INTERNAL}
     ${RUNTIME_CONFIGURATION}
     ${RUNTIME_PLUGIN}
     ${RUNTIME_JOBSYSTEM}
@@ -303,7 +303,7 @@ source_group("RHI/DirectX12" FILES ${RUNTIME_RHI_DX12})
 source_group("Resource" FILES ${RUNTIME_RESOURCE})
 source_group("Rendering" FILES ${RUNTIME_RENDERING})
 source_group("Application" FILES ${RUNTIME_APPLICATION})
-source_group("Rendering/Forward" FILES ${RUNTIME_RENDERING_FORWARD})
+source_group("Rendering/Internal" FILES ${RUNTIME_RENDERING_INTERNAL})
 source_group("Configuration" FILES ${RUNTIME_CONFIGURATION})
 source_group("Plugin" FILES ${RUNTIME_PLUGIN})
 source_group("JobSystem" FILES ${RUNTIME_JOBSYSTEM})

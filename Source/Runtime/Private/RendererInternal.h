@@ -7,7 +7,7 @@
 
 namespace won::rendering
 {
-    class ForwardRenderer final : public Renderer
+    class RendererInternal final : public Renderer
     {
     public:
         void Initialize(const RendererDesc& desc) override;
@@ -46,6 +46,7 @@ namespace won::rendering
         // etc
         bool BuildShadowCascades(const View& view);
         void UpdateDebugState(const View& view, const ecs::Scene::RenderData& render_data);
+        void RenderForwardPath(const View& view);
 
         std::shared_ptr<RHIDevice> device;
 
