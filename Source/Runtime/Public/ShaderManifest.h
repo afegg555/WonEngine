@@ -10,11 +10,13 @@ namespace won::resource
         VSObjectSimple,
         VSObjectPrepass,
         VSPrimitive,
+        VSSprite3D,
 
         PSSky,
         PSObjectCommon,
         PSObjectSimple,
         PSObjectPrepass,
+        PSObjectSprite,
         PSPrimitive,
         PSTestRed,
 

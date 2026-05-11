@@ -1,4 +1,5 @@
 #include "RendererInternal.h"
+#include "ShaderInterop_Sprite.h"
 
 #include "Backlog.h"
 #include "Profiler.h"
@@ -1413,8 +1414,10 @@ namespace won::rendering
         shader_camera_binding.resource = shader_camera_buffer.get();
         shader_camera_binding.subresource = shader_camera_buffer_cbv;
         command_list.SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_camera_binding);
+        command_list.SetConstantBuffer(RHIShaderStage::Pixel, 0, shader_frame_binding);
+        command_list.SetConstantBuffer(RHIShaderStage::Pixel, 1, shader_camera_binding);
 
-        if (!render_data.mesh_renderables.empty())
+        if ((flags & (DrawScene_Opaque | DrawScene_Transparent)) != 0 && !render_data.mesh_renderables.empty())
         {
             std::shared_ptr<RHIPipeline> pipeline = shader_library.GetPipeline(pipeline_hash);
             if (!pipeline)
@@ -1452,7 +1455,7 @@ namespace won::rendering
             }
         }
 
-        if (!render_data.double_sided_renderables.empty())
+        if ((flags & (DrawScene_Opaque | DrawScene_Transparent)) != 0 && !render_data.double_sided_renderables.empty())
         {
             GraphicsPipelineHash double_sided_pipeline_hash = pipeline_hash;
             double_sided_pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
@@ -1562,6 +1565,41 @@ namespace won::rendering
                     command_list.PushConstants(RHIShaderStage::Vertex, &renderable.push_constants, sizeof(ObjectPushConstants), 0);
                     command_list.DrawIndexed(renderable.index_count, 1, 0, 0, 0);
                 }
+            }
+        }
+
+        if (pass == RenderPassType::Sprite3DPass && (flags & DrawScene_Sprite) != 0 && !render_data.sprite_3d_renderables.empty())
+        {
+            GraphicsPipelineHash sprite_pipeline_hash = {};
+            sprite_pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::Sprite3DPass);
+            sprite_pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
+            sprite_pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
+            sprite_pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
+            sprite_pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
+
+            std::shared_ptr<RHIPipeline> sprite_pipeline = shader_library.GetPipeline(sprite_pipeline_hash);
+            if (!sprite_pipeline)
+            {
+                return false;
+            }
+
+            command_list.SetGraphicsPipeline(*sprite_pipeline);
+            command_list.SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
+
+            for (const auto& renderable : render_data.sprite_3d_renderables)
+            {
+                SpritePushConstants push_constants = {};
+                push_constants.Init();
+                push_constants.size_pivot = { renderable.size.x, renderable.size.y, renderable.pivot.x, renderable.pivot.y };
+                push_constants.uv_rect = renderable.uv_rect;
+                push_constants.instance_index = renderable.instance_index;
+                push_constants.material_index = renderable.material_index;
+                if (renderable.IsBillboard())
+                {
+                    push_constants.flags |= SHADER_SPRITE_FLAG_BILLBOARD;
+                }
+                command_list.PushConstants(RHIShaderStage::Vertex, &push_constants, sizeof(SpritePushConstants), 0);
+                command_list.Draw(6, 1, 0, 0);
             }
         }
 
@@ -2171,12 +2209,25 @@ namespace won::rendering
             // main pass
             {
                 auto gpu_range = profiler::ScopedRangeGPU("Main Pass", *command_list);
-                command_list->BeginEvent("Restore Camera State");
+                command_list->BeginEvent("Main Pass");
 
                 command_list->SetRenderTargets(color_targets, &depth_buffer_binding);
                 {
                     auto cpu_range = profiler::ScopedRangeCPU("Draw Main Pass");
                     DrawScene(frame_context, view, RenderPassType::MainPass, DrawScene_Opaque | DrawScene_Transparent | DrawScene_Primitive, *command_list);
+                }
+                command_list->EndEvent();
+            }
+
+            // sprite 3d pass
+            {
+                auto gpu_range = profiler::ScopedRangeGPU("Sprite3D Pass", *command_list);
+                command_list->BeginEvent("Sprite3D Pass");
+
+                command_list->SetRenderTargets(color_targets, &depth_buffer_binding);
+                {
+                    auto cpu_range = profiler::ScopedRangeCPU("Draw Sprite3D Pass");
+                    DrawScene(frame_context, view, RenderPassType::Sprite3DPass, DrawScene_Sprite, *command_list);
                 }
                 command_list->EndEvent();
             }

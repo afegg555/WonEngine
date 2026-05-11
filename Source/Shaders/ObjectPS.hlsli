@@ -1,11 +1,33 @@
 #ifndef OBJECT_PS
 #define OBJECT_PS
 #include "ObjectCommon.hlsli"
+#ifndef UNLIT
 #include "ShadingCommon.hlsli"
 #include "DDGICommon.hlsli"
+#endif
 
 float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
 {
+    half4 final_color;
+#ifdef UNLIT
+    ShaderMaterial material = GetMaterial(push.material_index);
+    final_color = material.GetBaseColor();
+
+#ifdef OBJECTSHADER_USE_UVSETS
+    float2 uvsets = input.uvsets;
+    [branch]
+    if (material.textures[BASECOLORMAP].IsValid())
+    {
+        final_color *= material.textures[BASECOLORMAP].Sample(sampler_objectshader, uvsets);
+    }
+#endif // OBJECTSHADER_USE_UVSETS
+
+#ifdef OBJECTSHADER_USE_COLOR
+    final_color *= input.color;
+#endif // OBJECTSHADER_USE_COLOR
+    
+    final_color = saturateMediump(final_color);
+#else
     Surface surface;
     surface.Init();
     
@@ -100,9 +122,8 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
         surface.f0 = lerp(dielectricF0, base_color.xyz, metallic);
     }
     
-    half4 final_color = base_color;
+    final_color = base_color;
     
-#ifndef UNLIT
     half3 ambient = half3(0.0, 0.0, 0.0);
     ShaderEnvironmentLighting environment_lighting = GetEnvironmentLighting();
     if (environment_lighting.IsActive() && environment_lighting.gi_mode == SHADER_ENVIRONMENT_GI_MODE_AMBIENT)
@@ -135,15 +156,13 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
     final_color.rgb = surface.albedo * diffuse;
     final_color.rgb += specular;
     final_color.rgb += surface.emissive_color;
-#else
-    
-#endif // UNLIT
     
     final_color = saturateMediump(final_color);
     
-    // !!! temp Reinhard tone mapping
+    //!!! temp Reinhard tone mapping
     final_color.xyz = final_color.xyz / (1.0 + final_color.xyz);
-    
+#endif // UNLIT
+ 
     return final_color;
 }
 #endif // OBJECT_PS

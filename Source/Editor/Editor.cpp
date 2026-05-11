@@ -2446,6 +2446,54 @@ namespace won::editor
 					ImGui::Separator();
 				}
 
+				Sprite3DComponent* sprite_3d_comp = main_view.scene->GetComponent<Sprite3DComponent>(picked_entity);
+				if (sprite_3d_comp)
+				{
+					ImGui::PushID("Sprite3DComponent");
+					ImGui::Text("Sprite3DComponent");
+					bool remove_component = DrawComponentRemoveButton("Sprite3DComponent");
+
+					if (!remove_component)
+					{
+						float size[2] = { sprite_3d_comp->size.x, sprite_3d_comp->size.y };
+						if (ImGui::InputFloat2("Size", size))
+						{
+							sprite_3d_comp->size = { size[0], size[1] };
+							sprite_3d_comp->SetDirty();
+						}
+
+						float pivot[2] = { sprite_3d_comp->pivot.x, sprite_3d_comp->pivot.y };
+						if (ImGui::InputFloat2("Pivot", pivot))
+						{
+							sprite_3d_comp->pivot = { pivot[0], pivot[1] };
+							sprite_3d_comp->SetDirty();
+						}
+
+						float uv_rect[4] = { sprite_3d_comp->uv_rect.x, sprite_3d_comp->uv_rect.y, sprite_3d_comp->uv_rect.z, sprite_3d_comp->uv_rect.w };
+						if (ImGui::InputFloat4("UV Rect", uv_rect))
+						{
+							sprite_3d_comp->uv_rect = { uv_rect[0], uv_rect[1], uv_rect[2], uv_rect[3] };
+							sprite_3d_comp->SetDirty();
+						}
+
+						bool billboard = sprite_3d_comp->IsBillboard();
+						if (ImGui::Checkbox("Billboard", &billboard))
+						{
+							sprite_3d_comp->SetBillboard(billboard);
+						}
+					}
+					else
+					{
+						const ecs::Entity entity = picked_entity;
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+							scene.RemoveComponent<Sprite3DComponent>(entity);
+						});
+					}
+
+					ImGui::PopID();
+					ImGui::Separator();
+				}
+
 				AnimationComponent* animation_comp = main_view.scene->GetComponent<AnimationComponent>(picked_entity);
 				if (animation_comp)
 				{
@@ -2803,6 +2851,14 @@ namespace won::editor
 						if (main_view.scene->GetComponent<GeometryComponent>(picked_entity) == nullptr)
 						{
 							main_view.scene->AddComponent<GeometryComponent>(picked_entity);
+						}
+					}
+
+					if (ImGui::MenuItem("Sprite3DComponent"))
+					{
+						if (main_view.scene->GetComponent<Sprite3DComponent>(picked_entity) == nullptr)
+						{
+							main_view.scene->AddComponent<Sprite3DComponent>(picked_entity);
 						}
 					}
 

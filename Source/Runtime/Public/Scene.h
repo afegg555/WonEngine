@@ -11,6 +11,7 @@
 #include "MaterialUpdateSystem.h"
 #include "AnimationUpdateSystem.h"
 #include "RenderableUpdateSystem.h"
+#include "SpriteUpdateSystem.h"
 #include "ShaderInterop_Renderer.h"
 #include "BVH.h"
 #include "RenderingUtils.h"
@@ -48,6 +49,7 @@ namespace won::ecs
             component_manager.RegisterComponent<NameComponent>();
             component_manager.RegisterComponent<GeometryComponent>();
             component_manager.RegisterComponent<MaterialComponent>();
+            component_manager.RegisterComponent<Sprite3DComponent>();
             component_manager.RegisterComponent<CameraComponent>();
             component_manager.RegisterComponent<LightComponent>();
             component_manager.RegisterComponent<SkyComponent>();
@@ -64,6 +66,7 @@ namespace won::ecs
             AddSystem(std::make_shared<MaterialUpdateSystem>());
             AddSystem(std::make_shared<AnimationUpdateSystem>());
             AddSystem(std::make_shared<RenderableUpdateSystem>());
+            AddSystem(std::make_shared<SpriteUpdateSystem>());
         }
 
         Entity CreateEntity()
@@ -718,6 +721,33 @@ namespace won::ecs
                 bool HasShadowMapAtlasRect() const { return shadow_map_atlas_rect.z > 0 && shadow_map_atlas_rect.w > 0; }
             };
 
+            struct Sprite3DRenderable
+            {
+                enum Flags : uint32
+                {
+                    None = 0,
+                    Billboard = 1 << 0,
+                    Transparent = 1 << 1,
+                };
+
+                uint32 instance_index = 0;
+                uint32 material_index = 0;
+                float2 size = { 1.0f, 1.0f };
+                float2 pivot = { 0.5f, 0.5f };
+                float4 uv_rect = { 0.0f, 0.0f, 1.0f, 1.0f };
+                uint32 flags = None;
+
+                bool IsBillboard() const
+                {
+                    return (flags & Billboard) != 0;
+                }
+
+                bool IsTransparent() const
+                {
+                    return (flags & Transparent) != 0;
+                }
+            };
+
             ShaderSky shader_sky;
             ShaderEnvironmentLighting shader_environment_lighting;
             ShaderDDGIVolume shader_ddgi_volume;
@@ -732,6 +762,7 @@ namespace won::ecs
             Vector<Renderable> double_sided_renderables;
             Vector<Renderable> line_renderables;
             Vector<Renderable> point_renderables;
+            Vector<Sprite3DRenderable> sprite_3d_renderables;
 
             Vector<ShaderLight> shader_lights; // all lights
             Vector<ShaderShadowCascade> shader_shadow_cascades; // lights with shadow map
@@ -754,6 +785,7 @@ namespace won::ecs
                 double_sided_renderables.clear();
                 line_renderables.clear();
                 point_renderables.clear();
+                sprite_3d_renderables.clear();
 
                 shader_lights.clear();
                 shader_shadow_cascades.clear();

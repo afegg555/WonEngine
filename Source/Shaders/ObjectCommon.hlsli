@@ -30,6 +30,7 @@ struct VertexInput
         return vertex_id;
     }
 
+#ifndef WON_DISABLE_RENDERER_PUSHCONSTANT
     float3 GetPosition()
     {
         return bindless_buffers_float3[DescriptorIndex(GetGeometry().position_buffer_descriptor)][GetVertexID()];
@@ -66,6 +67,7 @@ struct VertexInput
             return 1;
         return bindless_buffers_float4[DescriptorIndex(GetGeometry().tangent_buffer_descriptor)][GetVertexID()];
     }
+#endif
 };
 
 struct PixelInput
