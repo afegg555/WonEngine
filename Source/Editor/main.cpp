@@ -9,6 +9,7 @@ int main()
 	app_desc.window.fullscreen = false;
 	app_desc.backend_type = rendering::RHIBackend::DirectX12;
 	app_desc.jobsystem_thread_count = ~0;
+	app_desc.device_preference = rendering::RHIDevicePreference::Default;
 
 	EditorApplication app;
 	app.Initialize(app_desc);

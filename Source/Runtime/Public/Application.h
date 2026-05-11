@@ -17,6 +17,7 @@ namespace won
     {
         platform::WindowDesc window = {};
         rendering::RHIBackend backend_type = rendering::RHIBackend::DirectX12;
+        rendering::RHIDevicePreference device_preference = rendering::RHIDevicePreference::Default;
         uint32 jobsystem_thread_count = ~0u;
     };
 

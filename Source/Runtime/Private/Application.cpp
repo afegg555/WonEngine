@@ -22,6 +22,7 @@ namespace won
 
         rendering::RHIDeviceDesc device_desc;
         device_desc.backend = desc.backend_type;
+        device_desc.preference = desc.device_preference;
         device_desc.enable_debug_layer = true; // test
 
         device = rendering::CreateRHIDevice(device_desc);
