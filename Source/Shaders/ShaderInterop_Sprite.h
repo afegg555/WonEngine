@@ -21,6 +21,21 @@ struct SpritePushConstants
     uint flags;
     uint material_index;
 
+    uint GetFlags()
+    {
+        return flags & 0xFFu;
+    }
+
+    uint GetResourceIndex()
+    {
+        return flags >> 8u;
+    }
+
+    void SetResourceIndex(uint resource_index)
+    {
+        flags = (flags & 0xFFu) | (resource_index << 8u);
+    }
+
 #ifdef __cplusplus
     inline void Init()
     {

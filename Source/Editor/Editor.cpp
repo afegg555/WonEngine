@@ -743,13 +743,7 @@ namespace won::editor
 				geometry->SetExcludeFromBVH(true);
 			}
 
-			if (auto material = scene.AddComponent<ecs::MaterialComponent>(editor_primitive_entity))
-			{
-				auto& material_slot = material->AddMaterialSlot();
-				material_slot.base_color = { 1.0f, 1.0f, 1.0f, 1.0f };
-				material_slot.metallic = 0.0f;
-				material_slot.roughness = 1.0f;
-			}
+			scene.AddComponent<ecs::MaterialComponent>(editor_primitive_entity);
 
 			if (auto name = scene.AddComponent<ecs::NameComponent>(editor_primitive_entity))
 			{
@@ -762,23 +756,74 @@ namespace won::editor
 			return;
 		}
 
+		enum EditorPrimitiveMaterialSlot : uint32
+		{
+			EditorPrimitiveDDGIVolume,
+			EditorPrimitiveDDGIProbe,
+			EditorPrimitiveDDGIProbeRelocated,
+			EditorPrimitiveDDGIProbeInvalid,
+			EditorPrimitiveCPUBVHInternal,
+			EditorPrimitiveCPUBVHLeaf,
+			EditorPrimitiveGPUBVHInternal,
+			EditorPrimitiveGPUBVHLeaf,
+			EditorPrimitiveMaterialCount
+		};
+
+		const float4 primitive_material_colors[EditorPrimitiveMaterialCount] = {
+			theme::ddgi_volume_color,
+			theme::ddgi_probe_color,
+			theme::ddgi_probe_relocated_color,
+			theme::ddgi_probe_invalid_color,
+			theme::cpu_bvh_internal_color,
+			theme::cpu_bvh_leaf_color,
+			theme::gpu_bvh_internal_color,
+			theme::gpu_bvh_leaf_color
+		};
+
+		if (auto material = scene.GetComponent<ecs::MaterialComponent>(editor_primitive_entity))
+		{
+			material->material_slots.clear();
+			for (const float4& color : primitive_material_colors)
+			{
+				auto& material_slot = material->AddMaterialSlot();
+				material_slot.base_color = color;
+				material_slot.metallic = 0.0f;
+				material_slot.roughness = 1.0f;
+			}
+		}
+
 		editor_primitive_mesh->positions.clear();
-		editor_primitive_mesh->colors.clear();
 		editor_primitive_mesh->indices.clear();
 		editor_primitive_mesh->submeshes.clear();
 
-		auto add_line = [&](const float3& from, const float3& to, const float4& color)
+		struct PrimitiveBatch
 		{
-			const uint32 first_vertex = static_cast<uint32>(editor_primitive_mesh->positions.size());
-			editor_primitive_mesh->positions.push_back(from);
-			editor_primitive_mesh->positions.push_back(to);
-			editor_primitive_mesh->colors.push_back(color);
-			editor_primitive_mesh->colors.push_back(color);
-			editor_primitive_mesh->indices.push_back(first_vertex);
-			editor_primitive_mesh->indices.push_back(first_vertex + 1);
+			uint32 first_index = 0;
+			uint32 index_count = 0;
+			uint32 material_slot = 0;
 		};
 
-		auto add_box = [&](const float3& bounds_min, const float3& bounds_max, const float4& color)
+		Vector<PrimitiveBatch> primitive_batches;
+
+		auto add_line = [&](const float3& from, const float3& to, uint32 material_slot)
+		{
+			const uint32 first_vertex = static_cast<uint32>(editor_primitive_mesh->positions.size());
+			const uint32 first_index = static_cast<uint32>(editor_primitive_mesh->indices.size());
+			editor_primitive_mesh->positions.push_back(from);
+			editor_primitive_mesh->positions.push_back(to);
+			editor_primitive_mesh->indices.push_back(first_vertex);
+			editor_primitive_mesh->indices.push_back(first_vertex + 1);
+			if (!primitive_batches.empty() && primitive_batches.back().material_slot == material_slot && primitive_batches.back().first_index + primitive_batches.back().index_count == first_index)
+			{
+				primitive_batches.back().index_count += 2;
+			}
+			else
+			{
+				primitive_batches.push_back({ first_index, 2, material_slot });
+			}
+		};
+
+		auto add_box = [&](const float3& bounds_min, const float3& bounds_max, uint32 material_slot)
 		{
 			const float3 corners[8] = {
 				{ bounds_min.x, bounds_min.y, bounds_min.z },
@@ -797,19 +842,15 @@ namespace won::editor
 			};
 			for (const auto& edge : edges)
 			{
-				add_line(corners[edge[0]], corners[edge[1]], color);
+				add_line(corners[edge[0]], corners[edge[1]], material_slot);
 			}
 		};
 
-		auto add_point = [&](const float3& position, float size, const float4& color)
+		auto add_point = [&](const float3& position, float size, uint32 material_slot)
 		{
-			add_line({ position.x - size, position.y, position.z }, { position.x + size, position.y, position.z }, color);
-			add_line({ position.x, position.y - size, position.z }, { position.x, position.y + size, position.z }, color);
-			add_line({ position.x, position.y, position.z - size }, { position.x, position.y, position.z + size }, color);
-		};
-		auto lerp_color = [](const float4& from, const float4& to, float value)
-		{
-			return float4{ from.x + (to.x - from.x) * value, from.y + (to.y - from.y) * value, from.z + (to.z - from.z) * value, from.w + (to.w - from.w) * value };
+			add_line({ position.x - size, position.y, position.z }, { position.x + size, position.y, position.z }, material_slot);
+			add_line({ position.x, position.y - size, position.z }, { position.x, position.y + size, position.z }, material_slot);
+			add_line({ position.x, position.y, position.z - size }, { position.x, position.y, position.z + size }, material_slot);
 		};
 
 		if (viewport_debug_settings.show_ddgi_overlay && renderer)
@@ -819,7 +860,7 @@ namespace won::editor
 			{
 				if (viewport_debug_settings.show_ddgi_volume)
 				{
-					add_box(ddgi_state.volume_min, ddgi_state.volume_max, theme::ddgi_volume_color);
+					add_box(ddgi_state.volume_min, ddgi_state.volume_max, EditorPrimitiveDDGIVolume);
 				}
 
 				if (viewport_debug_settings.show_ddgi_probes && ddgi_state.total_probe_count > 0)
@@ -836,9 +877,8 @@ namespace won::editor
 							{
 								break;
 							}
-							const float relocation_alpha = (std::min)(1.0f, probe.relocation / 0.45f);
-							const float4 color = probe.validity > 0.0f ? lerp_color(theme::ddgi_probe_color, theme::ddgi_probe_relocated_color, relocation_alpha) : theme::ddgi_probe_invalid_color;
-							add_point(probe.position, point_size, color);
+							const uint32 probe_material_slot = probe.validity <= 0.0f ? EditorPrimitiveDDGIProbeInvalid : (probe.relocation > 0.0f ? EditorPrimitiveDDGIProbeRelocated : EditorPrimitiveDDGIProbe);
+							add_point(probe.position, point_size, probe_material_slot);
 							++drawn_probe_count;
 						}
 					}
@@ -861,7 +901,7 @@ namespace won::editor
 										ddgi_state.volume_min.y + static_cast<float>(y) * ddgi_state.probe_spacing.y,
 										ddgi_state.volume_min.z + static_cast<float>(z) * ddgi_state.probe_spacing.z
 									};
-									add_point(probe_position, point_size, theme::ddgi_probe_color);
+									add_point(probe_position, point_size, EditorPrimitiveDDGIProbe);
 									++drawn_probe_count;
 								}
 							}
@@ -878,16 +918,14 @@ namespace won::editor
 			{
 				for (const rendering::RendererDebugBVHState::BVHNode& node : bvh_state.cpu_nodes)
 				{
-					const float4 color = node.is_leaf ? theme::cpu_bvh_leaf_color : theme::cpu_bvh_internal_color;
-					add_box(node.bounds_min, node.bounds_max, color);
+					add_box(node.bounds_min, node.bounds_max, node.is_leaf ? EditorPrimitiveCPUBVHLeaf : EditorPrimitiveCPUBVHInternal);
 				}
 			}
 			if (viewport_debug_settings.show_gpu_bvh_nodes && bvh_state.gpu_bvh_available)
 			{
 				for (const rendering::RendererDebugBVHState::BVHNode& node : bvh_state.gpu_nodes)
 				{
-					const float4 color = node.is_leaf ? theme::gpu_bvh_leaf_color : theme::gpu_bvh_internal_color;
-					add_box(node.bounds_min, node.bounds_max, color);
+					add_box(node.bounds_min, node.bounds_max, node.is_leaf ? EditorPrimitiveGPUBVHLeaf : EditorPrimitiveGPUBVHInternal);
 				}
 			}
 		}
@@ -908,13 +946,13 @@ namespace won::editor
 		editor_primitive_mesh->ClearRenderData();
 		if (!editor_primitive_mesh->indices.empty())
 		{
-			auto make_submesh = [&](uint32 first_index, uint32 index_count, resource::PrimitiveTopology topology)
+			auto make_submesh = [&](uint32 first_index, uint32 index_count, resource::PrimitiveTopology topology, uint32 material_slot)
 			{
 				resource::Submesh submesh = {};
 				submesh.first_index = first_index;
 				submesh.index_count = index_count;
 				submesh.first_vertex = 0;
-				submesh.material_slot = 0;
+				submesh.material_slot = material_slot;
 				submesh.primitive_topology = topology;
 				submesh.local_bounds.Invalidate();
 				for (uint32 index = first_index; index < first_index + index_count; ++index)
@@ -932,10 +970,12 @@ namespace won::editor
 				editor_primitive_mesh->submeshes.push_back(submesh);
 			};
 
-			const uint32 line_index_count = static_cast<uint32>(editor_primitive_mesh->indices.size());
-			if (line_index_count > 0)
+			for (const PrimitiveBatch& batch : primitive_batches)
 			{
-				make_submesh(0, line_index_count, resource::PrimitiveTopology::LineList);
+				if (batch.index_count > 0)
+				{
+					make_submesh(batch.first_index, batch.index_count, resource::PrimitiveTopology::LineList, batch.material_slot);
+				}
 			}
 
 			rendering::utils::CreateRenderData(*device, *editor_primitive_mesh);

@@ -9,16 +9,13 @@ namespace won::resource
         VSObjectCommon,
         VSObjectSimple,
         VSObjectPrepass,
-        VSPrimitive,
         VSSprite3D,
 
         PSSky,
         PSObjectCommon,
-        PSObjectSimple,
+        PSObjectUnlit,
         PSObjectPrepass,
-        PSObjectSprite,
-        PSPrimitive,
-        PSTestRed,
+        PSSprite,
 
         CSDDGIProbeUpdate,
         CSTextureMipGen,

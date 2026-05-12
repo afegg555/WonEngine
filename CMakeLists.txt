@@ -248,7 +248,6 @@ set(SHADERS_INTEROP
 set(SHADERS_HLSL
     Source/Shaders/Common.hlsli
     Source/Shaders/FullTriangleVS.hlsl
-    Source/Shaders/TestRedPS.hlsl
     Source/Shaders/SkyPS.hlsl
     Source/Shaders/ShadingCommon.hlsli
     Source/Shaders/BRDFCommon.hlsli
@@ -262,13 +261,11 @@ set(SHADERS_HLSL
     Source/Shaders/ObjectVS_prepass.hlsl
     Source/Shaders/SpriteCommon.hlsli
     Source/Shaders/SpriteVS.hlsl
-    Source/Shaders/PrimitiveVS.hlsl
-    Source/Shaders/PrimitivePS.hlsl
     Source/Shaders/ObjectPS.hlsli
-    Source/Shaders/ObjectPS_simple.hlsl
+    Source/Shaders/ObjectPS_unlit.hlsl
     Source/Shaders/ObjectPS_common.hlsl
     Source/Shaders/ObjectPS_prepass.hlsl
-    Source/Shaders/ObjectPS_sprite.hlsl
+    Source/Shaders/SpritePS.hlsl
     Source/Shaders/DDGIProbeUpdateCS.hlsl
     Source/Shaders/GPUBVHBuildCommon.hlsli
     Source/Shaders/GPUBVHGeneratePrimitivesCS.hlsl

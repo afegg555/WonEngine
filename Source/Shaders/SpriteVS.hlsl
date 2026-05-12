@@ -1,36 +1,5 @@
 #include "SpriteCommon.hlsli"
 
-float2 GetQuadPosition(uint vertex_id)
-{
-    // Sprite faces +Z. Vertex order is TL, TR, BL, BL, TR, BR.
-    static const float2 positions[6] = {
-        float2(1.0f, 1.0f),
-        float2(0.0f, 1.0f),
-        float2(1.0f, 0.0f),
-
-        float2(1.0f, 0.0f),
-        float2(0.0f, 1.0f),
-        float2(0.0f, 0.0f),
-    };
-
-    return positions[vertex_id % 6];
-}
-
-float2 GetQuadUV(uint vertex_id)
-{
-    static const float2 uvs[6] = {
-        float2(0.0f, 0.0f),
-        float2(1.0f, 0.0f),
-        float2(0.0f, 1.0f),
-
-        float2(0.0f, 1.0f),
-        float2(1.0f, 0.0f),
-        float2(1.0f, 1.0f),
-    };
-
-    return uvs[vertex_id % 6];
-}
-
 PixelInput main(VertexInput input)
 {
     PixelInput output;
@@ -42,7 +11,7 @@ PixelInput main(VertexInput input)
     const float2 local_position_2d = (quad_position - push.size_pivot.zw) * push.size_pivot.xy;
 
     float4 world_position;
-    if ((push.flags & SHADER_SPRITE_FLAG_BILLBOARD) != 0)
+    if ((push.GetFlags() & SHADER_SPRITE_FLAG_BILLBOARD) != 0)
     {
         const float3 center = mul(instance.world_transform, float4(0.0f, 0.0f, 0.0f, 1.0f)).xyz;
         float3 view = camera.position - center;
