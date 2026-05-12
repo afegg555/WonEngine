@@ -1568,7 +1568,7 @@ namespace won::rendering
             }
         }
 
-        if (pass == RenderPassType::Sprite3DPass && (flags & (DrawScene_Sprite | DrawScene_Text)) != 0 && (!render_data.sprite_3d_renderables.empty() || !render_data.text_3d_renderables.empty()))
+        if (pass == RenderPassType::Sprite3DPass && (flags & DrawScene_3DSprite) != 0 && (!render_data.sprite_3d_renderables.empty() || !render_data.text_3d_renderables.empty()))
         {
             struct SpriteTextDrawItem
             {
@@ -1599,9 +1599,9 @@ namespace won::rendering
             text_pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
             text_pipeline_hash.storage.bits.pass_mode = static_cast<uint64>(Sprite3DPassMode::Text);
 
-            std::shared_ptr<RHIPipeline> sprite_pipeline = (flags & DrawScene_Sprite) != 0 ? shader_library.GetPipeline(sprite_pipeline_hash) : nullptr;
-            std::shared_ptr<RHIPipeline> text_pipeline = (flags & DrawScene_Text) != 0 ? shader_library.GetPipeline(text_pipeline_hash) : nullptr;
-            if (((flags & DrawScene_Sprite) != 0 && !sprite_pipeline) || ((flags & DrawScene_Text) != 0 && !text_pipeline))
+            std::shared_ptr<RHIPipeline> sprite_pipeline = shader_library.GetPipeline(sprite_pipeline_hash);
+            std::shared_ptr<RHIPipeline> text_pipeline = shader_library.GetPipeline(text_pipeline_hash);
+            if (!sprite_pipeline || !text_pipeline)
             {
                 return false;
             }
@@ -1629,7 +1629,7 @@ namespace won::rendering
             };
 
             Vector<SpriteTextDrawItem> draw_items;
-            if ((flags & DrawScene_Sprite) != 0)
+            if (!render_data.sprite_3d_renderables.empty())
             {
                 draw_items.reserve(draw_items.size() + render_data.sprite_3d_renderables.size());
                 for (Size sprite_index = 0; sprite_index < render_data.sprite_3d_renderables.size(); ++sprite_index)
@@ -1639,7 +1639,7 @@ namespace won::rendering
                     draw_items.push_back({ SpriteTextDrawItem::Sprite, sprite_index, get_distance_sq(renderable.instance_index, local_center) });
                 }
             }
-            if ((flags & DrawScene_Text) != 0)
+            if (!render_data.text_3d_renderables.empty())
             {
                 draw_items.reserve(draw_items.size() + render_data.text_3d_renderables.size());
                 for (Size text_index = 0; text_index < render_data.text_3d_renderables.size(); ++text_index)
@@ -2335,7 +2335,7 @@ namespace won::rendering
                 command_list->SetRenderTargets(color_targets, &depth_buffer_binding);
                 {
                     auto cpu_range = profiler::ScopedRangeCPU("Draw Sprite/Text3D Pass");
-                    DrawScene(frame_context, view, RenderPassType::Sprite3DPass, DrawScene_Sprite | DrawScene_Text, *command_list);
+                    DrawScene(frame_context, view, RenderPassType::Sprite3DPass, DrawScene_3DSprite, *command_list);
                 }
                 command_list->EndEvent();
             }
