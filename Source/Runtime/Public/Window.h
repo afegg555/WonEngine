@@ -21,6 +21,7 @@ namespace won::platform
         int height = 720;
         bool fullscreen = false;
         bool resizable = true;
+        bool use_title_bar = false;
         bool visible = true;
     };
 
@@ -34,10 +35,18 @@ namespace won::platform
         virtual void Hide() = 0;
         virtual void SetTitle(const char* title) = 0;
         virtual void Resize(int width, int height) = 0;
+        virtual void SetPosition(int x, int y) = 0;
+        virtual bool GetPosition(int& out_x, int& out_y) const = 0;
+        virtual bool GetCursorPosition(int& out_x, int& out_y) const = 0;
+        virtual void Minimize() = 0;
+        virtual void Maximize() = 0;
+        virtual void Restore() = 0;
+        virtual void Close() = 0;
         virtual int GetWidth() const = 0;
         virtual int GetHeight() const = 0;
         virtual bool IsFocused() const = 0;
         virtual bool IsMinimized() const = 0;
+        virtual bool IsMaximized() const = 0;
         virtual bool ConsumePendingResize() = 0;
 
         void SetPlatformMessageHandler(PlatformMessageHandler new_handler)

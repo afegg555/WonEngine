@@ -7,6 +7,11 @@ int main()
 	ApplicationDesc app_desc;
 	app_desc.window.title = "Won Engine";
 	app_desc.window.fullscreen = false;
+#ifdef EDITOR_USE_CUSTOM_TITLEBAR
+	app_desc.window.use_title_bar = false;
+#else
+	app_desc.window.use_title_bar = true;
+#endif
 	app_desc.backend_type = rendering::RHIBackend::DirectX12;
 	app_desc.jobsystem_thread_count = ~0;
 	app_desc.device_preference = rendering::RHIDevicePreference::Default;
