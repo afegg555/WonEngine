@@ -1603,6 +1603,53 @@ namespace won::rendering
             }
         }
 
+        if (pass == RenderPassType::Text3DPass && (flags & DrawScene_Text) != 0 && !render_data.text_3d_renderables.empty())
+        {
+            GraphicsPipelineHash text_pipeline_hash = {};
+            text_pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::Text3DPass);
+            text_pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
+            text_pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
+            text_pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
+            text_pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
+
+            std::shared_ptr<RHIPipeline> text_pipeline = shader_library.GetPipeline(text_pipeline_hash);
+            if (!text_pipeline)
+            {
+                return false;
+            }
+
+            command_list.SetGraphicsPipeline(*text_pipeline);
+            command_list.SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
+
+            for (const auto& renderable : render_data.text_3d_renderables)
+            {
+                if (!renderable.font || !utils::CreateRenderData(*device, *renderable.font) || !renderable.font->render_data.IsValid())
+                {
+                    continue;
+                }
+
+                if (renderable.size.x <= 0.0f || renderable.size.y <= 0.0f)
+                {
+                    continue;
+                }
+
+                SpritePushConstants sprite_push_constants = {};
+                sprite_push_constants.Init();
+                sprite_push_constants.size_pivot = { renderable.size.x, renderable.size.y, -renderable.position.x / renderable.size.x, -renderable.position.y / renderable.size.y };
+                sprite_push_constants.uv_rect = renderable.uv_rect;
+                sprite_push_constants.instance_index = renderable.instance_index;
+                if (renderable.IsBillboard())
+                {
+                    sprite_push_constants.flags |= SHADER_SPRITE_FLAG_BILLBOARD;
+                }
+                sprite_push_constants.material_index = renderable.material_index;
+                sprite_push_constants.SetResourceIndex(static_cast<uint32>(renderable.font->render_data.atlas_srv.descriptor_index));
+
+                command_list.PushConstants(RHIShaderStage::Vertex, &sprite_push_constants, sizeof(SpritePushConstants), 0);
+                command_list.Draw(6, 1, 0, 0);
+            }
+        }
+
         return true;
     }
 
@@ -2228,6 +2275,19 @@ namespace won::rendering
                 {
                     auto cpu_range = profiler::ScopedRangeCPU("Draw Sprite3D Pass");
                     DrawScene(frame_context, view, RenderPassType::Sprite3DPass, DrawScene_Sprite, *command_list);
+                }
+                command_list->EndEvent();
+            }
+
+            // text 3d pass
+            {
+                auto gpu_range = profiler::ScopedRangeGPU("Text3D Pass", *command_list);
+                command_list->BeginEvent("Text3D Pass");
+
+                command_list->SetRenderTargets(color_targets, &depth_buffer_binding);
+                {
+                    auto cpu_range = profiler::ScopedRangeCPU("Draw Text3D Pass");
+                    DrawScene(frame_context, view, RenderPassType::Text3DPass, DrawScene_Text, *command_list);
                 }
                 command_list->EndEvent();
             }

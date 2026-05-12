@@ -178,6 +178,7 @@ set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/GeometryComponent.h
     Source/Runtime/Public/MaterialComponent.h
     Source/Runtime/Public/Sprite3DComponent.h
+    Source/Runtime/Public/Text3DComponent.h
     Source/Runtime/Public/TransformComponent.h
     Source/Runtime/Public/HierarchyComponent.h
     Source/Runtime/Public/CameraComponent.h
@@ -199,6 +200,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Public/TransformUpdateSystem.h
     Source/Runtime/Public/RenderableUpdateSystem.h
     Source/Runtime/Public/SpriteUpdateSystem.h
+    Source/Runtime/Public/TextUpdateSystem.h
     Source/Runtime/Private/EnvironmentUpdateSystem.cpp
     Source/Runtime/Private/CameraUpdateSystem.cpp
     Source/Runtime/Private/GeometryUpdateSystem.cpp
@@ -208,6 +210,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Private/TransformUpdateSystem.cpp
     Source/Runtime/Private/RenderableUpdateSystem.cpp
     Source/Runtime/Private/SpriteUpdateSystem.cpp
+    Source/Runtime/Private/TextUpdateSystem.cpp
 )
 
 set(RUNTIME_PLATFORM
@@ -266,6 +269,7 @@ set(SHADERS_HLSL
     Source/Shaders/ObjectPS_common.hlsl
     Source/Shaders/ObjectPS_prepass.hlsl
     Source/Shaders/SpritePS.hlsl
+    Source/Shaders/TextPS.hlsl
     Source/Shaders/DDGIProbeUpdateCS.hlsl
     Source/Shaders/GPUBVHBuildCommon.hlsli
     Source/Shaders/GPUBVHGeneratePrimitivesCS.hlsl

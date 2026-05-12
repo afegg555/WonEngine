@@ -199,6 +199,11 @@ namespace won::resource
         pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
         graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
 
+        pipeline_desc.vertex_shader = GetShader(ShaderId::VSSprite3D).get();
+        pipeline_desc.pixel_shader = GetShader(ShaderId::PSText3D).get();
+        pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::Text3DPass);
+        graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+
         return true;
     }
 

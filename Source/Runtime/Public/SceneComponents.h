@@ -6,6 +6,7 @@
 #include "TransformComponent.h"
 #include "HierarchyComponent.h"
 #include "Sprite3DComponent.h"
+#include "Text3DComponent.h"
 #include "CameraComponent.h"
 #include "LightComponent.h"
 #include "SkyComponent.h"
@@ -27,6 +28,7 @@ namespace won::ecs
         Geometry,
         Material,
         Sprite3D,
+        Text3D,
         Camera,
         Light,
         Sky,
@@ -48,6 +50,7 @@ namespace won::ecs
     inline constexpr ComponentMask geometry_component_mask = ComponentMaskFromBit(SceneComponentBit::Geometry);
     inline constexpr ComponentMask material_component_mask = ComponentMaskFromBit(SceneComponentBit::Material);
     inline constexpr ComponentMask sprite_3d_component_mask = ComponentMaskFromBit(SceneComponentBit::Sprite3D);
+    inline constexpr ComponentMask text_3d_component_mask = ComponentMaskFromBit(SceneComponentBit::Text3D);
     inline constexpr ComponentMask camera_component_mask = ComponentMaskFromBit(SceneComponentBit::Camera);
     inline constexpr ComponentMask light_component_mask = ComponentMaskFromBit(SceneComponentBit::Light);
     inline constexpr ComponentMask sky_component_mask = ComponentMaskFromBit(SceneComponentBit::Sky);

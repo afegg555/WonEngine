@@ -16,6 +16,7 @@ namespace won::resource
         PSObjectUnlit,
         PSObjectPrepass,
         PSSprite,
+        PSText3D,
 
         CSDDGIProbeUpdate,
         CSTextureMipGen,

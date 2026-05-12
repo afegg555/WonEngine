@@ -15,6 +15,7 @@ namespace won::resource
         DepthPrepass,
         MainPass,
         Sprite3DPass,
+        Text3DPass,
         Count
     };
 

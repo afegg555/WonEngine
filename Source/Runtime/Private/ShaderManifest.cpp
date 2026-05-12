@@ -15,6 +15,7 @@ namespace won::resource
             { ShaderId::PSObjectUnlit, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "ObjectPS_unlit.hlsl", "main" } },
             { ShaderId::PSObjectPrepass, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "ObjectPS_prepass.hlsl", "main" } },
             { ShaderId::PSSprite, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "SpritePS.hlsl", "main" } },
+            { ShaderId::PSText3D, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TextPS.hlsl", "main" } },
             { ShaderId::CSDDGIProbeUpdate, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "DDGIProbeUpdateCS.hlsl", "main" } },
             { ShaderId::CSTextureMipGen, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TextureMipGenCS.hlsl", "main" } },
             { ShaderId::CSGPUBVHBuildGeneratePrimitives, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "GPUBVHGeneratePrimitivesCS.hlsl", "main" } },

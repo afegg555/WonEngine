@@ -30,6 +30,7 @@ namespace won::rendering
             DrawScene_Transparent = 1 << 1, // include transparent objects
             DrawScene_Primitive = 1 << 2, // include line/point ..
             DrawScene_Sprite = 1 << 3, // include sprite
+            DrawScene_Text = 1 << 4, // include text
         };
 
         // resource creation

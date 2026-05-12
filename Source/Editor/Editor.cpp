@@ -140,7 +140,7 @@ namespace won::editor
 			};
 
 			float FONTUPSCALE = 1.0; //Font upscaling.
-			float FontSize = 15.0f;
+			float FontSize = 18.0f;
 			ImGuiIO& io = ImGui::GetIO();
 			io.Fonts->Clear();
 
@@ -148,7 +148,7 @@ namespace won::editor
 			ImFont* custom_font = io.Fonts->AddFontFromFileTTF(font_file_path.c_str(), FontSize * FONTUPSCALE, NULL, &generic_ranges_everything[0]); //Set as default font.
 			if (custom_font && merge_icon)
 			{
-				std::string font_icon_path = font_folder_path + "/MaterialIcons-Regular.ttf";
+				std::string font_icon_path = std::string(CONTENTS_ROOT_DIR) + "/Fonts/MaterialIcons-Regular.ttf";
 				ImFontConfig config;
 				config.MergeMode = true;
 				config.GlyphOffset = ImVec2(0, 3);
@@ -394,7 +394,7 @@ namespace won::editor
 #endif
 
 		std::string font_folder_path = contents_root_dir + "Fonts";
-		AddImGuiFont(font_folder_path, "WantedSansStd-Regular.ttf");
+		AddImGuiFont(font_folder_path + "/Noto_Sans_KR/static", "NotoSansKR-Regular.ttf");
 
 		InitImGui();
 		InitEditorGrid();
@@ -2535,6 +2535,63 @@ namespace won::editor
 					ImGui::Separator();
 				}
 
+				Text3DComponent* text_3d_comp = main_view.scene->GetComponent<Text3DComponent>(picked_entity);
+				if (text_3d_comp)
+				{
+					ImGui::PushID("Text3DComponent");
+					ImGui::Text("Text3DComponent");
+					bool remove_component = DrawComponentRemoveButton("Text3DComponent");
+
+					if (!remove_component)
+					{
+						ImGui::Text("Font: %s", text_3d_comp->font && text_3d_comp->font->IsValid() ? "Assigned" : "None");
+
+						char text_buf[4096] = {};
+						strncpy_s(text_buf, text_3d_comp->text.c_str(), sizeof(text_buf) - 1);
+						if (ImGui::InputTextMultiline("Text", text_buf, sizeof(text_buf), ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 4.0f)))
+						{
+							text_3d_comp->text = text_buf;
+							text_3d_comp->SetDirty();
+						}
+
+						int pixel_height = static_cast<int>(text_3d_comp->pixel_height);
+						if (ImGui::InputInt("Pixel Height", &pixel_height))
+						{
+							text_3d_comp->pixel_height = static_cast<uint32>((std::max)(1, pixel_height));
+							text_3d_comp->SetDirty();
+						}
+
+						if (ImGui::InputFloat("Height", &text_3d_comp->height))
+						{
+							text_3d_comp->height = (std::max)(0.0f, text_3d_comp->height);
+							text_3d_comp->SetDirty();
+						}
+
+						float pivot[2] = { text_3d_comp->pivot.x, text_3d_comp->pivot.y };
+						if (ImGui::InputFloat2("Pivot", pivot))
+						{
+							text_3d_comp->pivot = { pivot[0], pivot[1] };
+							text_3d_comp->SetDirty();
+						}
+
+						bool billboard = text_3d_comp->IsBillboard();
+						if (ImGui::Checkbox("Billboard", &billboard))
+						{
+							text_3d_comp->SetBillboard(billboard);
+						}
+					}
+					else
+					{
+						const ecs::Entity entity = picked_entity;
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+							scene.RemoveComponent<Text3DComponent>(entity);
+						});
+					}
+
+					ImGui::PopID();
+					ImGui::Separator();
+				}
+
 				AnimationComponent* animation_comp = main_view.scene->GetComponent<AnimationComponent>(picked_entity);
 				if (animation_comp)
 				{
@@ -2903,6 +2960,14 @@ namespace won::editor
 						}
 					}
 
+					if (ImGui::MenuItem("Text3DComponent"))
+					{
+						if (main_view.scene->GetComponent<Text3DComponent>(picked_entity) == nullptr)
+						{
+							main_view.scene->AddComponent<Text3DComponent>(picked_entity);
+						}
+					}
+
 					if (ImGui::MenuItem("AnimationComponent"))
 					{
 						if (main_view.scene->GetComponent<AnimationComponent>(picked_entity) == nullptr)
@@ -3264,6 +3329,38 @@ namespace won::editor
 	void EditorApplication::LoadSampleScene()
 	{
 		{
+			std::shared_ptr<resource::Font> noto_sans_font = resource::LoadFontFile(contents_root_dir + "Fonts/Noto_Sans_KR/static/NotoSansKR-Regular.ttf");
+			if (noto_sans_font && noto_sans_font->IsValid())
+			{
+				ecs::Entity text_entity = scene.CreateEntity();
+				if (auto* transform = scene.AddComponent<ecs::TransformComponent>(text_entity))
+				{
+					transform->position = { 0.0f, 3.0f, 0.0f };
+					transform->SetDirty();
+				}
+
+				if (auto* text = scene.AddComponent<ecs::Text3DComponent>(text_entity))
+				{
+					text->font = noto_sans_font;
+					//text->text = "\xED\x85\x8C\xEC\x8A\xA4\xED\x8A\xB8";
+					text->text = "Test1234!@#$";
+					text->pixel_height = 64;
+					text->height = 0.3f;
+					text->pivot = { 0.5f, 0.5f };
+					text->SetBillboard(true);
+				}
+
+				if (auto* material = scene.AddComponent<ecs::MaterialComponent>(text_entity))
+				{
+
+				}
+
+				if (auto* name = scene.AddComponent<ecs::NameComponent>(text_entity))
+				{
+					name->value = "Text Test";
+				}
+			}
+
 			String file_path = contents_root_dir + "/Images/env_comp.png";
 			std::shared_ptr<resource::Image> image = resource::LoadImageFile(file_path, 4);
 			if (image && image->IsValid())
