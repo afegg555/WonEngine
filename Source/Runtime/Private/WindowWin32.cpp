@@ -5,7 +5,25 @@ namespace won::platform
 {
     namespace
     {
-        constexpr const char* k_window_class_name = "WonEngineWindowClass";
+        constexpr const wchar_t* k_window_class_name = L"WonEngineWindowClass";
+
+        std::wstring Utf8ToWide(const char* text)
+        {
+            if (!text || text[0] == '\0')
+            {
+                return {};
+            }
+
+            const int wide_length = MultiByteToWideChar(CP_UTF8, 0, text, -1, nullptr, 0);
+            if (wide_length <= 0)
+            {
+                return {};
+            }
+
+            std::wstring wide_text(static_cast<Size>(wide_length - 1), L'\0');
+            MultiByteToWideChar(CP_UTF8, 0, text, -1, wide_text.data(), wide_length);
+            return wide_text;
+        }
 
         void RegisterWindowClass()
         {
@@ -15,14 +33,14 @@ namespace won::platform
                 return;
             }
 
-            WNDCLASSEXA wc = {};
-            wc.cbSize = sizeof(WNDCLASSEXA);
+            WNDCLASSEXW wc = {};
+            wc.cbSize = sizeof(WNDCLASSEXW);
             wc.style = CS_HREDRAW | CS_VREDRAW;
             wc.lpfnWndProc = WindowWin32::WindowProc;
-            wc.hInstance = GetModuleHandleA(nullptr);
+            wc.hInstance = GetModuleHandleW(nullptr);
             wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
             wc.lpszClassName = k_window_class_name;
-            RegisterClassExA(&wc);
+            RegisterClassExW(&wc);
             registered = true;
         }
     }
@@ -44,7 +62,7 @@ namespace won::platform
             HMONITOR monitor = MonitorFromPoint(POINT { 0, 0 }, MONITOR_DEFAULTTOPRIMARY);
             MONITORINFO monitor_info = {};
             monitor_info.cbSize = sizeof(MONITORINFO);
-            if (GetMonitorInfoA(monitor, &monitor_info))
+            if (GetMonitorInfoW(monitor, &monitor_info))
             {
                 window_x = monitor_info.rcMonitor.left;
                 window_y = monitor_info.rcMonitor.top;
@@ -66,8 +84,9 @@ namespace won::platform
             window_height = rect.bottom - rect.top;
         }
 
-        hwnd = CreateWindowExA(0, k_window_class_name, desc.title, style, window_x, window_y,
-            window_width, window_height, nullptr, nullptr, GetModuleHandleA(nullptr), this);
+        const std::wstring title = Utf8ToWide(desc.title);
+        hwnd = CreateWindowExW(0, k_window_class_name, title.c_str(), style, window_x, window_y,
+            window_width, window_height, nullptr, nullptr, GetModuleHandleW(nullptr), this);
 
         if (desc.fullscreen)
         {
@@ -120,7 +139,8 @@ namespace won::platform
     {
         if (hwnd)
         {
-            SetWindowTextA(hwnd, title ? title : "");
+            const std::wstring wide_title = Utf8ToWide(title);
+            SetWindowTextW(hwnd, wide_title.c_str());
         }
     }
 
@@ -135,7 +155,7 @@ namespace won::platform
         if (hwnd)
         {
             RECT rect = { 0, 0, new_width, new_height };
-            AdjustWindowRect(&rect, GetWindowLongA(hwnd, GWL_STYLE), FALSE);
+            AdjustWindowRect(&rect, GetWindowLongW(hwnd, GWL_STYLE), FALSE);
             SetWindowPos(hwnd, nullptr, 0, 0, rect.right - rect.left, rect.bottom - rect.top, SWP_NOMOVE | SWP_NOZORDER);
         }
         width = new_width;
@@ -181,12 +201,12 @@ namespace won::platform
     {
         if (message == WM_NCCREATE)
         {
-            CREATESTRUCTA* create_struct = reinterpret_cast<CREATESTRUCTA*>(lparam);
+            CREATESTRUCTW* create_struct = reinterpret_cast<CREATESTRUCTW*>(lparam);
             auto* window = static_cast<WindowWin32*>(create_struct->lpCreateParams);
-            SetWindowLongPtrA(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(window));
+            SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(window));
         }
 
-        auto* window = reinterpret_cast<WindowWin32*>(GetWindowLongPtrA(hwnd, GWLP_USERDATA));
+        auto* window = reinterpret_cast<WindowWin32*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
 
         if (window && window->DispatchPlatformMessage(hwnd, message, static_cast<Size>(wparam), static_cast<Size>(lparam)))
         {
@@ -207,7 +227,7 @@ namespace won::platform
             }
             return 0;
         default:
-            return DefWindowProc(hwnd, message, wparam, lparam);
+            return DefWindowProcW(hwnd, message, wparam, lparam);
         }
     }
 }

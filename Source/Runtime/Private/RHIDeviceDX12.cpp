@@ -413,7 +413,7 @@ namespace won::rendering
             adapter->GetDesc1(&selected_adapter_desc);
         }
 
-        const String adapter_name = won::utils::ToString(selected_adapter_desc.Description);
+        const String adapter_name = won::utils::EncodeUtf8(selected_adapter_desc.Description);
         if (!adapter_name.empty())
         {
             wonlog("DX12 Adapter: %s", adapter_name.c_str());

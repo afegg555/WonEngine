@@ -7,6 +7,7 @@
 #include "RenderingUtils.h"
 #include "ShaderCompiler.h"
 #include "FileSystem.h"
+#include "Image.h"
 #include "StringUtils.h"
 #include "Backlog.h"
 #include "Profiler.h"
@@ -139,7 +140,7 @@ namespace won::editor
 			};
 
 			float FONTUPSCALE = 1.0; //Font upscaling.
-			float FontSize = 15.0f;
+			float FontSize = 18.0f;
 			ImGuiIO& io = ImGui::GetIO();
 			io.Fonts->Clear();
 
@@ -147,7 +148,7 @@ namespace won::editor
 			ImFont* custom_font = io.Fonts->AddFontFromFileTTF(font_file_path.c_str(), FontSize * FONTUPSCALE, NULL, &generic_ranges_everything[0]); //Set as default font.
 			if (custom_font && merge_icon)
 			{
-				std::string font_icon_path = font_folder_path + "/MaterialIcons-Regular.ttf";
+				std::string font_icon_path = std::string(CONTENTS_ROOT_DIR) + "/Fonts/MaterialIcons-Regular.ttf";
 				ImFontConfig config;
 				config.MergeMode = true;
 				config.GlyphOffset = ImVec2(0, 3);
@@ -393,7 +394,7 @@ namespace won::editor
 #endif
 
 		std::string font_folder_path = contents_root_dir + "Fonts";
-		AddImGuiFont(font_folder_path, "WantedSansStd-Regular.ttf");
+		AddImGuiFont(font_folder_path + "/Noto_Sans_KR/static", "NotoSansKR-Regular.ttf");
 
 		InitImGui();
 		InitEditorGrid();
@@ -742,13 +743,7 @@ namespace won::editor
 				geometry->SetExcludeFromBVH(true);
 			}
 
-			if (auto material = scene.AddComponent<ecs::MaterialComponent>(editor_primitive_entity))
-			{
-				auto& material_slot = material->AddMaterialSlot();
-				material_slot.base_color = { 1.0f, 1.0f, 1.0f, 1.0f };
-				material_slot.metallic = 0.0f;
-				material_slot.roughness = 1.0f;
-			}
+			scene.AddComponent<ecs::MaterialComponent>(editor_primitive_entity);
 
 			if (auto name = scene.AddComponent<ecs::NameComponent>(editor_primitive_entity))
 			{
@@ -761,23 +756,74 @@ namespace won::editor
 			return;
 		}
 
+		enum EditorPrimitiveMaterialSlot : uint32
+		{
+			EditorPrimitiveDDGIVolume,
+			EditorPrimitiveDDGIProbe,
+			EditorPrimitiveDDGIProbeRelocated,
+			EditorPrimitiveDDGIProbeInvalid,
+			EditorPrimitiveCPUBVHInternal,
+			EditorPrimitiveCPUBVHLeaf,
+			EditorPrimitiveGPUBVHInternal,
+			EditorPrimitiveGPUBVHLeaf,
+			EditorPrimitiveMaterialCount
+		};
+
+		const float4 primitive_material_colors[EditorPrimitiveMaterialCount] = {
+			theme::ddgi_volume_color,
+			theme::ddgi_probe_color,
+			theme::ddgi_probe_relocated_color,
+			theme::ddgi_probe_invalid_color,
+			theme::cpu_bvh_internal_color,
+			theme::cpu_bvh_leaf_color,
+			theme::gpu_bvh_internal_color,
+			theme::gpu_bvh_leaf_color
+		};
+
+		if (auto material = scene.GetComponent<ecs::MaterialComponent>(editor_primitive_entity))
+		{
+			material->material_slots.clear();
+			for (const float4& color : primitive_material_colors)
+			{
+				auto& material_slot = material->AddMaterialSlot();
+				material_slot.base_color = color;
+				material_slot.metallic = 0.0f;
+				material_slot.roughness = 1.0f;
+			}
+		}
+
 		editor_primitive_mesh->positions.clear();
-		editor_primitive_mesh->colors.clear();
 		editor_primitive_mesh->indices.clear();
 		editor_primitive_mesh->submeshes.clear();
 
-		auto add_line = [&](const float3& from, const float3& to, const float4& color)
+		struct PrimitiveBatch
 		{
-			const uint32 first_vertex = static_cast<uint32>(editor_primitive_mesh->positions.size());
-			editor_primitive_mesh->positions.push_back(from);
-			editor_primitive_mesh->positions.push_back(to);
-			editor_primitive_mesh->colors.push_back(color);
-			editor_primitive_mesh->colors.push_back(color);
-			editor_primitive_mesh->indices.push_back(first_vertex);
-			editor_primitive_mesh->indices.push_back(first_vertex + 1);
+			uint32 first_index = 0;
+			uint32 index_count = 0;
+			uint32 material_slot = 0;
 		};
 
-		auto add_box = [&](const float3& bounds_min, const float3& bounds_max, const float4& color)
+		Vector<PrimitiveBatch> primitive_batches;
+
+		auto add_line = [&](const float3& from, const float3& to, uint32 material_slot)
+		{
+			const uint32 first_vertex = static_cast<uint32>(editor_primitive_mesh->positions.size());
+			const uint32 first_index = static_cast<uint32>(editor_primitive_mesh->indices.size());
+			editor_primitive_mesh->positions.push_back(from);
+			editor_primitive_mesh->positions.push_back(to);
+			editor_primitive_mesh->indices.push_back(first_vertex);
+			editor_primitive_mesh->indices.push_back(first_vertex + 1);
+			if (!primitive_batches.empty() && primitive_batches.back().material_slot == material_slot && primitive_batches.back().first_index + primitive_batches.back().index_count == first_index)
+			{
+				primitive_batches.back().index_count += 2;
+			}
+			else
+			{
+				primitive_batches.push_back({ first_index, 2, material_slot });
+			}
+		};
+
+		auto add_box = [&](const float3& bounds_min, const float3& bounds_max, uint32 material_slot)
 		{
 			const float3 corners[8] = {
 				{ bounds_min.x, bounds_min.y, bounds_min.z },
@@ -796,19 +842,15 @@ namespace won::editor
 			};
 			for (const auto& edge : edges)
 			{
-				add_line(corners[edge[0]], corners[edge[1]], color);
+				add_line(corners[edge[0]], corners[edge[1]], material_slot);
 			}
 		};
 
-		auto add_point = [&](const float3& position, float size, const float4& color)
+		auto add_point = [&](const float3& position, float size, uint32 material_slot)
 		{
-			add_line({ position.x - size, position.y, position.z }, { position.x + size, position.y, position.z }, color);
-			add_line({ position.x, position.y - size, position.z }, { position.x, position.y + size, position.z }, color);
-			add_line({ position.x, position.y, position.z - size }, { position.x, position.y, position.z + size }, color);
-		};
-		auto lerp_color = [](const float4& from, const float4& to, float value)
-		{
-			return float4{ from.x + (to.x - from.x) * value, from.y + (to.y - from.y) * value, from.z + (to.z - from.z) * value, from.w + (to.w - from.w) * value };
+			add_line({ position.x - size, position.y, position.z }, { position.x + size, position.y, position.z }, material_slot);
+			add_line({ position.x, position.y - size, position.z }, { position.x, position.y + size, position.z }, material_slot);
+			add_line({ position.x, position.y, position.z - size }, { position.x, position.y, position.z + size }, material_slot);
 		};
 
 		if (viewport_debug_settings.show_ddgi_overlay && renderer)
@@ -818,7 +860,7 @@ namespace won::editor
 			{
 				if (viewport_debug_settings.show_ddgi_volume)
 				{
-					add_box(ddgi_state.volume_min, ddgi_state.volume_max, theme::ddgi_volume_color);
+					add_box(ddgi_state.volume_min, ddgi_state.volume_max, EditorPrimitiveDDGIVolume);
 				}
 
 				if (viewport_debug_settings.show_ddgi_probes && ddgi_state.total_probe_count > 0)
@@ -835,9 +877,8 @@ namespace won::editor
 							{
 								break;
 							}
-							const float relocation_alpha = (std::min)(1.0f, probe.relocation / 0.45f);
-							const float4 color = probe.validity > 0.0f ? lerp_color(theme::ddgi_probe_color, theme::ddgi_probe_relocated_color, relocation_alpha) : theme::ddgi_probe_invalid_color;
-							add_point(probe.position, point_size, color);
+							const uint32 probe_material_slot = probe.validity <= 0.0f ? EditorPrimitiveDDGIProbeInvalid : (probe.relocation > 0.0f ? EditorPrimitiveDDGIProbeRelocated : EditorPrimitiveDDGIProbe);
+							add_point(probe.position, point_size, probe_material_slot);
 							++drawn_probe_count;
 						}
 					}
@@ -860,7 +901,7 @@ namespace won::editor
 										ddgi_state.volume_min.y + static_cast<float>(y) * ddgi_state.probe_spacing.y,
 										ddgi_state.volume_min.z + static_cast<float>(z) * ddgi_state.probe_spacing.z
 									};
-									add_point(probe_position, point_size, theme::ddgi_probe_color);
+									add_point(probe_position, point_size, EditorPrimitiveDDGIProbe);
 									++drawn_probe_count;
 								}
 							}
@@ -877,16 +918,14 @@ namespace won::editor
 			{
 				for (const rendering::RendererDebugBVHState::BVHNode& node : bvh_state.cpu_nodes)
 				{
-					const float4 color = node.is_leaf ? theme::cpu_bvh_leaf_color : theme::cpu_bvh_internal_color;
-					add_box(node.bounds_min, node.bounds_max, color);
+					add_box(node.bounds_min, node.bounds_max, node.is_leaf ? EditorPrimitiveCPUBVHLeaf : EditorPrimitiveCPUBVHInternal);
 				}
 			}
 			if (viewport_debug_settings.show_gpu_bvh_nodes && bvh_state.gpu_bvh_available)
 			{
 				for (const rendering::RendererDebugBVHState::BVHNode& node : bvh_state.gpu_nodes)
 				{
-					const float4 color = node.is_leaf ? theme::gpu_bvh_leaf_color : theme::gpu_bvh_internal_color;
-					add_box(node.bounds_min, node.bounds_max, color);
+					add_box(node.bounds_min, node.bounds_max, node.is_leaf ? EditorPrimitiveGPUBVHLeaf : EditorPrimitiveGPUBVHInternal);
 				}
 			}
 		}
@@ -907,13 +946,13 @@ namespace won::editor
 		editor_primitive_mesh->ClearRenderData();
 		if (!editor_primitive_mesh->indices.empty())
 		{
-			auto make_submesh = [&](uint32 first_index, uint32 index_count, resource::PrimitiveTopology topology)
+			auto make_submesh = [&](uint32 first_index, uint32 index_count, resource::PrimitiveTopology topology, uint32 material_slot)
 			{
 				resource::Submesh submesh = {};
 				submesh.first_index = first_index;
 				submesh.index_count = index_count;
 				submesh.first_vertex = 0;
-				submesh.material_slot = 0;
+				submesh.material_slot = material_slot;
 				submesh.primitive_topology = topology;
 				submesh.local_bounds.Invalidate();
 				for (uint32 index = first_index; index < first_index + index_count; ++index)
@@ -931,10 +970,12 @@ namespace won::editor
 				editor_primitive_mesh->submeshes.push_back(submesh);
 			};
 
-			const uint32 line_index_count = static_cast<uint32>(editor_primitive_mesh->indices.size());
-			if (line_index_count > 0)
+			for (const PrimitiveBatch& batch : primitive_batches)
 			{
-				make_submesh(0, line_index_count, resource::PrimitiveTopology::LineList);
+				if (batch.index_count > 0)
+				{
+					make_submesh(batch.first_index, batch.index_count, resource::PrimitiveTopology::LineList, batch.material_slot);
+				}
 			}
 
 			rendering::utils::CreateRenderData(*device, *editor_primitive_mesh);
@@ -2446,6 +2487,236 @@ namespace won::editor
 					ImGui::Separator();
 				}
 
+				Sprite2DComponent* sprite_2d_comp = main_view.scene->GetComponent<Sprite2DComponent>(picked_entity);
+				if (sprite_2d_comp)
+				{
+					ImGui::PushID("Sprite2DComponent");
+					ImGui::Text("Sprite2DComponent");
+					bool remove_component = DrawComponentRemoveButton("Sprite2DComponent");
+
+					if (!remove_component)
+					{
+						float anchor[2] = { sprite_2d_comp->anchor.x, sprite_2d_comp->anchor.y };
+						if (ImGui::InputFloat2("Anchor", anchor))
+						{
+							sprite_2d_comp->anchor = { anchor[0], anchor[1] };
+							sprite_2d_comp->SetDirty();
+						}
+
+						float position[2] = { sprite_2d_comp->position.x, sprite_2d_comp->position.y };
+						if (ImGui::InputFloat2("Position", position))
+						{
+							sprite_2d_comp->position = { position[0], position[1] };
+							sprite_2d_comp->SetDirty();
+						}
+
+						float size[2] = { sprite_2d_comp->size.x, sprite_2d_comp->size.y };
+						if (ImGui::InputFloat2("Size", size))
+						{
+							sprite_2d_comp->size = { size[0], size[1] };
+							sprite_2d_comp->SetDirty();
+						}
+
+						float pivot[2] = { sprite_2d_comp->pivot.x, sprite_2d_comp->pivot.y };
+						if (ImGui::InputFloat2("Pivot", pivot))
+						{
+							sprite_2d_comp->pivot = { pivot[0], pivot[1] };
+							sprite_2d_comp->SetDirty();
+						}
+
+						float uv_rect[4] = { sprite_2d_comp->uv_rect.x, sprite_2d_comp->uv_rect.y, sprite_2d_comp->uv_rect.z, sprite_2d_comp->uv_rect.w };
+						if (ImGui::InputFloat4("UV Rect", uv_rect))
+						{
+							sprite_2d_comp->uv_rect = { uv_rect[0], uv_rect[1], uv_rect[2], uv_rect[3] };
+							sprite_2d_comp->SetDirty();
+						}
+
+						if (ImGui::InputInt("Layer", &sprite_2d_comp->layer))
+						{
+							sprite_2d_comp->SetDirty();
+						}
+					}
+					else
+					{
+						const ecs::Entity entity = picked_entity;
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+							scene.RemoveComponent<Sprite2DComponent>(entity);
+						});
+					}
+
+					ImGui::PopID();
+					ImGui::Separator();
+				}
+
+				Text2DComponent* text_2d_comp = main_view.scene->GetComponent<Text2DComponent>(picked_entity);
+				if (text_2d_comp)
+				{
+					ImGui::PushID("Text2DComponent");
+					ImGui::Text("Text2DComponent");
+					bool remove_component = DrawComponentRemoveButton("Text2DComponent");
+
+					if (!remove_component)
+					{
+						ImGui::Text("Font: %s", text_2d_comp->font && text_2d_comp->font->IsValid() ? "Assigned" : "None");
+
+						char text_buf[4096] = {};
+						strncpy_s(text_buf, text_2d_comp->text.c_str(), sizeof(text_buf) - 1);
+						if (ImGui::InputTextMultiline("Text", text_buf, sizeof(text_buf), ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 4.0f)))
+						{
+							text_2d_comp->text = text_buf;
+							text_2d_comp->SetDirty();
+						}
+
+						float anchor[2] = { text_2d_comp->anchor.x, text_2d_comp->anchor.y };
+						if (ImGui::InputFloat2("Anchor", anchor))
+						{
+							text_2d_comp->anchor = { anchor[0], anchor[1] };
+							text_2d_comp->SetDirty();
+						}
+
+						float position[2] = { text_2d_comp->position.x, text_2d_comp->position.y };
+						if (ImGui::InputFloat2("Position", position))
+						{
+							text_2d_comp->position = { position[0], position[1] };
+							text_2d_comp->SetDirty();
+						}
+
+						int pixel_height = static_cast<int>(text_2d_comp->pixel_height);
+						if (ImGui::InputInt("Pixel Height", &pixel_height))
+						{
+							text_2d_comp->pixel_height = static_cast<uint32>((std::max)(1, pixel_height));
+							text_2d_comp->SetDirty();
+						}
+
+						float pivot[2] = { text_2d_comp->pivot.x, text_2d_comp->pivot.y };
+						if (ImGui::InputFloat2("Pivot", pivot))
+						{
+							text_2d_comp->pivot = { pivot[0], pivot[1] };
+							text_2d_comp->SetDirty();
+						}
+
+						if (ImGui::InputInt("Layer", &text_2d_comp->layer))
+						{
+							text_2d_comp->SetDirty();
+						}
+					}
+					else
+					{
+						const ecs::Entity entity = picked_entity;
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+							scene.RemoveComponent<Text2DComponent>(entity);
+						});
+					}
+
+					ImGui::PopID();
+					ImGui::Separator();
+				}
+
+				Sprite3DComponent* sprite_3d_comp = main_view.scene->GetComponent<Sprite3DComponent>(picked_entity);
+				if (sprite_3d_comp)
+				{
+					ImGui::PushID("Sprite3DComponent");
+					ImGui::Text("Sprite3DComponent");
+					bool remove_component = DrawComponentRemoveButton("Sprite3DComponent");
+
+					if (!remove_component)
+					{
+						float size[2] = { sprite_3d_comp->size.x, sprite_3d_comp->size.y };
+						if (ImGui::InputFloat2("Size", size))
+						{
+							sprite_3d_comp->size = { size[0], size[1] };
+							sprite_3d_comp->SetDirty();
+						}
+
+						float pivot[2] = { sprite_3d_comp->pivot.x, sprite_3d_comp->pivot.y };
+						if (ImGui::InputFloat2("Pivot", pivot))
+						{
+							sprite_3d_comp->pivot = { pivot[0], pivot[1] };
+							sprite_3d_comp->SetDirty();
+						}
+
+						float uv_rect[4] = { sprite_3d_comp->uv_rect.x, sprite_3d_comp->uv_rect.y, sprite_3d_comp->uv_rect.z, sprite_3d_comp->uv_rect.w };
+						if (ImGui::InputFloat4("UV Rect", uv_rect))
+						{
+							sprite_3d_comp->uv_rect = { uv_rect[0], uv_rect[1], uv_rect[2], uv_rect[3] };
+							sprite_3d_comp->SetDirty();
+						}
+
+						bool billboard = sprite_3d_comp->IsBillboard();
+						if (ImGui::Checkbox("Billboard", &billboard))
+						{
+							sprite_3d_comp->SetBillboard(billboard);
+						}
+					}
+					else
+					{
+						const ecs::Entity entity = picked_entity;
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+							scene.RemoveComponent<Sprite3DComponent>(entity);
+						});
+					}
+
+					ImGui::PopID();
+					ImGui::Separator();
+				}
+
+				Text3DComponent* text_3d_comp = main_view.scene->GetComponent<Text3DComponent>(picked_entity);
+				if (text_3d_comp)
+				{
+					ImGui::PushID("Text3DComponent");
+					ImGui::Text("Text3DComponent");
+					bool remove_component = DrawComponentRemoveButton("Text3DComponent");
+
+					if (!remove_component)
+					{
+						ImGui::Text("Font: %s", text_3d_comp->font && text_3d_comp->font->IsValid() ? "Assigned" : "None");
+
+						char text_buf[4096] = {};
+						strncpy_s(text_buf, text_3d_comp->text.c_str(), sizeof(text_buf) - 1);
+						if (ImGui::InputTextMultiline("Text", text_buf, sizeof(text_buf), ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 4.0f)))
+						{
+							text_3d_comp->text = text_buf;
+							text_3d_comp->SetDirty();
+						}
+
+						int pixel_height = static_cast<int>(text_3d_comp->pixel_height);
+						if (ImGui::InputInt("Pixel Height", &pixel_height))
+						{
+							text_3d_comp->pixel_height = static_cast<uint32>((std::max)(1, pixel_height));
+							text_3d_comp->SetDirty();
+						}
+
+						if (ImGui::InputFloat("Height", &text_3d_comp->height))
+						{
+							text_3d_comp->height = (std::max)(0.0f, text_3d_comp->height);
+							text_3d_comp->SetDirty();
+						}
+
+						float pivot[2] = { text_3d_comp->pivot.x, text_3d_comp->pivot.y };
+						if (ImGui::InputFloat2("Pivot", pivot))
+						{
+							text_3d_comp->pivot = { pivot[0], pivot[1] };
+							text_3d_comp->SetDirty();
+						}
+
+						bool billboard = text_3d_comp->IsBillboard();
+						if (ImGui::Checkbox("Billboard", &billboard))
+						{
+							text_3d_comp->SetBillboard(billboard);
+						}
+					}
+					else
+					{
+						const ecs::Entity entity = picked_entity;
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+							scene.RemoveComponent<Text3DComponent>(entity);
+						});
+					}
+
+					ImGui::PopID();
+					ImGui::Separator();
+				}
+
 				AnimationComponent* animation_comp = main_view.scene->GetComponent<AnimationComponent>(picked_entity);
 				if (animation_comp)
 				{
@@ -2803,6 +3074,38 @@ namespace won::editor
 						if (main_view.scene->GetComponent<GeometryComponent>(picked_entity) == nullptr)
 						{
 							main_view.scene->AddComponent<GeometryComponent>(picked_entity);
+						}
+					}
+
+					if (ImGui::MenuItem("Sprite3DComponent"))
+					{
+						if (main_view.scene->GetComponent<Sprite3DComponent>(picked_entity) == nullptr)
+						{
+							main_view.scene->AddComponent<Sprite3DComponent>(picked_entity);
+						}
+					}
+
+					if (ImGui::MenuItem("Sprite2DComponent"))
+					{
+						if (main_view.scene->GetComponent<Sprite2DComponent>(picked_entity) == nullptr)
+						{
+							main_view.scene->AddComponent<Sprite2DComponent>(picked_entity);
+						}
+					}
+
+					if (ImGui::MenuItem("Text3DComponent"))
+					{
+						if (main_view.scene->GetComponent<Text3DComponent>(picked_entity) == nullptr)
+						{
+							main_view.scene->AddComponent<Text3DComponent>(picked_entity);
+						}
+					}
+
+					if (ImGui::MenuItem("Text2DComponent"))
+					{
+						if (main_view.scene->GetComponent<Text2DComponent>(picked_entity) == nullptr)
+						{
+							main_view.scene->AddComponent<Text2DComponent>(picked_entity);
 						}
 					}
 
@@ -3167,6 +3470,130 @@ namespace won::editor
 	void EditorApplication::LoadSampleScene()
 	{
 		{
+			std::shared_ptr<resource::Font> noto_sans_font = resource::LoadFontFile(contents_root_dir + "Fonts/Noto_Sans_KR/static/NotoSansKR-Regular.ttf");
+			if (noto_sans_font && noto_sans_font->IsValid())
+			{
+				ecs::Entity text_entity = scene.CreateEntity();
+				if (auto* transform = scene.AddComponent<ecs::TransformComponent>(text_entity))
+				{
+					transform->position = { 0.0f, 3.0f, 0.0f };
+					transform->SetDirty();
+				}
+
+				if (auto* text = scene.AddComponent<ecs::Text3DComponent>(text_entity))
+				{
+					text->font = noto_sans_font;
+					//text->text = "\xED\x85\x8C\xEC\x8A\xA4\xED\x8A\xB8";
+					text->text = "Test1234!@#$";
+					text->pixel_height = 64;
+					text->height = 0.3f;
+					text->pivot = { 0.5f, 0.5f };
+					text->SetBillboard(true);
+				}
+
+				if (auto* material = scene.AddComponent<ecs::MaterialComponent>(text_entity))
+				{
+					MaterialSlot& material_slot = material->AddMaterialSlot();
+					material_slot.flags = SHADER_MATERIAL_FLAG_TRANSPARENT;
+					material_slot.base_color = { 0.35f, 0.85f, 1.0f, 1.0f };
+				}
+
+				if (auto* name = scene.AddComponent<ecs::NameComponent>(text_entity))
+				{
+					name->value = "Text 3D";
+				}
+
+				ecs::Entity text_2d_entity = scene.CreateEntity();
+				if (auto* text_2d = scene.AddComponent<ecs::Text2DComponent>(text_2d_entity))
+				{
+					text_2d->font = noto_sans_font;
+					text_2d->text = "2D Text";
+					text_2d->anchor = { 0.0f, 0.0f };
+					text_2d->position = { 24.0f, 24.0f };
+					text_2d->pixel_height = 32;
+					text_2d->pivot = { 0.0f, 0.0f };
+					text_2d->layer = 1;
+				}
+
+				if (auto* material = scene.AddComponent<ecs::MaterialComponent>(text_2d_entity))
+				{
+					MaterialSlot& material_slot = material->AddMaterialSlot();
+					material_slot.flags = SHADER_MATERIAL_FLAG_TRANSPARENT;
+					material_slot.base_color = { 1.0f, 0.78f, 0.28f, 1.0f };
+				}
+
+				if (auto* name = scene.AddComponent<ecs::NameComponent>(text_2d_entity))
+				{
+					name->value = "Text 2D";
+				}
+			}
+
+			String file_path = contents_root_dir + "/Images/env_comp.png";
+			std::shared_ptr<resource::Image> image = resource::LoadImageFile(file_path, 4);
+			if (image && image->IsValid())
+			{
+				rendering::utils::CreateRenderData(*device, *image, RHIFormat::R8G8B8A8Unorm, true);
+				if (image->render_data.IsValid())
+				{
+					ecs::Entity sprite_entity = scene.CreateEntity();
+					if (auto* transform = scene.AddComponent<ecs::TransformComponent>(sprite_entity))
+					{
+						transform->position = { 0.0f, 2.0f, 0.0f };
+						transform->SetDirty();
+					}
+
+					if (auto* sprite = scene.AddComponent<ecs::Sprite3DComponent>(sprite_entity))
+					{
+						const float sprite_height = 2.0f;
+						const float sprite_aspect = static_cast<float>(image->width) / static_cast<float>(image->height);
+						sprite->size = { sprite_height * sprite_aspect, sprite_height };
+						sprite->SetBillboard(false);
+					}
+
+					if (auto* material = scene.AddComponent<ecs::MaterialComponent>(sprite_entity))
+					{
+						MaterialSlot& material_slot = material->AddMaterialSlot();
+						material_slot.flags = SHADER_MATERIAL_FLAG_TRANSPARENT;
+						material_slot.base_color = { 1.0f, 1.0f, 1.0f, 1.0f };
+						material_slot.textures[BASECOLORMAP].name = "Test Sprite BaseColorMap";
+						material_slot.textures[BASECOLORMAP].texture = image->render_data.texture;
+						material_slot.textures[BASECOLORMAP].res_handle = image->render_data.srv;
+					}
+
+					if (auto* name = scene.AddComponent<ecs::NameComponent>(sprite_entity))
+					{
+						name->value = "Sprite 3D";
+					}
+
+					ecs::Entity sprite_2d_entity = scene.CreateEntity();
+					if (auto* sprite_2d = scene.AddComponent<ecs::Sprite2DComponent>(sprite_2d_entity))
+					{
+						const float sprite_2d_height = 128.0f;
+						const float sprite_aspect = static_cast<float>(image->width) / static_cast<float>(image->height);
+						sprite_2d->anchor = { 0.0f, 0.0f };
+						sprite_2d->position = { 24.0f, 96.0f };
+						sprite_2d->size = { sprite_2d_height * sprite_aspect, sprite_2d_height };
+						sprite_2d->pivot = { 0.0f, 0.0f };
+						sprite_2d->layer = 0;
+					}
+
+					if (auto* material = scene.AddComponent<ecs::MaterialComponent>(sprite_2d_entity))
+					{
+						MaterialSlot& material_slot = material->AddMaterialSlot();
+						material_slot.flags = SHADER_MATERIAL_FLAG_TRANSPARENT;
+						material_slot.base_color = { 1.0f, 1.0f, 1.0f, 0.55f };
+						material_slot.textures[BASECOLORMAP].name = "Test 2D Sprite BaseColorMap";
+						material_slot.textures[BASECOLORMAP].texture = image->render_data.texture;
+						material_slot.textures[BASECOLORMAP].res_handle = image->render_data.srv;
+					}
+
+					if (auto* name = scene.AddComponent<ecs::NameComponent>(sprite_2d_entity))
+					{
+						name->value = "Sprite 2D";
+					}
+				}
+			}
+
 			//String file_path = io::GetWorkingDirectory() + "/../Contents/Images/env_comp.png";
 			//std::shared_ptr<resource::Image> image = resource::LoadImageFile(file_path, 4);
 			//if (!image || !image->IsValid())

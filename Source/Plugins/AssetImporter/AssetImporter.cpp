@@ -101,43 +101,15 @@ namespace won::plugin
 
                         ecs::MaterialSlot::TextureMap& texture_map = material_comp->material_slots[texture_data.material_index].textures[texture_data.texture_slot];
 
-                        RHITextureDesc texture_desc = {};
-                        texture_desc.width = static_cast<uint32>(texture_data.image->width);
-                        texture_desc.height = static_cast<uint32>(texture_data.image->height);
-                        texture_desc.depth = 1;
-                        texture_desc.mip_levels = 1;
-                        texture_desc.array_layers = 1;
-                        texture_desc.sample_count = 1;
-                        texture_desc.format = (texture_data.texture_slot == BASECOLORMAP || texture_data.texture_slot == EMISSIVEMAP || texture_data.texture_slot == SHEENCOLORMAP)
+                        const RHIFormat texture_format = (texture_data.texture_slot == BASECOLORMAP || texture_data.texture_slot == EMISSIVEMAP || texture_data.texture_slot == SHEENCOLORMAP)
                             ? RHIFormat::R8G8B8A8UnormSrgb
                             : RHIFormat::R8G8B8A8Unorm;
-                        texture_desc.usage = RHIResourceUsage::Default;
-                        texture_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
-
-                        uint32 mip_width = texture_desc.width;
-                        uint32 mip_height = texture_desc.height;
-                        while (mip_width > 1 || mip_height > 1)
-                        {
-                            mip_width = std::max(1u, mip_width / 2u);
-                            mip_height = std::max(1u, mip_height / 2u);
-                            ++texture_desc.mip_levels;
-                        }
-
-                        texture_map.texture = device_in->CreateTexture(texture_desc, texture_data.image->pixels.data(), texture_data.image->pixels.size());
-                        if (!texture_map.texture)
+                        if (!rendering::utils::CreateRenderData(*device_in, *texture_data.image, texture_format, true))
                         {
                             continue;
                         }
-                        rendering::utils::EnqueueTextureMipGeneration(texture_map.texture);
-
-                        RHISubresourceDesc texture_srv_desc = {};
-                        texture_srv_desc.type = RHISubresourceType::ShaderResource;
-                        texture_srv_desc.first_slice = 0;
-                        texture_srv_desc.slice_count = 1;
-                        texture_srv_desc.first_mip = 0;
-                        texture_srv_desc.mip_count = texture_desc.mip_levels;
-
-                        device_in->CreateSubresource(*texture_map.texture, texture_srv_desc, &texture_map.res_handle);
+                        texture_map.texture = texture_data.image->render_data.texture;
+                        texture_map.res_handle = texture_data.image->render_data.srv;
                     }
                 }
             }
@@ -241,43 +213,15 @@ namespace won::plugin
 
                                 ecs::MaterialSlot::TextureMap& texture_map = material_comp->material_slots[texture_data.material_index].textures[texture_data.texture_slot];
 
-                                RHITextureDesc texture_desc = {};
-                                texture_desc.width = static_cast<uint32>(texture_data.image->width);
-                                texture_desc.height = static_cast<uint32>(texture_data.image->height);
-                                texture_desc.depth = 1;
-                                texture_desc.mip_levels = 1;
-                                texture_desc.array_layers = 1;
-                                texture_desc.sample_count = 1;
-                                texture_desc.format = (texture_data.texture_slot == BASECOLORMAP || texture_data.texture_slot == EMISSIVEMAP || texture_data.texture_slot == SHEENCOLORMAP)
+                                const RHIFormat texture_format = (texture_data.texture_slot == BASECOLORMAP || texture_data.texture_slot == EMISSIVEMAP || texture_data.texture_slot == SHEENCOLORMAP)
                                     ? RHIFormat::R8G8B8A8UnormSrgb
                                     : RHIFormat::R8G8B8A8Unorm;
-                                texture_desc.usage = RHIResourceUsage::Default;
-                                texture_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
-
-                                uint32 mip_width = texture_desc.width;
-                                uint32 mip_height = texture_desc.height;
-                                while (mip_width > 1 || mip_height > 1)
-                                {
-                                    mip_width = std::max(1u, mip_width / 2u);
-                                    mip_height = std::max(1u, mip_height / 2u);
-                                    ++texture_desc.mip_levels;
-                                }
-
-                                texture_map.texture = device_in->CreateTexture(texture_desc, texture_data.image->pixels.data(), texture_data.image->pixels.size());
-                                if (!texture_map.texture)
+                                if (!rendering::utils::CreateRenderData(*device_in, *texture_data.image, texture_format, true))
                                 {
                                     continue;
                                 }
-                                rendering::utils::EnqueueTextureMipGeneration(texture_map.texture);
-
-                                RHISubresourceDesc texture_srv_desc = {};
-                                texture_srv_desc.type = RHISubresourceType::ShaderResource;
-                                texture_srv_desc.first_slice = 0;
-                                texture_srv_desc.slice_count = 1;
-                                texture_srv_desc.first_mip = 0;
-                                texture_srv_desc.mip_count = texture_desc.mip_levels;
-
-                                device_in->CreateSubresource(*texture_map.texture, texture_srv_desc, &texture_map.res_handle);
+                                texture_map.texture = texture_data.image->render_data.texture;
+                                texture_map.res_handle = texture_data.image->render_data.srv;
                             }
                         }
                     }

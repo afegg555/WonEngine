@@ -32,6 +32,7 @@ int main(int argc, char** argv)
     }
 
     jobsystem::Wait(ctx);
+    jobsystem::ShutDown();
 
     return 0;
 }

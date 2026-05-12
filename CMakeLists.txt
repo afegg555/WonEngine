@@ -104,12 +104,14 @@ set(RUNTIME_RHI_DX12
 set(RUNTIME_RESOURCE
     Source/Runtime/Public/Animation.h
     Source/Runtime/Public/Resource.h
+    Source/Runtime/Public/Font.h
     Source/Runtime/Public/Image.h
     Source/Runtime/Public/Mesh.h
     Source/Runtime/Public/ShaderCompiler.h
     Source/Runtime/Public/ShaderManifest.h
     Source/Runtime/Public/ShaderLoader.h
     Source/Runtime/Private/ShaderLibrary.h
+    Source/Runtime/Private/Font.cpp
     Source/Runtime/Private/Image.cpp
     Source/Runtime/Private/ShaderCompiler.cpp
     Source/Runtime/Private/ShaderManifest.cpp
@@ -175,6 +177,10 @@ set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/NameComponent.h
     Source/Runtime/Public/GeometryComponent.h
     Source/Runtime/Public/MaterialComponent.h
+    Source/Runtime/Public/Sprite2DComponent.h
+    Source/Runtime/Public/Sprite3DComponent.h
+    Source/Runtime/Public/Text2DComponent.h
+    Source/Runtime/Public/Text3DComponent.h
     Source/Runtime/Public/TransformComponent.h
     Source/Runtime/Public/HierarchyComponent.h
     Source/Runtime/Public/CameraComponent.h
@@ -195,6 +201,8 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Public/AnimationUpdateSystem.h
     Source/Runtime/Public/TransformUpdateSystem.h
     Source/Runtime/Public/RenderableUpdateSystem.h
+    Source/Runtime/Public/SpriteUpdateSystem.h
+    Source/Runtime/Public/TextUpdateSystem.h
     Source/Runtime/Private/EnvironmentUpdateSystem.cpp
     Source/Runtime/Private/CameraUpdateSystem.cpp
     Source/Runtime/Private/GeometryUpdateSystem.cpp
@@ -203,6 +211,8 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Private/AnimationUpdateSystem.cpp
     Source/Runtime/Private/TransformUpdateSystem.cpp
     Source/Runtime/Private/RenderableUpdateSystem.cpp
+    Source/Runtime/Private/SpriteUpdateSystem.cpp
+    Source/Runtime/Private/TextUpdateSystem.cpp
 )
 
 set(RUNTIME_PLATFORM
@@ -236,13 +246,13 @@ set(SHADERS_INTEROP
     Source/Shaders/ShaderInterop.h
     Source/Shaders/ShaderInterop_BVH.h
     Source/Shaders/ShaderInterop_Renderer.h
+    Source/Shaders/ShaderInterop_Sprite.h
     Source/Shaders/ShaderInterop_Utility.h
 )
 
 set(SHADERS_HLSL
     Source/Shaders/Common.hlsli
     Source/Shaders/FullTriangleVS.hlsl
-    Source/Shaders/TestRedPS.hlsl
     Source/Shaders/SkyPS.hlsl
     Source/Shaders/ShadingCommon.hlsli
     Source/Shaders/BRDFCommon.hlsli
@@ -254,12 +264,15 @@ set(SHADERS_HLSL
     Source/Shaders/ObjectVS_simple.hlsl
     Source/Shaders/ObjectVS_common.hlsl
     Source/Shaders/ObjectVS_prepass.hlsl
-    Source/Shaders/PrimitiveVS.hlsl
-    Source/Shaders/PrimitivePS.hlsl
+    Source/Shaders/SpriteCommon.hlsli
+    Source/Shaders/Sprite2DVS.hlsl
+    Source/Shaders/Sprite3DVS.hlsl
     Source/Shaders/ObjectPS.hlsli
-    Source/Shaders/ObjectPS_simple.hlsl
+    Source/Shaders/ObjectPS_unlit.hlsl
     Source/Shaders/ObjectPS_common.hlsl
     Source/Shaders/ObjectPS_prepass.hlsl
+    Source/Shaders/SpritePS.hlsl
+    Source/Shaders/TextPS.hlsl
     Source/Shaders/DDGIProbeUpdateCS.hlsl
     Source/Shaders/GPUBVHBuildCommon.hlsli
     Source/Shaders/GPUBVHGeneratePrimitivesCS.hlsl

@@ -120,9 +120,9 @@ namespace won::resource
         source_buffer.Size = source_file.bytes.size();
         source_buffer.Encoding = DXC_CP_UTF8;
 
-        const WString entry_point_w = utils::ToWideString(entry_point);
-        const WString target_profile_w = utils::ToWideString(target_profile);
-        const WString shader_source_root_path_w = utils::ToWideString(compiler_options.shader_source_root_path);
+        const WString entry_point_w = utils::DecodeUtf8(entry_point);
+        const WString target_profile_w = utils::DecodeUtf8(target_profile);
+        const WString shader_source_root_path_w = utils::DecodeUtf8(compiler_options.shader_source_root_path);
 
         Vector<LPCWSTR> arguments =
         {
@@ -151,7 +151,7 @@ namespace won::resource
                 if (SUCCEEDED(hr))
                 {
                     std::string& filename = result->dependencies.emplace_back();
-                    filename = won::utils::ToString(pFilename);
+                    filename = won::utils::EncodeUtf8(pFilename);
                 }
                 return hr;
             }

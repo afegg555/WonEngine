@@ -14,7 +14,21 @@ namespace won::resource
         ShadowPass,
         DepthPrepass,
         MainPass,
+        Sprite2DPass,
+        Sprite3DPass,
         Count
+    };
+
+    enum class Sprite3DPassMode : uint8
+    {
+        Sprite,
+        Text
+    };
+
+    enum class Sprite2DPassMode : uint8
+    {
+        Sprite,
+        Text
     };
 
     struct GraphicsPipelineHash
@@ -22,11 +36,12 @@ namespace won::resource
         struct Bits
         {
             uint64 render_pass_type : 5;
+            uint64 pass_mode : 4; // additional bits for render pass
             uint64 topology : 3;
             uint64 depth_compare : 4;
             uint64 cull_mode : 2;
             uint64 fill_mode : 1;
-            uint64 reserved : 49;
+            uint64 reserved : 45;
         };
 
         union Storage

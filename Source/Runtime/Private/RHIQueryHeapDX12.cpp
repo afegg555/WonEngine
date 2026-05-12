@@ -20,7 +20,7 @@ namespace won::rendering
             return;
         }
 
-        query_heap->SetName(won::utils::ToWideString(name).c_str());
+        query_heap->SetName(won::utils::DecodeUtf8(name).c_str());
     }
 
     const String& RHIQueryHeapDX12::GetName() const
