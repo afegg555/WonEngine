@@ -50,7 +50,9 @@ namespace won::ecs
             component_manager.RegisterComponent<NameComponent>();
             component_manager.RegisterComponent<GeometryComponent>();
             component_manager.RegisterComponent<MaterialComponent>();
+            component_manager.RegisterComponent<Sprite2DComponent>();
             component_manager.RegisterComponent<Sprite3DComponent>();
+            component_manager.RegisterComponent<Text2DComponent>();
             component_manager.RegisterComponent<Text3DComponent>();
             component_manager.RegisterComponent<CameraComponent>();
             component_manager.RegisterComponent<LightComponent>();
@@ -751,6 +753,17 @@ namespace won::ecs
                 }
             };
 
+            struct Sprite2DRenderable
+            {
+                uint32 material_index = 0;
+                float2 anchor = { 0.0f, 0.0f };
+                float2 position = { 0.0f, 0.0f };
+                float2 size = { 1.0f, 1.0f };
+                float2 pivot = { 0.5f, 0.5f };
+                float4 uv_rect = { 0.0f, 0.0f, 1.0f, 1.0f };
+                int32 layer = 0;
+            };
+
             struct Text3DRenderable
             {
                 enum Flags : uint32
@@ -773,6 +786,17 @@ namespace won::ecs
                 }
             };
 
+            struct Text2DRenderable
+            {
+                uint32 material_index = 0;
+                std::shared_ptr<resource::Font> font;
+                float2 anchor = { 0.0f, 0.0f };
+                float2 position = { 0.0f, 0.0f };
+                float2 size = { 0.0f, 0.0f };
+                float4 uv_rect = { 0.0f, 0.0f, 0.0f, 0.0f };
+                int32 layer = 0;
+            };
+
             ShaderSky shader_sky;
             ShaderEnvironmentLighting shader_environment_lighting;
             ShaderDDGIVolume shader_ddgi_volume;
@@ -787,6 +811,8 @@ namespace won::ecs
             Vector<Renderable> double_sided_renderables;
             Vector<Renderable> line_renderables;
             Vector<Renderable> point_renderables;
+            Vector<Sprite2DRenderable> sprite_2d_renderables;
+            Vector<Text2DRenderable> text_2d_renderables;
             Vector<Sprite3DRenderable> sprite_3d_renderables;
             Vector<Text3DRenderable> text_3d_renderables;
 
@@ -811,6 +837,8 @@ namespace won::ecs
                 double_sided_renderables.clear();
                 line_renderables.clear();
                 point_renderables.clear();
+                sprite_2d_renderables.clear();
+                text_2d_renderables.clear();
                 sprite_3d_renderables.clear();
                 text_3d_renderables.clear();
 

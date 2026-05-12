@@ -177,7 +177,9 @@ set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/NameComponent.h
     Source/Runtime/Public/GeometryComponent.h
     Source/Runtime/Public/MaterialComponent.h
+    Source/Runtime/Public/Sprite2DComponent.h
     Source/Runtime/Public/Sprite3DComponent.h
+    Source/Runtime/Public/Text2DComponent.h
     Source/Runtime/Public/Text3DComponent.h
     Source/Runtime/Public/TransformComponent.h
     Source/Runtime/Public/HierarchyComponent.h
@@ -263,7 +265,8 @@ set(SHADERS_HLSL
     Source/Shaders/ObjectVS_common.hlsl
     Source/Shaders/ObjectVS_prepass.hlsl
     Source/Shaders/SpriteCommon.hlsli
-    Source/Shaders/SpriteVS.hlsl
+    Source/Shaders/Sprite2DVS.hlsl
+    Source/Shaders/Sprite3DVS.hlsl
     Source/Shaders/ObjectPS.hlsli
     Source/Shaders/ObjectPS_unlit.hlsl
     Source/Shaders/ObjectPS_common.hlsl

@@ -9,6 +9,7 @@ namespace won::resource
         VSObjectCommon,
         VSObjectSimple,
         VSObjectPrepass,
+        VSSprite2D,
         VSSprite3D,
 
         PSSky,

@@ -14,11 +14,18 @@ namespace won::resource
         ShadowPass,
         DepthPrepass,
         MainPass,
+        Sprite2DPass,
         Sprite3DPass,
         Count
     };
 
     enum class Sprite3DPassMode : uint8
+    {
+        Sprite,
+        Text
+    };
+
+    enum class Sprite2DPassMode : uint8
     {
         Sprite,
         Text

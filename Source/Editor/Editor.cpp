@@ -2487,6 +2487,131 @@ namespace won::editor
 					ImGui::Separator();
 				}
 
+				Sprite2DComponent* sprite_2d_comp = main_view.scene->GetComponent<Sprite2DComponent>(picked_entity);
+				if (sprite_2d_comp)
+				{
+					ImGui::PushID("Sprite2DComponent");
+					ImGui::Text("Sprite2DComponent");
+					bool remove_component = DrawComponentRemoveButton("Sprite2DComponent");
+
+					if (!remove_component)
+					{
+						float anchor[2] = { sprite_2d_comp->anchor.x, sprite_2d_comp->anchor.y };
+						if (ImGui::InputFloat2("Anchor", anchor))
+						{
+							sprite_2d_comp->anchor = { anchor[0], anchor[1] };
+							sprite_2d_comp->SetDirty();
+						}
+
+						float position[2] = { sprite_2d_comp->position.x, sprite_2d_comp->position.y };
+						if (ImGui::InputFloat2("Position", position))
+						{
+							sprite_2d_comp->position = { position[0], position[1] };
+							sprite_2d_comp->SetDirty();
+						}
+
+						float size[2] = { sprite_2d_comp->size.x, sprite_2d_comp->size.y };
+						if (ImGui::InputFloat2("Size", size))
+						{
+							sprite_2d_comp->size = { size[0], size[1] };
+							sprite_2d_comp->SetDirty();
+						}
+
+						float pivot[2] = { sprite_2d_comp->pivot.x, sprite_2d_comp->pivot.y };
+						if (ImGui::InputFloat2("Pivot", pivot))
+						{
+							sprite_2d_comp->pivot = { pivot[0], pivot[1] };
+							sprite_2d_comp->SetDirty();
+						}
+
+						float uv_rect[4] = { sprite_2d_comp->uv_rect.x, sprite_2d_comp->uv_rect.y, sprite_2d_comp->uv_rect.z, sprite_2d_comp->uv_rect.w };
+						if (ImGui::InputFloat4("UV Rect", uv_rect))
+						{
+							sprite_2d_comp->uv_rect = { uv_rect[0], uv_rect[1], uv_rect[2], uv_rect[3] };
+							sprite_2d_comp->SetDirty();
+						}
+
+						if (ImGui::InputInt("Layer", &sprite_2d_comp->layer))
+						{
+							sprite_2d_comp->SetDirty();
+						}
+					}
+					else
+					{
+						const ecs::Entity entity = picked_entity;
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+							scene.RemoveComponent<Sprite2DComponent>(entity);
+						});
+					}
+
+					ImGui::PopID();
+					ImGui::Separator();
+				}
+
+				Text2DComponent* text_2d_comp = main_view.scene->GetComponent<Text2DComponent>(picked_entity);
+				if (text_2d_comp)
+				{
+					ImGui::PushID("Text2DComponent");
+					ImGui::Text("Text2DComponent");
+					bool remove_component = DrawComponentRemoveButton("Text2DComponent");
+
+					if (!remove_component)
+					{
+						ImGui::Text("Font: %s", text_2d_comp->font && text_2d_comp->font->IsValid() ? "Assigned" : "None");
+
+						char text_buf[4096] = {};
+						strncpy_s(text_buf, text_2d_comp->text.c_str(), sizeof(text_buf) - 1);
+						if (ImGui::InputTextMultiline("Text", text_buf, sizeof(text_buf), ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 4.0f)))
+						{
+							text_2d_comp->text = text_buf;
+							text_2d_comp->SetDirty();
+						}
+
+						float anchor[2] = { text_2d_comp->anchor.x, text_2d_comp->anchor.y };
+						if (ImGui::InputFloat2("Anchor", anchor))
+						{
+							text_2d_comp->anchor = { anchor[0], anchor[1] };
+							text_2d_comp->SetDirty();
+						}
+
+						float position[2] = { text_2d_comp->position.x, text_2d_comp->position.y };
+						if (ImGui::InputFloat2("Position", position))
+						{
+							text_2d_comp->position = { position[0], position[1] };
+							text_2d_comp->SetDirty();
+						}
+
+						int pixel_height = static_cast<int>(text_2d_comp->pixel_height);
+						if (ImGui::InputInt("Pixel Height", &pixel_height))
+						{
+							text_2d_comp->pixel_height = static_cast<uint32>((std::max)(1, pixel_height));
+							text_2d_comp->SetDirty();
+						}
+
+						float pivot[2] = { text_2d_comp->pivot.x, text_2d_comp->pivot.y };
+						if (ImGui::InputFloat2("Pivot", pivot))
+						{
+							text_2d_comp->pivot = { pivot[0], pivot[1] };
+							text_2d_comp->SetDirty();
+						}
+
+						if (ImGui::InputInt("Layer", &text_2d_comp->layer))
+						{
+							text_2d_comp->SetDirty();
+						}
+					}
+					else
+					{
+						const ecs::Entity entity = picked_entity;
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+							scene.RemoveComponent<Text2DComponent>(entity);
+						});
+					}
+
+					ImGui::PopID();
+					ImGui::Separator();
+				}
+
 				Sprite3DComponent* sprite_3d_comp = main_view.scene->GetComponent<Sprite3DComponent>(picked_entity);
 				if (sprite_3d_comp)
 				{
@@ -2960,11 +3085,27 @@ namespace won::editor
 						}
 					}
 
+					if (ImGui::MenuItem("Sprite2DComponent"))
+					{
+						if (main_view.scene->GetComponent<Sprite2DComponent>(picked_entity) == nullptr)
+						{
+							main_view.scene->AddComponent<Sprite2DComponent>(picked_entity);
+						}
+					}
+
 					if (ImGui::MenuItem("Text3DComponent"))
 					{
 						if (main_view.scene->GetComponent<Text3DComponent>(picked_entity) == nullptr)
 						{
 							main_view.scene->AddComponent<Text3DComponent>(picked_entity);
+						}
+					}
+
+					if (ImGui::MenuItem("Text2DComponent"))
+					{
+						if (main_view.scene->GetComponent<Text2DComponent>(picked_entity) == nullptr)
+						{
+							main_view.scene->AddComponent<Text2DComponent>(picked_entity);
 						}
 					}
 
@@ -3352,12 +3493,38 @@ namespace won::editor
 
 				if (auto* material = scene.AddComponent<ecs::MaterialComponent>(text_entity))
 				{
-
+					MaterialSlot& material_slot = material->AddMaterialSlot();
+					material_slot.flags = SHADER_MATERIAL_FLAG_TRANSPARENT;
+					material_slot.base_color = { 0.35f, 0.85f, 1.0f, 1.0f };
 				}
 
 				if (auto* name = scene.AddComponent<ecs::NameComponent>(text_entity))
 				{
-					name->value = "Text Test";
+					name->value = "Text 3D";
+				}
+
+				ecs::Entity text_2d_entity = scene.CreateEntity();
+				if (auto* text_2d = scene.AddComponent<ecs::Text2DComponent>(text_2d_entity))
+				{
+					text_2d->font = noto_sans_font;
+					text_2d->text = "2D Text";
+					text_2d->anchor = { 0.0f, 0.0f };
+					text_2d->position = { 24.0f, 24.0f };
+					text_2d->pixel_height = 32;
+					text_2d->pivot = { 0.0f, 0.0f };
+					text_2d->layer = 1;
+				}
+
+				if (auto* material = scene.AddComponent<ecs::MaterialComponent>(text_2d_entity))
+				{
+					MaterialSlot& material_slot = material->AddMaterialSlot();
+					material_slot.flags = SHADER_MATERIAL_FLAG_TRANSPARENT;
+					material_slot.base_color = { 1.0f, 0.78f, 0.28f, 1.0f };
+				}
+
+				if (auto* name = scene.AddComponent<ecs::NameComponent>(text_2d_entity))
+				{
+					name->value = "Text 2D";
 				}
 			}
 
@@ -3395,7 +3562,34 @@ namespace won::editor
 
 					if (auto* name = scene.AddComponent<ecs::NameComponent>(sprite_entity))
 					{
-						name->value = "Test 3D Sprite";
+						name->value = "Sprite 3D";
+					}
+
+					ecs::Entity sprite_2d_entity = scene.CreateEntity();
+					if (auto* sprite_2d = scene.AddComponent<ecs::Sprite2DComponent>(sprite_2d_entity))
+					{
+						const float sprite_2d_height = 128.0f;
+						const float sprite_aspect = static_cast<float>(image->width) / static_cast<float>(image->height);
+						sprite_2d->anchor = { 0.0f, 0.0f };
+						sprite_2d->position = { 24.0f, 96.0f };
+						sprite_2d->size = { sprite_2d_height * sprite_aspect, sprite_2d_height };
+						sprite_2d->pivot = { 0.0f, 0.0f };
+						sprite_2d->layer = 0;
+					}
+
+					if (auto* material = scene.AddComponent<ecs::MaterialComponent>(sprite_2d_entity))
+					{
+						MaterialSlot& material_slot = material->AddMaterialSlot();
+						material_slot.flags = SHADER_MATERIAL_FLAG_TRANSPARENT;
+						material_slot.base_color = { 1.0f, 1.0f, 1.0f, 0.55f };
+						material_slot.textures[BASECOLORMAP].name = "Test 2D Sprite BaseColorMap";
+						material_slot.textures[BASECOLORMAP].texture = image->render_data.texture;
+						material_slot.textures[BASECOLORMAP].res_handle = image->render_data.srv;
+					}
+
+					if (auto* name = scene.AddComponent<ecs::NameComponent>(sprite_2d_entity))
+					{
+						name->value = "Sprite 2D";
 					}
 				}
 			}

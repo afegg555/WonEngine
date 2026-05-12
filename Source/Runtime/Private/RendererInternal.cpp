@@ -1711,6 +1711,113 @@ namespace won::rendering
             }
         }
 
+        if (pass == RenderPassType::Sprite2DPass && (flags & DrawScene_2DSprite) != 0 && (!render_data.sprite_2d_renderables.empty() || !render_data.text_2d_renderables.empty()))
+        {
+            struct Sprite2DDrawItem
+            {
+                enum Type : uint32
+                {
+                    Sprite,
+                    Text
+                };
+
+                Type type = Sprite;
+                Size index = 0;
+                int32 layer = 0;
+            };
+
+            GraphicsPipelineHash sprite_2d_pipeline_hash = {};
+            sprite_2d_pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::Sprite2DPass);
+            sprite_2d_pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
+            sprite_2d_pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
+            sprite_2d_pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
+            sprite_2d_pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::Always);
+            sprite_2d_pipeline_hash.storage.bits.pass_mode = static_cast<uint64>(Sprite2DPassMode::Sprite);
+
+            GraphicsPipelineHash text_2d_pipeline_hash = sprite_2d_pipeline_hash;
+            text_2d_pipeline_hash.storage.bits.pass_mode = static_cast<uint64>(Sprite2DPassMode::Text);
+
+            std::shared_ptr<RHIPipeline> sprite_2d_pipeline = shader_library.GetPipeline(sprite_2d_pipeline_hash);
+            std::shared_ptr<RHIPipeline> text_2d_pipeline = shader_library.GetPipeline(text_2d_pipeline_hash);
+            if (!sprite_2d_pipeline || !text_2d_pipeline)
+            {
+                return false;
+            }
+
+            Vector<Sprite2DDrawItem> draw_items;
+            draw_items.reserve(render_data.sprite_2d_renderables.size() + render_data.text_2d_renderables.size());
+            for (Size sprite_index = 0; sprite_index < render_data.sprite_2d_renderables.size(); ++sprite_index)
+            {
+                const Scene::RenderData::Sprite2DRenderable& renderable = render_data.sprite_2d_renderables[sprite_index];
+                draw_items.push_back({ Sprite2DDrawItem::Sprite, sprite_index, renderable.layer });
+            }
+            for (Size text_index = 0; text_index < render_data.text_2d_renderables.size(); ++text_index)
+            {
+                const Scene::RenderData::Text2DRenderable& renderable = render_data.text_2d_renderables[text_index];
+                draw_items.push_back({ Sprite2DDrawItem::Text, text_index, renderable.layer });
+            }
+            std::stable_sort(draw_items.begin(), draw_items.end(), [](const Sprite2DDrawItem& lhs, const Sprite2DDrawItem& rhs) {
+                return lhs.layer < rhs.layer;
+            });
+
+            const float2 viewport_size = { static_cast<float>(view.viewport.width), static_cast<float>(view.viewport.height) };
+            auto pack_sprite_2d_position = [&](const float2& anchor, const float2& position)
+            {
+                const float2 pixel_position = { anchor.x * viewport_size.x + position.x, anchor.y * viewport_size.y + position.y };
+                const float normalized_x = viewport_size.x > 0.0f ? pixel_position.x / viewport_size.x : 0.0f;
+                const float normalized_y = viewport_size.y > 0.0f ? pixel_position.y / viewport_size.y : 0.0f;
+                return static_cast<uint32>(XMConvertFloatToHalf(normalized_x)) | (static_cast<uint32>(XMConvertFloatToHalf(normalized_y)) << 16);
+            };
+
+            command_list.SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
+            Sprite2DDrawItem::Type active_type = Sprite2DDrawItem::Text;
+            bool has_active_pipeline = false;
+            for (const Sprite2DDrawItem& item : draw_items)
+            {
+                if (!has_active_pipeline || active_type != item.type)
+                {
+                    active_type = item.type;
+                    has_active_pipeline = true;
+                    command_list.SetGraphicsPipeline(item.type == Sprite2DDrawItem::Sprite ? *sprite_2d_pipeline : *text_2d_pipeline);
+                }
+
+                if (item.type == Sprite2DDrawItem::Sprite)
+                {
+                    const Scene::RenderData::Sprite2DRenderable& renderable = render_data.sprite_2d_renderables[item.index];
+                    SpritePushConstants push_constants = {};
+                    push_constants.Init();
+                    push_constants.size_pivot = { renderable.size.x, renderable.size.y, renderable.pivot.x, renderable.pivot.y };
+                    push_constants.uv_rect = renderable.uv_rect;
+                    push_constants.instance_index = pack_sprite_2d_position(renderable.anchor, renderable.position);
+                    push_constants.material_index = renderable.material_index;
+                    command_list.PushConstants(RHIShaderStage::Vertex, &push_constants, sizeof(SpritePushConstants), 0);
+                    command_list.Draw(6, 1, 0, 0);
+                }
+                else
+                {
+                    const Scene::RenderData::Text2DRenderable& renderable = render_data.text_2d_renderables[item.index];
+                    if (!renderable.font || !utils::CreateRenderData(*device, *renderable.font) || !renderable.font->render_data.IsValid())
+                    {
+                        continue;
+                    }
+                    if (renderable.size.x <= 0.0f || renderable.size.y <= 0.0f)
+                    {
+                        continue;
+                    }
+
+                    SpritePushConstants push_constants = {};
+                    push_constants.Init();
+                    push_constants.size_pivot = { renderable.size.x, renderable.size.y, 0.0f, 0.0f };
+                    push_constants.uv_rect = renderable.uv_rect;
+                    push_constants.instance_index = pack_sprite_2d_position(renderable.anchor, renderable.position);
+                    push_constants.material_index = renderable.material_index;
+                    push_constants.SetResourceIndex(static_cast<uint32>(renderable.font->render_data.atlas_srv.descriptor_index));
+                    command_list.PushConstants(RHIShaderStage::Vertex, &push_constants, sizeof(SpritePushConstants), 0);
+                    command_list.Draw(6, 1, 0, 0);
+                }
+            }
+        }
+
         return true;
     }
 
@@ -2336,6 +2443,19 @@ namespace won::rendering
                 {
                     auto cpu_range = profiler::ScopedRangeCPU("Draw Sprite/Text3D Pass");
                     DrawScene(frame_context, view, RenderPassType::Sprite3DPass, DrawScene_3DSprite, *command_list);
+                }
+                command_list->EndEvent();
+            }
+
+            // sprite 2d pass
+            {
+                auto gpu_range = profiler::ScopedRangeGPU("Sprite2D Pass", *command_list);
+                command_list->BeginEvent("Sprite2D Pass");
+
+                command_list->SetRenderTargets(color_targets, nullptr);
+                {
+                    auto cpu_range = profiler::ScopedRangeCPU("Draw Sprite2D Pass");
+                    DrawScene(frame_context, view, RenderPassType::Sprite2DPass, DrawScene_2DSprite, *command_list);
                 }
                 command_list->EndEvent();
             }
