@@ -3,6 +3,8 @@
 #include "Entity.h"
 #include "Mesh.h"
 
+#define EDITOR_USE_CUSTOM_TITLEBAR
+
 namespace won::plugin
 {
 	struct AssetImportTask;

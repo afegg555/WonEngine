@@ -467,6 +467,6 @@ if(MSVC)
 endif()
 
 if(WIN32)
-    target_link_libraries(Runtime PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler)
+    target_link_libraries(Runtime PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler dwmapi)
     target_link_libraries(Editor PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler)
 endif()

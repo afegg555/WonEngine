@@ -1609,6 +1609,71 @@ namespace won::editor
 				ImGui::EndMenu();
 			}
 
+#ifdef EDITOR_USE_CUSTOM_TITLEBAR
+			const float button_size = ImGui::GetFrameHeight();
+			const float button_spacing = ImGui::GetStyle().ItemSpacing.x;
+			const float controls_width = button_size * 3.0f + button_spacing * 2.0f;
+			const float controls_pos_x = ImGui::GetWindowWidth() - controls_width - ImGui::GetStyle().WindowPadding.x;
+			const float drag_width = (std::max)(0.0f, controls_pos_x - ImGui::GetCursorPosX() - button_spacing);
+			ImGui::InvisibleButton("TitleBarDragZone", ImVec2(drag_width, button_size));
+			if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+			{
+				if (window->IsMaximized())
+				{
+					window->Restore();
+				}
+				else
+				{
+					window->Maximize();
+				}
+			}
+			static bool title_bar_dragging = false;
+			static int drag_start_cursor_x = 0;
+			static int drag_start_cursor_y = 0;
+			static int drag_start_window_x = 0;
+			static int drag_start_window_y = 0;
+			if (ImGui::IsItemActivated())
+			{
+				title_bar_dragging = window->GetCursorPosition(drag_start_cursor_x, drag_start_cursor_y) && window->GetPosition(drag_start_window_x, drag_start_window_y);
+			}
+			if (title_bar_dragging && ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+			{
+				int cursor_x = 0;
+				int cursor_y = 0;
+				if (window->GetCursorPosition(cursor_x, cursor_y))
+				{
+					window->SetPosition(drag_start_window_x + cursor_x - drag_start_cursor_x, drag_start_window_y + cursor_y - drag_start_cursor_y);
+				}
+			}
+			if (!ImGui::IsItemActive())
+			{
+				title_bar_dragging = false;
+			}
+			ImGui::SameLine();
+			ImGui::SetCursorPosX(controls_pos_x);
+			if (ImGui::Button("\xE2\x88\x92", ImVec2(button_size, button_size)))
+			{
+				window->Minimize();
+			}
+			ImGui::SameLine();
+			if (ImGui::Button(window->IsMaximized() ? "\xE2\x96\xA3" : "\xE2\x96\xA1", ImVec2(button_size, button_size)))
+			{
+				if (window->IsMaximized())
+				{
+					window->Restore();
+				}
+				else
+				{
+					window->Maximize();
+				}
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("\xC3\x97", ImVec2(button_size, button_size)))
+			{
+				window->Close();
+			}
+#endif
+
 			ImGui::EndMenuBar();
 		}
 
