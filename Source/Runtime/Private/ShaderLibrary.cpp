@@ -197,11 +197,12 @@ namespace won::resource
         pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
         pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
         pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
+        pipeline_hash.storage.bits.pass_mode = static_cast<uint64>(Sprite3DPassMode::Sprite);
         graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
 
         pipeline_desc.vertex_shader = GetShader(ShaderId::VSSprite3D).get();
         pipeline_desc.pixel_shader = GetShader(ShaderId::PSText3D).get();
-        pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::Text3DPass);
+        pipeline_hash.storage.bits.pass_mode = static_cast<uint64>(Sprite3DPassMode::Text);
         graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
 
         return true;

@@ -1568,85 +1568,146 @@ namespace won::rendering
             }
         }
 
-        if (pass == RenderPassType::Sprite3DPass && (flags & DrawScene_Sprite) != 0 && !render_data.sprite_3d_renderables.empty())
+        if (pass == RenderPassType::Sprite3DPass && (flags & (DrawScene_Sprite | DrawScene_Text)) != 0 && (!render_data.sprite_3d_renderables.empty() || !render_data.text_3d_renderables.empty()))
         {
+            struct SpriteTextDrawItem
+            {
+                enum Type : uint32
+                {
+                    Sprite,
+                    Text
+                };
+
+                Type type = Sprite;
+                Size index = 0;
+                float distance_sq = 0.0f;
+            };
+
             GraphicsPipelineHash sprite_pipeline_hash = {};
             sprite_pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::Sprite3DPass);
             sprite_pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
             sprite_pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
             sprite_pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
             sprite_pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
+            sprite_pipeline_hash.storage.bits.pass_mode = static_cast<uint64>(Sprite3DPassMode::Sprite);
 
-            std::shared_ptr<RHIPipeline> sprite_pipeline = shader_library.GetPipeline(sprite_pipeline_hash);
-            if (!sprite_pipeline)
-            {
-                return false;
-            }
-
-            command_list.SetGraphicsPipeline(*sprite_pipeline);
-            command_list.SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
-
-            for (const auto& renderable : render_data.sprite_3d_renderables)
-            {
-                SpritePushConstants push_constants = {};
-                push_constants.Init();
-                push_constants.size_pivot = { renderable.size.x, renderable.size.y, renderable.pivot.x, renderable.pivot.y };
-                push_constants.uv_rect = renderable.uv_rect;
-                push_constants.instance_index = renderable.instance_index;
-                push_constants.material_index = renderable.material_index;
-                if (renderable.IsBillboard())
-                {
-                    push_constants.flags |= SHADER_SPRITE_FLAG_BILLBOARD;
-                }
-                command_list.PushConstants(RHIShaderStage::Vertex, &push_constants, sizeof(SpritePushConstants), 0);
-                command_list.Draw(6, 1, 0, 0);
-            }
-        }
-
-        if (pass == RenderPassType::Text3DPass && (flags & DrawScene_Text) != 0 && !render_data.text_3d_renderables.empty())
-        {
             GraphicsPipelineHash text_pipeline_hash = {};
-            text_pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::Text3DPass);
+            text_pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::Sprite3DPass);
             text_pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
             text_pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
             text_pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
             text_pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
+            text_pipeline_hash.storage.bits.pass_mode = static_cast<uint64>(Sprite3DPassMode::Text);
 
-            std::shared_ptr<RHIPipeline> text_pipeline = shader_library.GetPipeline(text_pipeline_hash);
-            if (!text_pipeline)
+            std::shared_ptr<RHIPipeline> sprite_pipeline = (flags & DrawScene_Sprite) != 0 ? shader_library.GetPipeline(sprite_pipeline_hash) : nullptr;
+            std::shared_ptr<RHIPipeline> text_pipeline = (flags & DrawScene_Text) != 0 ? shader_library.GetPipeline(text_pipeline_hash) : nullptr;
+            if (((flags & DrawScene_Sprite) != 0 && !sprite_pipeline) || ((flags & DrawScene_Text) != 0 && !text_pipeline))
             {
                 return false;
             }
 
-            command_list.SetGraphicsPipeline(*text_pipeline);
-            command_list.SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
-
-            for (const auto& renderable : render_data.text_3d_renderables)
+            float3 camera_position = {};
+            if (const ecs::CameraComponent* camera_component = view.scene->GetComponent<ecs::CameraComponent>(view.camera_entity))
             {
-                if (!renderable.font || !utils::CreateRenderData(*device, *renderable.font) || !renderable.font->render_data.IsValid())
+                camera_position = camera_component->eye;
+            }
+
+            auto get_distance_sq = [&](uint32 instance_index, const float2& local_center)
+            {
+                if (instance_index >= render_data.shader_instances.size())
                 {
-                    continue;
+                    return 0.0f;
                 }
 
-                if (renderable.size.x <= 0.0f || renderable.size.y <= 0.0f)
+                float3 world_center = {};
+                const ShaderInstance& instance = render_data.shader_instances[instance_index];
+                XMVECTOR xcenter = XMVectorSet(local_center.x, local_center.y, 0.0f, 1.0f);
+                XMMATRIX xworld = XMLoadFloat4x4(&instance.world_transform);
+                XMStoreFloat3(&world_center, XMVector3Transform(xcenter, xworld));
+                const float3 to_camera = { world_center.x - camera_position.x, world_center.y - camera_position.y, world_center.z - camera_position.z };
+                return to_camera.x * to_camera.x + to_camera.y * to_camera.y + to_camera.z * to_camera.z;
+            };
+
+            Vector<SpriteTextDrawItem> draw_items;
+            if ((flags & DrawScene_Sprite) != 0)
+            {
+                draw_items.reserve(draw_items.size() + render_data.sprite_3d_renderables.size());
+                for (Size sprite_index = 0; sprite_index < render_data.sprite_3d_renderables.size(); ++sprite_index)
                 {
-                    continue;
+                    const Scene::RenderData::Sprite3DRenderable& renderable = render_data.sprite_3d_renderables[sprite_index];
+                    const float2 local_center = { (0.5f - renderable.pivot.x) * renderable.size.x, (0.5f - renderable.pivot.y) * renderable.size.y };
+                    draw_items.push_back({ SpriteTextDrawItem::Sprite, sprite_index, get_distance_sq(renderable.instance_index, local_center) });
+                }
+            }
+            if ((flags & DrawScene_Text) != 0)
+            {
+                draw_items.reserve(draw_items.size() + render_data.text_3d_renderables.size());
+                for (Size text_index = 0; text_index < render_data.text_3d_renderables.size(); ++text_index)
+                {
+                    const Scene::RenderData::Text3DRenderable& renderable = render_data.text_3d_renderables[text_index];
+                    const float2 local_center = { renderable.position.x + renderable.size.x * 0.5f, renderable.position.y + renderable.size.y * 0.5f };
+                    draw_items.push_back({ SpriteTextDrawItem::Text, text_index, get_distance_sq(renderable.instance_index, local_center) });
+                }
+            }
+
+            std::sort(draw_items.begin(), draw_items.end(), [](const SpriteTextDrawItem& lhs, const SpriteTextDrawItem& rhs) {
+                return lhs.distance_sq > rhs.distance_sq;
+            });
+
+            command_list.SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
+            SpriteTextDrawItem::Type active_type = SpriteTextDrawItem::Text;
+            bool has_active_pipeline = false;
+            for (const SpriteTextDrawItem& item : draw_items)
+            {
+                if (!has_active_pipeline || active_type != item.type)
+                {
+                    active_type = item.type;
+                    has_active_pipeline = true;
+                    command_list.SetGraphicsPipeline(item.type == SpriteTextDrawItem::Sprite ? *sprite_pipeline : *text_pipeline);
                 }
 
-                SpritePushConstants sprite_push_constants = {};
-                sprite_push_constants.Init();
-                sprite_push_constants.size_pivot = { renderable.size.x, renderable.size.y, -renderable.position.x / renderable.size.x, -renderable.position.y / renderable.size.y };
-                sprite_push_constants.uv_rect = renderable.uv_rect;
-                sprite_push_constants.instance_index = renderable.instance_index;
-                if (renderable.IsBillboard())
+                if (item.type == SpriteTextDrawItem::Sprite)
                 {
-                    sprite_push_constants.flags |= SHADER_SPRITE_FLAG_BILLBOARD;
+                    const Scene::RenderData::Sprite3DRenderable& renderable = render_data.sprite_3d_renderables[item.index];
+                    SpritePushConstants push_constants = {};
+                    push_constants.Init();
+                    push_constants.size_pivot = { renderable.size.x, renderable.size.y, renderable.pivot.x, renderable.pivot.y };
+                    push_constants.uv_rect = renderable.uv_rect;
+                    push_constants.instance_index = renderable.instance_index;
+                    push_constants.material_index = renderable.material_index;
+                    if (renderable.IsBillboard())
+                    {
+                        push_constants.flags |= SHADER_SPRITE_FLAG_BILLBOARD;
+                    }
+                    command_list.PushConstants(RHIShaderStage::Vertex, &push_constants, sizeof(SpritePushConstants), 0);
+                    command_list.Draw(6, 1, 0, 0);
                 }
-                sprite_push_constants.material_index = renderable.material_index;
-                sprite_push_constants.SetResourceIndex(static_cast<uint32>(renderable.font->render_data.atlas_srv.descriptor_index));
+                else
+                {
+                    const Scene::RenderData::Text3DRenderable& renderable = render_data.text_3d_renderables[item.index];
+                    if (!renderable.font || !utils::CreateRenderData(*device, *renderable.font) || !renderable.font->render_data.IsValid())
+                    {
+                        continue;
+                    }
+                    if (renderable.size.x <= 0.0f || renderable.size.y <= 0.0f)
+                    {
+                        continue;
+                    }
 
-                command_list.PushConstants(RHIShaderStage::Vertex, &sprite_push_constants, sizeof(SpritePushConstants), 0);
-                command_list.Draw(6, 1, 0, 0);
+                    SpritePushConstants sprite_push_constants = {};
+                    sprite_push_constants.Init();
+                    sprite_push_constants.size_pivot = { renderable.size.x, renderable.size.y, -renderable.position.x / renderable.size.x, -renderable.position.y / renderable.size.y };
+                    sprite_push_constants.uv_rect = renderable.uv_rect;
+                    sprite_push_constants.instance_index = renderable.instance_index;
+                    if (renderable.IsBillboard())
+                    {
+                        sprite_push_constants.flags |= SHADER_SPRITE_FLAG_BILLBOARD;
+                    }
+                    sprite_push_constants.material_index = renderable.material_index;
+                    sprite_push_constants.SetResourceIndex(static_cast<uint32>(renderable.font->render_data.atlas_srv.descriptor_index));
+                    command_list.PushConstants(RHIShaderStage::Vertex, &sprite_push_constants, sizeof(SpritePushConstants), 0);
+                    command_list.Draw(6, 1, 0, 0);
+                }
             }
         }
 
@@ -2266,28 +2327,15 @@ namespace won::rendering
                 command_list->EndEvent();
             }
 
-            // sprite 3d pass
+            // sprite/text 3d pass
             {
-                auto gpu_range = profiler::ScopedRangeGPU("Sprite3D Pass", *command_list);
-                command_list->BeginEvent("Sprite3D Pass");
+                auto gpu_range = profiler::ScopedRangeGPU("Sprite/Text3D Pass", *command_list);
+                command_list->BeginEvent("Sprite/Text3D Pass");
 
                 command_list->SetRenderTargets(color_targets, &depth_buffer_binding);
                 {
-                    auto cpu_range = profiler::ScopedRangeCPU("Draw Sprite3D Pass");
-                    DrawScene(frame_context, view, RenderPassType::Sprite3DPass, DrawScene_Sprite, *command_list);
-                }
-                command_list->EndEvent();
-            }
-
-            // text 3d pass
-            {
-                auto gpu_range = profiler::ScopedRangeGPU("Text3D Pass", *command_list);
-                command_list->BeginEvent("Text3D Pass");
-
-                command_list->SetRenderTargets(color_targets, &depth_buffer_binding);
-                {
-                    auto cpu_range = profiler::ScopedRangeCPU("Draw Text3D Pass");
-                    DrawScene(frame_context, view, RenderPassType::Text3DPass, DrawScene_Text, *command_list);
+                    auto cpu_range = profiler::ScopedRangeCPU("Draw Sprite/Text3D Pass");
+                    DrawScene(frame_context, view, RenderPassType::Sprite3DPass, DrawScene_Sprite | DrawScene_Text, *command_list);
                 }
                 command_list->EndEvent();
             }
