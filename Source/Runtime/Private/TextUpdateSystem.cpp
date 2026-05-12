@@ -32,6 +32,10 @@ namespace won::ecs
         const auto transform_array = scene.GetComponentArray<TransformComponent>().get();
         const auto material_array = scene.GetComponentArray<MaterialComponent>().get();
         render_data.text_3d_renderables.clear();
+        if (!text_3d_array || !transform_array || !material_array)
+        {
+            return;
+        }
 
         jobsystem::Context sub_ctx;
         Vector<TextBucket> text_buckets(jobsystem::GetThreadCount() + 1);
