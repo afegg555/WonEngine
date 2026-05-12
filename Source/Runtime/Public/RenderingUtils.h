@@ -5,6 +5,7 @@
 
 namespace won::resource
 {
+    struct Font;
     struct Image;
     struct Mesh;
 }
@@ -18,4 +19,5 @@ namespace won::rendering::utils
 
     WONENGINE_API bool CreateRenderData(RHIDevice& device, resource::Mesh& mesh);
     WONENGINE_API bool CreateRenderData(RHIDevice& device, resource::Image& image, RHIFormat format = RHIFormat::R8G8B8A8UnormSrgb, bool generate_mips = false);
+    WONENGINE_API bool CreateRenderData(RHIDevice& device, resource::Font& font);
 }

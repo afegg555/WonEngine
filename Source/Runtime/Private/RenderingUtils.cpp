@@ -1,5 +1,6 @@
 #include "RenderingUtils.h"
 #include "Backlog.h"
+#include "Font.h"
 #include "Image.h"
 #include "Mesh.h"
 #include "ShaderLibrary.h"
@@ -773,6 +774,55 @@ namespace won::rendering::utils
         new_render_data.format = format;
         new_render_data.mip_levels = texture_desc.mip_levels;
         image.render_data = std::move(new_render_data);
+        return true;
+    }
+
+    bool CreateRenderData(RHIDevice& device, resource::Font& font)
+    {
+        if (!font.IsValid() || !font.atlas.IsValid())
+        {
+            return false;
+        }
+
+        if (font.render_data.IsValid() && !font.atlas.dirty && font.render_data.atlas_width == font.atlas.width && font.render_data.atlas_height == font.atlas.height)
+        {
+            return true;
+        }
+
+        RHITextureDesc texture_desc = {};
+        texture_desc.width = static_cast<uint32>(font.atlas.width);
+        texture_desc.height = static_cast<uint32>(font.atlas.height);
+        texture_desc.depth = 1;
+        texture_desc.mip_levels = 1;
+        texture_desc.array_layers = 1;
+        texture_desc.sample_count = 1;
+        texture_desc.format = RHIFormat::R8Unorm;
+        texture_desc.usage = RHIResourceUsage::Default;
+        texture_desc.bind_flags = RHIBindFlags::ShaderResource;
+        font.ClearRenderData();
+
+        resource::Font::RenderData new_render_data = {};
+        new_render_data.atlas_texture = device.CreateTexture(texture_desc, font.atlas.pixels.data(), font.atlas.pixels.size());
+        if (!new_render_data.atlas_texture)
+        {
+            return false;
+        }
+
+        RHISubresourceDesc texture_srv_desc = {};
+        texture_srv_desc.type = RHISubresourceType::ShaderResource;
+        texture_srv_desc.first_slice = 0;
+        texture_srv_desc.slice_count = 1;
+        texture_srv_desc.first_mip = 0;
+        texture_srv_desc.mip_count = 1;
+        if (!device.CreateSubresource(*new_render_data.atlas_texture, texture_srv_desc, &new_render_data.atlas_srv))
+        {
+            return false;
+        }
+
+        new_render_data.atlas_width = font.atlas.width;
+        new_render_data.atlas_height = font.atlas.height;
+        font.atlas.dirty = false;
+        font.render_data = std::move(new_render_data);
         return true;
     }
 
