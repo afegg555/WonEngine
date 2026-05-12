@@ -5,14 +5,14 @@
 
 namespace won::utils
 {
-    WString ToWideString(const String& str)
+    WString DecodeUtf8(StringView input)
     {
         WString wstr;
         size_t i = 0;
-        while (i < str.size())
+        while (i < input.size())
         {
             uint32_t codepoint = 0;
-            unsigned char c = str[i];
+            unsigned char c = input[i];
 
             if (c < 0x80)
             {
@@ -21,23 +21,23 @@ namespace won::utils
             }
             else if ((c & 0xE0) == 0xC0)
             {
-                if (i + 1 >= str.size())
+                if (i + 1 >= input.size())
                     break;
-                codepoint = ((c & 0x1F) << 6) | (str[i + 1] & 0x3F);
+                codepoint = ((c & 0x1F) << 6) | (input[i + 1] & 0x3F);
                 i += 2;
             }
             else if ((c & 0xF0) == 0xE0)
             {
-                if (i + 2 >= str.size())
+                if (i + 2 >= input.size())
                     break;
-                codepoint = ((c & 0x0F) << 12) | ((str[i + 1] & 0x3F) << 6) | (str[i + 2] & 0x3F);
+                codepoint = ((c & 0x0F) << 12) | ((input[i + 1] & 0x3F) << 6) | (input[i + 2] & 0x3F);
                 i += 3;
             }
             else if ((c & 0xF8) == 0xF0)
             {
-                if (i + 3 >= str.size())
+                if (i + 3 >= input.size())
                     break;
-                codepoint = ((c & 0x07) << 18) | ((str[i + 1] & 0x3F) << 12) | ((str[i + 2] & 0x3F) << 6) | (str[i + 3] & 0x3F);
+                codepoint = ((c & 0x07) << 18) | ((input[i + 1] & 0x3F) << 12) | ((input[i + 2] & 0x3F) << 6) | (input[i + 3] & 0x3F);
                 i += 4;
             }
             else
@@ -67,13 +67,13 @@ namespace won::utils
         return wstr;
     }
 
-    String ToString(const WString& wstr)
+    String EncodeUtf8(WStringView input)
     {
         String str;
-        for (size_t i = 0; i < wstr.size(); ++i)
+        for (size_t i = 0; i < input.size(); ++i)
         {
             uint32_t codepoint = 0;
-            wchar_t wc = wstr[i];
+            wchar_t wc = input[i];
 
             if constexpr (sizeof(wchar_t) >= 4)
             {
@@ -83,9 +83,9 @@ namespace won::utils
             {
                 if (wc >= 0xD800 && wc <= 0xDBFF)
                 {
-                    if (i + 1 < wstr.size())
+                    if (i + 1 < input.size())
                     {
-                        wchar_t wc_low = wstr[i + 1];
+                        wchar_t wc_low = input[i + 1];
                         if (wc_low >= 0xDC00 && wc_low <= 0xDFFF)
                         {
                             codepoint = ((static_cast<uint32_t>(wc - 0xD800) << 10) | (static_cast<uint32_t>(wc_low - 0xDC00))) + 0x10000;

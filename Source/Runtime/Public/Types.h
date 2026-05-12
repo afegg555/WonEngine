@@ -28,6 +28,7 @@ namespace won
 
     using Size = std::size_t;
     using StringView = std::string_view;
+    using WStringView = std::wstring_view;
     using String = std::string;
     using WString = std::wstring;
 

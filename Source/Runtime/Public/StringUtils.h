@@ -7,8 +7,8 @@
 
 namespace won::utils
 {
-    WONENGINE_API WString ToWideString(const String& str);
-    WONENGINE_API String ToString(const WString& wstr);
+    WONENGINE_API WString DecodeUtf8(StringView input);
+    WONENGINE_API String EncodeUtf8(WStringView input);
     WONENGINE_API String ToUpper(StringView input);
     WONENGINE_API String ToLower(StringView input);
     WONENGINE_API bool StartsWith(StringView input, StringView prefix);
