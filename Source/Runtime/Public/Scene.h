@@ -337,7 +337,15 @@ namespace won::ecs
                     const std::shared_ptr<System>& system = systems[system_index];
                     if (system)
                     {
-                        jobsystem::Execute(ctx, [&](jobsystem::JobArgs args) { system->Update(*this, delta_time); });
+                        if (system->GetExecutionPolicy() == SystemExecutionPolicy::Synchronous)
+                        {
+                            jobsystem::Wait(ctx);
+                            system->Update(*this, delta_time);
+                        }
+                        else
+                        {
+                            jobsystem::Execute(ctx, [this, system, delta_time](jobsystem::JobArgs args) { system->Update(*this, delta_time); });
+                        }
                     }
                 }
                 jobsystem::Wait(ctx);
