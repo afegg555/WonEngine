@@ -14,10 +14,10 @@
 
 namespace won::plugin
 {
-    class IPlugin
+    class Plugin
     {
     public:
-        virtual ~IPlugin() = default;
+        virtual ~Plugin() = default;
         virtual const char* GetName() const = 0;
         virtual const char* GetVersion() const = 0;
         virtual void* QueryInterface(const char* iid, const char* version_id) const = 0;
@@ -34,12 +34,12 @@ namespace won::plugin
             return inst;
         }
 
-        void Register(const String& name, std::function<IPlugin* ()> creator)
+        void Register(const String& name, std::function<Plugin* ()> creator)
         {
             factories[name] = creator;
         }
 
-        IPlugin* Create(const String& name)
+        Plugin* Create(const String& name)
         {
             auto it = factories.find(name);
             if (it == factories.end())
@@ -48,13 +48,13 @@ namespace won::plugin
         }
 
     private:
-        UnorderedMap<String, std::function<IPlugin* ()>> factories;
+        UnorderedMap<String, std::function<Plugin* ()>> factories;
     };
 
-    using CreatePluginFn = IPlugin * (WON_PLUGIN_CALL*)();
+    using CreatePluginFn = Plugin * (WON_PLUGIN_CALL*)();
 
 #define IMPLEMENT_PLUGIN(PluginClass, PluginName)               \
-    WON_PLUGIN_EXPORTS IPlugin* WON_PLUGIN_CALL CreatePlugin()    \
+    WON_PLUGIN_EXPORTS Plugin* WON_PLUGIN_CALL CreatePlugin()    \
     {                                                           \
         return new PluginClass();                               \
     }    

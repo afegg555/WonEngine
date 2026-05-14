@@ -328,7 +328,7 @@ Imported meshes create entities with transform, geometry, material, and name dat
 
 ## Plugins
 
-Plugins expose a small C-style function table through `IPlugin::QueryInterface()`. This keeps the runtime boundary simple and avoids sharing concrete plugin classes across module boundaries.
+Plugins expose a small C-style function table through `Plugin::QueryInterface()`. This keeps the runtime boundary simple and avoids sharing concrete plugin classes across module boundaries.
 
 ```cpp
 won::plugin::PluginManager plugins;
@@ -340,7 +340,7 @@ if (plugins.LoadPlugin(WON_IID_CAMERA_CONTROLLER))
 }
 ```
 
-When writing a plugin, implement `IPlugin`, return stable interface and version strings, expose a public API struct from the plugin header, and use `IMPLEMENT_PLUGIN(PluginClass, PluginName)` in the implementation file. Keep plugin-owned state inside the plugin object and pass engine data through explicit API parameters.
+When writing a plugin, implement `Plugin`, return stable interface and version strings, expose a public API struct from the plugin header, and use `IMPLEMENT_PLUGIN(PluginClass, PluginName)` in the implementation file. Keep plugin-owned state inside the plugin object and pass engine data through explicit API parameters.
 
 ## Input And Window Access
 

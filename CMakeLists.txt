@@ -141,7 +141,7 @@ set(RUNTIME_CONFIGURATION
 
 set(RUNTIME_PLUGIN
     Source/Runtime/Public/PluginManager.h
-    Source/Runtime/Public/IPlugin.h
+    Source/Runtime/Public/Plugin.h
     Source/Runtime/Private/PluginManager.cpp
 )
 

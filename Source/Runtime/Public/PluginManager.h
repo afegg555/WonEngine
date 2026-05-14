@@ -1,5 +1,5 @@
 #pragma once
-#include "IPlugin.h"
+#include "Plugin.h"
 #include "Types.h"
 #include "RuntimeExport.h"
 
@@ -15,7 +15,7 @@ namespace won::plugin
         bool LoadPlugin(const String& name);
         bool UnloadPlugin(const String& name);
 
-        std::shared_ptr<IPlugin> GetPlugin(const String& name);
+        std::shared_ptr<Plugin> GetPlugin(const String& name);
 
     private:
         struct Impl;

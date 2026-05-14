@@ -546,7 +546,7 @@ namespace won::editor
 		}
 
 		static CameraControllerAPI* controller_api = nullptr;
-		static IPlugin* camera_controller = nullptr;
+		static Plugin* camera_controller = nullptr;
 		if (!controller_api)
 		{
 			camera_controller = plugin_manager->GetPlugin(WON_IID_CAMERA_CONTROLLER).get();
