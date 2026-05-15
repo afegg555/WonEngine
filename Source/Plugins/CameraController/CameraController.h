@@ -1,5 +1,5 @@
 #pragma once
-#include "IPlugin.h"
+#include "Plugin.h"
 #include "MathUtils.h"
 
 inline constexpr const char* WON_IID_CAMERA_CONTROLLER = "CameraController";
@@ -34,10 +34,10 @@ namespace won::plugin
     // public APIs
     struct CameraControllerAPI
     {
-        void (*SetControllerState)(IPlugin* self, const ControllerState& controller_state);
+        void (*SetControllerState)(Plugin* self, const ControllerState& controller_state);
 
-        void (*BeginInteraction)(IPlugin* self, CameraInteractionMode mode, const CameraState& cam_state);
-        void (*UpdateInteraction)(IPlugin* self, const float2& mouse_delta, CameraState& cam_state);
-        void (*EndInteraction)(IPlugin* self);
+        void (*BeginInteraction)(Plugin* self, CameraInteractionMode mode, const CameraState& cam_state);
+        void (*UpdateInteraction)(Plugin* self, const float2& mouse_delta, CameraState& cam_state);
+        void (*EndInteraction)(Plugin* self);
     };
 }

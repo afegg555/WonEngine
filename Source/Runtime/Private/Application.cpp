@@ -7,6 +7,7 @@
 #include "EventHandler.h"
 #include "Input.h"
 #include "Profiler.h"
+#include "ScriptRuntime.h"
 namespace won
 {
     void Application::Initialize(const ApplicationDesc& desc)
@@ -32,6 +33,13 @@ namespace won
         rendering::RendererDesc renderer_desc;
         renderer_desc.device = device;
         renderer = rendering::CreateRenderer(renderer_desc);
+
+        script::ScriptRuntimeDesc script_desc = {};
+        script_runtime = script::CreateScriptRuntime(script_desc);
+        if (script_runtime && !script_runtime->Initialize())
+        {
+            script_runtime.reset();
+        }
 
         main_view.viewport.width = 1280;
         main_view.viewport.height = 720;
@@ -102,6 +110,12 @@ namespace won
 
         window.reset();
         device.reset();
+
+        if (script_runtime)
+        {
+            script_runtime->Shutdown();
+            script_runtime.reset();
+        }
 
         jobsystem::ShutDown();
     }

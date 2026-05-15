@@ -25,7 +25,7 @@ namespace won::plugin
         }
     }
 
-    class CameraController : public IPlugin
+    class CameraController : public Plugin
     {
         struct ControllerStateInternal
         {
@@ -203,19 +203,19 @@ namespace won::plugin
             XMStoreFloat4(&cam_state.cam_rotation, cam_rotation);
         }
 
-        static void SetControllerStateThunk(IPlugin* self, const ControllerState& in_controller_state)
+        static void SetControllerStateThunk(Plugin* self, const ControllerState& in_controller_state)
         {
             return static_cast<CameraController*>(self)->SetControllerState(in_controller_state);
         }
-        static void BeginInteractionThunk(IPlugin* self, CameraInteractionMode mode, const CameraState& cam_state)
+        static void BeginInteractionThunk(Plugin* self, CameraInteractionMode mode, const CameraState& cam_state)
         {
             return static_cast<CameraController*>(self)->BeginInteraction(mode, cam_state);
         }
-        static void UpdateInteractionThunk(IPlugin* self, const XMFLOAT2& mouse_delta, CameraState& cam_state)
+        static void UpdateInteractionThunk(Plugin* self, const XMFLOAT2& mouse_delta, CameraState& cam_state)
         {
             return static_cast<CameraController*>(self)->UpdateInteraction(mouse_delta, cam_state);
         }
-        static void EndInteractionThunk(IPlugin* self)
+        static void EndInteractionThunk(Plugin* self)
         {
             return static_cast<CameraController*>(self)->EndInteraction();
         }

@@ -1,17 +1,15 @@
 #include "Application.h"
+#include "FileSystem.h"
 #include "PluginManager.h"
 #include "Entity.h"
 #include "Mesh.h"
 
 #define EDITOR_USE_CUSTOM_TITLEBAR
 
-namespace won::plugin
-{
-	struct AssetImportTask;
-}
-
 namespace won::editor
 {
+	struct EditorAssetImportTask;
+
 	class EditorApplication : public Application
 	{
 	public:
@@ -42,6 +40,7 @@ namespace won::editor
 			Scene,
 			Shader,
 			Font,
+			Script,
 			Unknown,
 		};
 
@@ -110,11 +109,13 @@ namespace won::editor
 		std::shared_ptr<resource::Mesh> editor_primitive_mesh;
 		std::vector<std::shared_ptr<RHIResource>> deferred_primitive_removal_buffers;
 		std::vector<DeferredEntityRemovalResources> deferred_entity_removal_resources;
-		std::vector<std::shared_ptr<plugin::AssetImportTask>> asset_import_tasks;
+		std::vector<std::shared_ptr<EditorAssetImportTask>> asset_import_tasks;
 		ecs::Entity picked_entity = ecs::INVALID_ENTITY;
 		bool viewport_input_enabled = false;
 		ViewportDebugSettings viewport_debug_settings = {};
 		ContentBrowserState content_browser = {};
+		std::unique_ptr<io::DirectoryWatcher> contents_watcher;
+		float contents_watcher_poll_timer = 0.0f;
 
 		std::shared_ptr<plugin::PluginManager> plugin_manager;
 	};

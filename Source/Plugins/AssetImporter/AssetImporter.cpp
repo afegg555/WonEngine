@@ -22,7 +22,7 @@
 
 namespace won::plugin
 {
-    class AssetImporter : public IPlugin
+    class AssetImporter : public Plugin
     {
         struct ImportedTextureData
         {
@@ -1000,12 +1000,12 @@ namespace won::plugin
             return true;
         }
 
-        static bool ImportThunk(IPlugin* self, const char* file_path_in, ecs::Scene* target_scene_in, RHIDevice* device_in, ecs::Entity& root_entity_out)
+        static bool ImportThunk(Plugin* self, const char* file_path_in, ecs::Scene* target_scene_in, RHIDevice* device_in, ecs::Entity& root_entity_out)
         {
             return static_cast<AssetImporter*>(self)->Import(file_path_in, target_scene_in, device_in, root_entity_out);
         }
 
-        static std::shared_ptr<AssetImportTask> ImportAsyncThunk(IPlugin* self, const char* file_path_in, ecs::Scene* target_scene_in, RHIDevice* device_in)
+        static std::shared_ptr<AssetImportTask> ImportAsyncThunk(Plugin* self, const char* file_path_in, ecs::Scene* target_scene_in, RHIDevice* device_in)
         {
             return static_cast<AssetImporter*>(self)->ImportAsync(file_path_in, target_scene_in, device_in);
         }

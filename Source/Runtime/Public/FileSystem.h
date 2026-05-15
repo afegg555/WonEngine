@@ -18,12 +18,25 @@ namespace won::io
         bool is_file = false;
     };
 
+    class DirectoryWatcher
+    {
+    public:
+        struct FileChange
+        {
+            String path;
+        };
+
+        virtual ~DirectoryWatcher() = default;
+        virtual void Poll(Vector<FileChange>* out_changes) = 0;
+    };
+
     WONENGINE_API bool Exists(const String& path);
     WONENGINE_API bool CreateDirectories(const String& path);
     WONENGINE_API bool ReadAllBytes(const String& path, FileData* out_data);
     WONENGINE_API bool WriteAllBytes(const String& path, const uint8* data, Size size);
     WONENGINE_API bool GetLastTimestamp(const String& path, uint64* out_timestamp);
     WONENGINE_API bool EnumerateDirectoryRecursive(const String& root_path, Vector<DirectoryEntry>* out_entries);
+    WONENGINE_API std::unique_ptr<DirectoryWatcher> CreateDirectoryWatcher(const String& directory_path, bool recursive);
 
     WONENGINE_API String GetWorkingDirectory();
     WONENGINE_API String GetExecutableDirectory();

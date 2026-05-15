@@ -10,12 +10,19 @@ namespace won::ecs
 {
     class Scene;
 
+    enum class SystemExecutionPolicy
+    {
+        ParallelJob, // run through the job system
+        Synchronous, // run immediately on the caller thread
+    };
+
     class WONENGINE_API System
     {
     public:
         virtual ~System() = default;
         virtual ComponentMask GetReadMask() const { return 0; }
         virtual ComponentMask GetWriteMask() const { return 0; }
+        virtual SystemExecutionPolicy GetExecutionPolicy() const { return SystemExecutionPolicy::ParallelJob; }
         virtual void Update(Scene& scene, float delta_time) = 0;
     };
 }

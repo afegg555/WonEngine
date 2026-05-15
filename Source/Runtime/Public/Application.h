@@ -5,6 +5,7 @@
 #include "Window.h"
 #include "View.h"
 #include "RHIDevice.h"
+#include "ScriptRuntime.h"
 
 #include <memory>
 
@@ -44,6 +45,7 @@ namespace won
         std::shared_ptr<rendering::RHIDevice> device;
         std::shared_ptr<platform::Window> window;
         std::shared_ptr<rendering::Renderer> renderer;
+        std::shared_ptr<script::ScriptRuntime> script_runtime;
         rendering::View main_view;
         utils::Timer frame_timer;
         bool is_first_frame = true;

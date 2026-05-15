@@ -3,7 +3,7 @@
 
 namespace won::plugin
 {
-    class PluginSample : public IPlugin
+    class PluginSample : public Plugin
     {
     public:
         virtual const char* GetName() const override { return WON_IID_PLUGIN_SAMPLE; }
@@ -32,7 +32,7 @@ namespace won::plugin
             return true;
         }
     private:
-        static bool PrintSampleThunk(IPlugin* self, const char* input)
+        static bool PrintSampleThunk(Plugin* self, const char* input)
         {
             return static_cast<PluginSample*>(self)->PrintSample(input);
         }

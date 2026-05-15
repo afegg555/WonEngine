@@ -1,5 +1,5 @@
 #pragma once
-#include "IPlugin.h"
+#include "Plugin.h"
 #include "Scene.h"
 #include "RHIDevice.h"
 
@@ -23,7 +23,7 @@ namespace won::plugin
 
     struct AssetImporterAPI
     {
-        bool (*Import)(IPlugin* self, const char* file_path_in, ecs::Scene* target_scene_in, RHIDevice* device_in, ecs::Entity& root_entity_out);
-        std::shared_ptr<AssetImportTask> (*ImportAsync)(IPlugin* self, const char* file_path_in, ecs::Scene* target_scene_in, RHIDevice* device_in);
+        bool (*Import)(Plugin* self, const char* file_path_in, ecs::Scene* target_scene_in, RHIDevice* device_in, ecs::Entity& root_entity_out);
+        std::shared_ptr<AssetImportTask> (*ImportAsync)(Plugin* self, const char* file_path_in, ecs::Scene* target_scene_in, RHIDevice* device_in);
     };
 }

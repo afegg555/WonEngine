@@ -13,6 +13,7 @@
 #include "RenderableUpdateSystem.h"
 #include "SpriteUpdateSystem.h"
 #include "TextUpdateSystem.h"
+#include "ScriptUpdateSystem.h"
 #include "ShaderInterop_Renderer.h"
 #include "BVH.h"
 #include "RenderingUtils.h"
@@ -32,6 +33,11 @@ namespace won::rendering
 
 namespace won::ecs
 {
+    struct SceneDesc
+    {
+        script::ScriptRuntime* script_runtime = nullptr; // Non-owning.
+    };
+
     struct RayCastHit
     {
         Entity entity = INVALID_ENTITY;
@@ -43,7 +49,7 @@ namespace won::ecs
     class Scene
     {
     public:
-        Scene()
+        Scene(const SceneDesc& desc = {})
         {
             component_manager.RegisterComponent<TransformComponent>();
             component_manager.RegisterComponent<HierarchyComponent>();
@@ -61,7 +67,12 @@ namespace won::ecs
             component_manager.RegisterComponent<EnvironmentLightingComponent>();
             component_manager.RegisterComponent<DDGIVolumeComponent>();
             component_manager.RegisterComponent<AnimationComponent>();
+            component_manager.RegisterComponent<ScriptComponent>();
 
+            if (desc.script_runtime)
+            {
+                AddSystem(std::make_shared<ScriptUpdateSystem>(desc.script_runtime));
+            }
             AddSystem(std::make_shared<TransformUpdateSystem>());
             AddSystem(std::make_shared<EnvironmentUpdateSystem>());
             AddSystem(std::make_shared<CameraUpdateSystem>());
@@ -337,7 +348,15 @@ namespace won::ecs
                     const std::shared_ptr<System>& system = systems[system_index];
                     if (system)
                     {
-                        jobsystem::Execute(ctx, [&](jobsystem::JobArgs args) { system->Update(*this, delta_time); });
+                        if (system->GetExecutionPolicy() == SystemExecutionPolicy::Synchronous)
+                        {
+                            jobsystem::Wait(ctx);
+                            system->Update(*this, delta_time);
+                        }
+                        else
+                        {
+                            jobsystem::Execute(ctx, [this, system, delta_time](jobsystem::JobArgs args) { system->Update(*this, delta_time); });
+                        }
                     }
                 }
                 jobsystem::Wait(ctx);

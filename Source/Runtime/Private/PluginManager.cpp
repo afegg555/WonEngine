@@ -8,7 +8,7 @@ namespace won::plugin
     {
         struct PluginHandle
         {
-            std::shared_ptr<IPlugin> plugin;
+            std::shared_ptr<Plugin> plugin;
             void* native_handle;
         };
 
@@ -85,7 +85,7 @@ namespace won::plugin
             return false;
         }
 
-        std::shared_ptr<IPlugin> plugin{ creater() };
+        std::shared_ptr<Plugin> plugin{ creater() };
 
         if (!plugin)
         {
@@ -118,7 +118,7 @@ namespace won::plugin
 
         return true;
 	}
-	std::shared_ptr<IPlugin> PluginManager::GetPlugin(const String& name)
+	std::shared_ptr<Plugin> PluginManager::GetPlugin(const String& name)
 	{
         std::lock_guard<std::mutex> lock(p_impl->vector_lock);
 

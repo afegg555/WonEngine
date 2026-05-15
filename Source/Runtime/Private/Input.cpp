@@ -317,6 +317,37 @@ namespace won::io
 	{
 		double_click_interval = seconds;
 	}
+	Button GetButtonFromString(StringView value)
+	{
+		if (value.empty())
+		{
+			return BUTTON_NONE;
+		}
+
+		String key(value);
+		std::transform(key.begin(), key.end(), key.begin(), [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+		if (key.size() == 1)
+		{
+			const char c = key[0];
+			if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9'))
+			{
+				return static_cast<Button>(c);
+			}
+		}
+
+		if (key == "SPACE") return KEYBOARD_BUTTON_SPACE;
+		if (key == "ENTER") return KEYBOARD_BUTTON_ENTER;
+		if (key == "ESCAPE" || key == "ESC") return KEYBOARD_BUTTON_ESCAPE;
+		if (key == "TAB") return KEYBOARD_BUTTON_TAB;
+		if (key == "UP") return KEYBOARD_BUTTON_UP;
+		if (key == "DOWN") return KEYBOARD_BUTTON_DOWN;
+		if (key == "LEFT") return KEYBOARD_BUTTON_LEFT;
+		if (key == "RIGHT") return KEYBOARD_BUTTON_RIGHT;
+		if (key == "MOUSE_LEFT") return MOUSE_BUTTON_LEFT;
+		if (key == "MOUSE_RIGHT") return MOUSE_BUTTON_RIGHT;
+		if (key == "MOUSE_MIDDLE") return MOUSE_BUTTON_MIDDLE;
+		return BUTTON_NONE;
+	}
 	const KeyboardState& GetKeyboardState()
 	{
 		return keyboard;
