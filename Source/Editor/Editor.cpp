@@ -434,6 +434,8 @@ namespace won::editor
 		}
 		main_view.scene = &scene; // empty scene
 		main_view.camera_entity = camera_entity;
+		contents_watcher = io::CreateDirectoryWatcher(contents_root_dir, true);
+		contents_watcher_poll_timer = 0.0f;
 
 		//main_viewport_pos = { 0, 0 };
 		//main_viewport_size = { static_cast<float>(main_view.viewport.width), static_cast<float>(main_view.viewport.height) };
@@ -451,6 +453,8 @@ namespace won::editor
 		deferred_primitive_removal_buffers.clear();
 		deferred_entity_removal_resources.clear();
 		asset_import_tasks.clear();
+		contents_watcher.reset();
+		contents_watcher_poll_timer = 0.0f;
 		editor_primitive_entity = ecs::INVALID_ENTITY;
 		scene = {};
 
@@ -461,7 +465,6 @@ namespace won::editor
 
 	void EditorApplication::Update(float dt)
 	{
-		Application::Update(dt);
 		for (auto it = deferred_entity_removal_resources.begin(); it != deferred_entity_removal_resources.end();)
 		{
 			if (it->frames_left > 0)
@@ -528,6 +531,15 @@ namespace won::editor
 		if (entity_list_dirty)
 		{
 			UpdateEntityList();
+		}
+
+		contents_watcher_poll_timer -= dt;
+		if (contents_watcher && contents_watcher_poll_timer <= 0.0f)
+		{
+			contents_watcher_poll_timer = 0.5f;
+			Vector<String> changed_script_paths;
+			Vector<io::DirectoryWatcher::FileChange> file_changes;
+			contents_watcher->Poll(&file_changes);
 		}
 
 		if (renderer)
@@ -713,7 +725,8 @@ namespace won::editor
 				active_interaction = CameraInteractionMode::None;
 			}
 		}
-		
+		Application::Update(dt);
+
 	}
 
 	void EditorApplication::LoadDefaultPlugins()

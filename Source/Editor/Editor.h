@@ -1,4 +1,5 @@
 #include "Application.h"
+#include "FileSystem.h"
 #include "PluginManager.h"
 #include "Entity.h"
 #include "Mesh.h"
@@ -115,6 +116,8 @@ namespace won::editor
 		bool viewport_input_enabled = false;
 		ViewportDebugSettings viewport_debug_settings = {};
 		ContentBrowserState content_browser = {};
+		std::unique_ptr<io::DirectoryWatcher> contents_watcher;
+		float contents_watcher_poll_timer = 0.0f;
 
 		std::shared_ptr<plugin::PluginManager> plugin_manager;
 	};
