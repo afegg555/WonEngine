@@ -10,6 +10,7 @@
 #include "Image.h"
 #include "StringUtils.h"
 #include "Backlog.h"
+#include "Configuration.h"
 #include "Profiler.h"
 #include "SceneComponents.h"
 #include "JobSystem.h"
@@ -43,6 +44,7 @@ namespace won::editor
 	static RHIShader editor_grid_vs;
 	static RHIShader editor_grid_ps;
 	static String contents_root_dir = String(CONTENTS_ROOT_DIR) + "/";
+	static String editor_settings_path = "EditorSettings.cfg";
 	struct EditorAssetImportTask
 	{
 		std::shared_ptr<plugin::AssetImportTask> task;
@@ -51,6 +53,21 @@ namespace won::editor
 
 	namespace
 	{
+		constexpr const char* editor_content_current_folder_key = "editor.content.current_folder";
+		constexpr const char* editor_content_type_filter_key = "editor.content.type_filter";
+		constexpr const char* editor_content_tile_size_key = "editor.content.tile_size";
+		constexpr const char* editor_viewport_show_grid_key = "editor.viewport.show_grid";
+		constexpr const char* editor_viewport_use_wireframe_key = "editor.viewport.use_wireframe";
+		constexpr const char* editor_viewport_show_bvh_debug_key = "editor.viewport.show_bvh_debug";
+		constexpr const char* editor_viewport_show_cpu_bvh_nodes_key = "editor.viewport.show_cpu_bvh_nodes";
+		constexpr const char* editor_viewport_show_gpu_bvh_nodes_key = "editor.viewport.show_gpu_bvh_nodes";
+		constexpr const char* editor_viewport_show_ddgi_overlay_key = "editor.viewport.show_ddgi_overlay";
+		constexpr const char* editor_viewport_show_ddgi_volume_key = "editor.viewport.show_ddgi_volume";
+		constexpr const char* editor_viewport_show_ddgi_probes_key = "editor.viewport.show_ddgi_probes";
+		constexpr const char* editor_viewport_show_ddgi_text_key = "editor.viewport.show_ddgi_text";
+		constexpr const char* editor_viewport_ddgi_max_probe_draw_count_key = "editor.viewport.ddgi_max_probe_draw_count";
+		constexpr const char* editor_camera_speed_key = "editor.camera.speed";
+
 		float3 QuaternionToEulerXYZDegrees(const float4& quaternion)
 		{
 			XMVECTOR xquaternion = XMVector4Normalize(XMLoadFloat4(&quaternion));
@@ -342,6 +359,7 @@ namespace won::editor
 	void EditorApplication::Initialize(const ApplicationDesc& desc)
 	{
 		Application::Initialize(desc);
+		LoadEditorSettings();
 
 		ecs::SceneDesc scene_desc = {};
 		scene_desc.script_runtime = script_runtime.get();
@@ -454,6 +472,8 @@ namespace won::editor
 
 	void EditorApplication::Shutdown()
 	{
+		SaveEditorSettings();
+
 		imgui_pso.reset();
 		editor_grid_pso.reset();
 		imgui_font.reset();
@@ -675,30 +695,28 @@ namespace won::editor
 		XMVECTOR xup = XMVector3Normalize(XMLoadFloat3(&camera->up));
 		XMVECTOR xright = XMVector3Normalize(XMVector3Cross(xup, xforward));
 
-		const float camera_speed = 5.0f;
-
 		if (won::io::IsDown(io::Button('W')))
 		{
 			float3 translation{};
-			XMStoreFloat3(&translation, XMVectorScale(xforward, dt * camera_speed));
+			XMStoreFloat3(&translation, XMVectorScale(xforward, dt * editor_camera_speed));
 			transform->Translate(translation);
 		}
 		if (won::io::IsDown(io::Button('A')))
 		{
 			float3 translation{};
-			XMStoreFloat3(&translation, XMVectorScale(xright, -dt * camera_speed));
+			XMStoreFloat3(&translation, XMVectorScale(xright, -dt * editor_camera_speed));
 			transform->Translate(translation);
 		}
 		if (won::io::IsDown(io::Button('S')))
 		{
 			float3 translation{};
-			XMStoreFloat3(&translation, XMVectorScale(xforward, -dt * camera_speed));
+			XMStoreFloat3(&translation, XMVectorScale(xforward, -dt * editor_camera_speed));
 			transform->Translate(translation);
 		}
 		if (won::io::IsDown(io::Button('D')))
 		{
 			float3 translation{};
-			XMStoreFloat3(&translation, XMVectorScale(xright, dt * camera_speed));
+			XMStoreFloat3(&translation, XMVectorScale(xright, dt * editor_camera_speed));
 			transform->Translate(translation);
 		}
 
@@ -1097,6 +1115,94 @@ namespace won::editor
 			geometry->UpdateLocalBounds();
 			geometry->SetDirty();
 		}
+	}
+
+	void EditorApplication::LoadEditorSettings()
+	{
+		config::Clear();
+		config::LoadFromFile(editor_settings_path);
+
+		String string_value;
+		int int_value = 0;
+		float float_value = 0.0f;
+		bool bool_value = false;
+
+		if (config::TryGetString(editor_content_current_folder_key, string_value))
+		{
+			content_browser.current_folder = string_value;
+		}
+		if (config::TryGetInt(editor_content_type_filter_key, int_value))
+		{
+			content_browser.type_filter = static_cast<ContentAssetType>(int_value);
+		}
+		if (config::TryGetFloat(editor_content_tile_size_key, float_value))
+		{
+			content_browser.tile_size = (std::max)(48.0f, (std::min)(128.0f, float_value));
+		}
+		if (config::TryGetBool(editor_viewport_show_grid_key, bool_value))
+		{
+			viewport_debug_settings.show_grid = bool_value;
+		}
+		if (config::TryGetBool(editor_viewport_use_wireframe_key, bool_value))
+		{
+			viewport_debug_settings.use_wireframe = bool_value;
+		}
+		if (config::TryGetBool(editor_viewport_show_bvh_debug_key, bool_value))
+		{
+			viewport_debug_settings.show_bvh_debug = bool_value;
+		}
+		if (config::TryGetBool(editor_viewport_show_cpu_bvh_nodes_key, bool_value))
+		{
+			viewport_debug_settings.show_cpu_bvh_nodes = bool_value;
+		}
+		if (config::TryGetBool(editor_viewport_show_gpu_bvh_nodes_key, bool_value))
+		{
+			viewport_debug_settings.show_gpu_bvh_nodes = bool_value;
+		}
+		if (config::TryGetBool(editor_viewport_show_ddgi_overlay_key, bool_value))
+		{
+			viewport_debug_settings.show_ddgi_overlay = bool_value;
+		}
+		if (config::TryGetBool(editor_viewport_show_ddgi_volume_key, bool_value))
+		{
+			viewport_debug_settings.show_ddgi_volume = bool_value;
+		}
+		if (config::TryGetBool(editor_viewport_show_ddgi_probes_key, bool_value))
+		{
+			viewport_debug_settings.show_ddgi_probes = bool_value;
+		}
+		if (config::TryGetBool(editor_viewport_show_ddgi_text_key, bool_value))
+		{
+			viewport_debug_settings.show_ddgi_text = bool_value;
+		}
+		if (config::TryGetInt(editor_viewport_ddgi_max_probe_draw_count_key, int_value))
+		{
+			viewport_debug_settings.ddgi_max_probe_draw_count = (std::max)(1, int_value);
+		}
+		if (config::TryGetFloat(editor_camera_speed_key, float_value))
+		{
+			editor_camera_speed = (std::max)(0.1f, float_value);
+		}
+	}
+
+	void EditorApplication::SaveEditorSettings()
+	{
+		config::SetString(editor_content_current_folder_key, content_browser.current_folder);
+		config::SetInt(editor_content_type_filter_key, static_cast<int>(content_browser.type_filter));
+		config::SetFloat(editor_content_tile_size_key, content_browser.tile_size);
+		config::SetBool(editor_viewport_show_grid_key, viewport_debug_settings.show_grid);
+		config::SetBool(editor_viewport_use_wireframe_key, viewport_debug_settings.use_wireframe);
+		config::SetBool(editor_viewport_show_bvh_debug_key, viewport_debug_settings.show_bvh_debug);
+		config::SetBool(editor_viewport_show_cpu_bvh_nodes_key, viewport_debug_settings.show_cpu_bvh_nodes);
+		config::SetBool(editor_viewport_show_gpu_bvh_nodes_key, viewport_debug_settings.show_gpu_bvh_nodes);
+		config::SetBool(editor_viewport_show_ddgi_overlay_key, viewport_debug_settings.show_ddgi_overlay);
+		config::SetBool(editor_viewport_show_ddgi_volume_key, viewport_debug_settings.show_ddgi_volume);
+		config::SetBool(editor_viewport_show_ddgi_probes_key, viewport_debug_settings.show_ddgi_probes);
+		config::SetBool(editor_viewport_show_ddgi_text_key, viewport_debug_settings.show_ddgi_text);
+		config::SetInt(editor_viewport_ddgi_max_probe_draw_count_key, viewport_debug_settings.ddgi_max_probe_draw_count);
+		config::SetFloat(editor_camera_speed_key, editor_camera_speed);
+
+		config::SaveToFile(editor_settings_path);
 	}
 
 	void EditorApplication::OnWindowResized(int width, int height)

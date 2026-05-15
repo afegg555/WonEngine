@@ -29,6 +29,8 @@ namespace won::editor
 		void LoadSampleScene();
 		void UpdateEntityList();
 		void UpdateEditorPrimitiveMesh();
+		void LoadEditorSettings();
+		void SaveEditorSettings();
 
 	private:
 		enum class ContentAssetType
@@ -116,6 +118,7 @@ namespace won::editor
 		ContentBrowserState content_browser = {};
 		std::unique_ptr<io::DirectoryWatcher> contents_watcher;
 		float contents_watcher_poll_timer = 0.0f;
+		float editor_camera_speed = 5.0f;
 
 		std::shared_ptr<plugin::PluginManager> plugin_manager;
 	};
