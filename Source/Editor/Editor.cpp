@@ -43,6 +43,12 @@ namespace won::editor
 	static RHIShader editor_grid_vs;
 	static RHIShader editor_grid_ps;
 	static String contents_root_dir = String(CONTENTS_ROOT_DIR) + "/";
+	struct EditorAssetImportTask
+	{
+		std::shared_ptr<plugin::AssetImportTask> task;
+		uint64 type = 0;
+	};
+
 	namespace
 	{
 		float3 QuaternionToEulerXYZDegrees(const float4& quaternion)
@@ -337,6 +343,10 @@ namespace won::editor
 	{
 		Application::Initialize(desc);
 
+		ecs::SceneDesc scene_desc = {};
+		scene_desc.script_runtime = script_runtime.get();
+		scene = ecs::Scene(scene_desc);
+
 		{
 			ShaderCompilerOptions compiler_options;
 			compiler_options.backend = ShaderCompilerBackend::DXC;
@@ -484,13 +494,14 @@ namespace won::editor
 		bool entity_list_dirty = false;
 		for (auto it = asset_import_tasks.begin(); it != asset_import_tasks.end();)
 		{
-			std::shared_ptr<AssetImportTask> task = *it;
-			if (!task)
+			std::shared_ptr<EditorAssetImportTask> editor_task = *it;
+			if (!editor_task || !editor_task->task)
 			{
 				it = asset_import_tasks.erase(it);
 				continue;
 			}
 
+			std::shared_ptr<AssetImportTask> task = editor_task->task;
 			if (task->committed.load())
 			{
 				ecs::Entity root_entity = task->root_entity.load();
@@ -517,6 +528,32 @@ namespace won::editor
 					geometry_component->SetCastShadow(true);
 				}
 
+				if (editor_task->type == 1)
+				{
+					ScriptComponent* script_component = scene.GetComponent<ScriptComponent>(root_entity);
+					if (!script_component)
+					{
+						script_component = scene.AddComponent<ScriptComponent>(root_entity);
+					}
+					if (script_component)
+					{
+						const String pulse_scale_path = contents_root_dir + "Scripts/PulseScale.lua";
+						const String rotator_path = contents_root_dir + "Scripts/Rotator.lua";
+						if (!HasScript(*script_component, pulse_scale_path))
+						{
+							ScriptSlot script_slot = {};
+							script_slot.script_path = pulse_scale_path;
+							script_component->scripts.push_back(script_slot);
+						}
+						if (!HasScript(*script_component, rotator_path))
+						{
+							ScriptSlot script_slot = {};
+							script_slot.script_path = rotator_path;
+							script_component->scripts.push_back(script_slot);
+						}
+					}
+				}
+
 				entity_list_dirty = true;
 				it = asset_import_tasks.erase(it);
 				continue;
@@ -540,6 +577,67 @@ namespace won::editor
 			Vector<String> changed_script_paths;
 			Vector<io::DirectoryWatcher::FileChange> file_changes;
 			contents_watcher->Poll(&file_changes);
+			for (const io::DirectoryWatcher::FileChange& change : file_changes)
+			{
+				if (won::utils::ToLower(io::GetExtension(change.path)) != "lua")
+				{
+					continue;
+				}
+				changed_script_paths.push_back(change.path);
+			}
+
+			auto script_array = scene.GetComponentArray<ecs::ScriptComponent>();
+			if (script_runtime && script_array)
+			{
+				for (const String& changed_script_path : changed_script_paths)
+				{
+					String reload_error;
+					const bool reloaded = script_runtime->ReloadScript(changed_script_path, reload_error);
+					for (Size i = 0; i < script_array->GetSize(); ++i)
+					{
+						const ecs::Entity entity = script_array->index_to_entity[i];
+						ecs::ScriptComponent& script_component = script_array->data[i];
+						script::ScriptCallContext context = {};
+						context.scene = &scene;
+						context.entity = entity;
+
+						for (ecs::ScriptSlot& script_slot : script_component.scripts)
+						{
+							if (script_slot.script_path != changed_script_path)
+							{
+								continue;
+							}
+
+							if (!reloaded)
+							{
+								script_slot.last_error = reload_error;
+								continue;
+							}
+
+							if (script_slot.instance.IsValid())
+							{
+								script_runtime->CallOnDestroy(script_slot.instance, context, script_slot.last_error);
+								script_runtime->DestroyInstance(script_slot.instance);
+								script_slot.instance = {};
+							}
+
+							script::ScriptInstanceDesc desc = {};
+							desc.script_path = script_slot.script_path;
+							if (!script_runtime->CreateInstance(desc, script_slot.instance, script_slot.last_error))
+							{
+								script_slot.initialized = false;
+								continue;
+							}
+
+							script_slot.initialized = false;
+							if (script_runtime->CallOnCreate(script_slot.instance, context, script_slot.last_error))
+							{
+								script_slot.initialized = true;
+							}
+						}
+					}
+				}
+			}
 		}
 
 		if (renderer)
@@ -1028,6 +1126,7 @@ namespace won::editor
 			if (ext == "scene" || ext == "json") return ContentAssetType::Scene;
 			if (ext == "hlsl" || ext == "hlsli") return ContentAssetType::Shader;
 			if (ext == "ttf" || ext == "otf") return ContentAssetType::Font;
+			if (ext == "lua") return ContentAssetType::Script;
 			return ContentAssetType::Unknown;
 		};
 
@@ -1147,6 +1246,7 @@ namespace won::editor
 			case ContentAssetType::Scene: return "Scene";
 			case ContentAssetType::Shader: return "Shader";
 			case ContentAssetType::Font: return "Font";
+			case ContentAssetType::Script: return "Script";
 			case ContentAssetType::Unknown: return "Unknown";
 			default: return "Asset";
 			}
@@ -1161,6 +1261,7 @@ namespace won::editor
 			case ContentAssetType::Scene: return ICON_MD_DATA_OBJECT;
 			case ContentAssetType::Shader: return ICON_MD_CODE;
 			case ContentAssetType::Font: return ICON_MD_FONT_DOWNLOAD;
+			case ContentAssetType::Script: return ICON_MD_DESCRIPTION;
 			default: return ICON_MD_INSERT_DRIVE_FILE;
 			}
 		};
@@ -1239,6 +1340,7 @@ namespace won::editor
 			case ContentAssetType::Scene: return "Scene";
 			case ContentAssetType::Shader: return "Shader";
 			case ContentAssetType::Font: return "Font";
+			case ContentAssetType::Script: return "Script";
 			case ContentAssetType::Unknown: return "Unknown";
 			default: return "All Types";
 			}
@@ -1290,7 +1392,7 @@ namespace won::editor
 		ImGui::SetNextItemWidth(150.0f);
 		if (ImGui::BeginCombo("##content_type_filter", type_name(content_browser.type_filter)))
 		{
-			const ContentAssetType filters[] = { ContentAssetType::All, ContentAssetType::Texture, ContentAssetType::Material, ContentAssetType::Mesh, ContentAssetType::Scene, ContentAssetType::Shader, ContentAssetType::Font, ContentAssetType::Unknown };
+			const ContentAssetType filters[] = { ContentAssetType::All, ContentAssetType::Texture, ContentAssetType::Material, ContentAssetType::Mesh, ContentAssetType::Scene, ContentAssetType::Shader, ContentAssetType::Font, ContentAssetType::Script, ContentAssetType::Unknown };
 			for (ContentAssetType filter : filters)
 			{
 				if (ImGui::Selectable(type_name(filter), content_browser.type_filter == filter))
@@ -1444,7 +1546,9 @@ namespace won::editor
 				}
 				if (import_task)
 				{
-					asset_import_tasks.push_back(import_task);
+					auto editor_task = std::make_shared<EditorAssetImportTask>();
+					editor_task->task = import_task;
+					asset_import_tasks.push_back(editor_task);
 				}
 				else
 				{
@@ -1809,9 +1913,9 @@ namespace won::editor
 			bool open_delete_entity_confirm = false;
 
 			Size running_import_count = 0;
-			for (const std::shared_ptr<AssetImportTask>& task : asset_import_tasks)
+			for (const std::shared_ptr<EditorAssetImportTask>& editor_task : asset_import_tasks)
 			{
-				if (task && !task->finished.load())
+				if (editor_task && editor_task->task && !editor_task->task->finished.load())
 				{
 					++running_import_count;
 				}
@@ -3065,6 +3169,278 @@ namespace won::editor
 					ImGui::Separator();
 				}
 
+				ScriptComponent* script_comp = main_view.scene->GetComponent<ScriptComponent>(picked_entity);
+				if (script_comp)
+				{
+					ImGui::PushID("ScriptComponent");
+					ImGui::Text("ScriptComponent");
+					bool remove_component = DrawComponentRemoveButton("ScriptComponent");
+					auto reload_script = [this](ecs::Entity entity, ScriptSlot& script_slot)
+						{
+							if (!script_runtime || script_slot.script_path.empty())
+							{
+								return;
+							}
+
+							script::ScriptCallContext context = {};
+							context.scene = &scene;
+							context.entity = entity;
+
+							script::ScriptInstanceDesc desc = {};
+							desc.script_path = script_slot.script_path;
+
+							if (script_slot.instance.IsValid())
+							{
+								script_runtime->CallOnDestroy(script_slot.instance, context, script_slot.last_error);
+								script_runtime->DestroyInstance(script_slot.instance);
+								script_slot.instance = {};
+							}
+
+							script_runtime->ReloadScript(script_slot.script_path, script_slot.last_error);
+							if (!script_runtime->CreateInstance(desc, script_slot.instance, script_slot.last_error))
+							{
+								script_slot.initialized = false;
+								return;
+							}
+
+							script_slot.initialized = false;
+							if (script_runtime->CallOnCreate(script_slot.instance, context, script_slot.last_error))
+							{
+								script_slot.initialized = true;
+							}
+						};
+
+					if (!remove_component)
+					{
+						bool enabled = script_comp->enabled;
+						if (ImGui::Checkbox("Enabled", &enabled))
+						{
+							script_comp->enabled = enabled;
+						}
+
+						for (Size script_index = 0; script_index < script_comp->scripts.size();)
+						{
+							ScriptSlot& script_slot = script_comp->scripts[script_index];
+							ImGui::PushID(static_cast<int>(script_index));
+
+							bool slot_enabled = script_slot.enabled;
+							if (ImGui::Checkbox("Script Enabled", &slot_enabled))
+							{
+								script_slot.enabled = slot_enabled;
+							}
+
+							String script_label = "<none>";
+							if (!script_slot.script_path.empty())
+							{
+								String relative_script_path = io::GetRelativePath(contents_root_dir, script_slot.script_path);
+								script_label = relative_script_path.empty() ? script_slot.script_path : "/Contents/" + relative_script_path;
+							}
+
+							ImGui::SetNextItemWidth(-1.0f);
+							if (ImGui::BeginCombo("Script", script_label.c_str()))
+							{
+								for (const ContentBrowserAsset& asset : content_browser.assets)
+								{
+									if (asset.type != ContentAssetType::Script)
+									{
+										continue;
+									}
+
+									const bool selected = asset.disk_path == script_slot.script_path;
+									if (ImGui::Selectable(asset.virtual_path.c_str(), selected))
+									{
+										if (asset.disk_path == script_slot.script_path || !HasScript(*script_comp, asset.disk_path))
+										{
+											if (asset.disk_path != script_slot.script_path && script_runtime && script_slot.instance.IsValid())
+											{
+												script::ScriptCallContext context = {};
+												context.scene = &scene;
+												context.entity = picked_entity;
+												script_runtime->CallOnDestroy(script_slot.instance, context, script_slot.last_error);
+												script_runtime->DestroyInstance(script_slot.instance);
+												script_slot.instance = {};
+												script_slot.initialized = false;
+											}
+
+											script_slot.script_path = asset.disk_path;
+											script_slot.last_error.clear();
+										}
+										else
+										{
+											script_slot.last_error = "script already exists on this component";
+										}
+									}
+
+									if (selected)
+									{
+										ImGui::SetItemDefaultFocus();
+									}
+								}
+								ImGui::EndCombo();
+							}
+
+							if (ImGui::BeginDragDropTarget())
+							{
+								if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("CONTENT_ASSET_PATH"))
+								{
+									String dropped_path(static_cast<const char*>(payload->Data));
+									if (won::utils::ToLower(io::GetExtension(dropped_path)) == "lua")
+									{
+										if (dropped_path == script_slot.script_path || !HasScript(*script_comp, dropped_path))
+										{
+											if (dropped_path != script_slot.script_path && script_runtime && script_slot.instance.IsValid())
+											{
+												script::ScriptCallContext context = {};
+												context.scene = &scene;
+												context.entity = picked_entity;
+												script_runtime->CallOnDestroy(script_slot.instance, context, script_slot.last_error);
+												script_runtime->DestroyInstance(script_slot.instance);
+												script_slot.instance = {};
+												script_slot.initialized = false;
+											}
+
+											script_slot.script_path = dropped_path;
+											script_slot.last_error.clear();
+										}
+										else
+										{
+											script_slot.last_error = "script already exists on this component";
+										}
+									}
+								}
+								ImGui::EndDragDropTarget();
+							}
+
+							char path_buf[512];
+							std::snprintf(path_buf, sizeof(path_buf), "%s", script_slot.script_path.c_str());
+							if (ImGui::InputText("Path", path_buf, sizeof(path_buf)))
+							{
+								String new_path = path_buf;
+								if (won::utils::StartsWith(new_path, "/Contents/"))
+								{
+									new_path = contents_root_dir + new_path.substr(10);
+								}
+								if (new_path.empty() || new_path == script_slot.script_path || !HasScript(*script_comp, new_path))
+								{
+									if (new_path != script_slot.script_path && script_runtime && script_slot.instance.IsValid())
+									{
+										script::ScriptCallContext context = {};
+										context.scene = &scene;
+										context.entity = picked_entity;
+										script_runtime->CallOnDestroy(script_slot.instance, context, script_slot.last_error);
+										script_runtime->DestroyInstance(script_slot.instance);
+										script_slot.instance = {};
+										script_slot.initialized = false;
+									}
+
+									script_slot.script_path = new_path;
+									script_slot.last_error.clear();
+								}
+								else
+								{
+									script_slot.last_error = "script already exists on this component";
+								}
+							}
+
+							if (ImGui::Button("Reload", ImVec2(DEFAULTBUTTONWIDTH, 0)))
+							{
+								reload_script(picked_entity, script_slot);
+							}
+
+							ImGui::SameLine();
+							const bool remove_script = ImGui::Button("Remove", ImVec2(DEFAULTBUTTONWIDTH, 0));
+							ImGui::SameLine();
+							if (script_index == 0)
+							{
+								ImGui::BeginDisabled();
+							}
+							const bool move_up = ImGui::Button("Up", ImVec2(DEFAULTBUTTONWIDTH, 0));
+							if (script_index == 0)
+							{
+								ImGui::EndDisabled();
+							}
+							ImGui::SameLine();
+							if (script_index + 1 >= script_comp->scripts.size())
+							{
+								ImGui::BeginDisabled();
+							}
+							const bool move_down = ImGui::Button("Down", ImVec2(DEFAULTBUTTONWIDTH, 0));
+							if (script_index + 1 >= script_comp->scripts.size())
+							{
+								ImGui::EndDisabled();
+							}
+
+							if (!script_slot.last_error.empty())
+							{
+								ImGui::TextWrapped("Last Error: %s", script_slot.last_error.c_str());
+							}
+
+							ImGui::PopID();
+
+							if (remove_script)
+							{
+								if (script_runtime && script_slot.instance.IsValid())
+								{
+									script::ScriptCallContext context = {};
+									context.scene = &scene;
+									context.entity = picked_entity;
+									script_runtime->CallOnDestroy(script_slot.instance, context, script_slot.last_error);
+									script_runtime->DestroyInstance(script_slot.instance);
+								}
+
+								script_comp->scripts.erase(script_comp->scripts.begin() + script_index);
+								continue;
+							}
+
+							if (move_up && script_index > 0)
+							{
+								std::swap(script_comp->scripts[script_index], script_comp->scripts[script_index - 1]);
+								++script_index;
+								continue;
+							}
+
+							if (move_down && script_index + 1 < script_comp->scripts.size())
+							{
+								std::swap(script_comp->scripts[script_index], script_comp->scripts[script_index + 1]);
+								++script_index;
+								continue;
+							}
+
+							++script_index;
+						}
+
+						if (ImGui::Button("Add Script", ImVec2(DEFAULTBUTTONWIDTH, 0)))
+						{
+							script_comp->scripts.push_back({});
+						}
+					}
+					else
+					{
+						const ecs::Entity entity = picked_entity;
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+							ScriptComponent* script = scene.GetComponent<ScriptComponent>(entity);
+							if (script && script_runtime)
+							{
+								script::ScriptCallContext context = {};
+								context.scene = &scene;
+								context.entity = entity;
+								for (ScriptSlot& script_slot : script->scripts)
+								{
+									if (script_slot.instance.IsValid())
+									{
+										script_runtime->CallOnDestroy(script_slot.instance, context, script_slot.last_error);
+										script_runtime->DestroyInstance(script_slot.instance);
+									}
+								}
+							}
+							scene.RemoveComponent<ScriptComponent>(entity);
+						});
+					}
+
+					ImGui::PopID();
+					ImGui::Separator();
+				}
+
 				if (ImGui::Button("Add Component", ImVec2(-1.0f, 0.0f)))
 				{
 					ImGui::OpenPopup("AddComponentPopup");
@@ -3200,6 +3576,14 @@ namespace won::editor
 						if (main_view.scene->GetComponent<MaterialComponent>(picked_entity) == nullptr)
 						{
 							main_view.scene->AddComponent<MaterialComponent>(picked_entity);
+						}
+					}
+
+					if (ImGui::MenuItem("ScriptComponent"))
+					{
+						if (main_view.scene->GetComponent<ScriptComponent>(picked_entity) == nullptr)
+						{
+							main_view.scene->AddComponent<ScriptComponent>(picked_entity);
 						}
 					}
 
@@ -3797,13 +4181,18 @@ namespace won::editor
 			//std::string file_path = contents_root_dir + "/Models/Obj/Sphere/sphere.obj";
 			if (std::shared_ptr<AssetImportTask> import_task = api->ImportAsync(asset_importer.get(), file_path.c_str(), &scene, device.get()))
 			{
-				asset_import_tasks.push_back(import_task);
+				auto editor_task = std::make_shared<EditorAssetImportTask>();
+				editor_task->task = import_task;
+				asset_import_tasks.push_back(editor_task);
 			}
 
 			std::string cesium_man_file_path = contents_root_dir + "/Models/glTF/CesiumMan/glTF/CesiumMan.gltf";
 			if (std::shared_ptr<AssetImportTask> cesium_man_import_task = api->ImportAsync(asset_importer.get(), cesium_man_file_path.c_str(), &scene, device.get()))
 			{
-				asset_import_tasks.push_back(cesium_man_import_task);
+				auto editor_task = std::make_shared<EditorAssetImportTask>();
+				editor_task->task = cesium_man_import_task;
+				editor_task->type = 1;
+				asset_import_tasks.push_back(editor_task);
 			}
 
 			//ecs::Entity root_entity{};

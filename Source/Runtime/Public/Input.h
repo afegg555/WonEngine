@@ -97,6 +97,7 @@ namespace won::io
 	WONENGINE_API bool IsReleased(Button button);
 	WONENGINE_API bool IsDoubleClicked();
 	WONENGINE_API void SetDoubleClickInterval(double seconds); // default is 0.5
+	WONENGINE_API Button GetButtonFromString(StringView value);
 
 	WONENGINE_API const KeyboardState& GetKeyboardState();
 	WONENGINE_API const MouseState& GetMouseState();

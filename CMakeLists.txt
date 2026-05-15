@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(WonEngine LANGUAGES CXX)
+project(WonEngine LANGUAGES C CXX)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "Tools")
@@ -21,6 +21,72 @@ set(FINAL_OUT_DIR "${CMAKE_SOURCE_DIR}/Binary/${OS_NAME}")
 set(SHADER_BIN_DIR "${CMAKE_SOURCE_DIR}/CompiledShaders")
 set(CONTENTS_ROOT_DIR "${CMAKE_SOURCE_DIR}/Contents")
 file(MAKE_DIRECTORY "${SHADER_BIN_DIR}")
+
+set(LUA_SOURCES
+    Source/Vendor/lua/src/lapi.c
+    Source/Vendor/lua/src/lauxlib.c
+    Source/Vendor/lua/src/lbaselib.c
+    Source/Vendor/lua/src/lcode.c
+    Source/Vendor/lua/src/lcorolib.c
+    Source/Vendor/lua/src/lctype.c
+    Source/Vendor/lua/src/ldblib.c
+    Source/Vendor/lua/src/ldebug.c
+    Source/Vendor/lua/src/ldo.c
+    Source/Vendor/lua/src/ldump.c
+    Source/Vendor/lua/src/lfunc.c
+    Source/Vendor/lua/src/lgc.c
+    Source/Vendor/lua/src/linit.c
+    Source/Vendor/lua/src/liolib.c
+    Source/Vendor/lua/src/llex.c
+    Source/Vendor/lua/src/lmathlib.c
+    Source/Vendor/lua/src/lmem.c
+    Source/Vendor/lua/src/loadlib.c
+    Source/Vendor/lua/src/lobject.c
+    Source/Vendor/lua/src/lopcodes.c
+    Source/Vendor/lua/src/loslib.c
+    Source/Vendor/lua/src/lparser.c
+    Source/Vendor/lua/src/lstate.c
+    Source/Vendor/lua/src/lstring.c
+    Source/Vendor/lua/src/lstrlib.c
+    Source/Vendor/lua/src/ltable.c
+    Source/Vendor/lua/src/ltablib.c
+    Source/Vendor/lua/src/ltm.c
+    Source/Vendor/lua/src/lundump.c
+    Source/Vendor/lua/src/lutf8lib.c
+    Source/Vendor/lua/src/lvm.c
+    Source/Vendor/lua/src/lzio.c
+)
+
+set(LUA_HEADERS
+    Source/Vendor/lua/src/lapi.h
+    Source/Vendor/lua/src/lauxlib.h
+    Source/Vendor/lua/src/lcode.h
+    Source/Vendor/lua/src/lctype.h
+    Source/Vendor/lua/src/ldebug.h
+    Source/Vendor/lua/src/ldo.h
+    Source/Vendor/lua/src/lfunc.h
+    Source/Vendor/lua/src/lgc.h
+    Source/Vendor/lua/src/ljumptab.h
+    Source/Vendor/lua/src/llex.h
+    Source/Vendor/lua/src/llimits.h
+    Source/Vendor/lua/src/lmem.h
+    Source/Vendor/lua/src/lobject.h
+    Source/Vendor/lua/src/lopcodes.h
+    Source/Vendor/lua/src/lopnames.h
+    Source/Vendor/lua/src/lparser.h
+    Source/Vendor/lua/src/lprefix.h
+    Source/Vendor/lua/src/lstate.h
+    Source/Vendor/lua/src/lstring.h
+    Source/Vendor/lua/src/ltable.h
+    Source/Vendor/lua/src/ltm.h
+    Source/Vendor/lua/src/lua.h
+    Source/Vendor/lua/src/lua.hpp
+    Source/Vendor/lua/src/luaconf.h
+    Source/Vendor/lua/src/lualib.h
+    Source/Vendor/lua/src/lundump.h
+    Source/Vendor/lua/src/lvm.h
+    Source/Vendor/lua/src/lzio.h
+)
 
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "" FORCE)
 set(CMAKE_DEBUG_POSTFIX "d")
@@ -145,6 +211,16 @@ set(RUNTIME_PLUGIN
     Source/Runtime/Private/PluginManager.cpp
 )
 
+set(RUNTIME_SCRIPT
+    Source/Runtime/Public/ScriptRuntime.h
+    Source/Runtime/Private/ScriptRuntime.cpp
+)
+
+set(RUNTIME_SCRIPT_LUA
+    Source/Runtime/Private/LuaScriptRuntime.h
+    Source/Runtime/Private/LuaScriptRuntime.cpp
+)
+
 set(RUNTIME_JOBSYSTEM
     Source/Runtime/Public/JobSystem.h
     Source/Runtime/Public/EventHandler.h
@@ -190,6 +266,7 @@ set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/EnvironmentLightingComponent.h
     Source/Runtime/Public/DDGIVolumeComponent.h
     Source/Runtime/Public/AnimationComponent.h
+    Source/Runtime/Public/ScriptComponent.h
 )
 
 set(RUNTIME_ECS_SYSTEMS
@@ -203,6 +280,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Public/RenderableUpdateSystem.h
     Source/Runtime/Public/SpriteUpdateSystem.h
     Source/Runtime/Public/TextUpdateSystem.h
+    Source/Runtime/Public/ScriptUpdateSystem.h
     Source/Runtime/Private/EnvironmentUpdateSystem.cpp
     Source/Runtime/Private/CameraUpdateSystem.cpp
     Source/Runtime/Private/GeometryUpdateSystem.cpp
@@ -213,6 +291,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Private/RenderableUpdateSystem.cpp
     Source/Runtime/Private/SpriteUpdateSystem.cpp
     Source/Runtime/Private/TextUpdateSystem.cpp
+    Source/Runtime/Private/ScriptUpdateSystem.cpp
 )
 
 set(RUNTIME_PLATFORM
@@ -293,6 +372,10 @@ add_library(Runtime SHARED
     ${RUNTIME_RENDERING_INTERNAL}
     ${RUNTIME_CONFIGURATION}
     ${RUNTIME_PLUGIN}
+    ${RUNTIME_SCRIPT}
+    ${RUNTIME_SCRIPT_LUA}
+    ${LUA_SOURCES}
+    ${LUA_HEADERS}
     ${RUNTIME_JOBSYSTEM}
     ${RUNTIME_SERIALIZATION}
     ${RUNTIME_MATH}
@@ -319,6 +402,9 @@ source_group("Application" FILES ${RUNTIME_APPLICATION})
 source_group("Rendering/Internal" FILES ${RUNTIME_RENDERING_INTERNAL})
 source_group("Configuration" FILES ${RUNTIME_CONFIGURATION})
 source_group("Plugin" FILES ${RUNTIME_PLUGIN})
+source_group("Script" FILES ${RUNTIME_SCRIPT})
+source_group("Script/Lua" FILES ${RUNTIME_SCRIPT_LUA})
+source_group("Script/Lua/src" FILES ${LUA_SOURCES} ${LUA_HEADERS})
 source_group("JobSystem" FILES ${RUNTIME_JOBSYSTEM})
 source_group("Serialization" FILES ${RUNTIME_SERIALIZATION})
 source_group("Math" FILES ${RUNTIME_MATH})
@@ -407,6 +493,8 @@ target_include_directories(Runtime
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Shaders>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Vendor>
+    PRIVATE
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Vendor/lua/src>
 )
 
 target_link_libraries(Editor PRIVATE Runtime)
@@ -447,6 +535,7 @@ set_target_properties(PluginSample PROPERTIES
 set_target_properties(CameraController PROPERTIES
     FOLDER "Plugins"
 )
+
 target_compile_definitions(Runtime
     PRIVATE
         WONENGINE_EXPORTS
@@ -461,6 +550,7 @@ target_compile_definitions(Editor
 
 if(MSVC)
     target_compile_options(Runtime PRIVATE /W4 /permissive-)
+    set_source_files_properties(${LUA_SOURCES} PROPERTIES COMPILE_OPTIONS "/W3")
     set_target_properties(Runtime PROPERTIES
         MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL"
     )

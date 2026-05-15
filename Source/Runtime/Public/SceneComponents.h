@@ -16,6 +16,7 @@
 #include "EnvironmentLightingComponent.h"
 #include "DDGIVolumeComponent.h"
 #include "AnimationComponent.h"
+#include "ScriptComponent.h"
 
 namespace won::ecs
 {
@@ -39,7 +40,8 @@ namespace won::ecs
         DDGIVolume,
         Animation,
         Sprite2D,
-        Text2D
+        Text2D,
+        Script
     };
 
     constexpr ComponentMask ComponentMaskFromBit(SceneComponentBit bit)
@@ -64,4 +66,5 @@ namespace won::ecs
     inline constexpr ComponentMask ddgi_volume_component_mask = ComponentMaskFromBit(SceneComponentBit::DDGIVolume);
     inline constexpr ComponentMask animation_component_mask = ComponentMaskFromBit(SceneComponentBit::Animation);
     inline constexpr ComponentMask text_2d_component_mask = ComponentMaskFromBit(SceneComponentBit::Text2D);
+    inline constexpr ComponentMask script_component_mask = ComponentMaskFromBit(SceneComponentBit::Script);
 }
