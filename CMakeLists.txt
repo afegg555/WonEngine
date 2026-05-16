@@ -9,6 +9,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+option(WONENGINE_BUILD_SHARED_RUNTIME "Build Runtime as a shared library" OFF)
+
 if(WIN32)
     set(OS_NAME "Windows")
 elseif(APPLE)
@@ -361,7 +363,12 @@ set(SHADERS_HLSL
     Source/Shaders/TextureMipGenCS.hlsl
 )
 
-add_library(Runtime SHARED
+set(WONENGINE_RUNTIME_LIBRARY_TYPE STATIC)
+if(WONENGINE_BUILD_SHARED_RUNTIME)
+    set(WONENGINE_RUNTIME_LIBRARY_TYPE SHARED)
+endif()
+
+add_library(Runtime ${WONENGINE_RUNTIME_LIBRARY_TYPE}
     ${RUNTIME_CORE}
     ${RUNTIME_UTILS}
     ${RUNTIME_IO}
@@ -538,10 +545,18 @@ set_target_properties(CameraController PROPERTIES
 
 target_compile_definitions(Runtime
     PRIVATE
-        WONENGINE_EXPORTS
         WONENGINE_SHADER_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Source/Shaders"
         WONENGINE_SHADER_BIN_DIR="${SHADER_BIN_DIR}"
 )
+
+if(WONENGINE_BUILD_SHARED_RUNTIME)
+    target_compile_definitions(Runtime
+        PUBLIC
+            WONENGINE_SHARED_RUNTIME
+        PRIVATE
+            WONENGINE_EXPORTS
+    )
+endif()
 
 target_compile_definitions(Editor
     PRIVATE
