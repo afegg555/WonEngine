@@ -2,17 +2,89 @@
 #include "Backlog.h"
 #include "Platform.h"
 
+#include <cstring>
+#include <mutex>
+
 namespace won::plugin
 {
+    namespace
+    {
+        void WON_PLUGIN_CALL HostLog(const char* message)
+        {
+            if (message)
+            {
+                backlog::Post(message);
+            }
+        }
+    }
+
+    Plugin::Plugin(const String& name_in, void* native_handle_in, void* plugin_handle_in, const WonPluginAPI& api_in, WonPluginDestroyFn destroy_in)
+        : name(name_in)
+        , native_handle(native_handle_in)
+        , plugin_handle(plugin_handle_in)
+        , api(api_in)
+        , destroy(destroy_in)
+    {
+    }
+
+    Plugin::~Plugin()
+    {
+        if (plugin_handle && destroy)
+        {
+            destroy(plugin_handle);
+            plugin_handle = nullptr;
+        }
+
+#if defined(_WIN32)
+        if (native_handle)
+        {
+            FreeLibrary((HMODULE)native_handle);
+            native_handle = nullptr;
+        }
+#endif
+    }
+
+    const char* Plugin::GetName() const
+    {
+        return name.c_str();
+    }
+
+    void* Plugin::GetHandle() const
+    {
+        return plugin_handle;
+    }
+
+    bool Plugin::QueryInterface(const char* iid, const char* version_id, void** out_interface) const
+    {
+        if (!plugin_handle || !iid || !version_id || !out_interface)
+        {
+            return false;
+        }
+
+        *out_interface = nullptr;
+        if (!api.iid || !api.version_id || !api.api)
+        {
+            return false;
+        }
+        if (std::strcmp(api.iid, iid) != 0 || std::strcmp(api.version_id, version_id) != 0)
+        {
+            return false;
+        }
+
+        *out_interface = api.api;
+        return true;
+    }
+
+    void* Plugin::QueryInterface(const char* iid, const char* version_id) const
+    {
+        void* result = nullptr;
+        QueryInterface(iid, version_id, &result);
+        return result;
+    }
+
     struct PluginManager::Impl
     {
-        struct PluginHandle
-        {
-            std::shared_ptr<Plugin> plugin;
-            void* native_handle;
-        };
-
-        UnorderedMap<String, PluginHandle> plugins;
+        UnorderedMap<String, std::shared_ptr<Plugin>> plugins;
         std::mutex vector_lock;
     };
 
@@ -29,14 +101,7 @@ namespace won::plugin
             std::lock_guard<std::mutex> lock(p_impl->vector_lock);
             for (auto& entry : p_impl->plugins)
             {
-                if (entry.second.native_handle)
-                {
-                    entry.second.plugin->Shutdown();
-                    entry.second.plugin.reset();
-#if defined(_WIN32)
-                    FreeLibrary((HMODULE)entry.second.native_handle);
-#endif
-                }
+                entry.second.reset();
             }
         }
 
@@ -69,14 +134,14 @@ namespace won::plugin
             return false;
         }
 
-        CreatePluginFn creater = nullptr;
+        WonPluginCreateFn create = nullptr;
+        WonPluginDestroyFn destroy = nullptr;
 #if defined(_WIN32)
-        creater = reinterpret_cast<CreatePluginFn>(
-            GetProcAddress((HMODULE)handle, "CreatePlugin")
-            );
+        create = reinterpret_cast<WonPluginCreateFn>(GetProcAddress((HMODULE)handle, "WonPluginCreate"));
+        destroy = reinterpret_cast<WonPluginDestroyFn>(GetProcAddress((HMODULE)handle, "WonPluginDestroy"));
 #endif
 
-        if (!creater)
+        if (!create || !destroy)
         {
 #if defined(_WIN32)
             FreeLibrary((HMODULE)handle);
@@ -85,15 +150,37 @@ namespace won::plugin
             return false;
         }
 
-        std::shared_ptr<Plugin> plugin{ creater() };
+        WonPluginHostAPI host_api = {};
+        host_api.abi_version = WON_PLUGIN_ABI_VERSION;
+        host_api.Log = HostLog;
 
-        if (!plugin)
+        void* plugin_handle = nullptr;
+        WonPluginAPI api = {};
+        const WonPluginBool created = create(&host_api, &plugin_handle, &api);
+        if (created == WON_PLUGIN_FALSE || !plugin_handle || api.abi_version != WON_PLUGIN_ABI_VERSION || !api.iid || !api.version_id || !api.api)
         {
+            if (plugin_handle)
+            {
+                destroy(plugin_handle);
+            }
+#if defined(_WIN32)
+            FreeLibrary((HMODULE)handle);
+#endif
+            handle = nullptr;
             return false;
         }
 
-        plugin->Initialize();
-        p_impl->plugins[name] = { plugin, handle };
+        std::shared_ptr<Plugin> plugin = std::make_shared<Plugin>(name, handle, plugin_handle, api, destroy);
+        if (!plugin)
+        {
+            destroy(plugin_handle);
+#if defined(_WIN32)
+            FreeLibrary((HMODULE)handle);
+#endif
+            return false;
+        }
+
+        p_impl->plugins[name] = plugin;
 
         won::backlog::Post("Succeeded to load plugin : " + name);
 
@@ -110,10 +197,6 @@ namespace won::plugin
             return false;
         }
 
-        it->second.plugin = {};
-#if defined(_WIN32)
-        FreeLibrary((HMODULE)it->second.native_handle);
-#endif
         p_impl->plugins.erase(it);
 
         return true;
@@ -125,7 +208,7 @@ namespace won::plugin
         auto it = p_impl->plugins.find(name);
         if (it != p_impl->plugins.end())
         {
-            return it->second.plugin;
+            return it->second;
         }
 
 		return nullptr;

@@ -1,45 +1,66 @@
 #include "PluginSample.h"
-#include "Backlog.h"
+
+#include <string>
 
 namespace won::plugin
 {
-    class PluginSample : public Plugin
+    namespace
     {
-    public:
-        virtual const char* GetName() const override { return WON_IID_PLUGIN_SAMPLE; }
-        virtual const char* GetVersion() const override { return WON_VID_PLUGIN_SAMPLE; }
-
-        virtual void* QueryInterface(const char* iid, const char* version_id) const override
+        struct PluginSampleState
         {
-            if (std::strcmp(iid, WON_IID_PLUGIN_SAMPLE) == 0 && std::strcmp(version_id, WON_VID_PLUGIN_SAMPLE) == 0)
-                return (void*)&s_api;
-            return nullptr;
-        }
-        virtual bool Initialize() override
-        {
-            // add something to initialize on LoadPlugin
-            return true;
-        }
-        virtual void Shutdown() override
-        {
-            // add something to shutdown on UnloadPlugin
-        }
-
-        bool PrintSample(const char* input)
-        {
-            backlog::Post(input);
-
-            return true;
-        }
-    private:
-        static bool PrintSampleThunk(Plugin* self, const char* input)
-        {
-            return static_cast<PluginSample*>(self)->PrintSample(input);
-        }
-
-        inline static PluginSampleAPI s_api{
-            &PrintSampleThunk
+            std::string last_input;
         };
-    };
-    IMPLEMENT_PLUGIN(PluginSample, PPluginSample);
+
+        const WonPluginHostAPI* s_host_api = nullptr;
+
+        WonPluginBool WON_PLUGIN_CALL PrintSample(void* self, const char* input)
+        {
+            auto state = static_cast<PluginSampleState*>(self);
+            if (!state)
+            {
+                return WON_PLUGIN_FALSE;
+            }
+
+            state->last_input = input ? input : "";
+            if (s_host_api && s_host_api->Log)
+            {
+                s_host_api->Log(state->last_input.c_str());
+            }
+
+            return WON_PLUGIN_TRUE;
+        }
+
+        const char* WON_PLUGIN_CALL GetLastInput(void* self)
+        {
+            auto state = static_cast<PluginSampleState*>(self);
+            return state ? state->last_input.c_str() : "";
+        }
+
+        PluginSampleAPI s_api{
+            &PrintSample,
+            &GetLastInput
+        };
+
+    }
+}
+
+WON_PLUGIN_EXPORT WonPluginBool WON_PLUGIN_CALL WonPluginCreate(const WonPluginHostAPI* host_api, void** out_plugin, WonPluginAPI* out_api)
+{
+    if (!host_api || !out_plugin || !out_api || host_api->abi_version != WON_PLUGIN_ABI_VERSION)
+    {
+        return WON_PLUGIN_FALSE;
+    }
+
+    won::plugin::s_host_api = host_api;
+    *out_plugin = new won::plugin::PluginSampleState();
+    out_api->abi_version = WON_PLUGIN_ABI_VERSION;
+    out_api->iid = WON_IID_PLUGIN_SAMPLE;
+    out_api->version_id = WON_VID_PLUGIN_SAMPLE;
+    out_api->api = &won::plugin::s_api;
+    return WON_PLUGIN_TRUE;
+}
+
+WON_PLUGIN_EXPORT void WON_PLUGIN_CALL WonPluginDestroy(void* plugin)
+{
+    delete static_cast<won::plugin::PluginSampleState*>(plugin);
 }
