@@ -476,12 +476,6 @@ set(PLUGIN_CUSTOM_COMPONENT_SAMPLE
     Source/Plugins/CustomComponentSample/plugin.json
 )
 
-set(PLUGIN_CAMERA_CONTROLLER
-    Source/Plugins/CameraController/CameraController.h
-    Source/Plugins/CameraController/CameraController.cpp
-    Source/Plugins/CameraController/plugin.json
-)
-
 add_executable(Editor
     ${Editor_PUBLIC}
     ${Editor_IMGUI}
@@ -505,11 +499,7 @@ add_library(CustomComponentSample SHARED
     ${PLUGIN_CUSTOM_COMPONENT_SAMPLE}
 )
 
-add_library(CameraController SHARED
-    ${PLUGIN_CAMERA_CONTROLLER}
-)
-
-foreach(PLUGIN_TARGET AssetImporter PrintLogSample CustomComponentSample CameraController)
+foreach(PLUGIN_TARGET AssetImporter PrintLogSample CustomComponentSample)
     set(PLUGIN_OUTPUT_DIR "${FINAL_OUT_DIR}/Plugins/${PLUGIN_TARGET}")
     set_target_properties(${PLUGIN_TARGET} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${PLUGIN_OUTPUT_DIR}"
@@ -537,7 +527,7 @@ target_include_directories(Runtime
 )
 
 target_link_libraries(Editor PRIVATE Runtime)
-add_dependencies(Editor AssetImporter CameraController)
+add_dependencies(Editor AssetImporter)
 target_link_libraries(ShaderOfflineCompiler PRIVATE Runtime)
 target_link_libraries(AssetImporter PRIVATE
     Runtime
@@ -548,9 +538,6 @@ target_include_directories(PrintLogSample PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Runtime/Public>
 )
 target_include_directories(CustomComponentSample PRIVATE
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Runtime/Public>
-)
-target_include_directories(CameraController PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Runtime/Public>
 )
 target_include_directories(AssetImporter PRIVATE
@@ -581,12 +568,6 @@ add_custom_command(TARGET CustomComponentSample POST_BUILD
         "$<TARGET_FILE_DIR:CustomComponentSample>/plugin.json"
 )
 
-add_custom_command(TARGET CameraController POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins/CameraController/plugin.json"
-        "$<TARGET_FILE_DIR:CameraController>/plugin.json"
-)
-
 set_target_properties(ShaderOfflineCompiler PROPERTIES
     FOLDER "Tools"
 )
@@ -600,10 +581,6 @@ set_target_properties(PrintLogSample PROPERTIES
 )
 
 set_target_properties(CustomComponentSample PROPERTIES
-    FOLDER "Plugins"
-)
-
-set_target_properties(CameraController PROPERTIES
     FOLDER "Plugins"
 )
 

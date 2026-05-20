@@ -6,6 +6,12 @@
 
 #define EDITOR_USE_CUSTOM_TITLEBAR
 
+namespace won::ecs
+{
+	struct CameraComponent;
+	struct TransformComponent;
+}
+
 namespace won::editor
 {
 	struct EditorAssetImportTask;
@@ -90,6 +96,33 @@ namespace won::editor
 
 		struct EditorViewport
 		{
+			struct CameraController
+			{
+				enum class InteractionMode
+				{
+					None,
+					PanMove,
+					Rotate,
+					Orbit,
+				};
+
+				bool pressed = false;
+				float2 prev_mouse_pos = {};
+				InteractionMode active_interaction = InteractionMode::None;
+				float yaw = 0.0f;
+				float pitch = 0.0f;
+				float orbit_distance = 0.0f;
+				float move_speed = 5.0f;
+				float rotate_speed = 1.0f;
+				float orbit_speed = 1.0f;
+				float3 focus_point = { 0.0f, 0.0f, 0.0f };
+
+				void Update(const ecs::CameraComponent& camera, ecs::TransformComponent& transform, float dt, const float2& viewport_mouse_pos, const float2& viewport_size, bool can_begin_interaction);
+				void BeginInteraction(InteractionMode mode, const ecs::TransformComponent& transform, const float2& viewport_mouse_pos);
+				void UpdateInteraction(ecs::TransformComponent& transform, const float2& viewport_mouse_pos, const float2& viewport_size);
+				void EndInteraction();
+			};
+
 			struct DeferredResRemoval
 			{
 				uint32 frames_left = 0;
@@ -97,8 +130,8 @@ namespace won::editor
 				std::vector<std::shared_ptr<RHIResource>> resources;
 			};
 
-			ecs::Scene scene;
 			rendering::View* view = nullptr;
+			CameraController camera_controller;
 			ecs::Entity debug_primitive_entity = ecs::INVALID_ENTITY;
 			std::shared_ptr<resource::Mesh> debug_primitive_mesh;
 			std::vector<DeferredResRemoval> deferred_res_removals;
@@ -115,6 +148,7 @@ namespace won::editor
 
 		std::vector<ecs::Entity> sorted_entities;
 
+		ecs::Scene loaded_scene;
 		EditorViewport editor_viewport;
 		std::vector<std::shared_ptr<EditorAssetImportTask>> asset_import_tasks;
 		ContentBrowserState content_browser = {};

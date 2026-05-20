@@ -49,7 +49,7 @@ namespace won
         std::shared_ptr<platform::Window> window;
         std::shared_ptr<rendering::Renderer> renderer;
         std::shared_ptr<script::ScriptRuntime> script_runtime;
-        Vector<rendering::View> views;
+        Vector<std::unique_ptr<rendering::View>> views;
         utils::Timer frame_timer;
         bool is_first_frame = true;
     };

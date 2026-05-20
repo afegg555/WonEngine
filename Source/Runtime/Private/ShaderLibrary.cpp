@@ -59,7 +59,7 @@ namespace won::resource
         pipeline_desc.vertex_shader = GetShader(ShaderId::VSFullTriangle).get();
         pipeline_desc.pixel_shader = GetShader(ShaderId::PSSky).get();
         pipeline_desc.sample_count = sample_count;
-        pipeline_desc.depth_stencil_format = dsv_format;
+        pipeline_desc.depth_stencil_format = RHIFormat::Unknown;
         pipeline_desc.depth_stencil.depth_test = false;
         pipeline_desc.depth_stencil.depth_write = false;
         pipeline_desc.blend.enable = false;
@@ -183,6 +183,10 @@ namespace won::resource
         pipeline_desc.vertex_shader = GetShader(ShaderId::VSSprite2D).get();
         pipeline_desc.pixel_shader = GetShader(ShaderId::PSSprite).get();
         pipeline_desc.sample_count = sample_count;
+        pipeline_desc.depth_stencil_format = RHIFormat::Unknown;
+        pipeline_desc.depth_stencil.depth_test = false;
+        pipeline_desc.depth_stencil.depth_write = false;
+        pipeline_desc.depth_stencil.depth_compare = RHICompareOp::Always;
         pipeline_desc.blend.enable = true;
         pipeline_desc.raster.cull_mode = RHICullMode::None;
         pipeline_desc.render_target_formats = { rtv_format };

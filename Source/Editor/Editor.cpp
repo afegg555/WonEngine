@@ -16,7 +16,6 @@
 #include "EventHandler.h"
 
 #include "AssetImporter/AssetImporter.h"
-#include "CameraController/CameraController.h"
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include "imgui-docking/imgui.h"
 #include "imgui-docking/imgui_internal.h"
@@ -339,15 +338,175 @@ namespace won::editor
 		}
 	}
 
+	void EditorApplication::EditorViewport::CameraController::Update(const ecs::CameraComponent& camera, ecs::TransformComponent& transform, float dt, const float2& viewport_mouse_pos, const float2& viewport_size, bool can_begin_interaction)
+	{
+		XMVECTOR xforward = XMVector3Normalize(XMLoadFloat3(&camera.forward));
+		XMVECTOR xup = XMVector3Normalize(XMLoadFloat3(&camera.up));
+		XMVECTOR xright = XMVector3Normalize(XMVector3Cross(xup, xforward));
+
+		if (io::IsDown(io::Button('W')))
+		{
+			float3 translation{};
+			XMStoreFloat3(&translation, XMVectorScale(xforward, dt * move_speed));
+			transform.Translate(translation);
+		}
+		if (io::IsDown(io::Button('A')))
+		{
+			float3 translation{};
+			XMStoreFloat3(&translation, XMVectorScale(xright, -dt * move_speed));
+			transform.Translate(translation);
+		}
+		if (io::IsDown(io::Button('S')))
+		{
+			float3 translation{};
+			XMStoreFloat3(&translation, XMVectorScale(xforward, -dt * move_speed));
+			transform.Translate(translation);
+		}
+		if (io::IsDown(io::Button('D')))
+		{
+			float3 translation{};
+			XMStoreFloat3(&translation, XMVectorScale(xright, dt * move_speed));
+			transform.Translate(translation);
+		}
+
+		if (can_begin_interaction && io::IsPressed(io::Button::MOUSE_BUTTON_RIGHT))
+		{
+			BeginInteraction(InteractionMode::Rotate, transform, viewport_mouse_pos);
+		}
+		else if (can_begin_interaction && io::IsPressed(io::Button::MOUSE_BUTTON_MIDDLE))
+		{
+			BeginInteraction(InteractionMode::Orbit, transform, viewport_mouse_pos);
+		}
+
+		bool can_update_interaction = false;
+		bool interaction_finished = false;
+		if (active_interaction == InteractionMode::PanMove)
+		{
+			interaction_finished = true;
+		}
+		else if (active_interaction == InteractionMode::Rotate)
+		{
+			can_update_interaction = io::IsDown(io::Button::MOUSE_BUTTON_RIGHT);
+			interaction_finished = !can_update_interaction;
+		}
+		else if (active_interaction == InteractionMode::Orbit)
+		{
+			can_update_interaction = io::IsDown(io::Button::MOUSE_BUTTON_MIDDLE);
+			interaction_finished = !can_update_interaction;
+		}
+
+		if (can_update_interaction)
+		{
+			UpdateInteraction(transform, viewport_mouse_pos, viewport_size);
+		}
+
+		if (interaction_finished)
+		{
+			EndInteraction();
+		}
+	}
+
+	void EditorApplication::EditorViewport::CameraController::BeginInteraction(InteractionMode mode, const ecs::TransformComponent& transform, const float2& viewport_mouse_pos)
+	{
+		pressed = true;
+		active_interaction = mode;
+
+		const XMVECTOR base_forward = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+		const XMVECTOR base_right = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
+		const XMVECTOR cam_rotation = XMQuaternionNormalize(XMLoadFloat4(&transform.rotation));
+		const XMVECTOR cam_forward = XMVector3Rotate(base_forward, cam_rotation);
+		const XMVECTOR cam_right = XMVector3Rotate(base_right, cam_rotation);
+		pitch = std::asin(math::clamp(XMVectorGetY(cam_forward), -1.0f, 1.0f));
+		const float cos_pitch = std::cos(pitch);
+		if (std::abs(cos_pitch) > 0.0001f)
+		{
+			yaw = std::atan2(XMVectorGetX(cam_forward), XMVectorGetZ(cam_forward));
+		}
+		else
+		{
+			yaw = std::atan2(-XMVectorGetZ(cam_right), XMVectorGetX(cam_right));
+		}
+
+		const XMVECTOR cam_pos = XMLoadFloat3(&transform.position);
+		const XMVECTOR xfocus_point = XMLoadFloat3(&focus_point);
+		orbit_distance = XMVectorGetX(XMVector3Length(cam_pos - xfocus_point));
+		prev_mouse_pos = viewport_mouse_pos;
+	}
+
+	void EditorApplication::EditorViewport::CameraController::UpdateInteraction(ecs::TransformComponent& transform, const float2& viewport_mouse_pos, const float2& viewport_size)
+	{
+		if (!pressed)
+		{
+			return;
+		}
+
+		float2 mouse_delta = { viewport_mouse_pos.x - prev_mouse_pos.x, viewport_mouse_pos.y - prev_mouse_pos.y };
+		if (math::float_equal(mouse_delta.x, 0.f) && math::float_equal(mouse_delta.y, 0.f))
+		{
+			return;
+		}
+
+		const float viewport_width = (std::max)(viewport_size.x, 1.0f);
+		const float viewport_height = (std::max)(viewport_size.y, 1.0f);
+		const float dx = mouse_delta.x / viewport_width;
+		const float dy = -mouse_delta.y / viewport_height;
+		constexpr float pitch_limit = XM_PIDIV2 - 0.001f;
+
+		if (active_interaction == InteractionMode::PanMove)
+		{
+			const XMVECTOR cam_pos = XMLoadFloat3(&transform.position);
+			const XMVECTOR cam_rotation = XMQuaternionNormalize(XMLoadFloat4(&transform.rotation));
+			const XMVECTOR cam_right = XMVector3Rotate(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), cam_rotation);
+			const XMVECTOR cam_up = XMVector3Rotate(XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f), cam_rotation);
+			const XMVECTOR xfocus_point = XMLoadFloat3(&focus_point);
+			const float distance = XMVectorGetX(XMVector3Length(cam_pos - xfocus_point));
+			const XMVECTOR delta = XMVectorAdd(XMVectorScale(cam_right, -dx * distance), XMVectorScale(cam_up, -dy * distance));
+			XMStoreFloat3(&transform.position, XMVectorAdd(cam_pos, delta));
+		}
+		else if (active_interaction == InteractionMode::Rotate || active_interaction == InteractionMode::Orbit)
+		{
+			const float speed = active_interaction == InteractionMode::Orbit ? orbit_speed : rotate_speed;
+			yaw += dx * XM_2PI * speed;
+			pitch = math::clamp(pitch + dy * XM_2PI * speed, -pitch_limit, pitch_limit);
+
+			const float cos_pitch = std::cos(pitch);
+			const XMVECTOR cam_forward = XMVectorSet(std::sin(yaw) * cos_pitch, std::sin(pitch), std::cos(yaw) * cos_pitch, 0.0f);
+			const XMVECTOR cam_right = XMVectorSet(std::cos(yaw), 0.0f, -std::sin(yaw), 0.0f);
+			const XMVECTOR cam_up = XMVector3Normalize(XMVector3Cross(cam_forward, cam_right));
+
+			XMMATRIX cam_world = XMMatrixIdentity();
+			cam_world.r[0] = XMVectorSetW(cam_right, 0.0f);
+			cam_world.r[1] = XMVectorSetW(cam_up, 0.0f);
+			cam_world.r[2] = XMVectorSetW(cam_forward, 0.0f);
+
+			XMStoreFloat4(&transform.rotation, XMQuaternionNormalize(XMQuaternionRotationMatrix(cam_world)));
+			if (active_interaction == InteractionMode::Orbit)
+			{
+				const XMVECTOR xfocus_point = XMLoadFloat3(&focus_point);
+				const XMVECTOR cam_pos = xfocus_point - XMVectorScale(cam_forward, (std::max)(orbit_distance, 0.001f));
+				XMStoreFloat3(&transform.position, cam_pos);
+			}
+		}
+
+		transform.SetDirty();
+		prev_mouse_pos = viewport_mouse_pos;
+	}
+
+	void EditorApplication::EditorViewport::CameraController::EndInteraction()
+	{
+		pressed = false;
+		active_interaction = InteractionMode::None;
+	}
+
 	void EditorApplication::Initialize(const ApplicationDesc& desc)
 	{
 		Application::Initialize(desc);
 
 		ecs::SceneDesc scene_desc = {};
 		scene_desc.script_runtime = script_runtime.get();
-		editor_viewport.scene = ecs::Scene(scene_desc);
+		loaded_scene = ecs::Scene(scene_desc);
 		editor_viewport.view = &GetView();
-		editor_viewport.view->scene = &editor_viewport.scene;
+		editor_viewport.view->scene = &loaded_scene;
 
 		{
 			ShaderCompilerOptions compiler_options;
@@ -416,8 +575,8 @@ namespace won::editor
 
 		// camera entity
 		{
-			editor_viewport.view->camera_entity = editor_viewport.scene.CreateEntity();
-			auto camera_transform = editor_viewport.scene.AddComponent<ecs::TransformComponent>(editor_viewport.view->camera_entity);
+			editor_viewport.view->camera_entity = editor_viewport.view->scene->CreateEntity();
+			auto camera_transform = editor_viewport.view->scene->AddComponent<ecs::TransformComponent>(editor_viewport.view->camera_entity);
 			if (camera_transform)
 			{
 				camera_transform->position = { -4.7f, 2.0f, 0.3f };
@@ -425,7 +584,7 @@ namespace won::editor
 				camera_transform->SetDirty();
 			}
 
-			auto camera = editor_viewport.scene.AddComponent<ecs::CameraComponent>(editor_viewport.view->camera_entity);
+			auto camera = editor_viewport.view->scene->AddComponent<ecs::CameraComponent>(editor_viewport.view->camera_entity);
 			if (camera)
 			{
 				float viewport_width = static_cast<float>(editor_viewport.view->viewport.width);
@@ -441,7 +600,7 @@ namespace won::editor
 				//camera->SetOrthoVerticalSize(4.f);
 			}
 
-			auto name = editor_viewport.scene.AddComponent<ecs::NameComponent>(editor_viewport.view->camera_entity);
+			auto name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(editor_viewport.view->camera_entity);
 			name->value = "Editor Camera";
 		}
 		contents_watcher = io::CreateDirectoryWatcher(contents_root_dir, true);
@@ -461,6 +620,7 @@ namespace won::editor
 		imgui_sampler.reset();
 		editor_viewport.debug_primitive_mesh.reset();
 		editor_viewport.deferred_res_removals.clear();
+		editor_viewport.camera_controller = {};
 		asset_import_tasks.clear();
 		contents_watcher.reset();
 		contents_watcher_poll_timer = 0.0f;
@@ -470,7 +630,7 @@ namespace won::editor
 			editor_viewport.view->scene = nullptr;
 			editor_viewport.view->camera_entity = ecs::INVALID_ENTITY;
 		}
-		editor_viewport.scene = {};
+		loaded_scene = {};
 		editor_viewport.view = nullptr;
 
 		plugin_manager = {};
@@ -510,14 +670,14 @@ namespace won::editor
 			if (task->committed.load())
 			{
 				ecs::Entity root_entity = task->root_entity.load();
-				auto transform = editor_viewport.scene.GetComponent<ecs::TransformComponent>(root_entity);
+				auto transform = editor_viewport.view->scene->GetComponent<ecs::TransformComponent>(root_entity);
 				if (transform)
 				{
 					//transform->Translate({ 5.0f, 0.0f, 5.0f });
 					//transform->Scale({ 3.0f, 3.0f, 3.0f });
 				}
 
-				auto material_component = editor_viewport.scene.GetComponent<ecs::MaterialComponent>(root_entity);
+				auto material_component = editor_viewport.view->scene->GetComponent<ecs::MaterialComponent>(root_entity);
 				if (material_component)
 				{
 					for (uint32 i = 0; i < (uint32)material_component->GetMaterialSlotCount(); i++)
@@ -527,7 +687,7 @@ namespace won::editor
 					}
 				}
 
-				auto geometry_component = editor_viewport.scene.GetComponent<ecs::GeometryComponent>(root_entity);
+				auto geometry_component = editor_viewport.view->scene->GetComponent<ecs::GeometryComponent>(root_entity);
 				if (geometry_component)
 				{
 					geometry_component->SetCastShadow(true);
@@ -535,10 +695,10 @@ namespace won::editor
 
 				if (editor_task->type == 1)
 				{
-					ScriptComponent* script_component = editor_viewport.scene.GetComponent<ScriptComponent>(root_entity);
+					ScriptComponent* script_component = editor_viewport.view->scene->GetComponent<ScriptComponent>(root_entity);
 					if (!script_component)
 					{
-						script_component = editor_viewport.scene.AddComponent<ScriptComponent>(root_entity);
+						script_component = editor_viewport.view->scene->AddComponent<ScriptComponent>(root_entity);
 					}
 					if (script_component)
 					{
@@ -591,7 +751,7 @@ namespace won::editor
 				changed_script_paths.push_back(change.path);
 			}
 
-			auto script_array = editor_viewport.scene.GetComponentArray<ecs::ScriptComponent>();
+			auto script_array = editor_viewport.view->scene->GetComponentArray<ecs::ScriptComponent>();
 			if (script_runtime && script_array)
 			{
 				for (const String& changed_script_path : changed_script_paths)
@@ -603,7 +763,7 @@ namespace won::editor
 						const ecs::Entity entity = script_array->index_to_entity[i];
 						ecs::ScriptComponent& script_component = script_array->data[i];
 						script::ScriptCallContext context = {};
-						context.scene = &editor_viewport.scene;
+						context.scene = editor_viewport.view->scene;
 						context.entity = entity;
 
 						for (ecs::ScriptSlot& script_slot : script_component.scripts)
@@ -660,185 +820,45 @@ namespace won::editor
 			rendering::ReloadShaderLibrary(device);
 		}
 
-		static CameraControllerAPI* controller_api = nullptr;
-		static Plugin* camera_controller = nullptr;
-		if (!controller_api)
-		{
-			camera_controller = plugin_manager->GetPlugin(WON_IID_CAMERA_CONTROLLER).get();
-			controller_api = (CameraControllerAPI*)camera_controller->QueryInterface(WON_IID_CAMERA_CONTROLLER, WON_VID_CAMERA_CONTROLLER);
-		}
-
-		auto camera = editor_viewport.scene.GetComponent<ecs::CameraComponent>(editor_viewport.view->camera_entity);
-		auto transform = editor_viewport.scene.GetComponent<ecs::TransformComponent>(editor_viewport.view->camera_entity);
+		auto camera = editor_viewport.view->scene->GetComponent<ecs::CameraComponent>(editor_viewport.view->camera_entity);
+		auto transform = editor_viewport.view->scene->GetComponent<ecs::TransformComponent>(editor_viewport.view->camera_entity);
 		if (!camera || !transform)
 		{
 			return;
-		}
-
-		// assume editor camera has no hierarchy
-		XMVECTOR xforward = XMVector3Normalize(XMLoadFloat3(&camera->forward));
-		XMVECTOR xup = XMVector3Normalize(XMLoadFloat3(&camera->up));
-		XMVECTOR xright = XMVector3Normalize(XMVector3Cross(xup, xforward));
-
-		const float camera_speed = 5.0f;
-
-		if (won::io::IsDown(io::Button('W')))
-		{
-			float3 translation{};
-			XMStoreFloat3(&translation, XMVectorScale(xforward, dt * camera_speed));
-			transform->Translate(translation);
-		}
-		if (won::io::IsDown(io::Button('A')))
-		{
-			float3 translation{};
-			XMStoreFloat3(&translation, XMVectorScale(xright, -dt * camera_speed));
-			transform->Translate(translation);
-		}
-		if (won::io::IsDown(io::Button('S')))
-		{
-			float3 translation{};
-			XMStoreFloat3(&translation, XMVectorScale(xforward, -dt * camera_speed));
-			transform->Translate(translation);
-		}
-		if (won::io::IsDown(io::Button('D')))
-		{
-			float3 translation{};
-			XMStoreFloat3(&translation, XMVectorScale(xright, dt * camera_speed));
-			transform->Translate(translation);
 		}
 
 		float2 mouse_pos = io::GetMouseState().position;
 		float2 main_viewport_pos = { (float)editor_viewport.view->viewport.x, (float)editor_viewport.view->viewport.y};
 		float2 main_viewport_size = { (float)editor_viewport.view->viewport.width, (float)editor_viewport.view->viewport.height};
 		float2 viewport_mouse_pos = { mouse_pos.x - main_viewport_pos.x, mouse_pos.y - main_viewport_pos.y };
-
-		static bool pressed = false;
-		static float2 prev_mouse_pos{};
-		static CameraInteractionMode active_interaction = CameraInteractionMode::None;
-
-		if (editor_viewport.input_enabled &&
+		const bool can_control_viewport =
+			editor_viewport.input_enabled &&
 			0 <= viewport_mouse_pos.x && viewport_mouse_pos.x <= main_viewport_size.x &&
-			0 <= viewport_mouse_pos.y && viewport_mouse_pos.y <= main_viewport_size.y)
+			0 <= viewport_mouse_pos.y && viewport_mouse_pos.y <= main_viewport_size.y;
+
+		if (can_control_viewport && io::IsPressed(io::Button::MOUSE_BUTTON_LEFT))
 		{
-			if (io::IsPressed(io::Button::MOUSE_BUTTON_LEFT))
+			ecs::RayCastHit hit = {};
+			if (editor_viewport.view->RayCast(mouse_pos, hit, true))
 			{
-				ecs::RayCastHit hit = {};
-				if (editor_viewport.view->RayCast(mouse_pos, hit, true))
-				{
-					editor_viewport.picked_entity = hit.entity;
-				}
-				else
-				{
-					editor_viewport.picked_entity = ecs::INVALID_ENTITY;
-				}
+				editor_viewport.picked_entity = hit.entity;
 			}
-
-			if (io::IsPressed(io::Button::MOUSE_BUTTON_RIGHT) || io::IsPressed(io::Button::MOUSE_BUTTON_MIDDLE))
+			else
 			{
-				pressed = true;
-
-				ControllerState controller_state;
-				controller_state.rotate_speed = 1.f;
-				controller_state.screen_size = main_viewport_size;
-				controller_state.zoom_speed = 0.005f;
-				controller_state.rotate_speed = 1.f;
-				controller_state.orbit_speed = 1.f;
-				controller_state.focus_point = { 0.f, 0.f, 0.f };
-
-				controller_api->SetControllerState(camera_controller, controller_state);
-
-				CameraState camera_state;
-				camera_state.cam_pos = transform->position;
-				camera_state.cam_rotation = transform->rotation;
-
-				if (io::IsPressed(io::Button::MOUSE_BUTTON_RIGHT))
-				{
-					active_interaction = CameraInteractionMode::Rotate;
-				}
-				else if (io::IsPressed(io::Button::MOUSE_BUTTON_MIDDLE))
-				{
-					active_interaction = CameraInteractionMode::Orbit;
-				}
-				// PanMove is temporarily disabled so left mouse can be used for scene picking.
-				// else
-				// {
-				// 	active_interaction = CameraInteractionMode::PanMove;
-				// }
-
-				controller_api->BeginInteraction(camera_controller, active_interaction, camera_state);
-
-				prev_mouse_pos = viewport_mouse_pos;
+				editor_viewport.picked_entity = ecs::INVALID_ENTITY;
 			}
 		}
 
-		if (pressed)
-		{
-			float2 mouse_delta = { viewport_mouse_pos.x - prev_mouse_pos.x, viewport_mouse_pos.y - prev_mouse_pos.y };
-			if (!math::float_equal(mouse_delta.x, 0.f)
-				|| !math::float_equal(mouse_delta.y, 0.f))
-			{
-				// assume editor camera has no hierarchy
-				transform->UpdateTransform();
-				XMMATRIX xmat = transform->GetWorldTransform();
-				float4x4 mat{};
-				XMStoreFloat4x4(&mat, xmat);
-				float3 cam_pos = math::GetPosition(mat);
-
-				CameraState camera_state;
-				camera_state.cam_pos = cam_pos;
-				camera_state.cam_rotation = transform->rotation;
-
-				// PanMove is temporarily disabled so left mouse can be used for scene picking.
-				// const bool is_panmove = io::IsDown(io::Button::MOUSE_BUTTON_LEFT);
-				const bool is_panmove = false;
-				const bool is_rotate = io::IsDown(io::Button::MOUSE_BUTTON_RIGHT);
-				const bool is_orbit = io::IsDown(io::Button::MOUSE_BUTTON_MIDDLE);
-
-				if (is_panmove || is_rotate || is_orbit)
-				{
-					controller_api->UpdateInteraction(camera_controller, mouse_delta, camera_state);
-					transform->position = camera_state.cam_pos;
-					transform->rotation = camera_state.cam_rotation;
-					transform->SetDirty();
-				}
-
-				prev_mouse_pos = viewport_mouse_pos;
-			}
-
-			bool interaction_finished = false;
-			if (active_interaction == CameraInteractionMode::PanMove)
-			{
-				// PanMove is temporarily disabled so left mouse can be used for scene picking.
-				// interaction_finished = !io::IsDown(io::Button::MOUSE_BUTTON_LEFT);
-				interaction_finished = true;
-			}
-			else if (active_interaction == CameraInteractionMode::Rotate)
-			{
-				interaction_finished = !io::IsDown(io::Button::MOUSE_BUTTON_RIGHT);
-			}
-			else if (active_interaction == CameraInteractionMode::Orbit)
-			{
-				interaction_finished = !io::IsDown(io::Button::MOUSE_BUTTON_MIDDLE);
-			}
-
-			if (interaction_finished)
-			{
-				controller_api->EndInteraction(camera_controller);
-				pressed = false;
-				active_interaction = CameraInteractionMode::None;
-			}
-		}
+		editor_viewport.camera_controller.Update(*camera, *transform, dt, viewport_mouse_pos, main_viewport_size, can_control_viewport);
 		Application::Update(dt);
 
 	}
 
 	void EditorApplication::LoadDefaultPlugins()
 	{
-		if (!plugin_manager->LoadPlugin(WON_IID_ASSET_IMPORTER))
-		{
-
-		}
-		if (!plugin_manager->LoadPlugin(WON_IID_CAMERA_CONTROLLER))
+		const String plugin_root_path = io::CombinePath(io::GetExecutableDirectory(), "Plugins");
+		const String asset_importer_manifest_path = io::CombinePath(plugin_root_path, "AssetImporter/plugin.json");
+		if (!plugin_manager->LoadPluginFromManifest(asset_importer_manifest_path))
 		{
 
 		}
@@ -848,20 +868,20 @@ namespace won::editor
 	{
 		if (editor_viewport.debug_primitive_entity == ecs::INVALID_ENTITY || !editor_viewport.debug_primitive_mesh)
 		{
-			editor_viewport.debug_primitive_entity = editor_viewport.scene.CreateEntity();
+			editor_viewport.debug_primitive_entity = editor_viewport.view->scene->CreateEntity();
 			editor_viewport.debug_primitive_mesh = std::make_shared<resource::Mesh>();
 
-			editor_viewport.scene.AddComponent<ecs::TransformComponent>(editor_viewport.debug_primitive_entity);
+			editor_viewport.view->scene->AddComponent<ecs::TransformComponent>(editor_viewport.debug_primitive_entity);
 
-			if (auto geometry = editor_viewport.scene.AddComponent<ecs::GeometryComponent>(editor_viewport.debug_primitive_entity))
+			if (auto geometry = editor_viewport.view->scene->AddComponent<ecs::GeometryComponent>(editor_viewport.debug_primitive_entity))
 			{
 				geometry->SetMesh(editor_viewport.debug_primitive_mesh);
 				geometry->SetExcludeFromBVH(true);
 			}
 
-			editor_viewport.scene.AddComponent<ecs::MaterialComponent>(editor_viewport.debug_primitive_entity);
+			editor_viewport.view->scene->AddComponent<ecs::MaterialComponent>(editor_viewport.debug_primitive_entity);
 
-			if (auto name = editor_viewport.scene.AddComponent<ecs::NameComponent>(editor_viewport.debug_primitive_entity))
+			if (auto name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(editor_viewport.debug_primitive_entity))
 			{
 				name->value = "Debug Primitives";
 			}
@@ -896,7 +916,7 @@ namespace won::editor
 			theme::gpu_bvh_leaf_color
 		};
 
-		if (auto material = editor_viewport.scene.GetComponent<ecs::MaterialComponent>(editor_viewport.debug_primitive_entity))
+		if (auto material = editor_viewport.view->scene->GetComponent<ecs::MaterialComponent>(editor_viewport.debug_primitive_entity))
 		{
 			material->material_slots.clear();
 			for (const float4& color : primitive_material_colors)
@@ -1095,7 +1115,7 @@ namespace won::editor
 			rendering::utils::CreateRenderData(*device, *editor_viewport.debug_primitive_mesh);
 		}
 
-		if (auto geometry = editor_viewport.scene.GetComponent<ecs::GeometryComponent>(editor_viewport.debug_primitive_entity))
+		if (auto geometry = editor_viewport.view->scene->GetComponent<ecs::GeometryComponent>(editor_viewport.debug_primitive_entity))
 		{
 			geometry->UpdateLocalBounds();
 			geometry->SetDirty();
@@ -1104,7 +1124,7 @@ namespace won::editor
 
 	void EditorApplication::OnWindowResized(int width, int height)
 	{
-		auto* camera = editor_viewport.scene.GetComponent<ecs::CameraComponent>(editor_viewport.view->camera_entity);
+		auto* camera = editor_viewport.view->scene->GetComponent<ecs::CameraComponent>(editor_viewport.view->camera_entity);
 		if (!camera)
 		{
 			return;
@@ -1540,12 +1560,12 @@ namespace won::editor
 			}
 			if (ImGui::Button("Import"))
 			{
-				auto asset_importer = plugin_manager->GetPlugin(WON_IID_ASSET_IMPORTER);
-				AssetImporterAPI* api = asset_importer ? (AssetImporterAPI*)asset_importer->QueryInterface(WON_IID_ASSET_IMPORTER, WON_VID_ASSET_IMPORTER) : nullptr;
+				auto asset_importer = plugin_manager->GetPlugin(WON_PLUGIN_ASSET_IMPORTER);
+				AssetImporterAPI* api = asset_importer ? (AssetImporterAPI*)asset_importer->QueryInterface(WON_IID_ASSET_IMPORTER) : nullptr;
 				std::shared_ptr<AssetImportTask> import_task;
 				if (api)
 				{
-					import_task = api->ImportAsync(asset_importer.get(), content_browser.pending_import_disk_path.c_str(), &scene, device.get());
+					import_task = api->ImportAsync(asset_importer->GetHandle(), content_browser.pending_import_disk_path.c_str(), editor_viewport.view->scene, device.get());
 				}
 				if (import_task)
 				{
@@ -1587,7 +1607,7 @@ namespace won::editor
 			return;
 		}
 
-		const ecs::CameraComponent* camera = editor_viewport.scene.GetComponent<ecs::CameraComponent>(editor_viewport.view->camera_entity);
+		const ecs::CameraComponent* camera = editor_viewport.view->scene->GetComponent<ecs::CameraComponent>(editor_viewport.view->camera_entity);
 		if (!camera)
 		{
 			return;
@@ -1876,7 +1896,7 @@ namespace won::editor
 			editor_viewport.view->scissor.width = editor_viewport.view->viewport.width;
 			editor_viewport.view->scissor.height = editor_viewport.view->viewport.height;
 
-			if (auto* camera = editor_viewport.scene.GetComponent<ecs::CameraComponent>(editor_viewport.view->camera_entity))
+			if (auto* camera = editor_viewport.view->scene->GetComponent<ecs::CameraComponent>(editor_viewport.view->camera_entity))
 			{
 				camera->SetAspectRatio(static_cast<float>(editor_viewport.view->viewport.width) / static_cast<float>(editor_viewport.view->viewport.height));
 				if (editor_viewport.debug_settings.show_ddgi_overlay)
@@ -1934,9 +1954,9 @@ namespace won::editor
 
 			if (ImGui::Button("+"))
 			{
-				ecs::Entity entity = editor_viewport.scene.CreateEntity();
-				auto transform = editor_viewport.scene.AddComponent<TransformComponent>(entity);
-				auto name = editor_viewport.scene.AddComponent<NameComponent>(entity);
+				ecs::Entity entity = editor_viewport.view->scene->CreateEntity();
+				auto transform = editor_viewport.view->scene->AddComponent<TransformComponent>(entity);
+				auto name = editor_viewport.view->scene->AddComponent<NameComponent>(entity);
 				UpdateEntityList();
 				editor_viewport.picked_entity = entity;
 
@@ -2063,7 +2083,7 @@ namespace won::editor
 					Vector<ecs::Entity> entities_to_delete;
 					entities_to_delete.push_back(delete_entity);
 
-					auto hierarchy_array = editor_viewport.scene.GetComponentArray<ecs::HierarchyComponent>();
+					auto hierarchy_array = editor_viewport.view->scene->GetComponentArray<ecs::HierarchyComponent>();
 					if (hierarchy_array)
 					{
 						for (Size delete_index = 0; delete_index < entities_to_delete.size(); ++delete_index)
@@ -2089,7 +2109,7 @@ namespace won::editor
 					deferred_res_removal.frames_left = 8;
 					for (ecs::Entity entity : entities_to_delete)
 					{
-						ecs::GeometryComponent* geometry = editor_viewport.scene.GetComponent<ecs::GeometryComponent>(entity);
+						ecs::GeometryComponent* geometry = editor_viewport.view->scene->GetComponent<ecs::GeometryComponent>(entity);
 						if (geometry && geometry->mesh)
 						{
 							deferred_res_removal.meshes.push_back(geometry->mesh);
@@ -2107,7 +2127,7 @@ namespace won::editor
 							}
 						}
 
-						ecs::MaterialComponent* material = editor_viewport.scene.GetComponent<ecs::MaterialComponent>(entity);
+						ecs::MaterialComponent* material = editor_viewport.view->scene->GetComponent<ecs::MaterialComponent>(entity);
 						if (material)
 						{
 							for (ecs::MaterialSlot& material_slot : material->material_slots)
@@ -2128,8 +2148,8 @@ namespace won::editor
 						editor_viewport.deferred_res_removals.push_back(std::move(deferred_res_removal));
 					}
 
-					editor_viewport.scene.DestroyEntity(delete_entity);
-					const Vector<ecs::Entity>& entities = editor_viewport.scene.GetEntities();
+					editor_viewport.view->scene->DestroyEntity(delete_entity);
+					const Vector<ecs::Entity>& entities = editor_viewport.view->scene->GetEntities();
 					if (std::find(entities.begin(), entities.end(), editor_viewport.picked_entity) == entities.end())
 					{
 						editor_viewport.picked_entity = INVALID_ENTITY;
@@ -2166,7 +2186,7 @@ namespace won::editor
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
-							editor_viewport.scene.RemoveComponent<NameComponent>(entity);
+							editor_viewport.view->scene->RemoveComponent<NameComponent>(entity);
 						});
 					}
 
@@ -2210,8 +2230,8 @@ namespace won::editor
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
-							editor_viewport.scene.RemoveComponent<TransformComponent>(entity);
-							editor_viewport.scene.SetBVHDirty();
+							editor_viewport.view->scene->RemoveComponent<TransformComponent>(entity);
+							editor_viewport.view->scene->SetBVHDirty();
 						});
 					}
 
@@ -2238,7 +2258,7 @@ namespace won::editor
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
-							editor_viewport.scene.RemoveComponent<HierarchyComponent>(entity);
+							editor_viewport.view->scene->RemoveComponent<HierarchyComponent>(entity);
 						});
 					}
 
@@ -2311,7 +2331,7 @@ namespace won::editor
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
-							editor_viewport.scene.RemoveComponent<LightComponent>(entity);
+							editor_viewport.view->scene->RemoveComponent<LightComponent>(entity);
 						});
 					}
 
@@ -2375,7 +2395,7 @@ namespace won::editor
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
 							if (entity != editor_viewport.view->camera_entity)
 							{
-								editor_viewport.scene.RemoveComponent<CameraComponent>(entity);
+								editor_viewport.view->scene->RemoveComponent<CameraComponent>(entity);
 							}
 						});
 					}
@@ -2461,7 +2481,7 @@ namespace won::editor
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
-							editor_viewport.scene.RemoveComponent<SkyComponent>(entity);
+							editor_viewport.view->scene->RemoveComponent<SkyComponent>(entity);
 						});
 					}
 
@@ -2484,7 +2504,7 @@ namespace won::editor
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
-							editor_viewport.scene.RemoveComponent<FogVolumeComponent>(entity);
+							editor_viewport.view->scene->RemoveComponent<FogVolumeComponent>(entity);
 						});
 					}
 
@@ -2528,7 +2548,7 @@ namespace won::editor
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
-							editor_viewport.scene.RemoveComponent<EnvironmentLightingComponent>(entity);
+							editor_viewport.view->scene->RemoveComponent<EnvironmentLightingComponent>(entity);
 						});
 					}
 
@@ -2608,7 +2628,7 @@ namespace won::editor
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
-							editor_viewport.scene.RemoveComponent<DDGIVolumeComponent>(entity);
+							editor_viewport.view->scene->RemoveComponent<DDGIVolumeComponent>(entity);
 						});
 					}
 
@@ -2640,7 +2660,7 @@ namespace won::editor
 							EditorViewport::DeferredResRemoval deferred_res_removal = {};
 							deferred_res_removal.frames_left = 8;
 
-							ecs::GeometryComponent* geometry = editor_viewport.scene.GetComponent<ecs::GeometryComponent>(entity);
+							ecs::GeometryComponent* geometry = editor_viewport.view->scene->GetComponent<ecs::GeometryComponent>(entity);
 							if (geometry && geometry->mesh)
 							{
 								deferred_res_removal.meshes.push_back(geometry->mesh);
@@ -2663,8 +2683,8 @@ namespace won::editor
 								editor_viewport.deferred_res_removals.push_back(std::move(deferred_res_removal));
 							}
 
-							editor_viewport.scene.RemoveComponent<GeometryComponent>(entity);
-							editor_viewport.scene.SetBVHDirty();
+							editor_viewport.view->scene->RemoveComponent<GeometryComponent>(entity);
+							editor_viewport.view->scene->SetBVHDirty();
 						});
 					}
 
@@ -2725,7 +2745,7 @@ namespace won::editor
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
-							editor_viewport.scene.RemoveComponent<Sprite2DComponent>(entity);
+							editor_viewport.view->scene->RemoveComponent<Sprite2DComponent>(entity);
 						});
 					}
 
@@ -2789,7 +2809,7 @@ namespace won::editor
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
-							editor_viewport.scene.RemoveComponent<Text2DComponent>(entity);
+							editor_viewport.view->scene->RemoveComponent<Text2DComponent>(entity);
 						});
 					}
 
@@ -2837,7 +2857,7 @@ namespace won::editor
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
-							editor_viewport.scene.RemoveComponent<Sprite3DComponent>(entity);
+							editor_viewport.view->scene->RemoveComponent<Sprite3DComponent>(entity);
 						});
 					}
 
@@ -2894,7 +2914,7 @@ namespace won::editor
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
-							editor_viewport.scene.RemoveComponent<Text3DComponent>(entity);
+							editor_viewport.view->scene->RemoveComponent<Text3DComponent>(entity);
 						});
 					}
 
@@ -2985,7 +3005,7 @@ namespace won::editor
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
-							editor_viewport.scene.RemoveComponent<AnimationComponent>(entity);
+							editor_viewport.view->scene->RemoveComponent<AnimationComponent>(entity);
 						});
 					}
 
@@ -3144,7 +3164,7 @@ namespace won::editor
 							EditorViewport::DeferredResRemoval deferred_res_removal = {};
 							deferred_res_removal.frames_left = 8;
 
-							ecs::MaterialComponent* material = editor_viewport.scene.GetComponent<ecs::MaterialComponent>(entity);
+							ecs::MaterialComponent* material = editor_viewport.view->scene->GetComponent<ecs::MaterialComponent>(entity);
 							if (material)
 							{
 								for (ecs::MaterialSlot& material_slot : material->material_slots)
@@ -3164,7 +3184,7 @@ namespace won::editor
 								editor_viewport.deferred_res_removals.push_back(std::move(deferred_res_removal));
 							}
 
-							editor_viewport.scene.RemoveComponent<MaterialComponent>(entity);
+							editor_viewport.view->scene->RemoveComponent<MaterialComponent>(entity);
 						});
 					}
 
@@ -3186,7 +3206,7 @@ namespace won::editor
 							}
 
 							script::ScriptCallContext context = {};
-							context.scene = &editor_viewport.scene;
+							context.scene = editor_viewport.view->scene;
 							context.entity = entity;
 
 							script::ScriptInstanceDesc desc = {};
@@ -3257,7 +3277,7 @@ namespace won::editor
 											if (asset.disk_path != script_slot.script_path && script_runtime && script_slot.instance.IsValid())
 											{
 												script::ScriptCallContext context = {};
-												context.scene = &editor_viewport.scene;
+												context.scene = editor_viewport.view->scene;
 												context.entity = editor_viewport.picked_entity;
 												script_runtime->CallOnDestroy(script_slot.instance, context, script_slot.last_error);
 												script_runtime->DestroyInstance(script_slot.instance);
@@ -3294,7 +3314,7 @@ namespace won::editor
 											if (dropped_path != script_slot.script_path && script_runtime && script_slot.instance.IsValid())
 											{
 												script::ScriptCallContext context = {};
-												context.scene = &editor_viewport.scene;
+												context.scene = editor_viewport.view->scene;
 												context.entity = editor_viewport.picked_entity;
 												script_runtime->CallOnDestroy(script_slot.instance, context, script_slot.last_error);
 												script_runtime->DestroyInstance(script_slot.instance);
@@ -3328,7 +3348,7 @@ namespace won::editor
 									if (new_path != script_slot.script_path && script_runtime && script_slot.instance.IsValid())
 									{
 										script::ScriptCallContext context = {};
-										context.scene = &editor_viewport.scene;
+										context.scene = editor_viewport.view->scene;
 										context.entity = editor_viewport.picked_entity;
 										script_runtime->CallOnDestroy(script_slot.instance, context, script_slot.last_error);
 										script_runtime->DestroyInstance(script_slot.instance);
@@ -3385,7 +3405,7 @@ namespace won::editor
 								if (script_runtime && script_slot.instance.IsValid())
 								{
 									script::ScriptCallContext context = {};
-									context.scene = &editor_viewport.scene;
+									context.scene = editor_viewport.view->scene;
 									context.entity = editor_viewport.picked_entity;
 									script_runtime->CallOnDestroy(script_slot.instance, context, script_slot.last_error);
 									script_runtime->DestroyInstance(script_slot.instance);
@@ -3421,11 +3441,11 @@ namespace won::editor
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
-							ScriptComponent* script = editor_viewport.scene.GetComponent<ScriptComponent>(entity);
+							ScriptComponent* script = editor_viewport.view->scene->GetComponent<ScriptComponent>(entity);
 							if (script && script_runtime)
 							{
 								script::ScriptCallContext context = {};
-								context.scene = &editor_viewport.scene;
+								context.scene = editor_viewport.view->scene;
 								context.entity = entity;
 								for (ScriptSlot& script_slot : script->scripts)
 								{
@@ -3436,7 +3456,7 @@ namespace won::editor
 									}
 								}
 							}
-							editor_viewport.scene.RemoveComponent<ScriptComponent>(entity);
+							editor_viewport.view->scene->RemoveComponent<ScriptComponent>(entity);
 						});
 					}
 
@@ -3902,6 +3922,7 @@ namespace won::editor
 		pipeline_desc.input_layout.push_back({ "POSITION", 0, RHIFormat::R32G32Float, 0, (uint32_t)IM_OFFSETOF(ImDrawVert, pos), false, 0 });
 		pipeline_desc.input_layout.push_back({ "TEXCOORD", 0, RHIFormat::R32G32Float, 0, (uint32_t)IM_OFFSETOF(ImDrawVert, uv), false, 0 });
 		pipeline_desc.input_layout.push_back({ "COLOR", 0, RHIFormat::R8G8B8A8Unorm, 0, (uint32_t)IM_OFFSETOF(ImDrawVert, col), false, 0 });
+		pipeline_desc.depth_stencil_format = RHIFormat::Unknown;
 		pipeline_desc.depth_stencil.depth_test = false;
 		pipeline_desc.depth_stencil.depth_write = false;
 		pipeline_desc.depth_stencil.depth_compare = RHICompareOp::GreaterEqual;
@@ -3938,14 +3959,14 @@ namespace won::editor
 			std::shared_ptr<resource::Font> noto_sans_font = resource::LoadFontFile(contents_root_dir + "Fonts/Noto_Sans_KR/static/NotoSansKR-Regular.ttf");
 			if (noto_sans_font && noto_sans_font->IsValid())
 			{
-				ecs::Entity text_entity = editor_viewport.scene.CreateEntity();
-				if (auto* transform = editor_viewport.scene.AddComponent<ecs::TransformComponent>(text_entity))
+				ecs::Entity text_entity = editor_viewport.view->scene->CreateEntity();
+				if (auto* transform = editor_viewport.view->scene->AddComponent<ecs::TransformComponent>(text_entity))
 				{
 					transform->position = { 0.0f, 3.0f, 0.0f };
 					transform->SetDirty();
 				}
 
-				if (auto* text = editor_viewport.scene.AddComponent<ecs::Text3DComponent>(text_entity))
+				if (auto* text = editor_viewport.view->scene->AddComponent<ecs::Text3DComponent>(text_entity))
 				{
 					text->font = noto_sans_font;
 					//text->text = "\xED\x85\x8C\xEC\x8A\xA4\xED\x8A\xB8";
@@ -3956,20 +3977,20 @@ namespace won::editor
 					text->SetBillboard(true);
 				}
 
-				if (auto* material = editor_viewport.scene.AddComponent<ecs::MaterialComponent>(text_entity))
+				if (auto* material = editor_viewport.view->scene->AddComponent<ecs::MaterialComponent>(text_entity))
 				{
 					MaterialSlot& material_slot = material->AddMaterialSlot();
 					material_slot.flags = SHADER_MATERIAL_FLAG_TRANSPARENT;
 					material_slot.base_color = { 0.35f, 0.85f, 1.0f, 1.0f };
 				}
 
-				if (auto* name = editor_viewport.scene.AddComponent<ecs::NameComponent>(text_entity))
+				if (auto* name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(text_entity))
 				{
 					name->value = "Text 3D";
 				}
 
-				ecs::Entity text_2d_entity = editor_viewport.scene.CreateEntity();
-				if (auto* text_2d = editor_viewport.scene.AddComponent<ecs::Text2DComponent>(text_2d_entity))
+				ecs::Entity text_2d_entity = editor_viewport.view->scene->CreateEntity();
+				if (auto* text_2d = editor_viewport.view->scene->AddComponent<ecs::Text2DComponent>(text_2d_entity))
 				{
 					text_2d->font = noto_sans_font;
 					text_2d->text = "2D Text";
@@ -3980,14 +4001,14 @@ namespace won::editor
 					text_2d->layer = 1;
 				}
 
-				if (auto* material = editor_viewport.scene.AddComponent<ecs::MaterialComponent>(text_2d_entity))
+				if (auto* material = editor_viewport.view->scene->AddComponent<ecs::MaterialComponent>(text_2d_entity))
 				{
 					MaterialSlot& material_slot = material->AddMaterialSlot();
 					material_slot.flags = SHADER_MATERIAL_FLAG_TRANSPARENT;
 					material_slot.base_color = { 1.0f, 0.78f, 0.28f, 1.0f };
 				}
 
-				if (auto* name = editor_viewport.scene.AddComponent<ecs::NameComponent>(text_2d_entity))
+				if (auto* name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(text_2d_entity))
 				{
 					name->value = "Text 2D";
 				}
@@ -4000,14 +4021,14 @@ namespace won::editor
 				rendering::utils::CreateRenderData(*device, *image, RHIFormat::R8G8B8A8Unorm, true);
 				if (image->render_data.IsValid())
 				{
-					ecs::Entity sprite_entity = editor_viewport.scene.CreateEntity();
-					if (auto* transform = editor_viewport.scene.AddComponent<ecs::TransformComponent>(sprite_entity))
+					ecs::Entity sprite_entity = editor_viewport.view->scene->CreateEntity();
+					if (auto* transform = editor_viewport.view->scene->AddComponent<ecs::TransformComponent>(sprite_entity))
 					{
 						transform->position = { 0.0f, 2.0f, 0.0f };
 						transform->SetDirty();
 					}
 
-					if (auto* sprite = editor_viewport.scene.AddComponent<ecs::Sprite3DComponent>(sprite_entity))
+					if (auto* sprite = editor_viewport.view->scene->AddComponent<ecs::Sprite3DComponent>(sprite_entity))
 					{
 						const float sprite_height = 2.0f;
 						const float sprite_aspect = static_cast<float>(image->width) / static_cast<float>(image->height);
@@ -4015,7 +4036,7 @@ namespace won::editor
 						sprite->SetBillboard(false);
 					}
 
-					if (auto* material = editor_viewport.scene.AddComponent<ecs::MaterialComponent>(sprite_entity))
+					if (auto* material = editor_viewport.view->scene->AddComponent<ecs::MaterialComponent>(sprite_entity))
 					{
 						MaterialSlot& material_slot = material->AddMaterialSlot();
 						material_slot.flags = SHADER_MATERIAL_FLAG_TRANSPARENT;
@@ -4025,13 +4046,13 @@ namespace won::editor
 						material_slot.textures[BASECOLORMAP].res_handle = image->render_data.srv;
 					}
 
-					if (auto* name = editor_viewport.scene.AddComponent<ecs::NameComponent>(sprite_entity))
+					if (auto* name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(sprite_entity))
 					{
 						name->value = "Sprite 3D";
 					}
 
-					ecs::Entity sprite_2d_entity = editor_viewport.scene.CreateEntity();
-					if (auto* sprite_2d = editor_viewport.scene.AddComponent<ecs::Sprite2DComponent>(sprite_2d_entity))
+					ecs::Entity sprite_2d_entity = editor_viewport.view->scene->CreateEntity();
+					if (auto* sprite_2d = editor_viewport.view->scene->AddComponent<ecs::Sprite2DComponent>(sprite_2d_entity))
 					{
 						const float sprite_2d_height = 128.0f;
 						const float sprite_aspect = static_cast<float>(image->width) / static_cast<float>(image->height);
@@ -4042,7 +4063,7 @@ namespace won::editor
 						sprite_2d->layer = 0;
 					}
 
-					if (auto* material = editor_viewport.scene.AddComponent<ecs::MaterialComponent>(sprite_2d_entity))
+					if (auto* material = editor_viewport.view->scene->AddComponent<ecs::MaterialComponent>(sprite_2d_entity))
 					{
 						MaterialSlot& material_slot = material->AddMaterialSlot();
 						material_slot.flags = SHADER_MATERIAL_FLAG_TRANSPARENT;
@@ -4052,7 +4073,7 @@ namespace won::editor
 						material_slot.textures[BASECOLORMAP].res_handle = image->render_data.srv;
 					}
 
-					if (auto* name = editor_viewport.scene.AddComponent<ecs::NameComponent>(sprite_2d_entity))
+					if (auto* name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(sprite_2d_entity))
 					{
 						name->value = "Sprite 2D";
 					}
@@ -4101,16 +4122,16 @@ namespace won::editor
 
 			//// image entity
 			//{
-			//	image_entity = editor_viewport.scene.CreateEntity();
+			//	image_entity = editor_viewport.view->scene->CreateEntity();
 
-			//	auto* transform = editor_viewport.scene.AddComponent<ecs::TransformComponent>(image_entity);
+			//	auto* transform = editor_viewport.view->scene->AddComponent<ecs::TransformComponent>(image_entity);
 			//	if (transform)
 			//	{
 			//		transform->position = { 0.0f, 0.0f, 0.0f };
 			//		transform->Scale({ 2.f,2.f,2.f });
 			//	}
 
-			//	auto* geometry = editor_viewport.scene.AddComponent<ecs::GeometryComponent>(image_entity);
+			//	auto* geometry = editor_viewport.view->scene->AddComponent<ecs::GeometryComponent>(image_entity);
 			//	if (geometry)
 			//	{
 			//		auto mesh = std::make_shared<resource::Mesh>();
@@ -4148,7 +4169,7 @@ namespace won::editor
 			//		rendering::utils::CreateRenderData(*device, *mesh);
 			//	}
 
-			//	auto* material = editor_viewport.scene.AddComponent<ecs::MaterialComponent>(image_entity);
+			//	auto* material = editor_viewport.view->scene->AddComponent<ecs::MaterialComponent>(image_entity);
 			//	if (material)
 			//	{
 			//		auto& material_slot = material->AddMaterialSlot();
@@ -4163,11 +4184,11 @@ namespace won::editor
 
 			//// light entity
 			//{
-			//	ecs::Entity light_entity = editor_viewport.scene.CreateEntity();
-			//	auto* transform = editor_viewport.scene.AddComponent<ecs::TransformComponent>(light_entity);
+			//	ecs::Entity light_entity = editor_viewport.view->scene->CreateEntity();
+			//	auto* transform = editor_viewport.view->scene->AddComponent<ecs::TransformComponent>(light_entity);
 			//	//transform->RotateRollPitchYaw({ - math::PI / 12.f, 0, 0});
 			//	transform->Translate({ 0,0,-1 });
-			//	auto* light = editor_viewport.scene.AddComponent<ecs::LightComponent>(light_entity);
+			//	auto* light = editor_viewport.view->scene->AddComponent<ecs::LightComponent>(light_entity);
 			//	light->type = ecs::LightComponent::LightType::Point;
 			//	light->intensity = 100.f;
 			//	light->range = 20.f;
@@ -4177,52 +4198,52 @@ namespace won::editor
 		}
 
 		{
-			auto asset_importer = plugin_manager->GetPlugin(WON_PLUGIN_ASSET_IMPORTER);
-			AssetImporterAPI* api = (AssetImporterAPI*)asset_importer->QueryInterface(WON_IID_ASSET_IMPORTER);
+			//auto asset_importer = plugin_manager->GetPlugin(WON_PLUGIN_ASSET_IMPORTER);
+			//AssetImporterAPI* api = (AssetImporterAPI*)asset_importer->QueryInterface(WON_IID_ASSET_IMPORTER);
 
-			std::string file_path = contents_root_dir + "/Models/glTF/Sponza/glTF/Sponza.gltf";
-			//std::string file_path = contents_root_dir + "/Models/Obj/Sphere/sphere.obj";
-			if (std::shared_ptr<AssetImportTask> import_task = api->ImportAsync(asset_importer->GetHandle(), file_path.c_str(), &editor_viewport.scene, device.get()))
-			{
-				auto editor_task = std::make_shared<EditorAssetImportTask>();
-				editor_task->task = import_task;
-				asset_import_tasks.push_back(editor_task);
-			}
+			//std::string file_path = contents_root_dir + "/Models/glTF/Sponza/glTF/Sponza.gltf";
+			////std::string file_path = contents_root_dir + "/Models/Obj/Sphere/sphere.obj";
+			//if (std::shared_ptr<AssetImportTask> import_task = api->ImportAsync(asset_importer->GetHandle(), file_path.c_str(), editor_viewport.view->scene, device.get()))
+			//{
+			//	auto editor_task = std::make_shared<EditorAssetImportTask>();
+			//	editor_task->task = import_task;
+			//	asset_import_tasks.push_back(editor_task);
+			//}
 
-			std::string cesium_man_file_path = contents_root_dir + "/Models/glTF/CesiumMan/glTF/CesiumMan.gltf";
-			if (std::shared_ptr<AssetImportTask> cesium_man_import_task = api->ImportAsync(asset_importer->GetHandle(), cesium_man_file_path.c_str(), &editor_viewport.scene, device.get()))
-			{
-				auto editor_task = std::make_shared<EditorAssetImportTask>();
-				editor_task->task = cesium_man_import_task;
-				editor_task->type = 1;
-				asset_import_tasks.push_back(editor_task);
-			}
+			//std::string cesium_man_file_path = contents_root_dir + "/Models/glTF/CesiumMan/glTF/CesiumMan.gltf";
+			//if (std::shared_ptr<AssetImportTask> cesium_man_import_task = api->ImportAsync(asset_importer->GetHandle(), cesium_man_file_path.c_str(), editor_viewport.view->scene, device.get()))
+			//{
+			//	auto editor_task = std::make_shared<EditorAssetImportTask>();
+			//	editor_task->task = cesium_man_import_task;
+			//	editor_task->type = 1;
+			//	asset_import_tasks.push_back(editor_task);
+			//}
 
 			//ecs::Entity root_entity{};
-			//api->Import(asset_importer.get(), file_path.c_str(), &editor_viewport.scene, device.get(), root_entity);
+			//api->Import(asset_importer.get(), file_path.c_str(), editor_viewport.view->scene, device.get(), root_entity);
 
 			//{
-			//	auto transform = editor_viewport.scene.GetComponent<ecs::TransformComponent>(root_entity);
+			//	auto transform = editor_viewport.view->scene->GetComponent<ecs::TransformComponent>(root_entity);
 			//	if (transform)
 			//	{
 			//		transform->Translate({ 5.0f, 0.0f, 5.0f });
 			//		transform->Scale({ 3.0f, 3.0f, 3.0f });
 			//	}
 
-			//	auto material_component = editor_viewport.scene.GetComponent<ecs::MaterialComponent>(root_entity);
+			//	auto material_component = editor_viewport.view->scene->GetComponent<ecs::MaterialComponent>(root_entity);
 			//	for (uint32 i = 0; i < (uint32)material_component->GetMaterialSlotCount(); i++)
 			//	{
 			//		//auto& slot = material_component->GetMaterialSlot(i);
 			//		//slot.shader_type =
 			//	}
-			//	auto geometry_component = editor_viewport.scene.GetComponent<ecs::GeometryComponent>(root_entity);
+			//	auto geometry_component = editor_viewport.view->scene->GetComponent<ecs::GeometryComponent>(root_entity);
 			//	geometry_component->SetCastShadow(true);
 			//}
 
 			// light entity
 			{
-				ecs::Entity light_entity = editor_viewport.scene.CreateEntity();
-				auto transform = editor_viewport.scene.AddComponent<ecs::TransformComponent>(light_entity);
+				ecs::Entity light_entity = editor_viewport.view->scene->CreateEntity();
+				auto transform = editor_viewport.view->scene->AddComponent<ecs::TransformComponent>(light_entity);
 				{
 					const XMVECTOR source_direction = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
 					const XMVECTOR target_direction = XMVector3Normalize(XMVectorSet(1.0f, -1.0f, 1.0f, 0.0f));
@@ -4231,47 +4252,47 @@ namespace won::editor
 					XMStoreFloat4(&transform->rotation, XMQuaternionRotationAxis(rotation_axis, rotation_angle));
 					transform->SetDirty();
 				}
-				auto light = editor_viewport.scene.AddComponent<ecs::LightComponent>(light_entity);
+				auto light = editor_viewport.view->scene->AddComponent<ecs::LightComponent>(light_entity);
 				light->type = ecs::LightComponent::LightType::Directional;
 				light->intensity = 100.f;
 				//light->range = 20.f;
 				//light->outer_cone_angle = math::PI / 3.f;
 				//light->inner_cone_angle = math::PI / 6.f;
 
-				auto name = editor_viewport.scene.AddComponent<ecs::NameComponent>(light_entity);
+				auto name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(light_entity);
 				name->value = "Light";
 			}
 
 			// environment entity
 			{
-				ecs::Entity env_entity = editor_viewport.scene.CreateEntity();
+				ecs::Entity env_entity = editor_viewport.view->scene->CreateEntity();
 				
-				auto env = editor_viewport.scene.AddComponent<ecs::SkyComponent>(env_entity);
+				auto env = editor_viewport.view->scene->AddComponent<ecs::SkyComponent>(env_entity);
 				env->SetActive(true);
-				auto environment_lighting = editor_viewport.scene.AddComponent<ecs::EnvironmentLightingComponent>(env_entity);
+				auto environment_lighting = editor_viewport.view->scene->AddComponent<ecs::EnvironmentLightingComponent>(env_entity);
 				environment_lighting->gi_mode = ecs::EnvironmentLightingComponent::DDGI;
 				environment_lighting->indirect_diffuse_scale = 1.f;
-				auto ddgi_volume = editor_viewport.scene.AddComponent<ecs::DDGIVolumeComponent>(env_entity);
+				auto ddgi_volume = editor_viewport.view->scene->AddComponent<ecs::DDGIVolumeComponent>(env_entity);
 				ddgi_volume->probe_counts = { 16, 16, 16 };
 				ddgi_volume->probe_spacing = { 2.0f, 2.0f, 2.0f };
 				ddgi_volume->max_distance = 4.f;
 				ddgi_volume->probes_per_frame = 128u;
 				//ddgi_volume->volume_offset = { 5.0f, 0.0f, 5.0f };
 
-				auto name = editor_viewport.scene.AddComponent<ecs::NameComponent>(env_entity);
+				auto name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(env_entity);
 				name->value = "Environment";
 			}
 
 			//// plane entity
 			//{
-			//	ecs::Entity plane_entity = editor_viewport.scene.CreateEntity();
-			//	auto transform = editor_viewport.scene.AddComponent<ecs::TransformComponent>(plane_entity);
+			//	ecs::Entity plane_entity = editor_viewport.view->scene->CreateEntity();
+			//	auto transform = editor_viewport.view->scene->AddComponent<ecs::TransformComponent>(plane_entity);
 			//	if (transform)
 			//	{
 			//		transform->Translate({ 0.f, -5.f, 0.f });
 			//		transform->Scale({ 10.f, 10.f, 10.f });
 			//	}
-			//	auto geometry = editor_viewport.scene.AddComponent<ecs::GeometryComponent>(plane_entity);
+			//	auto geometry = editor_viewport.view->scene->AddComponent<ecs::GeometryComponent>(plane_entity);
 			//	if (geometry)
 			//	{
 			//		//geometry->SetCastShadow(true);
@@ -4306,7 +4327,7 @@ namespace won::editor
 			//		rendering::utils::CreateRenderData(*device, *mesh);
 			//	}
 
-			//	auto material = editor_viewport.scene.AddComponent<ecs::MaterialComponent>(plane_entity);
+			//	auto material = editor_viewport.view->scene->AddComponent<ecs::MaterialComponent>(plane_entity);
 			//	if (material)
 			//	{
 			//		auto& material_slot = material->AddMaterialSlot();
@@ -4316,17 +4337,17 @@ namespace won::editor
 			//		material_slot.flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW;
 			//	}
 
-			//	auto name = editor_viewport.scene.AddComponent<ecs::NameComponent>(plane_entity);
+			//	auto name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(plane_entity);
 			//	name->value = "Plane";
 
 			//}
 
 			//// side wall plane entity
 			//{
-			//	ecs::Entity side_wall_entity = editor_viewport.scene.CreateEntity();
-			//	editor_viewport.scene.AddComponent<ecs::TransformComponent>(side_wall_entity);
+			//	ecs::Entity side_wall_entity = editor_viewport.view->scene->CreateEntity();
+			//	editor_viewport.view->scene->AddComponent<ecs::TransformComponent>(side_wall_entity);
 
-			//	auto geometry = editor_viewport.scene.AddComponent<ecs::GeometryComponent>(side_wall_entity);
+			//	auto geometry = editor_viewport.view->scene->AddComponent<ecs::GeometryComponent>(side_wall_entity);
 			//	if (geometry)
 			//	{
 			//		auto mesh = std::make_shared<resource::Mesh>();
@@ -4358,7 +4379,7 @@ namespace won::editor
 			//		rendering::utils::CreateRenderData(*device, *mesh);
 			//	}
 
-			//	auto material = editor_viewport.scene.AddComponent<ecs::MaterialComponent>(side_wall_entity);
+			//	auto material = editor_viewport.view->scene->AddComponent<ecs::MaterialComponent>(side_wall_entity);
 			//	if (material)
 			//	{
 			//		auto& material_slot = material->AddMaterialSlot();
@@ -4368,16 +4389,16 @@ namespace won::editor
 			//		material_slot.flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW;
 			//	}
 
-			//	auto name = editor_viewport.scene.AddComponent<ecs::NameComponent>(side_wall_entity);
+			//	auto name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(side_wall_entity);
 			//	name->value = "Side Wall";
 			//}
 
 			//// back wall plane entity
 			//{
-			//	ecs::Entity back_wall_entity = editor_viewport.scene.CreateEntity();
-			//	editor_viewport.scene.AddComponent<ecs::TransformComponent>(back_wall_entity);
+			//	ecs::Entity back_wall_entity = editor_viewport.view->scene->CreateEntity();
+			//	editor_viewport.view->scene->AddComponent<ecs::TransformComponent>(back_wall_entity);
 
-			//	auto geometry = editor_viewport.scene.AddComponent<ecs::GeometryComponent>(back_wall_entity);
+			//	auto geometry = editor_viewport.view->scene->AddComponent<ecs::GeometryComponent>(back_wall_entity);
 			//	if (geometry)
 			//	{
 			//		auto mesh = std::make_shared<resource::Mesh>();
@@ -4409,7 +4430,7 @@ namespace won::editor
 			//		rendering::utils::CreateRenderData(*device, *mesh);
 			//	}
 
-			//	auto material = editor_viewport.scene.AddComponent<ecs::MaterialComponent>(back_wall_entity);
+			//	auto material = editor_viewport.view->scene->AddComponent<ecs::MaterialComponent>(back_wall_entity);
 			//	if (material)
 			//	{
 			//		auto& material_slot = material->AddMaterialSlot();
@@ -4419,7 +4440,7 @@ namespace won::editor
 			//		material_slot.flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW;
 			//	}
 
-			//	auto name = editor_viewport.scene.AddComponent<ecs::NameComponent>(back_wall_entity);
+			//	auto name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(back_wall_entity);
 			//	name->value = "Back Wall";
 			//}
 		}

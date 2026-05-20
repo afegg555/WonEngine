@@ -136,8 +136,14 @@ namespace won
             io::Reset();
         }
         Vector<ecs::Scene*> updated_scenes;
-        for (rendering::View& view : views)
+        for (const std::unique_ptr<rendering::View>& view_ptr : views)
         {
+            if (!view_ptr)
+            {
+                continue;
+            }
+
+            rendering::View& view = *view_ptr;
             ecs::Scene* scene = view.scene;
             if (!scene)
             {
@@ -194,27 +200,30 @@ namespace won
     {
         if (renderer)
         {
-            for (const rendering::View& view : views)
+            for (const std::unique_ptr<rendering::View>& view_ptr : views)
             {
-                renderer->Render(view);
+                if (view_ptr)
+                {
+                    renderer->Render(*view_ptr);
+                }
             }
         }
     }
 
     uint32 Application::AddView(const rendering::View& view)
     {
-        views.push_back(view);
+        views.push_back(std::make_unique<rendering::View>(view));
         return static_cast<uint32>(views.size() - 1);
     }
 
     rendering::View& Application::GetView(uint32 view_index)
     {
-        return views[view_index];
+        return *views[view_index];
     }
 
     const rendering::View& Application::GetView(uint32 view_index) const
     {
-        return views[view_index];
+        return *views[view_index];
     }
 
     void Application::RenderUI()
