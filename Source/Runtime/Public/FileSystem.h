@@ -46,6 +46,10 @@ namespace won::io
     WONENGINE_API String ReplaceExtension(const String& path, const String& ext);
     WONENGINE_API String GetFilename(const String& path);
     WONENGINE_API String GetDirectoryFromPath(const String& path);
+    WONENGINE_API bool IsAbsolutePath(const String& path);
+    WONENGINE_API String CombinePath(const String& lhs, const String& rhs);
+    WONENGINE_API String NormalizePath(const String& path);
+    WONENGINE_API String GetAbsolutePath(const String& path);
     WONENGINE_API String GetRelativePath(const String& root_path, const String& path);
     WONENGINE_API bool CreateFolder(const String& path);
 }

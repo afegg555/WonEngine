@@ -2,7 +2,6 @@
 #include "FileSystem.h"
 
 #include <cstring>
-#include <filesystem>
 #include <mutex>
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -17,14 +16,7 @@ namespace won::resource
 
         String NormalizePathKey(const String& path)
         {
-            std::error_code error;
-            std::filesystem::path fs_path = std::filesystem::u8path(path);
-            fs_path = std::filesystem::absolute(fs_path, error);
-            if (!error)
-            {
-                fs_path = fs_path.lexically_normal();
-            }
-            return fs_path.u8string();
+            return io::GetAbsolutePath(path);
         }
 
         std::shared_ptr<Image> LoadImageUncached(const String& path, int32 desired_channels)
