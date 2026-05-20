@@ -46,6 +46,16 @@ namespace won::rendering
         return debug_state;
     }
 
+    void RendererInternal::SetClearColor(const RHIClearColor& color)
+    {
+        clear_color = color;
+    }
+
+    RHIClearColor RendererInternal::GetClearColor() const
+    {
+        return clear_color;
+    }
+
     bool RendererInternal::GetCurrentBackBufferBinding(RHISubresourceBinding& out_binding) const
     {
         if (!current_window)
@@ -1824,6 +1834,7 @@ namespace won::rendering
     void RendererInternal::Initialize(const RendererDesc& desc)
     {
         device = desc.device;
+        clear_color = desc.clear_color;
 
         for (uint32 i = 0; i < max_frames_in_flight; ++i)
         {
@@ -1920,6 +1931,18 @@ namespace won::rendering
         device->BeginFrame(frame_slot);
 
         CreateRenderTargetResources(frame_context);
+
+        RHISubresourceBinding back_buffer_binding = {};
+        RHISubresourceBinding depth_buffer_binding = {};
+        if (!GetCurrentBackBufferBinding(back_buffer_binding) || !GetCurrentDepthBufferBinding(depth_buffer_binding))
+        {
+            return;
+        }
+
+        command_list->TransitionResource(*back_buffer_binding.resource, RHIResourceState::RenderTarget);
+        command_list->TransitionResource(*depth_buffer_binding.resource, RHIResourceState::DepthWrite);
+        command_list->ClearRenderTarget(back_buffer_binding, clear_color);
+        command_list->ClearDepthStencil(depth_buffer_binding, 0.0f, 0u);
     }
 
     void RendererInternal::OnResize(platform::Window& window, uint32 width, uint32 height)
@@ -2248,14 +2271,12 @@ namespace won::rendering
 
 
             RHISubresourceBinding back_buffer_binding = {};
-            if (!GetCurrentBackBufferBinding(back_buffer_binding) || !depth_buffer || !depth_buffer_dsv.IsValid())
+            RHISubresourceBinding depth_buffer_binding = {};
+            if (!GetCurrentBackBufferBinding(back_buffer_binding) || !GetCurrentDepthBufferBinding(depth_buffer_binding))
             {
                 return;
             }
 
-            RHISubresourceBinding depth_buffer_binding = {};
-            depth_buffer_binding.resource = depth_buffer.get();
-            depth_buffer_binding.subresource = depth_buffer_dsv;
             Vector<RHISubresourceBinding> color_targets = { back_buffer_binding };
             RHISubresourceBinding shader_frame_binding = {};
             shader_frame_binding.resource = shader_frame_buffer.get();
@@ -2285,8 +2306,6 @@ namespace won::rendering
 
             command_list->TransitionResource(*back_buffer_binding.resource, RHIResourceState::RenderTarget);
             command_list->TransitionResource(*depth_buffer_binding.resource, RHIResourceState::DepthWrite);
-            command_list->ClearRenderTarget(back_buffer_binding, { 0.f, 0.3f, 0.3f, 1.f });
-            command_list->ClearDepthStencil(depth_buffer_binding, 0.0f, 0u);
             command_list->SetViewport(viewport);
             command_list->SetScissor(scissor);
 

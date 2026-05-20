@@ -17,6 +17,8 @@ namespace won::rendering
         void EndFrame() override;
         void WaitIdle() override;
         void Shutdown() override;
+        void SetClearColor(const RHIClearColor& color) override;
+        RHIClearColor GetClearColor() const override;
         void SetDebugOptions(const RendererDebugOptions& options) override;
         RendererDebugState GetDebugState() const override;
         bool GetCurrentBackBufferBinding(RHISubresourceBinding& out_binding) const override;
@@ -115,6 +117,7 @@ namespace won::rendering
         Vector<std::shared_ptr<RHIResource>> enqueued_work_scratch_resources;
         uint64 enqueued_work_fence_value = 0;
         bool enqueued_work_succeeded = true;
+        RHIClearColor clear_color = {};
         RendererDebugOptions debug_options = {};
         RendererDebugState debug_state = {};
 
