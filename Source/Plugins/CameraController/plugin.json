@@ -1,0 +1,13 @@
+{
+  "plugin_id": "CameraController",
+  "display_name": "Camera Controller",
+  "version": "1.0.0",
+  "type": "EditorDefault",
+  "libraries": {
+    "windows": {
+      "debug": "CameraControllerd.dll",
+      "release": "CameraController.dll"
+    }
+  },
+  "dependencies": []
+}

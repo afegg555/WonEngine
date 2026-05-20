@@ -12,10 +12,13 @@
 
 #define WON_PLUGIN_ABI_VERSION 1
 
-// use typedef so C-compatible !!
-typedef uint32_t WonPluginBool; // fixed-width bool for ABI boundaries
-#define WON_PLUGIN_FALSE 0u
-#define WON_PLUGIN_TRUE 1u
+enum class WonExtensionType : uint32_t
+{
+    Unknown = 0,
+    Function,
+    Component,
+    System,
+};
 
 struct WonPluginHostAPI
 {
@@ -23,13 +26,22 @@ struct WonPluginHostAPI
     void (WON_PLUGIN_CALL* Log)(const char* message);
 };
 
+struct WonExtensionDesc
+{
+    uint32_t struct_size;
+    WonExtensionType extension_type;
+    const char* extension_id;
+    const void* descriptor;
+};
+
 struct WonPluginAPI
 {
     uint32_t abi_version;
-    const char* iid;
-    const char* version_id;
-    void* api;
+    const char* plugin_id;
+    const char* plugin_version;
+    const WonExtensionDesc* extensions;
+    uint32_t extension_count;
 };
 
-typedef WonPluginBool (WON_PLUGIN_CALL* WonPluginCreateFn)(const WonPluginHostAPI* host_api, void** out_plugin, WonPluginAPI* out_api);
-typedef void (WON_PLUGIN_CALL* WonPluginDestroyFn)(void* plugin);
+using WonPluginCreateFn = bool (WON_PLUGIN_CALL*)(const WonPluginHostAPI* host_api, void** out_plugin, WonPluginAPI* out_api);
+using WonPluginDestroyFn = void (WON_PLUGIN_CALL*)(void* plugin);
