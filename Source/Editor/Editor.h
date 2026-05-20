@@ -28,7 +28,7 @@ namespace won::editor
 		void DrawEditorGrid();
 		void LoadSampleScene();
 		void UpdateEntityList();
-		void UpdateEditorPrimitiveMesh();
+		void UpdateDebugPrimitiveMesh();
 
 	private:
 		enum class ContentAssetType
@@ -88,11 +88,23 @@ namespace won::editor
 			int ddgi_max_probe_draw_count = 4096;
 		};
 
-		struct DeferredEntityRemovalResources
+		struct EditorViewport
 		{
-			uint32 frames_left = 0;
-			std::vector<std::shared_ptr<resource::Mesh>> meshes;
-			std::vector<std::shared_ptr<RHIResource>> resources;
+			struct DeferredResRemoval
+			{
+				uint32 frames_left = 0;
+				std::vector<std::shared_ptr<resource::Mesh>> meshes;
+				std::vector<std::shared_ptr<RHIResource>> resources;
+			};
+
+			ecs::Scene scene;
+			rendering::View* view = nullptr;
+			ecs::Entity debug_primitive_entity = ecs::INVALID_ENTITY;
+			std::shared_ptr<resource::Mesh> debug_primitive_mesh;
+			std::vector<DeferredResRemoval> deferred_res_removals;
+			ecs::Entity picked_entity = ecs::INVALID_ENTITY;
+			bool input_enabled = false;
+			ViewportDebugSettings debug_settings = {};
 		};
 
 		std::shared_ptr<RHIPipeline> imgui_pso;
@@ -103,16 +115,8 @@ namespace won::editor
 
 		std::vector<ecs::Entity> sorted_entities;
 
-		ecs::Scene scene;
-		ecs::Entity camera_entity;
-		ecs::Entity editor_primitive_entity = ecs::INVALID_ENTITY;
-		std::shared_ptr<resource::Mesh> editor_primitive_mesh;
-		std::vector<std::shared_ptr<RHIResource>> deferred_primitive_removal_buffers;
-		std::vector<DeferredEntityRemovalResources> deferred_entity_removal_resources;
+		EditorViewport editor_viewport;
 		std::vector<std::shared_ptr<EditorAssetImportTask>> asset_import_tasks;
-		ecs::Entity picked_entity = ecs::INVALID_ENTITY;
-		bool viewport_input_enabled = false;
-		ViewportDebugSettings viewport_debug_settings = {};
 		ContentBrowserState content_browser = {};
 		std::unique_ptr<io::DirectoryWatcher> contents_watcher;
 		float contents_watcher_poll_timer = 0.0f;

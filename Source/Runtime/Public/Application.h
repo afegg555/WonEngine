@@ -39,6 +39,9 @@ namespace won
         virtual void RenderUI();
         virtual void OnWindowResized(int width, int height);
 
+        uint32 AddView(const rendering::View& view = {});
+        rendering::View& GetView(uint32 view_index = 0);
+        const rendering::View& GetView(uint32 view_index = 0) const;
         void ProcessWindowResize();
 
         bool is_running = false;
@@ -46,7 +49,7 @@ namespace won
         std::shared_ptr<platform::Window> window;
         std::shared_ptr<rendering::Renderer> renderer;
         std::shared_ptr<script::ScriptRuntime> script_runtime;
-        rendering::View main_view;
+        Vector<rendering::View> views;
         utils::Timer frame_timer;
         bool is_first_frame = true;
     };

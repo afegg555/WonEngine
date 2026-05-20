@@ -41,10 +41,13 @@ namespace won
             script_runtime.reset();
         }
 
-        main_view.viewport.width = 1280;
-        main_view.viewport.height = 720;
-        main_view.scissor.width = 1280;
-        main_view.scissor.height = 720;
+        views.clear();
+        rendering::View default_view = {};
+        default_view.viewport.width = 1280;
+        default_view.viewport.height = 720;
+        default_view.scissor.width = 1280;
+        default_view.scissor.height = 720;
+        AddView(default_view);
 
         frame_timer.Reset();
         is_first_frame = true;
@@ -117,6 +120,7 @@ namespace won
             script_runtime.reset();
         }
 
+        views.clear();
         jobsystem::ShutDown();
     }
 
@@ -131,7 +135,33 @@ namespace won
         {
             io::Reset();
         }
-        main_view.Update(dt);
+        Vector<ecs::Scene*> updated_scenes;
+        for (rendering::View& view : views)
+        {
+            ecs::Scene* scene = view.scene;
+            if (!scene)
+            {
+                continue;
+            }
+
+            bool already_updated = false;
+            for (ecs::Scene* updated_scene : updated_scenes)
+            {
+                if (updated_scene == scene)
+                {
+                    already_updated = true;
+                    break;
+                }
+            }
+
+            if (already_updated)
+            {
+                continue;
+            }
+
+            view.Update(dt);
+            updated_scenes.push_back(scene);
+        }
         profiler::EndRange(range);
     }
 
@@ -164,8 +194,27 @@ namespace won
     {
         if (renderer)
         {
-            renderer->Render(main_view);
+            for (const rendering::View& view : views)
+            {
+                renderer->Render(view);
+            }
         }
+    }
+
+    uint32 Application::AddView(const rendering::View& view)
+    {
+        views.push_back(view);
+        return static_cast<uint32>(views.size() - 1);
+    }
+
+    rendering::View& Application::GetView(uint32 view_index)
+    {
+        return views[view_index];
+    }
+
+    const rendering::View& Application::GetView(uint32 view_index) const
+    {
+        return views[view_index];
     }
 
     void Application::RenderUI()
