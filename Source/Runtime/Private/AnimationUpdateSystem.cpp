@@ -160,7 +160,7 @@ namespace won::ecs
                 XMVECTOR bind_scale = XMVectorSet(1.0f, 1.0f, 1.0f, 0.0f);
                 XMVECTOR bind_rotation = XMQuaternionIdentity();
                 XMVECTOR bind_translation = XMVectorZero();
-                XMMatrixDecompose(&bind_scale, &bind_rotation, &bind_translation, XMMatrixTranspose(XMLoadFloat4x4(&bone.bind_local_transform)));
+                XMMatrixDecompose(&bind_scale, &bind_rotation, &bind_translation, XMLoadFloat4x4(&bone.bind_local_transform));
 
                 float3 position = {};
                 float4 rotation = {};
@@ -265,7 +265,7 @@ namespace won::ecs
                 }
 
                 XMStoreFloat4x4(&global_matrices[bone_index], global_matrix);
-                const XMMATRIX inverse_bind_matrix = XMMatrixTranspose(XMLoadFloat4x4(&bone.inverse_bind_matrix));
+                const XMMATRIX inverse_bind_matrix = XMLoadFloat4x4(&bone.inverse_bind_matrix);
                 XMStoreFloat4x4(&animation.bone_matrices[bone_index], inverse_bind_matrix * global_matrix);
 
                 const float4x4& bone_matrix = animation.bone_matrices[bone_index];

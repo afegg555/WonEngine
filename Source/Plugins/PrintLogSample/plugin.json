@@ -1,0 +1,13 @@
+{
+  "plugin_id": "PrintLogSample",
+  "display_name": "Print Log Sample",
+  "version": "1.0.0",
+  "type": "RuntimeOptional",
+  "libraries": {
+    "windows": {
+      "debug": "PrintLogSampled.dll",
+      "release": "PrintLogSample.dll"
+    }
+  },
+  "dependencies": []
+}

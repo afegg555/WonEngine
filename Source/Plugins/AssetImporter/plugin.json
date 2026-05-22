@@ -1,0 +1,13 @@
+{
+  "plugin_id": "AssetImporter",
+  "display_name": "Asset Importer",
+  "version": "1.0.0",
+  "type": "EditorDefault",
+  "libraries": {
+    "windows": {
+      "debug": "AssetImporterd.dll",
+      "release": "AssetImporter.dll"
+    }
+  },
+  "dependencies": []
+}
