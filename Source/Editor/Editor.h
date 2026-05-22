@@ -16,7 +16,9 @@ namespace won::ecs
 
 namespace won::resource
 {
+	struct AnimationClip;
 	struct Image;
+	struct Skeleton;
 }
 
 namespace won::plugin::function
@@ -54,12 +56,15 @@ namespace won::editor
 				const plugin::function::Desc* get_material_texture = nullptr;
 				const plugin::function::Desc* get_embedded_texture_info = nullptr;
 				const plugin::function::Desc* copy_embedded_texture = nullptr;
+				const plugin::function::Desc* get_bone_name = nullptr;
+				const plugin::function::Desc* get_animation_clip_name = nullptr;
 				const plugin::function::Desc* release_result = nullptr;
 
 				bool IsValid() const
 				{
 					return plugin && import && get_result_info && get_stream_info && copy_stream && get_struct_field_count && get_struct_field_info &&
-						get_material_info && get_material_texture_count && get_material_texture && get_embedded_texture_info && copy_embedded_texture && release_result;
+						get_material_info && get_material_texture_count && get_material_texture && get_embedded_texture_info && copy_embedded_texture &&
+						get_bone_name && get_animation_clip_name && release_result;
 				}
 			};
 
@@ -79,6 +84,8 @@ namespace won::editor
 			{
 				String name;
 				std::shared_ptr<resource::Mesh> mesh;
+				std::shared_ptr<resource::Skeleton> skeleton;
+				Vector<std::shared_ptr<resource::AnimationClip>> animation_clips;
 				Vector<ecs::MaterialSlot> material_slots;
 				Vector<TextureRequest> texture_requests;
 			};

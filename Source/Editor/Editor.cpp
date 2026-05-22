@@ -5,6 +5,7 @@
 #include "RHIShader.h"
 #include "RHIPipeline.h"
 #include "RenderingUtils.h"
+#include "Animation.h"
 #include "ShaderCompiler.h"
 #include "FileSystem.h"
 #include "Image.h"
@@ -57,9 +58,54 @@ namespace won::editor
 		constexpr const char* asset_importer_get_material_texture_id = "asset_importer.get_material_texture";
 		constexpr const char* asset_importer_get_embedded_texture_info_id = "asset_importer.get_embedded_texture_info";
 		constexpr const char* asset_importer_copy_embedded_texture_id = "asset_importer.copy_embedded_texture";
+		constexpr const char* asset_importer_get_bone_name_id = "asset_importer.get_bone_name";
+		constexpr const char* asset_importer_get_animation_clip_name_id = "asset_importer.get_animation_clip_name";
 		constexpr const char* asset_importer_release_result_id = "asset_importer.release_result";
 		constexpr uint32 asset_texture_source_file = 0;
 		constexpr uint32 asset_texture_source_embedded = 1;
+
+		struct AssetImporterMatrix
+		{
+			float values[16] = {};
+		};
+
+		struct AssetImporterBone
+		{
+			int32 parent_index = -1;
+			AssetImporterMatrix inverse_bind_matrix = {};
+			AssetImporterMatrix bind_local_transform = {};
+		};
+
+		struct AssetImporterVec3Key
+		{
+			float time = 0.0f;
+			float3 value = {};
+		};
+
+		struct AssetImporterQuatKey
+		{
+			float time = 0.0f;
+			float4 value = {};
+		};
+
+		struct AssetImporterAnimationChannel
+		{
+			uint32 bone_index = 0;
+			uint32 first_position_key = 0;
+			uint32 position_key_count = 0;
+			uint32 first_rotation_key = 0;
+			uint32 rotation_key_count = 0;
+			uint32 first_scale_key = 0;
+			uint32 scale_key_count = 0;
+		};
+
+		struct AssetImporterAnimationClip
+		{
+			float duration = 0.0f;
+			float ticks_per_second = 1.0f;
+			uint32 first_channel = 0;
+			uint32 channel_count = 0;
+		};
 
 		float3 QuaternionToEulerXYZDegrees(const float4& quaternion)
 		{
@@ -952,6 +998,14 @@ namespace won::editor
 					{
 						asset_importer.functions.copy_embedded_texture = desc;
 					}
+					else if (extension.extension_id == asset_importer_get_bone_name_id)
+					{
+						asset_importer.functions.get_bone_name = desc;
+					}
+					else if (extension.extension_id == asset_importer_get_animation_clip_name_id)
+					{
+						asset_importer.functions.get_animation_clip_name = desc;
+					}
 					else if (extension.extension_id == asset_importer_release_result_id)
 					{
 						asset_importer.functions.release_result = desc;
@@ -1063,6 +1117,12 @@ namespace won::editor
 					copy_stream_outputs[0].type == won::ValueType::UInt64 && copy_stream_outputs[0].uint64_value == byte_size;
 			};
 
+			Vector<AssetImporterBone> imported_bones;
+			Vector<AssetImporterAnimationClip> imported_animation_clips;
+			Vector<AssetImporterAnimationChannel> imported_animation_channels;
+			Vector<AssetImporterVec3Key> imported_position_keys;
+			Vector<AssetImporterQuatKey> imported_rotation_keys;
+			Vector<AssetImporterVec3Key> imported_scale_keys;
 			for (uint32 stream_index = 0; stream_index < stream_count; ++stream_index)
 			{
 				function::Value stream_inputs[2] = {};
@@ -1234,6 +1294,163 @@ namespace won::editor
 						submesh.material_slot = *reinterpret_cast<const uint32*>(element + material_index_offset);
 						submesh.local_bounds.min = *reinterpret_cast<const float3*>(element + bounds_min_offset);
 						submesh.local_bounds.max = *reinterpret_cast<const float3*>(element + bounds_max_offset);
+					}
+				}
+				else if (stream_name == "bones" && value_type == won::ValueType::CustomStruct && type_name == "asset_importer.bone" && element_size == sizeof(AssetImporterBone))
+				{
+					imported_bones.resize(static_cast<Size>(count));
+					if (!copy_stream(stream_index, imported_bones.data(), byte_size))
+					{
+						task->failed.store(true);
+						task->finished.store(true);
+						return;
+					}
+				}
+				else if (stream_name == "animation_clips" && value_type == won::ValueType::CustomStruct && type_name == "asset_importer.animation_clip" && element_size == sizeof(AssetImporterAnimationClip))
+				{
+					imported_animation_clips.resize(static_cast<Size>(count));
+					if (!copy_stream(stream_index, imported_animation_clips.data(), byte_size))
+					{
+						task->failed.store(true);
+						task->finished.store(true);
+						return;
+					}
+				}
+				else if (stream_name == "animation_channels" && value_type == won::ValueType::CustomStruct && type_name == "asset_importer.animation_channel" && element_size == sizeof(AssetImporterAnimationChannel))
+				{
+					imported_animation_channels.resize(static_cast<Size>(count));
+					if (!copy_stream(stream_index, imported_animation_channels.data(), byte_size))
+					{
+						task->failed.store(true);
+						task->finished.store(true);
+						return;
+					}
+				}
+				else if (stream_name == "animation_position_keys" && value_type == won::ValueType::CustomStruct && type_name == "asset_importer.vec3_key" && element_size == sizeof(AssetImporterVec3Key))
+				{
+					imported_position_keys.resize(static_cast<Size>(count));
+					if (!copy_stream(stream_index, imported_position_keys.data(), byte_size))
+					{
+						task->failed.store(true);
+						task->finished.store(true);
+						return;
+					}
+				}
+				else if (stream_name == "animation_rotation_keys" && value_type == won::ValueType::CustomStruct && type_name == "asset_importer.quat_key" && element_size == sizeof(AssetImporterQuatKey))
+				{
+					imported_rotation_keys.resize(static_cast<Size>(count));
+					if (!copy_stream(stream_index, imported_rotation_keys.data(), byte_size))
+					{
+						task->failed.store(true);
+						task->finished.store(true);
+						return;
+					}
+				}
+				else if (stream_name == "animation_scale_keys" && value_type == won::ValueType::CustomStruct && type_name == "asset_importer.vec3_key" && element_size == sizeof(AssetImporterVec3Key))
+				{
+					imported_scale_keys.resize(static_cast<Size>(count));
+					if (!copy_stream(stream_index, imported_scale_keys.data(), byte_size))
+					{
+						task->failed.store(true);
+						task->finished.store(true);
+						return;
+					}
+				}
+			}
+
+			auto to_float4x4 = [](const AssetImporterMatrix& matrix)
+			{
+				float4x4 result = {};
+				std::memcpy(&result, matrix.values, sizeof(result));
+				return result;
+			};
+			auto get_indexed_name = [&](const function::Desc* desc, uint32 index) -> String
+			{
+				function::Value name_inputs[2] = {};
+				name_inputs[0].type = won::ValueType::UInt64;
+				name_inputs[0].uint64_value = result_handle;
+				name_inputs[1].type = won::ValueType::UInt32;
+				name_inputs[1].uint32_value = index;
+
+				function::Value name_outputs[1] = {};
+				if (!invoke(desc, name_inputs, 2, name_outputs, 1, output_count) || output_count != 1 || name_outputs[0].type != won::ValueType::String)
+				{
+					return "";
+				}
+				return name_outputs[0].string_value ? name_outputs[0].string_value : "";
+			};
+
+			if (!imported_bones.empty())
+			{
+				prepared.skeleton = std::make_shared<resource::Skeleton>();
+				prepared.skeleton->bones.reserve(imported_bones.size());
+				for (Size bone_index = 0; bone_index < imported_bones.size(); ++bone_index)
+				{
+					const AssetImporterBone& imported_bone = imported_bones[bone_index];
+					resource::Bone bone = {};
+					bone.name = get_indexed_name(functions.get_bone_name, static_cast<uint32>(bone_index));
+					bone.parent_index = imported_bone.parent_index;
+					bone.inverse_bind_matrix = to_float4x4(imported_bone.inverse_bind_matrix);
+					bone.bind_local_transform = to_float4x4(imported_bone.bind_local_transform);
+					prepared.skeleton->bone_name_to_index[bone.name] = static_cast<uint32>(prepared.skeleton->bones.size());
+					prepared.skeleton->bones.push_back(bone);
+				}
+			}
+
+			if (prepared.skeleton && prepared.skeleton->IsValid() && !imported_animation_clips.empty())
+			{
+				prepared.animation_clips.reserve(imported_animation_clips.size());
+				for (Size clip_index = 0; clip_index < imported_animation_clips.size(); ++clip_index)
+				{
+					const AssetImporterAnimationClip& imported_clip = imported_animation_clips[clip_index];
+					auto clip = std::make_shared<resource::AnimationClip>();
+					clip->name = get_indexed_name(functions.get_animation_clip_name, static_cast<uint32>(clip_index));
+					clip->duration = imported_clip.duration;
+					clip->ticks_per_second = imported_clip.ticks_per_second > 0.0f ? imported_clip.ticks_per_second : 1.0f;
+					const Size first_channel = imported_clip.first_channel;
+					const Size channel_end = first_channel + imported_clip.channel_count;
+					if (channel_end > imported_animation_channels.size())
+					{
+						continue;
+					}
+
+					for (Size channel_index = first_channel; channel_index < channel_end; ++channel_index)
+					{
+						const AssetImporterAnimationChannel& imported_channel = imported_animation_channels[channel_index];
+						resource::AnimationChannel channel = {};
+						channel.bone_index = imported_channel.bone_index;
+						const Size position_end = static_cast<Size>(imported_channel.first_position_key) + imported_channel.position_key_count;
+						const Size rotation_end = static_cast<Size>(imported_channel.first_rotation_key) + imported_channel.rotation_key_count;
+						const Size scale_end = static_cast<Size>(imported_channel.first_scale_key) + imported_channel.scale_key_count;
+						if (position_end > imported_position_keys.size() || rotation_end > imported_rotation_keys.size() || scale_end > imported_scale_keys.size())
+						{
+							continue;
+						}
+
+						channel.positions.reserve(imported_channel.position_key_count);
+						for (Size key_index = imported_channel.first_position_key; key_index < position_end; ++key_index)
+						{
+							channel.positions.push_back({ imported_position_keys[key_index].time, imported_position_keys[key_index].value });
+						}
+						channel.rotations.reserve(imported_channel.rotation_key_count);
+						for (Size key_index = imported_channel.first_rotation_key; key_index < rotation_end; ++key_index)
+						{
+							channel.rotations.push_back({ imported_rotation_keys[key_index].time, imported_rotation_keys[key_index].value });
+						}
+						channel.scales.reserve(imported_channel.scale_key_count);
+						for (Size key_index = imported_channel.first_scale_key; key_index < scale_end; ++key_index)
+						{
+							channel.scales.push_back({ imported_scale_keys[key_index].time, imported_scale_keys[key_index].value });
+						}
+						if (channel.IsValid())
+						{
+							clip->channels.push_back(std::move(channel));
+						}
+					}
+
+					if (clip->IsValid())
+					{
+						prepared.animation_clips.push_back(std::move(clip));
 					}
 				}
 			}
@@ -1421,6 +1638,8 @@ namespace won::editor
 		{
 			return false;
 		}
+		prepared.mesh->skeleton = prepared.skeleton;
+		prepared.mesh->animation_clips = prepared.animation_clips;
 
 		ecs::Scene* scene = editor_viewport.view->scene;
 		const ecs::Entity root_entity = scene->CreateEntity();
@@ -1440,6 +1659,13 @@ namespace won::editor
 		{
 			geometry->SetMesh(prepared.mesh);
 			geometry->SetCastShadow(true);
+		}
+		if (prepared.skeleton && prepared.skeleton->IsValid() && !prepared.animation_clips.empty())
+		{
+			if (auto* animation = scene->AddComponent<ecs::AnimationComponent>(root_entity))
+			{
+				animation->clips = prepared.animation_clips;
+			}
 		}
 
 		for (EditorAssetImporter::TextureRequest& texture_request : prepared.texture_requests)

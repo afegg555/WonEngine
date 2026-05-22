@@ -34,11 +34,13 @@ namespace won::plugin
         constexpr const char* get_material_texture_function_id = "asset_importer.get_material_texture";
         constexpr const char* get_embedded_texture_info_function_id = "asset_importer.get_embedded_texture_info";
         constexpr const char* copy_embedded_texture_function_id = "asset_importer.copy_embedded_texture";
+        constexpr const char* get_bone_name_function_id = "asset_importer.get_bone_name";
+        constexpr const char* get_animation_clip_name_function_id = "asset_importer.get_animation_clip_name";
         constexpr const char* release_result_function_id = "asset_importer.release_result";
 
         constexpr uint32_t texture_source_file = 0;
         constexpr uint32_t texture_source_embedded = 1;
-        constexpr uint32_t mesh_stream_count = 8;
+        constexpr uint32_t asset_stream_count = 14;
 
         using int32 = int32_t;
         using uint8 = uint8_t;
@@ -70,6 +72,11 @@ namespace won::plugin
             float y = 0.0f;
             float z = 0.0f;
             float w = 0.0f;
+        };
+
+        struct ImportedMatrix
+        {
+            float values[16] = {};
         };
 
         struct uint4
@@ -173,6 +180,44 @@ namespace won::plugin
             float3 bounds_max = {};
         };
 
+        struct ImportedBone
+        {
+            int32 parent_index = -1;
+            ImportedMatrix inverse_bind_matrix = {};
+            ImportedMatrix bind_local_transform = {};
+        };
+
+        struct ImportedVec3Key
+        {
+            float time = 0.0f;
+            float3 value = {};
+        };
+
+        struct ImportedQuatKey
+        {
+            float time = 0.0f;
+            float4 value = {};
+        };
+
+        struct ImportedAnimationChannel
+        {
+            uint32 bone_index = 0;
+            uint32 first_position_key = 0;
+            uint32 position_key_count = 0;
+            uint32 first_rotation_key = 0;
+            uint32 rotation_key_count = 0;
+            uint32 first_scale_key = 0;
+            uint32 scale_key_count = 0;
+        };
+
+        struct ImportedAnimationClip
+        {
+            float duration = 0.0f;
+            float ticks_per_second = 1.0f;
+            uint32 first_channel = 0;
+            uint32 channel_count = 0;
+        };
+
         struct ImportedMesh
         {
             Vector<float3> positions;
@@ -207,6 +252,14 @@ namespace won::plugin
             Vector<ImportedMaterial> materials;
             Vector<ImportedTextureData> textures;
             Vector<ImportedEmbeddedTexture> embedded_textures;
+            Vector<String> bone_names;
+            Vector<ImportedBone> bones;
+            Vector<String> animation_clip_names;
+            Vector<ImportedAnimationClip> animation_clips;
+            Vector<ImportedAnimationChannel> animation_channels;
+            Vector<ImportedVec3Key> animation_position_keys;
+            Vector<ImportedQuatKey> animation_rotation_keys;
+            Vector<ImportedVec3Key> animation_scale_keys;
             std::shared_ptr<ImportedMesh> mesh;
         };
 
@@ -323,16 +376,17 @@ namespace won::plugin
                 return false;
             }
 
-            // collect name of nodes that should be in skeleton
-            // fallback
-            // could not found bone name in nodes, but keep this now
-            // fallback for bone names without scene node
-            // one animation clip: run, jump..
-            // per bone transform per key frame
-
             imported_data.materials.clear();
             imported_data.textures.clear();
             imported_data.embedded_textures.clear();
+            imported_data.bone_names.clear();
+            imported_data.bones.clear();
+            imported_data.animation_clip_names.clear();
+            imported_data.animation_clips.clear();
+            imported_data.animation_channels.clear();
+            imported_data.animation_position_keys.clear();
+            imported_data.animation_rotation_keys.clear();
+            imported_data.animation_scale_keys.clear();
             imported_data.mesh = nullptr;
             imported_data.materials.reserve(aiscene->mNumMaterials);
 
@@ -373,7 +427,226 @@ namespace won::plugin
                 imported_data.embedded_textures.push_back(std::move(embedded_texture));
             }
 
-            // TODO : check slot
+            auto identity_matrix = []()
+            {
+                ImportedMatrix matrix = {};
+                matrix.values[0] = 1.0f;
+                matrix.values[5] = 1.0f;
+                matrix.values[10] = 1.0f;
+                matrix.values[15] = 1.0f;
+                return matrix;
+            };
+
+            auto to_stored_matrix = [](const aiMatrix4x4& matrix)
+            {
+                // a, b, c, d => each row
+                // pre-multiplied form(row major & pre-multiplied)
+
+                // transpose and store
+                ImportedMatrix result = {};
+                result.values[0] = matrix.a1; result.values[1] = matrix.b1; result.values[2] = matrix.c1; result.values[3] = matrix.d1;
+                result.values[4] = matrix.a2; result.values[5] = matrix.b2; result.values[6] = matrix.c2; result.values[7] = matrix.d2;
+                result.values[8] = matrix.a3; result.values[9] = matrix.b3; result.values[10] = matrix.c3; result.values[11] = matrix.d3;
+                result.values[12] = matrix.a4; result.values[13] = matrix.b4; result.values[14] = matrix.c4; result.values[15] = matrix.d4;
+                return result;
+            };
+
+            UnorderedMap<String, bool> required_node_names; // nodes directly referenced by bones or animation channels
+            for (uint32_t mesh_index = 0; mesh_index < aiscene->mNumMeshes; ++mesh_index)
+            {
+                const aiMesh* ai_mesh = aiscene->mMeshes[mesh_index];
+                if (!ai_mesh)
+                {
+                    continue;
+                }
+
+                for (uint32_t bone_index = 0; bone_index < ai_mesh->mNumBones; ++bone_index)
+                {
+                    const aiBone* ai_bone = ai_mesh->mBones[bone_index];
+                    if (ai_bone)
+                    {
+                        required_node_names[ai_bone->mName.C_Str()] = true;
+                    }
+                }
+            }
+            for (uint32_t animation_index = 0; animation_index < aiscene->mNumAnimations; ++animation_index)
+            {
+                const aiAnimation* ai_animation = aiscene->mAnimations[animation_index];
+                if (!ai_animation)
+                {
+                    continue;
+                }
+
+                for (uint32_t channel_index = 0; channel_index < ai_animation->mNumChannels; ++channel_index)
+                {
+                    const aiNodeAnim* ai_channel = ai_animation->mChannels[channel_index];
+                    if (ai_channel)
+                    {
+                        required_node_names[ai_channel->mNodeName.C_Str()] = true;
+                    }
+                }
+            }
+
+            UnorderedMap<String, bool> included_node_names; // upper required nodes + parent nodes kept in hierarchy
+            auto mark_required_nodes = [&](auto&& self, const aiNode* node) -> bool
+            {
+                if (!node)
+                {
+                    return false;
+                }
+
+                bool include_node = required_node_names.find(node->mName.C_Str()) != required_node_names.end();
+                for (uint32_t child_index = 0; child_index < node->mNumChildren; ++child_index)
+                {
+                    include_node = self(self, node->mChildren[child_index]) || include_node;
+                }
+                if (include_node)
+                {
+                    included_node_names[node->mName.C_Str()] = true;
+                }
+                return include_node;
+            };
+            mark_required_nodes(mark_required_nodes, aiscene->mRootNode);
+
+            UnorderedMap<String, uint32> bone_name_to_index;
+            if (!included_node_names.empty())
+            {
+                struct BoneNodeEntry
+                {
+                    const aiNode* node = nullptr;
+                    int32 parent_index = -1;
+                };
+
+                // traverse nodes in hierarchy
+                Vector<BoneNodeEntry> bone_node_stack;
+                bone_node_stack.push_back({ aiscene->mRootNode, -1 });
+                while (!bone_node_stack.empty())
+                {
+                    const BoneNodeEntry entry = bone_node_stack.back();
+                    bone_node_stack.pop_back();
+
+                    const bool include_node = entry.node && included_node_names.find(entry.node->mName.C_Str()) != included_node_names.end();
+                    int32 parent_index = entry.parent_index;
+                    if (include_node)
+                    {
+                        const uint32 bone_index = static_cast<uint32>(imported_data.bones.size());
+                        bone_name_to_index[entry.node->mName.C_Str()] = bone_index;
+                        imported_data.bone_names.push_back(entry.node->mName.C_Str());
+                        ImportedBone& bone = imported_data.bones.emplace_back();
+                        bone.parent_index = entry.parent_index;
+                        bone.inverse_bind_matrix = identity_matrix();
+                        bone.bind_local_transform = to_stored_matrix(entry.node->mTransformation);
+                        parent_index = static_cast<int32>(bone_index);
+                    }
+
+                    for (uint32_t child_index = entry.node->mNumChildren; child_index > 0; --child_index)
+                    {
+                        bone_node_stack.push_back({ entry.node->mChildren[child_index - 1], parent_index });
+                    }
+                }
+            }
+
+            for (uint32_t mesh_index = 0; mesh_index < aiscene->mNumMeshes; ++mesh_index)
+            {
+                const aiMesh* ai_mesh = aiscene->mMeshes[mesh_index];
+                if (!ai_mesh)
+                {
+                    continue;
+                }
+
+                for (uint32_t bone_index = 0; bone_index < ai_mesh->mNumBones; ++bone_index)
+                {
+                    const aiBone* ai_bone = ai_mesh->mBones[bone_index];
+                    if (!ai_bone)
+                    {
+                        continue;
+                    }
+
+                    const String bone_name = ai_bone->mName.C_Str();
+                    auto bone_it = bone_name_to_index.find(bone_name);
+                    // fallback
+                    // could not found bone name in nodes, but keep this now
+                    // fallback for bone names without scene node
+                    if (bone_it == bone_name_to_index.end())
+                    {
+                        const uint32 fallback_bone_index = static_cast<uint32>(imported_data.bones.size());
+                        bone_name_to_index[bone_name] = fallback_bone_index;
+                        imported_data.bone_names.push_back(bone_name);
+                        ImportedBone& bone = imported_data.bones.emplace_back();
+                        bone.parent_index = -1;
+                        bone.inverse_bind_matrix = to_stored_matrix(ai_bone->mOffsetMatrix);
+                        bone.bind_local_transform = identity_matrix();
+                    }
+                    else
+                    {
+                        imported_data.bones[bone_it->second].inverse_bind_matrix = to_stored_matrix(ai_bone->mOffsetMatrix);
+                    }
+                }
+            }
+
+            // one animation clip: run, jump..
+            for (uint32_t animation_index = 0; animation_index < aiscene->mNumAnimations; ++animation_index)
+            {
+                const aiAnimation* ai_animation = aiscene->mAnimations[animation_index];
+                if (!ai_animation || ai_animation->mDuration <= 0.0)
+                {
+                    continue;
+                }
+
+                ImportedAnimationClip clip = {};
+                clip.duration = static_cast<float>(ai_animation->mDuration);
+                clip.ticks_per_second = ai_animation->mTicksPerSecond > 0.0 ? static_cast<float>(ai_animation->mTicksPerSecond) : 1.0f;
+                clip.first_channel = static_cast<uint32>(imported_data.animation_channels.size());
+
+                for (uint32_t channel_index = 0; channel_index < ai_animation->mNumChannels; ++channel_index)
+                {
+                    const aiNodeAnim* ai_channel = ai_animation->mChannels[channel_index];
+                    if (!ai_channel)
+                    {
+                        continue;
+                    }
+
+                    auto bone_it = bone_name_to_index.find(ai_channel->mNodeName.C_Str());
+                    if (bone_it == bone_name_to_index.end())
+                    {
+                        continue;
+                    }
+
+                    ImportedAnimationChannel& channel = imported_data.animation_channels.emplace_back();
+                    channel.bone_index = bone_it->second;
+                    channel.first_position_key = static_cast<uint32>(imported_data.animation_position_keys.size());
+                    channel.position_key_count = ai_channel->mNumPositionKeys;
+                    for (uint32_t key_index = 0; key_index < ai_channel->mNumPositionKeys; ++key_index)
+                    {
+                        const aiVectorKey& key = ai_channel->mPositionKeys[key_index];
+                        imported_data.animation_position_keys.push_back({ static_cast<float>(key.mTime), { key.mValue.x, key.mValue.y, key.mValue.z } });
+                    }
+
+                    channel.first_rotation_key = static_cast<uint32>(imported_data.animation_rotation_keys.size());
+                    channel.rotation_key_count = ai_channel->mNumRotationKeys;
+                    for (uint32_t key_index = 0; key_index < ai_channel->mNumRotationKeys; ++key_index)
+                    {
+                        const aiQuatKey& key = ai_channel->mRotationKeys[key_index];
+                        imported_data.animation_rotation_keys.push_back({ static_cast<float>(key.mTime), { key.mValue.x, key.mValue.y, key.mValue.z, key.mValue.w } });
+                    }
+
+                    channel.first_scale_key = static_cast<uint32>(imported_data.animation_scale_keys.size());
+                    channel.scale_key_count = ai_channel->mNumScalingKeys;
+                    for (uint32_t key_index = 0; key_index < ai_channel->mNumScalingKeys; ++key_index)
+                    {
+                        const aiVectorKey& key = ai_channel->mScalingKeys[key_index];
+                        imported_data.animation_scale_keys.push_back({ static_cast<float>(key.mTime), { key.mValue.x, key.mValue.y, key.mValue.z } });
+                    }
+                }
+
+                clip.channel_count = static_cast<uint32>(imported_data.animation_channels.size()) - clip.first_channel;
+                if (clip.channel_count > 0)
+                {
+                    imported_data.animation_clip_names.push_back(ai_animation->mName.length > 0 ? ai_animation->mName.C_Str() : ("Animation" + std::to_string(animation_index)));
+                    imported_data.animation_clips.push_back(clip);
+                }
+            }
+
             for (uint32_t i = 0; i < aiscene->mNumMaterials; ++i)
             {
                 const aiMaterial* ai_mat = aiscene->mMaterials[i];
@@ -575,7 +848,7 @@ namespace won::plugin
                     const aiMesh* ai_mesh = aiscene->mMeshes[node->mMeshes[node_mesh_index]];
                     const bool has_uv = ai_mesh->HasTextureCoords(0);
                     const bool has_tb = ai_mesh->HasTangentsAndBitangents();
-                    const bool use_skinning_mesh_space = false;
+                    const bool use_skinning_mesh_space = ai_mesh->HasBones();
                     const uint32 vertex_offset = static_cast<uint32>(mesh.positions.size());
                     const uint32 index_offset = static_cast<uint32>(mesh.indices.size());
                     ImportedSubmesh& submesh = mesh.submeshes.emplace_back();
@@ -643,6 +916,58 @@ namespace won::plugin
                         local_bounds.max.x = std::max(local_bounds.max.x, bound_position.x);
                         local_bounds.max.y = std::max(local_bounds.max.y, bound_position.y);
                         local_bounds.max.z = std::max(local_bounds.max.z, bound_position.z);
+                    }
+
+                    if (!imported_data.bones.empty())
+                    {
+                        mesh.bone_indices.resize(mesh.positions.size());
+                        mesh.bone_weights.resize(mesh.positions.size());
+                    }
+
+                    for (uint32_t bone_index = 0; bone_index < ai_mesh->mNumBones; ++bone_index)
+                    {
+                        const aiBone* ai_bone = ai_mesh->mBones[bone_index];
+                        if (!ai_bone)
+                        {
+                            continue;
+                        }
+
+                        auto bone_it = bone_name_to_index.find(ai_bone->mName.C_Str());
+                        if (bone_it == bone_name_to_index.end())
+                        {
+                            continue;
+                        }
+
+                        for (uint32_t weight_index = 0; weight_index < ai_bone->mNumWeights; ++weight_index)
+                        {
+                            const aiVertexWeight& weight = ai_bone->mWeights[weight_index];
+                            const uint32 vertex_index = vertex_offset + weight.mVertexId;
+                            if (vertex_index < mesh.bone_indices.size() && vertex_index < mesh.bone_weights.size())
+                            {
+                                add_bone_weight(mesh.bone_indices[vertex_index], mesh.bone_weights[vertex_index], bone_it->second, weight.mWeight);
+                            }
+                        }
+                    }
+
+                    if (!imported_data.bones.empty())
+                    {
+                        for (uint32 vertex_index = vertex_offset; vertex_index < vertex_offset + ai_mesh->mNumVertices; ++vertex_index)
+                        {
+                            float4& weights = mesh.bone_weights[vertex_index];
+                            const float weight_sum = weights.x + weights.y + weights.z + weights.w;
+                            if (weight_sum > 0.0f)
+                            {
+                                weights.x /= weight_sum;
+                                weights.y /= weight_sum;
+                                weights.z /= weight_sum;
+                                weights.w /= weight_sum;
+                            }
+                            else
+                            {
+                                mesh.bone_indices[vertex_index] = { 0, 0, 0, 0 };
+                                weights = { 1.0f, 0.0f, 0.0f, 0.0f };
+                            }
+                        }
                     }
 
                     if (ai_mesh->HasFaces())
@@ -741,7 +1066,7 @@ namespace won::plugin
             call->outputs[0].type = won::ValueType::String;
             call->outputs[0].string_value = result.name.c_str();
             call->outputs[1].type = won::ValueType::UInt32;
-            call->outputs[1].uint32_value = result.mesh ? mesh_stream_count : 0u;
+            call->outputs[1].uint32_value = result.mesh ? asset_stream_count : 0u;
             call->outputs[2].type = won::ValueType::UInt32;
             call->outputs[2].uint32_value = static_cast<uint32>(result.materials.size());
             *call->output_count = 3;
@@ -822,6 +1147,48 @@ namespace won::plugin
                 element_size = sizeof(float4);
                 count = static_cast<uint64>(mesh.bone_weights.size());
                 break;
+            case 8:
+                name = "bones";
+                value_type = won::ValueType::CustomStruct;
+                type_name = "asset_importer.bone";
+                element_size = sizeof(ImportedBone);
+                count = static_cast<uint64>(it->second->bones.size());
+                break;
+            case 9:
+                name = "animation_clips";
+                value_type = won::ValueType::CustomStruct;
+                type_name = "asset_importer.animation_clip";
+                element_size = sizeof(ImportedAnimationClip);
+                count = static_cast<uint64>(it->second->animation_clips.size());
+                break;
+            case 10:
+                name = "animation_channels";
+                value_type = won::ValueType::CustomStruct;
+                type_name = "asset_importer.animation_channel";
+                element_size = sizeof(ImportedAnimationChannel);
+                count = static_cast<uint64>(it->second->animation_channels.size());
+                break;
+            case 11:
+                name = "animation_position_keys";
+                value_type = won::ValueType::CustomStruct;
+                type_name = "asset_importer.vec3_key";
+                element_size = sizeof(ImportedVec3Key);
+                count = static_cast<uint64>(it->second->animation_position_keys.size());
+                break;
+            case 12:
+                name = "animation_rotation_keys";
+                value_type = won::ValueType::CustomStruct;
+                type_name = "asset_importer.quat_key";
+                element_size = sizeof(ImportedQuatKey);
+                count = static_cast<uint64>(it->second->animation_rotation_keys.size());
+                break;
+            case 13:
+                name = "animation_scale_keys";
+                value_type = won::ValueType::CustomStruct;
+                type_name = "asset_importer.vec3_key";
+                element_size = sizeof(ImportedVec3Key);
+                count = static_cast<uint64>(it->second->animation_scale_keys.size());
+                break;
             default:
                 return false;
             }
@@ -870,6 +1237,12 @@ namespace won::plugin
             case 5: src = mesh.submeshes.data(); byte_size = static_cast<uint64>(mesh.submeshes.size() * sizeof(ImportedSubmesh)); break;
             case 6: src = mesh.bone_indices.data(); byte_size = static_cast<uint64>(mesh.bone_indices.size() * sizeof(uint4)); break;
             case 7: src = mesh.bone_weights.data(); byte_size = static_cast<uint64>(mesh.bone_weights.size() * sizeof(float4)); break;
+            case 8: src = it->second->bones.data(); byte_size = static_cast<uint64>(it->second->bones.size() * sizeof(ImportedBone)); break;
+            case 9: src = it->second->animation_clips.data(); byte_size = static_cast<uint64>(it->second->animation_clips.size() * sizeof(ImportedAnimationClip)); break;
+            case 10: src = it->second->animation_channels.data(); byte_size = static_cast<uint64>(it->second->animation_channels.size() * sizeof(ImportedAnimationChannel)); break;
+            case 11: src = it->second->animation_position_keys.data(); byte_size = static_cast<uint64>(it->second->animation_position_keys.size() * sizeof(ImportedVec3Key)); break;
+            case 12: src = it->second->animation_rotation_keys.data(); byte_size = static_cast<uint64>(it->second->animation_rotation_keys.size() * sizeof(ImportedQuatKey)); break;
+            case 13: src = it->second->animation_scale_keys.data(); byte_size = static_cast<uint64>(it->second->animation_scale_keys.size() * sizeof(ImportedVec3Key)); break;
             default: return false;
             }
 
@@ -1099,6 +1472,52 @@ namespace won::plugin
             return false;
         }
 
+        static bool WON_PLUGIN_CALL GetBoneName(void* self, const function::Call* call)
+        {
+            auto* state = static_cast<AssetImporterState*>(self);
+            if (!call || !call->inputs || call->input_count != 2 || !call->outputs || call->output_capacity < 1 || !call->output_count ||
+                call->inputs[0].type != won::ValueType::UInt64 || call->inputs[1].type != won::ValueType::UInt32 || !state)
+            {
+                return false;
+            }
+
+            std::lock_guard<std::mutex> lock(state->result_mutex);
+            auto it = state->results.find(call->inputs[0].uint64_value);
+            const uint32 bone_index = call->inputs[1].uint32_value;
+            if (it == state->results.end() || !it->second || bone_index >= it->second->bone_names.size())
+            {
+                return false;
+            }
+
+            call->outputs[0].type = won::ValueType::String;
+            call->outputs[0].string_value = it->second->bone_names[bone_index].c_str();
+            *call->output_count = 1;
+            return true;
+        }
+
+        static bool WON_PLUGIN_CALL GetAnimationClipName(void* self, const function::Call* call)
+        {
+            auto* state = static_cast<AssetImporterState*>(self);
+            if (!call || !call->inputs || call->input_count != 2 || !call->outputs || call->output_capacity < 1 || !call->output_count ||
+                call->inputs[0].type != won::ValueType::UInt64 || call->inputs[1].type != won::ValueType::UInt32 || !state)
+            {
+                return false;
+            }
+
+            std::lock_guard<std::mutex> lock(state->result_mutex);
+            auto it = state->results.find(call->inputs[0].uint64_value);
+            const uint32 clip_index = call->inputs[1].uint32_value;
+            if (it == state->results.end() || !it->second || clip_index >= it->second->animation_clip_names.size())
+            {
+                return false;
+            }
+
+            call->outputs[0].type = won::ValueType::String;
+            call->outputs[0].string_value = it->second->animation_clip_names[clip_index].c_str();
+            *call->output_count = 1;
+            return true;
+        }
+
         static bool WON_PLUGIN_CALL GetStructFieldCount(void* self, const function::Call* call)
         {
             (void)self;
@@ -1109,13 +1528,22 @@ namespace won::plugin
             }
 
             const char* type_name = call->inputs[0].string_value;
-            if (!type_name || std::strcmp(type_name, "asset_importer.submesh") != 0)
+            if (!type_name)
             {
                 return false;
             }
 
+            uint32 field_count = 0;
+            if (std::strcmp(type_name, "asset_importer.submesh") == 0) { field_count = 6; }
+            else if (std::strcmp(type_name, "asset_importer.bone") == 0) { field_count = 3; }
+            else if (std::strcmp(type_name, "asset_importer.animation_clip") == 0) { field_count = 4; }
+            else if (std::strcmp(type_name, "asset_importer.animation_channel") == 0) { field_count = 7; }
+            else if (std::strcmp(type_name, "asset_importer.vec3_key") == 0) { field_count = 2; }
+            else if (std::strcmp(type_name, "asset_importer.quat_key") == 0) { field_count = 2; }
+            else { return false; }
+
             call->outputs[0].type = won::ValueType::UInt32;
-            call->outputs[0].uint32_value = 6;
+            call->outputs[0].uint32_value = field_count;
             *call->output_count = 1;
             return true;
         }
@@ -1130,7 +1558,7 @@ namespace won::plugin
             }
 
             const char* type_name = call->inputs[0].string_value;
-            if (!type_name || std::strcmp(type_name, "asset_importer.submesh") != 0)
+            if (!type_name)
             {
                 return false;
             }
@@ -1141,15 +1569,75 @@ namespace won::plugin
             uint32 offset = 0;
             uint32 size = 0;
             const char* field_type_name = "";
-            switch (field_index)
+            if (std::strcmp(type_name, "asset_importer.submesh") == 0)
             {
-            case 0: field_name = "first_index"; field_value_type = won::ValueType::UInt32; offset = static_cast<uint32>(offsetof(ImportedSubmesh, first_index)); size = sizeof(uint32); break;
-            case 1: field_name = "index_count"; field_value_type = won::ValueType::UInt32; offset = static_cast<uint32>(offsetof(ImportedSubmesh, index_count)); size = sizeof(uint32); break;
-            case 2: field_name = "first_vertex"; field_value_type = won::ValueType::UInt32; offset = static_cast<uint32>(offsetof(ImportedSubmesh, first_vertex)); size = sizeof(uint32); break;
-            case 3: field_name = "material_index"; field_value_type = won::ValueType::UInt32; offset = static_cast<uint32>(offsetof(ImportedSubmesh, material_index)); size = sizeof(uint32); break;
-            case 4: field_name = "bounds_min"; field_value_type = won::ValueType::Float3; offset = static_cast<uint32>(offsetof(ImportedSubmesh, bounds_min)); size = sizeof(float3); break;
-            case 5: field_name = "bounds_max"; field_value_type = won::ValueType::Float3; offset = static_cast<uint32>(offsetof(ImportedSubmesh, bounds_max)); size = sizeof(float3); break;
-            default: return false;
+                switch (field_index)
+                {
+                case 0: field_name = "first_index"; field_value_type = won::ValueType::UInt32; offset = static_cast<uint32>(offsetof(ImportedSubmesh, first_index)); size = sizeof(uint32); break;
+                case 1: field_name = "index_count"; field_value_type = won::ValueType::UInt32; offset = static_cast<uint32>(offsetof(ImportedSubmesh, index_count)); size = sizeof(uint32); break;
+                case 2: field_name = "first_vertex"; field_value_type = won::ValueType::UInt32; offset = static_cast<uint32>(offsetof(ImportedSubmesh, first_vertex)); size = sizeof(uint32); break;
+                case 3: field_name = "material_index"; field_value_type = won::ValueType::UInt32; offset = static_cast<uint32>(offsetof(ImportedSubmesh, material_index)); size = sizeof(uint32); break;
+                case 4: field_name = "bounds_min"; field_value_type = won::ValueType::Float3; offset = static_cast<uint32>(offsetof(ImportedSubmesh, bounds_min)); size = sizeof(float3); break;
+                case 5: field_name = "bounds_max"; field_value_type = won::ValueType::Float3; offset = static_cast<uint32>(offsetof(ImportedSubmesh, bounds_max)); size = sizeof(float3); break;
+                default: return false;
+                }
+            }
+            else if (std::strcmp(type_name, "asset_importer.bone") == 0)
+            {
+                switch (field_index)
+                {
+                case 0: field_name = "parent_index"; field_value_type = won::ValueType::Int32; offset = static_cast<uint32>(offsetof(ImportedBone, parent_index)); size = sizeof(int32); break;
+                case 1: field_name = "inverse_bind_matrix"; field_value_type = won::ValueType::CustomStruct; offset = static_cast<uint32>(offsetof(ImportedBone, inverse_bind_matrix)); size = sizeof(ImportedMatrix); field_type_name = "asset_importer.float4x4"; break;
+                case 2: field_name = "bind_local_transform"; field_value_type = won::ValueType::CustomStruct; offset = static_cast<uint32>(offsetof(ImportedBone, bind_local_transform)); size = sizeof(ImportedMatrix); field_type_name = "asset_importer.float4x4"; break;
+                default: return false;
+                }
+            }
+            else if (std::strcmp(type_name, "asset_importer.animation_clip") == 0)
+            {
+                switch (field_index)
+                {
+                case 0: field_name = "duration"; field_value_type = won::ValueType::Float; offset = static_cast<uint32>(offsetof(ImportedAnimationClip, duration)); size = sizeof(float); break;
+                case 1: field_name = "ticks_per_second"; field_value_type = won::ValueType::Float; offset = static_cast<uint32>(offsetof(ImportedAnimationClip, ticks_per_second)); size = sizeof(float); break;
+                case 2: field_name = "first_channel"; field_value_type = won::ValueType::UInt32; offset = static_cast<uint32>(offsetof(ImportedAnimationClip, first_channel)); size = sizeof(uint32); break;
+                case 3: field_name = "channel_count"; field_value_type = won::ValueType::UInt32; offset = static_cast<uint32>(offsetof(ImportedAnimationClip, channel_count)); size = sizeof(uint32); break;
+                default: return false;
+                }
+            }
+            else if (std::strcmp(type_name, "asset_importer.animation_channel") == 0)
+            {
+                switch (field_index)
+                {
+                case 0: field_name = "bone_index"; field_value_type = won::ValueType::UInt32; offset = static_cast<uint32>(offsetof(ImportedAnimationChannel, bone_index)); size = sizeof(uint32); break;
+                case 1: field_name = "first_position_key"; field_value_type = won::ValueType::UInt32; offset = static_cast<uint32>(offsetof(ImportedAnimationChannel, first_position_key)); size = sizeof(uint32); break;
+                case 2: field_name = "position_key_count"; field_value_type = won::ValueType::UInt32; offset = static_cast<uint32>(offsetof(ImportedAnimationChannel, position_key_count)); size = sizeof(uint32); break;
+                case 3: field_name = "first_rotation_key"; field_value_type = won::ValueType::UInt32; offset = static_cast<uint32>(offsetof(ImportedAnimationChannel, first_rotation_key)); size = sizeof(uint32); break;
+                case 4: field_name = "rotation_key_count"; field_value_type = won::ValueType::UInt32; offset = static_cast<uint32>(offsetof(ImportedAnimationChannel, rotation_key_count)); size = sizeof(uint32); break;
+                case 5: field_name = "first_scale_key"; field_value_type = won::ValueType::UInt32; offset = static_cast<uint32>(offsetof(ImportedAnimationChannel, first_scale_key)); size = sizeof(uint32); break;
+                case 6: field_name = "scale_key_count"; field_value_type = won::ValueType::UInt32; offset = static_cast<uint32>(offsetof(ImportedAnimationChannel, scale_key_count)); size = sizeof(uint32); break;
+                default: return false;
+                }
+            }
+            else if (std::strcmp(type_name, "asset_importer.vec3_key") == 0)
+            {
+                switch (field_index)
+                {
+                case 0: field_name = "time"; field_value_type = won::ValueType::Float; offset = static_cast<uint32>(offsetof(ImportedVec3Key, time)); size = sizeof(float); break;
+                case 1: field_name = "value"; field_value_type = won::ValueType::Float3; offset = static_cast<uint32>(offsetof(ImportedVec3Key, value)); size = sizeof(float3); break;
+                default: return false;
+                }
+            }
+            else if (std::strcmp(type_name, "asset_importer.quat_key") == 0)
+            {
+                switch (field_index)
+                {
+                case 0: field_name = "time"; field_value_type = won::ValueType::Float; offset = static_cast<uint32>(offsetof(ImportedQuatKey, time)); size = sizeof(float); break;
+                case 1: field_name = "value"; field_value_type = won::ValueType::Float4; offset = static_cast<uint32>(offsetof(ImportedQuatKey, value)); size = sizeof(float4); break;
+                default: return false;
+                }
+            }
+            else
+            {
+                return false;
             }
 
             call->outputs[0].type = won::ValueType::String;
@@ -1279,6 +1767,9 @@ namespace won::plugin
         const function::ParamDesc s_material_texture_count_outputs[] = {
             { "texture_count", won::ValueType::UInt32 },
         };
+        const function::ParamDesc s_name_outputs[] = {
+            { "name", won::ValueType::String },
+        };
 
         const function::Desc s_import_desc{ sizeof(function::Desc), "Import Asset", s_import_inputs, 1, s_import_outputs, 1, &ImportAsset };
         const function::Desc s_get_result_info_desc{ sizeof(function::Desc), "Get Result Info", s_result_handle_input, 1, s_result_info_outputs, 3, &GetResultInfo };
@@ -1291,6 +1782,8 @@ namespace won::plugin
         const function::Desc s_get_material_texture_desc{ sizeof(function::Desc), "Get Material Texture", s_material_texture_inputs, 3, s_material_texture_outputs, 3, &GetMaterialTexture };
         const function::Desc s_get_embedded_texture_info_desc{ sizeof(function::Desc), "Get Embedded Texture Info", s_embedded_texture_inputs, 2, s_embedded_texture_info_outputs, 4, &GetEmbeddedTextureInfo };
         const function::Desc s_copy_embedded_texture_desc{ sizeof(function::Desc), "Copy Embedded Texture", s_copy_embedded_texture_inputs, 4, s_copy_embedded_texture_outputs, 1, &CopyEmbeddedTexture };
+        const function::Desc s_get_bone_name_desc{ sizeof(function::Desc), "Get Bone Name", s_indexed_result_inputs, 2, s_name_outputs, 1, &GetBoneName };
+        const function::Desc s_get_animation_clip_name_desc{ sizeof(function::Desc), "Get Animation Clip Name", s_indexed_result_inputs, 2, s_name_outputs, 1, &GetAnimationClipName };
         const function::Desc s_release_result_desc{ sizeof(function::Desc), "Release Result", s_result_handle_input, 1, nullptr, 0, &ReleaseResult };
 
         const WonExtensionDesc s_extensions[] = {
@@ -1305,6 +1798,8 @@ namespace won::plugin
             { sizeof(WonExtensionDesc), function::ExtensionType, get_material_texture_function_id, &s_get_material_texture_desc },
             { sizeof(WonExtensionDesc), function::ExtensionType, get_embedded_texture_info_function_id, &s_get_embedded_texture_info_desc },
             { sizeof(WonExtensionDesc), function::ExtensionType, copy_embedded_texture_function_id, &s_copy_embedded_texture_desc },
+            { sizeof(WonExtensionDesc), function::ExtensionType, get_bone_name_function_id, &s_get_bone_name_desc },
+            { sizeof(WonExtensionDesc), function::ExtensionType, get_animation_clip_name_function_id, &s_get_animation_clip_name_desc },
             { sizeof(WonExtensionDesc), function::ExtensionType, release_result_function_id, &s_release_result_desc },
         };
     }
