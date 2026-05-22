@@ -1,6 +1,6 @@
 #pragma once
 #include "PluginABI.h"
-#include "ValueType.h"
+#include "PluginValue.h"
 
 #include <stdint.h>
 
@@ -22,6 +22,7 @@ namespace won::plugin::function
             float float_value;
             double double_value;
             float float_values[4];
+            void* pointer_value;
         };
     };
 

@@ -144,6 +144,7 @@ namespace won::plugin
     {
         UnorderedMap<String, std::shared_ptr<Plugin>> plugins;
         std::mutex vector_lock;
+        WonPluginHostAPI host_api = MakeHostAPI();
     };
 
     PluginManager::PluginManager()
@@ -274,8 +275,10 @@ namespace won::plugin
         const String resolved_library_path = io::GetAbsolutePath(library_path);
         void* handle = nullptr;
 #if defined(_WIN32)
+        String native_library_path = resolved_library_path;
+        std::replace(native_library_path.begin(), native_library_path.end(), '/', '\\'); // why not work with '/'?
         const DWORD load_flags = LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR;
-        handle = (void*)::LoadLibraryExA(resolved_library_path.c_str(), nullptr, load_flags);
+        handle = (void*)::LoadLibraryExA(native_library_path.c_str(), nullptr, load_flags);
 #endif
 
         if (!handle)
@@ -305,11 +308,9 @@ namespace won::plugin
             return false;
         }
 
-        WonPluginHostAPI host_api = MakeHostAPI();
-
         void* plugin_handle = nullptr;
         WonPluginAPI api = {};
-        const bool created = create(&host_api, &plugin_handle, &api);
+        const bool created = create(&p_impl->host_api, &plugin_handle, &api);
         if (!created || !plugin_handle || api.abi_version != WON_PLUGIN_ABI_VERSION || !api.plugin_id || !api.plugin_version ||
             (api.extension_count > 0 && !api.extensions))
         {

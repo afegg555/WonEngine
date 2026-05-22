@@ -43,6 +43,7 @@ namespace won::resource
     // Loads an image from disk and returns a cached shared_ptr when possible.
     // The cache key is the normalized file path.
     WONENGINE_API std::shared_ptr<Image> LoadImageFile(const String& path, int32 desired_channels = 4);
+    WONENGINE_API std::shared_ptr<Image> LoadImageMemory(const uint8* data, Size size, int32 desired_channels = 4);
 
     WONENGINE_API void ClearImageCache();
     WONENGINE_API Size GetImageCacheSize();

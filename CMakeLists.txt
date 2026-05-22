@@ -110,6 +110,14 @@ set(RUNTIME_CORE
     Source/Runtime/Public/RuntimeExport.h
 )
 
+set(PLUGIN_PUBLIC
+    Source/Plugins/Include/PluginValue.h
+    Source/Plugins/Include/PluginABI.h
+    Source/Plugins/Include/CustomFunctionExtension.h
+    Source/Plugins/Include/CustomComponentExtension.h
+    Source/Plugins/Include/CustomSystemExtension.h
+)
+
 set(RUNTIME_UTILS
     Source/Runtime/Public/Timer.h
     Source/Runtime/Public/SpinLock.h
@@ -210,10 +218,6 @@ set(RUNTIME_CONFIGURATION
 
 set(RUNTIME_PLUGIN
     Source/Runtime/Public/PluginManager.h
-    Source/Runtime/Public/PluginABI.h
-    Source/Runtime/Public/CustomFunctionExtension.h
-    Source/Runtime/Public/CustomComponentExtension.h
-    Source/Runtime/Public/CustomSystemExtension.h
     Source/Runtime/Private/PluginManager.cpp
 )
 
@@ -373,6 +377,7 @@ if(WONENGINE_BUILD_SHARED_RUNTIME)
 endif()
 
 add_library(Runtime ${WONENGINE_RUNTIME_LIBRARY_TYPE}
+    ${PLUGIN_PUBLIC}
     ${RUNTIME_CORE}
     ${RUNTIME_UTILS}
     ${RUNTIME_IO}
@@ -413,6 +418,7 @@ source_group("Application" FILES ${RUNTIME_APPLICATION})
 source_group("Rendering/Internal" FILES ${RUNTIME_RENDERING_INTERNAL})
 source_group("Configuration" FILES ${RUNTIME_CONFIGURATION})
 source_group("Plugin" FILES ${RUNTIME_PLUGIN})
+source_group("Plugin/Include" FILES ${PLUGIN_PUBLIC})
 source_group("Script" FILES ${RUNTIME_SCRIPT})
 source_group("Script/Lua" FILES ${RUNTIME_SCRIPT_LUA})
 source_group("Script/Lua/src" FILES ${LUA_SOURCES} ${LUA_HEADERS})
@@ -461,7 +467,6 @@ set(SHADER_OFFLINE_COMPILER_SOURCES
 )
 
 set(PLUGIN_ASSET_IMPORTER
-    Source/Plugins/AssetImporter/AssetImporter.h
     Source/Plugins/AssetImporter/AssetImporter.cpp
     Source/Plugins/AssetImporter/plugin.json
 )
@@ -518,8 +523,8 @@ endforeach()
 
 target_include_directories(Runtime
     PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins/Include>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Runtime/Public>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Shaders>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Vendor>
     PRIVATE
@@ -530,17 +535,18 @@ target_link_libraries(Editor PRIVATE Runtime)
 add_dependencies(Editor AssetImporter)
 target_link_libraries(ShaderOfflineCompiler PRIVATE Runtime)
 target_link_libraries(AssetImporter PRIVATE
-    Runtime
     debug assimp-vc143-mtd
     optimized assimp-vc143-mt
 )
 target_include_directories(PrintLogSample PRIVATE
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Runtime/Public>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins/Include>
 )
 target_include_directories(CustomComponentSample PRIVATE
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Runtime/Public>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins/Include>
 )
 target_include_directories(AssetImporter PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Vendor>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins/Include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins/AssetImporter/ThirdParty/assimp/include>
 )
 target_compile_definitions(AssetImporter PRIVATE ASSIMP_DLL)

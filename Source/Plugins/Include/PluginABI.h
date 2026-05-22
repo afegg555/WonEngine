@@ -10,7 +10,7 @@
 #define WON_PLUGIN_EXPORT extern "C" __attribute__((visibility("default")))
 #endif
 
-#define WON_PLUGIN_ABI_VERSION 1
+#define WON_PLUGIN_ABI_VERSION 2
 
 enum class WonExtensionType : uint32_t
 {

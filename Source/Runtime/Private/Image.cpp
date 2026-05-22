@@ -27,40 +27,7 @@ namespace won::resource
                 return nullptr;
             }
 
-            int width = 0;
-            int height = 0;
-            int channels_in_file = 0;
-
-            const int stb_desired_channels = (desired_channels <= 0) ? 0 : static_cast<int>(desired_channels);
-            stbi_uc* pixels = stbi_load_from_memory(
-                reinterpret_cast<const stbi_uc*>(file_data.bytes.data()),
-                static_cast<int>(file_data.bytes.size()),
-                &width,
-                &height,
-                &channels_in_file,
-                stb_desired_channels);
-
-            if (pixels == nullptr || width <= 0 || height <= 0)
-            {
-                if (pixels != nullptr)
-                {
-                    stbi_image_free(pixels);
-                }
-                return nullptr;
-            }
-
-            const int final_channels = (stb_desired_channels == 0) ? channels_in_file : stb_desired_channels;
-            const Size pixel_count = static_cast<Size>(width) * static_cast<Size>(height) * static_cast<Size>(final_channels);
-
-            auto image = std::make_shared<Image>();
-            image->width = width;
-            image->height = height;
-            image->channels = final_channels;
-            image->pixels.resize(pixel_count);
-            std::memcpy(image->pixels.data(), pixels, pixel_count);
-
-            stbi_image_free(pixels);
-            return image;
+            return LoadImageMemory(file_data.bytes.data(), file_data.bytes.size(), desired_channels);
         }
     }
 
@@ -98,6 +65,49 @@ namespace won::resource
         }
 
         return loaded;
+    }
+
+    std::shared_ptr<Image> LoadImageMemory(const uint8* data, Size size, int32 desired_channels)
+    {
+        if (!data || size == 0)
+        {
+            return nullptr;
+        }
+
+        int width = 0;
+        int height = 0;
+        int channels_in_file = 0;
+
+        const int stb_desired_channels = (desired_channels <= 0) ? 0 : static_cast<int>(desired_channels);
+        stbi_uc* pixels = stbi_load_from_memory(
+            reinterpret_cast<const stbi_uc*>(data),
+            static_cast<int>(size),
+            &width,
+            &height,
+            &channels_in_file,
+            stb_desired_channels);
+
+        if (pixels == nullptr || width <= 0 || height <= 0)
+        {
+            if (pixels != nullptr)
+            {
+                stbi_image_free(pixels);
+            }
+            return nullptr;
+        }
+
+        const int final_channels = (stb_desired_channels == 0) ? channels_in_file : stb_desired_channels;
+        const Size pixel_count = static_cast<Size>(width) * static_cast<Size>(height) * static_cast<Size>(final_channels);
+
+        auto image = std::make_shared<Image>();
+        image->width = width;
+        image->height = height;
+        image->channels = final_channels;
+        image->pixels.resize(pixel_count);
+        std::memcpy(image->pixels.data(), pixels, pixel_count);
+
+        stbi_image_free(pixels);
+        return image;
     }
 
     void ClearImageCache()
