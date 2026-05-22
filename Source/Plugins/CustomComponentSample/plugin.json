@@ -1,0 +1,13 @@
+{
+  "plugin_id": "CustomComponentSample",
+  "display_name": "Custom Component Sample",
+  "version": "1.0.0",
+  "type": "RuntimeOptional",
+  "libraries": {
+    "windows": {
+      "debug": "CustomComponentSampled.dll",
+      "release": "CustomComponentSample.dll"
+    }
+  },
+  "dependencies": []
+}

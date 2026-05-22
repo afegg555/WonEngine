@@ -3,7 +3,6 @@
 #include "FileSystem.h"
 #include "StringUtils.h"
 #include <cstring>
-#include <filesystem>
 
 #if defined(_WIN32)
 #include <dxcapi.h>
@@ -84,12 +83,15 @@ namespace won::resource
         io::FileData source_file = {};
         if (!desc.source_file_name.empty())
         {
-            std::filesystem::path source_fs_path = std::filesystem::u8path(desc.source_file_name);
-            if (!source_fs_path.is_absolute() && !compiler_options.shader_source_root_path.empty())
+            String resolved_source_path = desc.source_file_name;
+            if (!io::IsAbsolutePath(resolved_source_path) && !compiler_options.shader_source_root_path.empty())
             {
-                source_fs_path = std::filesystem::u8path(compiler_options.shader_source_root_path) / source_fs_path;
+                resolved_source_path = io::CombinePath(compiler_options.shader_source_root_path, resolved_source_path);
             }
-            const String resolved_source_path = source_fs_path.lexically_normal().u8string();
+            else
+            {
+                resolved_source_path = io::NormalizePath(resolved_source_path);
+            }
             if (!io::ReadAllBytes(resolved_source_path, &source_file))
             {
                 backlog::Post("Failed to load shader source: " + resolved_source_path, backlog::LogLevel::Error);

@@ -2,7 +2,6 @@
 #include "FileSystem.h"
 #include "RectPacker.h"
 
-#include <filesystem>
 #include <mutex>
 #include <cstring>
 
@@ -29,14 +28,7 @@ namespace won::resource
 
         String NormalizeFontCacheKey(const String& path)
         {
-            std::error_code error;
-            std::filesystem::path fs_path = std::filesystem::u8path(path);
-            fs_path = std::filesystem::absolute(fs_path, error);
-            if (!error)
-            {
-                fs_path = fs_path.lexically_normal();
-            }
-            return fs_path.u8string();
+            return io::GetAbsolutePath(path);
         }
 
         std::shared_ptr<Font> LoadFontUncached(const String& path)

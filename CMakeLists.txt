@@ -9,6 +9,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+option(WONENGINE_BUILD_SHARED_RUNTIME "Build Runtime as a shared library" OFF)
+
 if(WIN32)
     set(OS_NAME "Windows")
 elseif(APPLE)
@@ -90,9 +92,9 @@ set(LUA_HEADERS
 
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "" FORCE)
 set(CMAKE_DEBUG_POSTFIX "d")
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${FINAL_OUT_DIR}")
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${FINAL_OUT_DIR}")
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${FINAL_OUT_DIR}")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${FINAL_OUT_DIR}")  # .dll, .exe
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${FINAL_OUT_DIR}")  # .so, .dylib, Cmake MODULE
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${FINAL_OUT_DIR}")  # .a, .lib
 
 # for MSVC
 foreach(CONFIG ${CMAKE_CONFIGURATION_TYPES})
@@ -104,7 +106,16 @@ endforeach()
 
 set(RUNTIME_CORE
     Source/Runtime/Public/Types.h
+    Source/Runtime/Public/ValueType.h
     Source/Runtime/Public/RuntimeExport.h
+)
+
+set(PLUGIN_PUBLIC
+    Source/Plugins/Include/PluginValue.h
+    Source/Plugins/Include/PluginABI.h
+    Source/Plugins/Include/CustomFunctionExtension.h
+    Source/Plugins/Include/CustomComponentExtension.h
+    Source/Plugins/Include/CustomSystemExtension.h
 )
 
 set(RUNTIME_UTILS
@@ -207,7 +218,6 @@ set(RUNTIME_CONFIGURATION
 
 set(RUNTIME_PLUGIN
     Source/Runtime/Public/PluginManager.h
-    Source/Runtime/Public/Plugin.h
     Source/Runtime/Private/PluginManager.cpp
 )
 
@@ -361,7 +371,13 @@ set(SHADERS_HLSL
     Source/Shaders/TextureMipGenCS.hlsl
 )
 
-add_library(Runtime SHARED
+set(WONENGINE_RUNTIME_LIBRARY_TYPE STATIC)
+if(WONENGINE_BUILD_SHARED_RUNTIME)
+    set(WONENGINE_RUNTIME_LIBRARY_TYPE SHARED)
+endif()
+
+add_library(Runtime ${WONENGINE_RUNTIME_LIBRARY_TYPE}
+    ${PLUGIN_PUBLIC}
     ${RUNTIME_CORE}
     ${RUNTIME_UTILS}
     ${RUNTIME_IO}
@@ -402,6 +418,7 @@ source_group("Application" FILES ${RUNTIME_APPLICATION})
 source_group("Rendering/Internal" FILES ${RUNTIME_RENDERING_INTERNAL})
 source_group("Configuration" FILES ${RUNTIME_CONFIGURATION})
 source_group("Plugin" FILES ${RUNTIME_PLUGIN})
+source_group("Plugin/Include" FILES ${PLUGIN_PUBLIC})
 source_group("Script" FILES ${RUNTIME_SCRIPT})
 source_group("Script/Lua" FILES ${RUNTIME_SCRIPT_LUA})
 source_group("Script/Lua/src" FILES ${LUA_SOURCES} ${LUA_HEADERS})
@@ -450,18 +467,18 @@ set(SHADER_OFFLINE_COMPILER_SOURCES
 )
 
 set(PLUGIN_ASSET_IMPORTER
-    Source/Plugins/AssetImporter/AssetImporter.h
     Source/Plugins/AssetImporter/AssetImporter.cpp
+    Source/Plugins/AssetImporter/plugin.json
 )
 
-set(PLUGIN_SAMPLE
-    Source/Plugins/PluginSample/PluginSample.h
-    Source/Plugins/PluginSample/PluginSample.cpp
+set(PLUGIN_PRINT_LOG_SAMPLE
+    Source/Plugins/PrintLogSample/PrintLogSample.cpp
+    Source/Plugins/PrintLogSample/plugin.json
 )
 
-set(PLUGIN_CAMERA_CONTROLLER
-    Source/Plugins/CameraController/CameraController.h
-    Source/Plugins/CameraController/CameraController.cpp
+set(PLUGIN_CUSTOM_COMPONENT_SAMPLE
+    Source/Plugins/CustomComponentSample/CustomComponentSample.cpp
+    Source/Plugins/CustomComponentSample/plugin.json
 )
 
 add_executable(Editor
@@ -479,18 +496,35 @@ add_library(AssetImporter SHARED
     ${PLUGIN_ASSET_IMPORTER}
 )
 
-add_library(PluginSample SHARED
-    ${PLUGIN_SAMPLE}
+add_library(PrintLogSample SHARED
+    ${PLUGIN_PRINT_LOG_SAMPLE}
 )
 
-add_library(CameraController SHARED
-    ${PLUGIN_CAMERA_CONTROLLER}
+add_library(CustomComponentSample SHARED
+    ${PLUGIN_CUSTOM_COMPONENT_SAMPLE}
 )
+
+foreach(PLUGIN_TARGET AssetImporter PrintLogSample CustomComponentSample)
+    set(PLUGIN_OUTPUT_DIR "${FINAL_OUT_DIR}/Plugins/${PLUGIN_TARGET}")
+    set_target_properties(${PLUGIN_TARGET} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${PLUGIN_OUTPUT_DIR}"
+        LIBRARY_OUTPUT_DIRECTORY "${PLUGIN_OUTPUT_DIR}"
+        ARCHIVE_OUTPUT_DIRECTORY "${PLUGIN_OUTPUT_DIR}"
+    )
+    foreach(CONFIG ${CMAKE_CONFIGURATION_TYPES})
+        string(TOUPPER ${CONFIG} CONFIG_UPPER)
+        set_target_properties(${PLUGIN_TARGET} PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY_${CONFIG_UPPER} "${PLUGIN_OUTPUT_DIR}"
+            LIBRARY_OUTPUT_DIRECTORY_${CONFIG_UPPER} "${PLUGIN_OUTPUT_DIR}"
+            ARCHIVE_OUTPUT_DIRECTORY_${CONFIG_UPPER} "${PLUGIN_OUTPUT_DIR}"
+        )
+    endforeach()
+endforeach()
 
 target_include_directories(Runtime
     PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins/Include>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Runtime/Public>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Shaders>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Vendor>
     PRIVATE
@@ -498,16 +532,21 @@ target_include_directories(Runtime
 )
 
 target_link_libraries(Editor PRIVATE Runtime)
-add_dependencies(Editor AssetImporter CameraController)
+add_dependencies(Editor AssetImporter)
 target_link_libraries(ShaderOfflineCompiler PRIVATE Runtime)
 target_link_libraries(AssetImporter PRIVATE
-    Runtime
     debug assimp-vc143-mtd
     optimized assimp-vc143-mt
 )
-target_link_libraries(PluginSample PRIVATE Runtime)
-target_link_libraries(CameraController PRIVATE Runtime)
+target_include_directories(PrintLogSample PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins/Include>
+)
+target_include_directories(CustomComponentSample PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins/Include>
+)
 target_include_directories(AssetImporter PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Vendor>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins/Include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins/AssetImporter/ThirdParty/assimp/include>
 )
 target_compile_definitions(AssetImporter PRIVATE ASSIMP_DLL)
@@ -518,6 +557,21 @@ add_custom_command(TARGET AssetImporter POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "$<IF:$<CONFIG:Debug>,${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins/AssetImporter/ThirdParty/assimp/bin/assimp-vc143-mtd.dll,${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins/AssetImporter/ThirdParty/assimp/bin/assimp-vc143-mt.dll>"
         "$<TARGET_FILE_DIR:AssetImporter>"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins/AssetImporter/plugin.json"
+        "$<TARGET_FILE_DIR:AssetImporter>/plugin.json"
+)
+
+add_custom_command(TARGET PrintLogSample POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins/PrintLogSample/plugin.json"
+        "$<TARGET_FILE_DIR:PrintLogSample>/plugin.json"
+)
+
+add_custom_command(TARGET CustomComponentSample POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins/CustomComponentSample/plugin.json"
+        "$<TARGET_FILE_DIR:CustomComponentSample>/plugin.json"
 )
 
 set_target_properties(ShaderOfflineCompiler PROPERTIES
@@ -528,20 +582,28 @@ set_target_properties(AssetImporter PROPERTIES
     FOLDER "Plugins"
 )
 
-set_target_properties(PluginSample PROPERTIES
+set_target_properties(PrintLogSample PROPERTIES
     FOLDER "Plugins"
 )
 
-set_target_properties(CameraController PROPERTIES
+set_target_properties(CustomComponentSample PROPERTIES
     FOLDER "Plugins"
 )
 
 target_compile_definitions(Runtime
     PRIVATE
-        WONENGINE_EXPORTS
         WONENGINE_SHADER_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Source/Shaders"
         WONENGINE_SHADER_BIN_DIR="${SHADER_BIN_DIR}"
 )
+
+if(WONENGINE_BUILD_SHARED_RUNTIME)
+    target_compile_definitions(Runtime
+        PUBLIC
+            WONENGINE_SHARED_RUNTIME
+        PRIVATE
+            WONENGINE_EXPORTS
+    )
+endif()
 
 target_compile_definitions(Editor
     PRIVATE

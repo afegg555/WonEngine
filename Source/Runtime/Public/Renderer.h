@@ -20,6 +20,7 @@ namespace won::rendering
     struct RendererDesc
     {
         std::shared_ptr<RHIDevice> device;
+        RHIClearColor clear_color = { 0.0f, 0.3f, 0.3f, 1.0f };
     };
 
     struct RendererDebugOptions
@@ -109,6 +110,8 @@ namespace won::rendering
         virtual void EndFrame() = 0;
         virtual void WaitIdle() = 0;
         virtual void Shutdown() = 0;
+        virtual void SetClearColor(const RHIClearColor& color) = 0;
+        virtual RHIClearColor GetClearColor() const = 0;
         virtual void SetDebugOptions(const RendererDebugOptions& options) = 0;
         virtual RendererDebugState GetDebugState() const = 0;
         virtual bool GetCurrentBackBufferBinding(RHISubresourceBinding& out_binding) const = 0;

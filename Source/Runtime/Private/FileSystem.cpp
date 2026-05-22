@@ -390,6 +390,32 @@ namespace won::io
         return fs_path.parent_path().u8string();
     }
 
+    bool IsAbsolutePath(const String& path)
+    {
+        return std::filesystem::u8path(path).is_absolute();
+    }
+
+    String CombinePath(const String& lhs, const String& rhs)
+    {
+        return (std::filesystem::u8path(lhs) / std::filesystem::u8path(rhs)).lexically_normal().generic_string();
+    }
+
+    String NormalizePath(const String& path)
+    {
+        return std::filesystem::u8path(path).lexically_normal().generic_string();
+    }
+
+    String GetAbsolutePath(const String& path)
+    {
+        std::error_code error;
+        std::filesystem::path fs_path = std::filesystem::absolute(std::filesystem::u8path(path), error);
+        if (error)
+        {
+            return NormalizePath(path);
+        }
+        return fs_path.lexically_normal().generic_string();
+    }
+
     String GetRelativePath(const String& root_path, const String& path)
     {
         std::error_code error;
