@@ -1100,25 +1100,25 @@ namespace won::plugin
             {
             case 0:
                 name = "positions";
-                value_type = won::ValueType::Float3;
+                value_type = won::ValueType::Float32x3;
                 element_size = sizeof(float3);
                 count = static_cast<uint64>(mesh.positions.size());
                 break;
             case 1:
                 name = "normals";
-                value_type = won::ValueType::Float3;
+                value_type = won::ValueType::Float32x3;
                 element_size = sizeof(float3);
                 count = static_cast<uint64>(mesh.normals.size());
                 break;
             case 2:
                 name = "tangents";
-                value_type = won::ValueType::Float4;
+                value_type = won::ValueType::Float32x4;
                 element_size = sizeof(float4);
                 count = static_cast<uint64>(mesh.tangents.size());
                 break;
             case 3:
                 name = "texcoords";
-                value_type = won::ValueType::Float2;
+                value_type = won::ValueType::Float32x2;
                 element_size = sizeof(float2);
                 count = static_cast<uint64>(mesh.texcoords.size());
                 break;
@@ -1137,13 +1137,13 @@ namespace won::plugin
                 break;
             case 6:
                 name = "bone_indices";
-                value_type = won::ValueType::Float4;
+                value_type = won::ValueType::UInt32x4;
                 element_size = sizeof(uint4);
                 count = static_cast<uint64>(mesh.bone_indices.size());
                 break;
             case 7:
                 name = "bone_weights";
-                value_type = won::ValueType::Float4;
+                value_type = won::ValueType::Float32x4;
                 element_size = sizeof(float4);
                 count = static_cast<uint64>(mesh.bone_weights.size());
                 break;
@@ -1279,28 +1279,28 @@ namespace won::plugin
             }
 
             const ImportedMaterial& material = it->second->materials[material_index];
-            call->outputs[0].type = won::ValueType::Float4;
+            call->outputs[0].type = won::ValueType::Float32x4;
             call->outputs[0].float_values[0] = material.base_color.x;
             call->outputs[0].float_values[1] = material.base_color.y;
             call->outputs[0].float_values[2] = material.base_color.z;
             call->outputs[0].float_values[3] = material.base_color.w;
-            call->outputs[1].type = won::ValueType::Float;
+            call->outputs[1].type = won::ValueType::Float32;
             call->outputs[1].float_value = material.metallic;
-            call->outputs[2].type = won::ValueType::Float;
+            call->outputs[2].type = won::ValueType::Float32;
             call->outputs[2].float_value = material.roughness;
-            call->outputs[3].type = won::ValueType::Float;
+            call->outputs[3].type = won::ValueType::Float32;
             call->outputs[3].float_value = material.reflectance;
-            call->outputs[4].type = won::ValueType::Float;
+            call->outputs[4].type = won::ValueType::Float32;
             call->outputs[4].float_value = material.anisotropy;
-            call->outputs[5].type = won::ValueType::Float3;
+            call->outputs[5].type = won::ValueType::Float32x3;
             call->outputs[5].float_values[0] = material.sheen_color.x;
             call->outputs[5].float_values[1] = material.sheen_color.y;
             call->outputs[5].float_values[2] = material.sheen_color.z;
-            call->outputs[6].type = won::ValueType::Float;
+            call->outputs[6].type = won::ValueType::Float32;
             call->outputs[6].float_value = material.sheen_roughness;
-            call->outputs[7].type = won::ValueType::Float;
+            call->outputs[7].type = won::ValueType::Float32;
             call->outputs[7].float_value = material.clearcoat;
-            call->outputs[8].type = won::ValueType::Float;
+            call->outputs[8].type = won::ValueType::Float32;
             call->outputs[8].float_value = material.clearcoat_roughness;
             *call->output_count = 9;
             return true;
@@ -1577,8 +1577,8 @@ namespace won::plugin
                 case 1: field_name = "index_count"; field_value_type = won::ValueType::UInt32; offset = static_cast<uint32>(offsetof(ImportedSubmesh, index_count)); size = sizeof(uint32); break;
                 case 2: field_name = "first_vertex"; field_value_type = won::ValueType::UInt32; offset = static_cast<uint32>(offsetof(ImportedSubmesh, first_vertex)); size = sizeof(uint32); break;
                 case 3: field_name = "material_index"; field_value_type = won::ValueType::UInt32; offset = static_cast<uint32>(offsetof(ImportedSubmesh, material_index)); size = sizeof(uint32); break;
-                case 4: field_name = "bounds_min"; field_value_type = won::ValueType::Float3; offset = static_cast<uint32>(offsetof(ImportedSubmesh, bounds_min)); size = sizeof(float3); break;
-                case 5: field_name = "bounds_max"; field_value_type = won::ValueType::Float3; offset = static_cast<uint32>(offsetof(ImportedSubmesh, bounds_max)); size = sizeof(float3); break;
+                case 4: field_name = "bounds_min"; field_value_type = won::ValueType::Float32x3; offset = static_cast<uint32>(offsetof(ImportedSubmesh, bounds_min)); size = sizeof(float3); break;
+                case 5: field_name = "bounds_max"; field_value_type = won::ValueType::Float32x3; offset = static_cast<uint32>(offsetof(ImportedSubmesh, bounds_max)); size = sizeof(float3); break;
                 default: return false;
                 }
             }
@@ -1596,8 +1596,8 @@ namespace won::plugin
             {
                 switch (field_index)
                 {
-                case 0: field_name = "duration"; field_value_type = won::ValueType::Float; offset = static_cast<uint32>(offsetof(ImportedAnimationClip, duration)); size = sizeof(float); break;
-                case 1: field_name = "ticks_per_second"; field_value_type = won::ValueType::Float; offset = static_cast<uint32>(offsetof(ImportedAnimationClip, ticks_per_second)); size = sizeof(float); break;
+                case 0: field_name = "duration"; field_value_type = won::ValueType::Float32; offset = static_cast<uint32>(offsetof(ImportedAnimationClip, duration)); size = sizeof(float); break;
+                case 1: field_name = "ticks_per_second"; field_value_type = won::ValueType::Float32; offset = static_cast<uint32>(offsetof(ImportedAnimationClip, ticks_per_second)); size = sizeof(float); break;
                 case 2: field_name = "first_channel"; field_value_type = won::ValueType::UInt32; offset = static_cast<uint32>(offsetof(ImportedAnimationClip, first_channel)); size = sizeof(uint32); break;
                 case 3: field_name = "channel_count"; field_value_type = won::ValueType::UInt32; offset = static_cast<uint32>(offsetof(ImportedAnimationClip, channel_count)); size = sizeof(uint32); break;
                 default: return false;
@@ -1621,8 +1621,8 @@ namespace won::plugin
             {
                 switch (field_index)
                 {
-                case 0: field_name = "time"; field_value_type = won::ValueType::Float; offset = static_cast<uint32>(offsetof(ImportedVec3Key, time)); size = sizeof(float); break;
-                case 1: field_name = "value"; field_value_type = won::ValueType::Float3; offset = static_cast<uint32>(offsetof(ImportedVec3Key, value)); size = sizeof(float3); break;
+                case 0: field_name = "time"; field_value_type = won::ValueType::Float32; offset = static_cast<uint32>(offsetof(ImportedVec3Key, time)); size = sizeof(float); break;
+                case 1: field_name = "value"; field_value_type = won::ValueType::Float32x3; offset = static_cast<uint32>(offsetof(ImportedVec3Key, value)); size = sizeof(float3); break;
                 default: return false;
                 }
             }
@@ -1630,8 +1630,8 @@ namespace won::plugin
             {
                 switch (field_index)
                 {
-                case 0: field_name = "time"; field_value_type = won::ValueType::Float; offset = static_cast<uint32>(offsetof(ImportedQuatKey, time)); size = sizeof(float); break;
-                case 1: field_name = "value"; field_value_type = won::ValueType::Float4; offset = static_cast<uint32>(offsetof(ImportedQuatKey, value)); size = sizeof(float4); break;
+                case 0: field_name = "time"; field_value_type = won::ValueType::Float32; offset = static_cast<uint32>(offsetof(ImportedQuatKey, time)); size = sizeof(float); break;
+                case 1: field_name = "value"; field_value_type = won::ValueType::Float32x4; offset = static_cast<uint32>(offsetof(ImportedQuatKey, value)); size = sizeof(float4); break;
                 default: return false;
                 }
             }
@@ -1692,15 +1692,15 @@ namespace won::plugin
             { "material_count", won::ValueType::UInt32 },
         };
         const function::ParamDesc s_material_info_outputs[] = {
-            { "base_color", won::ValueType::Float4 },
-            { "metallic", won::ValueType::Float },
-            { "roughness", won::ValueType::Float },
-            { "reflectance", won::ValueType::Float },
-            { "anisotropy", won::ValueType::Float },
-            { "sheen_color", won::ValueType::Float3 },
-            { "sheen_roughness", won::ValueType::Float },
-            { "clearcoat", won::ValueType::Float },
-            { "clearcoat_roughness", won::ValueType::Float },
+            { "base_color", won::ValueType::Float32x4 },
+            { "metallic", won::ValueType::Float32 },
+            { "roughness", won::ValueType::Float32 },
+            { "reflectance", won::ValueType::Float32 },
+            { "anisotropy", won::ValueType::Float32 },
+            { "sheen_color", won::ValueType::Float32x3 },
+            { "sheen_roughness", won::ValueType::Float32 },
+            { "clearcoat", won::ValueType::Float32 },
+            { "clearcoat_roughness", won::ValueType::Float32 },
         };
         const function::ParamDesc s_material_texture_inputs[] = {
             { "result", won::ValueType::UInt64 },

@@ -1,5 +1,6 @@
 #include "Application.h"
 
+#include "BuiltinTypeReflection.h"
 #include "Renderer.h"
 #include "Window.h"
 #include "JobSystem.h"
@@ -12,6 +13,8 @@ namespace won
 {
     void Application::Initialize(const ApplicationDesc& desc)
     {
+        reflection::RegisterBuiltinTypes();
+
         jobsystem::Initialize(desc.jobsystem_thread_count);
 
         window = platform::CreateNativeWindow(desc.window);

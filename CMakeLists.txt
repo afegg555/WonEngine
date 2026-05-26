@@ -106,12 +106,11 @@ endforeach()
 
 set(RUNTIME_CORE
     Source/Runtime/Public/Types.h
-    Source/Runtime/Public/ValueType.h
     Source/Runtime/Public/RuntimeExport.h
 )
 
 set(PLUGIN_PUBLIC
-    Source/Plugins/Include/PluginValue.h
+    Source/Plugins/Include/ReflectionTypes.h
     Source/Plugins/Include/PluginABI.h
     Source/Plugins/Include/CustomFunctionExtension.h
     Source/Plugins/Include/CustomComponentExtension.h
@@ -241,6 +240,13 @@ set(RUNTIME_JOBSYSTEM
 set(RUNTIME_SERIALIZATION
     Source/Runtime/Public/Serializer.h
     Source/Runtime/Public/Archive.h
+)
+
+set(RUNTIME_REFLECTION
+    Source/Runtime/Public/Reflection.h
+    Source/Runtime/Private/Reflection.cpp
+    Source/Runtime/Public/BuiltinTypeReflection.h
+    Source/Runtime/Private/BuiltinTypeReflection.cpp
 )
 
 set(RUNTIME_MATH
@@ -394,6 +400,7 @@ add_library(Runtime ${WONENGINE_RUNTIME_LIBRARY_TYPE}
     ${LUA_HEADERS}
     ${RUNTIME_JOBSYSTEM}
     ${RUNTIME_SERIALIZATION}
+    ${RUNTIME_REFLECTION}
     ${RUNTIME_MATH}
     ${RUNTIME_ECS}
     ${RUNTIME_ECS_COMPONENTS}
@@ -424,6 +431,7 @@ source_group("Script/Lua" FILES ${RUNTIME_SCRIPT_LUA})
 source_group("Script/Lua/src" FILES ${LUA_SOURCES} ${LUA_HEADERS})
 source_group("JobSystem" FILES ${RUNTIME_JOBSYSTEM})
 source_group("Serialization" FILES ${RUNTIME_SERIALIZATION})
+source_group("Reflection" FILES ${RUNTIME_REFLECTION})
 source_group("Math" FILES ${RUNTIME_MATH})
 source_group("ECS" FILES ${RUNTIME_ECS})
 source_group("ECS/Components" FILES ${RUNTIME_ECS_COMPONENTS})

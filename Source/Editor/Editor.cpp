@@ -1172,7 +1172,7 @@ namespace won::editor
 				}
 
 				const uint64 byte_size = count * element_size;
-				if (stream_name == "positions" && value_type == won::ValueType::Float3 && element_size == sizeof(float3))
+				if (stream_name == "positions" && value_type == won::ValueType::Float32x3 && element_size == sizeof(float3))
 				{
 					prepared.mesh->positions.resize(static_cast<Size>(count));
 					if (!copy_stream(stream_index, prepared.mesh->positions.data(), byte_size))
@@ -1182,7 +1182,7 @@ namespace won::editor
 						return;
 					}
 				}
-				else if (stream_name == "normals" && value_type == won::ValueType::Float3 && element_size == sizeof(float3))
+				else if (stream_name == "normals" && value_type == won::ValueType::Float32x3 && element_size == sizeof(float3))
 				{
 					prepared.mesh->normals.resize(static_cast<Size>(count));
 					if (!copy_stream(stream_index, prepared.mesh->normals.data(), byte_size))
@@ -1192,7 +1192,7 @@ namespace won::editor
 						return;
 					}
 				}
-				else if (stream_name == "tangents" && value_type == won::ValueType::Float4 && element_size == sizeof(float4))
+				else if (stream_name == "tangents" && value_type == won::ValueType::Float32x4 && element_size == sizeof(float4))
 				{
 					prepared.mesh->tangents.resize(static_cast<Size>(count));
 					if (!copy_stream(stream_index, prepared.mesh->tangents.data(), byte_size))
@@ -1202,7 +1202,7 @@ namespace won::editor
 						return;
 					}
 				}
-				else if (stream_name == "texcoords" && value_type == won::ValueType::Float2 && element_size == sizeof(float2))
+				else if (stream_name == "texcoords" && value_type == won::ValueType::Float32x2 && element_size == sizeof(float2))
 				{
 					prepared.mesh->texcoords.resize(static_cast<Size>(count));
 					if (!copy_stream(stream_index, prepared.mesh->texcoords.data(), byte_size))
@@ -1212,7 +1212,7 @@ namespace won::editor
 						return;
 					}
 				}
-				else if (stream_name == "bone_indices" && element_size == sizeof(uint4))
+				else if (stream_name == "bone_indices" && value_type == won::ValueType::UInt32x4 && element_size == sizeof(uint4))
 				{
 					prepared.mesh->bone_indices.resize(static_cast<Size>(count));
 					if (!copy_stream(stream_index, prepared.mesh->bone_indices.data(), byte_size))
@@ -1222,7 +1222,7 @@ namespace won::editor
 						return;
 					}
 				}
-				else if (stream_name == "bone_weights" && value_type == won::ValueType::Float4 && element_size == sizeof(float4))
+				else if (stream_name == "bone_weights" && value_type == won::ValueType::Float32x4 && element_size == sizeof(float4))
 				{
 					prepared.mesh->bone_weights.resize(static_cast<Size>(count));
 					if (!copy_stream(stream_index, prepared.mesh->bone_weights.data(), byte_size))
