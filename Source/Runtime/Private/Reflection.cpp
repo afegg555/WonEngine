@@ -1,7 +1,5 @@
 #include "Reflection.h"
 
-#include "StringUtils.h"
-
 namespace won::reflection
 {
     namespace
@@ -11,13 +9,7 @@ namespace won::reflection
 
     bool RegisterType(const won::TypeDesc* type_desc)
     {
-        if (!type_desc || !type_desc->name || type_desc->name[0] == '\0')
-        {
-            return false;
-        }
-
-        const TypeId type_id = utils::Hash(type_desc->name);
-        if (type_id == 0)
+        if (!type_desc || type_desc->type_id == 0 || !type_desc->name || type_desc->name[0] == '\0')
         {
             return false;
         }
@@ -29,10 +21,15 @@ namespace won::reflection
                 continue;
             }
 
-            if (utils::Hash(type->name) == type_id || StringView(type->name) == type_desc->name)
+            if (type->type_id == type_desc->type_id)
             {
                 type = type_desc;
                 return true;
+            }
+
+            if (StringView(type->name) == type_desc->name)
+            {
+                return false;
             }
         }
 
@@ -50,7 +47,7 @@ namespace won::reflection
         for (Size i = 0; i < types.size(); ++i)
         {
             const won::TypeDesc* type = types[i];
-            if (!type || utils::Hash(type->name) != type_id)
+            if (!type || type->type_id != type_id)
             {
                 continue;
             }
@@ -71,7 +68,7 @@ namespace won::reflection
 
         for (const won::TypeDesc* type : types)
         {
-            if (type && utils::Hash(type->name) == type_id)
+            if (type && type->type_id == type_id)
             {
                 return type;
             }

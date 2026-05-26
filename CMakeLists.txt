@@ -110,6 +110,7 @@ set(RUNTIME_CORE
 )
 
 set(PLUGIN_PUBLIC
+    Source/Plugins/Include/StableHash.h
     Source/Plugins/Include/ReflectionTypes.h
     Source/Plugins/Include/PluginABI.h
     Source/Plugins/Include/CustomFunctionExtension.h

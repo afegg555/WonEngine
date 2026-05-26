@@ -1,10 +1,14 @@
 #pragma once
 #include "PluginABI.h"
+#include "StableHash.h"
 
 #include <stdint.h>
 
 namespace won
 {
+    using TypeId = uint64_t;
+    using FieldId = uint64_t;
+
     enum class ValueType : uint32_t
     {
         Unknown = 0,
@@ -57,6 +61,7 @@ namespace won
     struct FieldDesc
     {
         uint32_t struct_size;
+        FieldId field_id;
         const char* name;
         const char* display_name;
         ValueType value_type;
@@ -73,6 +78,7 @@ namespace won
     struct TypeDesc
     {
         uint32_t struct_size;
+        TypeId type_id;
         const char* name;
         const char* display_name;
         ValueType value_type;

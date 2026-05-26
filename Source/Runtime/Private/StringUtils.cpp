@@ -1,4 +1,5 @@
 #include "StringUtils.h"
+#include "StableHash.h"
 
 #include <algorithm>
 #include <cctype>
@@ -152,16 +153,6 @@ namespace won::utils
 
     uint64 Hash(StringView input)
     {
-        const uint64 fnv_offset_basis = 14695981039346656037ull;
-        const uint64 fnv_prime = 1099511628211ull;
-
-        uint64 hash = fnv_offset_basis;
-        for (unsigned char ch : input)
-        {
-            hash ^= static_cast<uint64>(ch);
-            hash *= fnv_prime;
-        }
-
-        return hash;
+        return StableHash(input.data(), input.size());
     }
 }

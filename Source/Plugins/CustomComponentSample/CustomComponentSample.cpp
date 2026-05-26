@@ -41,13 +41,14 @@ namespace won::plugin
         }
 
         const component::FieldDesc s_special_component_fields[] = {
-            { sizeof(component::FieldDesc), "speed", "speed", won::ValueType::Float32, "", static_cast<uint32_t>(offsetof(SpecialComponent, speed)), static_cast<uint32_t>(sizeof(float)), won::FieldFlagEditable | won::FieldFlagSerializable },
-            { sizeof(component::FieldDesc), "amplitude", "amplitude", won::ValueType::Float32, "", static_cast<uint32_t>(offsetof(SpecialComponent, amplitude)), static_cast<uint32_t>(sizeof(float)), won::FieldFlagEditable | won::FieldFlagSerializable },
-            { sizeof(component::FieldDesc), "enabled", "enabled", won::ValueType::Bool, "", static_cast<uint32_t>(offsetof(SpecialComponent, enabled)), static_cast<uint32_t>(sizeof(bool)), won::FieldFlagEditable | won::FieldFlagSerializable },
+            { sizeof(component::FieldDesc), won::StableHash("speed"), "speed", "speed", won::ValueType::Float32, "", static_cast<uint32_t>(offsetof(SpecialComponent, speed)), static_cast<uint32_t>(sizeof(float)), won::FieldFlagEditable | won::FieldFlagSerializable },
+            { sizeof(component::FieldDesc), won::StableHash("amplitude"), "amplitude", "amplitude", won::ValueType::Float32, "", static_cast<uint32_t>(offsetof(SpecialComponent, amplitude)), static_cast<uint32_t>(sizeof(float)), won::FieldFlagEditable | won::FieldFlagSerializable },
+            { sizeof(component::FieldDesc), won::StableHash("enabled"), "enabled", "enabled", won::ValueType::Bool, "", static_cast<uint32_t>(offsetof(SpecialComponent, enabled)), static_cast<uint32_t>(sizeof(bool)), won::FieldFlagEditable | won::FieldFlagSerializable },
         };
 
         const component::Desc s_special_component_desc{
             sizeof(component::Desc),
+            won::StableHash(special_component_id),
             special_component_id,
             "Special Component",
             won::ValueType::CustomStruct,
