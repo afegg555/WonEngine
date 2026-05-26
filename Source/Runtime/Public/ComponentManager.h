@@ -1,6 +1,10 @@
 #pragma once
 #include "Types.h"
 #include "Entity.h"
+#include "TypeMeta.h"
+#include "PoolAllocator.h"
+
+#include <cstring>
 
 namespace won::ecs
 {
@@ -8,7 +12,12 @@ namespace won::ecs
     {
     public:
         virtual ~IComponentArray() = default;
-        virtual void EntityDestroyed(Entity entity) = 0;
+        virtual void Insert(Entity entity, const void* component) = 0;
+        virtual void Remove(Entity entity) = 0;
+        virtual bool HasData(Entity entity) const = 0;
+        virtual void* GetRawData(Entity entity) = 0;
+        virtual const void* GetRawData(Entity entity) const = 0;
+        virtual Size GetSize() const = 0;
     };
 
     template <typename T>
@@ -23,7 +32,16 @@ namespace won::ecs
             data.push_back(component);
         }
 
-        void Remove(Entity entity)
+        void Insert(Entity entity, const void* component) override
+        {
+            if (!component)
+            {
+                return;
+            }
+            Insert(entity, *static_cast<const T*>(component));
+        }
+
+        void Remove(Entity entity) override
         {
             if (!HasData(entity))
             {
@@ -50,20 +68,27 @@ namespace won::ecs
             return data[entity_to_index[entity]];
         }
 
-        bool HasData(Entity entity) const
+        void* GetRawData(Entity entity) override
+        {
+            return HasData(entity) ? &GetData(entity) : nullptr;
+        }
+
+        const void* GetRawData(Entity entity) const override
+        {
+            auto it = entity_to_index.find(entity);
+            if (it == entity_to_index.end())
+            {
+                return nullptr;
+            }
+            return &data[it->second];
+        }
+
+        bool HasData(Entity entity) const override
         {
             return entity_to_index.find(entity) != entity_to_index.end();
         }
 
-        void EntityDestroyed(Entity entity) override
-        {
-            if (entity_to_index.find(entity) != entity_to_index.end())
-            {
-                Remove(entity);
-            }
-        }
-
-        Size GetSize() const
+        Size GetSize() const override
         {
             return data.size();
         }
@@ -73,18 +98,161 @@ namespace won::ecs
         UnorderedMap<Size, Entity> index_to_entity;
     };
 
+    class DynamicComponentArray : public IComponentArray
+    {
+    public:
+        explicit DynamicComponentArray(const won::TypeDesc* type_desc_in)
+            : type_desc(type_desc_in)
+            , allocator(type_desc_in ? type_desc_in->size : 1, type_desc_in ? type_desc_in->alignment : 1)
+        {
+        }
+
+        ~DynamicComponentArray() override
+        {
+            if (!type_desc)
+            {
+                return;
+            }
+
+            for (void* component : data)
+            {
+                if (component && type_desc->Destruct)
+                {
+                    type_desc->Destruct(component);
+                }
+                allocator.Deallocate(component);
+            }
+        }
+
+        DynamicComponentArray(const DynamicComponentArray&) = delete;
+        DynamicComponentArray& operator=(const DynamicComponentArray&) = delete;
+
+        void Insert(Entity entity, const void* component) override
+        {
+            if (!component || !type_desc)
+            {
+                return;
+            }
+
+            void* memory = allocator.Allocate();
+            if (!memory)
+            {
+                return;
+            }
+
+            if (type_desc->Copy)
+            {
+                type_desc->Copy(memory, component);
+            }
+            else
+            {
+                std::memcpy(memory, component, type_desc->size);
+            }
+            entity_to_index[entity] = data.size();
+            index_to_entity[data.size()] = entity;
+            data.push_back(memory);
+        }
+
+        void Remove(Entity entity) override
+        {
+            if (!HasData(entity))
+            {
+                return;
+            }
+
+            const Size index_to_remove = entity_to_index[entity];
+            const Size last_index = data.size() - 1;
+            void* removed_component = data[index_to_remove];
+
+            if (removed_component && type_desc->Destruct)
+            {
+                type_desc->Destruct(removed_component);
+            }
+            allocator.Deallocate(removed_component);
+
+            if (index_to_remove != last_index)
+            {
+                data[index_to_remove] = data[last_index];
+                Entity last_entity = index_to_entity[last_index];
+                entity_to_index[last_entity] = index_to_remove;
+                index_to_entity[index_to_remove] = last_entity;
+            }
+
+            entity_to_index.erase(entity);
+            index_to_entity.erase(last_index);
+            data.pop_back();
+        }
+
+        bool HasData(Entity entity) const override
+        {
+            return entity_to_index.find(entity) != entity_to_index.end();
+        }
+
+        void* GetRawData(Entity entity) override
+        {
+            auto it = entity_to_index.find(entity);
+            if (it == entity_to_index.end())
+            {
+                return nullptr;
+            }
+            return data[it->second];
+        }
+
+        const void* GetRawData(Entity entity) const override
+        {
+            auto it = entity_to_index.find(entity);
+            if (it == entity_to_index.end())
+            {
+                return nullptr;
+            }
+            return data[it->second];
+        }
+
+        Size GetSize() const override
+        {
+            return data.size();
+        }
+
+    private:
+        const won::TypeDesc* type_desc = nullptr;
+        memory::PoolAllocator allocator;
+        Vector<void*> data;
+        UnorderedMap<Entity, Size> entity_to_index;
+        UnorderedMap<Size, Entity> index_to_entity;
+    };
+
     class ComponentManager {
     public:
         template <typename T>
         void RegisterComponent()
         {
-            const String type_name = typeid(T).name();
-            auto it = component_arrays.find(type_name);
+            const won::TypeDesc* type_desc = reflection::TypeMeta<T>::Get();
+            if (!type_desc || type_desc->type_id == 0)
+            {
+                return;
+            }
+
+            auto it = component_arrays.find(type_desc->type_id);
             if (it != component_arrays.end() && it->second)
             {
                 return;
             }
-            component_arrays[type_name] = std::make_shared<ComponentArray<T>>();
+            component_arrays[type_desc->type_id] = std::make_shared<ComponentArray<T>>();
+        }
+
+        void RegisterComponent(const won::TypeDesc* type_desc)
+        {
+            if (!type_desc || type_desc->struct_size < sizeof(won::TypeDesc) || type_desc->type_id == 0 || !type_desc->name || type_desc->name[0] == '\0' || type_desc->size == 0 || type_desc->alignment == 0 || (type_desc->alignment & (type_desc->alignment - 1)) != 0)
+            {
+                return;
+            }
+
+            auto it = component_arrays.find(type_desc->type_id);
+            if (it != component_arrays.end() && it->second)
+            {
+                return;
+            }
+            component_arrays[type_desc->type_id] = std::make_shared<DynamicComponentArray>(type_desc);
         }
 
         template <typename T>
@@ -111,10 +279,42 @@ namespace won::ecs
             return &component_array->GetData(entity);
         }
 
+        void* AddComponent(Entity entity, won::TypeId type_id, const void* component)
+        {
+            if (type_id == 0 || !component)
+            {
+                return nullptr;
+            }
+
+            auto component_array = GetComponentArray(type_id);
+            if (!component_array)
+            {
+                return nullptr;
+            }
+
+            if (component_array->HasData(entity))
+            {
+                component_array->Remove(entity);
+            }
+
+            component_array->Insert(entity, component);
+            return component_array->GetRawData(entity);
+        }
+
         template <typename T>
         void RemoveComponent(Entity entity)
         {
             auto component_array = GetComponentArray<T>();
+            if (!component_array)
+            {
+                return;
+            }
+            component_array->Remove(entity);
+        }
+
+        void RemoveComponent(Entity entity, won::TypeId type_id)
+        {
+            auto component_array = GetComponentArray(type_id);
             if (!component_array)
             {
                 return;
@@ -133,10 +333,40 @@ namespace won::ecs
             return &component_array->GetData(entity);
         }
 
+        void* GetComponent(Entity entity, won::TypeId type_id)
+        {
+            auto component_array = GetComponentArray(type_id);
+            if (!component_array)
+            {
+                return nullptr;
+            }
+            return component_array->GetRawData(entity);
+        }
+
+        const void* GetComponent(Entity entity, won::TypeId type_id) const
+        {
+            auto component_array = GetComponentArray(type_id);
+            if (!component_array)
+            {
+                return nullptr;
+            }
+            return component_array->GetRawData(entity);
+        }
+
         template <typename T>
         bool HasComponent(Entity entity) const
         {
-            auto component_array = GetComponentArray<T>();
+            const won::TypeDesc* type_desc = reflection::TypeMeta<T>::Get();
+            if (!type_desc || type_desc->type_id == 0)
+            {
+                return false;
+            }
+            return HasComponent(entity, type_desc->type_id);
+        }
+
+        bool HasComponent(Entity entity, won::TypeId type_id) const
+        {
+            auto component_array = GetComponentArray(type_id);
             if (!component_array)
             {
                 return false;
@@ -144,19 +374,24 @@ namespace won::ecs
             return component_array->HasData(entity);
         }
 
-        void EntityDestroyed(Entity entity)
+        void RemoveComponents(Entity entity)
         {
             for (auto const& pair : component_arrays)
             {
-                pair.second->EntityDestroyed(entity);
+                pair.second->Remove(entity);
             }
         }
 
         template <typename T>
         std::shared_ptr<ComponentArray<T>> GetComponentArray()
         {
-            const String type_name = typeid(T).name();
-            auto it = component_arrays.find(type_name);
+            const won::TypeDesc* type_desc = reflection::TypeMeta<T>::Get();
+            if (!type_desc || type_desc->type_id == 0)
+            {
+                return nullptr;
+            }
+
+            auto it = component_arrays.find(type_desc->type_id);
             if (it == component_arrays.end() || !it->second)
             {
                 return nullptr;
@@ -164,7 +399,37 @@ namespace won::ecs
             return std::static_pointer_cast<ComponentArray<T>>(it->second);
         }
 
+        std::shared_ptr<IComponentArray> GetComponentArray(won::TypeId type_id)
+        {
+            if (type_id == 0)
+            {
+                return nullptr;
+            }
+
+            auto it = component_arrays.find(type_id);
+            if (it == component_arrays.end() || !it->second)
+            {
+                return nullptr;
+            }
+            return it->second;
+        }
+
+        std::shared_ptr<const IComponentArray> GetComponentArray(won::TypeId type_id) const
+        {
+            if (type_id == 0)
+            {
+                return nullptr;
+            }
+
+            auto it = component_arrays.find(type_id);
+            if (it == component_arrays.end() || !it->second)
+            {
+                return nullptr;
+            }
+            return it->second;
+        }
+
     private:
-        UnorderedMap<String, std::shared_ptr<IComponentArray>> component_arrays;
+        UnorderedMap<won::TypeId, std::shared_ptr<IComponentArray>> component_arrays;
     };
 }

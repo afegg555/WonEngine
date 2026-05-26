@@ -244,8 +244,10 @@ set(RUNTIME_SERIALIZATION
 )
 
 set(RUNTIME_REFLECTION
+    Source/Runtime/Public/TypeMeta.h
     Source/Runtime/Public/Reflection.h
     Source/Runtime/Private/Reflection.cpp
+    Source/Runtime/Public/BuiltinTypeMeta.h
     Source/Runtime/Public/BuiltinTypeReflection.h
     Source/Runtime/Private/BuiltinTypeReflection.cpp
 )

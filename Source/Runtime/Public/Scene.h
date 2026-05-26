@@ -3,6 +3,7 @@
 #include "Entity.h"
 #include "System.h"
 #include "SceneComponents.h"
+#include "BuiltinTypeMeta.h"
 #include "TransformUpdateSystem.h"
 #include "EnvironmentUpdateSystem.h"
 #include "CameraUpdateSystem.h"
@@ -126,7 +127,7 @@ namespace won::ecs
 
             for (Entity current : entities_to_destroy)
             {
-                component_manager.EntityDestroyed(current);
+                component_manager.RemoveComponents(current);
             }
 
             entities.erase(
@@ -148,10 +149,30 @@ namespace won::ecs
             return component_manager.AddComponent<Component>(entity, component);
         }
 
+        void RegisterComponent(const won::TypeDesc* type_desc)
+        {
+            component_manager.RegisterComponent(type_desc);
+        }
+
+        void* AddComponent(Entity entity, won::TypeId type_id, const void* component)
+        {
+            return component_manager.AddComponent(entity, type_id, component);
+        }
+
         template <typename Component>
         Component* GetComponent(Entity entity)
         {
             return component_manager.GetComponent<Component>(entity);
+        }
+
+        void* GetComponent(Entity entity, won::TypeId type_id)
+        {
+            return component_manager.GetComponent(entity, type_id);
+        }
+
+        const void* GetComponent(Entity entity, won::TypeId type_id) const
+        {
+            return component_manager.GetComponent(entity, type_id);
         }
 
         template <typename Component>
@@ -160,10 +181,20 @@ namespace won::ecs
             component_manager.RemoveComponent<Component>(entity);
         }
 
+        void RemoveComponent(Entity entity, won::TypeId type_id)
+        {
+            component_manager.RemoveComponent(entity, type_id);
+        }
+
         template <typename Component>
         bool HasComponent(Entity entity) const
         {
             return component_manager.HasComponent<Component>(entity);
+        }
+
+        bool HasComponent(Entity entity, won::TypeId type_id) const
+        {
+            return component_manager.HasComponent(entity, type_id);
         }
 
         template <typename Component>

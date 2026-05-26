@@ -37,7 +37,7 @@ namespace won::reflection
         return true;
     }
 
-    bool UnregisterType(TypeId type_id)
+    bool UnregisterType(won::TypeId type_id)
     {
         if (type_id == 0)
         {
@@ -59,7 +59,7 @@ namespace won::reflection
         return false;
     }
 
-    const won::TypeDesc* FindType(TypeId type_id)
+    const won::TypeDesc* FindType(won::TypeId type_id)
     {
         if (type_id == 0)
         {
