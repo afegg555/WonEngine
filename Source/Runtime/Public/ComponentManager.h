@@ -17,6 +17,7 @@ namespace won::ecs
         virtual bool HasData(Entity entity) const = 0;
         virtual void* GetRawData(Entity entity) = 0;
         virtual const void* GetRawData(Entity entity) const = 0;
+        virtual const won::TypeDesc* GetTypeDesc() const = 0;
         virtual Size GetSize() const = 0;
     };
 
@@ -36,6 +37,7 @@ namespace won::ecs
         {
             if (!component)
             {
+                Insert(entity, T{});
                 return;
             }
             Insert(entity, *static_cast<const T*>(component));
@@ -88,6 +90,11 @@ namespace won::ecs
             return entity_to_index.find(entity) != entity_to_index.end();
         }
 
+        const won::TypeDesc* GetTypeDesc() const override
+        {
+            return reflection::TypeMeta<T>::Get();
+        }
+
         Size GetSize() const override
         {
             return data.size();
@@ -129,7 +136,7 @@ namespace won::ecs
 
         void Insert(Entity entity, const void* component) override
         {
-            if (!component || !type_desc)
+            if (!type_desc)
             {
                 return;
             }
@@ -140,13 +147,21 @@ namespace won::ecs
                 return;
             }
 
-            if (type_desc->Copy)
+            if (component && type_desc->Copy)
             {
                 type_desc->Copy(memory, component);
             }
-            else
+            else if (component)
             {
                 std::memcpy(memory, component, type_desc->size);
+            }
+            else if (type_desc->Construct)
+            {
+                type_desc->Construct(memory);
+            }
+            else
+            {
+                std::memset(memory, 0, type_desc->size);
             }
             entity_to_index[entity] = data.size();
             index_to_entity[data.size()] = entity;
@@ -206,6 +221,11 @@ namespace won::ecs
                 return nullptr;
             }
             return data[it->second];
+        }
+
+        const won::TypeDesc* GetTypeDesc() const override
+        {
+            return type_desc;
         }
 
         Size GetSize() const override
@@ -281,7 +301,7 @@ namespace won::ecs
 
         void* AddComponent(Entity entity, won::TypeId type_id, const void* component)
         {
-            if (type_id == 0 || !component)
+            if (type_id == 0)
             {
                 return nullptr;
             }
@@ -372,6 +392,20 @@ namespace won::ecs
                 return false;
             }
             return component_array->HasData(entity);
+        }
+
+        Vector<const won::TypeDesc*> GetComponentTypes() const
+        {
+            Vector<const won::TypeDesc*> component_types;
+            component_types.reserve(component_arrays.size());
+            for (const auto& pair : component_arrays)
+            {
+                if (pair.second)
+                {
+                    component_types.push_back(pair.second->GetTypeDesc());
+                }
+            }
+            return component_types;
         }
 
         void RemoveComponents(Entity entity)

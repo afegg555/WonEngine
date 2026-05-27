@@ -16,8 +16,12 @@
 #include "SceneComponents.h"
 #include "JobSystem.h"
 #include "EventHandler.h"
+#include "Reflection.h"
+#include "BuiltinTypeMeta.h"
 
+#include "CustomComponentExtension.h"
 #include "CustomFunctionExtension.h"
+#include "CustomSystemExtension.h"
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include "imgui-docking/imgui.h"
 #include "imgui-docking/imgui_internal.h"
@@ -122,6 +126,195 @@ namespace won::editor
 		constexpr const char* editor_viewport_show_ddgi_text_key = "editor.viewport.show_ddgi_text";
 		constexpr const char* editor_viewport_ddgi_max_probe_draw_count_key = "editor.viewport.ddgi_max_probe_draw_count";
 		constexpr const char* editor_camera_speed_key = "editor.camera.speed";
+		constexpr const char* editor_plugins_enabled_key = "editor.plugins.enabled";
+
+		// temp
+
+		class PluginSystemAdapter : public ecs::System
+		{
+		public:
+			PluginSystemAdapter(const std::shared_ptr<plugin::Plugin>& plugin_in, const plugin::system::Desc* desc_in)
+				: plugin(plugin_in)
+				, desc(desc_in)
+			{
+			}
+
+			ecs::SystemExecutionPolicy GetExecutionPolicy() const override
+			{
+				return ecs::SystemExecutionPolicy::Synchronous;
+			}
+
+			void Update(ecs::Scene& scene, float delta_time) override
+			{
+				if (!plugin || !desc || !desc->Update)
+				{
+					return;
+				}
+
+				plugin::system::UpdateContext context = {};
+				context.scene = &scene;
+				context.delta_time = delta_time;
+				desc->Update(plugin->GetHandle(), &context);
+			}
+
+		private:
+			std::shared_ptr<plugin::Plugin> plugin;
+			const plugin::system::Desc* desc = nullptr;
+		};
+
+		const char* GetTypeDisplayName(const won::TypeDesc* type_desc)
+		{
+			if (!type_desc)
+			{
+				return "";
+			}
+			if (type_desc->display_name && type_desc->display_name[0] != '\0')
+			{
+				return type_desc->display_name;
+			}
+			return type_desc->name ? type_desc->name : "";
+		}
+
+		const char* GetFieldDisplayName(const won::FieldDesc& field)
+		{
+			if (field.display_name && field.display_name[0] != '\0')
+			{
+				return field.display_name;
+			}
+			return field.name ? field.name : "";
+		}
+
+		bool IsDefaultComponent(won::TypeId type_id)
+		{
+			switch (type_id)
+			{
+			case reflection::TypeMeta<NameComponent>::type_id:
+			case reflection::TypeMeta<TransformComponent>::type_id:
+			case reflection::TypeMeta<HierarchyComponent>::type_id:
+			case reflection::TypeMeta<CameraComponent>::type_id:
+			case reflection::TypeMeta<LightComponent>::type_id:
+			case reflection::TypeMeta<SkyComponent>::type_id:
+			case reflection::TypeMeta<FogVolumeComponent>::type_id:
+			case reflection::TypeMeta<EnvironmentLightingComponent>::type_id:
+			case reflection::TypeMeta<DDGIVolumeComponent>::type_id:
+			case reflection::TypeMeta<GeometryComponent>::type_id:
+			case reflection::TypeMeta<Sprite2DComponent>::type_id:
+			case reflection::TypeMeta<Sprite3DComponent>::type_id:
+			case reflection::TypeMeta<Text2DComponent>::type_id:
+			case reflection::TypeMeta<Text3DComponent>::type_id:
+			case reflection::TypeMeta<AnimationComponent>::type_id:
+			case reflection::TypeMeta<MaterialComponent>::type_id:
+			case reflection::TypeMeta<ScriptComponent>::type_id:
+				return true;
+			default:
+				return false;
+			}
+		}
+
+		bool DrawComponentRemoveButton(const char* component_name, bool can_remove = true);
+
+		bool DrawReflectedField(const won::FieldDesc& field, uint8* component_data, uint32 component_size)
+		{
+			if (field.struct_size < sizeof(won::FieldDesc) || (field.flags & won::FieldFlagEditable) == 0 || !component_data)
+			{
+				return false;
+			}
+			if (field.offset > component_size || field.size > component_size - field.offset)
+			{
+				return false;
+			}
+
+			void* value = component_data + field.offset;
+			const char* label = GetFieldDisplayName(field);
+			switch (field.value_type)
+			{
+			case won::ValueType::Bool:
+				return ImGui::Checkbox(label, static_cast<bool*>(value));
+			case won::ValueType::Int8:
+				return ImGui::InputScalar(label, ImGuiDataType_S8, value);
+			case won::ValueType::UInt8:
+				return ImGui::InputScalar(label, ImGuiDataType_U8, value);
+			case won::ValueType::Int16:
+				return ImGui::InputScalar(label, ImGuiDataType_S16, value);
+			case won::ValueType::UInt16:
+				return ImGui::InputScalar(label, ImGuiDataType_U16, value);
+			case won::ValueType::Int32:
+				return ImGui::InputScalar(label, ImGuiDataType_S32, value);
+			case won::ValueType::UInt32:
+				return ImGui::InputScalar(label, ImGuiDataType_U32, value);
+			case won::ValueType::Int64:
+				return ImGui::InputScalar(label, ImGuiDataType_S64, value);
+			case won::ValueType::UInt64:
+				return ImGui::InputScalar(label, ImGuiDataType_U64, value);
+			case won::ValueType::Float32:
+				return ImGui::DragFloat(label, static_cast<float*>(value), 0.01f);
+			case won::ValueType::Float64:
+				return ImGui::InputScalar(label, ImGuiDataType_Double, value);
+			case won::ValueType::Int32x2:
+				return ImGui::InputScalarN(label, ImGuiDataType_S32, value, 2);
+			case won::ValueType::Int32x3:
+				return ImGui::InputScalarN(label, ImGuiDataType_S32, value, 3);
+			case won::ValueType::Int32x4:
+				return ImGui::InputScalarN(label, ImGuiDataType_S32, value, 4);
+			case won::ValueType::UInt32x2:
+				return ImGui::InputScalarN(label, ImGuiDataType_U32, value, 2);
+			case won::ValueType::UInt32x3:
+				return ImGui::InputScalarN(label, ImGuiDataType_U32, value, 3);
+			case won::ValueType::UInt32x4:
+				return ImGui::InputScalarN(label, ImGuiDataType_U32, value, 4);
+			case won::ValueType::Float32x2:
+				return ImGui::DragFloat2(label, static_cast<float*>(value), 0.01f);
+			case won::ValueType::Float32x3:
+				return ImGui::DragFloat3(label, static_cast<float*>(value), 0.01f);
+			case won::ValueType::Float32x4:
+				return ImGui::DragFloat4(label, static_cast<float*>(value), 0.01f);
+			case won::ValueType::String:
+			{
+				String& text = *static_cast<String*>(value);
+				char buffer[1024] = {};
+				strncpy_s(buffer, text.c_str(), sizeof(buffer) - 1);
+				if (ImGui::InputText(label, buffer, sizeof(buffer)))
+				{
+					text = buffer;
+					return true;
+				}
+				return false;
+			}
+			default:
+				ImGui::TextDisabled("%s: unsupported", label);
+				return false;
+			}
+		}
+
+		bool DrawReflectedComponent(ecs::Scene& scene, ecs::Entity entity, const won::TypeDesc* type_desc)
+		{
+			if (!type_desc || IsDefaultComponent(type_desc->type_id))
+			{
+				return false;
+			}
+
+			void* component = scene.GetComponent(entity, type_desc->type_id);
+			if (!component)
+			{
+				return false;
+			}
+
+			const char* component_name = GetTypeDisplayName(type_desc);
+			ImGui::PushID(type_desc->name ? type_desc->name : component_name);
+			ImGui::TextUnformatted(component_name);
+			const bool remove_component = DrawComponentRemoveButton(component_name);
+			if (!remove_component && type_desc->fields && type_desc->field_count > 0)
+			{
+				uint8* component_data = static_cast<uint8*>(component);
+				for (uint32 field_index = 0; field_index < type_desc->field_count; ++field_index)
+				{
+					DrawReflectedField(type_desc->fields[field_index], component_data, type_desc->size);
+				}
+			}
+			ImGui::PopID();
+			ImGui::Separator();
+			return remove_component;
+		}
 
 		float3 QuaternionToEulerXYZDegrees(const float4& quaternion)
 		{
@@ -152,7 +345,7 @@ namespace won::editor
 			return quaternion;
 		}
 
-		bool DrawComponentRemoveButton(const char* component_name, bool can_remove = true)
+		bool DrawComponentRemoveButton(const char* component_name, bool can_remove)
 		{
 			ImGui::SameLine();
 			const float button_width = ImGui::CalcTextSize("X").x + ImGui::GetStyle().FramePadding.x * 2.0f;
@@ -644,8 +837,7 @@ namespace won::editor
 		InitImGui();
 		InitEditorGrid();
 
-		plugin_manager = std::make_shared<plugin::PluginManager>();
-		LoadDefaultPlugins();
+		LoadPlugins();
 
 		// camera entity
 		{
@@ -729,8 +921,7 @@ namespace won::editor
 		}
 		loaded_scene = {};
 		editor_viewport.view = nullptr;
-
-		plugin_manager = {};
+		plugins.clear();
 
 		Application::Shutdown();
 	}
@@ -950,93 +1141,206 @@ namespace won::editor
 
 	}
 
-	void EditorApplication::LoadDefaultPlugins()
+	void EditorApplication::LoadPlugins()
 	{
+		plugins.clear();
 		asset_importer = {};
+
 		const String plugin_root_path = io::CombinePath(io::GetExecutableDirectory(), "Plugins");
-		const String asset_importer_manifest_path = io::CombinePath(plugin_root_path, "AssetImporter/plugin.json");
-		if (plugin_manager->LoadPluginFromManifest(asset_importer_manifest_path))
+		Vector<plugin::PluginInfo> plugin_list = plugin::ScanPluginList(plugin_root_path);
+		const String enabled_tokens = ";" + enabled_plugin_ids + ";";
+		for (const plugin::PluginInfo& plugin_info : plugin_list)
 		{
-			asset_importer.functions.plugin = plugin_manager->GetPlugin(asset_importer_plugin_id);
-			if (asset_importer.functions.plugin)
+			EditorPluginInfo editor_plugin_info = {};
+			editor_plugin_info.info = plugin_info;
+			editor_plugin_info.enabled = editor_plugin_info.info.type == plugin::PluginType::EditorDefault || enabled_tokens.find(";" + editor_plugin_info.info.plugin_id + ";") != String::npos;
+			if (editor_plugin_info.enabled)
 			{
-				for (const plugin::PluginExtension& extension : asset_importer.functions.plugin->GetExtensions())
+				editor_plugin_info.plugin = plugin::LoadPlugin(editor_plugin_info.info);
+			}
+			if (editor_plugin_info.plugin)
+			{
+				RegisterPluginExtensions(editor_plugin_info.plugin);
+				editor_plugin_info.registered = true;
+			}
+
+			plugins.push_back(editor_plugin_info);
+		}
+
+		if (asset_importer.functions.plugin && !asset_importer.IsValid())
+		{
+			backlog::Post("AssetImporter plugin is missing required functions.", backlog::LogLevel::Warning);
+		}
+	}
+
+	void EditorApplication::RegisterPluginExtensions(const std::shared_ptr<plugin::Plugin>& plugin)
+	{
+		if (!plugin)
+		{
+			return;
+		}
+
+		const String plugin_id = plugin->GetPluginId() ? plugin->GetPluginId() : "";
+		if (plugin_id == asset_importer_plugin_id)
+		{
+			asset_importer.functions.plugin = plugin;
+		}
+
+		for (const plugin::PluginExtension& extension : plugin->GetExtensions())
+		{
+			if (extension.extension_type == function::ExtensionType && plugin_id == asset_importer_plugin_id)
+			{
+				if (!extension.descriptor)
 				{
-					if (extension.extension_type != function::ExtensionType || !extension.descriptor)
-					{
-						continue;
-					}
-
-					const auto* desc = static_cast<const function::Desc*>(extension.descriptor);
-					if (!desc || desc->struct_size < sizeof(function::Desc) || !desc->Invoke)
-					{
-						continue;
-					}
-
-					if (extension.extension_id == asset_importer_import_id)
-					{
-						asset_importer.functions.import = desc;
-					}
-					else if (extension.extension_id == asset_importer_get_result_info_id)
-					{
-						asset_importer.functions.get_result_info = desc;
-					}
-					else if (extension.extension_id == asset_importer_get_stream_info_id)
-					{
-						asset_importer.functions.get_stream_info = desc;
-					}
-					else if (extension.extension_id == asset_importer_copy_stream_id)
-					{
-						asset_importer.functions.copy_stream = desc;
-					}
-					else if (extension.extension_id == asset_importer_get_struct_field_count_id)
-					{
-						asset_importer.functions.get_struct_field_count = desc;
-					}
-					else if (extension.extension_id == asset_importer_get_struct_field_info_id)
-					{
-						asset_importer.functions.get_struct_field_info = desc;
-					}
-					else if (extension.extension_id == asset_importer_get_material_info_id)
-					{
-						asset_importer.functions.get_material_info = desc;
-					}
-					else if (extension.extension_id == asset_importer_get_material_texture_count_id)
-					{
-						asset_importer.functions.get_material_texture_count = desc;
-					}
-					else if (extension.extension_id == asset_importer_get_material_texture_id)
-					{
-						asset_importer.functions.get_material_texture = desc;
-					}
-					else if (extension.extension_id == asset_importer_get_embedded_texture_info_id)
-					{
-						asset_importer.functions.get_embedded_texture_info = desc;
-					}
-					else if (extension.extension_id == asset_importer_copy_embedded_texture_id)
-					{
-						asset_importer.functions.copy_embedded_texture = desc;
-					}
-					else if (extension.extension_id == asset_importer_get_bone_name_id)
-					{
-						asset_importer.functions.get_bone_name = desc;
-					}
-					else if (extension.extension_id == asset_importer_get_animation_clip_name_id)
-					{
-						asset_importer.functions.get_animation_clip_name = desc;
-					}
-					else if (extension.extension_id == asset_importer_release_result_id)
-					{
-						asset_importer.functions.release_result = desc;
-					}
+					continue;
 				}
 
-				if (!asset_importer.IsValid())
+				const auto* desc = static_cast<const function::Desc*>(extension.descriptor);
+				if (!desc || desc->struct_size < sizeof(function::Desc) || !desc->Invoke)
 				{
-					backlog::Post("AssetImporter plugin is missing required functions.", backlog::LogLevel::Warning);
+					continue;
 				}
+
+				if (extension.extension_id == asset_importer_import_id)
+				{
+					asset_importer.functions.import = desc;
+				}
+				else if (extension.extension_id == asset_importer_get_result_info_id)
+				{
+					asset_importer.functions.get_result_info = desc;
+				}
+				else if (extension.extension_id == asset_importer_get_stream_info_id)
+				{
+					asset_importer.functions.get_stream_info = desc;
+				}
+				else if (extension.extension_id == asset_importer_copy_stream_id)
+				{
+					asset_importer.functions.copy_stream = desc;
+				}
+				else if (extension.extension_id == asset_importer_get_struct_field_count_id)
+				{
+					asset_importer.functions.get_struct_field_count = desc;
+				}
+				else if (extension.extension_id == asset_importer_get_struct_field_info_id)
+				{
+					asset_importer.functions.get_struct_field_info = desc;
+				}
+				else if (extension.extension_id == asset_importer_get_material_info_id)
+				{
+					asset_importer.functions.get_material_info = desc;
+				}
+				else if (extension.extension_id == asset_importer_get_material_texture_count_id)
+				{
+					asset_importer.functions.get_material_texture_count = desc;
+				}
+				else if (extension.extension_id == asset_importer_get_material_texture_id)
+				{
+					asset_importer.functions.get_material_texture = desc;
+				}
+				else if (extension.extension_id == asset_importer_get_embedded_texture_info_id)
+				{
+					asset_importer.functions.get_embedded_texture_info = desc;
+				}
+				else if (extension.extension_id == asset_importer_copy_embedded_texture_id)
+				{
+					asset_importer.functions.copy_embedded_texture = desc;
+				}
+				else if (extension.extension_id == asset_importer_get_bone_name_id)
+				{
+					asset_importer.functions.get_bone_name = desc;
+				}
+				else if (extension.extension_id == asset_importer_get_animation_clip_name_id)
+				{
+					asset_importer.functions.get_animation_clip_name = desc;
+				}
+				else if (extension.extension_id == asset_importer_release_result_id)
+				{
+					asset_importer.functions.release_result = desc;
+				}
+				continue;
+			}
+
+			if (extension.extension_type == component::ExtensionType)
+			{
+				if (!extension.descriptor)
+				{
+					continue;
+				}
+
+				const auto* desc = static_cast<const component::Desc*>(extension.descriptor);
+				if (!desc || desc->struct_size < sizeof(component::Desc) || desc->type_id == 0 || desc->size == 0 || desc->alignment == 0)
+				{
+					continue;
+				}
+
+				if (!reflection::RegisterType(desc))
+				{
+					backlog::Post("Failed to register component type: " + extension.extension_id, backlog::LogLevel::Warning);
+					continue;
+				}
+
+				loaded_scene.RegisterComponent(desc);
+				continue;
+			}
+
+			if (extension.extension_type == plugin::system::ExtensionType)
+			{
+				if (!extension.descriptor)
+				{
+					continue;
+				}
+
+				const auto* desc = static_cast<const plugin::system::Desc*>(extension.descriptor);
+				if (!desc || desc->struct_size < sizeof(plugin::system::Desc) || !desc->Update)
+				{
+					continue;
+				}
+
+				loaded_scene.AddSystem(std::make_shared<PluginSystemAdapter>(plugin, desc));
 			}
 		}
+	}
+
+	void EditorApplication::SetPluginEnabled(Size plugin_index, bool enabled)
+	{
+		if (plugin_index >= plugins.size())
+		{
+			return;
+		}
+
+		EditorPluginInfo& plugin_info = plugins[plugin_index];
+		if (plugin_info.info.type == plugin::PluginType::EditorDefault)
+		{
+			plugin_info.enabled = true;
+			return;
+		}
+
+		if (plugin_info.enabled == enabled)
+		{
+			return;
+		}
+
+		plugin_info.enabled = enabled;
+		if (enabled && !plugin_info.plugin)
+		{
+			plugin_info.plugin = plugin::LoadPlugin(plugin_info.info);
+			if (!plugin_info.plugin)
+			{
+				plugin_info.enabled = false;
+				backlog::Post("Failed to enable plugin: " + plugin_info.info.plugin_id, backlog::LogLevel::Warning);
+			}
+			else if (!plugin_info.registered)
+			{
+				RegisterPluginExtensions(plugin_info.plugin);
+				plugin_info.registered = true;
+			}
+		}
+		else if (!enabled && plugin_info.plugin)
+		{
+			backlog::Post("Plugin will be disabled on next editor restart: " + plugin_info.info.plugin_id);
+		}
+
+		SaveEditorSettings();
 	}
 
 	uint64 EditorApplication::StartAssetImport(const String& path)
@@ -2085,10 +2389,28 @@ namespace won::editor
 		{
 			editor_camera_speed = (std::max)(0.1f, float_value);
 		}
+		if (config::TryGetString(editor_plugins_enabled_key, string_value))
+		{
+			enabled_plugin_ids = string_value;
+		}
 	}
 
 	void EditorApplication::SaveEditorSettings()
 	{
+		enabled_plugin_ids.clear();
+		for (const EditorPluginInfo& plugin_info : plugins)
+		{
+			if (plugin_info.info.type == plugin::PluginType::EditorDefault || !plugin_info.enabled)
+			{
+				continue;
+			}
+			if (!enabled_plugin_ids.empty())
+			{
+				enabled_plugin_ids += ";";
+			}
+			enabled_plugin_ids += plugin_info.info.plugin_id;
+		}
+
 		config::SetString(editor_content_current_folder_key, content_browser.current_folder);
 		config::SetInt(editor_content_type_filter_key, static_cast<int>(content_browser.type_filter));
 		config::SetFloat(editor_content_tile_size_key, content_browser.tile_size);
@@ -2103,6 +2425,7 @@ namespace won::editor
 		config::SetBool(editor_viewport_show_ddgi_text_key, editor_viewport.debug_settings.show_ddgi_text);
 		config::SetInt(editor_viewport_ddgi_max_probe_draw_count_key, editor_viewport.debug_settings.ddgi_max_probe_draw_count);
 		config::SetFloat(editor_camera_speed_key, editor_camera_speed);
+		config::SetString(editor_plugins_enabled_key, enabled_plugin_ids);
 
 		config::SaveToFile(editor_settings_path);
 	}
@@ -2715,6 +3038,43 @@ namespace won::editor
 			{
 				if (ImGui::MenuItem("Reset Layout"))
 					BuildDefaultDockLayout(dockspace_id, io.DisplaySize);
+				ImGui::EndMenu();
+			}
+			if (ImGui::BeginMenu("Plugins"))
+			{
+				if (plugins.empty())
+				{
+					ImGui::TextDisabled("No plugins found");
+				}
+				for (Size plugin_index = 0; plugin_index < plugins.size(); ++plugin_index)
+				{
+					EditorPluginInfo& plugin_info = plugins[plugin_index];
+					bool enabled = plugin_info.enabled;
+					const bool default_plugin = plugin_info.info.type == plugin::PluginType::EditorDefault;
+					const String label = (plugin_info.info.display_name.empty() ? plugin_info.info.plugin_id : plugin_info.info.display_name) + "##" + plugin_info.info.plugin_id;
+
+					if (default_plugin)
+					{
+						ImGui::BeginDisabled();
+					}
+					if (ImGui::Checkbox(label.c_str(), &enabled))
+					{
+						SetPluginEnabled(plugin_index, enabled);
+					}
+					if (default_plugin)
+					{
+						ImGui::EndDisabled();
+					}
+
+					if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+					{
+						const char* type_name = "Unknown";
+						if (plugin_info.info.type == plugin::PluginType::EditorDefault) { type_name = "EditorDefault"; }
+						else if (plugin_info.info.type == plugin::PluginType::EditorOptional) { type_name = "EditorOptional"; }
+						else if (plugin_info.info.type == plugin::PluginType::RuntimeOptional) { type_name = "RuntimeOptional"; }
+						ImGui::SetTooltip("%s\n%s\n%s", plugin_info.info.plugin_id.c_str(), type_name, plugin_info.plugin ? "Loaded" : "Not loaded");
+					}
+				}
 				ImGui::EndMenu();
 			}
 
@@ -4433,6 +4793,23 @@ namespace won::editor
 					ImGui::Separator();
 				}
 
+				for (const won::TypeDesc* type_desc : editor_viewport.view->scene->GetComponentTypes())
+				{
+					if (!type_desc || !editor_viewport.view->scene->HasComponent(editor_viewport.picked_entity, type_desc->type_id))
+					{
+						continue;
+					}
+
+					if (DrawReflectedComponent(*editor_viewport.view->scene, editor_viewport.picked_entity, type_desc))
+					{
+						const ecs::Entity entity = editor_viewport.picked_entity;
+						const won::TypeId type_id = type_desc->type_id;
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity, type_id](uint64) {
+							editor_viewport.view->scene->RemoveComponent(entity, type_id);
+						});
+					}
+				}
+
 				if (ImGui::Button("Add Component", ImVec2(-1.0f, 0.0f)))
 				{
 					ImGui::OpenPopup("AddComponentPopup");
@@ -4440,143 +4817,32 @@ namespace won::editor
 
 				if (ImGui::BeginPopup("AddComponentPopup"))
 				{
-					if (ImGui::MenuItem("NameComponent"))
+					Vector<const won::TypeDesc*> component_types = editor_viewport.view->scene->GetComponentTypes();
+					std::sort(component_types.begin(), component_types.end(), [](const won::TypeDesc* lhs, const won::TypeDesc* rhs) {
+						return StringView(GetTypeDisplayName(lhs)) < StringView(GetTypeDisplayName(rhs));
+					});
+
+					bool has_component_item = false;
+					for (const won::TypeDesc* type_desc : component_types)
 					{
-						if (editor_viewport.view->scene->GetComponent<NameComponent>(editor_viewport.picked_entity) == nullptr)
+						if (!type_desc || editor_viewport.view->scene->HasComponent(editor_viewport.picked_entity, type_desc->type_id))
 						{
-							if (NameComponent* name = editor_viewport.view->scene->AddComponent<NameComponent>(editor_viewport.picked_entity))
+							continue;
+						}
+
+						if (ImGui::MenuItem(GetTypeDisplayName(type_desc)))
+						{
+							void* component = editor_viewport.view->scene->AddComponent(editor_viewport.picked_entity, type_desc);
+							if (component && type_desc->type_id == reflection::TypeMeta<NameComponent>::type_id)
 							{
-								name->value = "Entity " + std::to_string(editor_viewport.picked_entity);
+								static_cast<NameComponent*>(component)->value = "Entity " + std::to_string(editor_viewport.picked_entity);
 							}
 						}
+						has_component_item = true;
 					}
-
-					if (ImGui::MenuItem("TransformComponent"))
+					if (!has_component_item)
 					{
-						if (editor_viewport.view->scene->GetComponent<TransformComponent>(editor_viewport.picked_entity) == nullptr)
-						{
-							editor_viewport.view->scene->AddComponent<TransformComponent>(editor_viewport.picked_entity);
-						}
-					}
-
-					if (ImGui::MenuItem("HierarchyComponent"))
-					{
-						if (editor_viewport.view->scene->GetComponent<HierarchyComponent>(editor_viewport.picked_entity) == nullptr)
-						{
-							editor_viewport.view->scene->AddComponent<HierarchyComponent>(editor_viewport.picked_entity);
-						}
-					}
-
-					if (ImGui::MenuItem("CameraComponent"))
-					{
-						if (editor_viewport.view->scene->GetComponent<CameraComponent>(editor_viewport.picked_entity) == nullptr)
-						{
-							editor_viewport.view->scene->AddComponent<CameraComponent>(editor_viewport.picked_entity);
-						}
-					}
-
-					if (ImGui::MenuItem("LightComponent"))
-					{
-						if (editor_viewport.view->scene->GetComponent<LightComponent>(editor_viewport.picked_entity) == nullptr)
-						{
-							editor_viewport.view->scene->AddComponent<LightComponent>(editor_viewport.picked_entity);
-						}
-					}
-
-					if (ImGui::MenuItem("SkyComponent"))
-					{
-						if (editor_viewport.view->scene->GetComponent<SkyComponent>(editor_viewport.picked_entity) == nullptr)
-						{
-							editor_viewport.view->scene->AddComponent<SkyComponent>(editor_viewport.picked_entity);
-						}
-					}
-
-					if (ImGui::MenuItem("FogVolumeComponent"))
-					{
-						if (editor_viewport.view->scene->GetComponent<FogVolumeComponent>(editor_viewport.picked_entity) == nullptr)
-						{
-							editor_viewport.view->scene->AddComponent<FogVolumeComponent>(editor_viewport.picked_entity);
-						}
-					}
-
-					if (ImGui::MenuItem("EnvironmentLightingComponent"))
-					{
-						if (editor_viewport.view->scene->GetComponent<EnvironmentLightingComponent>(editor_viewport.picked_entity) == nullptr)
-						{
-							editor_viewport.view->scene->AddComponent<EnvironmentLightingComponent>(editor_viewport.picked_entity);
-						}
-					}
-
-					if (ImGui::MenuItem("DDGIVolumeComponent"))
-					{
-						if (editor_viewport.view->scene->GetComponent<DDGIVolumeComponent>(editor_viewport.picked_entity) == nullptr)
-						{
-							editor_viewport.view->scene->AddComponent<DDGIVolumeComponent>(editor_viewport.picked_entity);
-						}
-					}
-
-					if (ImGui::MenuItem("GeometryComponent"))
-					{
-						if (editor_viewport.view->scene->GetComponent<GeometryComponent>(editor_viewport.picked_entity) == nullptr)
-						{
-							editor_viewport.view->scene->AddComponent<GeometryComponent>(editor_viewport.picked_entity);
-						}
-					}
-
-					if (ImGui::MenuItem("Sprite3DComponent"))
-					{
-						if (editor_viewport.view->scene->GetComponent<Sprite3DComponent>(editor_viewport.picked_entity) == nullptr)
-						{
-							editor_viewport.view->scene->AddComponent<Sprite3DComponent>(editor_viewport.picked_entity);
-						}
-					}
-
-					if (ImGui::MenuItem("Sprite2DComponent"))
-					{
-						if (editor_viewport.view->scene->GetComponent<Sprite2DComponent>(editor_viewport.picked_entity) == nullptr)
-						{
-							editor_viewport.view->scene->AddComponent<Sprite2DComponent>(editor_viewport.picked_entity);
-						}
-					}
-
-					if (ImGui::MenuItem("Text3DComponent"))
-					{
-						if (editor_viewport.view->scene->GetComponent<Text3DComponent>(editor_viewport.picked_entity) == nullptr)
-						{
-							editor_viewport.view->scene->AddComponent<Text3DComponent>(editor_viewport.picked_entity);
-						}
-					}
-
-					if (ImGui::MenuItem("Text2DComponent"))
-					{
-						if (editor_viewport.view->scene->GetComponent<Text2DComponent>(editor_viewport.picked_entity) == nullptr)
-						{
-							editor_viewport.view->scene->AddComponent<Text2DComponent>(editor_viewport.picked_entity);
-						}
-					}
-
-					if (ImGui::MenuItem("AnimationComponent"))
-					{
-						if (editor_viewport.view->scene->GetComponent<AnimationComponent>(editor_viewport.picked_entity) == nullptr)
-						{
-							editor_viewport.view->scene->AddComponent<AnimationComponent>(editor_viewport.picked_entity);
-						}
-					}
-
-					if (ImGui::MenuItem("MaterialComponent"))
-					{
-						if (editor_viewport.view->scene->GetComponent<MaterialComponent>(editor_viewport.picked_entity) == nullptr)
-						{
-							editor_viewport.view->scene->AddComponent<MaterialComponent>(editor_viewport.picked_entity);
-						}
-					}
-
-					if (ImGui::MenuItem("ScriptComponent"))
-					{
-						if (editor_viewport.view->scene->GetComponent<ScriptComponent>(editor_viewport.picked_entity) == nullptr)
-						{
-							editor_viewport.view->scene->AddComponent<ScriptComponent>(editor_viewport.picked_entity);
-						}
+						ImGui::TextDisabled("No components available");
 					}
 
 					ImGui::EndPopup();

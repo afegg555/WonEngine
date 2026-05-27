@@ -159,6 +159,16 @@ namespace won::ecs
             return component_manager.AddComponent(entity, type_id, component);
         }
 
+        void* AddComponent(Entity entity, const won::TypeDesc* type_desc)
+        {
+            if (!type_desc)
+            {
+                return nullptr;
+            }
+            component_manager.RegisterComponent(type_desc);
+            return component_manager.AddComponent(entity, type_desc->type_id, nullptr);
+        }
+
         template <typename Component>
         Component* GetComponent(Entity entity)
         {
@@ -195,6 +205,11 @@ namespace won::ecs
         bool HasComponent(Entity entity, won::TypeId type_id) const
         {
             return component_manager.HasComponent(entity, type_id);
+        }
+
+        Vector<const won::TypeDesc*> GetComponentTypes() const
+        {
+            return component_manager.GetComponentTypes();
         }
 
         template <typename Component>

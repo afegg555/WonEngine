@@ -13,26 +13,33 @@ namespace won::plugin
         RuntimeOptional,
     };
 
-    struct PluginExtension
+    struct PluginInfo
     {
         String plugin_id;
-        String plugin_version;
-        PluginType plugin_type = PluginType::Unknown;
+        String display_name;
+        String version;
+        PluginType type = PluginType::Unknown;
+        String manifest_path;
+        String library_path;
+    };
+
+    struct PluginExtension
+    {
         WonExtensionType extension_type = WonExtensionType::Unknown;
         String extension_id;
-        void* plugin_handle = nullptr;
         const void* descriptor = nullptr;
     };
 
     class WONENGINE_API Plugin
     {
     public:
-        Plugin(const String& name, PluginType type, void* native_handle, void* plugin_handle, const WonPluginAPI& api, WonPluginDestroyFn destroy);
+        Plugin(const PluginInfo& info, void* native_handle, void* plugin_handle, WonPluginDestroyFn destroy);
         ~Plugin();
 
         Plugin(const Plugin&) = delete;
         Plugin& operator=(const Plugin&) = delete;
 
+        const PluginInfo& GetInfo() const;
         const char* GetName() const;
         const char* GetPluginId() const;
         const char* GetPluginVersion() const;
@@ -44,34 +51,13 @@ namespace won::plugin
         const Vector<PluginExtension>& GetExtensions() const;
 
     private:
-        String name;
-        String plugin_id;
-        String plugin_version;
-        PluginType plugin_type = PluginType::Unknown;
+        PluginInfo info;
         void* native_handle = nullptr;
         void* plugin_handle = nullptr;
-        WonPluginAPI api = {};
         WonPluginDestroyFn destroy = nullptr;
         Vector<PluginExtension> extensions;
     };
 
-    class WONENGINE_API PluginManager
-    {
-    public:
-        PluginManager();
-        ~PluginManager();
-
-        bool LoadPlugin(const String& name);
-        bool LoadPluginFromManifest(const String& manifest_path);
-        bool UnloadPlugin(const String& name);
-
-        std::shared_ptr<Plugin> GetPlugin(const String& name);
-        Vector<PluginExtension> GetExtensions(WonExtensionType extension_type) const;
-
-    private:
-        bool LoadPluginBinary(const String& name, const String& library_path, PluginType plugin_type);
-
-        struct Impl;
-        Impl* p_impl = nullptr;
-    };
+    WONENGINE_API Vector<PluginInfo> ScanPluginList(const String& plugin_root_path);
+    WONENGINE_API std::shared_ptr<Plugin> LoadPlugin(const PluginInfo& plugin_info);
 }

@@ -1,7 +1,7 @@
 #include "Application.h"
 #include "FileSystem.h"
 #include "JobSystem.h"
-#include "PluginManager.h"
+#include "Plugin.h"
 #include "Entity.h"
 #include "Mesh.h"
 #include "MaterialComponent.h"
@@ -129,7 +129,9 @@ namespace won::editor
 			}
 		};
 
-		void LoadDefaultPlugins();
+		void LoadPlugins();
+		void RegisterPluginExtensions(const std::shared_ptr<plugin::Plugin>& plugin);
+		void SetPluginEnabled(Size plugin_index, bool enabled);
 		void InitImGui();
 		void InitEditorGrid();
 		void DrawEditorGrid();
@@ -185,6 +187,14 @@ namespace won::editor
 		void DrawContentsBrowser();
 		void DrawContentFolderNode(const String& virtual_path, const String& name);
 		void DrawContentAssetTile(const ContentBrowserAsset& asset, float tile_size);
+
+		struct EditorPluginInfo
+		{
+			plugin::PluginInfo info;
+			std::shared_ptr<plugin::Plugin> plugin;
+			bool enabled = false;
+			bool registered = false;
+		};
 
 		struct ViewportDebugSettings
 		{
@@ -253,6 +263,8 @@ namespace won::editor
 		std::shared_ptr<RHIPipeline> editor_grid_pso;
 
 		std::vector<ecs::Entity> sorted_entities;
+		std::vector<EditorPluginInfo> plugins;
+		String enabled_plugin_ids;
 
 		ecs::Scene loaded_scene;
 		EditorViewport editor_viewport;
@@ -261,7 +273,5 @@ namespace won::editor
 		std::unique_ptr<io::DirectoryWatcher> contents_watcher;
 		float contents_watcher_poll_timer = 0.0f;
 		float editor_camera_speed = 5.0f;
-
-		std::shared_ptr<plugin::PluginManager> plugin_manager;
 	};
 }
