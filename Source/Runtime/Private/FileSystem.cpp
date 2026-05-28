@@ -5,6 +5,11 @@
 #include <filesystem>
 #include <fstream>
 
+#if defined(_WIN32)
+#include <shlobj.h>
+#include <shobjidl.h>
+#endif
+
 namespace won::io
 {
     namespace
@@ -445,5 +450,161 @@ namespace won::io
     {
         std::filesystem::path fs_path = std::filesystem::u8path(path);
         return std::filesystem::create_directories(fs_path);
+    }
+
+    bool OpenFileDialog(String& out_path, const FileDialogDesc& desc)
+    {
+        out_path.clear();
+#if defined(_WIN32)
+        const HRESULT init_result = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+        const bool should_uninitialize = SUCCEEDED(init_result);
+        if (FAILED(init_result) && init_result != RPC_E_CHANGED_MODE)
+        {
+            return false;
+        }
+
+        IFileOpenDialog* dialog = nullptr;
+        HRESULT result = CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog));
+        if (SUCCEEDED(result) && dialog)
+        {
+            DWORD options = 0;
+            if (SUCCEEDED(dialog->GetOptions(&options)))
+            {
+                dialog->SetOptions(options | FOS_FORCEFILESYSTEM | FOS_FILEMUSTEXIST | FOS_PATHMUSTEXIST);
+            }
+
+            const WString title = std::filesystem::u8path(desc.title).wstring();
+            if (!title.empty())
+            {
+                dialog->SetTitle(title.c_str());
+            }
+
+            const WString initial_directory = std::filesystem::u8path(desc.initial_directory).wstring();
+            if (!initial_directory.empty())
+            {
+                IShellItem* folder = nullptr;
+                if (SUCCEEDED(SHCreateItemFromParsingName(initial_directory.c_str(), nullptr, IID_PPV_ARGS(&folder))))
+                {
+                    dialog->SetFolder(folder);
+                    folder->Release();
+                }
+            }
+
+            const WString filter_name = std::filesystem::u8path(desc.filter_name.empty() ? "All Files" : desc.filter_name).wstring();
+            const WString filter_pattern = std::filesystem::u8path(desc.filter_pattern.empty() ? "*.*" : desc.filter_pattern).wstring();
+            const COMDLG_FILTERSPEC filter = { filter_name.c_str(), filter_pattern.c_str() };
+            dialog->SetFileTypes(1, &filter);
+            dialog->SetFileTypeIndex(1);
+
+            if (SUCCEEDED(dialog->Show(reinterpret_cast<HWND>(desc.owner_window))))
+            {
+                IShellItem* item = nullptr;
+                if (SUCCEEDED(dialog->GetResult(&item)) && item)
+                {
+                    PWSTR file_path = nullptr;
+                    if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &file_path)) && file_path)
+                    {
+                        out_path = NormalizePath(std::filesystem::path(file_path).generic_string());
+                        CoTaskMemFree(file_path);
+                    }
+                    item->Release();
+                }
+            }
+
+            dialog->Release();
+        }
+
+        if (should_uninitialize)
+        {
+            CoUninitialize();
+        }
+        return !out_path.empty();
+#else
+        return false;
+#endif
+    }
+
+    bool SaveFileDialog(String& out_path, const FileDialogDesc& desc)
+    {
+        out_path.clear();
+#if defined(_WIN32)
+        const HRESULT init_result = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+        const bool should_uninitialize = SUCCEEDED(init_result);
+        if (FAILED(init_result) && init_result != RPC_E_CHANGED_MODE)
+        {
+            return false;
+        }
+
+        IFileSaveDialog* dialog = nullptr;
+        HRESULT result = CoCreateInstance(CLSID_FileSaveDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog));
+        if (SUCCEEDED(result) && dialog)
+        {
+            DWORD options = 0;
+            if (SUCCEEDED(dialog->GetOptions(&options)))
+            {
+                dialog->SetOptions(options | FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST | FOS_OVERWRITEPROMPT);
+            }
+
+            const WString title = std::filesystem::u8path(desc.title).wstring();
+            if (!title.empty())
+            {
+                dialog->SetTitle(title.c_str());
+            }
+
+            const WString initial_directory = std::filesystem::u8path(desc.initial_directory).wstring();
+            if (!initial_directory.empty())
+            {
+                IShellItem* folder = nullptr;
+                if (SUCCEEDED(SHCreateItemFromParsingName(initial_directory.c_str(), nullptr, IID_PPV_ARGS(&folder))))
+                {
+                    dialog->SetFolder(folder);
+                    folder->Release();
+                }
+            }
+
+            const WString default_file_name = std::filesystem::u8path(desc.default_file_name).wstring();
+            if (!default_file_name.empty())
+            {
+                dialog->SetFileName(default_file_name.c_str());
+            }
+
+            const WString default_extension = std::filesystem::u8path(desc.default_extension).wstring();
+            if (!default_extension.empty())
+            {
+                dialog->SetDefaultExtension(default_extension.c_str());
+            }
+
+            const WString filter_name = std::filesystem::u8path(desc.filter_name.empty() ? "All Files" : desc.filter_name).wstring();
+            const WString filter_pattern = std::filesystem::u8path(desc.filter_pattern.empty() ? "*.*" : desc.filter_pattern).wstring();
+            const COMDLG_FILTERSPEC filter = { filter_name.c_str(), filter_pattern.c_str() };
+            dialog->SetFileTypes(1, &filter);
+            dialog->SetFileTypeIndex(1);
+
+            if (SUCCEEDED(dialog->Show(reinterpret_cast<HWND>(desc.owner_window))))
+            {
+                IShellItem* item = nullptr;
+                if (SUCCEEDED(dialog->GetResult(&item)) && item)
+                {
+                    PWSTR file_path = nullptr;
+                    if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &file_path)) && file_path)
+                    {
+                        out_path = NormalizePath(std::filesystem::path(file_path).generic_string());
+                        CoTaskMemFree(file_path);
+                    }
+                    item->Release();
+                }
+            }
+
+            dialog->Release();
+        }
+
+        if (should_uninitialize)
+        {
+            CoUninitialize();
+        }
+        return !out_path.empty();
+#else
+        return false;
+#endif
     }
 }

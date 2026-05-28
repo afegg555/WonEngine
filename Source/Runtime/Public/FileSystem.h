@@ -30,6 +30,17 @@ namespace won::io
         virtual void Poll(Vector<FileChange>* out_changes) = 0;
     };
 
+    struct FileDialogDesc
+    {
+        void* owner_window = nullptr;
+        String title;
+        String initial_directory;
+        String default_file_name;
+        String default_extension;
+        String filter_name;
+        String filter_pattern;
+    };
+
     WONENGINE_API bool Exists(const String& path);
     WONENGINE_API bool CreateDirectories(const String& path);
     WONENGINE_API bool ReadAllBytes(const String& path, FileData* out_data);
@@ -52,4 +63,6 @@ namespace won::io
     WONENGINE_API String GetAbsolutePath(const String& path);
     WONENGINE_API String GetRelativePath(const String& root_path, const String& path);
     WONENGINE_API bool CreateFolder(const String& path);
+    WONENGINE_API bool OpenFileDialog(String& out_path, const FileDialogDesc& desc);
+    WONENGINE_API bool SaveFileDialog(String& out_path, const FileDialogDesc& desc);
 }
