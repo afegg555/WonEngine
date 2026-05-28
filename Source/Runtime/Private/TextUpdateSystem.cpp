@@ -42,10 +42,13 @@ namespace won::ecs
         }
 
         jobsystem::Context sub_ctx;
-        Vector<TextBucket> text_buckets(jobsystem::GetThreadCount() + 1);
+        Vector<TextBucket> text_2d_buckets;
+        Vector<TextBucket> text_3d_buckets;
         if (text_2d_array)
         {
-            jobsystem::Dispatch(sub_ctx, static_cast<uint32>(text_2d_array->GetSize()), groupsize, [&](jobsystem::JobArgs args) {
+            const uint32 text_2d_job_count = static_cast<uint32>(text_2d_array->GetSize());
+            text_2d_buckets.resize(jobsystem::DispatchGroupCount(text_2d_job_count, groupsize));
+            jobsystem::Dispatch(sub_ctx, text_2d_job_count, groupsize, [&](jobsystem::JobArgs args) {
             struct GlyphLayout
             {
                 const resource::Font::Glyph* glyph = nullptr;
@@ -54,7 +57,7 @@ namespace won::ecs
                 float pen_x = 0.0f;
             };
 
-            TextBucket& bucket = text_buckets[args.worker_index];
+            TextBucket& bucket = text_2d_buckets[args.group_id];
             Text2DComponent& text = text_2d_array->data[args.job_index];
 
             if (!text.font || !text.font->IsValid() || text.pixel_height == 0)
@@ -162,7 +165,9 @@ namespace won::ecs
 
         if (text_3d_array && transform_array)
         {
-            jobsystem::Dispatch(sub_ctx, static_cast<uint32>(text_3d_array->GetSize()), groupsize, [&](jobsystem::JobArgs args) {
+            const uint32 text_3d_job_count = static_cast<uint32>(text_3d_array->GetSize());
+            text_3d_buckets.resize(jobsystem::DispatchGroupCount(text_3d_job_count, groupsize));
+            jobsystem::Dispatch(sub_ctx, text_3d_job_count, groupsize, [&](jobsystem::JobArgs args) {
             struct GlyphLayout
             {
                 const resource::Font::Glyph* glyph = nullptr;
@@ -171,7 +176,7 @@ namespace won::ecs
                 float pen_x = 0.0f;
             };
 
-            TextBucket& bucket = text_buckets[args.worker_index];
+            TextBucket& bucket = text_3d_buckets[args.group_id];
             Text3DComponent& text = text_3d_array->data[args.job_index];
 
             if (!text.font || !text.font->IsValid() || text.pixel_height == 0)
@@ -288,22 +293,42 @@ namespace won::ecs
 
         Size text_2d_renderable_count = 0;
         Size text_3d_renderable_count = 0;
-        for (const TextBucket& bucket : text_buckets)
+        for (const TextBucket& bucket : text_2d_buckets)
         {
             text_2d_renderable_count += bucket.text_2d_renderables.size();
+        }
+        for (const TextBucket& bucket : text_3d_buckets)
+        {
             text_3d_renderable_count += bucket.text_3d_renderables.size();
         }
 
         render_data.text_2d_renderables.reserve(text_2d_renderable_count);
         render_data.text_3d_renderables.reserve(text_3d_renderable_count);
-        for (TextBucket& bucket : text_buckets)
+        for (TextBucket& bucket : text_2d_buckets)
         {
             render_data.text_2d_renderables.insert(render_data.text_2d_renderables.end(), std::make_move_iterator(bucket.text_2d_renderables.begin()), std::make_move_iterator(bucket.text_2d_renderables.end()));
+        }
+        for (TextBucket& bucket : text_3d_buckets)
+        {
             render_data.text_3d_renderables.insert(render_data.text_3d_renderables.end(), std::make_move_iterator(bucket.text_3d_renderables.begin()), std::make_move_iterator(bucket.text_3d_renderables.end()));
         }
 
         Vector<std::shared_ptr<resource::Font>> dirty_fonts;
-        for (TextBucket& bucket : text_buckets)
+        for (TextBucket& bucket : text_2d_buckets)
+        {
+            for (const GlyphRequest& request : bucket.glyph_requests)
+            {
+                if (!request.font || !request.font->atlas.RequestGlyph(request.codepoint, request.pixel_height))
+                {
+                    continue;
+                }
+                if (std::find(dirty_fonts.begin(), dirty_fonts.end(), request.font) == dirty_fonts.end())
+                {
+                    dirty_fonts.push_back(request.font);
+                }
+            }
+        }
+        for (TextBucket& bucket : text_3d_buckets)
         {
             for (const GlyphRequest& request : bucket.glyph_requests)
             {

@@ -33,11 +33,14 @@ namespace won::ecs
             return;
         }
 
-        Vector<SpriteBucket> sprite_buckets(jobsystem::GetThreadCount() + 1);
+        Vector<SpriteBucket> sprite_2d_buckets;
+        Vector<SpriteBucket> sprite_3d_buckets;
         if (sprite_2d_array)
         {
-            jobsystem::Dispatch(sub_ctx, static_cast<uint32>(sprite_2d_array->GetSize()), groupsize, [&](jobsystem::JobArgs args) {
-                SpriteBucket& bucket = sprite_buckets[args.worker_index];
+            const uint32 sprite_2d_job_count = static_cast<uint32>(sprite_2d_array->GetSize());
+            sprite_2d_buckets.resize(jobsystem::DispatchGroupCount(sprite_2d_job_count, groupsize));
+            jobsystem::Dispatch(sub_ctx, sprite_2d_job_count, groupsize, [&](jobsystem::JobArgs args) {
+                SpriteBucket& bucket = sprite_2d_buckets[args.group_id];
 
                 const Entity entity = sprite_2d_array->index_to_entity[args.job_index];
                 if (!material_array->HasData(entity))
@@ -67,8 +70,10 @@ namespace won::ecs
 
         if (sprite_3d_array && transform_array)
         {
-            jobsystem::Dispatch(sub_ctx, static_cast<uint32>(sprite_3d_array->GetSize()), groupsize, [&](jobsystem::JobArgs args) {
-            SpriteBucket& bucket = sprite_buckets[args.worker_index];
+            const uint32 sprite_3d_job_count = static_cast<uint32>(sprite_3d_array->GetSize());
+            sprite_3d_buckets.resize(jobsystem::DispatchGroupCount(sprite_3d_job_count, groupsize));
+            jobsystem::Dispatch(sub_ctx, sprite_3d_job_count, groupsize, [&](jobsystem::JobArgs args) {
+            SpriteBucket& bucket = sprite_3d_buckets[args.group_id];
 
             const Entity entity = sprite_3d_array->index_to_entity[args.job_index];
             if (!transform_array->HasData(entity) || !material_array->HasData(entity))
@@ -107,17 +112,23 @@ namespace won::ecs
 
         Size sprite_2d_renderable_count = 0;
         Size sprite_3d_renderable_count = 0;
-        for (const SpriteBucket& bucket : sprite_buckets)
+        for (const SpriteBucket& bucket : sprite_2d_buckets)
         {
             sprite_2d_renderable_count += bucket.sprite_2d_renderables.size();
+        }
+        for (const SpriteBucket& bucket : sprite_3d_buckets)
+        {
             sprite_3d_renderable_count += bucket.sprite_3d_renderables.size();
         }
 
         render_data.sprite_2d_renderables.reserve(sprite_2d_renderable_count);
         render_data.sprite_3d_renderables.reserve(sprite_3d_renderable_count);
-        for (SpriteBucket& bucket : sprite_buckets)
+        for (SpriteBucket& bucket : sprite_2d_buckets)
         {
             render_data.sprite_2d_renderables.insert(render_data.sprite_2d_renderables.end(), std::make_move_iterator(bucket.sprite_2d_renderables.begin()), std::make_move_iterator(bucket.sprite_2d_renderables.end()));
+        }
+        for (SpriteBucket& bucket : sprite_3d_buckets)
+        {
             render_data.sprite_3d_renderables.insert(render_data.sprite_3d_renderables.end(), std::make_move_iterator(bucket.sprite_3d_renderables.begin()), std::make_move_iterator(bucket.sprite_3d_renderables.end()));
         }
         std::stable_sort(render_data.sprite_2d_renderables.begin(), render_data.sprite_2d_renderables.end(), [](const Scene::RenderData::Sprite2DRenderable& lhs, const Scene::RenderData::Sprite2DRenderable& rhs) {

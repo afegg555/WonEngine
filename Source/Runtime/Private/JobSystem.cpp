@@ -398,7 +398,7 @@ namespace won::jobsystem
             PriorityResources& res = internal_state.resources[int(ctx.priority)];
 
             res.sleeping_condition.notify_all();
-            res.Work(res.GetNextQueueIndex(), res.num_threads);
+            res.Work(res.GetNextQueueIndex(), res.num_threads); // forced to worker_index == res.num_threads
 
             while (IsBusy(ctx))
             {

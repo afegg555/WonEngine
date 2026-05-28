@@ -35,10 +35,11 @@ namespace won::ecs
         render_data.line_renderables.clear();
         render_data.point_renderables.clear();
 
-        Vector<RenderableBucket> renderable_buckets(jobsystem::GetThreadCount() + 1); // this works as thread local storage
+        const uint32 job_count = static_cast<uint32>(transform_array->GetSize());
+        Vector<RenderableBucket> renderable_buckets(jobsystem::DispatchGroupCount(job_count, groupsize));
 
-        jobsystem::Dispatch(sub_ctx, (uint32_t)transform_array->GetSize(), groupsize, [&](jobsystem::JobArgs args) {
-            RenderableBucket& bucket = renderable_buckets[args.worker_index];
+        jobsystem::Dispatch(sub_ctx, job_count, groupsize, [&](jobsystem::JobArgs args) {
+            RenderableBucket& bucket = renderable_buckets[args.group_id];
 
             const TransformComponent& transform = transform_array->data[args.job_index];
             ShaderInstance& shader_instance = render_data.shader_instances[args.job_index];
