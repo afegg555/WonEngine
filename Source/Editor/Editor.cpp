@@ -18,6 +18,7 @@
 #include "EventHandler.h"
 #include "Reflection.h"
 #include "BuiltinTypeMeta.h"
+#include "SceneSerializer.h"
 
 #include "CustomComponentExtension.h"
 #include "CustomFunctionExtension.h"
@@ -127,6 +128,262 @@ namespace won::editor
 		constexpr const char* editor_viewport_ddgi_max_probe_draw_count_key = "editor.viewport.ddgi_max_probe_draw_count";
 		constexpr const char* editor_camera_speed_key = "editor.camera.speed";
 		constexpr const char* editor_plugins_enabled_key = "editor.plugins.enabled";
+		constexpr const char* editor_scene_last_path_key = "editor.scene.last_path";
+		constexpr const char* scene_directory_name = "Scenes";
+		constexpr const char* scene_file_extension = "wonscene";
+		constexpr const char* default_scene_file_name = "NewScene";
+
+		namespace editor_text
+		{
+			constexpr const char* main_window = "Main";
+			constexpr const char* file_menu = "File";
+			constexpr const char* window_menu = "Window";
+			constexpr const char* plugins_menu = "Plugins";
+			constexpr const char* new_scene = "New Scene";
+			constexpr const char* save_scene = "Save Scene";
+			constexpr const char* save_scene_as = "Save Scene As...";
+			constexpr const char* load_scene = "Load Scene";
+			constexpr const char* save_current_scene_popup = "Save Current Scene?###SaveCurrentScenePopup";
+			constexpr const char* save_current_scene_message = "Save current scene?";
+			constexpr const char* unsaved_scene = "Unsaved Scene";
+			constexpr const char* path = "Path";
+			constexpr const char* won_scene_file = "Won Scene";
+			constexpr const char* value = "Value";
+			constexpr const char* save = "Save";
+			constexpr const char* save_as = "Save As";
+			constexpr const char* load = "Load";
+			constexpr const char* dont_save = "Don't Save";
+			constexpr const char* cancel = "Cancel";
+			constexpr const char* reset_layout = "Reset Layout";
+			constexpr const char* no_plugins_found = "No plugins found";
+			constexpr const char* unknown = "Unknown";
+			constexpr const char* plugin_loaded = "Loaded";
+			constexpr const char* plugin_not_loaded = "Not loaded";
+			constexpr const char* viewport_window = "Viewport";
+			constexpr const char* options = "Options";
+			constexpr const char* options_popup = "OptionsPopup";
+			constexpr const char* wireframe = "WireFrame";
+			constexpr const char* vsync = "VSync";
+			constexpr const char* editor_grid = "Editor Grid";
+			constexpr const char* bvh_debug = "BVH Debug";
+			constexpr const char* cpu_bvh_nodes = "CPU BVH Nodes";
+			constexpr const char* gpu_bvh_nodes = "GPU BVH Nodes";
+			constexpr const char* ddgi_debug_overlay = "DDGI Debug Overlay";
+			constexpr const char* ddgi_volume = "DDGI Volume";
+			constexpr const char* ddgi_probes = "DDGI Probes";
+			constexpr const char* ddgi_text = "DDGI Text";
+			constexpr const char* ddgi_max_probe_draw = "DDGI Max Probe Draw";
+			constexpr const char* close = "Close";
+			constexpr const char* entity_list_window = "Entity List";
+			constexpr const char* delete_entity = "Delete Entity";
+			constexpr const char* delete_entity_confirm_popup = "Delete Entity Confirm";
+			constexpr const char* delete_button = "Delete";
+			constexpr const char* delete_confirm_format = "Delete %s?";
+			constexpr const char* delete_entity_children_warning = "Children and components will also be removed.";
+			constexpr const char* entity_label = "Entity ";
+			constexpr const char* importing_asset = "Importing asset";
+			constexpr const char* importing_assets = "Importing assets (";
+			constexpr const char* inspector_window = "Inspector";
+			constexpr const char* log_window = "Log";
+			constexpr const char* copy_to_clipboard = "Copy to Clipboard";
+			constexpr const char* clear = "Clear";
+			constexpr const char* contents_browser_window = "Contents Browser";
+			constexpr const char* profiler_window = "Profiler";
+			constexpr const char* enable_profiler = "Enable Profiler";
+			constexpr const char* profiler_starting = "Profiler starting...";
+			constexpr const char* profiler_warning = "Profiler Turned On! Performance may be reduced!";
+			constexpr const char* import_to_scene = "Import to Scene";
+			constexpr const char* copy_disk_path = "Copy Disk Path";
+			constexpr const char* copy_virtual_path = "Copy Virtual Path";
+			constexpr const char* refresh = "Refresh";
+			constexpr const char* folder = "Folder";
+			constexpr const char* folder_empty = "Folder is empty.";
+			constexpr const char* import_content_asset_popup = "Import Content Asset";
+			constexpr const char* import_content_asset_message = "Import this asset to Scene?";
+			constexpr const char* import = "Import";
+			constexpr const char* asset_texture = "Texture";
+			constexpr const char* asset_material = "Material";
+			constexpr const char* asset_mesh = "Mesh";
+			constexpr const char* asset_scene = "Scene";
+			constexpr const char* asset_shader = "Shader";
+			constexpr const char* asset_font = "Font";
+			constexpr const char* asset_script = "Script";
+			constexpr const char* asset = "Asset";
+			constexpr const char* all_types = "All Types";
+			constexpr const char* contents = "Contents";
+			constexpr const char* search_hint = ICON_MD_SEARCH " Search";
+			constexpr const char* size_format = "Size %.0f";
+			constexpr const char* path_label = "Path:";
+			constexpr const char* remove_component_popup = "Remove Component";
+			constexpr const char* remove = "Remove";
+			constexpr const char* remove_tooltip_format = "Remove %s";
+			constexpr const char* remove_confirm_format = "Remove %s?";
+			constexpr const char* action_cannot_be_undone = "This action cannot be undone.";
+			constexpr const char* unsupported_format = "%s: unsupported";
+			constexpr const char* assigned = "Assigned";
+			constexpr const char* none = "None";
+			constexpr const char* no_components_available = "No components available";
+			constexpr const char* add_component = "Add Component";
+			constexpr const char* add_component_popup = "AddComponentPopup";
+			constexpr const char* update_scene_gpubvh = "Update Scene GPUBVH";
+			constexpr const char* add_slot = "Add Slot";
+			constexpr const char* remove_slot = "Remove Slot";
+			constexpr const char* reload = "Reload";
+			constexpr const char* up = "Up";
+			constexpr const char* down = "Down";
+			constexpr const char* add_script = "Add Script";
+			constexpr const char* active = "Active";
+			constexpr const char* dynamic = "Dynamic";
+			constexpr const char* cast_shadow = "Cast Shadow";
+			constexpr const char* orthographic = "Orthographic";
+			constexpr const char* billboard = "Billboard";
+			constexpr const char* loop = "Loop";
+			constexpr const char* enabled = "Enabled";
+			constexpr const char* script_enabled = "Script Enabled";
+			constexpr const char* double_sided = "Double Sided";
+			constexpr const char* transparent = "Transparent";
+			constexpr const char* use_vertex_colors = "Use Vertex Colors";
+			constexpr const char* receive_shadow = "Receive Shadow";
+			constexpr const char* duration_zero = "Duration: 0.000s";
+			constexpr const char* no_animation_clips = "No animation clips";
+			constexpr const char* name_component = "NameComponent";
+			constexpr const char* transform_component = "TransformComponent";
+			constexpr const char* hierarchy_component = "HierarchyComponent";
+			constexpr const char* light_component = "LightComponent";
+			constexpr const char* camera_component = "CameraComponent";
+			constexpr const char* sky_component = "SkyComponent";
+			constexpr const char* fog_volume_component = "FogVolumeComponent";
+			constexpr const char* environment_lighting_component = "EnvironmentLightingComponent";
+			constexpr const char* ddgi_volume_component = "DDGIVolumeComponent";
+			constexpr const char* geometry_component = "GeometryComponent";
+			constexpr const char* sprite_2d_component = "Sprite2DComponent";
+			constexpr const char* text_2d_component = "Text2DComponent";
+			constexpr const char* sprite_3d_component = "Sprite3DComponent";
+			constexpr const char* text_3d_component = "Text3DComponent";
+			constexpr const char* animation_component = "AnimationComponent";
+			constexpr const char* material_component = "MaterialComponent";
+			constexpr const char* script_component = "ScriptComponent";
+			constexpr const char* script = "Script";
+			constexpr const char* none_placeholder = "<none>";
+			constexpr const char* script_already_exists = "script already exists on this component";
+			constexpr const char* last_error_format = "Last Error: %s";
+			constexpr const char* parent = "Parent";
+			constexpr const char* position = "Position";
+			constexpr const char* rotation_xyz = "Rotation XYZ";
+			constexpr const char* scale = "Scale";
+			constexpr const char* type = "Type";
+			constexpr const char* color = "Color";
+			constexpr const char* directional = "Directional";
+			constexpr const char* point = "Point";
+			constexpr const char* spot = "Spot";
+			constexpr const char* intensity = "Intensity";
+			constexpr const char* range = "Range";
+			constexpr const char* outer_cone = "Outer Cone";
+			constexpr const char* inner_cone = "Inner Cone";
+			constexpr const char* shadow_resolution = "Shadow Resolution";
+			constexpr const char* cascade_count = "Cascade Count";
+			constexpr const char* cascade_lambda = "Cascade Lambda";
+			constexpr const char* cascade_blend = "Cascade Blend";
+			constexpr const char* near_plane = "Near";
+			constexpr const char* far_plane = "Far";
+			constexpr const char* fov_y = "FOV Y";
+			constexpr const char* ortho_size = "Ortho Size";
+			constexpr const char* aspect_ratio_format = "Aspect Ratio: %.3f";
+			constexpr const char* aperture = "Aperture";
+			constexpr const char* shutter_speed = "Shutter Speed";
+			constexpr const char* sensitivity = "Sensitivity";
+			constexpr const char* sun_direction = "Sun Direction";
+			constexpr const char* sun_color = "Sun Color";
+			constexpr const char* sun_intensity = "Sun Intensity";
+			constexpr const char* sun_angular_radius = "Sun Angular Radius";
+			constexpr const char* sun_glow_intensity = "Sun Glow Intensity";
+			constexpr const char* sun_glow_falloff = "Sun Glow Falloff";
+			constexpr const char* sky_intensity = "Sky Intensity";
+			constexpr const char* sky_horizon_color = "Sky Horizon Color";
+			constexpr const char* sky_horizon_falloff = "Sky Horizon Falloff";
+			constexpr const char* sky_zenith_color = "Sky Zenith Color";
+			constexpr const char* ground_intensity = "Ground Intensity";
+			constexpr const char* ground_horizon_color = "Ground Horizon Color";
+			constexpr const char* ground_falloff = "Ground Falloff";
+			constexpr const char* ground_color = "Ground Color";
+			constexpr const char* gi_mode = "GI Mode";
+			constexpr const char* ambient = "Ambient";
+			constexpr const char* ddgi = "DDGI";
+			constexpr const char* ambient_color = "Ambient Color";
+			constexpr const char* ambient_intensity = "Ambient Intensity";
+			constexpr const char* indirect_diffuse_scale = "Indirect Diffuse Scale";
+			constexpr const char* indirect_specular_scale = "Indirect Specular Scale";
+			constexpr const char* probe_counts = "Probe Counts";
+			constexpr const char* probe_spacing = "Probe Spacing";
+			constexpr const char* volume_offset = "Volume Offset";
+			constexpr const char* probes_per_frame = "Probes Per Frame";
+			constexpr const char* priority = "Priority";
+			constexpr const char* hysteresis = "Hysteresis";
+			constexpr const char* normal_bias = "Normal Bias";
+			constexpr const char* view_bias = "View Bias";
+			constexpr const char* max_distance = "Max Distance";
+			constexpr const char* mesh_format = "Mesh: %s";
+			constexpr const char* anchor = "Anchor";
+			constexpr const char* size = "Size";
+			constexpr const char* pivot = "Pivot";
+			constexpr const char* uv_rect = "UV Rect";
+			constexpr const char* layer = "Layer";
+			constexpr const char* font_format = "Font: %s";
+			constexpr const char* pixel_height = "Pixel Height";
+			constexpr const char* height = "Height";
+			constexpr const char* clips_format = "Clips: %d";
+			constexpr const char* clip = "Clip";
+			constexpr const char* text = "Text";
+			constexpr const char* play = "Play";
+			constexpr const char* pause = "Pause";
+			constexpr const char* speed = "Speed";
+			constexpr const char* time = "Time";
+			constexpr const char* duration_format = "Duration: %.3fs";
+			constexpr const char* bone_matrices_format = "Bone Matrices: %d";
+			constexpr const char* bone_matrix_offset_format = "Bone Matrix Offset: %u";
+			constexpr const char* material_slots_format = "Material Slots: %d";
+			constexpr const char* slot_prefix = "Slot ";
+			constexpr const char* selected_slot = "Selected Slot";
+			constexpr const char* shader_type = "Shader Type";
+			constexpr const char* unlit = "Unlit";
+			constexpr const char* base_color = "Base Color";
+			constexpr const char* metallic = "Metallic";
+			constexpr const char* roughness = "Roughness";
+			constexpr const char* reflectance = "Reflectance";
+			constexpr const char* anisotropy = "Anisotropy";
+			constexpr const char* sheen_color = "Sheen Color";
+			constexpr const char* sheen_roughness = "Sheen Roughness";
+			constexpr const char* clearcoat = "Clearcoat";
+			constexpr const char* clearcoat_roughness = "Clearcoat Roughness";
+			constexpr const char* textures = "Textures";
+			constexpr const char* texture_status_format = "%s: %s";
+			constexpr const char* save_scene_failed = "Save scene failed: ";
+			constexpr const char* scene_saved = "Scene saved: ";
+			constexpr const char* load_scene_failed = "Load scene failed: ";
+			constexpr const char* load_scene_warning = "Load scene warning: ";
+			constexpr const char* scene_loaded = "Scene loaded: ";
+			constexpr const char* content_browser_import_commit_failed = "Content Browser import commit failed: ";
+			constexpr const char* content_browser_import_failed = "Content Browser import failed: ";
+			constexpr const char* asset_importer_missing_functions = "AssetImporter plugin is missing required functions.";
+			constexpr const char* failed_register_component_type = "Failed to register component type: ";
+			constexpr const char* failed_enable_plugin = "Failed to enable plugin: ";
+			constexpr const char* plugin_disabled_next_restart = "Plugin will be disabled on next editor restart: ";
+			constexpr const char* content_browser_import_asset_importer_not_ready = "Content Browser import failed: AssetImporter is not ready.";
+			constexpr const char* base_color_map = "Base Color Map";
+			constexpr const char* normal_map = "Normal Map";
+			constexpr const char* emissive_map = "Emissive Map";
+			constexpr const char* opacity_map = "Opacity Map";
+			constexpr const char* displacement_map = "Displacement Map";
+			constexpr const char* occlusion_map = "Occlusion Map";
+			constexpr const char* sheen_color_map = "Sheen Color Map";
+			constexpr const char* sheen_roughness_map = "Sheen Roughness Map";
+			constexpr const char* clearcoat_map = "Clearcoat Map";
+			constexpr const char* clearcoat_roughness_map = "Clearcoat Roughness Map";
+			constexpr const char* clearcoat_normal_map = "Clearcoat Normal Map";
+			constexpr const char* anisotropy_map = "Anisotropy Map";
+			constexpr const char* roughness_map = "Roughness Map";
+			constexpr const char* metallic_map = "Metallic Map";
+		}
 
 		// temp
 
@@ -281,7 +538,7 @@ namespace won::editor
 				return false;
 			}
 			default:
-				ImGui::TextDisabled("%s: unsupported", label);
+				ImGui::TextDisabled(editor_text::unsupported_format, label);
 				return false;
 			}
 		}
@@ -363,27 +620,27 @@ namespace won::editor
 
 			if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
 			{
-				ImGui::SetTooltip("Remove %s", component_name);
+				ImGui::SetTooltip(editor_text::remove_tooltip_format, component_name);
 			}
 
 			if (pressed && can_remove)
 			{
-				ImGui::OpenPopup("Remove Component");
+				ImGui::OpenPopup(editor_text::remove_component_popup);
 			}
 
 			bool remove_component = false;
-			if (ImGui::BeginPopup("Remove Component", ImGuiWindowFlags_AlwaysAutoResize))
+			if (ImGui::BeginPopup(editor_text::remove_component_popup, ImGuiWindowFlags_AlwaysAutoResize))
 			{
-				ImGui::Text("Remove %s?", component_name);
-				ImGui::TextDisabled("This action cannot be undone.");
+				ImGui::Text(editor_text::remove_confirm_format, component_name);
+				ImGui::TextDisabled(editor_text::action_cannot_be_undone);
 
-				if (ImGui::Button("Remove"))
+				if (ImGui::Button(editor_text::remove))
 				{
 					remove_component = true;
 					ImGui::CloseCurrentPopup();
 				}
 				ImGui::SameLine();
-				if (ImGui::Button("Cancel"))
+				if (ImGui::Button(editor_text::cancel))
 				{
 					ImGui::CloseCurrentPopup();
 				}
@@ -450,13 +707,12 @@ namespace won::editor
 			dock_bottom = ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Down, 0.30f, nullptr, &dock_main);
 			dock_left = ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Left, 0.20f, nullptr, &dock_main);
 
-			ImGui::DockBuilderDockWindow("Viewport", dock_main);
-			ImGui::DockBuilderDockWindow("Inspector", dock_right);
-			ImGui::DockBuilderDockWindow("Contents Browser", dock_bottom);
-			ImGui::DockBuilderDockWindow("Log", dock_bottom);
-			ImGui::DockBuilderDockWindow("Profiler", dock_bottom);
-			//ImGui::DockBuilderDockWindow("Scene Tree", dock_left);
-			ImGui::DockBuilderDockWindow("Entity List", dock_left);
+			ImGui::DockBuilderDockWindow(editor_text::viewport_window, dock_main);
+			ImGui::DockBuilderDockWindow(editor_text::inspector_window, dock_right);
+			ImGui::DockBuilderDockWindow(editor_text::contents_browser_window, dock_bottom);
+			ImGui::DockBuilderDockWindow(editor_text::log_window, dock_bottom);
+			ImGui::DockBuilderDockWindow(editor_text::profiler_window, dock_bottom);
+			ImGui::DockBuilderDockWindow(editor_text::entity_list_window, dock_left);
 
 			ImGui::DockBuilderFinish(dockspace_id);
 		}
@@ -839,42 +1095,13 @@ namespace won::editor
 
 		LoadPlugins();
 
-		// camera entity
-		{
-			editor_viewport.view->camera_entity = editor_viewport.view->scene->CreateEntity();
-			auto camera_transform = editor_viewport.view->scene->AddComponent<ecs::TransformComponent>(editor_viewport.view->camera_entity);
-			if (camera_transform)
-			{
-				camera_transform->position = { -4.7f, 2.0f, 0.3f };
-				camera_transform->RotateRollPitchYaw({ 0.f, math::PI / 2.f, 0} );
-				camera_transform->SetDirty();
-			}
-
-			auto camera = editor_viewport.view->scene->AddComponent<ecs::CameraComponent>(editor_viewport.view->camera_entity);
-			if (camera)
-			{
-				float viewport_width = static_cast<float>(editor_viewport.view->viewport.width);
-				float viewport_height = static_cast<float>(editor_viewport.view->viewport.height);
-				if (viewport_height <= 0.0f)
-				{
-					viewport_height = 1.0f;
-				}
-				camera->SetAspectRatio(viewport_width / viewport_height);
-				camera->SetNearFar(0.1f, 1000.0f);
-				camera->SetFOV_Y(math::PI / 3.0f);
-				camera->SetOrtho(false);
-				//camera->SetOrthoVerticalSize(4.f);
-			}
-
-			auto name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(editor_viewport.view->camera_entity);
-			name->value = "Editor Camera";
-		}
+		CreateStartupScene();
 		contents_watcher = io::CreateDirectoryWatcher(contents_root_dir, true);
 		contents_watcher_poll_timer = 0.0f;
 
 		//main_viewport_pos = { 0, 0 };
 		//main_viewport_size = { static_cast<float>(editor_viewport.view->viewport.width), static_cast<float>(editor_viewport.view->viewport.height) };
-		LoadSampleScene();
+		UpdateEntityList();
 	}
 
 	void EditorApplication::Shutdown()
@@ -969,12 +1196,12 @@ namespace won::editor
 				}
 				else
 				{
-					backlog::Post("Content Browser import commit failed: " + task->path, backlog::LogLevel::Warning);
+					backlog::Post(editor_text::content_browser_import_commit_failed + task->path, backlog::LogLevel::Warning);
 				}
 			}
 			else if (task->failed.load())
 			{
-				backlog::Post("Content Browser import failed: " + task->path, backlog::LogLevel::Warning);
+				backlog::Post(editor_text::content_browser_import_failed + task->path, backlog::LogLevel::Warning);
 			}
 
 			ReleaseAssetImportResult(task->result_handle.exchange(0));
@@ -1169,7 +1396,7 @@ namespace won::editor
 
 		if (asset_importer.functions.plugin && !asset_importer.IsValid())
 		{
-			backlog::Post("AssetImporter plugin is missing required functions.", backlog::LogLevel::Warning);
+			backlog::Post(editor_text::asset_importer_missing_functions, backlog::LogLevel::Warning);
 		}
 	}
 
@@ -1275,7 +1502,7 @@ namespace won::editor
 
 				if (!reflection::RegisterType(desc))
 				{
-					backlog::Post("Failed to register component type: " + extension.extension_id, backlog::LogLevel::Warning);
+					backlog::Post(editor_text::failed_register_component_type + extension.extension_id, backlog::LogLevel::Warning);
 					continue;
 				}
 
@@ -1327,7 +1554,7 @@ namespace won::editor
 			if (!plugin_info.plugin)
 			{
 				plugin_info.enabled = false;
-				backlog::Post("Failed to enable plugin: " + plugin_info.info.plugin_id, backlog::LogLevel::Warning);
+				backlog::Post(editor_text::failed_enable_plugin + plugin_info.info.plugin_id, backlog::LogLevel::Warning);
 			}
 			else if (!plugin_info.registered)
 			{
@@ -1337,7 +1564,7 @@ namespace won::editor
 		}
 		else if (!enabled && plugin_info.plugin)
 		{
-			backlog::Post("Plugin will be disabled on next editor restart: " + plugin_info.info.plugin_id);
+			backlog::Post(editor_text::plugin_disabled_next_restart + plugin_info.info.plugin_id);
 		}
 
 		SaveEditorSettings();
@@ -1347,7 +1574,7 @@ namespace won::editor
 	{
 		if (path.empty() || !asset_importer.IsValid())
 		{
-			backlog::Post("Content Browser import failed: AssetImporter is not ready.", backlog::LogLevel::Warning);
+			backlog::Post(editor_text::content_browser_import_asset_importer_not_ready, backlog::LogLevel::Warning);
 			return 0;
 		}
 
@@ -2067,10 +2294,12 @@ namespace won::editor
 	}
 	void EditorApplication::UpdateDebugPrimitiveMesh()
 	{
+		bool created_debug_primitive_entity = false;
 		if (editor_viewport.debug_primitive_entity == ecs::INVALID_ENTITY || !editor_viewport.debug_primitive_mesh)
 		{
 			editor_viewport.debug_primitive_entity = editor_viewport.view->scene->CreateEntity();
 			editor_viewport.debug_primitive_mesh = std::make_shared<resource::Mesh>();
+			created_debug_primitive_entity = true;
 
 			editor_viewport.view->scene->AddComponent<ecs::TransformComponent>(editor_viewport.debug_primitive_entity);
 
@@ -2086,6 +2315,10 @@ namespace won::editor
 			{
 				name->value = "Debug Primitives";
 			}
+		}
+		if (created_debug_primitive_entity)
+		{
+			UpdateEntityList();
 		}
 
 		if (!editor_viewport.debug_primitive_mesh)
@@ -2426,6 +2659,11 @@ namespace won::editor
 		config::SetInt(editor_viewport_ddgi_max_probe_draw_count_key, editor_viewport.debug_settings.ddgi_max_probe_draw_count);
 		config::SetFloat(editor_camera_speed_key, editor_camera_speed);
 		config::SetString(editor_plugins_enabled_key, enabled_plugin_ids);
+		if (!current_scene_path.empty())
+		{
+			String last_editing_scene_path = io::GetRelativePath(contents_root_dir, current_scene_path);
+			config::SetString(editor_scene_last_path_key, last_editing_scene_path);
+		}
 
 		config::SaveToFile(editor_settings_path);
 	}
@@ -2454,7 +2692,7 @@ namespace won::editor
 			if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "dds" || ext == "tga" || ext == "bmp") return ContentAssetType::Texture;
 			if (ext == "mat") return ContentAssetType::Material;
 			if (ext == "fbx" || ext == "obj" || ext == "gltf" || ext == "glb") return ContentAssetType::Mesh;
-			if (ext == "scene" || ext == "json") return ContentAssetType::Scene;
+			if (ext == scene_file_extension) return ContentAssetType::Scene;
 			if (ext == "hlsl" || ext == "hlsli") return ContentAssetType::Shader;
 			if (ext == "ttf" || ext == "otf") return ContentAssetType::Font;
 			if (ext == "lua") return ContentAssetType::Script;
@@ -2571,15 +2809,15 @@ namespace won::editor
 		{
 			switch (type)
 			{
-			case ContentAssetType::Texture: return "Texture";
-			case ContentAssetType::Material: return "Material";
-			case ContentAssetType::Mesh: return "Mesh";
-			case ContentAssetType::Scene: return "Scene";
-			case ContentAssetType::Shader: return "Shader";
-			case ContentAssetType::Font: return "Font";
-			case ContentAssetType::Script: return "Script";
-			case ContentAssetType::Unknown: return "Unknown";
-			default: return "Asset";
+			case ContentAssetType::Texture: return editor_text::asset_texture;
+			case ContentAssetType::Material: return editor_text::asset_material;
+			case ContentAssetType::Mesh: return editor_text::asset_mesh;
+			case ContentAssetType::Scene: return editor_text::asset_scene;
+			case ContentAssetType::Shader: return editor_text::asset_shader;
+			case ContentAssetType::Font: return editor_text::asset_font;
+			case ContentAssetType::Script: return editor_text::asset_script;
+			case ContentAssetType::Unknown: return editor_text::unknown;
+			default: return editor_text::asset;
 			}
 		};
 		auto type_icon = [](ContentAssetType type) -> const char*
@@ -2600,6 +2838,7 @@ namespace won::editor
 		ImGui::PushID(asset.virtual_path.c_str());
 		ImGui::BeginGroup();
 		const bool can_import_asset = asset.type == ContentAssetType::Mesh;
+		const bool can_load_scene = asset.type == ContentAssetType::Scene;
 		ImGui::Button(type_icon(asset.type), ImVec2(tile_size, tile_size));
 		if (ImGui::BeginDragDropSource())
 		{
@@ -2622,9 +2861,13 @@ namespace won::editor
 			content_browser.pending_import_type = asset.type;
 			content_browser.open_import_confirm = true;
 		}
+		else if (can_load_scene && ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+		{
+			LoadScene(asset.disk_path);
+		}
 		if (ImGui::BeginPopupContextItem("ContentAssetContext"))
 		{
-			if (ImGui::MenuItem("Import to Scene", nullptr, false, can_import_asset))
+			if (ImGui::MenuItem(editor_text::import_to_scene, nullptr, false, can_import_asset))
 			{
 				content_browser.pending_import_name = asset.name;
 				content_browser.pending_import_virtual_path = asset.virtual_path;
@@ -2632,12 +2875,16 @@ namespace won::editor
 				content_browser.pending_import_type = asset.type;
 				content_browser.open_import_confirm = true;
 			}
+			if (ImGui::MenuItem(editor_text::load_scene, nullptr, false, can_load_scene))
+			{
+				LoadScene(asset.disk_path);
+			}
 			ImGui::Separator();
-			if (ImGui::MenuItem("Copy Disk Path"))
+			if (ImGui::MenuItem(editor_text::copy_disk_path))
 			{
 				ImGui::SetClipboardText(asset.disk_path.c_str());
 			}
-			if (ImGui::MenuItem("Copy Virtual Path"))
+			if (ImGui::MenuItem(editor_text::copy_virtual_path))
 			{
 				ImGui::SetClipboardText(asset.virtual_path.c_str());
 			}
@@ -2664,24 +2911,24 @@ namespace won::editor
 		{
 			switch (type)
 			{
-			case ContentAssetType::All: return "All Types";
-			case ContentAssetType::Texture: return "Texture";
-			case ContentAssetType::Material: return "Material";
-			case ContentAssetType::Mesh: return "Mesh";
-			case ContentAssetType::Scene: return "Scene";
-			case ContentAssetType::Shader: return "Shader";
-			case ContentAssetType::Font: return "Font";
-			case ContentAssetType::Script: return "Script";
-			case ContentAssetType::Unknown: return "Unknown";
-			default: return "All Types";
+			case ContentAssetType::All: return editor_text::all_types;
+			case ContentAssetType::Texture: return editor_text::asset_texture;
+			case ContentAssetType::Material: return editor_text::asset_material;
+			case ContentAssetType::Mesh: return editor_text::asset_mesh;
+			case ContentAssetType::Scene: return editor_text::asset_scene;
+			case ContentAssetType::Shader: return editor_text::asset_shader;
+			case ContentAssetType::Font: return editor_text::asset_font;
+			case ContentAssetType::Script: return editor_text::asset_script;
+			case ContentAssetType::Unknown: return editor_text::unknown;
+			default: return editor_text::all_types;
 			}
 		};
 
-		ImGui::TextUnformatted("Path:");
+		ImGui::TextUnformatted(editor_text::path_label);
 		ImGui::SameLine();
 		String current_folder = content_browser.current_folder;
 		Vector<String> breadcrumb_parts;
-		breadcrumb_parts.push_back("Contents");
+		breadcrumb_parts.push_back(editor_text::contents);
 		if (current_folder != "/Contents" && won::utils::StartsWith(current_folder, "/Contents/"))
 		{
 			String rest = current_folder.substr(10);
@@ -2717,7 +2964,7 @@ namespace won::editor
 
 		ImGui::SameLine();
 		ImGui::SetNextItemWidth(220.0f);
-		ImGui::InputTextWithHint("##content_search", ICON_MD_SEARCH " Search", content_browser.search, arraysize(content_browser.search));
+		ImGui::InputTextWithHint("##content_search", editor_text::search_hint, content_browser.search, arraysize(content_browser.search));
 
 		ImGui::SameLine();
 		ImGui::SetNextItemWidth(150.0f);
@@ -2736,7 +2983,7 @@ namespace won::editor
 
 		ImGui::SameLine();
 		ImGui::SetNextItemWidth(120.0f);
-		ImGui::SliderFloat("##content_tile_size", &content_browser.tile_size, 48.0f, 128.0f, "Size %.0f");
+		ImGui::SliderFloat("##content_tile_size", &content_browser.tile_size, 48.0f, 128.0f, editor_text::size_format);
 
 		ImGui::SameLine();
 		if (ImGui::Button(ICON_MD_REFRESH))
@@ -2745,7 +2992,7 @@ namespace won::editor
 		}
 		if (ImGui::IsItemHovered())
 		{
-			ImGui::SetTooltip("Refresh");
+			ImGui::SetTooltip(editor_text::refresh);
 		}
 
 		ImGui::Separator();
@@ -2793,7 +3040,7 @@ namespace won::editor
 				}
 				ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + tile_size);
 				ImGui::TextWrapped("%s", folder_name.c_str());
-				ImGui::TextDisabled("Folder");
+				ImGui::TextDisabled(editor_text::folder);
 				ImGui::PopTextWrapPos();
 				ImGui::EndGroup();
 				ImGui::PopID();
@@ -2834,7 +3081,7 @@ namespace won::editor
 
 		if (filtered_assets.empty() && child_folders.empty())
 		{
-			ImGui::TextDisabled("Folder is empty.");
+			ImGui::TextDisabled(editor_text::folder_empty);
 		}
 		else
 		{
@@ -2852,13 +3099,13 @@ namespace won::editor
 
 		if (content_browser.open_import_confirm)
 		{
-			ImGui::OpenPopup("Import Content Asset");
+			ImGui::OpenPopup(editor_text::import_content_asset_popup);
 			content_browser.open_import_confirm = false;
 		}
 
-		if (ImGui::BeginPopup("Import Content Asset", ImGuiWindowFlags_AlwaysAutoResize))
+		if (ImGui::BeginPopup(editor_text::import_content_asset_popup, ImGuiWindowFlags_AlwaysAutoResize))
 		{
-			ImGui::TextUnformatted("Import this asset to Scene?");
+			ImGui::TextUnformatted(editor_text::import_content_asset_message);
 			ImGui::TextUnformatted(content_browser.pending_import_name.c_str());
 			ImGui::TextDisabled("%s", content_browser.pending_import_virtual_path.c_str());
 			const bool can_import = content_browser.pending_import_type == ContentAssetType::Mesh && !content_browser.pending_import_disk_path.empty();
@@ -2866,7 +3113,7 @@ namespace won::editor
 			{
 				ImGui::BeginDisabled();
 			}
-			if (ImGui::Button("Import"))
+			if (ImGui::Button(editor_text::import))
 			{
 				StartAssetImport(content_browser.pending_import_disk_path);
 				content_browser.pending_import_name.clear();
@@ -2880,7 +3127,7 @@ namespace won::editor
 				ImGui::EndDisabled();
 			}
 			ImGui::SameLine();
-			if (ImGui::Button("Cancel"))
+			if (ImGui::Button(editor_text::cancel))
 			{
 				content_browser.pending_import_name.clear();
 				content_browser.pending_import_virtual_path.clear();
@@ -3023,7 +3270,7 @@ namespace won::editor
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
 		ImGui::PushStyleColor(ImGuiCol_WindowBg, IM_COL32(0, 0, 0, 0));
-		ImGui::Begin("Main", NULL, flags);
+		ImGui::Begin(editor_text::main_window, NULL, flags);
 
 		ImGui::PopStyleVar(3);
 
@@ -3032,19 +3279,66 @@ namespace won::editor
 		if (ImGui::DockBuilderGetNode(dockspace_id) == nullptr)
 			BuildDefaultDockLayout(dockspace_id, io.DisplaySize);
 
+		static bool open_save_scene_as = false;
+		static bool open_load_scene = false;
+		static bool open_new_scene = false;
+		static bool save_as_then_load = false;
+		static bool save_as_then_new_scene = false;
+		static bool save_current_then_new_scene = false;
+		bool open_save_current_scene = false;
+
 		if (ImGui::BeginMenuBar())
 		{
-			if (ImGui::BeginMenu("Window"))
+			if (ImGui::BeginMenu(editor_text::file_menu))
 			{
-				if (ImGui::MenuItem("Reset Layout"))
+				if (ImGui::MenuItem(editor_text::new_scene))
+				{
+					save_as_then_load = false;
+					save_as_then_new_scene = false;
+					save_current_then_new_scene = true;
+					open_save_current_scene = true;
+				}
+				if (ImGui::MenuItem(editor_text::save_scene))
+				{
+					if (current_scene_path.empty())
+					{
+						save_as_then_load = false;
+						save_as_then_new_scene = false;
+						open_save_scene_as = true;
+					}
+					else
+					{
+						SaveScene(current_scene_path);
+					}
+				}
+				if (ImGui::MenuItem(editor_text::save_scene_as))
+				{
+					save_as_then_load = false;
+					save_as_then_new_scene = false;
+					open_save_scene_as = true;
+				}
+				if (ImGui::MenuItem(editor_text::load_scene))
+				{
+					save_as_then_load = false;
+					save_as_then_new_scene = false;
+					save_current_then_new_scene = false;
+					open_save_current_scene = true;
+				}
+				ImGui::Separator();
+				ImGui::TextDisabled("%s", current_scene_path.empty() ? editor_text::unsaved_scene : current_scene_path.c_str());
+				ImGui::EndMenu();
+			}
+			if (ImGui::BeginMenu(editor_text::window_menu))
+			{
+				if (ImGui::MenuItem(editor_text::reset_layout))
 					BuildDefaultDockLayout(dockspace_id, io.DisplaySize);
 				ImGui::EndMenu();
 			}
-			if (ImGui::BeginMenu("Plugins"))
+			if (ImGui::BeginMenu(editor_text::plugins_menu))
 			{
 				if (plugins.empty())
 				{
-					ImGui::TextDisabled("No plugins found");
+					ImGui::TextDisabled(editor_text::no_plugins_found);
 				}
 				for (Size plugin_index = 0; plugin_index < plugins.size(); ++plugin_index)
 				{
@@ -3068,11 +3362,11 @@ namespace won::editor
 
 					if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
 					{
-						const char* type_name = "Unknown";
+						const char* type_name = editor_text::unknown;
 						if (plugin_info.info.type == plugin::PluginType::EditorDefault) { type_name = "EditorDefault"; }
 						else if (plugin_info.info.type == plugin::PluginType::EditorOptional) { type_name = "EditorOptional"; }
 						else if (plugin_info.info.type == plugin::PluginType::RuntimeOptional) { type_name = "RuntimeOptional"; }
-						ImGui::SetTooltip("%s\n%s\n%s", plugin_info.info.plugin_id.c_str(), type_name, plugin_info.plugin ? "Loaded" : "Not loaded");
+						ImGui::SetTooltip("%s\n%s\n%s", plugin_info.info.plugin_id.c_str(), type_name, plugin_info.plugin ? editor_text::plugin_loaded : editor_text::plugin_not_loaded);
 					}
 				}
 				ImGui::EndMenu();
@@ -3146,24 +3440,154 @@ namespace won::editor
 			ImGui::EndMenuBar();
 		}
 
+		if (open_save_current_scene)
+		{
+			ImGui::OpenPopup(editor_text::save_current_scene_popup);
+		}
+
+		if (ImGui::BeginPopupModal(editor_text::save_current_scene_popup, nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+		{
+			ImGui::TextUnformatted(editor_text::save_current_scene_message);
+			if (ImGui::Button(current_scene_path.empty() ? editor_text::save_as : editor_text::save))
+			{
+				if (current_scene_path.empty())
+				{
+					save_as_then_load = !save_current_then_new_scene;
+					save_as_then_new_scene = save_current_then_new_scene;
+					open_save_scene_as = true;
+					ImGui::CloseCurrentPopup();
+				}
+				else if (SaveScene(current_scene_path))
+				{
+					if (save_current_then_new_scene)
+					{
+						open_new_scene = true;
+					}
+					else
+					{
+						open_load_scene = true;
+					}
+					save_current_then_new_scene = false;
+					ImGui::CloseCurrentPopup();
+				}
+			}
+			ImGui::SameLine();
+			if (ImGui::Button(editor_text::dont_save))
+			{
+				if (save_current_then_new_scene)
+				{
+					open_new_scene = true;
+				}
+				else
+				{
+					open_load_scene = true;
+				}
+				save_current_then_new_scene = false;
+				ImGui::CloseCurrentPopup();
+			}
+			ImGui::SameLine();
+			if (ImGui::Button(editor_text::cancel))
+			{
+				save_current_then_new_scene = false;
+				save_as_then_load = false;
+				save_as_then_new_scene = false;
+				ImGui::CloseCurrentPopup();
+			}
+			ImGui::EndPopup();
+		}
+
+		if (open_save_scene_as)
+		{
+			open_save_scene_as = false;
+
+			io::FileDialogDesc desc = {};
+			desc.owner_window = window ? window->GetNativeHandle() : nullptr;
+			desc.title = editor_text::save_scene_as;
+			desc.initial_directory = io::CombinePath(contents_root_dir, scene_directory_name);
+			desc.default_file_name = String(default_scene_file_name) + "." + scene_file_extension;
+			desc.default_extension = scene_file_extension;
+			desc.filter_name = editor_text::won_scene_file;
+			desc.filter_pattern = String("*.") + scene_file_extension;
+
+			String path;
+			if (io::SaveFileDialog(path, desc) && SaveScene(path))
+			{
+				if (save_as_then_load)
+				{
+					open_load_scene = true;
+				}
+				if (save_as_then_new_scene)
+				{
+					open_new_scene = true;
+				}
+			}
+			save_as_then_load = false;
+			save_as_then_new_scene = false;
+		}
+
+		if (open_new_scene)
+		{
+			open_new_scene = false;
+			if (editor_viewport.view && editor_viewport.view->scene)
+			{
+				editor_viewport.view->scene->ClearEntities();
+				current_scene_path.clear();
+				editor_viewport.picked_entity = ecs::INVALID_ENTITY;
+				editor_viewport.debug_primitive_entity = ecs::INVALID_ENTITY;
+				editor_viewport.debug_primitive_mesh.reset();
+				CreateStartupScene();
+				UpdateEntityList();
+			}
+		}
+
+		if (open_load_scene)
+		{
+			open_load_scene = false;
+
+			io::FileDialogDesc desc = {};
+			desc.owner_window = window ? window->GetNativeHandle() : nullptr;
+			desc.title = editor_text::load_scene;
+			desc.initial_directory = io::CombinePath(contents_root_dir, scene_directory_name);
+			desc.default_extension = scene_file_extension;
+			desc.filter_name = editor_text::won_scene_file;
+			desc.filter_pattern = String("*.") + scene_file_extension;
+
+			String path;
+			if (io::OpenFileDialog(path, desc))
+			{
+				LoadScene(path);
+			}
+		}
+
 		ImGui::DockSpace(dockspace_id, ImVec2(0, 0), ImGuiDockNodeFlags_PassthruCentralNode);
 
 		ImGui::End();
 
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
 		editor_viewport.input_enabled = false;
-		if (ImGui::Begin("Viewport"))
+		if (ImGui::Begin(editor_text::viewport_window))
 		{
-			if (ImGui::Button("Options"))
+			String viewport_title = current_scene_path.empty() ? editor_text::unsaved_scene : io::GetFilename(current_scene_path);
+			if (!current_scene_path.empty())
 			{
-				ImGui::OpenPopup("OptionsPopup");
+				String extension = io::GetExtension(viewport_title);
+				if (!extension.empty() && viewport_title.size() > extension.size() + 1)
+				{
+					viewport_title.resize(viewport_title.size() - extension.size() - 1);
+				}
+			}
+			ImGui::TextUnformatted(viewport_title.c_str());
+			ImGui::SameLine();
+			if (ImGui::Button(editor_text::options))
+			{
+				ImGui::OpenPopup(editor_text::options_popup);
 				//ImGui::SetNextWindowSizeConstraints(ImVec2(240, 160), ImVec2(600, 500));
 			}
 
 			ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(500, 500));
-			if (ImGui::BeginPopup("OptionsPopup"))
+			if (ImGui::BeginPopup(editor_text::options_popup))
 			{
-				ImGui::Checkbox("WireFrame", &editor_viewport.debug_settings.use_wireframe);
+				ImGui::Checkbox(editor_text::wireframe, &editor_viewport.debug_settings.use_wireframe);
 
 				if (window)
 				{
@@ -3171,7 +3595,7 @@ namespace won::editor
 					if (swapchain)
 					{
 						bool vsync_enabled = swapchain->IsVSyncEnabled();
-						if (ImGui::Checkbox("VSync", &vsync_enabled))
+						if (ImGui::Checkbox(editor_text::vsync, &vsync_enabled))
 						{
 							swapchain->SetVSync(vsync_enabled);
 						}
@@ -3179,31 +3603,31 @@ namespace won::editor
 				}
 
 				ImGui::Separator();
-				ImGui::Checkbox("Editor Grid", &editor_viewport.debug_settings.show_grid);
+				ImGui::Checkbox(editor_text::editor_grid, &editor_viewport.debug_settings.show_grid);
 				ImGui::Separator();
-				ImGui::Checkbox("BVH Debug", &editor_viewport.debug_settings.show_bvh_debug);
+				ImGui::Checkbox(editor_text::bvh_debug, &editor_viewport.debug_settings.show_bvh_debug);
 				if (editor_viewport.debug_settings.show_bvh_debug)
 				{
-					ImGui::Checkbox("CPU BVH Nodes", &editor_viewport.debug_settings.show_cpu_bvh_nodes);
+					ImGui::Checkbox(editor_text::cpu_bvh_nodes, &editor_viewport.debug_settings.show_cpu_bvh_nodes);
 					editor_viewport.debug_settings.show_gpu_bvh_nodes = false;
 					ImGui::BeginDisabled();
-					ImGui::Checkbox("GPU BVH Nodes", &editor_viewport.debug_settings.show_gpu_bvh_nodes);
+					ImGui::Checkbox(editor_text::gpu_bvh_nodes, &editor_viewport.debug_settings.show_gpu_bvh_nodes);
 					ImGui::EndDisabled();
 				}
 
 				ImGui::Separator();
-				ImGui::Checkbox("DDGI Debug Overlay", &editor_viewport.debug_settings.show_ddgi_overlay);
+				ImGui::Checkbox(editor_text::ddgi_debug_overlay, &editor_viewport.debug_settings.show_ddgi_overlay);
 				if (editor_viewport.debug_settings.show_ddgi_overlay)
 				{
-					ImGui::Checkbox("DDGI Volume", &editor_viewport.debug_settings.show_ddgi_volume);
-					ImGui::Checkbox("DDGI Probes", &editor_viewport.debug_settings.show_ddgi_probes);
-					ImGui::Checkbox("DDGI Text", &editor_viewport.debug_settings.show_ddgi_text);
-					ImGui::InputInt("DDGI Max Probe Draw", &editor_viewport.debug_settings.ddgi_max_probe_draw_count);
+					ImGui::Checkbox(editor_text::ddgi_volume, &editor_viewport.debug_settings.show_ddgi_volume);
+					ImGui::Checkbox(editor_text::ddgi_probes, &editor_viewport.debug_settings.show_ddgi_probes);
+					ImGui::Checkbox(editor_text::ddgi_text, &editor_viewport.debug_settings.show_ddgi_text);
+					ImGui::InputInt(editor_text::ddgi_max_probe_draw, &editor_viewport.debug_settings.ddgi_max_probe_draw_count);
 					editor_viewport.debug_settings.ddgi_max_probe_draw_count = (std::max)(1, editor_viewport.debug_settings.ddgi_max_probe_draw_count);
 				}
 
 				ImGui::Separator();
-				if (ImGui::Button("Close")) ImGui::CloseCurrentPopup();
+				if (ImGui::Button(editor_text::close)) ImGui::CloseCurrentPopup();
 
 				ImGui::EndPopup();
 			}
@@ -3256,7 +3680,7 @@ namespace won::editor
 		//ImGui::Text("...");
 		//ImGui::End();
 
-		if (ImGui::Begin("Entity List"))
+		if (ImGui::Begin(editor_text::entity_list_window))
 		{
 			static int selected_index = -1;
 			static ecs::Entity pending_delete_entity = INVALID_ENTITY;
@@ -3275,7 +3699,7 @@ namespace won::editor
 			if (running_import_count > 0)
 			{
 				const int dot_count = static_cast<int>(ImGui::GetTime() * 3.0) % 4;
-				std::string import_status = running_import_count == 1 ? "Importing asset" : "Importing assets (" + std::to_string(running_import_count) + ")";
+				std::string import_status = running_import_count == 1 ? editor_text::importing_asset : editor_text::importing_assets + std::to_string(running_import_count) + ")";
 				import_status.append(dot_count, '.');
 				ImGui::TextDisabled("%s", import_status.c_str());
 				ImGui::Separator();
@@ -3311,7 +3735,7 @@ namespace won::editor
 						const auto& id = sorted_entities[i];
 						ImGui::PushID(static_cast<int>(id));
 
-						std::string label = "Entity " + std::to_string(id);
+						std::string label = editor_text::entity_label + std::to_string(id);
 						auto name = editor_viewport.view->scene->GetComponent<ecs::NameComponent>(id);
 						if (name != nullptr)
 						{
@@ -3330,7 +3754,7 @@ namespace won::editor
 							selected_index = i;
 							editor_viewport.picked_entity = id;
 
-							if (ImGui::MenuItem("Delete Entity", nullptr, false, id != editor_viewport.view->camera_entity))
+							if (ImGui::MenuItem(editor_text::delete_entity, nullptr, false, id != editor_viewport.view->camera_entity))
 							{
 								pending_delete_entity = id;
 								delete_entity_popup_pos = ImGui::GetMousePos();
@@ -3355,27 +3779,27 @@ namespace won::editor
 
 			if (open_delete_entity_confirm)
 			{
-				ImGui::OpenPopup("Delete Entity Confirm");
+				ImGui::OpenPopup(editor_text::delete_entity_confirm_popup);
 			}
 
 			ImGui::SetNextWindowPos(delete_entity_popup_pos, ImGuiCond_Appearing);
-			if (ImGui::BeginPopup("Delete Entity Confirm", ImGuiWindowFlags_AlwaysAutoResize))
+			if (ImGui::BeginPopup(editor_text::delete_entity_confirm_popup, ImGuiWindowFlags_AlwaysAutoResize))
 			{
-				String entity_label = "Entity " + std::to_string(pending_delete_entity);
+				String entity_label = editor_text::entity_label + std::to_string(pending_delete_entity);
 				if (ecs::NameComponent* name = editor_viewport.view->scene->GetComponent<ecs::NameComponent>(pending_delete_entity))
 				{
 					entity_label += " (" + name->value + ")";
 				}
 
-				ImGui::Text("Delete %s?", entity_label.c_str());
-				ImGui::TextDisabled("Children and components will also be removed.");
+				ImGui::Text(editor_text::delete_confirm_format, entity_label.c_str());
+				ImGui::TextDisabled(editor_text::delete_entity_children_warning);
 
 				const bool can_delete_entity = pending_delete_entity != INVALID_ENTITY && pending_delete_entity != editor_viewport.view->camera_entity;
 				if (!can_delete_entity)
 				{
 					ImGui::BeginDisabled();
 				}
-				if (ImGui::Button("Delete"))
+				if (ImGui::Button(editor_text::delete_button))
 				{
 					delete_entity = pending_delete_entity;
 					pending_delete_entity = INVALID_ENTITY;
@@ -3386,7 +3810,7 @@ namespace won::editor
 					ImGui::EndDisabled();
 				}
 				ImGui::SameLine();
-				if (ImGui::Button("Cancel"))
+				if (ImGui::Button(editor_text::cancel))
 				{
 					pending_delete_entity = INVALID_ENTITY;
 					ImGui::CloseCurrentPopup();
@@ -3489,7 +3913,7 @@ namespace won::editor
 		}
 		ImGui::End();
 
-		if (ImGui::Begin("Inspector"))
+		if (ImGui::Begin(editor_text::inspector_window))
 		{
 			if (editor_viewport.picked_entity != INVALID_ENTITY)
 			{
@@ -3498,15 +3922,15 @@ namespace won::editor
 				if (name_comp)
 				{
 					ImGui::PushID("NameComponent");
-					ImGui::Text("NameComponent");
-					bool remove_component = DrawComponentRemoveButton("NameComponent");
+					ImGui::Text(editor_text::name_component);
+					bool remove_component = DrawComponentRemoveButton(editor_text::name_component);
 
 					if (!remove_component)
 					{
 						char name_buf[256];
 						std::snprintf(name_buf, sizeof(name_buf), "%s", name_comp->value.c_str());
 
-						if (ImGui::InputText("Value", name_buf, sizeof(name_buf)))
+						if (ImGui::InputText(editor_text::value, name_buf, sizeof(name_buf)))
 						{
 							name_comp->value = name_buf;
 						}
@@ -3527,14 +3951,14 @@ namespace won::editor
 				if (transform_comp)
 				{
 					ImGui::PushID("TransformComponent");
-					ImGui::Text("TransformComponent");
+					ImGui::Text(editor_text::transform_component);
 					const bool can_remove_transform = editor_viewport.picked_entity != editor_viewport.view->camera_entity;
-					bool remove_component = DrawComponentRemoveButton("TransformComponent", can_remove_transform);
+					bool remove_component = DrawComponentRemoveButton(editor_text::transform_component, can_remove_transform);
 
 					if (!remove_component)
 					{
 						float position[3] = { transform_comp->position.x, transform_comp->position.y, transform_comp->position.z };
-						if (ImGui::InputFloat3("Position", position))
+						if (ImGui::InputFloat3(editor_text::position, position))
 						{
 							transform_comp->position = { position[0], position[1], position[2] };
 							transform_comp->SetDirty();
@@ -3542,14 +3966,14 @@ namespace won::editor
 
 						float3 rotation_xyz = QuaternionToEulerXYZDegrees(transform_comp->rotation);
 						float rotation[3] = { rotation_xyz.x, rotation_xyz.y, rotation_xyz.z };
-						if (ImGui::InputFloat3("Rotation XYZ", rotation))
+						if (ImGui::InputFloat3(editor_text::rotation_xyz, rotation))
 						{
 							transform_comp->rotation = EulerXYZDegreesToQuaternion({ rotation[0], rotation[1], rotation[2] });
 							transform_comp->SetDirty();
 						}
 
 						float scale[3] = { transform_comp->scale.x, transform_comp->scale.y, transform_comp->scale.z };
-						if (ImGui::InputFloat3("Scale", scale))
+						if (ImGui::InputFloat3(editor_text::scale, scale))
 						{
 							transform_comp->scale = { scale[0], scale[1], scale[2] };
 							transform_comp->SetDirty();
@@ -3572,13 +3996,13 @@ namespace won::editor
 				if (hierarchy_comp)
 				{
 					ImGui::PushID("HierarchyComponent");
-					ImGui::Text("HierarchyComponent");
-					bool remove_component = DrawComponentRemoveButton("HierarchyComponent");
+					ImGui::Text(editor_text::hierarchy_component);
+					bool remove_component = DrawComponentRemoveButton(editor_text::hierarchy_component);
 
 					if (!remove_component)
 					{
 						uint64 parent_id = hierarchy_comp->parent_id;
-						if (ImGui::InputScalar("Parent", ImGuiDataType_U64, &parent_id))
+						if (ImGui::InputScalar(editor_text::parent, ImGuiDataType_U64, &parent_id))
 						{
 							hierarchy_comp->parent_id = parent_id;
 						}
@@ -3599,59 +4023,59 @@ namespace won::editor
 				if (light_comp)
 				{
 					ImGui::PushID("LightComponent");
-					ImGui::Text("LightComponent");
-					bool remove_component = DrawComponentRemoveButton("LightComponent");
+					ImGui::Text(editor_text::light_component);
+					bool remove_component = DrawComponentRemoveButton(editor_text::light_component);
 					
 					if (!remove_component)
 					{
 						// TODO: enum is hard coded
 						int light_type = static_cast<int>(light_comp->type);
-						const char* light_type_items[] = { "Directional", "Point", "Spot" };
-						if (ImGui::Combo("Type", &light_type, light_type_items, IM_ARRAYSIZE(light_type_items)))
+						const char* light_type_items[] = { editor_text::directional, editor_text::point, editor_text::spot };
+						if (ImGui::Combo(editor_text::type, &light_type, light_type_items, IM_ARRAYSIZE(light_type_items)))
 						{
 							light_comp->type = static_cast<LightComponent::LightType>(light_type);
 						}
 
 						float color[3] = { light_comp->color.x, light_comp->color.y, light_comp->color.z };
-						if (ImGui::InputFloat3("Color", color))
+						if (ImGui::InputFloat3(editor_text::color, color))
 						{
 							light_comp->color = { color[0], color[1], color[2] };
 						}
 
-						ImGui::DragFloat("Intensity", &light_comp->intensity, 1.0f, 0.0f, 100000.0f);
-						ImGui::DragFloat("Range", &light_comp->range, 0.1f, 0.0f, 100000.0f);
-						ImGui::DragFloat("Outer Cone", &light_comp->outer_cone_angle, 0.01f, 0.0f, math::PI);
-						ImGui::DragFloat("Inner Cone", &light_comp->inner_cone_angle, 0.01f, 0.0f, math::PI);
+						ImGui::DragFloat(editor_text::intensity, &light_comp->intensity, 1.0f, 0.0f, 100000.0f);
+						ImGui::DragFloat(editor_text::range, &light_comp->range, 0.1f, 0.0f, 100000.0f);
+						ImGui::DragFloat(editor_text::outer_cone, &light_comp->outer_cone_angle, 0.01f, 0.0f, math::PI);
+						ImGui::DragFloat(editor_text::inner_cone, &light_comp->inner_cone_angle, 0.01f, 0.0f, math::PI);
 
 						int shadow_map_resolution = static_cast<int>(light_comp->shadow_map_resolution);
-						if (ImGui::InputInt("Shadow Resolution", &shadow_map_resolution))
+						if (ImGui::InputInt(editor_text::shadow_resolution, &shadow_map_resolution))
 						{
 							light_comp->shadow_map_resolution = (std::max)(1, shadow_map_resolution);
 						}
 
 						int shadow_cascade_count = static_cast<int>(light_comp->shadow_cascade_count);
-						if (ImGui::SliderInt("Cascade Count", &shadow_cascade_count, 1, SHADOW_CASCADE_COUNT_MAX))
+						if (ImGui::SliderInt(editor_text::cascade_count, &shadow_cascade_count, 1, SHADOW_CASCADE_COUNT_MAX))
 						{
 							light_comp->shadow_cascade_count = static_cast<uint32>(shadow_cascade_count);
 						}
 
-						ImGui::SliderFloat("Cascade Lambda", &light_comp->shadow_cascade_lambda, 0.0f, 1.0f);
-						ImGui::SliderFloat("Cascade Blend", &light_comp->shadow_cascade_blend, 0.0f, 0.3f);
+						ImGui::SliderFloat(editor_text::cascade_lambda, &light_comp->shadow_cascade_lambda, 0.0f, 1.0f);
+						ImGui::SliderFloat(editor_text::cascade_blend, &light_comp->shadow_cascade_blend, 0.0f, 0.3f);
 
 						bool is_active = light_comp->IsActive();
-						if (ImGui::Checkbox("Active", &is_active))
+						if (ImGui::Checkbox(editor_text::active, &is_active))
 						{
 							light_comp->SetActive(is_active);
 						}
 
 						bool is_dynamic = light_comp->IsDynamic();
-						if (ImGui::Checkbox("Dynamic", &is_dynamic))
+						if (ImGui::Checkbox(editor_text::dynamic, &is_dynamic))
 						{
 							light_comp->SetDynamic(is_dynamic);
 						}
 
 						bool is_cast_shadow = light_comp->IsCastShadow();
-						if (ImGui::Checkbox("Cast Shadow", &is_cast_shadow))
+						if (ImGui::Checkbox(editor_text::cast_shadow, &is_cast_shadow))
 						{
 							light_comp->SetCastShadow(is_cast_shadow);
 						}
@@ -3672,14 +4096,14 @@ namespace won::editor
 				if (camera_comp)
 				{
 					ImGui::PushID("CameraComponent");
-					ImGui::Text("CameraComponent");
+					ImGui::Text(editor_text::camera_component);
 					const bool can_remove_camera = editor_viewport.picked_entity != editor_viewport.view->camera_entity;
-					bool remove_component = DrawComponentRemoveButton("CameraComponent", can_remove_camera);
+					bool remove_component = DrawComponentRemoveButton(editor_text::camera_component, can_remove_camera);
 
 					if (!remove_component)
 					{
 						bool is_ortho = camera_comp->IsOrtho();
-						if (ImGui::Checkbox("Orthographic", &is_ortho))
+						if (ImGui::Checkbox(editor_text::orthographic, &is_ortho))
 						{
 							camera_comp->SetOrtho(is_ortho);
 						}
@@ -3687,8 +4111,8 @@ namespace won::editor
 						float near_plane = camera_comp->near_plane;
 						float far_plane = camera_comp->far_plane;
 						bool near_far_changed = false;
-						near_far_changed |= ImGui::DragFloat("Near", &near_plane, 0.01f, 0.001f, 100000.0f);
-						near_far_changed |= ImGui::DragFloat("Far", &far_plane, 1.0f, 0.01f, 100000.0f);
+						near_far_changed |= ImGui::DragFloat(editor_text::near_plane, &near_plane, 0.01f, 0.001f, 100000.0f);
+						near_far_changed |= ImGui::DragFloat(editor_text::far_plane, &far_plane, 1.0f, 0.01f, 100000.0f);
 						if (near_far_changed)
 						{
 							near_plane = (std::max)(0.001f, near_plane);
@@ -3699,7 +4123,7 @@ namespace won::editor
 						if (!camera_comp->IsOrtho())
 						{
 							float fov_y = camera_comp->fov_y;
-							if (ImGui::DragFloat("FOV Y", &fov_y, 0.01f, 0.01f, math::PI - 0.01f))
+							if (ImGui::DragFloat(editor_text::fov_y, &fov_y, 0.01f, 0.01f, math::PI - 0.01f))
 							{
 								camera_comp->SetFOV_Y(fov_y);
 							}
@@ -3707,16 +4131,16 @@ namespace won::editor
 						else
 						{
 							float ortho_vertical_size = camera_comp->ortho_vertical_size;
-							if (ImGui::DragFloat("Ortho Size", &ortho_vertical_size, 0.1f, 0.001f, 100000.0f))
+							if (ImGui::DragFloat(editor_text::ortho_size, &ortho_vertical_size, 0.1f, 0.001f, 100000.0f))
 							{
 								camera_comp->SetOrthoVerticalSize(ortho_vertical_size);
 							}
 						}
 
-						ImGui::Text("Aspect Ratio: %.3f", camera_comp->aspect_ratio);
-						ImGui::DragFloat("Aperture", &camera_comp->aperture, 0.01f, 0.0f, 128.0f);
-						ImGui::DragFloat("Shutter Speed", &camera_comp->shutter_speed, 0.001f, 0.0001f, 100.0f);
-						ImGui::DragFloat("Sensitivity", &camera_comp->sensitivity, 1.0f, 1.0f, 102400.0f);
+						ImGui::Text(editor_text::aspect_ratio_format, camera_comp->aspect_ratio);
+						ImGui::DragFloat(editor_text::aperture, &camera_comp->aperture, 0.01f, 0.0f, 128.0f);
+						ImGui::DragFloat(editor_text::shutter_speed, &camera_comp->shutter_speed, 0.001f, 0.0001f, 100.0f);
+						ImGui::DragFloat(editor_text::sensitivity, &camera_comp->sensitivity, 1.0f, 1.0f, 102400.0f);
 					}
 					else if (can_remove_camera)
 					{
@@ -3737,19 +4161,19 @@ namespace won::editor
 				if (sky_comp)
 				{
 					ImGui::PushID("SkyComponent");
-					ImGui::Text("SkyComponent");
-					bool remove_component = DrawComponentRemoveButton("SkyComponent");
+					ImGui::Text(editor_text::sky_component);
+					bool remove_component = DrawComponentRemoveButton(editor_text::sky_component);
 
 					if (!remove_component)
 					{
 						bool is_active = sky_comp->IsActive();
-						if (ImGui::Checkbox("Active", &is_active))
+						if (ImGui::Checkbox(editor_text::active, &is_active))
 						{
 							sky_comp->SetActive(is_active);
 						}
 
 						float sun_direction[3] = { sky_comp->sun_direction.x, sky_comp->sun_direction.y, sky_comp->sun_direction.z };
-						if (ImGui::DragFloat3("Sun Direction", sun_direction, 0.01f, -1.0f, 1.0f))
+						if (ImGui::DragFloat3(editor_text::sun_direction, sun_direction, 0.01f, -1.0f, 1.0f))
 						{
 							float3 direction = { sun_direction[0], sun_direction[1], sun_direction[2] };
 							const float direction_length_sq = math::LengthSquared(direction);
@@ -3766,45 +4190,45 @@ namespace won::editor
 						}
 
 						float sun_color[3] = { sky_comp->sun_color.x, sky_comp->sun_color.y, sky_comp->sun_color.z };
-						if (ImGui::InputFloat3("Sun Color", sun_color))
+						if (ImGui::InputFloat3(editor_text::sun_color, sun_color))
 						{
 							sky_comp->sun_color = { sun_color[0], sun_color[1], sun_color[2] };
 						}
 
-						ImGui::DragFloat("Sun Intensity", &sky_comp->sun_intensity, 0.1f, 0.0f, 100000.0f);
-						ImGui::DragFloat("Sun Angular Radius", &sky_comp->sun_angular_radius, 0.0001f, 0.0f, 1.0f);
-						ImGui::DragFloat("Sun Glow Intensity", &sky_comp->sun_glow_intensity, 0.01f, 0.0f, 1000.0f);
-						ImGui::DragFloat("Sun Glow Falloff", &sky_comp->sun_glow_falloff, 0.1f, 0.0f, 1000.0f);
+						ImGui::DragFloat(editor_text::sun_intensity, &sky_comp->sun_intensity, 0.1f, 0.0f, 100000.0f);
+						ImGui::DragFloat(editor_text::sun_angular_radius, &sky_comp->sun_angular_radius, 0.0001f, 0.0f, 1.0f);
+						ImGui::DragFloat(editor_text::sun_glow_intensity, &sky_comp->sun_glow_intensity, 0.01f, 0.0f, 1000.0f);
+						ImGui::DragFloat(editor_text::sun_glow_falloff, &sky_comp->sun_glow_falloff, 0.1f, 0.0f, 1000.0f);
 
 						float sky_horizon_color[3] = { sky_comp->sky_horizon_color.x, sky_comp->sky_horizon_color.y, sky_comp->sky_horizon_color.z };
-						if (ImGui::InputFloat3("Sky Horizon Color", sky_horizon_color))
+						if (ImGui::InputFloat3(editor_text::sky_horizon_color, sky_horizon_color))
 						{
 							sky_comp->sky_horizon_color = { sky_horizon_color[0], sky_horizon_color[1], sky_horizon_color[2] };
 						}
 
 						float sky_zenith_color[3] = { sky_comp->sky_zenith_color.x, sky_comp->sky_zenith_color.y, sky_comp->sky_zenith_color.z };
-						if (ImGui::InputFloat3("Sky Zenith Color", sky_zenith_color))
+						if (ImGui::InputFloat3(editor_text::sky_zenith_color, sky_zenith_color))
 						{
 							sky_comp->sky_zenith_color = { sky_zenith_color[0], sky_zenith_color[1], sky_zenith_color[2] };
 						}
 
-						ImGui::DragFloat("Sky Intensity", &sky_comp->sky_intensity, 0.01f, 0.0f, 1000.0f);
-						ImGui::DragFloat("Sky Horizon Falloff", &sky_comp->sky_horizon_falloff, 0.01f, 0.0f, 1000.0f);
+						ImGui::DragFloat(editor_text::sky_intensity, &sky_comp->sky_intensity, 0.01f, 0.0f, 1000.0f);
+						ImGui::DragFloat(editor_text::sky_horizon_falloff, &sky_comp->sky_horizon_falloff, 0.01f, 0.0f, 1000.0f);
 
 						float ground_horizon_color[3] = { sky_comp->ground_horizon_color.x, sky_comp->ground_horizon_color.y, sky_comp->ground_horizon_color.z };
-						if (ImGui::InputFloat3("Ground Horizon Color", ground_horizon_color))
+						if (ImGui::InputFloat3(editor_text::ground_horizon_color, ground_horizon_color))
 						{
 							sky_comp->ground_horizon_color = { ground_horizon_color[0], ground_horizon_color[1], ground_horizon_color[2] };
 						}
 
 						float ground_color[3] = { sky_comp->ground_color.x, sky_comp->ground_color.y, sky_comp->ground_color.z };
-						if (ImGui::InputFloat3("Ground Color", ground_color))
+						if (ImGui::InputFloat3(editor_text::ground_color, ground_color))
 						{
 							sky_comp->ground_color = { ground_color[0], ground_color[1], ground_color[2] };
 						}
 
-						ImGui::DragFloat("Ground Intensity", &sky_comp->ground_intensity, 0.01f, 0.0f, 1000.0f);
-						ImGui::DragFloat("Ground Falloff", &sky_comp->ground_falloff, 0.01f, 0.0f, 1000.0f);
+						ImGui::DragFloat(editor_text::ground_intensity, &sky_comp->ground_intensity, 0.01f, 0.0f, 1000.0f);
+						ImGui::DragFloat(editor_text::ground_falloff, &sky_comp->ground_falloff, 0.01f, 0.0f, 1000.0f);
 					}
 					else
 					{
@@ -3822,8 +4246,8 @@ namespace won::editor
 				if (fog_volume_comp)
 				{
 					ImGui::PushID("FogVolumeComponent");
-					ImGui::Text("FogVolumeComponent");
-					bool remove_component = DrawComponentRemoveButton("FogVolumeComponent");
+					ImGui::Text(editor_text::fog_volume_component);
+					bool remove_component = DrawComponentRemoveButton(editor_text::fog_volume_component);
 
 					if (!remove_component)
 					{
@@ -3845,33 +4269,33 @@ namespace won::editor
 				if (environment_lighting_comp)
 				{
 					ImGui::PushID("EnvironmentLightingComponent");
-					ImGui::Text("EnvironmentLightingComponent");
-					bool remove_component = DrawComponentRemoveButton("EnvironmentLightingComponent");
+					ImGui::Text(editor_text::environment_lighting_component);
+					bool remove_component = DrawComponentRemoveButton(editor_text::environment_lighting_component);
 
 					if (!remove_component)
 					{
 						bool is_active = environment_lighting_comp->IsActive();
-						if (ImGui::Checkbox("Active", &is_active))
+						if (ImGui::Checkbox(editor_text::active, &is_active))
 						{
 							environment_lighting_comp->SetActive(is_active);
 						}
 
 						int gi_mode = static_cast<int>(environment_lighting_comp->gi_mode);
-						const char* gi_mode_items[] = { "None", "Ambient", "DDGI" };
-						if (ImGui::Combo("GI Mode", &gi_mode, gi_mode_items, IM_ARRAYSIZE(gi_mode_items)))
+						const char* gi_mode_items[] = { editor_text::none, editor_text::ambient, editor_text::ddgi };
+						if (ImGui::Combo(editor_text::gi_mode, &gi_mode, gi_mode_items, IM_ARRAYSIZE(gi_mode_items)))
 						{
 							environment_lighting_comp->gi_mode = static_cast<EnvironmentLightingComponent::GIMode>(gi_mode);
 						}
 
 						float ambient_color[3] = { environment_lighting_comp->ambient_color.x, environment_lighting_comp->ambient_color.y, environment_lighting_comp->ambient_color.z };
-						if (ImGui::InputFloat3("Ambient Color", ambient_color))
+						if (ImGui::InputFloat3(editor_text::ambient_color, ambient_color))
 						{
 							environment_lighting_comp->ambient_color = { ambient_color[0], ambient_color[1], ambient_color[2] };
 						}
 
-						ImGui::DragFloat("Ambient Intensity", &environment_lighting_comp->ambient_intensity, 0.01f, 0.0f, 1000.0f);
-						ImGui::DragFloat("Indirect Diffuse Scale", &environment_lighting_comp->indirect_diffuse_scale, 0.01f, 0.0f, 1000.0f);
-						ImGui::DragFloat("Indirect Specular Scale", &environment_lighting_comp->indirect_specular_scale, 0.01f, 0.0f, 1000.0f);
+						ImGui::DragFloat(editor_text::ambient_intensity, &environment_lighting_comp->ambient_intensity, 0.01f, 0.0f, 1000.0f);
+						ImGui::DragFloat(editor_text::indirect_diffuse_scale, &environment_lighting_comp->indirect_diffuse_scale, 0.01f, 0.0f, 1000.0f);
+						ImGui::DragFloat(editor_text::indirect_specular_scale, &environment_lighting_comp->indirect_specular_scale, 0.01f, 0.0f, 1000.0f);
 					}
 					else
 					{
@@ -3889,19 +4313,19 @@ namespace won::editor
 				if (ddgi_volume_comp)
 				{
 					ImGui::PushID("DDGIVolumeComponent");
-					ImGui::Text("DDGIVolumeComponent");
-					bool remove_component = DrawComponentRemoveButton("DDGIVolumeComponent");
+					ImGui::Text(editor_text::ddgi_volume_component);
+					bool remove_component = DrawComponentRemoveButton(editor_text::ddgi_volume_component);
 
 					if (!remove_component)
 					{
 						bool is_active = ddgi_volume_comp->IsActive();
-						if (ImGui::Checkbox("Active", &is_active))
+						if (ImGui::Checkbox(editor_text::active, &is_active))
 						{
 							ddgi_volume_comp->SetActive(is_active);
 						}
 
 						bool is_dynamic = ddgi_volume_comp->IsDynamic();
-						if (ImGui::Checkbox("Dynamic", &is_dynamic))
+						if (ImGui::Checkbox(editor_text::dynamic, &is_dynamic))
 						{
 							ddgi_volume_comp->SetDynamic(is_dynamic);
 						}
@@ -3911,7 +4335,7 @@ namespace won::editor
 							static_cast<int>(ddgi_volume_comp->probe_counts.y),
 							static_cast<int>(ddgi_volume_comp->probe_counts.z)
 						};
-						if (ImGui::InputInt3("Probe Counts", probe_counts))
+						if (ImGui::InputInt3(editor_text::probe_counts, probe_counts))
 						{
 							ddgi_volume_comp->probe_counts = {
 								static_cast<uint32>((std::max)(1, probe_counts[0])),
@@ -3921,34 +4345,34 @@ namespace won::editor
 						}
 
 						float probe_spacing[3] = { ddgi_volume_comp->probe_spacing.x, ddgi_volume_comp->probe_spacing.y, ddgi_volume_comp->probe_spacing.z };
-						if (ImGui::InputFloat3("Probe Spacing", probe_spacing))
+						if (ImGui::InputFloat3(editor_text::probe_spacing, probe_spacing))
 						{
 							ddgi_volume_comp->probe_spacing = { probe_spacing[0], probe_spacing[1], probe_spacing[2] };
 						}
 
 						float volume_offset[3] = { ddgi_volume_comp->volume_offset.x, ddgi_volume_comp->volume_offset.y, ddgi_volume_comp->volume_offset.z };
-						if (ImGui::InputFloat3("Volume Offset", volume_offset))
+						if (ImGui::InputFloat3(editor_text::volume_offset, volume_offset))
 						{
 							ddgi_volume_comp->volume_offset = { volume_offset[0], volume_offset[1], volume_offset[2] };
 						}
 
 						int probes_per_frame = static_cast<int>(ddgi_volume_comp->probes_per_frame);
-						if (ImGui::InputInt("Probes Per Frame", &probes_per_frame))
+						if (ImGui::InputInt(editor_text::probes_per_frame, &probes_per_frame))
 						{
 							ddgi_volume_comp->probes_per_frame = static_cast<uint32>((std::max)(1, probes_per_frame));
 						}
 
 						int priority = static_cast<int>(ddgi_volume_comp->priority);
-						if (ImGui::InputInt("Priority", &priority))
+						if (ImGui::InputInt(editor_text::priority, &priority))
 						{
 							ddgi_volume_comp->priority = static_cast<uint32>((std::max)(0, priority));
 						}
 
-						ImGui::SliderFloat("Hysteresis", &ddgi_volume_comp->hysteresis, 0.0f, 1.0f);
-						ImGui::DragFloat("Normal Bias", &ddgi_volume_comp->normal_bias, 0.001f, 0.0f, 100.0f);
-						ImGui::DragFloat("View Bias", &ddgi_volume_comp->view_bias, 0.001f, 0.0f, 100.0f);
-						ImGui::DragFloat("Max Distance", &ddgi_volume_comp->max_distance, 0.01f, 0.0f, 100000.0f);
-						if (ImGui::Button("Update Scene GPUBVH"))
+						ImGui::SliderFloat(editor_text::hysteresis, &ddgi_volume_comp->hysteresis, 0.0f, 1.0f);
+						ImGui::DragFloat(editor_text::normal_bias, &ddgi_volume_comp->normal_bias, 0.001f, 0.0f, 100.0f);
+						ImGui::DragFloat(editor_text::view_bias, &ddgi_volume_comp->view_bias, 0.001f, 0.0f, 100.0f);
+						ImGui::DragFloat(editor_text::max_distance, &ddgi_volume_comp->max_distance, 0.01f, 0.0f, 100000.0f);
+						if (ImGui::Button(editor_text::update_scene_gpubvh))
 						{
 							editor_viewport.view->scene->BuildGPUBVH();
 						}
@@ -3969,15 +4393,15 @@ namespace won::editor
 				if (geometry_comp)
 				{
 					ImGui::PushID("GeometryComponent");
-					ImGui::Text("GeometryComponent");
-					bool remove_component = DrawComponentRemoveButton("GeometryComponent");
+					ImGui::Text(editor_text::geometry_component);
+					bool remove_component = DrawComponentRemoveButton(editor_text::geometry_component);
 
 					if (!remove_component)
 					{
-						ImGui::Text("Mesh: %s", geometry_comp->mesh ? "Assigned" : "None");
+						ImGui::Text(editor_text::mesh_format, geometry_comp->mesh ? editor_text::assigned : editor_text::none);
 
 						bool cast_shadow = geometry_comp->IsCastShadow();
-						if (ImGui::Checkbox("Cast Shadow", &cast_shadow))
+						if (ImGui::Checkbox(editor_text::cast_shadow, &cast_shadow))
 						{
 							geometry_comp->SetCastShadow(cast_shadow);
 						}
@@ -4025,47 +4449,47 @@ namespace won::editor
 				if (sprite_2d_comp)
 				{
 					ImGui::PushID("Sprite2DComponent");
-					ImGui::Text("Sprite2DComponent");
-					bool remove_component = DrawComponentRemoveButton("Sprite2DComponent");
+					ImGui::Text(editor_text::sprite_2d_component);
+					bool remove_component = DrawComponentRemoveButton(editor_text::sprite_2d_component);
 
 					if (!remove_component)
 					{
 						float anchor[2] = { sprite_2d_comp->anchor.x, sprite_2d_comp->anchor.y };
-						if (ImGui::InputFloat2("Anchor", anchor))
+						if (ImGui::InputFloat2(editor_text::anchor, anchor))
 						{
 							sprite_2d_comp->anchor = { anchor[0], anchor[1] };
 							sprite_2d_comp->SetDirty();
 						}
 
 						float position[2] = { sprite_2d_comp->position.x, sprite_2d_comp->position.y };
-						if (ImGui::InputFloat2("Position", position))
+						if (ImGui::InputFloat2(editor_text::position, position))
 						{
 							sprite_2d_comp->position = { position[0], position[1] };
 							sprite_2d_comp->SetDirty();
 						}
 
 						float size[2] = { sprite_2d_comp->size.x, sprite_2d_comp->size.y };
-						if (ImGui::InputFloat2("Size", size))
+						if (ImGui::InputFloat2(editor_text::size, size))
 						{
 							sprite_2d_comp->size = { size[0], size[1] };
 							sprite_2d_comp->SetDirty();
 						}
 
 						float pivot[2] = { sprite_2d_comp->pivot.x, sprite_2d_comp->pivot.y };
-						if (ImGui::InputFloat2("Pivot", pivot))
+						if (ImGui::InputFloat2(editor_text::pivot, pivot))
 						{
 							sprite_2d_comp->pivot = { pivot[0], pivot[1] };
 							sprite_2d_comp->SetDirty();
 						}
 
 						float uv_rect[4] = { sprite_2d_comp->uv_rect.x, sprite_2d_comp->uv_rect.y, sprite_2d_comp->uv_rect.z, sprite_2d_comp->uv_rect.w };
-						if (ImGui::InputFloat4("UV Rect", uv_rect))
+						if (ImGui::InputFloat4(editor_text::uv_rect, uv_rect))
 						{
 							sprite_2d_comp->uv_rect = { uv_rect[0], uv_rect[1], uv_rect[2], uv_rect[3] };
 							sprite_2d_comp->SetDirty();
 						}
 
-						if (ImGui::InputInt("Layer", &sprite_2d_comp->layer))
+						if (ImGui::InputInt(editor_text::layer, &sprite_2d_comp->layer))
 						{
 							sprite_2d_comp->SetDirty();
 						}
@@ -4086,50 +4510,50 @@ namespace won::editor
 				if (text_2d_comp)
 				{
 					ImGui::PushID("Text2DComponent");
-					ImGui::Text("Text2DComponent");
-					bool remove_component = DrawComponentRemoveButton("Text2DComponent");
+					ImGui::Text(editor_text::text_2d_component);
+					bool remove_component = DrawComponentRemoveButton(editor_text::text_2d_component);
 
 					if (!remove_component)
 					{
-						ImGui::Text("Font: %s", text_2d_comp->font && text_2d_comp->font->IsValid() ? "Assigned" : "None");
+						ImGui::Text(editor_text::font_format, text_2d_comp->font && text_2d_comp->font->IsValid() ? editor_text::assigned : editor_text::none);
 
 						char text_buf[4096] = {};
 						strncpy_s(text_buf, text_2d_comp->text.c_str(), sizeof(text_buf) - 1);
-						if (ImGui::InputTextMultiline("Text", text_buf, sizeof(text_buf), ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 4.0f)))
+						if (ImGui::InputTextMultiline(editor_text::text, text_buf, sizeof(text_buf), ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 4.0f)))
 						{
 							text_2d_comp->text = text_buf;
 							text_2d_comp->SetDirty();
 						}
 
 						float anchor[2] = { text_2d_comp->anchor.x, text_2d_comp->anchor.y };
-						if (ImGui::InputFloat2("Anchor", anchor))
+						if (ImGui::InputFloat2(editor_text::anchor, anchor))
 						{
 							text_2d_comp->anchor = { anchor[0], anchor[1] };
 							text_2d_comp->SetDirty();
 						}
 
 						float position[2] = { text_2d_comp->position.x, text_2d_comp->position.y };
-						if (ImGui::InputFloat2("Position", position))
+						if (ImGui::InputFloat2(editor_text::position, position))
 						{
 							text_2d_comp->position = { position[0], position[1] };
 							text_2d_comp->SetDirty();
 						}
 
 						int pixel_height = static_cast<int>(text_2d_comp->pixel_height);
-						if (ImGui::InputInt("Pixel Height", &pixel_height))
+						if (ImGui::InputInt(editor_text::pixel_height, &pixel_height))
 						{
 							text_2d_comp->pixel_height = static_cast<uint32>((std::max)(1, pixel_height));
 							text_2d_comp->SetDirty();
 						}
 
 						float pivot[2] = { text_2d_comp->pivot.x, text_2d_comp->pivot.y };
-						if (ImGui::InputFloat2("Pivot", pivot))
+						if (ImGui::InputFloat2(editor_text::pivot, pivot))
 						{
 							text_2d_comp->pivot = { pivot[0], pivot[1] };
 							text_2d_comp->SetDirty();
 						}
 
-						if (ImGui::InputInt("Layer", &text_2d_comp->layer))
+						if (ImGui::InputInt(editor_text::layer, &text_2d_comp->layer))
 						{
 							text_2d_comp->SetDirty();
 						}
@@ -4150,34 +4574,34 @@ namespace won::editor
 				if (sprite_3d_comp)
 				{
 					ImGui::PushID("Sprite3DComponent");
-					ImGui::Text("Sprite3DComponent");
-					bool remove_component = DrawComponentRemoveButton("Sprite3DComponent");
+					ImGui::Text(editor_text::sprite_3d_component);
+					bool remove_component = DrawComponentRemoveButton(editor_text::sprite_3d_component);
 
 					if (!remove_component)
 					{
 						float size[2] = { sprite_3d_comp->size.x, sprite_3d_comp->size.y };
-						if (ImGui::InputFloat2("Size", size))
+						if (ImGui::InputFloat2(editor_text::size, size))
 						{
 							sprite_3d_comp->size = { size[0], size[1] };
 							sprite_3d_comp->SetDirty();
 						}
 
 						float pivot[2] = { sprite_3d_comp->pivot.x, sprite_3d_comp->pivot.y };
-						if (ImGui::InputFloat2("Pivot", pivot))
+						if (ImGui::InputFloat2(editor_text::pivot, pivot))
 						{
 							sprite_3d_comp->pivot = { pivot[0], pivot[1] };
 							sprite_3d_comp->SetDirty();
 						}
 
 						float uv_rect[4] = { sprite_3d_comp->uv_rect.x, sprite_3d_comp->uv_rect.y, sprite_3d_comp->uv_rect.z, sprite_3d_comp->uv_rect.w };
-						if (ImGui::InputFloat4("UV Rect", uv_rect))
+						if (ImGui::InputFloat4(editor_text::uv_rect, uv_rect))
 						{
 							sprite_3d_comp->uv_rect = { uv_rect[0], uv_rect[1], uv_rect[2], uv_rect[3] };
 							sprite_3d_comp->SetDirty();
 						}
 
 						bool billboard = sprite_3d_comp->IsBillboard();
-						if (ImGui::Checkbox("Billboard", &billboard))
+						if (ImGui::Checkbox(editor_text::billboard, &billboard))
 						{
 							sprite_3d_comp->SetBillboard(billboard);
 						}
@@ -4198,43 +4622,43 @@ namespace won::editor
 				if (text_3d_comp)
 				{
 					ImGui::PushID("Text3DComponent");
-					ImGui::Text("Text3DComponent");
-					bool remove_component = DrawComponentRemoveButton("Text3DComponent");
+					ImGui::Text(editor_text::text_3d_component);
+					bool remove_component = DrawComponentRemoveButton(editor_text::text_3d_component);
 
 					if (!remove_component)
 					{
-						ImGui::Text("Font: %s", text_3d_comp->font && text_3d_comp->font->IsValid() ? "Assigned" : "None");
+						ImGui::Text(editor_text::font_format, text_3d_comp->font && text_3d_comp->font->IsValid() ? editor_text::assigned : editor_text::none);
 
 						char text_buf[4096] = {};
 						strncpy_s(text_buf, text_3d_comp->text.c_str(), sizeof(text_buf) - 1);
-						if (ImGui::InputTextMultiline("Text", text_buf, sizeof(text_buf), ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 4.0f)))
+						if (ImGui::InputTextMultiline(editor_text::text, text_buf, sizeof(text_buf), ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 4.0f)))
 						{
 							text_3d_comp->text = text_buf;
 							text_3d_comp->SetDirty();
 						}
 
 						int pixel_height = static_cast<int>(text_3d_comp->pixel_height);
-						if (ImGui::InputInt("Pixel Height", &pixel_height))
+						if (ImGui::InputInt(editor_text::pixel_height, &pixel_height))
 						{
 							text_3d_comp->pixel_height = static_cast<uint32>((std::max)(1, pixel_height));
 							text_3d_comp->SetDirty();
 						}
 
-						if (ImGui::InputFloat("Height", &text_3d_comp->height))
+						if (ImGui::InputFloat(editor_text::height, &text_3d_comp->height))
 						{
 							text_3d_comp->height = (std::max)(0.0f, text_3d_comp->height);
 							text_3d_comp->SetDirty();
 						}
 
 						float pivot[2] = { text_3d_comp->pivot.x, text_3d_comp->pivot.y };
-						if (ImGui::InputFloat2("Pivot", pivot))
+						if (ImGui::InputFloat2(editor_text::pivot, pivot))
 						{
 							text_3d_comp->pivot = { pivot[0], pivot[1] };
 							text_3d_comp->SetDirty();
 						}
 
 						bool billboard = text_3d_comp->IsBillboard();
-						if (ImGui::Checkbox("Billboard", &billboard))
+						if (ImGui::Checkbox(editor_text::billboard, &billboard))
 						{
 							text_3d_comp->SetBillboard(billboard);
 						}
@@ -4255,13 +4679,13 @@ namespace won::editor
 				if (animation_comp)
 				{
 					ImGui::PushID("AnimationComponent");
-					ImGui::Text("AnimationComponent");
-					bool remove_component = DrawComponentRemoveButton("AnimationComponent");
+					ImGui::Text(editor_text::animation_component);
+					bool remove_component = DrawComponentRemoveButton(editor_text::animation_component);
 
 					if (!remove_component)
 					{
 						const int clip_count = static_cast<int>(animation_comp->clips.size());
-						ImGui::Text("Clips: %d", clip_count);
+						ImGui::Text(editor_text::clips_format, clip_count);
 
 						if (clip_count > 0)
 						{
@@ -4272,13 +4696,13 @@ namespace won::editor
 
 							int current_clip_index = static_cast<int>(animation_comp->current_clip_index);
 							std::shared_ptr<resource::AnimationClip> current_clip = animation_comp->clips[animation_comp->current_clip_index];
-							String current_clip_name = current_clip && !current_clip->name.empty() ? current_clip->name : "Clip " + std::to_string(current_clip_index);
-							if (ImGui::BeginCombo("Clip", current_clip_name.c_str()))
+							String current_clip_name = current_clip && !current_clip->name.empty() ? current_clip->name : String(editor_text::clip) + " " + std::to_string(current_clip_index);
+							if (ImGui::BeginCombo(editor_text::clip, current_clip_name.c_str()))
 							{
 								for (int clip_index = 0; clip_index < clip_count; ++clip_index)
 								{
 									const std::shared_ptr<resource::AnimationClip>& clip = animation_comp->clips[clip_index];
-									String clip_name = clip && !clip->name.empty() ? clip->name : "Clip " + std::to_string(clip_index);
+									String clip_name = clip && !clip->name.empty() ? clip->name : String(editor_text::clip) + " " + std::to_string(clip_index);
 									const bool is_selected = current_clip_index == clip_index;
 									if (ImGui::Selectable(clip_name.c_str(), is_selected))
 									{
@@ -4298,37 +4722,37 @@ namespace won::editor
 							const float ticks_per_second = current_clip && current_clip->ticks_per_second > 0.0f ? current_clip->ticks_per_second : 1.0f;
 							const float duration_seconds = current_clip ? current_clip->duration / ticks_per_second : 0.0f;
 
-							if (ImGui::Button(animation_comp->playing ? "Pause" : "Play"))
+							if (ImGui::Button(animation_comp->playing ? editor_text::pause : editor_text::play))
 							{
 								animation_comp->playing = !animation_comp->playing;
 							}
 							ImGui::SameLine();
-							ImGui::Checkbox("Loop", &animation_comp->loop);
+							ImGui::Checkbox(editor_text::loop, &animation_comp->loop);
 
-							ImGui::DragFloat("Speed", &animation_comp->speed, 0.01f, -10.0f, 10.0f);
+							ImGui::DragFloat(editor_text::speed, &animation_comp->speed, 0.01f, -10.0f, 10.0f);
 
 							if (duration_seconds > 0.0f)
 							{
 								float time = std::clamp(animation_comp->time, 0.0f, duration_seconds);
-								if (ImGui::SliderFloat("Time", &time, 0.0f, duration_seconds))
+								if (ImGui::SliderFloat(editor_text::time, &time, 0.0f, duration_seconds))
 								{
 									animation_comp->time = time;
 									animation_comp->bone_matrices_dirty = true;
 								}
-								ImGui::Text("Duration: %.3fs", duration_seconds);
+								ImGui::Text(editor_text::duration_format, duration_seconds);
 							}
 							else
 							{
-								ImGui::TextDisabled("Duration: 0.000s");
+								ImGui::TextDisabled(editor_text::duration_zero);
 							}
 						}
 						else
 						{
-							ImGui::TextDisabled("No animation clips");
+							ImGui::TextDisabled(editor_text::no_animation_clips);
 						}
 
-						ImGui::Text("Bone Matrices: %d", static_cast<int>(animation_comp->bone_matrices.size()));
-						ImGui::Text("Bone Matrix Offset: %u", animation_comp->bone_matrix_offset);
+						ImGui::Text(editor_text::bone_matrices_format, static_cast<int>(animation_comp->bone_matrices.size()));
+						ImGui::Text(editor_text::bone_matrix_offset_format, animation_comp->bone_matrix_offset);
 					}
 					else
 					{
@@ -4346,8 +4770,8 @@ namespace won::editor
 				if (material_comp)
 				{
 					ImGui::PushID("MaterialComponent");
-					ImGui::Text("MaterialComponent");
-					bool remove_component = DrawComponentRemoveButton("MaterialComponent");
+					ImGui::Text(editor_text::material_component);
+					bool remove_component = DrawComponentRemoveButton(editor_text::material_component);
 
 					if (!remove_component)
 					{
@@ -4360,9 +4784,9 @@ namespace won::editor
 						}
 
 						int material_slot_count = static_cast<int>(material_comp->GetMaterialSlotCount());
-						ImGui::Text("Material Slots: %d", material_slot_count);
+						ImGui::Text(editor_text::material_slots_format, material_slot_count);
 
-						if (ImGui::Button("Add Slot"))
+						if (ImGui::Button(editor_text::add_slot))
 						{
 							material_comp->AddMaterialSlot();
 							selected_material_slot = material_slot_count;
@@ -4373,7 +4797,7 @@ namespace won::editor
 						{
 							ImGui::BeginDisabled();
 						}
-						if (ImGui::Button("Remove Slot") && material_slot_count > 0)
+						if (ImGui::Button(editor_text::remove_slot) && material_slot_count > 0)
 						{
 							material_comp->material_slots.erase(material_comp->material_slots.begin() + selected_material_slot);
 							material_slot_count = static_cast<int>(material_comp->GetMaterialSlotCount());
@@ -4388,12 +4812,12 @@ namespace won::editor
 						{
 							selected_material_slot = (std::min)(selected_material_slot, material_slot_count - 1);
 
-							String slot_label = "Slot " + std::to_string(selected_material_slot);
-							if (ImGui::BeginCombo("Selected Slot", slot_label.c_str()))
+							String slot_label = String(editor_text::slot_prefix) + std::to_string(selected_material_slot);
+							if (ImGui::BeginCombo(editor_text::selected_slot, slot_label.c_str()))
 							{
 								for (int slot_index = 0; slot_index < material_slot_count; ++slot_index)
 								{
-									String item_label = "Slot " + std::to_string(slot_index);
+									String item_label = String(editor_text::slot_prefix) + std::to_string(slot_index);
 									const bool is_selected = selected_material_slot == slot_index;
 									if (ImGui::Selectable(item_label.c_str(), is_selected))
 									{
@@ -4408,81 +4832,81 @@ namespace won::editor
 							}
 
 							MaterialSlot& material_slot = material_comp->GetMaterialSlot(static_cast<uint32>(selected_material_slot));
-							const char* shader_type_items[] = { "Unlit" };
+							const char* shader_type_items[] = { editor_text::unlit };
 							int shader_type = static_cast<int>(material_slot.shader_type);
-							if (ImGui::Combo("Shader Type", &shader_type, shader_type_items, IM_ARRAYSIZE(shader_type_items)))
+							if (ImGui::Combo(editor_text::shader_type, &shader_type, shader_type_items, IM_ARRAYSIZE(shader_type_items)))
 							{
 								material_slot.shader_type = static_cast<uint32>(shader_type);
 							}
 
 							bool is_double_sided = (material_slot.flags & SHADER_MATERIAL_FLAG_DOUBLE_SIDED) != 0;
-							if (ImGui::Checkbox("Double Sided", &is_double_sided))
+							if (ImGui::Checkbox(editor_text::double_sided, &is_double_sided))
 							{
 								if (is_double_sided) { material_slot.flags |= SHADER_MATERIAL_FLAG_DOUBLE_SIDED; } else { material_slot.flags &= ~SHADER_MATERIAL_FLAG_DOUBLE_SIDED; }
 							}
 
 							bool is_transparent = (material_slot.flags & SHADER_MATERIAL_FLAG_TRANSPARENT) != 0;
-							if (ImGui::Checkbox("Transparent", &is_transparent))
+							if (ImGui::Checkbox(editor_text::transparent, &is_transparent))
 							{
 								if (is_transparent) { material_slot.flags |= SHADER_MATERIAL_FLAG_TRANSPARENT; } else { material_slot.flags &= ~SHADER_MATERIAL_FLAG_TRANSPARENT; }
 							}
 
 							bool use_vertex_colors = (material_slot.flags & SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS) != 0;
-							if (ImGui::Checkbox("Use Vertex Colors", &use_vertex_colors))
+							if (ImGui::Checkbox(editor_text::use_vertex_colors, &use_vertex_colors))
 							{
 								if (use_vertex_colors) { material_slot.flags |= SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS; } else { material_slot.flags &= ~SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS; }
 							}
 
 							bool receive_shadow = (material_slot.flags & SHADER_MATERIAL_FLAG_RECEIVE_SHADOW) != 0;
-							if (ImGui::Checkbox("Receive Shadow", &receive_shadow))
+							if (ImGui::Checkbox(editor_text::receive_shadow, &receive_shadow))
 							{
 								if (receive_shadow) { material_slot.flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW; } else { material_slot.flags &= ~SHADER_MATERIAL_FLAG_RECEIVE_SHADOW; }
 							}
 
 							float base_color[4] = { material_slot.base_color.x, material_slot.base_color.y, material_slot.base_color.z, material_slot.base_color.w };
-							if (ImGui::ColorEdit4("Base Color", base_color))
+							if (ImGui::ColorEdit4(editor_text::base_color, base_color))
 							{
 								material_slot.base_color = { base_color[0], base_color[1], base_color[2], base_color[3] };
 							}
 
-							ImGui::SliderFloat("Metallic", &material_slot.metallic, 0.0f, 1.0f);
-							ImGui::SliderFloat("Roughness", &material_slot.roughness, 0.0f, 1.0f);
-							ImGui::SliderFloat("Reflectance", &material_slot.reflectance, 0.0f, 1.0f);
-							ImGui::SliderFloat("Anisotropy", &material_slot.anisotropy, -1.0f, 1.0f);
+							ImGui::SliderFloat(editor_text::metallic, &material_slot.metallic, 0.0f, 1.0f);
+							ImGui::SliderFloat(editor_text::roughness, &material_slot.roughness, 0.0f, 1.0f);
+							ImGui::SliderFloat(editor_text::reflectance, &material_slot.reflectance, 0.0f, 1.0f);
+							ImGui::SliderFloat(editor_text::anisotropy, &material_slot.anisotropy, -1.0f, 1.0f);
 
 							float sheen_color[3] = { material_slot.sheen_color.x, material_slot.sheen_color.y, material_slot.sheen_color.z };
-							if (ImGui::ColorEdit3("Sheen Color", sheen_color))
+							if (ImGui::ColorEdit3(editor_text::sheen_color, sheen_color))
 							{
 								material_slot.sheen_color = { sheen_color[0], sheen_color[1], sheen_color[2] };
 							}
 
-							ImGui::SliderFloat("Sheen Roughness", &material_slot.sheen_roughness, 0.0f, 1.0f);
-							ImGui::SliderFloat("Clearcoat", &material_slot.clearcoat, 0.0f, 1.0f);
-							ImGui::SliderFloat("Clearcoat Roughness", &material_slot.clearcoat_roughness, 0.0f, 1.0f);
+							ImGui::SliderFloat(editor_text::sheen_roughness, &material_slot.sheen_roughness, 0.0f, 1.0f);
+							ImGui::SliderFloat(editor_text::clearcoat, &material_slot.clearcoat, 0.0f, 1.0f);
+							ImGui::SliderFloat(editor_text::clearcoat_roughness, &material_slot.clearcoat_roughness, 0.0f, 1.0f);
 
 							static const char* texture_slot_names[] = {
-								"Base Color Map",
-								"Normal Map",
-								"Emissive Map",
-								"Opacity Map",
-								"Displacement Map",
-								"Occlusion Map",
-								"Sheen Color Map",
-								"Sheen Roughness Map",
-								"Clearcoat Map",
-								"Clearcoat Roughness Map",
-								"Clearcoat Normal Map",
-								"Anisotropy Map",
-								"Roughness Map",
-								"Metallic Map",
+								editor_text::base_color_map,
+								editor_text::normal_map,
+								editor_text::emissive_map,
+								editor_text::opacity_map,
+								editor_text::displacement_map,
+								editor_text::occlusion_map,
+								editor_text::sheen_color_map,
+								editor_text::sheen_roughness_map,
+								editor_text::clearcoat_map,
+								editor_text::clearcoat_roughness_map,
+								editor_text::clearcoat_normal_map,
+								editor_text::anisotropy_map,
+								editor_text::roughness_map,
+								editor_text::metallic_map,
 							};
 							static_assert(TEXTURESLOT_COUNT == IM_ARRAYSIZE(texture_slot_names), "Texture slot labels must match");
 
-							ImGui::SeparatorText("Textures");
+							ImGui::SeparatorText(editor_text::textures);
 							for (uint32 texture_slot = 0; texture_slot < static_cast<uint32>(TEXTURESLOT_COUNT); ++texture_slot)
 							{
 								const MaterialSlot::TextureMap& texture = material_slot.textures[texture_slot];
-								ImGui::Text("%s: %s", texture_slot_names[texture_slot], texture.IsValid() ? "Assigned" : "None");
+								ImGui::Text(editor_text::texture_status_format, texture_slot_names[texture_slot], texture.IsValid() ? editor_text::assigned : editor_text::none);
 							}
 						}
 					}
@@ -4525,8 +4949,8 @@ namespace won::editor
 				if (script_comp)
 				{
 					ImGui::PushID("ScriptComponent");
-					ImGui::Text("ScriptComponent");
-					bool remove_component = DrawComponentRemoveButton("ScriptComponent");
+					ImGui::Text(editor_text::script_component);
+					bool remove_component = DrawComponentRemoveButton(editor_text::script_component);
 					auto reload_script = [this](ecs::Entity entity, ScriptSlot& script_slot)
 						{
 							if (!script_runtime || script_slot.script_path.empty())
@@ -4565,7 +4989,7 @@ namespace won::editor
 					if (!remove_component)
 					{
 						bool enabled = script_comp->enabled;
-						if (ImGui::Checkbox("Enabled", &enabled))
+						if (ImGui::Checkbox(editor_text::enabled, &enabled))
 						{
 							script_comp->enabled = enabled;
 						}
@@ -4576,12 +5000,12 @@ namespace won::editor
 							ImGui::PushID(static_cast<int>(script_index));
 
 							bool slot_enabled = script_slot.enabled;
-							if (ImGui::Checkbox("Script Enabled", &slot_enabled))
+							if (ImGui::Checkbox(editor_text::script_enabled, &slot_enabled))
 							{
 								script_slot.enabled = slot_enabled;
 							}
 
-							String script_label = "<none>";
+							String script_label = editor_text::none_placeholder;
 							if (!script_slot.script_path.empty())
 							{
 								String relative_script_path = io::GetRelativePath(contents_root_dir, script_slot.script_path);
@@ -4589,7 +5013,7 @@ namespace won::editor
 							}
 
 							ImGui::SetNextItemWidth(-1.0f);
-							if (ImGui::BeginCombo("Script", script_label.c_str()))
+							if (ImGui::BeginCombo(editor_text::script, script_label.c_str()))
 							{
 								for (const ContentBrowserAsset& asset : content_browser.assets)
 								{
@@ -4619,7 +5043,7 @@ namespace won::editor
 										}
 										else
 										{
-											script_slot.last_error = "script already exists on this component";
+											script_slot.last_error = editor_text::script_already_exists;
 										}
 									}
 
@@ -4656,7 +5080,7 @@ namespace won::editor
 										}
 										else
 										{
-											script_slot.last_error = "script already exists on this component";
+											script_slot.last_error = editor_text::script_already_exists;
 										}
 									}
 								}
@@ -4665,7 +5089,7 @@ namespace won::editor
 
 							char path_buf[512];
 							std::snprintf(path_buf, sizeof(path_buf), "%s", script_slot.script_path.c_str());
-							if (ImGui::InputText("Path", path_buf, sizeof(path_buf)))
+							if (ImGui::InputText(editor_text::path, path_buf, sizeof(path_buf)))
 							{
 								String new_path = path_buf;
 								if (won::utils::StartsWith(new_path, "/Contents/"))
@@ -4690,23 +5114,23 @@ namespace won::editor
 								}
 								else
 								{
-									script_slot.last_error = "script already exists on this component";
+									script_slot.last_error = editor_text::script_already_exists;
 								}
 							}
 
-							if (ImGui::Button("Reload", ImVec2(DEFAULTBUTTONWIDTH, 0)))
+							if (ImGui::Button(editor_text::reload, ImVec2(DEFAULTBUTTONWIDTH, 0)))
 							{
 								reload_script(editor_viewport.picked_entity, script_slot);
 							}
 
 							ImGui::SameLine();
-							const bool remove_script = ImGui::Button("Remove", ImVec2(DEFAULTBUTTONWIDTH, 0));
+							const bool remove_script = ImGui::Button(editor_text::remove, ImVec2(DEFAULTBUTTONWIDTH, 0));
 							ImGui::SameLine();
 							if (script_index == 0)
 							{
 								ImGui::BeginDisabled();
 							}
-							const bool move_up = ImGui::Button("Up", ImVec2(DEFAULTBUTTONWIDTH, 0));
+							const bool move_up = ImGui::Button(editor_text::up, ImVec2(DEFAULTBUTTONWIDTH, 0));
 							if (script_index == 0)
 							{
 								ImGui::EndDisabled();
@@ -4716,7 +5140,7 @@ namespace won::editor
 							{
 								ImGui::BeginDisabled();
 							}
-							const bool move_down = ImGui::Button("Down", ImVec2(DEFAULTBUTTONWIDTH, 0));
+							const bool move_down = ImGui::Button(editor_text::down, ImVec2(DEFAULTBUTTONWIDTH, 0));
 							if (script_index + 1 >= script_comp->scripts.size())
 							{
 								ImGui::EndDisabled();
@@ -4724,7 +5148,7 @@ namespace won::editor
 
 							if (!script_slot.last_error.empty())
 							{
-								ImGui::TextWrapped("Last Error: %s", script_slot.last_error.c_str());
+								ImGui::TextWrapped(editor_text::last_error_format, script_slot.last_error.c_str());
 							}
 
 							ImGui::PopID();
@@ -4761,7 +5185,7 @@ namespace won::editor
 							++script_index;
 						}
 
-						if (ImGui::Button("Add Script", ImVec2(DEFAULTBUTTONWIDTH, 0)))
+						if (ImGui::Button(editor_text::add_script, ImVec2(DEFAULTBUTTONWIDTH, 0)))
 						{
 							script_comp->scripts.push_back({});
 						}
@@ -4810,12 +5234,12 @@ namespace won::editor
 					}
 				}
 
-				if (ImGui::Button("Add Component", ImVec2(-1.0f, 0.0f)))
+				if (ImGui::Button(editor_text::add_component, ImVec2(-1.0f, 0.0f)))
 				{
-					ImGui::OpenPopup("AddComponentPopup");
+					ImGui::OpenPopup(editor_text::add_component_popup);
 				}
 
-				if (ImGui::BeginPopup("AddComponentPopup"))
+				if (ImGui::BeginPopup(editor_text::add_component_popup))
 				{
 					Vector<const won::TypeDesc*> component_types = editor_viewport.view->scene->GetComponentTypes();
 					std::sort(component_types.begin(), component_types.end(), [](const won::TypeDesc* lhs, const won::TypeDesc* rhs) {
@@ -4842,7 +5266,7 @@ namespace won::editor
 					}
 					if (!has_component_item)
 					{
-						ImGui::TextDisabled("No components available");
+						ImGui::TextDisabled(editor_text::no_components_available);
 					}
 
 					ImGui::EndPopup();
@@ -4851,17 +5275,17 @@ namespace won::editor
 		}
 		ImGui::End();
 
-		if (ImGui::Begin("Log", nullptr, ImGuiWindowFlags_NoScrollbar))
+		if (ImGui::Begin(editor_text::log_window, nullptr, ImGuiWindowFlags_NoScrollbar))
 		{
 			static std::string lastlog = "";
 
 			//ImGui::SameLine();
 			ImGui::SetCursorPos(ImGui::GetCursorPos() + ImVec2(0, -3));
-			if (ImGui::Button("Copy to Clipboard", ImVec2(DEFAULTBUTTONWIDTH, 0)))
+			if (ImGui::Button(editor_text::copy_to_clipboard, ImVec2(DEFAULTBUTTONWIDTH, 0)))
 				ImGui::SetClipboardText(lastlog.c_str());
 			ImGui::SameLine();
 			ImGui::SetCursorPos(ImGui::GetCursorPos() + ImVec2(0, -3));
-			if (ImGui::Button("Clear", ImVec2(DEFAULTBUTTONWIDTH, 0)))
+			if (ImGui::Button(editor_text::clear, ImVec2(DEFAULTBUTTONWIDTH, 0)))
 				lastlog.clear();
 
 			ImGui::SetCursorPos(ImGui::GetCursorPos() + ImVec2(0, 3));
@@ -4883,13 +5307,13 @@ namespace won::editor
 		}
 		ImGui::End();
 
-		if (ImGui::Begin("Contents Browser", nullptr))
+		if (ImGui::Begin(editor_text::contents_browser_window, nullptr))
 		{
 			DrawContentsBrowser();
 		}
 		ImGui::End();
 
-		if (ImGui::Begin("Profiler", nullptr, ImGuiWindowFlags_NoScrollbar))
+		if (ImGui::Begin(editor_text::profiler_window, nullptr, ImGuiWindowFlags_NoScrollbar))
 		{
 			ImGui::SetCursorPos(ImGui::GetCursorPos() + ImVec2(0, -3));
 
@@ -4897,18 +5321,18 @@ namespace won::editor
 			static double last_profiler_ui_update_time = -1.0;
 			static std::string cached_performance;
 			static std::string cached_res_usage;
-			if (ImGui::Checkbox("Enable Profiler", &profiler_enabled))
+			if (ImGui::Checkbox(editor_text::enable_profiler, &profiler_enabled))
 			{
 				profiler::SetEnabled(profiler_enabled);
 				last_profiler_ui_update_time = -1.0;
-				cached_performance = profiler_enabled ? "Profiler starting..." : "";
+				cached_performance = profiler_enabled ? editor_text::profiler_starting : "";
 				cached_res_usage.clear();
 			}
 
 			if (profiler_enabled)
 			{
 				ImGui::SameLine();
-				ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Profiler Turned On! Performance may be reduced!");
+				ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), editor_text::profiler_warning);
 
 				ImGui::SetCursorPos(ImGui::GetCursorPos() + ImVec2(0, 3));
 
@@ -5186,6 +5610,143 @@ namespace won::editor
 		pipeline_desc.topology = RHIPrimitiveTopology::TriangleList;
 
 		editor_grid_pso = device->CreateGraphicsPipeline(pipeline_desc);
+	}
+
+	void EditorApplication::CreateEditorCamera()
+	{
+		if (!editor_viewport.view || !editor_viewport.view->scene)
+		{
+			return;
+		}
+
+		editor_viewport.view->camera_entity = editor_viewport.view->scene->CreateEntity();
+		auto camera_transform = editor_viewport.view->scene->AddComponent<ecs::TransformComponent>(editor_viewport.view->camera_entity);
+		if (camera_transform)
+		{
+			camera_transform->position = { -4.7f, 2.0f, 0.3f };
+			camera_transform->RotateRollPitchYaw({ 0.f, math::PI / 2.f, 0 });
+			camera_transform->SetDirty();
+		}
+
+		auto camera = editor_viewport.view->scene->AddComponent<ecs::CameraComponent>(editor_viewport.view->camera_entity);
+		if (camera)
+		{
+			float viewport_width = static_cast<float>(editor_viewport.view->viewport.width);
+			float viewport_height = static_cast<float>(editor_viewport.view->viewport.height);
+			if (viewport_height <= 0.0f)
+			{
+				viewport_height = 1.0f;
+			}
+			camera->SetAspectRatio(viewport_width / viewport_height);
+			camera->SetNearFar(0.1f, 1000.0f);
+			camera->SetFOV_Y(math::PI / 3.0f);
+			camera->SetOrtho(false);
+		}
+
+		if (auto name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(editor_viewport.view->camera_entity))
+		{
+			name->value = "Editor Camera";
+		}
+	}
+
+	void EditorApplication::CreateStartupScene()
+	{
+		if (!editor_viewport.view || !editor_viewport.view->scene)
+		{
+			return;
+		}
+
+		ecs::Entity sky_entity = editor_viewport.view->scene->CreateEntity();
+		if (auto sky = editor_viewport.view->scene->AddComponent<ecs::SkyComponent>(sky_entity))
+		{
+			sky->SetActive(true);
+		}
+		if (auto name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(sky_entity))
+		{
+			name->value = "Editor Sky";
+		}
+
+		CreateEditorCamera();
+	}
+
+	bool EditorApplication::SaveScene(const String& path)
+	{
+		if (path.empty() || !editor_viewport.view || !editor_viewport.view->scene)
+		{
+			return false;
+		}
+
+		Vector<ecs::Entity> excluded_entities;
+		if (editor_viewport.view->camera_entity != ecs::INVALID_ENTITY)
+		{
+			excluded_entities.push_back(editor_viewport.view->camera_entity);
+		}
+		if (editor_viewport.debug_primitive_entity != ecs::INVALID_ENTITY)
+		{
+			excluded_entities.push_back(editor_viewport.debug_primitive_entity);
+		}
+
+		won::serialize::JsonArchive archive(won::serialize::ArchiveMode::Write);
+		won::serialize::SceneSerializeDesc desc = {};
+		desc.excluded_entities = &excluded_entities;
+		won::serialize::Serialize(archive, *editor_viewport.view->scene, desc);
+		if (archive.HasError())
+		{
+			backlog::Post(editor_text::save_scene_failed + archive.GetError(), backlog::LogLevel::Warning);
+			return false;
+		}
+
+		String directory = io::GetDirectoryFromPath(path);
+		if (!directory.empty() && !io::CreateDirectories(directory))
+		{
+			backlog::Post(editor_text::save_scene_failed + directory, backlog::LogLevel::Warning);
+			return false;
+		}
+		if (!archive.SaveToFile(path))
+		{
+			backlog::Post(editor_text::save_scene_failed + path, backlog::LogLevel::Warning);
+			return false;
+		}
+
+		current_scene_path = path;
+		String relative_path = io::GetRelativePath(contents_root_dir, path);
+		String config_path = relative_path.empty() ? path : relative_path;
+		config::SetString(editor_scene_last_path_key, config_path);
+		RebuildContentBrowser();
+		backlog::Post(editor_text::scene_saved + path);
+		return true;
+	}
+
+	void EditorApplication::LoadScene(const String& path)
+	{
+		if (path.empty() || !editor_viewport.view || !editor_viewport.view->scene)
+		{
+			return;
+		}
+
+		won::serialize::JsonArchive archive(won::serialize::ArchiveMode::Read);
+		if (!archive.LoadFromFile(path))
+		{
+			backlog::Post(editor_text::load_scene_failed + path, backlog::LogLevel::Warning);
+			return;
+		}
+
+		won::serialize::Serialize(archive, *editor_viewport.view->scene);
+		if (archive.HasError())
+		{
+			backlog::Post(editor_text::load_scene_warning + archive.GetError(), backlog::LogLevel::Warning);
+		}
+
+		current_scene_path = path;
+		String relative_path = io::GetRelativePath(contents_root_dir, path);
+		String config_path = relative_path.empty() ? path : relative_path;
+		config::SetString(editor_scene_last_path_key, config_path);
+		editor_viewport.picked_entity = ecs::INVALID_ENTITY;
+		editor_viewport.debug_primitive_entity = ecs::INVALID_ENTITY;
+		editor_viewport.debug_primitive_mesh.reset();
+		CreateEditorCamera();
+		UpdateEntityList();
+		backlog::Post(editor_text::scene_loaded + path);
 	}
 
 	void EditorApplication::LoadSampleScene()

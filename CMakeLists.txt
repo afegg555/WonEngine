@@ -241,6 +241,10 @@ set(RUNTIME_JOBSYSTEM
 set(RUNTIME_SERIALIZATION
     Source/Runtime/Public/Serializer.h
     Source/Runtime/Public/Archive.h
+    Source/Runtime/Public/JsonArchive.h
+    Source/Runtime/Public/SceneSerializer.h
+    Source/Runtime/Private/JsonArchive.cpp
+    Source/Runtime/Private/SceneSerializer.cpp
 )
 
 set(RUNTIME_REFLECTION

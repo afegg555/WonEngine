@@ -135,6 +135,10 @@ namespace won::editor
 		void InitImGui();
 		void InitEditorGrid();
 		void DrawEditorGrid();
+		void CreateEditorCamera();
+		void CreateStartupScene();
+		bool SaveScene(const String& path);
+		void LoadScene(const String& path);
 		void LoadSampleScene();
 		void UpdateEntityList();
 		void UpdateDebugPrimitiveMesh();
@@ -267,6 +271,7 @@ namespace won::editor
 		String enabled_plugin_ids;
 
 		ecs::Scene loaded_scene;
+		String current_scene_path;
 		EditorViewport editor_viewport;
 		EditorAssetImporter asset_importer;
 		ContentBrowserState content_browser = {};

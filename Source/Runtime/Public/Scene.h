@@ -142,6 +142,16 @@ namespace won::ecs
             SetBVHDirty();
         }
 
+        void ClearEntities()
+        {
+            component_manager.Clear();
+            entities.clear();
+            render_data.Clear();
+            scene_bvh.Clear();
+            scene_bvh_entities.clear();
+            SetBVHDirty();
+        }
+
         template <typename Component, typename... Args>
         Component* AddComponent(Entity entity, Args&&... args)
         {
@@ -216,6 +226,16 @@ namespace won::ecs
         std::shared_ptr<ComponentArray<Component>> GetComponentArray()
         {
             return component_manager.GetComponentArray<Component>();
+        }
+
+        std::shared_ptr<IComponentArray> GetComponentArray(won::TypeId type_id)
+        {
+            return component_manager.GetComponentArray(type_id);
+        }
+
+        std::shared_ptr<const IComponentArray> GetComponentArray(won::TypeId type_id) const
+        {
+            return component_manager.GetComponentArray(type_id);
         }
 
         void AddSystem(const std::shared_ptr<System>& system)

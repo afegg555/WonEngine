@@ -18,7 +18,9 @@ namespace won::ecs
         virtual void* GetRawData(Entity entity) = 0;
         virtual const void* GetRawData(Entity entity) const = 0;
         virtual const won::TypeDesc* GetTypeDesc() const = 0;
+        virtual Entity GetEntity(Size index) const = 0;
         virtual Size GetSize() const = 0;
+        virtual void Clear() = 0;
     };
 
     template <typename T>
@@ -100,6 +102,19 @@ namespace won::ecs
             return data.size();
         }
 
+        Entity GetEntity(Size index) const override
+        {
+            auto it = index_to_entity.find(index);
+            return it != index_to_entity.end() ? it->second : INVALID_ENTITY;
+        }
+
+        void Clear() override
+        {
+            data.clear();
+            entity_to_index.clear();
+            index_to_entity.clear();
+        }
+
         Vector<T> data;
         UnorderedMap<Entity, Size> entity_to_index;
         UnorderedMap<Size, Entity> index_to_entity;
@@ -116,19 +131,7 @@ namespace won::ecs
 
         ~DynamicComponentArray() override
         {
-            if (!type_desc)
-            {
-                return;
-            }
-
-            for (void* component : data)
-            {
-                if (component && type_desc->Destruct)
-                {
-                    type_desc->Destruct(component);
-                }
-                allocator.Deallocate(component);
-            }
+            Clear();
         }
 
         DynamicComponentArray(const DynamicComponentArray&) = delete;
@@ -231,6 +234,30 @@ namespace won::ecs
         Size GetSize() const override
         {
             return data.size();
+        }
+
+        Entity GetEntity(Size index) const override
+        {
+            auto it = index_to_entity.find(index);
+            return it != index_to_entity.end() ? it->second : INVALID_ENTITY;
+        }
+
+        void Clear() override
+        {
+            if (type_desc)
+            {
+                for (void* component : data)
+                {
+                    if (component && type_desc->Destruct)
+                    {
+                        type_desc->Destruct(component);
+                    }
+                    allocator.Deallocate(component);
+                }
+            }
+            data.clear();
+            entity_to_index.clear();
+            index_to_entity.clear();
         }
 
     private:
@@ -413,6 +440,17 @@ namespace won::ecs
             for (auto const& pair : component_arrays)
             {
                 pair.second->Remove(entity);
+            }
+        }
+
+        void Clear()
+        {
+            for (auto const& pair : component_arrays)
+            {
+                if (pair.second)
+                {
+                    pair.second->Clear();
+                }
             }
         }
 

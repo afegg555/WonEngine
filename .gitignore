@@ -8,3 +8,4 @@ build/
 *.ini
 *.log
 log.txt
+*.wonscene
