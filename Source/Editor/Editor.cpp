@@ -3285,6 +3285,7 @@ namespace won::editor
 		static bool save_as_then_load = false;
 		static bool save_as_then_new_scene = false;
 		static bool save_current_then_new_scene = false;
+		static bool focus_contents_browser_on_startup = true;
 		bool open_save_current_scene = false;
 
 		if (ImGui::BeginMenuBar())
@@ -3331,7 +3332,10 @@ namespace won::editor
 			if (ImGui::BeginMenu(editor_text::window_menu))
 			{
 				if (ImGui::MenuItem(editor_text::reset_layout))
+				{
 					BuildDefaultDockLayout(dockspace_id, io.DisplaySize);
+					focus_contents_browser_on_startup = true;
+				}
 				ImGui::EndMenu();
 			}
 			if (ImGui::BeginMenu(editor_text::plugins_menu))
@@ -5275,6 +5279,12 @@ namespace won::editor
 		}
 		ImGui::End();
 
+		if (ImGui::Begin(editor_text::contents_browser_window, nullptr))
+		{
+			DrawContentsBrowser();
+		}
+		ImGui::End();
+
 		if (ImGui::Begin(editor_text::log_window, nullptr, ImGuiWindowFlags_NoScrollbar))
 		{
 			static std::string lastlog = "";
@@ -5304,12 +5314,6 @@ namespace won::editor
 				ImGui::SetScrollHereY(1.0f);
 			ImGui::EndChild();
 
-		}
-		ImGui::End();
-
-		if (ImGui::Begin(editor_text::contents_browser_window, nullptr))
-		{
-			DrawContentsBrowser();
 		}
 		ImGui::End();
 
@@ -5354,6 +5358,12 @@ namespace won::editor
 			}
 		}
 		ImGui::End();
+
+		if (focus_contents_browser_on_startup)
+		{
+			ImGui::SetWindowFocus(editor_text::contents_browser_window);
+			focus_contents_browser_on_startup = false;
+		}
 
 		// Rendering
 		ImGui::Render();
