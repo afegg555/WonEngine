@@ -88,7 +88,7 @@ namespace won::ecs
 
         Entity CreateEntity()
         {
-            Entity entity = ecs::CreateEntity();
+            Entity entity = next_entity++;
             entities.push_back(entity);
             return entity;
         }
@@ -149,6 +149,7 @@ namespace won::ecs
             render_data.Clear();
             scene_bvh.Clear();
             scene_bvh_entities.clear();
+            next_entity = INVALID_ENTITY + 1;
             SetBVHDirty();
         }
 
@@ -954,6 +955,7 @@ namespace won::ecs
         RenderData render_data;
         ComponentManager component_manager;
         Vector<Entity> entities;
+        Entity next_entity = INVALID_ENTITY + 1;
         math::bvh::BVH scene_bvh;
         Vector<Entity> scene_bvh_entities;
         Vector<std::shared_ptr<System>> systems;

@@ -268,7 +268,6 @@ set(RUNTIME_ECS
     Source/Runtime/Public/ComponentManager.h
     Source/Runtime/Public/Scene.h
     Source/Runtime/Public/System.h
-    Source/Runtime/Private/Entity.cpp
 )
 
 set(RUNTIME_ECS_COMPONENTS
