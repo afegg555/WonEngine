@@ -1,5 +1,5 @@
 #pragma once
-#include "Archive.h"
+#include "ArchiveMode.h"
 #include "RuntimeExport.h"
 #include "Types.h"
 
@@ -42,6 +42,9 @@ namespace won::serialize
         Size GetArraySize() const;
         Vector<String> GetObjectKeys() const;
         bool HasField(const char* name) const;
+
+        bool BeginField(const char* name);
+        void EndField();
 
         template <typename T>
         bool Field(const char* name, T& value)
@@ -95,8 +98,6 @@ namespace won::serialize
         bool Value(String& value);
 
     private:
-        bool BeginField(const char* name);
-        void EndField();
         struct Impl;
         std::unique_ptr<Impl> impl;
     };

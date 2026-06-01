@@ -1,8 +1,8 @@
 #include "ShaderLoader.h"
 #include "ShaderCompiler.h"
 #include "Backlog.h"
+#include "BinaryArchive.h"
 #include "FileSystem.h"
-#include "Serializer.h"
 
 using namespace won::serialize;
 
