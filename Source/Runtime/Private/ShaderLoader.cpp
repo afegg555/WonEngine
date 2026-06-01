@@ -3,6 +3,7 @@
 #include "Backlog.h"
 #include "BinaryArchive.h"
 #include "FileSystem.h"
+#include "ResourceExtension.h"
 
 using namespace won::serialize;
 
@@ -10,17 +11,17 @@ namespace won::resource::shaderloader
 {
     namespace
     {
-        bool IsShaderOutdated(String cso_name)
+        bool IsShaderOutdated(String binary_file_name)
         {
-            String dependency_path = io::ReplaceExtension(cso_name, "dep");
+            String dependency_path = io::ReplaceExtension(binary_file_name, shader_dependency_extension);
 
-            if (!io::Exists(cso_name) || !io::Exists(dependency_path))
+            if (!io::Exists(binary_file_name) || !io::Exists(dependency_path))
             {
                 return true;
             }
 
             uint64 timestamp = 0ull;
-            io::GetLastTimestamp(cso_name, &timestamp);
+            io::GetLastTimestamp(binary_file_name, &timestamp);
 
             BinaryArchive archive(dependency_path, ArchiveMode::Read);
             if (!archive.IsEnd())
@@ -46,16 +47,16 @@ namespace won::resource::shaderloader
             return false;
         }
 
-        bool SaveShaderCompileResult(const ShaderCompileResult& result, const String& cso_name)
+        bool SaveShaderCompileResult(const ShaderCompileResult& result, const String& binary_file_name)
         {
-            String dependency_path = io::ReplaceExtension(cso_name, "dep");
+            String dependency_path = io::ReplaceExtension(binary_file_name, shader_dependency_extension);
 
             {
                 BinaryArchive archive(dependency_path, ArchiveMode::Write);
                 Serialize(archive, result.dependencies);
             }
 
-            if (!io::WriteAllBytes(cso_name, result.bytecode.data(), result.bytecode.size()))
+            if (!io::WriteAllBytes(binary_file_name, result.bytecode.data(), result.bytecode.size()))
             {
                 return false;
             }
@@ -70,7 +71,7 @@ namespace won::resource::shaderloader
             {
                 file_name = io::ReplaceExtension(file_name, desc.entry_point + "." + io::GetExtension(file_name));
             }
-            return io::ReplaceExtension(file_name, "cso");
+            return io::ReplaceExtension(file_name, shader_binary_extension);
         }
     }
 
