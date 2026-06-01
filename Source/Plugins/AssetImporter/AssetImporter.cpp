@@ -440,7 +440,7 @@ namespace won::plugin
             auto to_stored_matrix = [](const aiMatrix4x4& matrix)
             {
                 // a, b, c, d => each row
-                // pre-multiplied form(row major & pre-multiplied)
+                // post-multiplied form(row major & post-multiplied)
 
                 // transpose and store
                 ImportedMatrix result = {};
