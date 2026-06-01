@@ -16,6 +16,244 @@ namespace won::serialize
         constexpr uint32 scene_format_version = 1;
         constexpr uint64 invalid_entity_index = static_cast<uint64>(-1);
 
+        void WriteReflectedData(JsonArchive& archive, won::ValueType value_type, const won::TypeDesc* type_desc, uint32 value_size, const won::ArrayDesc* array_desc, const void* value)
+        {
+            if (!value)
+            {
+                return;
+            }
+
+            switch (value_type)
+            {
+            case won::ValueType::Bool: { bool copy = *static_cast<const bool*>(value); archive.Value(copy); break; }
+            case won::ValueType::Int8: { int8 copy = *static_cast<const int8*>(value); archive.Value(copy); break; }
+            case won::ValueType::UInt8: { uint8 copy = *static_cast<const uint8*>(value); archive.Value(copy); break; }
+            case won::ValueType::Int16: { int16 copy = *static_cast<const int16*>(value); archive.Value(copy); break; }
+            case won::ValueType::UInt16: { uint16 copy = *static_cast<const uint16*>(value); archive.Value(copy); break; }
+            case won::ValueType::Int32: { int32 copy = *static_cast<const int32*>(value); archive.Value(copy); break; }
+            case won::ValueType::UInt32: { uint32 copy = *static_cast<const uint32*>(value); archive.Value(copy); break; }
+            case won::ValueType::Int64: { int64 copy = *static_cast<const int64*>(value); archive.Value(copy); break; }
+            case won::ValueType::UInt64: { uint64 copy = *static_cast<const uint64*>(value); archive.Value(copy); break; }
+            case won::ValueType::Float32: { float copy = *static_cast<const float*>(value); archive.Value(copy); break; }
+            case won::ValueType::Float64: { double copy = *static_cast<const double*>(value); archive.Value(copy); break; }
+            case won::ValueType::Int32x2: { int2 copy = *static_cast<const int2*>(value); Serialize(archive, copy); break; }
+            case won::ValueType::Int32x3: { int3 copy = *static_cast<const int3*>(value); Serialize(archive, copy); break; }
+            case won::ValueType::Int32x4: { int4 copy = *static_cast<const int4*>(value); Serialize(archive, copy); break; }
+            case won::ValueType::UInt32x2: { uint2 copy = *static_cast<const uint2*>(value); Serialize(archive, copy); break; }
+            case won::ValueType::UInt32x3: { uint3 copy = *static_cast<const uint3*>(value); Serialize(archive, copy); break; }
+            case won::ValueType::UInt32x4: { uint4 copy = *static_cast<const uint4*>(value); Serialize(archive, copy); break; }
+            case won::ValueType::Float32x2: { float2 copy = *static_cast<const float2*>(value); Serialize(archive, copy); break; }
+            case won::ValueType::Float32x3: { float3 copy = *static_cast<const float3*>(value); Serialize(archive, copy); break; }
+            case won::ValueType::Float32x4: { float4 copy = *static_cast<const float4*>(value); Serialize(archive, copy); break; }
+            case won::ValueType::String: { String copy = *static_cast<const String*>(value); archive.Value(copy); break; }
+            case won::ValueType::CustomStruct:
+            {
+                if (!type_desc)
+                {
+                    break;
+                }
+
+                archive.BeginObject();
+                for (uint32 field_index = 0; type_desc->fields && field_index < type_desc->field_count; ++field_index)
+                {
+                    const won::FieldDesc& field = type_desc->fields[field_index];
+                    if (field.struct_size < sizeof(won::FieldDesc) || field.field_id == 0 || (field.flags & won::FieldFlagSerializable) == 0)
+                    {
+                        continue;
+                    }
+                    if (field.offset > type_desc->size || field.size > type_desc->size - field.offset)
+                    {
+                        continue;
+                    }
+
+                    std::ostringstream field_stream;
+                    field_stream << "0x" << std::hex << std::uppercase << field.field_id;
+                    const String field_key = field_stream.str();
+                    const void* field_value = static_cast<const uint8*>(value) + field.offset;
+                    if (archive.BeginField(field_key.c_str()))
+                    {
+                        WriteReflectedData(archive, field.value_type, nullptr, field.size, field.array_desc, field_value);
+                        archive.EndField();
+                    }
+                }
+                archive.EndObject();
+                break;
+            }
+            case won::ValueType::Array:
+            {
+                archive.BeginArray();
+                if (!array_desc || array_desc->struct_size < sizeof(won::ArrayDesc) || !array_desc->GetSize || !array_desc->GetConstElement)
+                {
+                    archive.EndArray();
+                    break;
+                }
+
+                const won::TypeDesc* element_type = reflection::FindType(array_desc->element_type_id);
+                if (!element_type)
+                {
+                    archive.EndArray();
+                    break;
+                }
+
+                const uint32 count = array_desc->GetSize(value);
+                for (uint32 index = 0; index < count; ++index)
+                {
+                    const void* element = array_desc->GetConstElement(value, index);
+                    archive.BeginItem();
+                    WriteReflectedData(archive, element_type->value_type, element_type, element_type->size, nullptr, element);
+                    archive.EndItem();
+                }
+                archive.EndArray();
+                break;
+            }
+            case won::ValueType::Enum:
+            {
+                int64 copy = 0;
+                switch (value_size)
+                {
+                case 1: copy = *static_cast<const int8*>(value); break;
+                case 2: copy = *static_cast<const int16*>(value); break;
+                case 4: copy = *static_cast<const int32*>(value); break;
+                case 8: copy = *static_cast<const int64*>(value); break;
+                default: break;
+                }
+                archive.Value(copy);
+                break;
+            }
+            default:
+                break;
+            }
+        }
+
+        void ReadReflectedData(JsonArchive& archive, won::ValueType value_type, const won::TypeDesc* type_desc, uint32 value_size, const won::ArrayDesc* array_desc, void* value)
+        {
+            if (!value)
+            {
+                return;
+            }
+
+            switch (value_type)
+            {
+            case won::ValueType::Bool: archive.Value(*static_cast<bool*>(value)); break;
+            case won::ValueType::Int8: archive.Value(*static_cast<int8*>(value)); break;
+            case won::ValueType::UInt8: archive.Value(*static_cast<uint8*>(value)); break;
+            case won::ValueType::Int16: archive.Value(*static_cast<int16*>(value)); break;
+            case won::ValueType::UInt16: archive.Value(*static_cast<uint16*>(value)); break;
+            case won::ValueType::Int32: archive.Value(*static_cast<int32*>(value)); break;
+            case won::ValueType::UInt32: archive.Value(*static_cast<uint32*>(value)); break;
+            case won::ValueType::Int64: archive.Value(*static_cast<int64*>(value)); break;
+            case won::ValueType::UInt64: archive.Value(*static_cast<uint64*>(value)); break;
+            case won::ValueType::Float32: archive.Value(*static_cast<float*>(value)); break;
+            case won::ValueType::Float64: archive.Value(*static_cast<double*>(value)); break;
+            case won::ValueType::Int32x2: Serialize(archive, *static_cast<int2*>(value)); break;
+            case won::ValueType::Int32x3: Serialize(archive, *static_cast<int3*>(value)); break;
+            case won::ValueType::Int32x4: Serialize(archive, *static_cast<int4*>(value)); break;
+            case won::ValueType::UInt32x2: Serialize(archive, *static_cast<uint2*>(value)); break;
+            case won::ValueType::UInt32x3: Serialize(archive, *static_cast<uint3*>(value)); break;
+            case won::ValueType::UInt32x4: Serialize(archive, *static_cast<uint4*>(value)); break;
+            case won::ValueType::Float32x2: Serialize(archive, *static_cast<float2*>(value)); break;
+            case won::ValueType::Float32x3: Serialize(archive, *static_cast<float3*>(value)); break;
+            case won::ValueType::Float32x4: Serialize(archive, *static_cast<float4*>(value)); break;
+            case won::ValueType::String: archive.Value(*static_cast<String*>(value)); break;
+            case won::ValueType::CustomStruct:
+            {
+                if (!type_desc || !archive.BeginObject())
+                {
+                    break;
+                }
+
+                Vector<String> field_keys = archive.GetObjectKeys();
+                for (const String& field_key : field_keys)
+                {
+                    const won::FieldId field_id = static_cast<won::FieldId>(std::strtoull(field_key.c_str(), nullptr, 0));
+                    const won::FieldDesc* field = nullptr;
+                    for (uint32 field_index = 0; type_desc->fields && field_index < type_desc->field_count; ++field_index)
+                    {
+                        const won::FieldDesc& candidate = type_desc->fields[field_index];
+                        if (candidate.struct_size < sizeof(won::FieldDesc) || candidate.field_id == 0 || (candidate.flags & won::FieldFlagSerializable) == 0)
+                        {
+                            continue;
+                        }
+                        if (candidate.field_id == field_id)
+                        {
+                            field = &candidate;
+                            break;
+                        }
+                    }
+
+                    if (!field || field->offset > type_desc->size || field->size > type_desc->size - field->offset)
+                    {
+                        continue;
+                    }
+
+                    void* field_value = static_cast<uint8*>(value) + field->offset;
+                    if (archive.BeginField(field_key.c_str()))
+                    {
+                        ReadReflectedData(archive, field->value_type, nullptr, field->size, field->array_desc, field_value);
+                        archive.EndField();
+                    }
+                }
+                archive.EndObject();
+                break;
+            }
+            case won::ValueType::Array:
+            {
+                if (!array_desc || array_desc->struct_size < sizeof(won::ArrayDesc) || !array_desc->GetElement || !archive.BeginArray())
+                {
+                    break;
+                }
+
+                const won::TypeDesc* element_type = reflection::FindType(array_desc->element_type_id);
+                if (!element_type)
+                {
+                    archive.EndArray();
+                    break;
+                }
+
+                const Size array_size = archive.GetArraySize();
+                if (array_desc->Resize)
+                {
+                    array_desc->Resize(value, static_cast<uint32>(array_size));
+                }
+                const Size count = array_desc->GetSize ? (std::min)(array_size, static_cast<Size>(array_desc->GetSize(value))) : array_size;
+
+                for (Size index = 0; index < array_size; ++index)
+                {
+                    if (!archive.BeginItem())
+                    {
+                        continue;
+                    }
+
+                    if (index < count)
+                    {
+                        void* element = array_desc->GetElement(value, static_cast<uint32>(index));
+                        ReadReflectedData(archive, element_type->value_type, element_type, element_type->size, nullptr, element);
+                    }
+
+                    archive.EndItem();
+                }
+                archive.EndArray();
+                break;
+            }
+            case won::ValueType::Enum:
+            {
+                int64 copy = 0;
+                archive.Value(copy);
+                switch (value_size)
+                {
+                case 1: *static_cast<int8*>(value) = static_cast<int8>(copy); break;
+                case 2: *static_cast<int16*>(value) = static_cast<int16>(copy); break;
+                case 4: *static_cast<int32*>(value) = static_cast<int32>(copy); break;
+                case 8: *static_cast<int64*>(value) = static_cast<int64>(copy); break;
+                default: break;
+                }
+                break;
+            }
+            default:
+                break;
+            }
+        }
+
         void WriteScene(JsonArchive& archive, const ecs::Scene& scene, const SceneSerializeDesc& desc)
         {
             archive.BeginObject(); 
@@ -69,21 +307,17 @@ namespace won::serialize
                 }
 
                 Vector<ecs::Entity> component_entities;
-                Vector<uint64> item_entity_indices;
                 component_entities.reserve(component_array->GetSize());
-                item_entity_indices.reserve(component_array->GetSize());
 
                 for (Size component_index = 0; component_index < component_array->GetSize(); ++component_index)
                 {
                     const ecs::Entity entity = component_array->GetEntity(component_index);
-                    auto entity_index_it = entity_to_index.find(entity);
-                    if (entity_index_it == entity_to_index.end())
+                    if (entity_to_index.find(entity) == entity_to_index.end())
                     {
                         continue;
                     }
 
                     component_entities.push_back(entity);
-                    item_entity_indices.push_back(entity_index_it->second);
                 }
 
                 if (component_entities.empty())
@@ -96,13 +330,17 @@ namespace won::serialize
                 const String type_key = type_stream.str();
                 archive.BeginObject(type_key.c_str());
 
-                String type_name = type_desc->name ? type_desc->name : "";
-                archive.Field("type", type_name); // might be removed?
+                // String type_name = type_desc->name ? type_desc->name : "";
+                // archive.Field("type", type_name); // might be removed?
 
                 archive.BeginArray("items");
-                for (uint64 entity_index : item_entity_indices)
+                for (ecs::Entity entity : component_entities)
                 {
-                    archive.Item(entity_index);
+                    auto entity_index_it = entity_to_index.find(entity);
+                    if (entity_index_it != entity_to_index.end())
+                    {
+                        archive.Item(entity_index_it->second);
+                    }
                 }
                 archive.EndArray();
 
@@ -124,8 +362,8 @@ namespace won::serialize
                     const String field_key = field_stream.str();
                     archive.BeginObject(field_key.c_str());
 
-                    String field_name = field.name ? field.name : "";
-                    archive.Field("name", field_name);  // might be removed?
+                    // String field_name = field.name ? field.name : "";
+                    // archive.Field("name", field_name);  // might be removed?
                     archive.BeginArray("values");
 
                     for (ecs::Entity entity : component_entities)
@@ -147,46 +385,9 @@ namespace won::serialize
                             continue;
                         }
 
-                        switch (field.value_type)
-                        {
-                        case won::ValueType::Bool: { bool value = *static_cast<const bool*>(field_value); archive.Item(value); break; }
-                        case won::ValueType::Int8: { int8 value = *static_cast<const int8*>(field_value); archive.Item(value); break; }
-                        case won::ValueType::UInt8: { uint8 value = *static_cast<const uint8*>(field_value); archive.Item(value); break; }
-                        case won::ValueType::Int16: { int16 value = *static_cast<const int16*>(field_value); archive.Item(value); break; }
-                        case won::ValueType::UInt16: { uint16 value = *static_cast<const uint16*>(field_value); archive.Item(value); break; }
-                        case won::ValueType::Int32: { int32 value = *static_cast<const int32*>(field_value); archive.Item(value); break; }
-                        case won::ValueType::UInt32: { uint32 value = *static_cast<const uint32*>(field_value); archive.Item(value); break; }
-                        case won::ValueType::Int64: { int64 value = *static_cast<const int64*>(field_value); archive.Item(value); break; }
-                        case won::ValueType::UInt64: { uint64 value = *static_cast<const uint64*>(field_value); archive.Item(value); break; }
-                        case won::ValueType::Float32: { float value = *static_cast<const float*>(field_value); archive.Item(value); break; }
-                        case won::ValueType::Float64: { double value = *static_cast<const double*>(field_value); archive.Item(value); break; }
-                        case won::ValueType::Int32x2: { int2 value = *static_cast<const int2*>(field_value); archive.Item(value); break; }
-                        case won::ValueType::Int32x3: { int3 value = *static_cast<const int3*>(field_value); archive.Item(value); break; }
-                        case won::ValueType::Int32x4: { int4 value = *static_cast<const int4*>(field_value); archive.Item(value); break; }
-                        case won::ValueType::UInt32x2: { uint2 value = *static_cast<const uint2*>(field_value); archive.Item(value); break; }
-                        case won::ValueType::UInt32x3: { uint3 value = *static_cast<const uint3*>(field_value); archive.Item(value); break; }
-                        case won::ValueType::UInt32x4: { uint4 value = *static_cast<const uint4*>(field_value); archive.Item(value); break; }
-                        case won::ValueType::Float32x2: { float2 value = *static_cast<const float2*>(field_value); archive.Item(value); break; }
-                        case won::ValueType::Float32x3: { float3 value = *static_cast<const float3*>(field_value); archive.Item(value); break; }
-                        case won::ValueType::Float32x4: { float4 value = *static_cast<const float4*>(field_value); archive.Item(value); break; }
-                        case won::ValueType::String: { String value = *static_cast<const String*>(field_value); archive.Item(value); break; }
-                        case won::ValueType::Enum:
-                        {
-                            int64 value = 0;
-                            switch (field.size)
-                            {
-                            case 1: value = *static_cast<const int8*>(field_value); break;
-                            case 2: value = *static_cast<const int16*>(field_value); break;
-                            case 4: value = *static_cast<const int32*>(field_value); break;
-                            case 8: value = *static_cast<const int64*>(field_value); break;
-                            default: break;
-                            }
-                            archive.Item(value);
-                            break;
-                        }
-                        default:
-                            break;
-                        }
+                        archive.BeginItem();
+                        WriteReflectedData(archive, field.value_type, nullptr, field.size, field.array_desc, field_value);
+                        archive.EndItem();
                     }
 
                     archive.EndArray();
@@ -319,46 +520,7 @@ namespace won::serialize
                                             }
                                             else
                                             {
-                                                switch (field->value_type)
-                                                {
-                                                case won::ValueType::Bool: archive.Value(*static_cast<bool*>(field_value)); break;
-                                                case won::ValueType::Int8: archive.Value(*static_cast<int8*>(field_value)); break;
-                                                case won::ValueType::UInt8: archive.Value(*static_cast<uint8*>(field_value)); break;
-                                                case won::ValueType::Int16: archive.Value(*static_cast<int16*>(field_value)); break;
-                                                case won::ValueType::UInt16: archive.Value(*static_cast<uint16*>(field_value)); break;
-                                                case won::ValueType::Int32: archive.Value(*static_cast<int32*>(field_value)); break;
-                                                case won::ValueType::UInt32: archive.Value(*static_cast<uint32*>(field_value)); break;
-                                                case won::ValueType::Int64: archive.Value(*static_cast<int64*>(field_value)); break;
-                                                case won::ValueType::UInt64: archive.Value(*static_cast<uint64*>(field_value)); break;
-                                                case won::ValueType::Float32: archive.Value(*static_cast<float*>(field_value)); break;
-                                                case won::ValueType::Float64: archive.Value(*static_cast<double*>(field_value)); break;
-                                                case won::ValueType::Int32x2: Serialize(archive, *static_cast<int2*>(field_value)); break;
-                                                case won::ValueType::Int32x3: Serialize(archive, *static_cast<int3*>(field_value)); break;
-                                                case won::ValueType::Int32x4: Serialize(archive, *static_cast<int4*>(field_value)); break;
-                                                case won::ValueType::UInt32x2: Serialize(archive, *static_cast<uint2*>(field_value)); break;
-                                                case won::ValueType::UInt32x3: Serialize(archive, *static_cast<uint3*>(field_value)); break;
-                                                case won::ValueType::UInt32x4: Serialize(archive, *static_cast<uint4*>(field_value)); break;
-                                                case won::ValueType::Float32x2: Serialize(archive, *static_cast<float2*>(field_value)); break;
-                                                case won::ValueType::Float32x3: Serialize(archive, *static_cast<float3*>(field_value)); break;
-                                                case won::ValueType::Float32x4: Serialize(archive, *static_cast<float4*>(field_value)); break;
-                                                case won::ValueType::String: archive.Value(*static_cast<String*>(field_value)); break;
-                                                case won::ValueType::Enum:
-                                                {
-                                                    int64 value = 0;
-                                                    archive.Value(value);
-                                                    switch (field->size)
-                                                    {
-                                                    case 1: *static_cast<int8*>(field_value) = static_cast<int8>(value); break;
-                                                    case 2: *static_cast<int16*>(field_value) = static_cast<int16>(value); break;
-                                                    case 4: *static_cast<int32*>(field_value) = static_cast<int32>(value); break;
-                                                    case 8: *static_cast<int64*>(field_value) = static_cast<int64>(value); break;
-                                                    default: break;
-                                                    }
-                                                    break;
-                                                }
-                                                default:
-                                                    break;
-                                                }
+                                                ReadReflectedData(archive, field->value_type, nullptr, field->size, field->array_desc, field_value);
                                             }
                                         }
                                     }

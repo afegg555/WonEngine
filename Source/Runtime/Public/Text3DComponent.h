@@ -16,6 +16,7 @@ namespace won::ecs
 
         uint32 flags = Dirty;
         std::shared_ptr<resource::Font> font;
+        String font_asset_path;
         String text;
         uint32 pixel_height = 32;
         float height = 1.0f;

@@ -19,6 +19,7 @@ namespace won::ecs
 
         // keep component lightweight: reference a shared mesh, which is owned by the resource layer
         std::shared_ptr<resource::Mesh> mesh;
+        String mesh_asset_path;
 
         math::AABB local_bounds = {};
 
@@ -34,6 +35,11 @@ namespace won::ecs
             mesh = value;
             UpdateLocalBounds();
             SetDirty();
+        }
+
+        void SetMeshAssetPath(const String& value)
+        {
+            mesh_asset_path = value;
         }
 
         void UpdateLocalBounds()

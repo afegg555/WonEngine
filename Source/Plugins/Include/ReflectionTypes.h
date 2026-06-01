@@ -42,6 +42,7 @@ namespace won
         Pointer,
         CustomStruct,
         Enum,
+        Array,
     };
 
     enum FieldFlags : uint32_t
@@ -58,14 +59,29 @@ namespace won
         int64_t value;
     };
 
+    using ArrayGetSizeFn = uint32_t (WON_PLUGIN_CALL*)(const void* array);
+    using ArrayResizeFn = void (WON_PLUGIN_CALL*)(void* array, uint32_t size);
+    using ArrayGetElementFn = void* (WON_PLUGIN_CALL*)(void* array, uint32_t index);
+    using ArrayGetConstElementFn = const void* (WON_PLUGIN_CALL*)(const void* array, uint32_t index);
+
+    struct ArrayDesc
+    {
+        uint32_t struct_size;
+        TypeId element_type_id;
+        ArrayGetSizeFn GetSize;
+        ArrayResizeFn Resize;
+        ArrayGetElementFn GetElement;
+        ArrayGetConstElementFn GetConstElement;
+    };
+
+    // arrays carry their element type through ArrayDesc. Nested custom struct fields are not supported.
     struct FieldDesc
     {
         uint32_t struct_size;
         FieldId field_id;
         const char* name;
-        const char* display_name;
         ValueType value_type;
-        const char* type_name;
+        const ArrayDesc* array_desc;
         uint32_t offset;
         uint32_t size;
         uint32_t flags;

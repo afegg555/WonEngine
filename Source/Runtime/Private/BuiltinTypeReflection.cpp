@@ -49,7 +49,10 @@ namespace won::reflection
         RegisterType(TypeMeta<ecs::Text2DComponent>::Get());
         RegisterType(TypeMeta<ecs::Text3DComponent>::Get());
         RegisterType(TypeMeta<ecs::AnimationComponent>::Get());
+        RegisterType(TypeMeta<ecs::MaterialSlot::TextureMap>::Get());
+        RegisterType(TypeMeta<ecs::MaterialSlot>::Get());
         RegisterType(TypeMeta<ecs::MaterialComponent>::Get());
+        RegisterType(TypeMeta<ecs::ScriptSlot>::Get());
         RegisterType(TypeMeta<ecs::ScriptComponent>::Get());
     }
 }
