@@ -471,11 +471,27 @@ namespace won::rendering
 
     RHIDeviceDX12::~RHIDeviceDX12()
     {
+        if (graphics_context)
+        {
+            graphics_context->WaitIdle();
+        }
+        if (compute_context)
+        {
+            compute_context->WaitIdle();
+        }
+        if (copy_context)
+        {
+            copy_context->WaitIdle();
+        }
+
+        graphics_context.reset();
+        compute_context.reset();
+        copy_context.reset();
+        descriptor_allocator.reset();
+        resource_allocator.Reset();
         device.Reset();
         adapter.Reset();
         factory.Reset();
-        resource_allocator.Reset();
-        descriptor_allocator.reset();
     }
 
     void RHIDeviceDX12::BeginFrame(uint32 frame_index)

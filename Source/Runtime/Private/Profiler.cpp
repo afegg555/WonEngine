@@ -266,6 +266,26 @@ namespace won::profiler
         command_list.ResolveQuery(*query_heap, 0, next_query_index, *query_readback_buffers[active_frame_slot], 0);
     }
 
+    void Shutdown()
+    {
+        std::scoped_lock guard(lock);
+        enabled = false;
+        enabled_request = false;
+        gpu_available = false;
+        cpu_frame = 0;
+        gpu_frame = 0;
+        active_frame_slot = 0;
+        next_query_index = 0;
+        timestamp_per_ms = 0.0;
+        active_device = nullptr;
+        ranges.clear();
+        query_heap = nullptr;
+        for (auto& buffer : query_readback_buffers)
+        {
+            buffer = nullptr;
+        }
+    }
+
     range_id BeginRangeCPU(const String& name)
     {
         if (!enabled)

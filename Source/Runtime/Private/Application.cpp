@@ -9,6 +9,7 @@
 #include "Input.h"
 #include "Profiler.h"
 #include "ScriptRuntime.h"
+
 namespace won
 {
     void Application::Initialize(const ApplicationDesc& desc)
@@ -107,6 +108,7 @@ namespace won
     void Application::Shutdown()
     {
         is_running = false;
+        views.clear();
 
         if (renderer)
         {
@@ -114,8 +116,8 @@ namespace won
             renderer.reset();
         }
 
+        profiler::Shutdown();
         window.reset();
-        device.reset();
 
         if (script_runtime)
         {
@@ -123,7 +125,7 @@ namespace won
             script_runtime.reset();
         }
 
-        views.clear();
+        device.reset();
         jobsystem::ShutDown();
     }
 
