@@ -519,6 +519,14 @@ add_library(CustomComponentSample SHARED
     ${PLUGIN_CUSTOM_COMPONENT_SAMPLE}
 )
 
+set(BUILD_TOOLS ON CACHE BOOL "" FORCE)
+set(BUILD_SAMPLE OFF CACHE BOOL "" FORCE)
+set(BUILD_DX11 ON CACHE BOOL "" FORCE)
+set(BUILD_DX12 OFF CACHE BOOL "" FORCE)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(BC_USE_OPENMP ON CACHE BOOL "" FORCE)
+add_subdirectory(Source/Vendor/DirectXTex EXCLUDE_FROM_ALL)
+
 foreach(PLUGIN_TARGET AssetImporter PrintLogSample CustomComponentSample)
     set(PLUGIN_OUTPUT_DIR "${FINAL_OUT_DIR}/Plugins/${PLUGIN_TARGET}")
     set_target_properties(${PLUGIN_TARGET} PROPERTIES
@@ -603,6 +611,17 @@ set_target_properties(PrintLogSample PROPERTIES
 
 set_target_properties(CustomComponentSample PROPERTIES
     FOLDER "Plugins"
+)
+
+set_target_properties(DirectXTex texassemble texconv texdiag PROPERTIES
+    FOLDER "Tools/DirectXTex"
+)
+
+add_custom_command(TARGET Editor POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:Editor>/Tools"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE:texconv>"
+        "$<TARGET_FILE_DIR:Editor>/Tools/texconv.exe"
 )
 
 target_compile_definitions(Runtime
