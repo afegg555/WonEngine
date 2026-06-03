@@ -73,7 +73,7 @@ namespace won::editor
 				uint32 material_index = 0;
 				uint32 texture_slot = 0;
 				uint32 source_type = 0;
-				String source;
+				String source_path;
 				uint32 embedded_width = 0;
 				uint32 embedded_height = 0;
 				bool embedded_compressed = false;
@@ -92,7 +92,7 @@ namespace won::editor
 
 			struct ImportTask
 			{
-				String path;
+				String path; // absolute path of asset
 				std::atomic_bool finished{ false };
 				std::atomic_bool failed{ false };
 				std::atomic<uint64> result_handle{ 0 };
@@ -106,12 +106,15 @@ namespace won::editor
 				ecs::Entity entity = ecs::INVALID_ENTITY;
 				uint32 material_index = 0;
 				uint32 texture_slot = 0;
-				uint32 source_type = 0;
-				String source;
+				uint32 source_type = 0; // file or embedded
+				String source_path;
+				String asset_id;
+				String binary_path;
 				uint32 embedded_width = 0;
 				uint32 embedded_height = 0;
 				bool embedded_compressed = false;
 				Vector<uint8> embedded_bytes;
+				
 				std::shared_ptr<resource::Image> image;
 				std::atomic_bool finished{ false };
 				std::atomic_bool failed{ false };
@@ -139,6 +142,7 @@ namespace won::editor
 		void CreateStartupScene();
 		bool SaveScene(const String& path);
 		void LoadScene(const String& path);
+		void RebindSceneResources();
 		void LoadSampleScene();
 		void UpdateEntityList();
 		void UpdateDebugPrimitiveMesh();

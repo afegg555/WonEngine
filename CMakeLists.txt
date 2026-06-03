@@ -182,6 +182,7 @@ set(RUNTIME_RESOURCE
     Source/Runtime/Public/Animation.h
     Source/Runtime/Public/Resource.h
     Source/Runtime/Public/ResourceExtension.h
+    Source/Runtime/Public/ResourceAsset.h
     Source/Runtime/Public/Font.h
     Source/Runtime/Public/Image.h
     Source/Runtime/Public/Mesh.h
@@ -191,6 +192,7 @@ set(RUNTIME_RESOURCE
     Source/Runtime/Private/ShaderLibrary.h
     Source/Runtime/Private/Font.cpp
     Source/Runtime/Private/Image.cpp
+    Source/Runtime/Private/ResourceAsset.cpp
     Source/Runtime/Private/ShaderCompiler.cpp
     Source/Runtime/Private/ShaderManifest.cpp
     Source/Runtime/Private/ShaderLoader.cpp

@@ -9,6 +9,7 @@
 #include "ShaderCompiler.h"
 #include "FileSystem.h"
 #include "Image.h"
+#include "ResourceAsset.h"
 #include "StringUtils.h"
 #include "Backlog.h"
 #include "Configuration.h"
@@ -129,6 +130,7 @@ namespace won::editor
 		constexpr const char* editor_camera_speed_key = "editor.camera.speed";
 		constexpr const char* editor_plugins_enabled_key = "editor.plugins.enabled";
 		constexpr const char* editor_scene_last_path_key = "editor.scene.last_path";
+		constexpr const char* generated_asset_directory = "Generated";
 		constexpr const char* scene_directory_name = "Scenes";
 		constexpr const char* scene_file_extension = "wonscene";
 		constexpr const char* default_scene_file_name = "NewScene";
@@ -432,15 +434,6 @@ namespace won::editor
 			return type_desc->name ? type_desc->name : "";
 		}
 
-		const char* GetFieldDisplayName(const won::FieldDesc& field)
-		{
-			if (field.display_name && field.display_name[0] != '\0')
-			{
-				return field.display_name;
-			}
-			return field.name ? field.name : "";
-		}
-
 		bool IsDefaultComponent(won::TypeId type_id)
 		{
 			switch (type_id)
@@ -482,7 +475,7 @@ namespace won::editor
 			}
 
 			void* value = component_data + field.offset;
-			const char* label = GetFieldDisplayName(field);
+			const char* label = field.name ? field.name : "";
 			switch (field.value_type)
 			{
 			case won::ValueType::Bool:
@@ -1227,16 +1220,94 @@ namespace won::editor
 			{
 				const bool color_texture = task->texture_slot == BASECOLORMAP || task->texture_slot == EMISSIVEMAP || task->texture_slot == SHEENCOLORMAP;
 				const RHIFormat texture_format = color_texture ? RHIFormat::R8G8B8A8UnormSrgb : RHIFormat::R8G8B8A8Unorm;
-				if (rendering::utils::CreateRenderData(*device, *task->image, texture_format, true))
+				bool has_alpha = false;
+				for (Size pixel_index = 3; pixel_index < task->image->pixels.size(); pixel_index += 4)
+				{
+					if (task->image->pixels[pixel_index] < 255)
+					{
+						has_alpha = true;
+						break;
+					}
+				}
+				const RHIFormat binary_format = has_alpha ?
+					(color_texture ? RHIFormat::BC3UnormSrgb : RHIFormat::BC3Unorm) :
+					(color_texture ? RHIFormat::BC1UnormSrgb : RHIFormat::BC1Unorm);
+				bool binary_saved = false;
+				std::shared_ptr<resource::Image> render_image = task->image;
+				String texture_asset_key;
+				if (task->source_type == asset_texture_source_file)
+				{
+					texture_asset_key = io::GetRelativePath(contents_root_dir, task->source_path);
+					if (texture_asset_key.empty())
+					{
+						texture_asset_key = task->source_path;
+					}
+				}
+				else
+				{
+					texture_asset_key = task->source_path;
+				}
+				texture_asset_key += "#" + std::to_string(static_cast<uint32>(binary_format));
+				task->asset_id = std::to_string(won::utils::Hash(texture_asset_key));
+				task->binary_path = String(generated_asset_directory) + "/" + task->asset_id + "." + resource::texture_binary_extension;
+				{
+					Vector<uint8> compressed_pixels;
+					uint32 compressed_mip_levels = 1;
+					if (rendering::utils::CompressTextureBC(*device, *task->image, binary_format, compressed_pixels, compressed_mip_levels))
+					{
+						const String binary_disk_path = io::CombinePath(contents_root_dir, task->binary_path);
+						binary_saved = resource::SaveTextureBinary(binary_disk_path,
+							static_cast<uint32>(task->image->width), static_cast<uint32>(task->image->height), compressed_mip_levels, binary_format, compressed_pixels);
+						if (binary_saved)
+						{
+							std::shared_ptr<resource::Image> binary_image = resource::LoadTextureBinary(binary_disk_path);
+							if (binary_image && binary_image->IsValid())
+							{
+								render_image = binary_image;
+								if (task->source_type == asset_texture_source_file && !task->source_path.empty())
+								{
+									String source_asset_path = io::GetRelativePath(contents_root_dir, task->source_path);
+									if (source_asset_path.empty())
+									{
+										source_asset_path = task->source_path;
+									}
+									resource::AssetMeta meta = {};
+									meta.asset_id = task->asset_id;
+									meta.source_asset_path = source_asset_path;
+									meta.asset_type = "texture";
+									meta.binary_path = task->binary_path;
+									io::GetLastTimestamp(task->source_path, &meta.source_timestamp);
+									resource::SaveAssetMeta(resource::GetAssetMetaPath(task->source_path), meta);
+								}
+							}
+							else
+							{
+								binary_saved = false;
+							}
+						}
+					}
+				}
+				if (rendering::utils::CreateRenderData(*device, *render_image, texture_format, !binary_saved))
 				{
 					if (MaterialComponent* material = editor_viewport.view->scene->GetComponent<MaterialComponent>(task->entity))
 					{
 						if (task->material_index < material->material_slots.size() && task->texture_slot < TEXTURESLOT_COUNT)
 						{
 							MaterialSlot::TextureMap& texture_map = material->material_slots[task->material_index].textures[task->texture_slot];
-							texture_map.name = task->source;
-							texture_map.texture = task->image->render_data.texture;
-							texture_map.res_handle = task->image->render_data.srv;
+							if (binary_saved)
+							{
+								texture_map.texture_asset_path = task->binary_path;
+							}
+							else if (task->source_type == asset_texture_source_file)
+							{
+								texture_map.texture_asset_path = io::GetRelativePath(contents_root_dir, task->source_path);
+								if (texture_map.texture_asset_path.empty())
+								{
+									texture_map.texture_asset_path = task->source_path;
+								}
+							}
+							texture_map.texture = render_image->render_data.texture;
+							texture_map.res_handle = render_image->render_data.srv;
 						}
 					}
 				}
@@ -2096,15 +2167,11 @@ namespace won::editor
 					{
 						continue;
 					}
-
-					ecs::MaterialSlot::TextureMap& texture_map = material_slot.textures[texture_slot];
-					texture_map.name = texture_source;
-
 					EditorAssetImporter::TextureRequest texture_request = {};
 					texture_request.material_index = material_index;
 					texture_request.texture_slot = texture_slot;
 					texture_request.source_type = source_type;
-					texture_request.source = texture_source;
+					texture_request.source_path = texture_source;
 					if (source_type == asset_texture_source_embedded && functions.get_embedded_texture_info && functions.copy_embedded_texture)
 					{
 						function::Value embedded_info_inputs[2] = {};
@@ -2191,6 +2258,26 @@ namespace won::editor
 		prepared.mesh->skeleton = prepared.skeleton;
 		prepared.mesh->animation_clips = prepared.animation_clips;
 
+		String source_mesh_asset_path = io::GetRelativePath(contents_root_dir, task.path);
+		if (source_mesh_asset_path.empty())
+		{
+			source_mesh_asset_path = task.path;
+		}
+		const String mesh_binary_path = String(generated_asset_directory) + "/" + std::to_string(won::utils::Hash(source_mesh_asset_path)) + "." + resource::mesh_binary_extension;
+		if (!resource::SaveMeshBinary(io::CombinePath(contents_root_dir, mesh_binary_path), *prepared.mesh))
+		{
+			return false;
+		}
+		{
+			resource::AssetMeta meta = {};
+			meta.asset_id = std::to_string(won::utils::Hash(source_mesh_asset_path));
+			meta.source_asset_path = source_mesh_asset_path;
+			meta.asset_type = "mesh";
+			meta.binary_path = mesh_binary_path;
+			io::GetLastTimestamp(task.path, &meta.source_timestamp);
+			resource::SaveAssetMeta(resource::GetAssetMetaPath(task.path), meta);
+		}
+
 		ecs::Scene* scene = editor_viewport.view->scene;
 		const ecs::Entity root_entity = scene->CreateEntity();
 		if (auto* transform = scene->AddComponent<ecs::TransformComponent>(root_entity))
@@ -2207,6 +2294,7 @@ namespace won::editor
 		}
 		if (auto* geometry = scene->AddComponent<ecs::GeometryComponent>(root_entity))
 		{
+			geometry->mesh_asset_path = mesh_binary_path;
 			geometry->SetMesh(prepared.mesh);
 			geometry->SetCastShadow(true);
 		}
@@ -2225,7 +2313,14 @@ namespace won::editor
 			texture_task->material_index = texture_request.material_index;
 			texture_task->texture_slot = texture_request.texture_slot;
 			texture_task->source_type = texture_request.source_type;
-			texture_task->source = std::move(texture_request.source);
+			if (texture_request.source_type == asset_texture_source_file)
+			{
+				texture_task->source_path = std::move(texture_request.source_path);
+			}
+			else
+			{
+				texture_task->source_path = source_mesh_asset_path + "#" + texture_request.source_path;
+			}
 			texture_task->embedded_width = texture_request.embedded_width;
 			texture_task->embedded_height = texture_request.embedded_height;
 			texture_task->embedded_compressed = texture_request.embedded_compressed;
@@ -2237,7 +2332,7 @@ namespace won::editor
 			{
 				if (texture_task->source_type == asset_texture_source_file)
 				{
-					texture_task->image = resource::LoadImageFile(texture_task->source, 4);
+					texture_task->image = resource::LoadImageFile(texture_task->source_path, 4);
 				}
 				else if (texture_task->source_type == asset_texture_source_embedded)
 				{
@@ -2689,9 +2784,9 @@ namespace won::editor
 		auto guess_type = [](const String& extension) -> ContentAssetType
 		{
 			const String ext = won::utils::ToLower(extension);
-			if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "dds" || ext == "tga" || ext == "bmp") return ContentAssetType::Texture;
+			if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "tga" || ext == "bmp" || ext == resource::texture_binary_extension) return ContentAssetType::Texture;
 			if (ext == "mat") return ContentAssetType::Material;
-			if (ext == "fbx" || ext == "obj" || ext == "gltf" || ext == "glb") return ContentAssetType::Mesh;
+			if (ext == "fbx" || ext == "obj" || ext == "gltf" || ext == "glb" || ext == "stl" || ext == resource::mesh_binary_extension) return ContentAssetType::Mesh;
 			if (ext == scene_file_extension) return ContentAssetType::Scene;
 			if (ext == "hlsl" || ext == "hlsli") return ContentAssetType::Shader;
 			if (ext == "ttf" || ext == "otf") return ContentAssetType::Font;
@@ -2724,12 +2819,16 @@ namespace won::editor
 			{
 				continue;
 			}
+			String extension = io::GetExtension(entry.path);
+			if (won::utils::ToLower(extension) == resource::asset_metadata_extension)
+			{
+				continue;
+			}
 
 			ContentBrowserAsset asset = {};
 			asset.disk_path = entry.path;
 			asset.virtual_path = virtual_path;
 			asset.name = io::GetFilename(entry.path);
-			String extension = io::GetExtension(entry.path);
 			if (!extension.empty() && asset.name.size() > extension.size() + 1)
 			{
 				asset.name.resize(asset.name.size() - extension.size() - 1);
@@ -5727,6 +5826,190 @@ namespace won::editor
 		return true;
 	}
 
+	void EditorApplication::RebindSceneResources()
+	{
+		if (!editor_viewport.view || !editor_viewport.view->scene || !device)
+		{
+			return;
+		}
+
+		ecs::Scene& scene = *editor_viewport.view->scene;
+		if (auto geometry_array = scene.GetComponentArray<ecs::GeometryComponent>())
+		{
+			for (Size i = 0; i < geometry_array->GetSize(); ++i)
+			{
+				ecs::GeometryComponent& geometry = geometry_array->data[i];
+				if (geometry.mesh_asset_path.empty())
+				{
+					continue;
+				}
+
+				String disk_path = geometry.mesh_asset_path;
+				if (won::utils::StartsWith(disk_path, "/Contents/"))
+				{
+					disk_path = io::CombinePath(contents_root_dir, disk_path.substr(String("/Contents/").size()));
+				}
+				else if (!io::IsAbsolutePath(disk_path))
+				{
+					disk_path = io::CombinePath(contents_root_dir, disk_path);
+				}
+				String binary_path;
+				resource::AssetMeta meta = {};
+				if (won::utils::ToLower(io::GetExtension(disk_path)) == resource::mesh_binary_extension)
+				{
+					binary_path = disk_path;
+				}
+				else if (resource::LoadAssetMeta(resource::GetAssetMetaPath(disk_path), meta))
+				{
+					binary_path = meta.binary_path;
+					if (won::utils::StartsWith(binary_path, "/Contents/"))
+					{
+						binary_path = io::CombinePath(contents_root_dir, binary_path.substr(String("/Contents/").size()));
+					}
+					else if (!io::IsAbsolutePath(binary_path))
+					{
+						binary_path = io::CombinePath(contents_root_dir, binary_path);
+					}
+				}
+
+				std::shared_ptr<resource::Mesh> mesh = resource::LoadMeshBinary(binary_path);
+				if (mesh && mesh->IsValid() && rendering::utils::CreateRenderData(*device, *mesh))
+				{
+					geometry.SetMesh(mesh);
+				}
+			}
+		}
+
+		if (auto material_array = scene.GetComponentArray<ecs::MaterialComponent>())
+		{
+			for (Size i = 0; i < material_array->GetSize(); ++i)
+			{
+				ecs::MaterialComponent& material = material_array->data[i];
+				for (ecs::MaterialSlot& material_slot : material.material_slots)
+				{
+					for (uint32 texture_slot = 0; texture_slot < TEXTURESLOT_COUNT; ++texture_slot)
+					{
+						ecs::MaterialSlot::TextureMap& texture_map = material_slot.textures[texture_slot];
+						if (texture_map.texture_asset_path.empty())
+						{
+							continue;
+						}
+
+						String disk_path = texture_map.texture_asset_path;
+						if (won::utils::StartsWith(disk_path, "/Contents/"))
+						{
+							disk_path = io::CombinePath(contents_root_dir, disk_path.substr(String("/Contents/").size()));
+						}
+						else if (!io::IsAbsolutePath(disk_path))
+						{
+							disk_path = io::CombinePath(contents_root_dir, disk_path);
+						}
+						std::shared_ptr<resource::Image> image;
+						if (won::utils::ToLower(io::GetExtension(disk_path)) == resource::texture_binary_extension)
+						{
+							image = resource::LoadTextureBinary(disk_path);
+						}
+						else
+						{
+							resource::AssetMeta meta = {};
+							if (resource::LoadAssetMeta(resource::GetAssetMetaPath(disk_path), meta))
+							{
+								String binary_path = meta.binary_path;
+								if (won::utils::StartsWith(binary_path, "/Contents/"))
+								{
+									binary_path = io::CombinePath(contents_root_dir, binary_path.substr(String("/Contents/").size()));
+								}
+								else if (!io::IsAbsolutePath(binary_path))
+								{
+									binary_path = io::CombinePath(contents_root_dir, binary_path);
+								}
+								image = resource::LoadTextureBinary(binary_path);
+							}
+							if (!image)
+							{
+								image = resource::LoadImageFile(disk_path, 4);
+							}
+						}
+
+						const bool color_texture = texture_slot == BASECOLORMAP || texture_slot == EMISSIVEMAP || texture_slot == SHEENCOLORMAP;
+						const RHIFormat texture_format = color_texture ? RHIFormat::R8G8B8A8UnormSrgb : RHIFormat::R8G8B8A8Unorm;
+						if (image && image->IsValid() && rendering::utils::CreateRenderData(*device, *image, texture_format, true))
+						{
+							texture_map.texture = image->render_data.texture;
+							texture_map.res_handle = image->render_data.srv;
+						}
+					}
+				}
+			}
+		}
+
+		if (auto text_array = scene.GetComponentArray<ecs::Text2DComponent>())
+		{
+			for (Size i = 0; i < text_array->GetSize(); ++i)
+			{
+				ecs::Text2DComponent& text = text_array->data[i];
+				if (!text.font_asset_path.empty())
+				{
+					String font_path = text.font_asset_path;
+					if (won::utils::StartsWith(font_path, "/Contents/"))
+					{
+						font_path = io::CombinePath(contents_root_dir, font_path.substr(String("/Contents/").size()));
+					}
+					else if (!io::IsAbsolutePath(font_path))
+					{
+						font_path = io::CombinePath(contents_root_dir, font_path);
+					}
+					text.font = resource::LoadFontFile(font_path);
+					text.SetDirty();
+				}
+			}
+		}
+
+		if (auto text_array = scene.GetComponentArray<ecs::Text3DComponent>())
+		{
+			for (Size i = 0; i < text_array->GetSize(); ++i)
+			{
+				ecs::Text3DComponent& text = text_array->data[i];
+				if (!text.font_asset_path.empty())
+				{
+					String font_path = text.font_asset_path;
+					if (won::utils::StartsWith(font_path, "/Contents/"))
+					{
+						font_path = io::CombinePath(contents_root_dir, font_path.substr(String("/Contents/").size()));
+					}
+					else if (!io::IsAbsolutePath(font_path))
+					{
+						font_path = io::CombinePath(contents_root_dir, font_path);
+					}
+					text.font = resource::LoadFontFile(font_path);
+					text.SetDirty();
+				}
+			}
+		}
+
+		if (auto script_array = scene.GetComponentArray<ecs::ScriptComponent>())
+		{
+			for (Size i = 0; i < script_array->GetSize(); ++i)
+			{
+				ecs::ScriptComponent& script_component = script_array->data[i];
+				for (ecs::ScriptSlot& script_slot : script_component.scripts)
+				{
+					if (won::utils::StartsWith(script_slot.script_path, "/Contents/"))
+					{
+						script_slot.script_path = io::CombinePath(contents_root_dir, script_slot.script_path.substr(String("/Contents/").size()));
+					}
+					else if (!script_slot.script_path.empty() && !io::IsAbsolutePath(script_slot.script_path))
+					{
+						script_slot.script_path = io::CombinePath(contents_root_dir, script_slot.script_path);
+					}
+					script_slot.initialized = false;
+					script_slot.instance = {};
+					script_slot.last_error.clear();
+				}
+			}
+		}
+	}
+
 	void EditorApplication::LoadScene(const String& path)
 	{
 		if (path.empty() || !editor_viewport.view || !editor_viewport.view->scene)
@@ -5754,6 +6037,7 @@ namespace won::editor
 		editor_viewport.picked_entity = ecs::INVALID_ENTITY;
 		editor_viewport.debug_primitive_entity = ecs::INVALID_ENTITY;
 		editor_viewport.debug_primitive_mesh.reset();
+		RebindSceneResources();
 		CreateEditorCamera();
 		UpdateEntityList();
 		backlog::Post(editor_text::scene_loaded + path);
@@ -5762,7 +6046,9 @@ namespace won::editor
 	void EditorApplication::LoadSampleScene()
 	{
 		{
-			std::shared_ptr<resource::Font> noto_sans_font = resource::LoadFontFile(contents_root_dir + "Fonts/Noto_Sans_KR/static/NotoSansKR-Regular.ttf");
+			const String noto_sans_asset_path = "Fonts/Noto_Sans_KR/static/NotoSansKR-Regular.ttf";
+			const String noto_sans_path = io::CombinePath(contents_root_dir, noto_sans_asset_path);
+			std::shared_ptr<resource::Font> noto_sans_font = resource::LoadFontFile(noto_sans_path);
 			if (noto_sans_font && noto_sans_font->IsValid())
 			{
 				ecs::Entity text_entity = editor_viewport.view->scene->CreateEntity();
@@ -5775,6 +6061,7 @@ namespace won::editor
 				if (auto* text = editor_viewport.view->scene->AddComponent<ecs::Text3DComponent>(text_entity))
 				{
 					text->font = noto_sans_font;
+					text->font_asset_path = noto_sans_asset_path;
 					//text->text = "\xED\x85\x8C\xEC\x8A\xA4\xED\x8A\xB8";
 					text->text = "Test1234!@#$";
 					text->pixel_height = 64;
@@ -5799,6 +6086,7 @@ namespace won::editor
 				if (auto* text_2d = editor_viewport.view->scene->AddComponent<ecs::Text2DComponent>(text_2d_entity))
 				{
 					text_2d->font = noto_sans_font;
+					text_2d->font_asset_path = noto_sans_asset_path;
 					text_2d->text = "2D Text";
 					text_2d->anchor = { 0.0f, 0.0f };
 					text_2d->position = { 24.0f, 24.0f };
@@ -5820,7 +6108,8 @@ namespace won::editor
 				}
 			}
 
-			String file_path = contents_root_dir + "/Images/env_comp.png";
+			String image_asset_path = "Images/env_comp.png";
+			String file_path = io::CombinePath(contents_root_dir, image_asset_path);
 			std::shared_ptr<resource::Image> image = resource::LoadImageFile(file_path, 4);
 			if (image && image->IsValid())
 			{
@@ -5847,7 +6136,7 @@ namespace won::editor
 						MaterialSlot& material_slot = material->AddMaterialSlot();
 						material_slot.flags = SHADER_MATERIAL_FLAG_TRANSPARENT;
 						material_slot.base_color = { 1.0f, 1.0f, 1.0f, 1.0f };
-						material_slot.textures[BASECOLORMAP].name = "Test Sprite BaseColorMap";
+						material_slot.textures[BASECOLORMAP].texture_asset_path = image_asset_path;
 						material_slot.textures[BASECOLORMAP].texture = image->render_data.texture;
 						material_slot.textures[BASECOLORMAP].res_handle = image->render_data.srv;
 					}
@@ -5874,7 +6163,7 @@ namespace won::editor
 						MaterialSlot& material_slot = material->AddMaterialSlot();
 						material_slot.flags = SHADER_MATERIAL_FLAG_TRANSPARENT;
 						material_slot.base_color = { 1.0f, 1.0f, 1.0f, 0.55f };
-						material_slot.textures[BASECOLORMAP].name = "Test 2D Sprite BaseColorMap";
+						material_slot.textures[BASECOLORMAP].texture_asset_path = image_asset_path;
 						material_slot.textures[BASECOLORMAP].texture = image->render_data.texture;
 						material_slot.textures[BASECOLORMAP].res_handle = image->render_data.srv;
 					}
@@ -5982,7 +6271,6 @@ namespace won::editor
 			//		material_slot.base_color = { 1.0f, 1.0f, 1.0f, 1.0f };
 			//		material_slot.metallic = 0.0f;
 			//		material_slot.roughness = 1.0f;
-			//		//material_slot.textures[0].name = "Test BaseColorMap";
 			//		//material_slot.textures[0].texture = texture_resource;
 			//		//material_slot.textures[0].res_handle = texture_srv;
 			//	}
