@@ -1,7 +1,7 @@
 #include "Application.h"
 #include "FileSystem.h"
 #include "JobSystem.h"
-#include "PluginManager.h"
+#include "Plugin.h"
 #include "Entity.h"
 #include "Mesh.h"
 #include "MaterialComponent.h"
@@ -73,7 +73,7 @@ namespace won::editor
 				uint32 material_index = 0;
 				uint32 texture_slot = 0;
 				uint32 source_type = 0;
-				String source;
+				String source_path;
 				uint32 embedded_width = 0;
 				uint32 embedded_height = 0;
 				bool embedded_compressed = false;
@@ -92,7 +92,7 @@ namespace won::editor
 
 			struct ImportTask
 			{
-				String path;
+				String path; // absolute path of asset
 				std::atomic_bool finished{ false };
 				std::atomic_bool failed{ false };
 				std::atomic<uint64> result_handle{ 0 };
@@ -106,12 +106,15 @@ namespace won::editor
 				ecs::Entity entity = ecs::INVALID_ENTITY;
 				uint32 material_index = 0;
 				uint32 texture_slot = 0;
-				uint32 source_type = 0;
-				String source;
+				uint32 source_type = 0; // file or embedded
+				String source_path;
+				String asset_id;
+				String binary_path;
 				uint32 embedded_width = 0;
 				uint32 embedded_height = 0;
 				bool embedded_compressed = false;
 				Vector<uint8> embedded_bytes;
+				
 				std::shared_ptr<resource::Image> image;
 				std::atomic_bool finished{ false };
 				std::atomic_bool failed{ false };
@@ -129,16 +132,25 @@ namespace won::editor
 			}
 		};
 
-		void LoadDefaultPlugins();
+		void LoadPlugins();
+		void RegisterPluginExtensions(const std::shared_ptr<plugin::Plugin>& plugin);
+		void SetPluginEnabled(Size plugin_index, bool enabled);
 		void InitImGui();
 		void InitEditorGrid();
 		void DrawEditorGrid();
+		void CreateEditorCamera();
+		void CreateStartupScene();
+		bool SaveScene(const String& path);
+		void LoadScene(const String& path);
+		void RebindSceneResources();
 		void LoadSampleScene();
 		void UpdateEntityList();
 		void UpdateDebugPrimitiveMesh();
 		uint64 StartAssetImport(const String& path);
 		bool CommitAssetImportResult(EditorAssetImporter::ImportTask& task);
 		void ReleaseAssetImportResult(uint64 result_handle);
+		void LoadEditorSettings();
+		void SaveEditorSettings();
 
 	private:
 		enum class ContentAssetType
@@ -183,6 +195,14 @@ namespace won::editor
 		void DrawContentsBrowser();
 		void DrawContentFolderNode(const String& virtual_path, const String& name);
 		void DrawContentAssetTile(const ContentBrowserAsset& asset, float tile_size);
+
+		struct EditorPluginInfo
+		{
+			plugin::PluginInfo info;
+			std::shared_ptr<plugin::Plugin> plugin;
+			bool enabled = false;
+			bool registered = false;
+		};
 
 		struct ViewportDebugSettings
 		{
@@ -251,14 +271,16 @@ namespace won::editor
 		std::shared_ptr<RHIPipeline> editor_grid_pso;
 
 		std::vector<ecs::Entity> sorted_entities;
+		std::vector<EditorPluginInfo> plugins;
+		String enabled_plugin_ids;
 
 		ecs::Scene loaded_scene;
+		String current_scene_path;
 		EditorViewport editor_viewport;
 		EditorAssetImporter asset_importer;
 		ContentBrowserState content_browser = {};
 		std::unique_ptr<io::DirectoryWatcher> contents_watcher;
 		float contents_watcher_poll_timer = 0.0f;
-
-		std::shared_ptr<plugin::PluginManager> plugin_manager;
+		float editor_camera_speed = 5.0f;
 	};
 }

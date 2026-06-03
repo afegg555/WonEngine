@@ -3,6 +3,7 @@
 #include "Entity.h"
 #include "System.h"
 #include "SceneComponents.h"
+#include "BuiltinTypeMeta.h"
 #include "TransformUpdateSystem.h"
 #include "EnvironmentUpdateSystem.h"
 #include "CameraUpdateSystem.h"
@@ -87,7 +88,7 @@ namespace won::ecs
 
         Entity CreateEntity()
         {
-            Entity entity = ecs::CreateEntity();
+            Entity entity = next_entity++;
             entities.push_back(entity);
             return entity;
         }
@@ -126,7 +127,7 @@ namespace won::ecs
 
             for (Entity current : entities_to_destroy)
             {
-                component_manager.EntityDestroyed(current);
+                component_manager.RemoveComponents(current);
             }
 
             entities.erase(
@@ -141,11 +142,42 @@ namespace won::ecs
             SetBVHDirty();
         }
 
+        void ClearEntities()
+        {
+            component_manager.Clear();
+            entities.clear();
+            render_data.Clear();
+            scene_bvh.Clear();
+            scene_bvh_entities.clear();
+            next_entity = INVALID_ENTITY + 1;
+            SetBVHDirty();
+        }
+
         template <typename Component, typename... Args>
         Component* AddComponent(Entity entity, Args&&... args)
         {
             Component component { std::forward<Args>(args)... };
             return component_manager.AddComponent<Component>(entity, component);
+        }
+
+        void RegisterComponent(const won::TypeDesc* type_desc)
+        {
+            component_manager.RegisterComponent(type_desc);
+        }
+
+        void* AddComponent(Entity entity, won::TypeId type_id, const void* component)
+        {
+            return component_manager.AddComponent(entity, type_id, component);
+        }
+
+        void* AddComponent(Entity entity, const won::TypeDesc* type_desc)
+        {
+            if (!type_desc)
+            {
+                return nullptr;
+            }
+            component_manager.RegisterComponent(type_desc);
+            return component_manager.AddComponent(entity, type_desc->type_id, nullptr);
         }
 
         template <typename Component>
@@ -154,10 +186,25 @@ namespace won::ecs
             return component_manager.GetComponent<Component>(entity);
         }
 
+        void* GetComponent(Entity entity, won::TypeId type_id)
+        {
+            return component_manager.GetComponent(entity, type_id);
+        }
+
+        const void* GetComponent(Entity entity, won::TypeId type_id) const
+        {
+            return component_manager.GetComponent(entity, type_id);
+        }
+
         template <typename Component>
         void RemoveComponent(Entity entity)
         {
             component_manager.RemoveComponent<Component>(entity);
+        }
+
+        void RemoveComponent(Entity entity, won::TypeId type_id)
+        {
+            component_manager.RemoveComponent(entity, type_id);
         }
 
         template <typename Component>
@@ -166,10 +213,30 @@ namespace won::ecs
             return component_manager.HasComponent<Component>(entity);
         }
 
+        bool HasComponent(Entity entity, won::TypeId type_id) const
+        {
+            return component_manager.HasComponent(entity, type_id);
+        }
+
+        Vector<const won::TypeDesc*> GetComponentTypes() const
+        {
+            return component_manager.GetComponentTypes();
+        }
+
         template <typename Component>
         std::shared_ptr<ComponentArray<Component>> GetComponentArray()
         {
             return component_manager.GetComponentArray<Component>();
+        }
+
+        std::shared_ptr<IComponentArray> GetComponentArray(won::TypeId type_id)
+        {
+            return component_manager.GetComponentArray(type_id);
+        }
+
+        std::shared_ptr<const IComponentArray> GetComponentArray(won::TypeId type_id) const
+        {
+            return component_manager.GetComponentArray(type_id);
         }
 
         void AddSystem(const std::shared_ptr<System>& system)
@@ -888,6 +955,7 @@ namespace won::ecs
         RenderData render_data;
         ComponentManager component_manager;
         Vector<Entity> entities;
+        Entity next_entity = INVALID_ENTITY + 1;
         math::bvh::BVH scene_bvh;
         Vector<Entity> scene_bvh_entities;
         Vector<std::shared_ptr<System>> systems;

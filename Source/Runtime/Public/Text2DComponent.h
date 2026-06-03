@@ -15,6 +15,7 @@ namespace won::ecs
 
         uint32 flags = Dirty;
         std::shared_ptr<resource::Font> font;
+        String font_asset_path;
         String text;
         float2 anchor = { 0.0f, 0.0f }; // [0..1]
         float2 position = { 0.0f, 0.0f };  // pixel unit

@@ -106,12 +106,12 @@ endforeach()
 
 set(RUNTIME_CORE
     Source/Runtime/Public/Types.h
-    Source/Runtime/Public/ValueType.h
     Source/Runtime/Public/RuntimeExport.h
 )
 
 set(PLUGIN_PUBLIC
-    Source/Plugins/Include/PluginValue.h
+    Source/Plugins/Include/StableHash.h
+    Source/Plugins/Include/ReflectionTypes.h
     Source/Plugins/Include/PluginABI.h
     Source/Plugins/Include/CustomFunctionExtension.h
     Source/Plugins/Include/CustomComponentExtension.h
@@ -181,6 +181,8 @@ set(RUNTIME_RHI_DX12
 set(RUNTIME_RESOURCE
     Source/Runtime/Public/Animation.h
     Source/Runtime/Public/Resource.h
+    Source/Runtime/Public/ResourceExtension.h
+    Source/Runtime/Public/ResourceAsset.h
     Source/Runtime/Public/Font.h
     Source/Runtime/Public/Image.h
     Source/Runtime/Public/Mesh.h
@@ -190,6 +192,7 @@ set(RUNTIME_RESOURCE
     Source/Runtime/Private/ShaderLibrary.h
     Source/Runtime/Private/Font.cpp
     Source/Runtime/Private/Image.cpp
+    Source/Runtime/Private/ResourceAsset.cpp
     Source/Runtime/Private/ShaderCompiler.cpp
     Source/Runtime/Private/ShaderManifest.cpp
     Source/Runtime/Private/ShaderLoader.cpp
@@ -217,8 +220,8 @@ set(RUNTIME_CONFIGURATION
 )
 
 set(RUNTIME_PLUGIN
-    Source/Runtime/Public/PluginManager.h
-    Source/Runtime/Private/PluginManager.cpp
+    Source/Runtime/Public/Plugin.h
+    Source/Runtime/Private/Plugin.cpp
 )
 
 set(RUNTIME_SCRIPT
@@ -239,8 +242,21 @@ set(RUNTIME_JOBSYSTEM
 )
 
 set(RUNTIME_SERIALIZATION
-    Source/Runtime/Public/Serializer.h
-    Source/Runtime/Public/Archive.h
+    Source/Runtime/Public/BinaryArchive.h
+    Source/Runtime/Public/ArchiveMode.h
+    Source/Runtime/Public/JsonArchive.h
+    Source/Runtime/Public/SceneSerializer.h
+    Source/Runtime/Private/JsonArchive.cpp
+    Source/Runtime/Private/SceneSerializer.cpp
+)
+
+set(RUNTIME_REFLECTION
+    Source/Runtime/Public/TypeMeta.h
+    Source/Runtime/Public/Reflection.h
+    Source/Runtime/Private/Reflection.cpp
+    Source/Runtime/Public/BuiltinTypeMeta.h
+    Source/Runtime/Public/BuiltinTypeReflection.h
+    Source/Runtime/Private/BuiltinTypeReflection.cpp
 )
 
 set(RUNTIME_MATH
@@ -255,7 +271,6 @@ set(RUNTIME_ECS
     Source/Runtime/Public/ComponentManager.h
     Source/Runtime/Public/Scene.h
     Source/Runtime/Public/System.h
-    Source/Runtime/Private/Entity.cpp
 )
 
 set(RUNTIME_ECS_COMPONENTS
@@ -321,8 +336,8 @@ set(RUNTIME_APPLICATION
 )
 
 set(RUNTIME_ALLOCATOR
-    Source/Runtime/Public/Allocator.h
     Source/Runtime/Public/LinearAllocator.h
+    Source/Runtime/Public/PoolAllocator.h
     Source/Runtime/Public/RingBuffer.h
 )
 
@@ -369,6 +384,14 @@ set(SHADERS_HLSL
     Source/Shaders/GPUBVHBuildNodesCS.hlsl
     Source/Shaders/GPUBVHReduceBoundsCS.hlsl
     Source/Shaders/TextureMipGenCS.hlsl
+    Source/Shaders/TextureBCCompressCommon.hlsli
+    Source/Shaders/TextureBC1CompressCS.hlsl
+    Source/Shaders/TextureBC3CompressCS.hlsl
+    Source/Shaders/TextureBC4CompressCS.hlsl
+    Source/Shaders/TextureBC5CompressCS.hlsl
+    Source/Shaders/Compressonator/common_def.h
+    Source/Shaders/Compressonator/bcn_common_api.h
+    Source/Shaders/Compressonator/bcn_common_kernel.h
 )
 
 set(WONENGINE_RUNTIME_LIBRARY_TYPE STATIC)
@@ -394,6 +417,7 @@ add_library(Runtime ${WONENGINE_RUNTIME_LIBRARY_TYPE}
     ${LUA_HEADERS}
     ${RUNTIME_JOBSYSTEM}
     ${RUNTIME_SERIALIZATION}
+    ${RUNTIME_REFLECTION}
     ${RUNTIME_MATH}
     ${RUNTIME_ECS}
     ${RUNTIME_ECS_COMPONENTS}
@@ -424,6 +448,7 @@ source_group("Script/Lua" FILES ${RUNTIME_SCRIPT_LUA})
 source_group("Script/Lua/src" FILES ${LUA_SOURCES} ${LUA_HEADERS})
 source_group("JobSystem" FILES ${RUNTIME_JOBSYSTEM})
 source_group("Serialization" FILES ${RUNTIME_SERIALIZATION})
+source_group("Reflection" FILES ${RUNTIME_REFLECTION})
 source_group("Math" FILES ${RUNTIME_MATH})
 source_group("ECS" FILES ${RUNTIME_ECS})
 source_group("ECS/Components" FILES ${RUNTIME_ECS_COMPONENTS})
@@ -619,6 +644,6 @@ if(MSVC)
 endif()
 
 if(WIN32)
-    target_link_libraries(Runtime PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler dwmapi)
+    target_link_libraries(Runtime PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler dwmapi ole32 shell32 uuid)
     target_link_libraries(Editor PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler)
 endif()

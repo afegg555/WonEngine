@@ -1,6 +1,6 @@
 #pragma once
 #include "PluginABI.h"
-#include "PluginValue.h"
+#include "ReflectionTypes.h"
 
 #include <stdint.h>
 

@@ -41,21 +41,26 @@ namespace won::plugin
         }
 
         const component::FieldDesc s_special_component_fields[] = {
-            { "speed", won::ValueType::Float, static_cast<uint32_t>(offsetof(SpecialComponent, speed)) },
-            { "amplitude", won::ValueType::Float, static_cast<uint32_t>(offsetof(SpecialComponent, amplitude)) },
-            { "enabled", won::ValueType::Bool, static_cast<uint32_t>(offsetof(SpecialComponent, enabled)) },
+            { sizeof(component::FieldDesc), won::StableHash("speed"), "speed", won::ValueType::Float32, nullptr, static_cast<uint32_t>(offsetof(SpecialComponent, speed)), static_cast<uint32_t>(sizeof(float)), won::FieldFlagEditable | won::FieldFlagSerializable },
+            { sizeof(component::FieldDesc), won::StableHash("amplitude"), "amplitude", won::ValueType::Float32, nullptr, static_cast<uint32_t>(offsetof(SpecialComponent, amplitude)), static_cast<uint32_t>(sizeof(float)), won::FieldFlagEditable | won::FieldFlagSerializable },
+            { sizeof(component::FieldDesc), won::StableHash("enabled"), "enabled", won::ValueType::Bool, nullptr, static_cast<uint32_t>(offsetof(SpecialComponent, enabled)), static_cast<uint32_t>(sizeof(bool)), won::FieldFlagEditable | won::FieldFlagSerializable },
         };
 
         const component::Desc s_special_component_desc{
             sizeof(component::Desc),
+            won::StableHash(special_component_id),
+            special_component_id,
             "Special Component",
-            sizeof(SpecialComponent),
-            alignof(SpecialComponent),
+            won::ValueType::CustomStruct,
+            static_cast<uint32_t>(sizeof(SpecialComponent)),
+            static_cast<uint32_t>(alignof(SpecialComponent)),
             &ConstructSpecialComponent,
             &DestructSpecialComponent,
             &CopySpecialComponent,
             s_special_component_fields,
-            3
+            3,
+            nullptr,
+            0
         };
 
         bool WON_PLUGIN_CALL UpdateSpecialSystem(void* plugin, const system::UpdateContext* context)

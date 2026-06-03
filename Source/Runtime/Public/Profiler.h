@@ -19,6 +19,7 @@ namespace won::profiler
     WONENGINE_API void EndFrame();
     WONENGINE_API void BeginFrameGPU(rendering::RHIDevice& device, uint32 frame_slot, rendering::RHICommandList& command_list);
     WONENGINE_API void EndFrameGPU(rendering::RHICommandList& command_list);
+    WONENGINE_API void Shutdown();
 
     WONENGINE_API range_id BeginRangeCPU(const String& name);
     WONENGINE_API range_id BeginRangeGPU(const String& name, rendering::RHICommandList& command_list);

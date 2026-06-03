@@ -33,7 +33,7 @@ namespace won::ecs
 
         struct TextureMap
         {
-            String name = "";
+            String texture_asset_path = "";
             std::shared_ptr<RHIResource> texture = nullptr;
             RHISubresourceHandle res_handle;
 

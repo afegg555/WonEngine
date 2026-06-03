@@ -4,7 +4,10 @@ Binary/
 CompiledShaders/
 Samples/
 build/
+Contents/Generated/
+Contents/Models/
 
 *.ini
 *.log
 log.txt
+*.wonscene

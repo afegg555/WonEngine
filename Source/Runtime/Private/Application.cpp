@@ -1,5 +1,6 @@
 #include "Application.h"
 
+#include "BuiltinTypeReflection.h"
 #include "Renderer.h"
 #include "Window.h"
 #include "JobSystem.h"
@@ -8,10 +9,13 @@
 #include "Input.h"
 #include "Profiler.h"
 #include "ScriptRuntime.h"
+
 namespace won
 {
     void Application::Initialize(const ApplicationDesc& desc)
     {
+        reflection::RegisterBuiltinTypes();
+
         jobsystem::Initialize(desc.jobsystem_thread_count);
 
         window = platform::CreateNativeWindow(desc.window);
@@ -104,6 +108,7 @@ namespace won
     void Application::Shutdown()
     {
         is_running = false;
+        views.clear();
 
         if (renderer)
         {
@@ -111,8 +116,8 @@ namespace won
             renderer.reset();
         }
 
+        profiler::Shutdown();
         window.reset();
-        device.reset();
 
         if (script_runtime)
         {
@@ -120,7 +125,7 @@ namespace won
             script_runtime.reset();
         }
 
-        views.clear();
+        device.reset();
         jobsystem::ShutDown();
     }
 

@@ -25,6 +25,10 @@ namespace won::resource
         CSGPUBVHBuildSortPrimitives,
         CSGPUBVHBuildBuildNodes,
         CSGPUBVHBuildReduceBounds,
+        CSTextureBC1Compress,
+        CSTextureBC3Compress,
+        CSTextureBC4Compress,
+        CSTextureBC5Compress,
 
         Count
     };

@@ -1,11 +1,11 @@
 #pragma once
-#include "Allocator.h"
+#include "Types.h"
 
 #include <new>
 
 namespace won::memory
 {
-    class LinearAllocator : public Allocator
+    class LinearAllocator
     {
     public:
         LinearAllocator(Size total_size)
@@ -14,7 +14,7 @@ namespace won::memory
             data = ::operator new(total_size); // Allocate raw memory without calling constructors
         }
 
-        virtual ~LinearAllocator() override
+        ~LinearAllocator()
         {
             ::operator delete(data);
         }
@@ -22,7 +22,7 @@ namespace won::memory
         LinearAllocator(const LinearAllocator&) = delete;
         LinearAllocator& operator=(const LinearAllocator&) = delete;
 
-        virtual void* Allocate(Size size, Size alignment) override
+        void* Allocate(Size size, Size alignment)
         {
             uintptr_t current_addr = reinterpret_cast<uintptr_t>(data) + offset;
             uintptr_t padding = 0;
@@ -44,7 +44,7 @@ namespace won::memory
             return allocated_ptr;
         }
 
-        virtual void Deallocate(void* ptr, Size size, Size alignment) override
+        void Deallocate(void* ptr, Size size, Size alignment)
         {
             // Linear Allocator does not support individual deallocation
         }

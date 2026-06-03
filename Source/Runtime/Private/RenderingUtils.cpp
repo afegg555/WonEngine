@@ -14,6 +14,7 @@ namespace won::rendering::utils
     namespace
     {
         std::shared_ptr<RHIPipeline> texture_mipgen_pipeline = nullptr;
+        std::shared_ptr<RHIPipeline> texture_bc_compress_pipelines[4] = {};
         Vector<std::weak_ptr<RHIResource>> pending_texture_mip_generation;
         std::mutex pending_texture_mip_generation_mutex;
 
@@ -43,6 +44,120 @@ namespace won::rendering::utils
             out_offset = current_offset;
             std::memcpy(packed_data.data() + out_offset, source.data(), data_size);
             current_offset += data_size;
+        }
+
+        bool GenerateTextureMips(RHIDevice& device, RHICommandList& command_list, RHIResource& texture_resource, Vector<RHISubresourceHandle>* out_mip_srvs)
+        {
+            if (out_mip_srvs)
+            {
+                out_mip_srvs->clear();
+            }
+
+            const RHIResourceDesc& resource_desc = texture_resource.GetDesc();
+            const RHITextureDesc& desc = resource_desc.texture_desc;
+            const bool is_srgb = desc.format == RHIFormat::R8G8B8A8UnormSrgb;
+            const bool is_supported_format = desc.format == RHIFormat::R8G8B8A8Unorm || is_srgb;
+            if (resource_desc.type != RHIResourceType::Texture2D ||
+                !is_supported_format ||
+                desc.depth != 1 ||
+                desc.array_layers != 1 ||
+                desc.sample_count != 1 ||
+                desc.mip_levels <= 1 ||
+                !HasBindFlag(desc.bind_flags, RHIBindFlags::ShaderResource))
+            {
+                return true;
+            }
+
+            if (!texture_mipgen_pipeline)
+            {
+                resource::ShaderLibrary& shader_library = resource::GetShaderLibrary();
+                std::shared_ptr<RHIShader> mipgen_shader = shader_library.GetShader(resource::ShaderId::CSTextureMipGen);
+                if (!mipgen_shader)
+                {
+                    backlog::Post("Failed to load TextureMipGenCS.hlsl", backlog::LogLevel::Error);
+                    return false;
+                }
+
+                RHIComputePipelineDesc pipeline_desc = {};
+                pipeline_desc.compute_shader = mipgen_shader.get();
+                texture_mipgen_pipeline = device.CreateComputePipeline(pipeline_desc);
+                if (!texture_mipgen_pipeline)
+                {
+                    backlog::Post("Failed to create texture mip generation pipeline", backlog::LogLevel::Error);
+                    return false;
+                }
+                texture_mipgen_pipeline->SetName("TextureMipGenPipeline");
+            }
+
+            command_list.TransitionResource(texture_resource, RHIResourceState::ShaderRead);
+            command_list.SetComputePipeline(*texture_mipgen_pipeline);
+
+            Vector<RHISubresourceHandle> mip_srvs;
+            Vector<RHISubresourceHandle> mip_uavs;
+            mip_srvs.resize(desc.mip_levels);
+            mip_uavs.resize(desc.mip_levels);
+
+            for (uint32 mip_index = 0; mip_index < desc.mip_levels; ++mip_index)
+            {
+                RHISubresourceDesc srv_desc = {};
+                srv_desc.type = RHISubresourceType::ShaderResource;
+                srv_desc.format = desc.format;
+                srv_desc.first_slice = 0;
+                srv_desc.slice_count = 1;
+                srv_desc.first_mip = mip_index;
+                srv_desc.mip_count = 1;
+                if (!device.CreateSubresource(texture_resource, srv_desc, &mip_srvs[mip_index]))
+                {
+                    return false;
+                }
+
+                RHISubresourceDesc uav_desc = {};
+                uav_desc.type = RHISubresourceType::UnorderedAccess;
+                uav_desc.format = RHIFormat::R8G8B8A8Unorm;
+                uav_desc.first_slice = 0;
+                uav_desc.slice_count = 1;
+                uav_desc.first_mip = mip_index;
+                uav_desc.mip_count = 1;
+                if (!device.CreateSubresource(texture_resource, uav_desc, &mip_uavs[mip_index]))
+                {
+                    return false;
+                }
+            }
+
+            if (out_mip_srvs)
+            {
+                *out_mip_srvs = mip_srvs;
+            }
+
+            for (uint32 mip_index = 0; mip_index + 1 < desc.mip_levels; ++mip_index)
+            {
+                const uint32 destination_mip = mip_index + 1;
+                const uint32 destination_width = (desc.width >> destination_mip) > 0 ? (desc.width >> destination_mip) : 1u;
+                const uint32 destination_height = (desc.height >> destination_mip) > 0 ? (desc.height >> destination_mip) : 1u;
+
+                command_list.TransitionSubresource(texture_resource,
+                    RHIResourceState::ShaderRead, RHIResourceState::ShaderWrite,
+                    destination_mip, 1, 0, 1);
+
+                TextureMipGenPushConstants push_constants = {};
+                push_constants.source_mip_srv = static_cast<uint>(mip_srvs[mip_index].descriptor_index);
+                push_constants.destination_mip_uav = static_cast<uint>(mip_uavs[destination_mip].descriptor_index);
+                if (is_srgb)
+                {
+                    push_constants.flags |= MIPGEN_FLAGS_IS_SRGB;
+                }
+                push_constants.destination_width = destination_width;
+                push_constants.destination_height = destination_height;
+
+                command_list.PushConstants(RHIShaderStage::Compute, &push_constants, sizeof(push_constants), 0);
+                command_list.Dispatch((destination_width + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D, (destination_height + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D, 1u);
+                command_list.UAVBarrier(texture_resource);
+                command_list.TransitionSubresource(texture_resource,
+                    RHIResourceState::ShaderWrite, RHIResourceState::ShaderRead,
+                    destination_mip, 1, 0, 1);
+            }
+
+            return true;
         }
 
         bool FlushEnqueuedGPUBVHBuild(RHIDevice& device, RHICommandList& command_list, Vector<std::shared_ptr<RHIResource>>& scratch_resources)
@@ -416,113 +531,9 @@ namespace won::rendering::utils
                     continue;
                 }
 
-                const RHIResourceDesc& resource_desc = texture_resource->GetDesc();
-                const RHITextureDesc& desc = resource_desc.texture_desc;
-                const bool is_srgb = desc.format == RHIFormat::R8G8B8A8UnormSrgb;
-                const bool is_supported_format = desc.format == RHIFormat::R8G8B8A8Unorm || is_srgb;
-                if (resource_desc.type != RHIResourceType::Texture2D ||
-                    !is_supported_format ||
-                    desc.depth != 1 ||
-                    desc.array_layers != 1 ||
-                    desc.sample_count != 1 ||
-                    desc.mip_levels <= 1 ||
-                    !HasBindFlag(desc.bind_flags, RHIBindFlags::ShaderResource))
+                if (!GenerateTextureMips(device, command_list, *texture_resource, nullptr))
                 {
-                    continue;
-                }
-
-                if (!texture_mipgen_pipeline)
-                {
-                    resource::ShaderLibrary& shader_library = resource::GetShaderLibrary();
-                    std::shared_ptr<RHIShader> mipgen_shader = shader_library.GetShader(resource::ShaderId::CSTextureMipGen);
-                    if (!mipgen_shader)
-                    {
-                        backlog::Post("Failed to load TextureMipGenCS.hlsl", backlog::LogLevel::Error);
-                        succeeded = false;
-                        continue;
-                    }
-
-                    RHIComputePipelineDesc pipeline_desc = {};
-                    pipeline_desc.compute_shader = mipgen_shader.get();
-                    texture_mipgen_pipeline = device.CreateComputePipeline(pipeline_desc);
-                    if (!texture_mipgen_pipeline)
-                    {
-                        backlog::Post("Failed to create texture mip generation pipeline", backlog::LogLevel::Error);
-                        succeeded = false;
-                        continue;
-                    }
-                    texture_mipgen_pipeline->SetName("TextureMipGenPipeline");
-                }
-
-                command_list.TransitionResource(*texture_resource, RHIResourceState::ShaderRead);
-                command_list.SetComputePipeline(*texture_mipgen_pipeline);
-
-                std::vector<RHISubresourceHandle> mip_srvs, mip_uavs;
-                mip_srvs.resize(desc.mip_levels);
-                mip_uavs.resize(desc.mip_levels);
-
-                bool texture_mipgen_ready = true;
-                for (uint32 mip_index = 0; mip_index < desc.mip_levels; ++mip_index)
-                {
-                    RHISubresourceDesc srv_desc = {};
-                    srv_desc.type = RHISubresourceType::ShaderResource;
-                    srv_desc.format = desc.format;
-                    srv_desc.first_slice = 0;
-                    srv_desc.slice_count = 1;
-                    srv_desc.first_mip = mip_index;
-                    srv_desc.mip_count = 1;
-                    if (!device.CreateSubresource(*texture_resource, srv_desc, &mip_srvs[mip_index]))
-                    {
-                        succeeded = false;
-                        texture_mipgen_ready = false;
-                        break;
-                    }
-
-                    RHISubresourceDesc uav_desc = {};
-                    uav_desc.type = RHISubresourceType::UnorderedAccess;
-                    uav_desc.format = RHIFormat::R8G8B8A8Unorm;
-                    uav_desc.first_slice = 0;
-                    uav_desc.slice_count = 1;
-                    uav_desc.first_mip = mip_index;
-                    uav_desc.mip_count = 1;
-                    if (!device.CreateSubresource(*texture_resource, uav_desc, &mip_uavs[mip_index]))
-                    {
-                        succeeded = false;
-                        texture_mipgen_ready = false;
-                        break;
-                    }
-                }
-                if (!texture_mipgen_ready)
-                {
-                    continue;
-                }
-
-                for (uint32 mip_index = 0; mip_index + 1 < desc.mip_levels; ++mip_index)
-                {
-                    const uint32 destination_mip = mip_index + 1;
-                    const uint32 destination_width = (desc.width >> destination_mip) > 0 ? (desc.width >> destination_mip) : 1u;
-                    const uint32 destination_height = (desc.height >> destination_mip) > 0 ? (desc.height >> destination_mip) : 1u;
-
-                    command_list.TransitionSubresource(*texture_resource,
-                        RHIResourceState::ShaderRead, RHIResourceState::ShaderWrite,
-                        destination_mip, 1, 0, 1);
-
-                    TextureMipGenPushConstants push_constants = {};
-                    push_constants.source_mip_srv = static_cast<uint>(mip_srvs[mip_index].descriptor_index);
-                    push_constants.destination_mip_uav = static_cast<uint>(mip_uavs[destination_mip].descriptor_index);
-                    if (is_srgb)
-                    {
-                        push_constants.flags |= MIPGEN_FLAGS_IS_SRGB;
-                    }
-                    push_constants.destination_width = destination_width;
-                    push_constants.destination_height = destination_height;
-
-                    command_list.PushConstants(RHIShaderStage::Compute, &push_constants, sizeof(push_constants), 0);
-                    command_list.Dispatch((destination_width + DISPATCHBLOCKSIZE2D - 1) / DISPATCHBLOCKSIZE2D, (destination_height + DISPATCHBLOCKSIZE2D - 1) / DISPATCHBLOCKSIZE2D, 1u);
-                    command_list.UAVBarrier(*texture_resource);
-                    command_list.TransitionSubresource(*texture_resource,
-                        RHIResourceState::ShaderWrite, RHIResourceState::ShaderRead,
-                        destination_mip, 1, 0, 1);
+                    succeeded = false;
                 }
             }
 
@@ -581,6 +592,239 @@ namespace won::rendering::utils
         succeeded &= FlushEnqueuedTextureMipGeneration(device, command_list);
         command_list.End();
         return succeeded;
+    }
+
+    bool CompressTextureBC(RHIDevice& device, const resource::Image& image, RHIFormat format, Vector<uint8>& out_blocks, uint32& out_mip_levels)
+    {
+        out_blocks.clear();
+        out_mip_levels = 0;
+        if (!image.IsValid() || image.channels != 4 || image.format != RHIFormat::Unknown)
+        {
+            return false;
+        }
+
+        uint32 pipeline_index = 0;
+        resource::ShaderId shader_id = resource::ShaderId::CSTextureBC1Compress;
+        bool is_srgb = false;
+        uint32 bytes_per_block = 8u;
+        switch (format)
+        {
+        case RHIFormat::BC1Unorm:
+            pipeline_index = 0;
+            shader_id = resource::ShaderId::CSTextureBC1Compress;
+            bytes_per_block = 8u;
+            break;
+        case RHIFormat::BC1UnormSrgb:
+            pipeline_index = 0;
+            shader_id = resource::ShaderId::CSTextureBC1Compress;
+            is_srgb = true;
+            bytes_per_block = 8u;
+            break;
+        case RHIFormat::BC3Unorm:
+            pipeline_index = 1;
+            shader_id = resource::ShaderId::CSTextureBC3Compress;
+            bytes_per_block = 16u;
+            break;
+        case RHIFormat::BC3UnormSrgb:
+            pipeline_index = 1;
+            shader_id = resource::ShaderId::CSTextureBC3Compress;
+            is_srgb = true;
+            bytes_per_block = 16u;
+            break;
+        case RHIFormat::BC4Unorm:
+            pipeline_index = 2;
+            shader_id = resource::ShaderId::CSTextureBC4Compress;
+            bytes_per_block = 8u;
+            break;
+        case RHIFormat::BC5Unorm:
+            pipeline_index = 3;
+            shader_id = resource::ShaderId::CSTextureBC5Compress;
+            bytes_per_block = 16u;
+            break;
+        default:
+            return false;
+        }
+
+        const uint32 width = static_cast<uint32>(image.width);
+        const uint32 height = static_cast<uint32>(image.height);
+        Vector<uint32> mip_widths;
+        Vector<uint32> mip_heights;
+        Vector<Size> mip_offsets;
+        uint32 mip_width = width;
+        uint32 mip_height = height;
+        Size output_size = 0;
+        while (true)
+        {
+            const uint32 block_count_x = (mip_width + 3u) / 4u;
+            const uint32 block_count_y = (mip_height + 3u) / 4u;
+            const Size mip_size = static_cast<Size>(block_count_x) * static_cast<Size>(block_count_y) * static_cast<Size>(bytes_per_block);
+            mip_widths.push_back(mip_width);
+            mip_heights.push_back(mip_height);
+            mip_offsets.push_back(output_size);
+            output_size += mip_size;
+            if (mip_width == 1 && mip_height == 1)
+            {
+                break;
+            }
+            mip_width = (std::max)(1u, mip_width / 2u);
+            mip_height = (std::max)(1u, mip_height / 2u);
+        }
+        const uint32 mip_levels = static_cast<uint32>(mip_widths.size());
+        if (output_size == 0)
+        {
+            return false;
+        }
+
+        std::shared_ptr<RHIPipeline>& pipeline = texture_bc_compress_pipelines[pipeline_index];
+        if (!pipeline)
+        {
+            std::shared_ptr<RHIShader> shader = resource::GetShaderLibrary().GetShader(shader_id);
+            if (!shader)
+            {
+                backlog::Post("Failed to get texture BC compression shader", backlog::LogLevel::Error);
+                return false;
+            }
+
+            RHIComputePipelineDesc pipeline_desc = {};
+            pipeline_desc.compute_shader = shader.get();
+            pipeline = device.CreateComputePipeline(pipeline_desc);
+            if (!pipeline)
+            {
+                backlog::Post("Failed to create texture BC compression pipeline", backlog::LogLevel::Error);
+                return false;
+            }
+            pipeline->SetName("TextureBCCompressPipeline");
+        }
+
+        RHITextureDesc source_desc = {};
+        source_desc.width = width;
+        source_desc.height = height;
+        source_desc.depth = 1;
+        source_desc.mip_levels = mip_levels;
+        source_desc.array_layers = 1;
+        source_desc.sample_count = 1;
+        source_desc.format = is_srgb ? RHIFormat::R8G8B8A8UnormSrgb : RHIFormat::R8G8B8A8Unorm;
+        source_desc.usage = RHIResourceUsage::Default;
+        source_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
+        std::shared_ptr<RHIResource> source_texture = device.CreateTexture(source_desc, image.pixels.data(), image.pixels.size());
+        if (!source_texture)
+        {
+            return false;
+        }
+
+        RHIBufferDesc output_desc = {};
+        output_desc.size = output_size;
+        output_desc.usage = RHIResourceUsage::Default;
+        output_desc.bind_flags = RHIBindFlags::UnorderedAccess;
+        std::shared_ptr<RHIResource> output_buffer = device.CreateBuffer(output_desc);
+        if (!output_buffer)
+        {
+            return false;
+        }
+
+        RHISubresourceHandle output_uav = {};
+        RHISubresourceDesc output_uav_desc = {};
+        output_uav_desc.type = RHISubresourceType::UnorderedAccess;
+        output_uav_desc.buffer_offset = 0;
+        output_uav_desc.buffer_size = output_size;
+        output_uav_desc.buffer_stride = sizeof(uint32);
+        if (!device.CreateSubresource(*output_buffer, output_uav_desc, &output_uav))
+        {
+            return false;
+        }
+
+        RHIBufferDesc readback_desc = {};
+        readback_desc.size = output_size;
+        readback_desc.usage = RHIResourceUsage::Readback;
+        readback_desc.bind_flags = RHIBindFlags::None;
+        std::shared_ptr<RHIResource> readback_buffer = device.CreateBuffer(readback_desc);
+        if (!readback_buffer || !readback_buffer->GetMappedData())
+        {
+            return false;
+        }
+
+        RHIQueueType queue_type = RHIQueueType::Graphics;
+        std::shared_ptr<RHIContext> context = device.GetContext(queue_type);
+        std::shared_ptr<RHICommandAllocator> command_allocator = device.CreateCommandAllocator(queue_type);
+        std::shared_ptr<RHICommandList> command_list = device.CreateCommandList(queue_type);
+        if (!context || !command_allocator || !command_list)
+        {
+            return false;
+        }
+
+        command_allocator->Reset();
+        command_list->Begin(*command_allocator);
+        Vector<RHISubresourceHandle> mip_srvs;
+        if (!GenerateTextureMips(device, *command_list, *source_texture, &mip_srvs))
+        {
+            command_list->End();
+            return false;
+        }
+        if (mip_srvs.empty())
+        {
+            mip_srvs.resize(1);
+            RHISubresourceDesc source_srv_desc = {};
+            source_srv_desc.type = RHISubresourceType::ShaderResource;
+            source_srv_desc.format = source_desc.format;
+            source_srv_desc.first_slice = 0;
+            source_srv_desc.slice_count = 1;
+            source_srv_desc.first_mip = 0;
+            source_srv_desc.mip_count = 1;
+            if (!device.CreateSubresource(*source_texture, source_srv_desc, &mip_srvs[0]))
+            {
+                command_list->End();
+                return false;
+            }
+            command_list->TransitionResource(*source_texture, RHIResourceState::ShaderRead);
+        }
+        command_list->TransitionResource(*output_buffer, RHIResourceState::ShaderWrite);
+        command_list->SetComputePipeline(*pipeline);
+
+        for (uint32 mip_index = 0; mip_index < mip_levels; ++mip_index)
+        {
+            const uint32 block_count_x = (mip_widths[mip_index] + 3u) / 4u;
+            const uint32 block_count_y = (mip_heights[mip_index] + 3u) / 4u;
+            TextureBCCompressPushConstants push_constants = {};
+            push_constants.source_srv = static_cast<uint>(mip_srvs[mip_index].descriptor_index);
+            push_constants.output_uav = static_cast<uint>(output_uav.descriptor_index);
+            push_constants.width = mip_widths[mip_index];
+            push_constants.height = mip_heights[mip_index];
+            push_constants.output_offset = static_cast<uint>(mip_offsets[mip_index] / sizeof(uint32));
+            if (is_srgb)
+            {
+                push_constants.flags |= TEXTURE_BC_COMPRESS_FLAGS_IS_SRGB;
+            }
+            command_list->PushConstants(RHIShaderStage::Compute, &push_constants, sizeof(push_constants), 0);
+            command_list->Dispatch((block_count_x + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D, (block_count_y + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D, 1u);
+        }
+        command_list->UAVBarrier(*output_buffer);
+        command_list->TransitionResource(*output_buffer, RHIResourceState::CopySource);
+        command_list->CopyBuffer(*readback_buffer, 0, *output_buffer, 0, output_size);
+        command_list->End();
+
+        std::shared_ptr<RHIFence> fence = device.CreateFence(0);
+        if (fence)
+        {
+            const uint64 fence_value = context->Submit(*command_list, fence.get());
+            if (fence_value > 0)
+            {
+                fence->Wait(fence_value);
+            }
+            else
+            {
+                context->WaitIdle();
+            }
+        }
+        else
+        {
+            context->Submit(*command_list);
+            context->WaitIdle();
+        }
+
+        out_blocks.resize(output_size);
+        std::memcpy(out_blocks.data(), readback_buffer->GetMappedData(), output_size);
+        out_mip_levels = mip_levels;
+        return true;
     }
 
     bool CreateRenderData(RHIDevice& device, resource::Mesh& mesh)
@@ -709,13 +953,18 @@ namespace won::rendering::utils
 
     bool CreateRenderData(RHIDevice& device, resource::Image& image, RHIFormat format, bool generate_mips)
     {
-        if (!image.IsValid() || image.channels != 4)
+        const bool compressed_texture = image.format != RHIFormat::Unknown;
+        if (!image.IsValid() || (!compressed_texture && image.channels != 4))
         {
             return false;
         }
 
-        uint32 mip_levels = 1;
-        if (generate_mips)
+        uint32 mip_levels = compressed_texture ? image.mip_levels : 1;
+        if (mip_levels == 0)
+        {
+            mip_levels = 1;
+        }
+        if (generate_mips && !compressed_texture)
         {
             uint32 mip_width = static_cast<uint32>(image.width);
             uint32 mip_height = static_cast<uint32>(image.height);
@@ -727,7 +976,8 @@ namespace won::rendering::utils
             }
         }
 
-        if (image.render_data.IsValid() && image.render_data.format == format && image.render_data.mip_levels == mip_levels)
+        const RHIFormat texture_format = compressed_texture ? image.format : format;
+        if (image.render_data.IsValid() && image.render_data.format == texture_format && image.render_data.mip_levels == mip_levels)
         {
             return true;
         }
@@ -739,10 +989,10 @@ namespace won::rendering::utils
         texture_desc.mip_levels = mip_levels;
         texture_desc.array_layers = 1;
         texture_desc.sample_count = 1;
-        texture_desc.format = format;
+        texture_desc.format = texture_format;
         texture_desc.usage = RHIResourceUsage::Default;
         texture_desc.bind_flags = RHIBindFlags::ShaderResource;
-        if (generate_mips)
+        if (generate_mips && !compressed_texture)
         {
             texture_desc.bind_flags = texture_desc.bind_flags | RHIBindFlags::UnorderedAccess;
         }
@@ -766,12 +1016,12 @@ namespace won::rendering::utils
             return false;
         }
 
-        if (generate_mips)
+        if (generate_mips && !compressed_texture)
         {
             EnqueueTextureMipGeneration(new_render_data.texture);
         }
 
-        new_render_data.format = format;
+        new_render_data.format = texture_format;
         new_render_data.mip_levels = texture_desc.mip_levels;
         image.render_data = std::move(new_render_data);
         return true;
