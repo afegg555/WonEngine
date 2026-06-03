@@ -184,18 +184,24 @@ namespace won::resource
             return compile_result;
         }
 
-        ComPtr<IDxcBlobUtf8> errors;
-        if (SUCCEEDED(result->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(&errors), nullptr)) &&
-            errors && errors->GetStringLength() > 0)
-        {
-            backlog::Post(errors->GetStringPointer(), backlog::LogLevel::Error);
-        }
-
         HRESULT compile_status = E_FAIL;
         if (FAILED(result->GetStatus(&compile_status)) || FAILED(compile_status))
         {
+            ComPtr<IDxcBlobUtf8> errors;
+            if (SUCCEEDED(result->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(&errors), nullptr)) &&
+                errors && errors->GetStringLength() > 0)
+            {
+                backlog::Post(errors->GetStringPointer(), backlog::LogLevel::Error);
+            }
             backlog::Post("DXC failed to compile shader", backlog::LogLevel::Error);
             return compile_result;
+        }
+
+        ComPtr<IDxcBlobUtf8> warnings;
+        if (SUCCEEDED(result->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(&warnings), nullptr)) &&
+            warnings && warnings->GetStringLength() > 0)
+        {
+            backlog::Post(warnings->GetStringPointer(), backlog::LogLevel::Warning);
         }
 
         ComPtr<IDxcBlob> object_blob;
