@@ -1,7 +1,9 @@
+#define WON_DISABLE_RENDERER_PUSHCONSTANT
 #include "Common.hlsli"
+#define WON_TEXTURE_MIPGEN_PUSHCONSTANT
 #include "ShaderInterop_Utility.h"
 
-[numthreads(DISPATCHBLOCKSIZE2D, DISPATCHBLOCKSIZE2D, 1)]
+[numthreads(DISPATCH_THREAD_GROUP_2D, DISPATCH_THREAD_GROUP_2D, 1)]
 void main(uint3 dispatch_thread_id : SV_DispatchThreadID)
 {
     const bool is_srgb = (mipgenpush.flags & MIPGEN_FLAGS_IS_SRGB) != 0;

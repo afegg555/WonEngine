@@ -23,6 +23,10 @@ namespace won::resource
             { ShaderId::CSGPUBVHBuildSortPrimitives, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "GPUBVHSortPrimitivesCS.hlsl", "main" } },
             { ShaderId::CSGPUBVHBuildBuildNodes, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "GPUBVHBuildNodesCS.hlsl", "main" } },
             { ShaderId::CSGPUBVHBuildReduceBounds, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "GPUBVHReduceBoundsCS.hlsl", "main" } },
+            { ShaderId::CSTextureBC1Compress, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TextureBC1CompressCS.hlsl", "main" } },
+            { ShaderId::CSTextureBC3Compress, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TextureBC3CompressCS.hlsl", "main" } },
+            { ShaderId::CSTextureBC4Compress, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TextureBC4CompressCS.hlsl", "main" } },
+            { ShaderId::CSTextureBC5Compress, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TextureBC5CompressCS.hlsl", "main" } },
         };
 
         return manifest;

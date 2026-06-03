@@ -825,16 +825,45 @@ namespace won::rendering
 
         if (initial_data && initial_size > 0)
         {
+            uint32 bytes_per_pixel = 0u;
+            uint32 block_size = 0u;
+            switch (desc.format)
+            {
+            case RHIFormat::BC1Unorm:
+            case RHIFormat::BC1UnormSrgb:
+            case RHIFormat::BC4Unorm:
+            case RHIFormat::BC4Snorm:
+                block_size = 8u;
+                break;
+            case RHIFormat::BC2Unorm:
+            case RHIFormat::BC2UnormSrgb:
+            case RHIFormat::BC3Unorm:
+            case RHIFormat::BC3UnormSrgb:
+            case RHIFormat::BC5Unorm:
+            case RHIFormat::BC5Snorm:
+            case RHIFormat::BC6HUf16:
+            case RHIFormat::BC6HSf16:
+            case RHIFormat::BC7Unorm:
+            case RHIFormat::BC7UnormSrgb:
+                block_size = 16u;
+                break;
+            default:
+                GetFormatBytesPerPixel(desc.format, bytes_per_pixel);
+                break;
+            }
+
+            const bool compressed_texture = block_size > 0u;
+            const uint32 upload_mip_count = compressed_texture ? desc.mip_levels : 1u;
             UINT64 total_size = 0;
             std::vector<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> footprints;
             std::vector<uint64> row_sizes;
             std::vector<uint> num_rows;
 
-            footprints.resize(1); // upload only for mip level 0, the rest will be filled using compute shader
+            footprints.resize(upload_mip_count); // uncompressed uploads mip 0; compressed uploads stored mip chain
             row_sizes.resize(footprints.size());
             num_rows.resize(footprints.size());
 
-            device->GetCopyableFootprints(&resource_desc, 0, 1, 0, footprints.data(), num_rows.data(), row_sizes.data(), &total_size);
+            device->GetCopyableFootprints(&resource_desc, 0, upload_mip_count, 0, footprints.data(), num_rows.data(), row_sizes.data(), &total_size);
 
             RHIBufferDesc upload_buffer_desc = {};
             upload_buffer_desc.size = total_size;
@@ -857,15 +886,29 @@ namespace won::rendering
             upload_command_list->Begin(*upload_allocator);
             upload_command_list->TransitionResource(*texture_resource, RHIResourceState::CopyDest);
 
-            uint32 bytes_per_pixel = 0u;
-            GetFormatBytesPerPixel(desc.format, bytes_per_pixel);
-
+            Size source_offset = 0;
             for (size_t i = 0; i < footprints.size(); ++i)
             {
+                const uint32 mip_width = (std::max)(1u, desc.width >> static_cast<uint32>(i));
+                const uint32 mip_height = (std::max)(1u, desc.height >> static_cast<uint32>(i));
                 D3D12_SUBRESOURCE_DATA data{};
-                data.pData = initial_data;
-                data.RowPitch = (LONG_PTR)desc.width * (LONG_PTR)bytes_per_pixel;
-                data.SlicePitch = (LONG_PTR)desc.width * (LONG_PTR)desc.height * (LONG_PTR)bytes_per_pixel;
+                data.pData = static_cast<const uint8*>(initial_data) + source_offset;
+                if (block_size > 0u)
+                {
+                    const uint32 block_width = (mip_width + 3u) / 4u;
+                    const uint32 block_height = (mip_height + 3u) / 4u;
+                    data.RowPitch = static_cast<LONG_PTR>(block_width) * static_cast<LONG_PTR>(block_size);
+                    data.SlicePitch = static_cast<LONG_PTR>(block_width) * static_cast<LONG_PTR>(block_height) * static_cast<LONG_PTR>(block_size);
+                }
+                else
+                {
+                    data.RowPitch = static_cast<LONG_PTR>(mip_width) * static_cast<LONG_PTR>(bytes_per_pixel);
+                    data.SlicePitch = static_cast<LONG_PTR>(mip_width) * static_cast<LONG_PTR>(mip_height) * static_cast<LONG_PTR>(bytes_per_pixel);
+                }
+                if (source_offset + static_cast<Size>(data.SlicePitch) > initial_size)
+                {
+                    return nullptr;
+                }
 
                 D3D12_MEMCPY_DEST DestData = {};
                 DestData.pData = (void*)((UINT64)mapped_data + footprints[i].Offset);
@@ -883,6 +926,7 @@ namespace won::rendering
                     &Src,
                     nullptr
                 );
+                source_offset += static_cast<Size>(data.SlicePitch);
             }
 
             upload_command_list->TransitionResource(*texture_resource, RHIResourceState::ShaderRead);

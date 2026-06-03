@@ -15,9 +15,13 @@ namespace won::resource::shaderloader
         {
             String dependency_path = io::ReplaceExtension(binary_file_name, shader_dependency_extension);
 
-            if (!io::Exists(binary_file_name) || !io::Exists(dependency_path))
+            if (!io::Exists(binary_file_name))
             {
                 return true;
+            }
+            if (!io::Exists(dependency_path))
+            {
+                return false;
             }
 
             uint64 timestamp = 0ull;

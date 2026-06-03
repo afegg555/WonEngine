@@ -17,6 +17,7 @@ namespace won::rendering::utils
 
     WONENGINE_API bool FlushEnqueuedRenderingWork(RHIDevice& device, RHICommandList& command_list, Vector<std::shared_ptr<RHIResource>>& scratch_resources);
 
+    WONENGINE_API bool CompressTextureBC(RHIDevice& device, const resource::Image& image, RHIFormat format, Vector<uint8>& out_blocks, uint32& out_mip_levels);
     WONENGINE_API bool CreateRenderData(RHIDevice& device, resource::Mesh& mesh);
     WONENGINE_API bool CreateRenderData(RHIDevice& device, resource::Image& image, RHIFormat format = RHIFormat::R8G8B8A8UnormSrgb, bool generate_mips = false);
     WONENGINE_API bool CreateRenderData(RHIDevice& device, resource::Font& font);

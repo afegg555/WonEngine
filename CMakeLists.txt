@@ -382,6 +382,14 @@ set(SHADERS_HLSL
     Source/Shaders/GPUBVHBuildNodesCS.hlsl
     Source/Shaders/GPUBVHReduceBoundsCS.hlsl
     Source/Shaders/TextureMipGenCS.hlsl
+    Source/Shaders/TextureBCCompressCommon.hlsli
+    Source/Shaders/TextureBC1CompressCS.hlsl
+    Source/Shaders/TextureBC3CompressCS.hlsl
+    Source/Shaders/TextureBC4CompressCS.hlsl
+    Source/Shaders/TextureBC5CompressCS.hlsl
+    Source/Shaders/Compressonator/common_def.h
+    Source/Shaders/Compressonator/bcn_common_api.h
+    Source/Shaders/Compressonator/bcn_common_kernel.h
 )
 
 set(WONENGINE_RUNTIME_LIBRARY_TYPE STATIC)
