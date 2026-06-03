@@ -3,25 +3,25 @@
 namespace won
 {
 	// main engine core
-	constexpr int major = 0;
+	constexpr int engine_major = 0;
 	// minor features, major updates, breaking compatibility changes
-	constexpr int minor = 0;
+	constexpr int engine_minor = 1;
 	// minor bug fixes, alterations, refactors, updates
-	constexpr int revision = 0;
+	constexpr int engine_revision = 0;
 
-	const String version_string = std::to_string(major) + "." + std::to_string(minor) + "." + std::to_string(revision);
+	const String version_string = std::to_string(engine_major) + "." + std::to_string(engine_minor) + "." + std::to_string(engine_revision);
 
 	int GetMajor()
 	{
-		return major;
+		return engine_major;
 	}
 	int GetMinor()
 	{
-		return minor;
+		return engine_minor;
 	}
 	int GetRevision()
 	{
-		return revision;
+		return engine_revision;
 	}
 	const char* GetVersionString()
 	{

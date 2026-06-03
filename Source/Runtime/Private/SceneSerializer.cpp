@@ -13,7 +13,6 @@ namespace won::serialize
 {
     namespace
     {
-        constexpr uint32 scene_format_version = 1;
         constexpr uint64 invalid_entity_index = static_cast<uint64>(-1);
 
         void WriteReflectedData(JsonArchive& archive, won::ValueType value_type, const won::TypeDesc* type_desc, uint32 value_size, const won::ArrayDesc* array_desc, const void* value)

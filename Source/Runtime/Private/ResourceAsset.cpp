@@ -11,7 +11,6 @@ namespace won::resource
 {
     namespace
     {
-        constexpr uint32 asset_meta_version = 1;
         constexpr uint32 mesh_binary_version = 1;
         constexpr uint32 mesh_binary_magic = 0x48534D57; // WMSH
         constexpr uint32 dds_magic = 0x20534444; // DDS
@@ -243,14 +242,14 @@ namespace won::resource
         archive.Field("binary_path", out_meta.binary_path);
         archive.Field("source_timestamp", out_meta.source_timestamp);
         archive.EndObject();
-        return !archive.HasError() && out_meta.version == asset_meta_version;
+        return !archive.HasError() && out_meta.version == asset_format_version;
     }
 
     bool SaveAssetMeta(const String& meta_path, const AssetMeta& meta)
     {
         serialize::JsonArchive archive(serialize::ArchiveMode::Write);
         archive.BeginObject();
-        uint32 version = asset_meta_version;
+        uint32 version = asset_format_version;
         String asset_id = meta.asset_id;
         String source_asset_path = meta.source_asset_path;
         String asset_type = meta.asset_type;

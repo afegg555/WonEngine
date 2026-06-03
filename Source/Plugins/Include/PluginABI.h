@@ -10,6 +10,7 @@
 #define WON_PLUGIN_EXPORT extern "C" __attribute__((visibility("default")))
 #endif
 
+// Plugin ABI version is owned by this public plugin boundary, not by Runtime Version.h.
 #define WON_PLUGIN_ABI_VERSION 3
 
 enum class WonExtensionType : uint32_t
