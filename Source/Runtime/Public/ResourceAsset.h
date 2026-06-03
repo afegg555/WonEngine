@@ -7,9 +7,11 @@
 
 namespace won::resource
 {
+    inline constexpr uint32 asset_format_version = 1;
+
     struct AssetMeta
     {
-        uint32 version = 1;
+        uint32 version = asset_format_version;
         String asset_id;
         String source_asset_path; // original fbx/png/etc
         String asset_type;

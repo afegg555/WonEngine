@@ -3,6 +3,8 @@
 
 namespace won::resource
 {
+    inline constexpr uint32 shader_cache_version = 1;
+
     enum class ShaderId : uint16
     {
         VSFullTriangle,

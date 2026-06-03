@@ -2,6 +2,7 @@
 #include "Entity.h"
 #include "JsonArchive.h"
 #include "RuntimeExport.h"
+#include "Types.h"
 
 namespace won::ecs
 {
@@ -10,6 +11,8 @@ namespace won::ecs
 
 namespace won::serialize
 {
+    inline constexpr uint32 scene_format_version = 1;
+
     struct SceneSerializeDesc
     {
         const Vector<ecs::Entity>* excluded_entities = nullptr;
