@@ -470,6 +470,10 @@ set(Editor_PUBLIC
     Source/Editor/Themes.cpp
 )
 
+set(SAMPLE_GAME_SOURCES
+    Source/SampleGame/main.cpp
+)
+
 set(Editor_IMGUI
     Source/Vendor/imgui-docking/imgui.h
     Source/Vendor/imgui-docking/imgui.cpp
@@ -512,6 +516,10 @@ add_executable(Editor
 )
 
 source_group("ImGui" FILES ${Editor_IMGUI})
+
+add_executable(SampleGame
+    ${SAMPLE_GAME_SOURCES}
+)
 
 add_executable(ShaderOfflineCompiler
     ${SHADER_OFFLINE_COMPILER_SOURCES}
@@ -558,6 +566,7 @@ target_include_directories(Runtime
 
 target_link_libraries(Editor PRIVATE Runtime)
 add_dependencies(Editor AssetImporter)
+target_link_libraries(SampleGame PRIVATE Runtime)
 target_link_libraries(ShaderOfflineCompiler PRIVATE Runtime)
 target_link_libraries(AssetImporter PRIVATE
     debug assimp-vc143-mtd
@@ -635,6 +644,11 @@ target_compile_definitions(Editor
         CONTENTS_ROOT_DIR="${CONTENTS_ROOT_DIR}"
 )
 
+target_compile_definitions(SampleGame
+    PRIVATE
+        CONTENTS_ROOT_DIR="${CONTENTS_ROOT_DIR}"
+)
+
 if(MSVC)
     target_compile_options(Runtime PRIVATE /W4 /permissive-)
     set_source_files_properties(${LUA_SOURCES} PROPERTIES COMPILE_OPTIONS "/W3")
@@ -646,4 +660,5 @@ endif()
 if(WIN32)
     target_link_libraries(Runtime PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler dwmapi ole32 shell32 uuid)
     target_link_libraries(Editor PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler)
+    target_link_libraries(SampleGame PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler)
 endif()
