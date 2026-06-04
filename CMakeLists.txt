@@ -476,6 +476,10 @@ set(HELLO_TRIANGLE_SOURCES
     Source/Samples/HelloTriangle/main.cpp
 )
 
+set(SCRIPTED_TRIANGLE_SOURCES
+    Source/Samples/ScriptedTriangle/main.cpp
+)
+
 set(Editor_IMGUI
     Source/Vendor/imgui-docking/imgui.h
     Source/Vendor/imgui-docking/imgui.cpp
@@ -524,6 +528,11 @@ add_executable(HelloTriangle
 )
 source_group("Samples" FILES ${HELLO_TRIANGLE_SOURCES})
 
+add_executable(ScriptedTriangle
+    ${SCRIPTED_TRIANGLE_SOURCES}
+)
+source_group("Samples" FILES ${SCRIPTED_TRIANGLE_SOURCES})
+
 add_executable(ShaderOfflineCompiler
     ${SHADER_OFFLINE_COMPILER_SOURCES}
 )
@@ -570,6 +579,7 @@ target_include_directories(Runtime
 target_link_libraries(Editor PRIVATE Runtime)
 add_dependencies(Editor AssetImporter)
 target_link_libraries(HelloTriangle PRIVATE Runtime)
+target_link_libraries(ScriptedTriangle PRIVATE Runtime)
 target_link_libraries(ShaderOfflineCompiler PRIVATE Runtime)
 target_link_libraries(AssetImporter PRIVATE
     debug assimp-vc143-mtd
@@ -619,6 +629,10 @@ set_target_properties(HelloTriangle PROPERTIES
     FOLDER "Samples"
 )
 
+set_target_properties(ScriptedTriangle PROPERTIES
+    FOLDER "Samples"
+)
+
 set_target_properties(AssetImporter PROPERTIES
     FOLDER "Plugins"
 )
@@ -656,6 +670,11 @@ target_compile_definitions(HelloTriangle
         CONTENTS_ROOT_DIR="${CONTENTS_ROOT_DIR}"
 )
 
+target_compile_definitions(ScriptedTriangle
+    PRIVATE
+        CONTENTS_ROOT_DIR="${CONTENTS_ROOT_DIR}"
+)
+
 if(MSVC)
     target_compile_options(Runtime PRIVATE /W4 /permissive-)
     set_source_files_properties(${LUA_SOURCES} PROPERTIES COMPILE_OPTIONS "/W3")
@@ -668,4 +687,5 @@ if(WIN32)
     target_link_libraries(Runtime PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler dwmapi ole32 shell32 uuid)
     target_link_libraries(Editor PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler)
     target_link_libraries(HelloTriangle PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler)
+    target_link_libraries(ScriptedTriangle PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler)
 endif()

@@ -207,6 +207,11 @@ namespace won
         return device.get();
     }
 
+    script::ScriptRuntime* Application::GetScriptRuntime()
+    {
+        return script_runtime.get();
+    }
+
     void Application::ClearViews()
     {
         views.clear();

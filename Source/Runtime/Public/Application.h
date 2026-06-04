@@ -34,6 +34,7 @@ namespace won
         virtual void Render();
 
         rendering::RHIDevice* GetDevice();
+        script::ScriptRuntime* GetScriptRuntime();
         void WaitIdle();
         void ClearViews();
         uint32 AddView(const rendering::View& view = {});
