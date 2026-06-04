@@ -12,7 +12,6 @@
 #include "ResourceAsset.h"
 #include "StringUtils.h"
 #include "Backlog.h"
-#include "Configuration.h"
 #include "Profiler.h"
 #include "SceneComponents.h"
 #include "JobSystem.h"
@@ -50,7 +49,6 @@ namespace won::editor
 	static RHIShader editor_grid_vs;
 	static RHIShader editor_grid_ps;
 	static String contents_root_dir = String(CONTENTS_ROOT_DIR) + "/";
-       static String editor_settings_path = "EditorSettings.cfg";
 	namespace
 	{
 		constexpr const char* asset_importer_plugin_id = "AssetImporter";
@@ -114,22 +112,6 @@ namespace won::editor
 			uint32 channel_count = 0;
 		};
 
-		constexpr const char* editor_content_current_folder_key = "editor.content.current_folder";
-		constexpr const char* editor_content_type_filter_key = "editor.content.type_filter";
-		constexpr const char* editor_content_tile_size_key = "editor.content.tile_size";
-		constexpr const char* editor_viewport_show_grid_key = "editor.viewport.show_grid";
-		constexpr const char* editor_viewport_use_wireframe_key = "editor.viewport.use_wireframe";
-		constexpr const char* editor_viewport_show_bvh_debug_key = "editor.viewport.show_bvh_debug";
-		constexpr const char* editor_viewport_show_cpu_bvh_nodes_key = "editor.viewport.show_cpu_bvh_nodes";
-		constexpr const char* editor_viewport_show_gpu_bvh_nodes_key = "editor.viewport.show_gpu_bvh_nodes";
-		constexpr const char* editor_viewport_show_ddgi_overlay_key = "editor.viewport.show_ddgi_overlay";
-		constexpr const char* editor_viewport_show_ddgi_volume_key = "editor.viewport.show_ddgi_volume";
-		constexpr const char* editor_viewport_show_ddgi_probes_key = "editor.viewport.show_ddgi_probes";
-		constexpr const char* editor_viewport_show_ddgi_text_key = "editor.viewport.show_ddgi_text";
-		constexpr const char* editor_viewport_ddgi_max_probe_draw_count_key = "editor.viewport.ddgi_max_probe_draw_count";
-		constexpr const char* editor_camera_speed_key = "editor.camera.speed";
-		constexpr const char* editor_plugins_enabled_key = "editor.plugins.enabled";
-		constexpr const char* editor_scene_last_path_key = "editor.scene.last_path";
 		constexpr const char* generated_asset_directory = "Generated";
 		constexpr const char* scene_directory_name = "Scenes";
 		constexpr const char* scene_file_extension = "wonscene";
@@ -348,6 +330,7 @@ namespace won::editor
 			constexpr const char* selected_slot = "Selected Slot";
 			constexpr const char* shader_type = "Shader Type";
 			constexpr const char* unlit = "Unlit";
+			constexpr const char* pbr = "PBR";
 			constexpr const char* base_color = "Base Color";
 			constexpr const char* metallic = "Metallic";
 			constexpr const char* roughness = "Roughness";
@@ -669,7 +652,7 @@ namespace won::editor
 			ImFont* custom_font = io.Fonts->AddFontFromFileTTF(font_file_path.c_str(), FontSize * FONTUPSCALE, NULL, &generic_ranges_everything[0]); //Set as default font.
 			if (custom_font && merge_icon)
 			{
-				std::string font_icon_path = std::string(CONTENTS_ROOT_DIR) + "/Fonts/MaterialIcons-Regular.ttf";
+				std::string font_icon_path = contents_root_dir + "Fonts/MaterialIcons-Regular.ttf";
 				ImFontConfig config;
 				config.MergeMode = true;
 				config.GlyphOffset = ImVec2(0, 3);
@@ -1016,13 +999,32 @@ namespace won::editor
 	void EditorApplication::Initialize(const ApplicationDesc& desc)
 	{
 		Application::Initialize(desc);
+		String content_root = project_settings.content_root;
+		if (!content_root.empty() && !io::IsAbsolutePath(content_root))
+		{
+			const String project_root = project_settings.project_root.empty() ? io::GetWorkingDirectory() : project_settings.project_root;
+			content_root = io::CombinePath(project_root, content_root);
+		}
+		contents_root_dir = content_root.empty() ? String(CONTENTS_ROOT_DIR) : content_root;
+		contents_root_dir = io::NormalizePath(contents_root_dir);
+		if (!contents_root_dir.empty() && contents_root_dir.back() != '/')
+		{
+			contents_root_dir += "/";
+		}
+		editor_settings.settings_path = io::CombinePath(io::GetExecutableDirectory(), editor_settings_file_name);
 		LoadEditorSettings();
 
 		ecs::SceneDesc scene_desc = {};
 		scene_desc.script_runtime = script_runtime.get();
 		loaded_scene = ecs::Scene(scene_desc);
-		editor_viewport.view = &GetView();
-		editor_viewport.view->scene = &loaded_scene;
+		rendering::View editor_view = {};
+		editor_view.scene = &loaded_scene;
+		editor_view.viewport.width = project_settings.window_width;
+		editor_view.viewport.height = project_settings.window_height;
+		editor_view.scissor.width = project_settings.window_width;
+		editor_view.scissor.height = project_settings.window_height;
+		uint32 editor_view_index = AddView(editor_view);
+		editor_viewport.view = &GetView(editor_view_index);
 
 		{
 			ShaderCompilerOptions compiler_options;
@@ -1088,7 +1090,28 @@ namespace won::editor
 
 		LoadPlugins();
 
-		CreateStartupScene();
+		bool startup_scene_loaded = false;
+		String startup_scene_path = project_settings.startup_scene;
+		if (!startup_scene_path.empty())
+		{
+			if (won::utils::StartsWith(startup_scene_path, "/Contents/"))
+			{
+				startup_scene_path = io::CombinePath(contents_root_dir, startup_scene_path.substr(String("/Contents/").size()));
+			}
+			else if (!io::IsAbsolutePath(startup_scene_path))
+			{
+				startup_scene_path = io::CombinePath(contents_root_dir, startup_scene_path);
+			}
+			if (io::IsFile(startup_scene_path))
+			{
+				LoadScene(startup_scene_path);
+				startup_scene_loaded = true;
+			}
+		}
+		if (!startup_scene_loaded)
+		{
+			CreateStartupScene();
+		}
 		contents_watcher = io::CreateDirectoryWatcher(contents_root_dir, true);
 		contents_watcher_poll_timer = 0.0f;
 
@@ -1100,6 +1123,7 @@ namespace won::editor
 	void EditorApplication::Shutdown()
 	{
 		SaveEditorSettings();
+		WaitIdle();
 
 		imgui_pso.reset();
 		editor_grid_pso.reset();
@@ -1446,7 +1470,12 @@ namespace won::editor
 
 		const String plugin_root_path = io::CombinePath(io::GetExecutableDirectory(), "Plugins");
 		Vector<plugin::PluginInfo> plugin_list = plugin::ScanPluginList(plugin_root_path);
-		const String enabled_tokens = ";" + enabled_plugin_ids + ";";
+		String enabled_tokens = ";";
+		for (const String& plugin_id : project_settings.enabled_plugins)
+		{
+			enabled_tokens += plugin_id;
+			enabled_tokens += ";";
+		}
 		for (const plugin::PluginInfo& plugin_info : plugin_list)
 		{
 			EditorPluginInfo editor_plugin_info = {};
@@ -1638,7 +1667,19 @@ namespace won::editor
 			backlog::Post(editor_text::plugin_disabled_next_restart + plugin_info.info.plugin_id);
 		}
 
-		SaveEditorSettings();
+		auto plugin_it = std::find(project_settings.enabled_plugins.begin(), project_settings.enabled_plugins.end(), plugin_info.info.plugin_id);
+		if (plugin_info.enabled)
+		{
+			if (plugin_it == project_settings.enabled_plugins.end())
+			{
+				project_settings.enabled_plugins.push_back(plugin_info.info.plugin_id);
+			}
+		}
+		else if (plugin_it != project_settings.enabled_plugins.end())
+		{
+			project_settings.enabled_plugins.erase(plugin_it);
+		}
+
 	}
 
 	uint64 EditorApplication::StartAssetImport(const String& path)
@@ -2653,114 +2694,49 @@ namespace won::editor
 
 	void EditorApplication::LoadEditorSettings()
 	{
-		config::Clear();
-		config::LoadFromFile(editor_settings_path);
+		EditorSettings loaded_settings = {};
+		LoadSettings(editor_settings.settings_path, loaded_settings);
+		loaded_settings.settings_path = editor_settings.settings_path;
+		editor_settings = loaded_settings;
 
-		String string_value;
-		int int_value = 0;
-		float float_value = 0.0f;
-		bool bool_value = false;
-
-		if (config::TryGetString(editor_content_current_folder_key, string_value))
-		{
-			content_browser.current_folder = string_value;
-		}
-		if (config::TryGetInt(editor_content_type_filter_key, int_value))
-		{
-			content_browser.type_filter = static_cast<ContentAssetType>(int_value);
-		}
-		if (config::TryGetFloat(editor_content_tile_size_key, float_value))
-		{
-			content_browser.tile_size = (std::max)(48.0f, (std::min)(128.0f, float_value));
-		}
-		if (config::TryGetBool(editor_viewport_show_grid_key, bool_value))
-		{
-			editor_viewport.debug_settings.show_grid = bool_value;
-		}
-		if (config::TryGetBool(editor_viewport_use_wireframe_key, bool_value))
-		{
-			editor_viewport.debug_settings.use_wireframe = bool_value;
-		}
-		if (config::TryGetBool(editor_viewport_show_bvh_debug_key, bool_value))
-		{
-			editor_viewport.debug_settings.show_bvh_debug = bool_value;
-		}
-		if (config::TryGetBool(editor_viewport_show_cpu_bvh_nodes_key, bool_value))
-		{
-			editor_viewport.debug_settings.show_cpu_bvh_nodes = bool_value;
-		}
-		if (config::TryGetBool(editor_viewport_show_gpu_bvh_nodes_key, bool_value))
-		{
-			editor_viewport.debug_settings.show_gpu_bvh_nodes = bool_value;
-		}
-		if (config::TryGetBool(editor_viewport_show_ddgi_overlay_key, bool_value))
-		{
-			editor_viewport.debug_settings.show_ddgi_overlay = bool_value;
-		}
-		if (config::TryGetBool(editor_viewport_show_ddgi_volume_key, bool_value))
-		{
-			editor_viewport.debug_settings.show_ddgi_volume = bool_value;
-		}
-		if (config::TryGetBool(editor_viewport_show_ddgi_probes_key, bool_value))
-		{
-			editor_viewport.debug_settings.show_ddgi_probes = bool_value;
-		}
-		if (config::TryGetBool(editor_viewport_show_ddgi_text_key, bool_value))
-		{
-			editor_viewport.debug_settings.show_ddgi_text = bool_value;
-		}
-		if (config::TryGetInt(editor_viewport_ddgi_max_probe_draw_count_key, int_value))
-		{
-			editor_viewport.debug_settings.ddgi_max_probe_draw_count = (std::max)(1, int_value);
-		}
-		if (config::TryGetFloat(editor_camera_speed_key, float_value))
-		{
-			editor_camera_speed = (std::max)(0.1f, float_value);
-		}
-		if (config::TryGetString(editor_plugins_enabled_key, string_value))
-		{
-			enabled_plugin_ids = string_value;
-		}
+		content_browser.current_folder = editor_settings.content_current_folder;
+		content_browser.type_filter = static_cast<ContentAssetType>(editor_settings.content_type_filter);
+		content_browser.tile_size = (std::max)(48.0f, (std::min)(128.0f, editor_settings.content_tile_size));
+		editor_viewport.debug_settings.show_grid = editor_settings.viewport_show_grid;
+		editor_viewport.debug_settings.use_wireframe = editor_settings.viewport_use_wireframe;
+		editor_viewport.debug_settings.show_bvh_debug = editor_settings.viewport_show_bvh_debug;
+		editor_viewport.debug_settings.show_cpu_bvh_nodes = editor_settings.viewport_show_cpu_bvh_nodes;
+		editor_viewport.debug_settings.show_gpu_bvh_nodes = editor_settings.viewport_show_gpu_bvh_nodes;
+		editor_viewport.debug_settings.show_ddgi_overlay = editor_settings.viewport_show_ddgi_overlay;
+		editor_viewport.debug_settings.show_ddgi_volume = editor_settings.viewport_show_ddgi_volume;
+		editor_viewport.debug_settings.show_ddgi_probes = editor_settings.viewport_show_ddgi_probes;
+		editor_viewport.debug_settings.show_ddgi_text = editor_settings.viewport_show_ddgi_text;
+		editor_viewport.debug_settings.ddgi_max_probe_draw_count = (std::max)(1, editor_settings.viewport_ddgi_max_probe_draw_count);
+		editor_camera_speed = (std::max)(0.1f, editor_settings.camera_speed);
 	}
 
 	void EditorApplication::SaveEditorSettings()
 	{
-		enabled_plugin_ids.clear();
-		for (const EditorPluginInfo& plugin_info : plugins)
-		{
-			if (plugin_info.info.type == plugin::PluginType::EditorDefault || !plugin_info.enabled)
-			{
-				continue;
-			}
-			if (!enabled_plugin_ids.empty())
-			{
-				enabled_plugin_ids += ";";
-			}
-			enabled_plugin_ids += plugin_info.info.plugin_id;
-		}
-
-		config::SetString(editor_content_current_folder_key, content_browser.current_folder);
-		config::SetInt(editor_content_type_filter_key, static_cast<int>(content_browser.type_filter));
-		config::SetFloat(editor_content_tile_size_key, content_browser.tile_size);
-		config::SetBool(editor_viewport_show_grid_key, editor_viewport.debug_settings.show_grid);
-		config::SetBool(editor_viewport_use_wireframe_key, editor_viewport.debug_settings.use_wireframe);
-		config::SetBool(editor_viewport_show_bvh_debug_key, editor_viewport.debug_settings.show_bvh_debug);
-		config::SetBool(editor_viewport_show_cpu_bvh_nodes_key, editor_viewport.debug_settings.show_cpu_bvh_nodes);
-		config::SetBool(editor_viewport_show_gpu_bvh_nodes_key, editor_viewport.debug_settings.show_gpu_bvh_nodes);
-		config::SetBool(editor_viewport_show_ddgi_overlay_key, editor_viewport.debug_settings.show_ddgi_overlay);
-		config::SetBool(editor_viewport_show_ddgi_volume_key, editor_viewport.debug_settings.show_ddgi_volume);
-		config::SetBool(editor_viewport_show_ddgi_probes_key, editor_viewport.debug_settings.show_ddgi_probes);
-		config::SetBool(editor_viewport_show_ddgi_text_key, editor_viewport.debug_settings.show_ddgi_text);
-		config::SetInt(editor_viewport_ddgi_max_probe_draw_count_key, editor_viewport.debug_settings.ddgi_max_probe_draw_count);
-		config::SetFloat(editor_camera_speed_key, editor_camera_speed);
-		config::SetString(editor_plugins_enabled_key, enabled_plugin_ids);
+		editor_settings.content_current_folder = content_browser.current_folder;
+		editor_settings.content_type_filter = static_cast<int>(content_browser.type_filter);
+		editor_settings.content_tile_size = content_browser.tile_size;
+		editor_settings.viewport_show_grid = editor_viewport.debug_settings.show_grid;
+		editor_settings.viewport_use_wireframe = editor_viewport.debug_settings.use_wireframe;
+		editor_settings.viewport_show_bvh_debug = editor_viewport.debug_settings.show_bvh_debug;
+		editor_settings.viewport_show_cpu_bvh_nodes = editor_viewport.debug_settings.show_cpu_bvh_nodes;
+		editor_settings.viewport_show_gpu_bvh_nodes = editor_viewport.debug_settings.show_gpu_bvh_nodes;
+		editor_settings.viewport_show_ddgi_overlay = editor_viewport.debug_settings.show_ddgi_overlay;
+		editor_settings.viewport_show_ddgi_volume = editor_viewport.debug_settings.show_ddgi_volume;
+		editor_settings.viewport_show_ddgi_probes = editor_viewport.debug_settings.show_ddgi_probes;
+		editor_settings.viewport_show_ddgi_text = editor_viewport.debug_settings.show_ddgi_text;
+		editor_settings.viewport_ddgi_max_probe_draw_count = editor_viewport.debug_settings.ddgi_max_probe_draw_count;
+		editor_settings.camera_speed = editor_camera_speed;
 		if (!current_scene_path.empty())
 		{
-			String last_editing_scene_path = io::GetRelativePath(contents_root_dir, current_scene_path);
-			config::SetString(editor_scene_last_path_key, last_editing_scene_path);
+			editor_settings.last_scene_path = io::GetRelativePath(contents_root_dir, current_scene_path);
 		}
 
-		config::SaveToFile(editor_settings_path);
+		SaveSettings(editor_settings.settings_path, editor_settings);
 	}
 
 	void EditorApplication::OnWindowResized(int width, int height)
@@ -3700,6 +3676,7 @@ namespace won::editor
 						bool vsync_enabled = swapchain->IsVSyncEnabled();
 						if (ImGui::Checkbox(editor_text::vsync, &vsync_enabled))
 						{
+							project_settings.vsync_enabled = vsync_enabled;
 							swapchain->SetVSync(vsync_enabled);
 						}
 					}
@@ -4935,7 +4912,7 @@ namespace won::editor
 							}
 
 							MaterialSlot& material_slot = material_comp->GetMaterialSlot(static_cast<uint32>(selected_material_slot));
-							const char* shader_type_items[] = { editor_text::unlit };
+							const char* shader_type_items[] = { editor_text::unlit, editor_text::pbr };
 							int shader_type = static_cast<int>(material_slot.shader_type);
 							if (ImGui::Combo(editor_text::shader_type, &shader_type, shader_type_items, IM_ARRAYSIZE(shader_type_items)))
 							{
@@ -5820,7 +5797,7 @@ namespace won::editor
 		current_scene_path = path;
 		String relative_path = io::GetRelativePath(contents_root_dir, path);
 		String config_path = relative_path.empty() ? path : relative_path;
-		config::SetString(editor_scene_last_path_key, config_path);
+		editor_settings.last_scene_path = config_path;
 		RebuildContentBrowser();
 		backlog::Post(editor_text::scene_saved + path);
 		return true;
@@ -6033,7 +6010,7 @@ namespace won::editor
 		current_scene_path = path;
 		String relative_path = io::GetRelativePath(contents_root_dir, path);
 		String config_path = relative_path.empty() ? path : relative_path;
-		config::SetString(editor_scene_last_path_key, config_path);
+		editor_settings.last_scene_path = config_path;
 		editor_viewport.picked_entity = ecs::INVALID_ENTITY;
 		editor_viewport.debug_primitive_entity = ecs::INVALID_ENTITY;
 		editor_viewport.debug_primitive_mesh.reset();

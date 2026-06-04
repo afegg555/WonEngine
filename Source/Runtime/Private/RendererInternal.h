@@ -118,6 +118,7 @@ namespace won::rendering
         uint64 enqueued_work_fence_value = 0;
         bool enqueued_work_succeeded = true;
         RHIClearColor clear_color = {};
+        bool vsync_enabled = true;
         RendererDebugOptions debug_options = {};
         RendererDebugState debug_state = {};
 

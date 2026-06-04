@@ -217,6 +217,7 @@ set(RUNTIME_RENDERING_INTERNAL
 set(RUNTIME_CONFIGURATION
     Source/Runtime/Public/Configuration.h
     Source/Runtime/Private/Configuration.cpp
+    Source/Runtime/Public/ProjectSettings.h
 )
 
 set(RUNTIME_PLUGIN
@@ -465,6 +466,7 @@ set_source_files_properties(${SHADERS_HLSL} PROPERTIES HEADER_FILE_ONLY TRUE)
 set(Editor_PUBLIC
     Source/Editor/main.cpp
     Source/Editor/Editor.h
+    Source/Editor/EditorSettings.h
     Source/Editor/Editor.cpp
     Source/Editor/Themes.h
     Source/Editor/Themes.cpp

@@ -484,6 +484,7 @@ namespace won::rendering
                 backlog::Post("failed to create swapchain", backlog::LogLevel::Error);
                 return false;
             }
+            swapchain->SetVSync(vsync_enabled);
             current_window->SetRHISwapchain(swapchain);
         }
 
@@ -1883,6 +1884,7 @@ namespace won::rendering
     {
         device = desc.device;
         clear_color = desc.clear_color;
+        vsync_enabled = desc.vsync_enabled;
 
         for (uint32 i = 0; i < max_frames_in_flight; ++i)
         {

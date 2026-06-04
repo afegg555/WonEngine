@@ -21,6 +21,7 @@ namespace won::rendering
     {
         std::shared_ptr<RHIDevice> device;
         RHIClearColor clear_color = { 0.0f, 0.3f, 0.3f, 1.0f };
+        bool vsync_enabled = true;
     };
 
     struct RendererDebugOptions

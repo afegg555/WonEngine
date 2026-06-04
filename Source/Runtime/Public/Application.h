@@ -6,6 +6,7 @@
 #include "View.h"
 #include "RHIDevice.h"
 #include "ScriptRuntime.h"
+#include "ProjectSettings.h"
 
 #include <memory>
 
@@ -16,8 +17,7 @@ namespace won
 {
     struct ApplicationDesc
     {
-        platform::WindowDesc window = {};
-        rendering::RHIBackend backend_type = rendering::RHIBackend::DirectX12;
+        project::ProjectSettings project_settings = {};
         rendering::RHIDevicePreference device_preference = rendering::RHIDevicePreference::Default;
         uint32 jobsystem_thread_count = ~0u;
     };
@@ -33,13 +33,16 @@ namespace won
         virtual void Update(float dt);
         virtual void Render();
 
-    protected:
+        rendering::RHIDevice* GetDevice();
         void WaitIdle();
+        void ClearViews();
+        uint32 AddView(const rendering::View& view = {});
+
+    protected:
         virtual void RenderScene();
         virtual void RenderUI();
         virtual void OnWindowResized(int width, int height);
 
-        uint32 AddView(const rendering::View& view = {});
         rendering::View& GetView(uint32 view_index = 0);
         const rendering::View& GetView(uint32 view_index = 0) const;
         void ProcessWindowResize();
@@ -50,6 +53,7 @@ namespace won
         std::shared_ptr<rendering::Renderer> renderer;
         std::shared_ptr<script::ScriptRuntime> script_runtime;
         Vector<std::unique_ptr<rendering::View>> views;
+        project::ProjectSettings project_settings;
         utils::Timer frame_timer;
         uint64 update_index = 0;
         bool is_first_frame = true;

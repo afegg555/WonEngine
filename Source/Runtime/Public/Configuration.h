@@ -4,16 +4,21 @@
 
 namespace won::config
 {
-    WONENGINE_API void SetString(const String& key, const String& value);
-    WONENGINE_API bool TryGetString(const String& key, String& out_value);
-    WONENGINE_API void SetInt(const String& key, int value);
-    WONENGINE_API bool TryGetInt(const String& key, int& out_value);
-    WONENGINE_API void SetFloat(const String& key, float value);
-    WONENGINE_API bool TryGetFloat(const String& key, float& out_value);
-    WONENGINE_API void SetBool(const String& key, bool value);
-    WONENGINE_API bool TryGetBool(const String& key, bool& out_value);
-    WONENGINE_API bool LoadFromFile(const String& path);
-    WONENGINE_API bool SaveToFile(const String& path);
+    class WONENGINE_API Configuration
+    {
+    public:
+        void SetString(const char* key, const char* value);
+        const char* GetString(const char* key) const;
+        void SetInt(const char* key, int value);
+        bool GetInt(const char* key, int& out_value) const;
+        void SetFloat(const char* key, float value);
+        bool GetFloat(const char* key, float& out_value) const;
+        void SetBool(const char* key, bool value);
+        bool GetBool(const char* key, bool& out_value) const;
+        bool LoadFromFile(const char* path);
+        bool SaveToFile(const char* path) const;
 
-    WONENGINE_API void Clear();
+    private:
+        Map<String, String> values;
+    };
 }

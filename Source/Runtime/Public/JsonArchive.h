@@ -42,6 +42,7 @@ namespace won::serialize
         Size GetArraySize() const;
         Vector<String> GetObjectKeys() const;
         bool HasField(const char* name) const;
+        bool FieldToString(const char* name, String& out_value) const;
 
         bool BeginField(const char* name);
         void EndField();

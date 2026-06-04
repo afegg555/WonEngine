@@ -1,4 +1,5 @@
 #include "Application.h"
+#include "EditorSettings.h"
 #include "FileSystem.h"
 #include "JobSystem.h"
 #include "Plugin.h"
@@ -272,13 +273,13 @@ namespace won::editor
 
 		std::vector<ecs::Entity> sorted_entities;
 		std::vector<EditorPluginInfo> plugins;
-		String enabled_plugin_ids;
 
 		ecs::Scene loaded_scene;
 		String current_scene_path;
 		EditorViewport editor_viewport;
 		EditorAssetImporter asset_importer;
 		ContentBrowserState content_browser = {};
+		EditorSettings editor_settings;
 		std::unique_ptr<io::DirectoryWatcher> contents_watcher;
 		float contents_watcher_poll_timer = 0.0f;
 		float editor_camera_speed = 5.0f;

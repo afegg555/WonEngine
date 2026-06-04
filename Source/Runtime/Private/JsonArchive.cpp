@@ -300,6 +300,47 @@ namespace won::serialize
         return node && node->is_object() && name && node->contains(name);
     }
 
+    bool JsonArchive::FieldToString(const char* name, String& out_value) const
+    {
+        if (!name)
+        {
+            impl->SetError("JsonArchive field name is null.");
+            return false;
+        }
+
+        const nlohmann::json* current = impl->CurrentNode();
+        if (!current || !current->is_object())
+        {
+            impl->SetError("JsonArchive field requires an object context.");
+            return false;
+        }
+
+        auto it = current->find(name);
+        if (it == current->end())
+        {
+            return false;
+        }
+
+        const nlohmann::json& value = *it;
+        if (value.is_string())
+        {
+            out_value = value.get<String>();
+            return true;
+        }
+        if (value.is_boolean())
+        {
+            out_value = value.get<bool>() ? "true" : "false";
+            return true;
+        }
+        if (value.is_number())
+        {
+            out_value = value.dump();
+            return true;
+        }
+
+        return false;
+    }
+
     bool JsonArchive::BeginField(const char* name)
     {
         if (!name)

@@ -1,28 +1,44 @@
 #include "Editor.h"
+#include "FileSystem.h"
+#include "ProjectSettings.h"
 
 using namespace won;
 using namespace won::editor;
+
+namespace
+{
+	constexpr const char* editor_project_settings_file_name = "EditorProjectSettings.json";
+}
+
 int main()
 {
-	ApplicationDesc app_desc;
-	app_desc.window.title = "Won Engine";
-	app_desc.window.fullscreen = false;
-#ifdef EDITOR_USE_CUSTOM_TITLEBAR
-	app_desc.window.use_title_bar = false;
-#else
-	app_desc.window.use_title_bar = true;
+	ApplicationDesc app_desc = {};
+	String project_settings_path = io::CombinePath(io::GetExecutableDirectory(), editor_project_settings_file_name);
+	app_desc.project_settings.project_name = "Editor";
+	app_desc.project_settings.window_title = "Won Engine";
+#ifdef CONTENTS_ROOT_DIR
+	String development_content_root = CONTENTS_ROOT_DIR;
+	if (io::IsDirectory(development_content_root))
+	{
+		app_desc.project_settings.project_root = io::CombinePath(development_content_root, "..");
+	}
 #endif
-	app_desc.backend_type = rendering::RHIBackend::DirectX12;
-	app_desc.jobsystem_thread_count = ~0;
-	app_desc.device_preference = rendering::RHIDevicePreference::Default;
+#ifdef EDITOR_USE_CUSTOM_TITLEBAR
+	app_desc.project_settings.window_use_title_bar = false;
+#else
+	app_desc.project_settings.window_use_title_bar = true;
+#endif
+	project::LoadSettings(project_settings_path, app_desc.project_settings);
 
 	EditorApplication app;
 	app.Initialize(app_desc);
 
-	do
+	while (app.IsRunning())
 	{
 		app.Run();
-	} while (app.IsRunning());
+	}
+
+	app.Shutdown();
 
 	return 0;
 }
