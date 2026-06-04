@@ -41,7 +41,7 @@ struct VertexInput
 		[branch]
         if (GetGeometry().color_buffer_descriptor < 0)
             return 1;
-        return bindless_buffers_half4[DescriptorIndex(GetGeometry().color_buffer_descriptor)][GetVertexID()];
+        return bindless_buffers_float4[DescriptorIndex(GetGeometry().color_buffer_descriptor)][GetVertexID()];
     }
 	
     float3 GetNormal()
