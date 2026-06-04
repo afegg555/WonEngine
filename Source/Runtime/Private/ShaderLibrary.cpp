@@ -2,6 +2,7 @@
 #include "ShaderLoader.h"
 #include "Backlog.h"
 #include "JobSystem.h"
+#include "ShaderInterop_Renderer.h"
 #include <atomic>
 
 using namespace won::rendering;
@@ -136,11 +137,23 @@ namespace won::resource
         pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::Back);
         pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
         pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::Equal);
+        pipeline_hash.storage.bits.shader_type = SHADER_MATERIAL_TYPE_PBR;
 
         graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
         pipeline_desc.raster.cull_mode = RHICullMode::None;
         pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
         graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+
+        pipeline_desc.vertex_shader = GetShader(ShaderId::VSObjectSimple).get();
+        pipeline_desc.pixel_shader = GetShader(ShaderId::PSObjectUnlit).get();
+        pipeline_desc.raster.cull_mode = RHICullMode::Back;
+        pipeline_hash.storage.bits.shader_type = SHADER_MATERIAL_TYPE_UNLIT;
+        pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::Back);
+        graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+        pipeline_desc.raster.cull_mode = RHICullMode::None;
+        pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
+        graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+
         pipeline_desc.raster.fill_mode = RHIFillMode::Wireframe;
         pipeline_desc.depth_stencil.depth_compare = RHICompareOp::GreaterEqual;
         pipeline_desc.vertex_shader = GetShader(ShaderId::VSObjectSimple).get();
@@ -149,6 +162,7 @@ namespace won::resource
         pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Wireframe);
         pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
         pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::Back);
+        pipeline_hash.storage.bits.shader_type = SHADER_MATERIAL_TYPE_UNLIT;
         graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
         pipeline_desc.raster.cull_mode = RHICullMode::None;
         pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);

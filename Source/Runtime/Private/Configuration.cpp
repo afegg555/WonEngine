@@ -1,131 +1,187 @@
 #include "Configuration.h"
-#include "FileSystem.h"
+#include "JsonArchive.h"
 
-#include <sstream>
+#include <cerrno>
+#include <cstdlib>
 
 namespace won::config
 {
-    static UnorderedMap<String, String> values;
-
-    void SetString(const String& key, const String& value)
+    void Configuration::SetString(const char* key, const char* value)
     {
-        values[key] = value;
+        if (!key)
+        {
+            return;
+        }
+
+        values[key] = value ? value : "";
     }
 
-    bool TryGetString(const String& key, String& out_value)
+    const char* Configuration::GetString(const char* key) const
     {
+        if (!key)
+        {
+            return nullptr;
+        }
+
         auto it = values.find(key);
         if (it == values.end())
         {
-            return false;
+            return nullptr;
         }
 
-        out_value = it->second;
-        return true;
+        return it->second.c_str();
     }
 
-    void SetInt(const String& key, int value)
+    void Configuration::SetInt(const char* key, int value)
     {
+        if (!key)
+        {
+            return;
+        }
+
         values[key] = std::to_string(value);
     }
 
-    bool TryGetInt(const String& key, int& out_value)
+    bool Configuration::GetInt(const char* key, int& out_value) const
     {
+        if (!key)
+        {
+            return false;
+        }
+
         auto it = values.find(key);
         if (it == values.end())
         {
             return false;
         }
 
-        out_value = std::stoi(it->second);
+        char* end = nullptr;
+        errno = 0;
+        const long parsed = std::strtol(it->second.c_str(), &end, 10);
+        if (end == it->second.c_str() || *end != '\0' || errno == ERANGE)
+        {
+            return false;
+        }
+
+        out_value = static_cast<int>(parsed);
         return true;
     }
 
-    void SetFloat(const String& key, float value)
+    void Configuration::SetFloat(const char* key, float value)
     {
+        if (!key)
+        {
+            return;
+        }
+
         values[key] = std::to_string(value);
     }
 
-    bool TryGetFloat(const String& key, float& out_value)
+    bool Configuration::GetFloat(const char* key, float& out_value) const
     {
+        if (!key)
+        {
+            return false;
+        }
+
         auto it = values.find(key);
         if (it == values.end())
         {
             return false;
         }
 
-        out_value = std::stof(it->second);
+        char* end = nullptr;
+        errno = 0;
+        const float parsed = std::strtof(it->second.c_str(), &end);
+        if (end == it->second.c_str() || *end != '\0' || errno == ERANGE)
+        {
+            return false;
+        }
+
+        out_value = parsed;
         return true;
     }
 
-    void SetBool(const String& key, bool value)
+    void Configuration::SetBool(const char* key, bool value)
     {
+        if (!key)
+        {
+            return;
+        }
+
         values[key] = value ? "true" : "false";
     }
 
-    bool TryGetBool(const String& key, bool& out_value)
+    bool Configuration::GetBool(const char* key, bool& out_value) const
     {
+        if (!key)
+        {
+            return false;
+        }
+
         auto it = values.find(key);
         if (it == values.end())
         {
             return false;
         }
 
-        out_value = it->second == "true" || it->second == "1";
-        return true;
+        if (it->second == "true" || it->second == "1")
+        {
+            out_value = true;
+            return true;
+        }
+        if (it->second == "false" || it->second == "0")
+        {
+            out_value = false;
+            return true;
+        }
+
+        return false;
     }
 
-    bool LoadFromFile(const String& path)
+    bool Configuration::LoadFromFile(const char* path)
     {
-        io::FileData file_data = {};
-        if (!io::ReadAllBytes(path, &file_data))
+        values.clear();
+        if (!path)
         {
             return false;
         }
 
-        String content(reinterpret_cast<const char*>(file_data.bytes.data()), file_data.bytes.size());
-        std::stringstream stream(content);
-        String line;
-        while (std::getline(stream, line))
+        serialize::JsonArchive archive(serialize::ArchiveMode::Read);
+        if (!archive.LoadFromFile(path) || !archive.BeginObject())
         {
-            if (line.empty() || line[0] == '#')
-            {
-                continue;
-            }
+            return false;
+        }
 
-            const Size separator_pos = line.find('=');
-            if (separator_pos == String::npos)
-            {
-                continue;
-            }
-
-            String key = line.substr(0, separator_pos);
-            String value = line.substr(separator_pos + 1);
-            if (!key.empty())
+        Vector<String> keys = archive.GetObjectKeys();
+        for (const String& key : keys)
+        {
+            String value;
+            if (archive.FieldToString(key.c_str(), value))
             {
                 values[key] = value;
             }
         }
 
-        return true;
+        archive.EndObject();
+        return !archive.HasError();
     }
 
-    bool SaveToFile(const String& path)
+    bool Configuration::SaveToFile(const char* path) const
     {
-        String content;
-        for (const auto& entry : values)
+        if (!path)
         {
-            content += entry.first;
-            content += "=";
-            content += entry.second;
-            content += "\n";
+            return false;
         }
 
-        return io::WriteAllBytes(path, reinterpret_cast<const uint8*>(content.data()), content.size());
-    }
-
-    void Clear()
-    {
-        values.clear();
+        serialize::JsonArchive archive(serialize::ArchiveMode::Write);
+        archive.BeginObject();
+        for (const auto& entry : values)
+        {
+            String value = entry.second;
+            archive.Field(entry.first.c_str(), value);
+        }
+        archive.EndObject();
+        return !archive.HasError() && archive.SaveToFile(path);
     }
 }

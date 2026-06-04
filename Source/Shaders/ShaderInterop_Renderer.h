@@ -35,9 +35,16 @@ enum SHADER_CAMERA_FLAGS
     SHADER_CAMERA_FLAG_IS_ORTHOGRAPHIC = 1 << 0,
 };
 
+enum SHADER_SKY_FLAGS
+{
+    SHADER_SKY_FLAG_NONE = 0,
+    SHADER_SKY_FLAG_ACTIVE = 1 << 0,
+};
+
 enum SHADER_MATERIAL_TYPE
 {
     SHADER_MATERIAL_TYPE_UNLIT,
+    SHADER_MATERIAL_TYPE_PBR,
 
     SHADER_MATERIAL_TYPE_COUNT
 };
@@ -276,7 +283,7 @@ struct alignas(16) ShaderSky
     inline void Init()
     {
         sun_direction_padding = { 0,0 };
-        flags = 0;
+        flags = SHADER_SKY_FLAG_NONE;
 
         sun_color_sun_intensity = { 0,0 };
         sky_horizon_color_sky_intensity = { 0,0 };

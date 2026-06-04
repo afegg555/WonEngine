@@ -41,7 +41,8 @@ namespace won::resource
             uint64 depth_compare : 4;
             uint64 cull_mode : 2;
             uint64 fill_mode : 1;
-            uint64 reserved : 45;
+            uint64 shader_type : 4;
+            uint64 reserved : 41;
         };
 
         union Storage

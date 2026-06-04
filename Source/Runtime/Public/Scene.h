@@ -795,6 +795,7 @@ namespace won::ecs
                 uint32 index_offset = 0;
                 uint32 index_count = 0;
                 uint32 flags = None;
+                uint32 shader_type = SHADER_MATERIAL_TYPE_PBR;
                 resource::PrimitiveTopology primitive_topology = resource::PrimitiveTopology::TriangleList;
 
                 bool IsTransparent() const
