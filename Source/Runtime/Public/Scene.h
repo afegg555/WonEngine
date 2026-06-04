@@ -441,6 +441,16 @@ namespace won::ecs
             return entities;
         }
 
+        uint64 GetUpdateIndex() const
+        {
+            return update_index;
+        }
+
+        void SetUpdateIndex(uint64 value)
+        {
+            update_index = value;
+        }
+
         void SetBVHDirty(bool value = true)
         {
             cpu_bvh_dirty = value;
@@ -960,6 +970,7 @@ namespace won::ecs
         Vector<Entity> scene_bvh_entities;
         Vector<std::shared_ptr<System>> systems;
         Vector<Vector<uint32>> system_execution_batches;
+        uint64 update_index = 0;
         bool cpu_bvh_dirty = true;
         bool gpu_bvh_dirty = true;
         bool system_schedule_dirty = true;

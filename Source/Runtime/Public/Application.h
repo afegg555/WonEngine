@@ -51,6 +51,7 @@ namespace won
         std::shared_ptr<script::ScriptRuntime> script_runtime;
         Vector<std::unique_ptr<rendering::View>> views;
         utils::Timer frame_timer;
+        uint64 update_index = 0;
         bool is_first_frame = true;
     };
 }

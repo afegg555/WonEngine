@@ -140,7 +140,8 @@ namespace won
         {
             io::Reset();
         }
-        Vector<ecs::Scene*> updated_scenes;
+        ++update_index;
+
         for (const std::unique_ptr<rendering::View>& view_ptr : views)
         {
             if (!view_ptr)
@@ -155,23 +156,13 @@ namespace won
                 continue;
             }
 
-            bool already_updated = false;
-            for (ecs::Scene* updated_scene : updated_scenes)
-            {
-                if (updated_scene == scene)
-                {
-                    already_updated = true;
-                    break;
-                }
-            }
-
-            if (already_updated)
+            if (scene->GetUpdateIndex() == update_index)
             {
                 continue;
             }
 
             view.Update(dt);
-            updated_scenes.push_back(scene);
+            scene->SetUpdateIndex(update_index);
         }
         profiler::EndRange(range);
     }
