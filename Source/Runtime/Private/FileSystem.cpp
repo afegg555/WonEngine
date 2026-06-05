@@ -214,6 +214,37 @@ namespace won::io
         return std::filesystem::create_directories(fs_path, error);
     }
 
+    bool CopyFileTo(const String& from, const String& to, bool overwrite)
+    {
+        std::error_code error;
+        const std::filesystem::path from_path = std::filesystem::u8path(from);
+        const std::filesystem::path to_path = std::filesystem::u8path(to);
+        if (to_path.has_parent_path())
+        {
+            std::filesystem::create_directories(to_path.parent_path(), error);
+            if (error)
+            {
+                return false;
+            }
+        }
+
+        const std::filesystem::copy_options options = overwrite ? std::filesystem::copy_options::overwrite_existing : std::filesystem::copy_options::none;
+        return std::filesystem::copy_file(from_path, to_path, options, error);
+    }
+
+    bool RemoveDirectoryRecursive(const String& path)
+    {
+        std::error_code error;
+        const std::filesystem::path fs_path = std::filesystem::u8path(path);
+        if (!std::filesystem::exists(fs_path, error))
+        {
+            return !error;
+        }
+
+        std::filesystem::remove_all(fs_path, error);
+        return !error;
+    }
+
     bool ReadAllBytes(const String& path, FileData* out_data)
     {
         if (out_data == nullptr)
