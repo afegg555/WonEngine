@@ -49,7 +49,10 @@ namespace won
         {
             renderer_desc.shader_bin_root_path = io::NormalizePath(io::CombinePath(project_settings.project_root, "CompiledShaders"));
         }
-        
+        else
+        {
+            renderer_desc.shader_bin_root_path = io::NormalizePath(io::CombinePath(io::GetExecutableDirectory(), "CompiledShaders"));
+        }
         renderer_desc.vsync_enabled = project_settings.vsync_enabled;
         renderer = rendering::CreateRenderer(renderer_desc);
 

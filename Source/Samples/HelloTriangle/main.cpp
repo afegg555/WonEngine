@@ -1,30 +1,17 @@
+// These are native C++ examples that use the engine API directly(Not using editor).
+// PS: Use the editor for actual game work, unless you really miss wiring everything by hand.
+
 #include "Application.h"
-#include "FileSystem.h"
-#include "ProjectSettings.h"
 #include "RenderingUtils.h"
 #include "Scene.h"
 
 #include <algorithm>
 
-namespace
-{
-    constexpr const char* hello_triangle_project_settings_file_name = "HelloTriangleProjectSettings.json";
-}
-
 int main()
 {
     won::ApplicationDesc app_desc = {};
-    won::String project_settings_path = won::io::CombinePath(won::io::GetExecutableDirectory(), hello_triangle_project_settings_file_name);
     app_desc.project_settings.project_name = "HelloTriangle";
     app_desc.project_settings.window_title = "Won Engine Hello Triangle";
-#ifdef CONTENTS_ROOT_DIR
-    won::String development_content_root = CONTENTS_ROOT_DIR;
-    if (won::io::IsDirectory(development_content_root))
-    {
-        app_desc.project_settings.project_root = won::io::CombinePath(development_content_root, "..");
-    }
-#endif
-    won::project::LoadSettings(project_settings_path, app_desc.project_settings);
 
     won::Application app;
     app.Initialize(app_desc);

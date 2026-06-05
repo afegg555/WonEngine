@@ -7,6 +7,8 @@
 namespace won::project
 {
     inline constexpr uint32 project_settings_version = 1;
+    inline constexpr const char* project_file_extension = "wonproj";
+    inline constexpr const char* default_project_file_name = "Project.wonproj";
 
     struct ProjectSettings
     {
@@ -15,7 +17,6 @@ namespace won::project
         String project_root;
         String project_name;
         String content_root = "Contents";
-        String script_root = "Scripts";
         String startup_scene;
         String window_title = "WonEngine";
         int window_width = 1280;
@@ -65,10 +66,6 @@ namespace won::project
         if (const char* string_value = configuration.GetString("content_root"))
         {
             settings.content_root = string_value;
-        }
-        if (const char* string_value = configuration.GetString("script_root"))
-        {
-            settings.script_root = string_value;
         }
         if (const char* string_value = configuration.GetString("startup_scene"))
         {
@@ -153,7 +150,6 @@ namespace won::project
         configuration.SetInt("version", static_cast<int>(project_settings_version));
         configuration.SetString("project_name", settings.project_name.c_str());
         configuration.SetString("content_root", settings.content_root.c_str());
-        configuration.SetString("script_root", settings.script_root.c_str());
         configuration.SetString("startup_scene", settings.startup_scene.c_str());
         configuration.SetString("window_title", settings.window_title.c_str());
         configuration.SetInt("window_width", settings.window_width);

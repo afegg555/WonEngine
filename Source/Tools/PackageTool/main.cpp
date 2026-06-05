@@ -1,0 +1,338 @@
+#include "Configuration.h"
+#include "FileSystem.h"
+#include "JsonArchive.h"
+#include "ProjectSettings.h"
+#include "ResourceExtension.h"
+
+#include <cstdlib>
+#include <iostream>
+#include <string>
+
+#define WONENGINE_PACKAGE_COPY_STARTUP_SCENE_REFERENCES_ONLY
+
+int main(int argc, char** argv)
+{
+    // currently Windows only.
+    // TODO: support other platforms
+#ifdef WONENGINE_PACKAGE_COPY_STARTUP_SCENE_REFERENCES_ONLY
+    constexpr bool copy_startup_scene_references_only = true;
+#else
+    constexpr bool copy_startup_scene_references_only = false;
+#endif
+
+    won::config::Configuration arguments;
+    arguments.LoadFromCommandLine(argc, argv);
+
+    // PackageTool Projects/ScriptedTriangle
+    // PackageTool Projects/ScriptedTriangle/ScriptedTriangle.wonproj
+    // PackageTool Projects/ScriptedTriangle/ScriptedTriangle.wonproj Debug
+
+    const won::String target = "Player"; // TODO: support Player variants (ex. PackageTool Projects/ScriptedTriangle/ScriptedTriangle.wonproj """"VRPlayer"""")
+    const char* project_path_arg = arguments.GetString("0");
+    const char* config_arg = arguments.GetString("1");
+    const char* check_extra = arguments.GetString("2");
+
+    if (project_path_arg == nullptr || project_path_arg[0] == '\0' || check_extra != nullptr)
+    {
+        std::cout << "Usage: PackageTool project_path [Debug|Release]\n";
+        return 1;
+    }
+
+    won::String config = "Release";
+    if (config_arg != nullptr)
+    {
+        if (won::String(config_arg) != "Debug" && won::String(config_arg) != "Release")
+        {
+            std::cout << "Invalid build config: " << config_arg << "\n";
+            return 1;
+        }
+        config = config_arg;
+    }
+
+    const won::String engine_root = won::io::NormalizePath(ENGINE_ROOT_DIR);
+    const won::String project_path = won::io::GetAbsolutePath(project_path_arg);
+    won::String source_settings_path = project_path;
+    won::String project_root = won::io::GetDirectoryFromPath(source_settings_path);
+    if (!won::io::IsFile(source_settings_path))
+    {
+        project_root = project_path;
+        source_settings_path = won::io::CombinePath(project_root, won::io::ReplaceExtension(won::io::GetFilename(project_root), won::project::project_file_extension));
+        if (!won::io::IsFile(source_settings_path))
+        {
+            source_settings_path = won::io::CombinePath(project_root, won::project::default_project_file_name);
+        }
+    }
+    const won::String build_bat = won::io::CombinePath(engine_root, "Build_Windows.bat");
+    const won::String binary_root = won::io::CombinePath(won::io::CombinePath(engine_root, "Binary"), "Windows");
+    const won::String packages_root = won::io::CombinePath(binary_root, "Packages");
+
+    std::cout << "Target: " << target << "\n";
+    std::cout << "Config: " << config << "\n";
+    std::cout << "Engine: " << engine_root << "\n";
+    std::cout << "Project: " << project_root << "\n";
+    std::cout << "Project file: " << source_settings_path << "\n";
+
+    // build Player & ShaderOfflineCompiler
+    const won::String build_commands[] =
+    {
+        "cmd /c \"\"" + build_bat + "\" \"" + target + "\" \"" + config + "\"\"",
+        "cmd /c \"\"" + build_bat + "\" ShaderOfflineCompiler \"" + config + "\"\""
+    };
+    const char* build_error_messages[] = { "Target build failed.\n", "ShaderOfflineCompiler build failed.\n" };
+    for (int build_index = 0; build_index < 2; ++build_index)
+    {
+        if (std::system(build_commands[build_index].c_str()) != 0)
+        {
+            std::cout << build_error_messages[build_index];
+            return 1;
+        }
+    }
+
+    won::project::ProjectSettings settings = {};
+    if (!won::project::LoadSettings(source_settings_path, settings))
+    {
+        std::cout << "Failed to load project settings: " << source_settings_path << "\n";
+        return 1;
+    }
+    if (settings.project_name.empty())
+    {
+        settings.project_name = target;
+    }
+
+    const won::String package_root = won::io::CombinePath(won::io::CombinePath(packages_root, settings.project_name), config);
+    if (won::io::GetRelativePath(packages_root, package_root).empty())
+    {
+        std::cout << "Invalid package directory: " << package_root << "\n";
+        return 1;
+    }
+    std::cout << "Package: " << package_root << "\n";
+
+    if (settings.content_root.empty())
+    {
+        settings.content_root = "Contents";
+    }
+    const won::String content_root_path = won::io::NormalizePath(settings.content_root);
+    const won::String startup_scene_path = settings.startup_scene.empty() ? "" : won::io::NormalizePath(settings.startup_scene);
+    const char* relative_path_names[] = { "content_root", "startup_scene" };
+    const won::String relative_path_values[] = { content_root_path, startup_scene_path };
+    for (int path_index = 0; path_index < 2; ++path_index)
+    {
+        const won::String& path = relative_path_values[path_index];
+        if (!path.empty() && (won::io::IsAbsolutePath(path) || path == ".." || path.rfind("../", 0) == 0 || path.find("/../") != won::String::npos))
+        {
+            std::cout << relative_path_names[path_index] << " must be relative: " << path << "\n";
+            return 1;
+        }
+    }
+
+    // cleanup target package directory
+    if (!won::io::RemoveDirectoryRecursive(package_root))
+    {
+        std::cout << "Failed to clean package directory: " << package_root << "\n";
+        return 1;
+    }
+
+    // compile shaders to source project directory
+    const won::String project_shader_output = won::io::CombinePath(project_root, "CompiledShaders");
+    const won::String shader_compiler = won::io::CombinePath(binary_root, "ShaderOfflineCompiler.exe");
+    const won::String shader_command = "cmd /c \"\"" + shader_compiler + "\" \"" + project_shader_output + "\"\"";
+    if (std::system(shader_command.c_str()) != 0)
+    {
+        std::cout << "Shader offline compile failed.\n";
+        return 1;
+    }
+
+    // copy Player
+    const won::String target_executable_path = won::io::CombinePath(binary_root, target + ".exe");
+    const won::String package_executable_path = won::io::CombinePath(package_root, settings.project_name + ".exe");
+    if (!won::io::CopyFileTo(target_executable_path, package_executable_path, true))
+    {
+        std::cout << "Failed to copy package executable: " << target_executable_path << "\n";
+        return 1;
+    }
+
+    // copy debug info(Only Debug mode)
+    won::Vector<won::String> package_files;
+    const won::String pdb_path = won::io::CombinePath(binary_root, target + ".pdb");
+    if (won::io::IsFile(pdb_path))
+    {
+        package_files.push_back(pdb_path);
+    }
+    if (settings.backend_type == won::rendering::RHIBackend::DirectX12)
+    {
+        const char* dll_names[] = { "dxcompiler.dll", "dxil.dll" };
+        for (const char* dll_name : dll_names)
+        {
+            package_files.push_back(won::io::CombinePath(binary_root, dll_name));
+        }
+    }
+    for (const won::String& package_file : package_files)
+    {
+        if (!won::io::CopyFileTo(package_file, won::io::CombinePath(package_root, won::io::GetFilename(package_file)), true))
+        {
+            std::cout << "Failed to copy package file: " << package_file << "\n";
+            return 1;
+        }
+    }
+
+    const won::String content_source = won::io::CombinePath(project_root, settings.content_root);
+    const won::String content_target = won::io::CombinePath(package_root, "Contents");
+    if (!won::io::CreateDirectories(content_target))
+    {
+        std::cout << "Failed to create content directory: " << content_target << "\n";
+        return 1;
+    }
+
+    // copy contents
+    won::Vector<won::String> content_paths;
+    if (copy_startup_scene_references_only) // copy only referenced ones
+    {
+        if (!settings.startup_scene.empty())
+        {
+            content_paths.push_back(settings.startup_scene);
+            const won::String scene_path = won::io::CombinePath(content_source, settings.startup_scene);
+            won::serialize::JsonArchive scene_archive(won::serialize::ArchiveMode::Read);
+            if (!scene_archive.LoadFromFile(scene_path))
+            {
+                std::cout << "Failed to parse startup scene: " << scene_path << "\n";
+                return 1;
+            }
+
+            const won::Vector<won::String> scene_strings = scene_archive.GetStringValues();
+            for (won::String value : scene_strings)
+            {
+                if (value.rfind("/Contents/", 0) == 0)
+                {
+                    value = value.substr(10);
+                }
+                const won::String ext = won::io::GetExtension(value);
+                if (ext == "wonscene" || ext == "wonmesh" || ext == "lua" || ext == "dds" || ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "ttf" || ext == "otf" || ext == "wav" || ext == "mp3")
+                {
+                    content_paths.push_back(value);
+                }
+            }
+        }
+    }
+    else // copy all
+    {
+        won::Vector<won::io::DirectoryEntry> content_entries;
+        if (!won::io::EnumerateDirectoryRecursive(content_source, &content_entries))
+        {
+            std::cout << "Failed to iterate content directory: " << content_source << "\n";
+            return 1;
+        }
+        for (const won::io::DirectoryEntry& entry : content_entries)
+        {
+            if (entry.is_file)
+            {
+                content_paths.push_back(won::io::GetRelativePath(content_source, entry.path));
+            }
+        }
+    }
+
+    for (const won::String& content_path_string : content_paths)
+    {
+        const won::String content_path = won::io::NormalizePath(content_path_string);
+        if (won::io::IsAbsolutePath(content_path) || content_path == ".." || content_path.rfind("../", 0) == 0 || content_path.find("/../") != won::String::npos)
+        {
+            std::cout << "Content path must be relative: " << content_path << "\n";
+            return 1;
+        }
+
+        const won::String from = won::io::CombinePath(content_source, content_path);
+        const won::String to = won::io::CombinePath(content_target, content_path);
+        if (!won::io::CopyFileTo(from, to, true))
+        {
+            std::cout << "Failed to copy content file: " << from << "\n";
+            return 1;
+        }
+    }
+
+    const won::String shader_output = won::io::CombinePath(package_root, "CompiledShaders");
+    won::Vector<won::io::DirectoryEntry> project_shader_entries;
+    if (!won::io::EnumerateDirectoryRecursive(project_shader_output, &project_shader_entries))
+    {
+        std::cout << "Failed to iterate compiled shaders: " << project_shader_output << "\n";
+        return 1;
+    }
+    for (const won::io::DirectoryEntry& entry : project_shader_entries)
+    {
+        if (!entry.is_file || won::io::GetExtension(entry.path) != won::resource::shader_binary_extension)
+        {
+            continue;
+        }
+
+        const won::String relative_path = won::io::GetRelativePath(project_shader_output, entry.path);
+        if (!won::io::CopyFileTo(entry.path, won::io::CombinePath(shader_output, relative_path), true))
+        {
+            std::cout << "Failed to copy compiled shader: " << entry.path << "\n";
+            return 1;
+        }
+    }
+
+    const won::String plugins_source = won::io::CombinePath(binary_root, "Plugins");
+    for (const won::String& plugin_id : settings.enabled_plugins)
+    {
+        if (plugin_id.empty() || plugin_id == "." || plugin_id == ".." || plugin_id.find('/') != won::String::npos || plugin_id.find('\\') != won::String::npos)
+        {
+            std::cout << "Invalid plugin id: " << plugin_id << "\n";
+            return 1;
+        }
+
+        const won::String plugin_source = won::io::CombinePath(plugins_source, plugin_id);
+        const won::String plugin_target = won::io::CombinePath(won::io::CombinePath(package_root, "Plugins"), plugin_id);
+
+        won::Vector<won::io::DirectoryEntry> plugin_entries;
+        if (!won::io::EnumerateDirectoryRecursive(plugin_source, &plugin_entries))
+        {
+            std::cout << "Failed to iterate plugin: " << plugin_source << "\n";
+            return 1;
+        }
+        for (const won::io::DirectoryEntry& entry : plugin_entries)
+        {
+            if (!entry.is_file)
+            {
+                continue;
+            }
+
+            const won::String relative_path = won::io::GetRelativePath(plugin_source, entry.path);
+            const won::String output_path = won::io::CombinePath(plugin_target, relative_path);
+            if (!won::io::CopyFileTo(entry.path, output_path, true))
+            {
+                std::cout << "Failed to copy plugin: " << entry.path << "\n";
+                return 1;
+            }
+        }
+    }
+
+    // new setting path
+    settings.settings_path.clear();
+    settings.project_root.clear();
+    settings.content_root = "Contents";
+    if (!won::project::SaveSettings(won::io::CombinePath(package_root, won::project::default_project_file_name), settings))
+    {
+        std::cout << "Failed to write project settings.\n";
+        return 1;
+    }
+
+    won::Size shader_count = 0;
+    won::Vector<won::io::DirectoryEntry> shader_entries;
+    if (won::io::EnumerateDirectoryRecursive(shader_output, &shader_entries))
+    {
+        for (const won::io::DirectoryEntry& entry : shader_entries)
+        {
+            if (entry.is_file && won::io::GetExtension(entry.path) == "woncso")
+            {
+                ++shader_count;
+            }
+        }
+    }
+    if (shader_count == 0)
+    {
+        std::cout << "Compiled shader binaries not found: " << shader_output << "\n";
+        return 1;
+    }
+
+    std::cout << "Package completed: " << package_root << "\n";
+    return 0;
+}
