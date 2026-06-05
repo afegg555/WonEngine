@@ -15,6 +15,7 @@ namespace won::config
         bool GetFloat(const char* key, float& out_value) const;
         void SetBool(const char* key, bool value);
         bool GetBool(const char* key, bool& out_value) const;
+        bool LoadFromCommandLine(int argc, char** argv);
         bool LoadFromFile(const char* path);
         bool SaveToFile(const char* path) const;
 

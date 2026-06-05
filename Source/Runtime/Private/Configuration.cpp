@@ -139,6 +139,27 @@ namespace won::config
         return false;
     }
 
+    bool Configuration::LoadFromCommandLine(int argc, char** argv)
+    {
+        values.clear();
+        if (argc < 1 || argv == nullptr)
+        {
+            return false;
+        }
+
+        for (int arg_index = 1; arg_index < argc; ++arg_index)
+        {
+            if (argv[arg_index] == nullptr)
+            {
+                return false;
+            }
+
+            values[std::to_string(arg_index - 1)] = argv[arg_index];
+        }
+
+        return true;
+    }
+
     bool Configuration::LoadFromFile(const char* path)
     {
         values.clear();
