@@ -1277,7 +1277,7 @@ namespace won::editor
 				{
 					Vector<uint8> compressed_pixels;
 					uint32 compressed_mip_levels = 1;
-					if (rendering::utils::CompressTextureBC(*device, *task->image, binary_format, compressed_pixels, compressed_mip_levels))
+					if (rendering::utils::CompressTextureBC(*device, *renderer, *task->image, binary_format, compressed_pixels, compressed_mip_levels))
 					{
 						const String binary_disk_path = io::CombinePath(contents_root_dir, task->binary_path);
 						binary_saved = resource::SaveTextureBinary(binary_disk_path,
@@ -1426,7 +1426,7 @@ namespace won::editor
 
 		if (won::io::IsPressed(io::Button('R')))
 		{
-			rendering::ReloadShaderLibrary(device);
+			renderer->ReloadShaders();
 		}
 
 		auto camera = editor_viewport.view->scene->GetComponent<ecs::CameraComponent>(editor_viewport.view->camera_entity);

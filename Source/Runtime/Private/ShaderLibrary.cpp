@@ -333,9 +333,4 @@ namespace won::resource
         return count;
     }
 
-    ShaderLibrary& GetShaderLibrary()
-    {
-        static ShaderLibrary shader_library;
-        return shader_library;
-    }
 }

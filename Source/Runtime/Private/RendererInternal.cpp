@@ -1400,7 +1400,6 @@ namespace won::rendering
     {
         const Scene::RenderData& render_data = view.scene->GetRenderData();
 
-        resource::ShaderLibrary& shader_library = GetShaderLibrary();
         RHICompareOp depth_compare = RHICompareOp::GreaterEqual;
         const bool draw_wireframe = pass == RenderPassType::MainPass && debug_options.wireframe_enable;
         const bool draw_primitives = pass == RenderPassType::MainPass && (flags & DrawScene_Primitive) != 0;
@@ -1883,6 +1882,7 @@ namespace won::rendering
     void RendererInternal::Initialize(const RendererDesc& desc)
     {
         device = desc.device;
+        shader_compiler_options.shader_bin_root_path = desc.shader_bin_root_path;
         clear_color = desc.clear_color;
         vsync_enabled = desc.vsync_enabled;
 
@@ -1956,6 +1956,29 @@ namespace won::rendering
         }
 
         current_frame_slot = 0;
+        ReloadShaders();
+    }
+
+    bool RendererInternal::ReloadShaders()
+    {
+        if (!device)
+        {
+            return false;
+        }
+
+        WaitIdle();
+        shader_library = resource::ShaderLibrary(shader_compiler_options);
+        if (!shader_library.LoadManifest(resource::GetDefaultShaderManifest()))
+        {
+            return false;
+        }
+
+        return shader_library.BuildAllGraphicsPipelines(device, RENDERTARGET_BUFFER_FORMAT, DEPTH_BUFFER_FORMAT, 1u);
+    }
+
+    std::shared_ptr<RHIShader> RendererInternal::GetShader(resource::ShaderId shader_id) const
+    {
+        return shader_library.GetShader(shader_id);
     }
 
     void RendererInternal::BeginFrame(platform::Window& window)
@@ -2022,7 +2045,6 @@ namespace won::rendering
 
     void RendererInternal::UpdateDDGIProbe(FrameContext& frame_context, const ShaderEnvironmentLighting& environment_lighting, const ShaderDDGIVolume& ddgi_volume, const RHISubresourceBinding& shader_frame_binding, const RHISubresourceBinding& shader_camera_binding, RHICommandList& command_list)
     {
-        resource::ShaderLibrary& shader_library = GetShaderLibrary();
         std::shared_ptr<RHIShader> current_ddgi_probe_update_shader = shader_library.GetShader(ShaderId::CSDDGIProbeUpdate);
         if (ddgi_probe_update_shader != current_ddgi_probe_update_shader)
         {
@@ -2287,7 +2309,7 @@ namespace won::rendering
             jobsystem::Execute(GetRenderingWorkContext(), [this](jobsystem::JobArgs args) {
                 enqueued_work_command_allocator->Reset();
                 enqueued_work_command_list->Begin(*enqueued_work_command_allocator);
-                enqueued_work_succeeded = utils::FlushEnqueuedRenderingWork(*device, *enqueued_work_command_list, enqueued_work_scratch_resources);
+                enqueued_work_succeeded = utils::FlushEnqueuedRenderingWork(*device, *this, *enqueued_work_command_list, enqueued_work_scratch_resources);
             });
         }
 
@@ -2364,7 +2386,6 @@ namespace won::rendering
                 auto gpu_range = profiler::ScopedRangeGPU("Sky Pass", *command_list);
                 command_list->BeginEvent("Sky Pass");
                 command_list->SetRenderTargets(color_targets, nullptr);
-                resource::ShaderLibrary& shader_library = GetShaderLibrary();
                 GraphicsPipelineHash sky_pipeline_hash = {};
                 sky_pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::SkyPass);
                 sky_pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
@@ -2673,7 +2694,7 @@ namespace won::rendering
         back_buffers_rtv = {};
         depth_buffer_dsv = {};
         depth_buffer = nullptr;
-        GetShaderLibrary().ClearAll();
+        shader_library.ClearAll();
         device.reset();
     }
 }

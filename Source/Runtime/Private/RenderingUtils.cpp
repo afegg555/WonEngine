@@ -7,6 +7,7 @@
 #include "ShaderInterop_BVH.h"
 #include "ShaderInterop_Utility.h"
 #include "Timer.h"
+#include "Renderer.h"
 #include <mutex>
 
 namespace won::rendering::utils
@@ -46,7 +47,7 @@ namespace won::rendering::utils
             current_offset += data_size;
         }
 
-        bool GenerateTextureMips(RHIDevice& device, RHICommandList& command_list, RHIResource& texture_resource, Vector<RHISubresourceHandle>* out_mip_srvs)
+        bool GenerateTextureMips(RHIDevice& device, Renderer& renderer, RHICommandList& command_list, RHIResource& texture_resource, Vector<RHISubresourceHandle>* out_mip_srvs)
         {
             if (out_mip_srvs)
             {
@@ -70,8 +71,7 @@ namespace won::rendering::utils
 
             if (!texture_mipgen_pipeline)
             {
-                resource::ShaderLibrary& shader_library = resource::GetShaderLibrary();
-                std::shared_ptr<RHIShader> mipgen_shader = shader_library.GetShader(resource::ShaderId::CSTextureMipGen);
+                std::shared_ptr<RHIShader> mipgen_shader = renderer.GetShader(resource::ShaderId::CSTextureMipGen);
                 if (!mipgen_shader)
                 {
                     backlog::Post("Failed to load TextureMipGenCS.hlsl", backlog::LogLevel::Error);
@@ -160,7 +160,7 @@ namespace won::rendering::utils
             return true;
         }
 
-        bool FlushEnqueuedGPUBVHBuild(RHIDevice& device, RHICommandList& command_list, Vector<std::shared_ptr<RHIResource>>& scratch_resources)
+        bool FlushEnqueuedGPUBVHBuild(RHIDevice& device, Renderer& renderer, RHICommandList& command_list, Vector<std::shared_ptr<RHIResource>>& scratch_resources)
         {
             Vector<std::weak_ptr<resource::Mesh>> pending_gpu_bvh_builds;
             {
@@ -247,14 +247,12 @@ namespace won::rendering::utils
                     resource::ShaderId::CSGPUBVHBuildReduceBounds,
                 };
 
-                resource::ShaderLibrary& shader_library = resource::GetShaderLibrary();
-
                 bool pipelines_ready = true;
                 for (uint32 pipeline_index = 0; pipeline_index < static_cast<uint32>(GPUBVHBuildPipelineType::Count); ++pipeline_index)
                 {
                     if (!gpu_bvh_build_pipelines[pipeline_index])
                     {
-                        std::shared_ptr<RHIShader> build_shader = shader_library.GetShader(gpu_bvh_build_shader_ids[pipeline_index]);
+                        std::shared_ptr<RHIShader> build_shader = renderer.GetShader(gpu_bvh_build_shader_ids[pipeline_index]);
                         if (!build_shader)
                         {
                             backlog::Post("Failed to get GPU BVH build shader", backlog::LogLevel::Error);
@@ -514,7 +512,7 @@ namespace won::rendering::utils
             return succeeded;
         }
 
-        bool FlushEnqueuedTextureMipGeneration(RHIDevice& device, RHICommandList& command_list)
+        bool FlushEnqueuedTextureMipGeneration(RHIDevice& device, Renderer& renderer, RHICommandList& command_list)
         {
             Vector<std::weak_ptr<RHIResource>> pending;
             {
@@ -531,7 +529,7 @@ namespace won::rendering::utils
                     continue;
                 }
 
-                if (!GenerateTextureMips(device, command_list, *texture_resource, nullptr))
+                if (!GenerateTextureMips(device, renderer, command_list, *texture_resource, nullptr))
                 {
                     succeeded = false;
                 }
@@ -585,16 +583,16 @@ namespace won::rendering::utils
         pending_gpu_bvh_build.push_back(mesh);
     }
 
-    bool FlushEnqueuedRenderingWork(RHIDevice& device, RHICommandList& command_list, Vector<std::shared_ptr<RHIResource>>& scratch_resources)
+    bool FlushEnqueuedRenderingWork(RHIDevice& device, Renderer& renderer, RHICommandList& command_list, Vector<std::shared_ptr<RHIResource>>& scratch_resources)
     {
         bool succeeded = true;
-        succeeded &= FlushEnqueuedGPUBVHBuild(device, command_list, scratch_resources);
-        succeeded &= FlushEnqueuedTextureMipGeneration(device, command_list);
+        succeeded &= FlushEnqueuedGPUBVHBuild(device, renderer, command_list, scratch_resources);
+        succeeded &= FlushEnqueuedTextureMipGeneration(device, renderer, command_list);
         command_list.End();
         return succeeded;
     }
 
-    bool CompressTextureBC(RHIDevice& device, const resource::Image& image, RHIFormat format, Vector<uint8>& out_blocks, uint32& out_mip_levels)
+    bool CompressTextureBC(RHIDevice& device, Renderer& renderer, const resource::Image& image, RHIFormat format, Vector<uint8>& out_blocks, uint32& out_mip_levels)
     {
         out_blocks.clear();
         out_mip_levels = 0;
@@ -678,7 +676,7 @@ namespace won::rendering::utils
         std::shared_ptr<RHIPipeline>& pipeline = texture_bc_compress_pipelines[pipeline_index];
         if (!pipeline)
         {
-            std::shared_ptr<RHIShader> shader = resource::GetShaderLibrary().GetShader(shader_id);
+            std::shared_ptr<RHIShader> shader = renderer.GetShader(shader_id);
             if (!shader)
             {
                 backlog::Post("Failed to get texture BC compression shader", backlog::LogLevel::Error);
@@ -755,7 +753,7 @@ namespace won::rendering::utils
         command_allocator->Reset();
         command_list->Begin(*command_allocator);
         Vector<RHISubresourceHandle> mip_srvs;
-        if (!GenerateTextureMips(device, *command_list, *source_texture, &mip_srvs))
+        if (!GenerateTextureMips(device, renderer, *command_list, *source_texture, &mip_srvs))
         {
             command_list->End();
             return false;

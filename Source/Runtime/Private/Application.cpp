@@ -6,6 +6,7 @@
 #include "JobSystem.h"
 #include "Platform.h"
 #include "EventHandler.h"
+#include "FileSystem.h"
 #include "Input.h"
 #include "Profiler.h"
 #include "ScriptRuntime.h"
@@ -42,10 +43,13 @@ namespace won
 
         device = rendering::CreateRHIDevice(device_desc);
 
-        rendering::ReloadShaderLibrary(device);
-
         rendering::RendererDesc renderer_desc;
         renderer_desc.device = device;
+        if (!project_settings.project_root.empty())
+        {
+            renderer_desc.shader_bin_root_path = io::NormalizePath(io::CombinePath(project_settings.project_root, "CompiledShaders"));
+        }
+        
         renderer_desc.vsync_enabled = project_settings.vsync_enabled;
         renderer = rendering::CreateRenderer(renderer_desc);
 

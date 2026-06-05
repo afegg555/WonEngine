@@ -17,6 +17,8 @@ namespace won::rendering
         void EndFrame() override;
         void WaitIdle() override;
         void Shutdown() override;
+        bool ReloadShaders() override;
+        std::shared_ptr<RHIShader> GetShader(resource::ShaderId shader_id) const override;
         void SetClearColor(const RHIClearColor& color) override;
         RHIClearColor GetClearColor() const override;
         void SetDebugOptions(const RendererDebugOptions& options) override;
@@ -53,6 +55,8 @@ namespace won::rendering
         void RenderForwardPath(const View& view);
 
         std::shared_ptr<RHIDevice> device;
+        resource::ShaderCompilerOptions shader_compiler_options = {};
+        resource::ShaderLibrary shader_library;
 
         std::shared_ptr<RHIResource> shader_instance_default_buffer;
         RHISubresourceHandle shader_instance_default_buffer_srv = {};

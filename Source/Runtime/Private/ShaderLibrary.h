@@ -129,5 +129,4 @@ namespace won::resource
         UnorderedMap<uint64, std::shared_ptr<rendering::RHIPipeline>> compute_pipeline_cache;
     };
 
-    ShaderLibrary& GetShaderLibrary(); // this function is not exposed externally
 }
