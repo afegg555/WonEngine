@@ -33,6 +33,7 @@ namespace won::editor
 	{
 	public:
 		void Initialize(const ApplicationDesc& desc) override;
+		void Initialize(const ApplicationDesc& desc, const project::ProjectSettings& loaded_project_settings_in);
 		void Shutdown() override;
 		void Update(float dt) override;
 
@@ -273,6 +274,7 @@ namespace won::editor
 		std::vector<ecs::Entity> sorted_entities;
 		std::vector<EditorPluginInfo> plugins;
 
+		project::ProjectSettings loaded_project_settings;
 		ecs::Scene loaded_scene;
 		String current_scene_path;
 		EditorViewport editor_viewport;

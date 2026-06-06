@@ -10,12 +10,22 @@ using namespace won::editor;
 int main(int argc, char** argv)
 {
 	ApplicationDesc app_desc = {};
+	const String editor_project_settings_path = io::CombinePath(io::GetExecutableDirectory(), "Editor.wonproj");
+	app_desc.project_settings.settings_path = io::NormalizePath(editor_project_settings_path);
+	app_desc.project_settings.project_root = io::NormalizePath(io::GetExecutableDirectory());
+	app_desc.project_settings.project_name = "WonEditor";
+	app_desc.project_settings.content_root = io::NormalizePath(String(CONTENTS_ROOT_DIR));
 	app_desc.project_settings.window_title = "Won Engine";
 #ifdef EDITOR_USE_CUSTOM_TITLEBAR
 	app_desc.project_settings.window_use_title_bar = false;
 #else
 	app_desc.project_settings.window_use_title_bar = true;
 #endif
+	if (io::IsFile(editor_project_settings_path) && !project::LoadSettings(editor_project_settings_path, app_desc.project_settings))
+	{
+		std::fprintf(stderr, "Failed to load editor project: %s\n", editor_project_settings_path.c_str());
+		return 1;
+	}
 
 	String project_settings_path;
 	if (argc > 1 && argv && argv[1] && argv[1][0] != '\0')
@@ -48,20 +58,15 @@ int main(int argc, char** argv)
 	}
 
 	project_settings_path = io::NormalizePath(project_settings_path);
-	if (!io::IsFile(project_settings_path) || !project::LoadSettings(project_settings_path, app_desc.project_settings))
+	project::ProjectSettings loaded_project_settings = {};
+	if (!io::IsFile(project_settings_path) || !project::LoadSettings(project_settings_path, loaded_project_settings))
 	{
 		std::fprintf(stderr, "Failed to load project: %s\n", project_settings_path.c_str());
 		return 1;
 	}
 
-#ifdef EDITOR_USE_CUSTOM_TITLEBAR
-	app_desc.project_settings.window_use_title_bar = false;
-#else
-	app_desc.project_settings.window_use_title_bar = true;
-#endif
-
 	EditorApplication app;
-	app.Initialize(app_desc);
+	app.Initialize(app_desc, loaded_project_settings);
 
 	while (app.IsRunning())
 	{

@@ -998,8 +998,15 @@ namespace won::editor
 
 	void EditorApplication::Initialize(const ApplicationDesc& desc)
 	{
+		project::ProjectSettings empty_project_settings = {};
+		Initialize(desc, empty_project_settings);
+	}
+
+	void EditorApplication::Initialize(const ApplicationDesc& desc, const project::ProjectSettings& loaded_project_settings_in)
+	{
+		loaded_project_settings = loaded_project_settings_in;
 		Application::Initialize(desc);
-		contents_root_dir = project::GetContentRoot(project_settings);
+		contents_root_dir = project::GetContentRoot(loaded_project_settings);
 		contents_root_dir = io::NormalizePath(contents_root_dir);
 		if (!contents_root_dir.empty() && contents_root_dir.back() != '/')
 		{
@@ -1090,7 +1097,7 @@ namespace won::editor
 		LoadPlugins();
 
 		bool startup_scene_loaded = false;
-		String startup_scene_path = project_settings.startup_scene;
+		String startup_scene_path = loaded_project_settings.startup_scene;
 		if (!startup_scene_path.empty())
 		{
 			startup_scene_path = project::ResolveProjectContentPath(contents_root_dir, startup_scene_path);
@@ -1115,6 +1122,10 @@ namespace won::editor
 	void EditorApplication::Shutdown()
 	{
 		SaveEditorSettings();
+		if (!loaded_project_settings.settings_path.empty())
+		{
+			project::SaveSettings(loaded_project_settings.settings_path, loaded_project_settings);
+		}
 		WaitIdle();
 
 		imgui_pso.reset();
@@ -1463,7 +1474,7 @@ namespace won::editor
 		const String plugin_root_path = io::CombinePath(io::GetExecutableDirectory(), "Plugins");
 		Vector<plugin::PluginInfo> plugin_list = plugin::ScanPluginList(plugin_root_path);
 		String enabled_tokens = ";";
-		for (const String& plugin_id : project_settings.enabled_plugins)
+		for (const String& plugin_id : loaded_project_settings.enabled_plugins)
 		{
 			enabled_tokens += plugin_id;
 			enabled_tokens += ";";
@@ -1659,17 +1670,17 @@ namespace won::editor
 			backlog::Post(editor_text::plugin_disabled_next_restart + plugin_info.info.plugin_id);
 		}
 
-		auto plugin_it = std::find(project_settings.enabled_plugins.begin(), project_settings.enabled_plugins.end(), plugin_info.info.plugin_id);
+		auto plugin_it = std::find(loaded_project_settings.enabled_plugins.begin(), loaded_project_settings.enabled_plugins.end(), plugin_info.info.plugin_id);
 		if (plugin_info.enabled)
 		{
-			if (plugin_it == project_settings.enabled_plugins.end())
+			if (plugin_it == loaded_project_settings.enabled_plugins.end())
 			{
-				project_settings.enabled_plugins.push_back(plugin_info.info.plugin_id);
+				loaded_project_settings.enabled_plugins.push_back(plugin_info.info.plugin_id);
 			}
 		}
-		else if (plugin_it != project_settings.enabled_plugins.end())
+		else if (plugin_it != loaded_project_settings.enabled_plugins.end())
 		{
-			project_settings.enabled_plugins.erase(plugin_it);
+			loaded_project_settings.enabled_plugins.erase(plugin_it);
 		}
 
 	}
