@@ -1,4 +1,5 @@
 #include "Application.h"
+#include "Backlog.h"
 #include "FileSystem.h"
 #include "JsonArchive.h"
 #include "ProjectSettings.h"
@@ -60,9 +61,18 @@ int main(int argc, char** argv)
             }
 
             won::serialize::JsonArchive archive(won::serialize::ArchiveMode::Read);
-            if (archive.LoadFromFile(won::io::NormalizePath(startup_scene_path)))
+            const won::String normalized_startup_scene_path = won::io::NormalizePath(startup_scene_path);
+            if (archive.LoadFromFile(normalized_startup_scene_path))
             {
                 won::serialize::Serialize(archive, game_scene);
+                if (archive.HasError())
+                {
+                    wonlog_warning("Startup scene load warning: %s (%s)", normalized_startup_scene_path.c_str(), archive.GetError().c_str());
+                }
+            }
+            else
+            {
+                wonlog_warning("Failed to load startup scene: %s", normalized_startup_scene_path.c_str());
             }
         }
 
@@ -76,6 +86,10 @@ int main(int argc, char** argv)
                 {
                     won::ecs::GeometryComponent& geometry = geometry_array->data[i];
                     won::String mesh_path = geometry.mesh_asset_path;
+                    if (mesh_path.empty())
+                    {
+                        continue;
+                    }
                     if (won::utils::StartsWith(mesh_path, "/Contents/"))
                     {
                         mesh_path = mesh_path.substr(won::String("/Contents/").size());
@@ -84,10 +98,15 @@ int main(int argc, char** argv)
                     {
                         mesh_path = won::io::CombinePath(content_root, mesh_path);
                     }
-                    std::shared_ptr<won::resource::Mesh> mesh = won::resource::LoadMeshBinary(won::io::NormalizePath(mesh_path));
+                    mesh_path = won::io::NormalizePath(mesh_path);
+                    std::shared_ptr<won::resource::Mesh> mesh = won::resource::LoadMeshBinary(mesh_path);
                     if (mesh && won::rendering::utils::CreateRenderData(*device, *mesh))
                     {
                         geometry.SetMesh(mesh);
+                    }
+                    else
+                    {
+                        wonlog_warning("Failed to load scene mesh: %s", mesh_path.c_str());
                     }
                 }
             }
@@ -151,6 +170,10 @@ int main(int argc, char** argv)
                                 texture_map.texture = image->render_data.texture;
                                 texture_map.res_handle = image->render_data.srv;
                             }
+                            else
+                            {
+                                wonlog_warning("Failed to load scene texture: %s", texture_path.c_str());
+                            }
                         }
                     }
                 }
@@ -172,6 +195,10 @@ int main(int argc, char** argv)
                         script_slot.script_path = won::io::CombinePath(content_root, script_slot.script_path);
                     }
                     script_slot.script_path = won::io::NormalizePath(script_slot.script_path);
+                    if (!script_slot.script_path.empty() && !won::io::IsFile(script_slot.script_path))
+                    {
+                        wonlog_warning("Failed to find scene script: %s", script_slot.script_path.c_str());
+                    }
                 }
             }
         }

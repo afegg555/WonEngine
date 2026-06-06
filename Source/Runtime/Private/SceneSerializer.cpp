@@ -408,6 +408,10 @@ namespace won::serialize
 
             uint32 version = 0;
             archive.Field("version", version);
+            if (version != scene_format_version)
+            {
+                wonlog_warning("Scene format version mismatch: file=%u runtime=%u", static_cast<unsigned>(version), static_cast<unsigned>(scene_format_version));
+            }
             scene.ClearEntities();
 
             Vector<ecs::Entity> entities;
