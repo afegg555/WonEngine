@@ -33,6 +33,8 @@
 #include "IconsMaterialDesign.h"
 #include "Themes.h"
 
+#include <filesystem>
+
 #define DEFAULTBUTTONWIDTH 200
 
 // Forward declare message handler from imgui_impl_win32.cpp
@@ -1020,6 +1022,11 @@ namespace won::editor
 		{
 			contents_root_dir += "/";
 		}
+		if (!contents_root_dir.empty())
+		{
+			std::error_code error;
+			std::filesystem::current_path(std::filesystem::u8path(contents_root_dir), error);
+		}
 		editor_contents_root_dir = io::NormalizePath(String(CONTENTS_ROOT_DIR));
 		if (!editor_contents_root_dir.empty() && editor_contents_root_dir.back() != '/')
 		{
@@ -1368,7 +1375,11 @@ namespace won::editor
 				{
 					continue;
 				}
-				changed_script_paths.push_back(change.path);
+				const String changed_script_path = io::GetRelativePath(contents_root_dir, change.path);
+				if (!changed_script_path.empty())
+				{
+					changed_script_paths.push_back(changed_script_path);
+				}
 			}
 
 			auto script_array = editor_viewport.view->scene->GetComponentArray<ecs::ScriptComponent>();
@@ -2419,8 +2430,8 @@ namespace won::editor
 			}
 			if (script_component)
 			{
-				const String pulse_scale_path = contents_root_dir + "Scripts/PulseScale.lua";
-				const String rotator_path = contents_root_dir + "Scripts/Rotator.lua";
+				const String pulse_scale_path = "Scripts/PulseScale.lua";
+				const String rotator_path = "Scripts/Rotator.lua";
 				if (!HasScript(*script_component, pulse_scale_path))
 				{
 					ScriptSlot script_slot = {};
@@ -3420,18 +3431,22 @@ namespace won::editor
 				const bool can_package_project = !loaded_project_settings.settings_path.empty();
 				if (ImGui::MenuItem(editor_text::package_project, nullptr, false, can_package_project))
 				{
-					project::SaveSettings(loaded_project_settings.settings_path, loaded_project_settings);
+					const bool scene_saved = current_scene_path.empty() || SaveScene(current_scene_path);
+					if (scene_saved)
+					{
+						project::SaveSettings(loaded_project_settings.settings_path, loaded_project_settings);
 
-					const String package_tool_path = io::CombinePath(io::GetExecutableDirectory(), "PackageTool.exe");
-					if (!io::IsFile(package_tool_path))
-					{
-						backlog::Post(editor_text::package_tool_not_found + package_tool_path, backlog::LogLevel::Warning);
-					}
-					else
-					{
-						const String arguments = "\"" + loaded_project_settings.settings_path + "\" Release";
-						HINSTANCE result = ShellExecuteA(static_cast<HWND>(window ? window->GetNativeHandle() : nullptr), "open", package_tool_path.c_str(), arguments.c_str(), io::GetExecutableDirectory().c_str(), SW_SHOWNORMAL);
-						backlog::Post(reinterpret_cast<INT_PTR>(result) > 32 ? editor_text::package_project_started + loaded_project_settings.settings_path : editor_text::package_project_failed, reinterpret_cast<INT_PTR>(result) > 32 ? backlog::LogLevel::Default : backlog::LogLevel::Warning);
+						const String package_tool_path = io::CombinePath(io::GetExecutableDirectory(), "PackageTool.exe");
+						if (!io::IsFile(package_tool_path))
+						{
+							backlog::Post(editor_text::package_tool_not_found + package_tool_path, backlog::LogLevel::Warning);
+						}
+						else
+						{
+							const String arguments = "\"" + loaded_project_settings.settings_path + "\" Release";
+							HINSTANCE result = ShellExecuteA(static_cast<HWND>(window ? window->GetNativeHandle() : nullptr), "open", package_tool_path.c_str(), arguments.c_str(), io::GetExecutableDirectory().c_str(), SW_SHOWNORMAL);
+							backlog::Post(reinterpret_cast<INT_PTR>(result) > 32 ? editor_text::package_project_started + loaded_project_settings.settings_path : editor_text::package_project_failed, reinterpret_cast<INT_PTR>(result) > 32 ? backlog::LogLevel::Default : backlog::LogLevel::Warning);
+						}
 					}
 				}
 				if (!can_package_project)
@@ -5124,8 +5139,7 @@ namespace won::editor
 							String script_label = editor_text::none_placeholder;
 							if (!script_slot.script_path.empty())
 							{
-								String relative_script_path = io::GetRelativePath(contents_root_dir, script_slot.script_path);
-								script_label = relative_script_path.empty() ? script_slot.script_path : "/Contents/" + relative_script_path;
+								script_label = script_slot.script_path.rfind(project::content_virtual_root_prefix, 0) == 0 ? script_slot.script_path : "/Contents/" + script_slot.script_path;
 							}
 
 							ImGui::SetNextItemWidth(-1.0f);
@@ -5138,12 +5152,18 @@ namespace won::editor
 										continue;
 									}
 
-									const bool selected = asset.disk_path == script_slot.script_path;
+									const String asset_script_path = io::GetRelativePath(contents_root_dir, asset.disk_path);
+									if (asset_script_path.empty())
+									{
+										continue;
+									}
+
+									const bool selected = asset_script_path == script_slot.script_path;
 									if (ImGui::Selectable(asset.virtual_path.c_str(), selected))
 									{
-										if (asset.disk_path == script_slot.script_path || !HasScript(*script_comp, asset.disk_path))
+										if (asset_script_path == script_slot.script_path || !HasScript(*script_comp, asset_script_path))
 										{
-											if (asset.disk_path != script_slot.script_path && script_runtime && script_slot.instance.IsValid())
+											if (asset_script_path != script_slot.script_path && script_runtime && script_slot.instance.IsValid())
 											{
 												script::ScriptCallContext context = {};
 												context.scene = editor_viewport.view->scene;
@@ -5154,7 +5174,7 @@ namespace won::editor
 												script_slot.initialized = false;
 											}
 
-											script_slot.script_path = asset.disk_path;
+											script_slot.script_path = asset_script_path;
 											script_slot.last_error.clear();
 										}
 										else
@@ -5178,9 +5198,10 @@ namespace won::editor
 									String dropped_path(static_cast<const char*>(payload->Data));
 									if (won::utils::ToLower(io::GetExtension(dropped_path)) == "lua")
 									{
-										if (dropped_path == script_slot.script_path || !HasScript(*script_comp, dropped_path))
+										const String dropped_script_path = io::GetRelativePath(contents_root_dir, dropped_path);
+										if (!dropped_script_path.empty() && (dropped_script_path == script_slot.script_path || !HasScript(*script_comp, dropped_script_path)))
 										{
-											if (dropped_path != script_slot.script_path && script_runtime && script_slot.instance.IsValid())
+											if (dropped_script_path != script_slot.script_path && script_runtime && script_slot.instance.IsValid())
 											{
 												script::ScriptCallContext context = {};
 												context.scene = editor_viewport.view->scene;
@@ -5191,10 +5212,10 @@ namespace won::editor
 												script_slot.initialized = false;
 											}
 
-											script_slot.script_path = dropped_path;
+											script_slot.script_path = dropped_script_path;
 											script_slot.last_error.clear();
 										}
-										else
+										else if (!dropped_script_path.empty())
 										{
 											script_slot.last_error = editor_text::script_already_exists;
 										}
@@ -5207,7 +5228,23 @@ namespace won::editor
 							std::snprintf(path_buf, sizeof(path_buf), "%s", script_slot.script_path.c_str());
 							if (ImGui::InputText(editor_text::path, path_buf, sizeof(path_buf)))
 							{
-								String new_path = project::ResolveProjectContentPath(contents_root_dir, path_buf);
+								String new_path = io::NormalizePath(path_buf);
+								if (new_path.rfind(project::content_virtual_root_prefix, 0) == 0)
+								{
+									new_path = io::NormalizePath(new_path.substr(project::content_virtual_root_prefix_length));
+								}
+								else if (io::IsAbsolutePath(new_path))
+								{
+									const String relative_path = io::GetRelativePath(contents_root_dir, new_path);
+									if (!relative_path.empty())
+									{
+										new_path = relative_path;
+									}
+									else
+									{
+										new_path = script_slot.script_path;
+									}
+								}
 								if (new_path.empty() || new_path == script_slot.script_path || !HasScript(*script_comp, new_path))
 								{
 									if (new_path != script_slot.script_path && script_runtime && script_slot.instance.IsValid())
@@ -5955,7 +5992,19 @@ namespace won::editor
 				ecs::ScriptComponent& script_component = script_array->data[i];
 				for (ecs::ScriptSlot& script_slot : script_component.scripts)
 				{
-					script_slot.script_path = project::ResolveProjectContentPath(contents_root_dir, script_slot.script_path);
+					if (script_slot.script_path.rfind(project::content_virtual_root_prefix, 0) == 0)
+					{
+						script_slot.script_path = io::NormalizePath(script_slot.script_path.substr(project::content_virtual_root_prefix_length));
+					}
+					else if (io::IsAbsolutePath(script_slot.script_path))
+					{
+						const String relative_path = io::GetRelativePath(contents_root_dir, script_slot.script_path);
+						script_slot.script_path = relative_path;
+					}
+					else
+					{
+						script_slot.script_path = io::NormalizePath(script_slot.script_path);
+					}
 					script_slot.initialized = false;
 					script_slot.instance = {};
 					script_slot.last_error.clear();
