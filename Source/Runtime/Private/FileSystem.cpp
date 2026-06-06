@@ -510,7 +510,15 @@ namespace won::io
                 dialog->SetTitle(title.c_str());
             }
 
-            const WString initial_directory = std::filesystem::u8path(desc.initial_directory).wstring();
+            const WString filter_name = std::filesystem::u8path(desc.filter_name.empty() ? "All Files" : desc.filter_name).wstring();
+            const WString filter_pattern = std::filesystem::u8path(desc.filter_pattern.empty() ? "*.*" : desc.filter_pattern).wstring();
+            const COMDLG_FILTERSPEC filter = { filter_name.c_str(), filter_pattern.c_str() };
+            dialog->SetFileTypes(1, &filter);
+            dialog->SetFileTypeIndex(1);
+
+            std::filesystem::path initial_directory_path = std::filesystem::u8path(desc.initial_directory).lexically_normal();
+            initial_directory_path.make_preferred(); // "/" -> "\\"
+            const WString initial_directory = initial_directory_path.wstring();
             if (!initial_directory.empty())
             {
                 IShellItem* folder = nullptr;
@@ -520,12 +528,6 @@ namespace won::io
                     folder->Release();
                 }
             }
-
-            const WString filter_name = std::filesystem::u8path(desc.filter_name.empty() ? "All Files" : desc.filter_name).wstring();
-            const WString filter_pattern = std::filesystem::u8path(desc.filter_pattern.empty() ? "*.*" : desc.filter_pattern).wstring();
-            const COMDLG_FILTERSPEC filter = { filter_name.c_str(), filter_pattern.c_str() };
-            dialog->SetFileTypes(1, &filter);
-            dialog->SetFileTypeIndex(1);
 
             if (SUCCEEDED(dialog->Show(reinterpret_cast<HWND>(desc.owner_window))))
             {
@@ -582,7 +584,9 @@ namespace won::io
                 dialog->SetTitle(title.c_str());
             }
 
-            const WString initial_directory = std::filesystem::u8path(desc.initial_directory).wstring();
+            std::filesystem::path initial_directory_path = std::filesystem::u8path(desc.initial_directory).lexically_normal();
+            initial_directory_path.make_preferred(); // "/" -> "\\"
+            const WString initial_directory = initial_directory_path.wstring();
             if (!initial_directory.empty())
             {
                 IShellItem* folder = nullptr;

@@ -21,6 +21,7 @@ endif()
 set(FINAL_OUT_DIR "${CMAKE_SOURCE_DIR}/Binary/${OS_NAME}")
 set(SHADER_BIN_DIR "${FINAL_OUT_DIR}/CompiledShaders")
 set(CONTENTS_ROOT_DIR "${CMAKE_SOURCE_DIR}/Contents")
+set(PROJECTS_ROOT_DIR "${CMAKE_SOURCE_DIR}/Projects" CACHE PATH "Default projects root directory")
 file(MAKE_DIRECTORY "${SHADER_BIN_DIR}")
 
 set(LUA_SOURCES
@@ -679,6 +680,7 @@ endif()
 target_compile_definitions(Editor
     PRIVATE
         CONTENTS_ROOT_DIR="${CONTENTS_ROOT_DIR}"
+        PROJECTS_ROOT_DIR="${PROJECTS_ROOT_DIR}"
 )
 
 target_compile_definitions(HelloTriangle

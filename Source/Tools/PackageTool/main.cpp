@@ -198,6 +198,16 @@ int main(int argc, char** argv)
                 return 1;
             }
 
+            const char* packaged_content_extensions[] =
+            {
+                won::resource::scene_file_extension,
+                won::resource::mesh_binary_extension,
+                won::resource::texture_binary_extension,
+                won::resource::lua_script_file_extension,
+                won::resource::true_type_font_extension,
+                won::resource::open_type_font_extension
+            };
+
             const won::Vector<won::String> scene_strings = scene_archive.GetStringValues();
             for (won::String value : scene_strings)
             {
@@ -206,7 +216,16 @@ int main(int argc, char** argv)
                     value = value.substr(10);
                 }
                 const won::String ext = won::io::GetExtension(value);
-                if (ext == "wonscene" || ext == "wonmesh" || ext == "lua" || ext == "dds" || ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "ttf" || ext == "otf" || ext == "wav" || ext == "mp3")
+                bool should_copy = false;
+                for (const char* packaged_content_extension : packaged_content_extensions)
+                {
+                    if (ext == packaged_content_extension)
+                    {
+                        should_copy = true;
+                        break;
+                    }
+                }
+                if (should_copy)
                 {
                     content_paths.push_back(value);
                 }

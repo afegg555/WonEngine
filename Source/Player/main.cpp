@@ -33,12 +33,7 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    won::String content_root = app_desc.project_settings.content_root.empty() ? "Contents" : app_desc.project_settings.content_root;
-    if (!won::io::IsAbsolutePath(content_root))
-    {
-        content_root = won::io::CombinePath(app_desc.project_settings.project_root, content_root);
-    }
-    content_root = won::io::NormalizePath(content_root);
+    const won::String content_root = won::project::GetContentRoot(app_desc.project_settings);
 
     won::Application app;
     app.Initialize(app_desc);
@@ -51,17 +46,8 @@ int main(int argc, char** argv)
         won::String startup_scene_path = app_desc.project_settings.startup_scene;
         if (!startup_scene_path.empty())
         {
-            if (won::utils::StartsWith(startup_scene_path, "/Contents/"))
-            {
-                startup_scene_path = won::io::CombinePath(content_root, startup_scene_path.substr(won::String("/Contents/").size()));
-            }
-            else if (!won::io::IsAbsolutePath(startup_scene_path))
-            {
-                startup_scene_path = won::io::CombinePath(content_root, startup_scene_path);
-            }
-
             won::serialize::JsonArchive archive(won::serialize::ArchiveMode::Read);
-            const won::String normalized_startup_scene_path = won::io::NormalizePath(startup_scene_path);
+            const won::String normalized_startup_scene_path = won::project::ResolveProjectContentPath(content_root, startup_scene_path);
             if (archive.LoadFromFile(normalized_startup_scene_path))
             {
                 won::serialize::Serialize(archive, game_scene);
@@ -85,21 +71,21 @@ int main(int argc, char** argv)
                 for (won::Size i = 0; i < geometry_array->GetSize(); ++i)
                 {
                     won::ecs::GeometryComponent& geometry = geometry_array->data[i];
-                    won::String mesh_path = geometry.mesh_asset_path;
-                    if (mesh_path.empty())
+                    if (geometry.mesh_asset_path.empty())
                     {
                         continue;
                     }
-                    if (won::utils::StartsWith(mesh_path, "/Contents/"))
+                    const won::String mesh_path = won::project::ResolveProjectContentPath(content_root, geometry.mesh_asset_path);
+                    won::String binary_path = mesh_path;
+                    if (won::utils::ToLower(won::io::GetExtension(mesh_path)) != won::resource::mesh_binary_extension)
                     {
-                        mesh_path = mesh_path.substr(won::String("/Contents/").size());
+                        won::resource::AssetMeta meta = {};
+                        if (won::resource::LoadAssetMeta(won::resource::GetAssetMetaPath(mesh_path), meta) && !meta.binary_path.empty())
+                        {
+                            binary_path = won::project::ResolveProjectContentPath(content_root, meta.binary_path);
+                        }
                     }
-                    if (!won::io::IsAbsolutePath(mesh_path))
-                    {
-                        mesh_path = won::io::CombinePath(content_root, mesh_path);
-                    }
-                    mesh_path = won::io::NormalizePath(mesh_path);
-                    std::shared_ptr<won::resource::Mesh> mesh = won::resource::LoadMeshBinary(mesh_path);
+                    std::shared_ptr<won::resource::Mesh> mesh = won::resource::LoadMeshBinary(binary_path);
                     if (mesh && won::rendering::utils::CreateRenderData(*device, *mesh))
                     {
                         geometry.SetMesh(mesh);
@@ -125,16 +111,7 @@ int main(int argc, char** argv)
                                 continue;
                             }
 
-                            won::String texture_path = texture_map.texture_asset_path;
-                            if (won::utils::StartsWith(texture_path, "/Contents/"))
-                            {
-                                texture_path = won::io::CombinePath(content_root, texture_path.substr(won::String("/Contents/").size()));
-                            }
-                            else if (!won::io::IsAbsolutePath(texture_path))
-                            {
-                                texture_path = won::io::CombinePath(content_root, texture_path);
-                            }
-                            texture_path = won::io::NormalizePath(texture_path);
+                            const won::String texture_path = won::project::ResolveProjectContentPath(content_root, texture_map.texture_asset_path);
 
                             std::shared_ptr<won::resource::Image> image = nullptr;
                             if (won::utils::ToLower(won::io::GetExtension(texture_path)) == won::resource::texture_binary_extension)
@@ -146,16 +123,8 @@ int main(int argc, char** argv)
                                 won::resource::AssetMeta meta = {};
                                 if (won::resource::LoadAssetMeta(won::resource::GetAssetMetaPath(texture_path), meta) && !meta.binary_path.empty())
                                 {
-                                    won::String binary_path = meta.binary_path;
-                                    if (won::utils::StartsWith(binary_path, "/Contents/"))
-                                    {
-                                        binary_path = won::io::CombinePath(content_root, binary_path.substr(won::String("/Contents/").size()));
-                                    }
-                                    else if (!won::io::IsAbsolutePath(binary_path))
-                                    {
-                                        binary_path = won::io::CombinePath(content_root, binary_path);
-                                    }
-                                    image = won::resource::LoadTextureBinary(won::io::NormalizePath(binary_path));
+                                    const won::String binary_path = won::project::ResolveProjectContentPath(content_root, meta.binary_path);
+                                    image = won::resource::LoadTextureBinary(binary_path);
                                 }
                                 if (!image)
                                 {
@@ -178,6 +147,50 @@ int main(int argc, char** argv)
                     }
                 }
             }
+
+            if (auto text_array = game_scene.GetComponentArray<won::ecs::Text2DComponent>())
+            {
+                for (won::Size i = 0; i < text_array->GetSize(); ++i)
+                {
+                    won::ecs::Text2DComponent& text = text_array->data[i];
+                    if (text.font_asset_path.empty())
+                    {
+                        continue;
+                    }
+                    const won::String font_path = won::project::ResolveProjectContentPath(content_root, text.font_asset_path);
+                    text.font = won::resource::LoadFontFile(font_path);
+                    if (text.font)
+                    {
+                        text.SetDirty();
+                    }
+                    else
+                    {
+                        wonlog_warning("Failed to load scene font: %s", font_path.c_str());
+                    }
+                }
+            }
+
+            if (auto text_array = game_scene.GetComponentArray<won::ecs::Text3DComponent>())
+            {
+                for (won::Size i = 0; i < text_array->GetSize(); ++i)
+                {
+                    won::ecs::Text3DComponent& text = text_array->data[i];
+                    if (text.font_asset_path.empty())
+                    {
+                        continue;
+                    }
+                    const won::String font_path = won::project::ResolveProjectContentPath(content_root, text.font_asset_path);
+                    text.font = won::resource::LoadFontFile(font_path);
+                    if (text.font)
+                    {
+                        text.SetDirty();
+                    }
+                    else
+                    {
+                        wonlog_warning("Failed to load scene font: %s", font_path.c_str());
+                    }
+                }
+            }
         }
 
         if (auto script_array = game_scene.GetComponentArray<won::ecs::ScriptComponent>())
@@ -186,15 +199,7 @@ int main(int argc, char** argv)
             {
                 for (won::ecs::ScriptSlot& script_slot : script_array->data[i].scripts)
                 {
-                    if (won::utils::StartsWith(script_slot.script_path, "/Contents/"))
-                    {
-                        script_slot.script_path = won::io::CombinePath(content_root, script_slot.script_path.substr(won::String("/Contents/").size()));
-                    }
-                    else if (!script_slot.script_path.empty() && !won::io::IsAbsolutePath(script_slot.script_path))
-                    {
-                        script_slot.script_path = won::io::CombinePath(content_root, script_slot.script_path);
-                    }
-                    script_slot.script_path = won::io::NormalizePath(script_slot.script_path);
+                    script_slot.script_path = won::project::ResolveProjectContentPath(content_root, script_slot.script_path);
                     if (!script_slot.script_path.empty() && !won::io::IsFile(script_slot.script_path))
                     {
                         wonlog_warning("Failed to find scene script: %s", script_slot.script_path.c_str());

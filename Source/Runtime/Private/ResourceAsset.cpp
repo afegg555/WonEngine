@@ -4,7 +4,6 @@
 #include "FileSystem.h"
 #include "JsonArchive.h"
 #include <cstring>
-#include <dxgiformat.h>
 #include <fstream>
 
 namespace won::resource
@@ -23,6 +22,26 @@ namespace won::resource
         constexpr uint32 dds_caps_texture = 0x00001000;
         constexpr uint32 dds_caps_complex = 0x00000008;
         constexpr uint32 dds_caps_mipmap = 0x00400000;
+        // DDS DX10 headers store DXGI_FORMAT numeric values, but resource code must not include platform headers.
+        constexpr uint32 dds_dxgi_format_unknown = 0;
+        constexpr uint32 dds_dxgi_format_r8g8b8a8_unorm = 28;
+        constexpr uint32 dds_dxgi_format_r8g8b8a8_unorm_srgb = 29;
+        constexpr uint32 dds_dxgi_format_bc1_unorm = 71;
+        constexpr uint32 dds_dxgi_format_bc1_unorm_srgb = 72;
+        constexpr uint32 dds_dxgi_format_bc2_unorm = 74;
+        constexpr uint32 dds_dxgi_format_bc2_unorm_srgb = 75;
+        constexpr uint32 dds_dxgi_format_bc3_unorm = 77;
+        constexpr uint32 dds_dxgi_format_bc3_unorm_srgb = 78;
+        constexpr uint32 dds_dxgi_format_bc4_unorm = 80;
+        constexpr uint32 dds_dxgi_format_bc4_snorm = 81;
+        constexpr uint32 dds_dxgi_format_bc5_unorm = 83;
+        constexpr uint32 dds_dxgi_format_bc5_snorm = 84;
+        constexpr uint32 dds_dxgi_format_b8g8r8a8_unorm = 87;
+        constexpr uint32 dds_dxgi_format_b8g8r8a8_unorm_srgb = 91;
+        constexpr uint32 dds_dxgi_format_bc6h_uf16 = 95;
+        constexpr uint32 dds_dxgi_format_bc6h_sf16 = 96;
+        constexpr uint32 dds_dxgi_format_bc7_unorm = 98;
+        constexpr uint32 dds_dxgi_format_bc7_unorm_srgb = 99;
 
         struct DDSPixelFormat
         {
@@ -71,24 +90,24 @@ namespace won::resource
         {
             switch (format)
             {
-            case DXGI_FORMAT_R8G8B8A8_UNORM: return rendering::RHIFormat::R8G8B8A8Unorm;
-            case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB: return rendering::RHIFormat::R8G8B8A8UnormSrgb;
-            case DXGI_FORMAT_B8G8R8A8_UNORM: return rendering::RHIFormat::B8G8R8A8Unorm;
-            case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB: return rendering::RHIFormat::B8G8R8A8UnormSrgb;
-            case DXGI_FORMAT_BC1_UNORM: return rendering::RHIFormat::BC1Unorm;
-            case DXGI_FORMAT_BC1_UNORM_SRGB: return rendering::RHIFormat::BC1UnormSrgb;
-            case DXGI_FORMAT_BC2_UNORM: return rendering::RHIFormat::BC2Unorm;
-            case DXGI_FORMAT_BC2_UNORM_SRGB: return rendering::RHIFormat::BC2UnormSrgb;
-            case DXGI_FORMAT_BC3_UNORM: return rendering::RHIFormat::BC3Unorm;
-            case DXGI_FORMAT_BC3_UNORM_SRGB: return rendering::RHIFormat::BC3UnormSrgb;
-            case DXGI_FORMAT_BC4_UNORM: return rendering::RHIFormat::BC4Unorm;
-            case DXGI_FORMAT_BC4_SNORM: return rendering::RHIFormat::BC4Snorm;
-            case DXGI_FORMAT_BC5_UNORM: return rendering::RHIFormat::BC5Unorm;
-            case DXGI_FORMAT_BC5_SNORM: return rendering::RHIFormat::BC5Snorm;
-            case DXGI_FORMAT_BC6H_UF16: return rendering::RHIFormat::BC6HUf16;
-            case DXGI_FORMAT_BC6H_SF16: return rendering::RHIFormat::BC6HSf16;
-            case DXGI_FORMAT_BC7_UNORM: return rendering::RHIFormat::BC7Unorm;
-            case DXGI_FORMAT_BC7_UNORM_SRGB: return rendering::RHIFormat::BC7UnormSrgb;
+            case dds_dxgi_format_r8g8b8a8_unorm: return rendering::RHIFormat::R8G8B8A8Unorm;
+            case dds_dxgi_format_r8g8b8a8_unorm_srgb: return rendering::RHIFormat::R8G8B8A8UnormSrgb;
+            case dds_dxgi_format_b8g8r8a8_unorm: return rendering::RHIFormat::B8G8R8A8Unorm;
+            case dds_dxgi_format_b8g8r8a8_unorm_srgb: return rendering::RHIFormat::B8G8R8A8UnormSrgb;
+            case dds_dxgi_format_bc1_unorm: return rendering::RHIFormat::BC1Unorm;
+            case dds_dxgi_format_bc1_unorm_srgb: return rendering::RHIFormat::BC1UnormSrgb;
+            case dds_dxgi_format_bc2_unorm: return rendering::RHIFormat::BC2Unorm;
+            case dds_dxgi_format_bc2_unorm_srgb: return rendering::RHIFormat::BC2UnormSrgb;
+            case dds_dxgi_format_bc3_unorm: return rendering::RHIFormat::BC3Unorm;
+            case dds_dxgi_format_bc3_unorm_srgb: return rendering::RHIFormat::BC3UnormSrgb;
+            case dds_dxgi_format_bc4_unorm: return rendering::RHIFormat::BC4Unorm;
+            case dds_dxgi_format_bc4_snorm: return rendering::RHIFormat::BC4Snorm;
+            case dds_dxgi_format_bc5_unorm: return rendering::RHIFormat::BC5Unorm;
+            case dds_dxgi_format_bc5_snorm: return rendering::RHIFormat::BC5Snorm;
+            case dds_dxgi_format_bc6h_uf16: return rendering::RHIFormat::BC6HUf16;
+            case dds_dxgi_format_bc6h_sf16: return rendering::RHIFormat::BC6HSf16;
+            case dds_dxgi_format_bc7_unorm: return rendering::RHIFormat::BC7Unorm;
+            case dds_dxgi_format_bc7_unorm_srgb: return rendering::RHIFormat::BC7UnormSrgb;
             default: return rendering::RHIFormat::Unknown;
             }
         }
@@ -97,25 +116,25 @@ namespace won::resource
         {
             switch (format)
             {
-            case rendering::RHIFormat::R8G8B8A8Unorm: return DXGI_FORMAT_R8G8B8A8_UNORM;
-            case rendering::RHIFormat::R8G8B8A8UnormSrgb: return DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-            case rendering::RHIFormat::B8G8R8A8Unorm: return DXGI_FORMAT_B8G8R8A8_UNORM;
-            case rendering::RHIFormat::B8G8R8A8UnormSrgb: return DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
-            case rendering::RHIFormat::BC1Unorm: return DXGI_FORMAT_BC1_UNORM;
-            case rendering::RHIFormat::BC1UnormSrgb: return DXGI_FORMAT_BC1_UNORM_SRGB;
-            case rendering::RHIFormat::BC2Unorm: return DXGI_FORMAT_BC2_UNORM;
-            case rendering::RHIFormat::BC2UnormSrgb: return DXGI_FORMAT_BC2_UNORM_SRGB;
-            case rendering::RHIFormat::BC3Unorm: return DXGI_FORMAT_BC3_UNORM;
-            case rendering::RHIFormat::BC3UnormSrgb: return DXGI_FORMAT_BC3_UNORM_SRGB;
-            case rendering::RHIFormat::BC4Unorm: return DXGI_FORMAT_BC4_UNORM;
-            case rendering::RHIFormat::BC4Snorm: return DXGI_FORMAT_BC4_SNORM;
-            case rendering::RHIFormat::BC5Unorm: return DXGI_FORMAT_BC5_UNORM;
-            case rendering::RHIFormat::BC5Snorm: return DXGI_FORMAT_BC5_SNORM;
-            case rendering::RHIFormat::BC6HUf16: return DXGI_FORMAT_BC6H_UF16;
-            case rendering::RHIFormat::BC6HSf16: return DXGI_FORMAT_BC6H_SF16;
-            case rendering::RHIFormat::BC7Unorm: return DXGI_FORMAT_BC7_UNORM;
-            case rendering::RHIFormat::BC7UnormSrgb: return DXGI_FORMAT_BC7_UNORM_SRGB;
-            default: return DXGI_FORMAT_UNKNOWN;
+            case rendering::RHIFormat::R8G8B8A8Unorm: return dds_dxgi_format_r8g8b8a8_unorm;
+            case rendering::RHIFormat::R8G8B8A8UnormSrgb: return dds_dxgi_format_r8g8b8a8_unorm_srgb;
+            case rendering::RHIFormat::B8G8R8A8Unorm: return dds_dxgi_format_b8g8r8a8_unorm;
+            case rendering::RHIFormat::B8G8R8A8UnormSrgb: return dds_dxgi_format_b8g8r8a8_unorm_srgb;
+            case rendering::RHIFormat::BC1Unorm: return dds_dxgi_format_bc1_unorm;
+            case rendering::RHIFormat::BC1UnormSrgb: return dds_dxgi_format_bc1_unorm_srgb;
+            case rendering::RHIFormat::BC2Unorm: return dds_dxgi_format_bc2_unorm;
+            case rendering::RHIFormat::BC2UnormSrgb: return dds_dxgi_format_bc2_unorm_srgb;
+            case rendering::RHIFormat::BC3Unorm: return dds_dxgi_format_bc3_unorm;
+            case rendering::RHIFormat::BC3UnormSrgb: return dds_dxgi_format_bc3_unorm_srgb;
+            case rendering::RHIFormat::BC4Unorm: return dds_dxgi_format_bc4_unorm;
+            case rendering::RHIFormat::BC4Snorm: return dds_dxgi_format_bc4_snorm;
+            case rendering::RHIFormat::BC5Unorm: return dds_dxgi_format_bc5_unorm;
+            case rendering::RHIFormat::BC5Snorm: return dds_dxgi_format_bc5_snorm;
+            case rendering::RHIFormat::BC6HUf16: return dds_dxgi_format_bc6h_uf16;
+            case rendering::RHIFormat::BC6HSf16: return dds_dxgi_format_bc6h_sf16;
+            case rendering::RHIFormat::BC7Unorm: return dds_dxgi_format_bc7_unorm;
+            case rendering::RHIFormat::BC7UnormSrgb: return dds_dxgi_format_bc7_unorm_srgb;
+            default: return dds_dxgi_format_unknown;
             }
         }
 
@@ -334,7 +353,7 @@ namespace won::resource
         }
 
         const uint32 dxgi_format = DXGIFormatFromRHIFormat(format);
-        if (dxgi_format == DXGI_FORMAT_UNKNOWN)
+        if (dxgi_format == dds_dxgi_format_unknown)
         {
             return false;
         }

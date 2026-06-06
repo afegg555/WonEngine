@@ -2,32 +2,62 @@
 #include "FileSystem.h"
 #include "ProjectSettings.h"
 
+#include <cstdio>
+
 using namespace won;
 using namespace won::editor;
 
-namespace
-{
-	constexpr const char* editor_project_settings_file_name = "EditorProjectSettings.wonproj";
-}
-
-int main()
+int main(int argc, char** argv)
 {
 	ApplicationDesc app_desc = {};
-	String project_settings_path = io::CombinePath(io::GetExecutableDirectory(), editor_project_settings_file_name);
-	app_desc.project_settings.project_name = "Editor";
 	app_desc.project_settings.window_title = "Won Engine";
 #ifdef EDITOR_USE_CUSTOM_TITLEBAR
 	app_desc.project_settings.window_use_title_bar = false;
 #else
 	app_desc.project_settings.window_use_title_bar = true;
 #endif
-	project::LoadSettings(project_settings_path, app_desc.project_settings);
-#ifdef CONTENTS_ROOT_DIR
-	String development_content_root = CONTENTS_ROOT_DIR;
-	if (io::IsDirectory(development_content_root))
+
+	String project_settings_path;
+	if (argc > 1 && argv && argv[1] && argv[1][0] != '\0')
 	{
-		app_desc.project_settings.content_root = development_content_root;
+		project_settings_path = io::GetAbsolutePath(argv[1]);
 	}
+	else
+	{
+		io::FileDialogDesc desc = {};
+		desc.title = "Open Won Project";
+		const String projects_directory = io::NormalizePath(String(PROJECTS_ROOT_DIR));
+		desc.initial_directory = io::IsDirectory(projects_directory) ? projects_directory : io::GetExecutableDirectory();
+		desc.default_extension = project::project_file_extension;
+		desc.filter_name = "Won Project";
+		desc.filter_pattern = "*.wonproj";
+		if (!io::OpenFileDialog(project_settings_path, desc))
+		{
+			return 1;
+		}
+	}
+
+	if (!io::IsFile(project_settings_path) && io::GetExtension(project_settings_path) != project::project_file_extension)
+	{
+		const String project_path = project_settings_path;
+		project_settings_path = io::CombinePath(project_path, io::ReplaceExtension(io::GetFilename(project_path), project::project_file_extension));
+		if (!io::IsFile(project_settings_path))
+		{
+			project_settings_path = io::CombinePath(project_path, project::default_project_file_name);
+		}
+	}
+
+	project_settings_path = io::NormalizePath(project_settings_path);
+	if (!io::IsFile(project_settings_path) || !project::LoadSettings(project_settings_path, app_desc.project_settings))
+	{
+		std::fprintf(stderr, "Failed to load project: %s\n", project_settings_path.c_str());
+		return 1;
+	}
+
+#ifdef EDITOR_USE_CUSTOM_TITLEBAR
+	app_desc.project_settings.window_use_title_bar = false;
+#else
+	app_desc.project_settings.window_use_title_bar = true;
 #endif
 
 	EditorApplication app;

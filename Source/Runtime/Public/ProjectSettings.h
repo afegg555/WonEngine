@@ -9,6 +9,9 @@ namespace won::project
     inline constexpr uint32 project_settings_version = 1;
     inline constexpr const char* project_file_extension = "wonproj";
     inline constexpr const char* default_project_file_name = "Project.wonproj";
+    inline constexpr const char* content_virtual_root = "/Contents";
+    inline constexpr const char* content_virtual_root_prefix = "/Contents/";
+    inline constexpr Size content_virtual_root_prefix_length = sizeof("/Contents/") - 1;
 
     struct ProjectSettings
     {
@@ -29,6 +32,37 @@ namespace won::project
         rendering::RHIBackend backend_type = rendering::RHIBackend::DirectX12;
         Vector<String> enabled_plugins;
     };
+
+    inline String GetContentRoot(const ProjectSettings& settings)
+    {
+        String content_root = settings.content_root.empty() ? "Contents" : settings.content_root;
+        if (!io::IsAbsolutePath(content_root))
+        {
+            content_root = io::CombinePath(settings.project_root, content_root);
+        }
+        return io::NormalizePath(content_root);
+    }
+
+    inline String ResolveProjectContentPath(const String& content_root, const String& path)
+    {
+        if (path.empty())
+        {
+            return String();
+        }
+        if (io::IsAbsolutePath(path))
+        {
+            return io::NormalizePath(path);
+        }
+        if (path == content_virtual_root)
+        {
+            return io::NormalizePath(content_root);
+        }
+        if (path.rfind(content_virtual_root_prefix, 0) == 0)
+        {
+            return io::NormalizePath(io::CombinePath(content_root, path.substr(content_virtual_root_prefix_length)));
+        }
+        return io::NormalizePath(io::CombinePath(content_root, path));
+    }
 
     inline bool LoadSettings(const String& path, ProjectSettings& out_settings)
     {

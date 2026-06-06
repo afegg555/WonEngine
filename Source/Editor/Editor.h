@@ -144,7 +144,6 @@ namespace won::editor
 		bool SaveScene(const String& path);
 		void LoadScene(const String& path);
 		void RebindSceneResources();
-		void LoadSampleScene();
 		void UpdateEntityList();
 		void UpdateDebugPrimitiveMesh();
 		uint64 StartAssetImport(const String& path);

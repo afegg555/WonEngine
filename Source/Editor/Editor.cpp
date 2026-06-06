@@ -48,7 +48,8 @@ namespace won::editor
 	static RHIShader imgui_ps;
 	static RHIShader editor_grid_vs;
 	static RHIShader editor_grid_ps;
-	static String contents_root_dir = String(CONTENTS_ROOT_DIR) + "/";
+	static String contents_root_dir;
+	static String editor_contents_root_dir;
 	namespace
 	{
 		constexpr const char* asset_importer_plugin_id = "AssetImporter";
@@ -114,7 +115,6 @@ namespace won::editor
 
 		constexpr const char* generated_asset_directory = "Generated";
 		constexpr const char* scene_directory_name = "Scenes";
-		constexpr const char* scene_file_extension = "wonscene";
 		constexpr const char* default_scene_file_name = "NewScene";
 
 		namespace editor_text
@@ -652,7 +652,7 @@ namespace won::editor
 			ImFont* custom_font = io.Fonts->AddFontFromFileTTF(font_file_path.c_str(), FontSize * FONTUPSCALE, NULL, &generic_ranges_everything[0]); //Set as default font.
 			if (custom_font && merge_icon)
 			{
-				std::string font_icon_path = contents_root_dir + "Fonts/MaterialIcons-Regular.ttf";
+				std::string font_icon_path = editor_contents_root_dir + "Fonts/MaterialIcons-Regular.ttf";
 				ImFontConfig config;
 				config.MergeMode = true;
 				config.GlyphOffset = ImVec2(0, 3);
@@ -999,17 +999,16 @@ namespace won::editor
 	void EditorApplication::Initialize(const ApplicationDesc& desc)
 	{
 		Application::Initialize(desc);
-		String content_root = project_settings.content_root;
-		if (!content_root.empty() && !io::IsAbsolutePath(content_root))
-		{
-			const String project_root = project_settings.project_root.empty() ? io::GetWorkingDirectory() : project_settings.project_root;
-			content_root = io::CombinePath(project_root, content_root);
-		}
-		contents_root_dir = content_root.empty() ? String(CONTENTS_ROOT_DIR) : content_root;
+		contents_root_dir = project::GetContentRoot(project_settings);
 		contents_root_dir = io::NormalizePath(contents_root_dir);
 		if (!contents_root_dir.empty() && contents_root_dir.back() != '/')
 		{
 			contents_root_dir += "/";
+		}
+		editor_contents_root_dir = io::NormalizePath(String(CONTENTS_ROOT_DIR));
+		if (!editor_contents_root_dir.empty() && editor_contents_root_dir.back() != '/')
+		{
+			editor_contents_root_dir += "/";
 		}
 		editor_settings.settings_path = io::CombinePath(io::GetExecutableDirectory(), editor_settings_file_name);
 		LoadEditorSettings();
@@ -1029,7 +1028,7 @@ namespace won::editor
 		{
 			ShaderCompilerOptions compiler_options;
 			compiler_options.backend = ShaderCompilerBackend::DXC;
-			compiler_options.shader_source_root_path = contents_root_dir + "CustomShaders";
+			compiler_options.shader_source_root_path = editor_contents_root_dir + "CustomShaders";
 			std::shared_ptr<ShaderCompiler> compiler = CreateShaderCompiler(compiler_options);
 
 			ShaderCompileDesc compile_desc;
@@ -1082,7 +1081,7 @@ namespace won::editor
 		ImGui_ImplWin32_Init(window->GetNativeHandle());
 #endif
 
-		std::string font_folder_path = contents_root_dir + "Fonts";
+		std::string font_folder_path = editor_contents_root_dir + "Fonts";
 		AddImGuiFont(font_folder_path + "/Noto_Sans_KR/static", "NotoSansKR-Regular.ttf");
 
 		InitImGui();
@@ -1094,14 +1093,7 @@ namespace won::editor
 		String startup_scene_path = project_settings.startup_scene;
 		if (!startup_scene_path.empty())
 		{
-			if (won::utils::StartsWith(startup_scene_path, "/Contents/"))
-			{
-				startup_scene_path = io::CombinePath(contents_root_dir, startup_scene_path.substr(String("/Contents/").size()));
-			}
-			else if (!io::IsAbsolutePath(startup_scene_path))
-			{
-				startup_scene_path = io::CombinePath(contents_root_dir, startup_scene_path);
-			}
+			startup_scene_path = project::ResolveProjectContentPath(contents_root_dir, startup_scene_path);
 			if (io::IsFile(startup_scene_path))
 			{
 				LoadScene(startup_scene_path);
@@ -2763,7 +2755,7 @@ namespace won::editor
 			if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "tga" || ext == "bmp" || ext == resource::texture_binary_extension) return ContentAssetType::Texture;
 			if (ext == "mat") return ContentAssetType::Material;
 			if (ext == "fbx" || ext == "obj" || ext == "gltf" || ext == "glb" || ext == "stl" || ext == resource::mesh_binary_extension) return ContentAssetType::Mesh;
-			if (ext == scene_file_extension) return ContentAssetType::Scene;
+			if (ext == resource::scene_file_extension) return ContentAssetType::Scene;
 			if (ext == "hlsl" || ext == "hlsli") return ContentAssetType::Shader;
 			if (ext == "ttf" || ext == "otf") return ContentAssetType::Font;
 			if (ext == "lua") return ContentAssetType::Script;
@@ -3583,10 +3575,10 @@ namespace won::editor
 			desc.owner_window = window ? window->GetNativeHandle() : nullptr;
 			desc.title = editor_text::save_scene_as;
 			desc.initial_directory = io::CombinePath(contents_root_dir, scene_directory_name);
-			desc.default_file_name = String(default_scene_file_name) + "." + scene_file_extension;
-			desc.default_extension = scene_file_extension;
+			desc.default_file_name = String(default_scene_file_name) + "." + resource::scene_file_extension;
+			desc.default_extension = resource::scene_file_extension;
 			desc.filter_name = editor_text::won_scene_file;
-			desc.filter_pattern = String("*.") + scene_file_extension;
+			desc.filter_pattern = String("*.") + resource::scene_file_extension;
 
 			String path;
 			if (io::SaveFileDialog(path, desc) && SaveScene(path))
@@ -3627,9 +3619,9 @@ namespace won::editor
 			desc.owner_window = window ? window->GetNativeHandle() : nullptr;
 			desc.title = editor_text::load_scene;
 			desc.initial_directory = io::CombinePath(contents_root_dir, scene_directory_name);
-			desc.default_extension = scene_file_extension;
+			desc.default_extension = resource::scene_file_extension;
 			desc.filter_name = editor_text::won_scene_file;
-			desc.filter_pattern = String("*.") + scene_file_extension;
+			desc.filter_pattern = String("*.") + resource::scene_file_extension;
 
 			String path;
 			if (io::OpenFileDialog(path, desc))
@@ -5171,11 +5163,7 @@ namespace won::editor
 							std::snprintf(path_buf, sizeof(path_buf), "%s", script_slot.script_path.c_str());
 							if (ImGui::InputText(editor_text::path, path_buf, sizeof(path_buf)))
 							{
-								String new_path = path_buf;
-								if (won::utils::StartsWith(new_path, "/Contents/"))
-								{
-									new_path = contents_root_dir + new_path.substr(10);
-								}
+								String new_path = project::ResolveProjectContentPath(contents_root_dir, path_buf);
 								if (new_path.empty() || new_path == script_slot.script_path || !HasScript(*script_comp, new_path))
 								{
 									if (new_path != script_slot.script_path && script_runtime && script_slot.instance.IsValid())
@@ -5709,8 +5697,8 @@ namespace won::editor
 		auto camera_transform = editor_viewport.view->scene->AddComponent<ecs::TransformComponent>(editor_viewport.view->camera_entity);
 		if (camera_transform)
 		{
-			camera_transform->position = { -4.7f, 2.0f, 0.3f };
-			camera_transform->RotateRollPitchYaw({ 0.f, math::PI / 2.f, 0 });
+			camera_transform->position = { 0.0f, 0.0f, 0.0f };
+			camera_transform->rotation = { 0.0f, 0.0f, 0.0f, 1.0f };
 			camera_transform->SetDirty();
 		}
 
@@ -5821,15 +5809,7 @@ namespace won::editor
 					continue;
 				}
 
-				String disk_path = geometry.mesh_asset_path;
-				if (won::utils::StartsWith(disk_path, "/Contents/"))
-				{
-					disk_path = io::CombinePath(contents_root_dir, disk_path.substr(String("/Contents/").size()));
-				}
-				else if (!io::IsAbsolutePath(disk_path))
-				{
-					disk_path = io::CombinePath(contents_root_dir, disk_path);
-				}
+				String disk_path = project::ResolveProjectContentPath(contents_root_dir, geometry.mesh_asset_path);
 				String binary_path;
 				resource::AssetMeta meta = {};
 				if (won::utils::ToLower(io::GetExtension(disk_path)) == resource::mesh_binary_extension)
@@ -5838,15 +5818,7 @@ namespace won::editor
 				}
 				else if (resource::LoadAssetMeta(resource::GetAssetMetaPath(disk_path), meta))
 				{
-					binary_path = meta.binary_path;
-					if (won::utils::StartsWith(binary_path, "/Contents/"))
-					{
-						binary_path = io::CombinePath(contents_root_dir, binary_path.substr(String("/Contents/").size()));
-					}
-					else if (!io::IsAbsolutePath(binary_path))
-					{
-						binary_path = io::CombinePath(contents_root_dir, binary_path);
-					}
+					binary_path = project::ResolveProjectContentPath(contents_root_dir, meta.binary_path);
 				}
 
 				std::shared_ptr<resource::Mesh> mesh = resource::LoadMeshBinary(binary_path);
@@ -5872,15 +5844,7 @@ namespace won::editor
 							continue;
 						}
 
-						String disk_path = texture_map.texture_asset_path;
-						if (won::utils::StartsWith(disk_path, "/Contents/"))
-						{
-							disk_path = io::CombinePath(contents_root_dir, disk_path.substr(String("/Contents/").size()));
-						}
-						else if (!io::IsAbsolutePath(disk_path))
-						{
-							disk_path = io::CombinePath(contents_root_dir, disk_path);
-						}
+						String disk_path = project::ResolveProjectContentPath(contents_root_dir, texture_map.texture_asset_path);
 						std::shared_ptr<resource::Image> image;
 						if (won::utils::ToLower(io::GetExtension(disk_path)) == resource::texture_binary_extension)
 						{
@@ -5891,15 +5855,7 @@ namespace won::editor
 							resource::AssetMeta meta = {};
 							if (resource::LoadAssetMeta(resource::GetAssetMetaPath(disk_path), meta))
 							{
-								String binary_path = meta.binary_path;
-								if (won::utils::StartsWith(binary_path, "/Contents/"))
-								{
-									binary_path = io::CombinePath(contents_root_dir, binary_path.substr(String("/Contents/").size()));
-								}
-								else if (!io::IsAbsolutePath(binary_path))
-								{
-									binary_path = io::CombinePath(contents_root_dir, binary_path);
-								}
+								String binary_path = project::ResolveProjectContentPath(contents_root_dir, meta.binary_path);
 								image = resource::LoadTextureBinary(binary_path);
 							}
 							if (!image)
@@ -5927,15 +5883,7 @@ namespace won::editor
 				ecs::Text2DComponent& text = text_array->data[i];
 				if (!text.font_asset_path.empty())
 				{
-					String font_path = text.font_asset_path;
-					if (won::utils::StartsWith(font_path, "/Contents/"))
-					{
-						font_path = io::CombinePath(contents_root_dir, font_path.substr(String("/Contents/").size()));
-					}
-					else if (!io::IsAbsolutePath(font_path))
-					{
-						font_path = io::CombinePath(contents_root_dir, font_path);
-					}
+					String font_path = project::ResolveProjectContentPath(contents_root_dir, text.font_asset_path);
 					text.font = resource::LoadFontFile(font_path);
 					text.SetDirty();
 				}
@@ -5949,15 +5897,7 @@ namespace won::editor
 				ecs::Text3DComponent& text = text_array->data[i];
 				if (!text.font_asset_path.empty())
 				{
-					String font_path = text.font_asset_path;
-					if (won::utils::StartsWith(font_path, "/Contents/"))
-					{
-						font_path = io::CombinePath(contents_root_dir, font_path.substr(String("/Contents/").size()));
-					}
-					else if (!io::IsAbsolutePath(font_path))
-					{
-						font_path = io::CombinePath(contents_root_dir, font_path);
-					}
+					String font_path = project::ResolveProjectContentPath(contents_root_dir, text.font_asset_path);
 					text.font = resource::LoadFontFile(font_path);
 					text.SetDirty();
 				}
@@ -5971,14 +5911,7 @@ namespace won::editor
 				ecs::ScriptComponent& script_component = script_array->data[i];
 				for (ecs::ScriptSlot& script_slot : script_component.scripts)
 				{
-					if (won::utils::StartsWith(script_slot.script_path, "/Contents/"))
-					{
-						script_slot.script_path = io::CombinePath(contents_root_dir, script_slot.script_path.substr(String("/Contents/").size()));
-					}
-					else if (!script_slot.script_path.empty() && !io::IsAbsolutePath(script_slot.script_path))
-					{
-						script_slot.script_path = io::CombinePath(contents_root_dir, script_slot.script_path);
-					}
+					script_slot.script_path = project::ResolveProjectContentPath(contents_root_dir, script_slot.script_path);
 					script_slot.initialized = false;
 					script_slot.instance = {};
 					script_slot.last_error.clear();
@@ -6020,464 +5953,6 @@ namespace won::editor
 		backlog::Post(editor_text::scene_loaded + path);
 	}
 
-	void EditorApplication::LoadSampleScene()
-	{
-		{
-			const String noto_sans_asset_path = "Fonts/Noto_Sans_KR/static/NotoSansKR-Regular.ttf";
-			const String noto_sans_path = io::CombinePath(contents_root_dir, noto_sans_asset_path);
-			std::shared_ptr<resource::Font> noto_sans_font = resource::LoadFontFile(noto_sans_path);
-			if (noto_sans_font && noto_sans_font->IsValid())
-			{
-				ecs::Entity text_entity = editor_viewport.view->scene->CreateEntity();
-				if (auto* transform = editor_viewport.view->scene->AddComponent<ecs::TransformComponent>(text_entity))
-				{
-					transform->position = { 0.0f, 3.0f, 0.0f };
-					transform->SetDirty();
-				}
-
-				if (auto* text = editor_viewport.view->scene->AddComponent<ecs::Text3DComponent>(text_entity))
-				{
-					text->font = noto_sans_font;
-					text->font_asset_path = noto_sans_asset_path;
-					//text->text = "\xED\x85\x8C\xEC\x8A\xA4\xED\x8A\xB8";
-					text->text = "Test1234!@#$";
-					text->pixel_height = 64;
-					text->height = 0.3f;
-					text->pivot = { 0.5f, 0.5f };
-					text->SetBillboard(true);
-				}
-
-				if (auto* material = editor_viewport.view->scene->AddComponent<ecs::MaterialComponent>(text_entity))
-				{
-					MaterialSlot& material_slot = material->AddMaterialSlot();
-					material_slot.flags = SHADER_MATERIAL_FLAG_TRANSPARENT;
-					material_slot.base_color = { 0.35f, 0.85f, 1.0f, 1.0f };
-				}
-
-				if (auto* name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(text_entity))
-				{
-					name->value = "Text 3D";
-				}
-
-				ecs::Entity text_2d_entity = editor_viewport.view->scene->CreateEntity();
-				if (auto* text_2d = editor_viewport.view->scene->AddComponent<ecs::Text2DComponent>(text_2d_entity))
-				{
-					text_2d->font = noto_sans_font;
-					text_2d->font_asset_path = noto_sans_asset_path;
-					text_2d->text = "2D Text";
-					text_2d->anchor = { 0.0f, 0.0f };
-					text_2d->position = { 24.0f, 24.0f };
-					text_2d->pixel_height = 32;
-					text_2d->pivot = { 0.0f, 0.0f };
-					text_2d->layer = 1;
-				}
-
-				if (auto* material = editor_viewport.view->scene->AddComponent<ecs::MaterialComponent>(text_2d_entity))
-				{
-					MaterialSlot& material_slot = material->AddMaterialSlot();
-					material_slot.flags = SHADER_MATERIAL_FLAG_TRANSPARENT;
-					material_slot.base_color = { 1.0f, 0.78f, 0.28f, 1.0f };
-				}
-
-				if (auto* name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(text_2d_entity))
-				{
-					name->value = "Text 2D";
-				}
-			}
-
-			String image_asset_path = "Images/env_comp.png";
-			String file_path = io::CombinePath(contents_root_dir, image_asset_path);
-			std::shared_ptr<resource::Image> image = resource::LoadImageFile(file_path, 4);
-			if (image && image->IsValid())
-			{
-				rendering::utils::CreateRenderData(*device, *image, RHIFormat::R8G8B8A8Unorm, true);
-				if (image->render_data.IsValid())
-				{
-					ecs::Entity sprite_entity = editor_viewport.view->scene->CreateEntity();
-					if (auto* transform = editor_viewport.view->scene->AddComponent<ecs::TransformComponent>(sprite_entity))
-					{
-						transform->position = { 0.0f, 2.0f, 0.0f };
-						transform->SetDirty();
-					}
-
-					if (auto* sprite = editor_viewport.view->scene->AddComponent<ecs::Sprite3DComponent>(sprite_entity))
-					{
-						const float sprite_height = 2.0f;
-						const float sprite_aspect = static_cast<float>(image->width) / static_cast<float>(image->height);
-						sprite->size = { sprite_height * sprite_aspect, sprite_height };
-						sprite->SetBillboard(false);
-					}
-
-					if (auto* material = editor_viewport.view->scene->AddComponent<ecs::MaterialComponent>(sprite_entity))
-					{
-						MaterialSlot& material_slot = material->AddMaterialSlot();
-						material_slot.flags = SHADER_MATERIAL_FLAG_TRANSPARENT;
-						material_slot.base_color = { 1.0f, 1.0f, 1.0f, 1.0f };
-						material_slot.textures[BASECOLORMAP].texture_asset_path = image_asset_path;
-						material_slot.textures[BASECOLORMAP].texture = image->render_data.texture;
-						material_slot.textures[BASECOLORMAP].res_handle = image->render_data.srv;
-					}
-
-					if (auto* name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(sprite_entity))
-					{
-						name->value = "Sprite 3D";
-					}
-
-					ecs::Entity sprite_2d_entity = editor_viewport.view->scene->CreateEntity();
-					if (auto* sprite_2d = editor_viewport.view->scene->AddComponent<ecs::Sprite2DComponent>(sprite_2d_entity))
-					{
-						const float sprite_2d_height = 128.0f;
-						const float sprite_aspect = static_cast<float>(image->width) / static_cast<float>(image->height);
-						sprite_2d->anchor = { 0.0f, 0.0f };
-						sprite_2d->position = { 24.0f, 96.0f };
-						sprite_2d->size = { sprite_2d_height * sprite_aspect, sprite_2d_height };
-						sprite_2d->pivot = { 0.0f, 0.0f };
-						sprite_2d->layer = 0;
-					}
-
-					if (auto* material = editor_viewport.view->scene->AddComponent<ecs::MaterialComponent>(sprite_2d_entity))
-					{
-						MaterialSlot& material_slot = material->AddMaterialSlot();
-						material_slot.flags = SHADER_MATERIAL_FLAG_TRANSPARENT;
-						material_slot.base_color = { 1.0f, 1.0f, 1.0f, 0.55f };
-						material_slot.textures[BASECOLORMAP].texture_asset_path = image_asset_path;
-						material_slot.textures[BASECOLORMAP].texture = image->render_data.texture;
-						material_slot.textures[BASECOLORMAP].res_handle = image->render_data.srv;
-					}
-
-					if (auto* name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(sprite_2d_entity))
-					{
-						name->value = "Sprite 2D";
-					}
-				}
-			}
-
-			//String file_path = io::GetWorkingDirectory() + "/../Contents/Images/env_comp.png";
-			//std::shared_ptr<resource::Image> image = resource::LoadImageFile(file_path, 4);
-			//if (!image || !image->IsValid())
-			//{
-			//	backlog::Post(String("failed to load base color texture: ") + file_path, backlog::LogLevel::Warning);
-			//	return;
-			//}
-
-			//RHITextureDesc texture_desc = {};
-			//texture_desc.width = static_cast<uint32>(image->width);
-			//texture_desc.height = static_cast<uint32>(image->height);
-			//texture_desc.depth = 1;
-			//texture_desc.mip_levels = 1;
-			//texture_desc.array_layers = 1;
-			//texture_desc.sample_count = 1;
-			//texture_desc.format = RHIFormat::R8G8B8A8Unorm;
-			//texture_desc.usage = RHIResourceUsage::Default;
-			//texture_desc.bind_flags = RHIBindFlags::ShaderResource;
-
-			//std::shared_ptr<RHIResource> texture_resource = device->CreateTexture(texture_desc, image->pixels.data(), image->pixels.size());
-			//if (!texture_resource)
-			//{
-			//	backlog::Post("failed to create base color texture resource", backlog::LogLevel::Warning);
-			//	return;
-			//}
-
-			//RHISubresourceDesc texture_srv_desc = {};
-			//texture_srv_desc.type = RHISubresourceType::ShaderResource;
-			//texture_srv_desc.first_slice = 0;
-			//texture_srv_desc.slice_count = 1;
-			//texture_srv_desc.first_mip = 0;
-			//texture_srv_desc.mip_count = 1;
-
-			//RHISubresourceHandle texture_srv = {};
-			//if (!device->CreateSubresource(*texture_resource, texture_srv_desc, &texture_srv))
-			//{
-			//	backlog::Post("failed to create base color texture srv", backlog::LogLevel::Warning);
-			//	return;
-			//}
-
-			//// image entity
-			//{
-			//	image_entity = editor_viewport.view->scene->CreateEntity();
-
-			//	auto* transform = editor_viewport.view->scene->AddComponent<ecs::TransformComponent>(image_entity);
-			//	if (transform)
-			//	{
-			//		transform->position = { 0.0f, 0.0f, 0.0f };
-			//		transform->Scale({ 2.f,2.f,2.f });
-			//	}
-
-			//	auto* geometry = editor_viewport.view->scene->AddComponent<ecs::GeometryComponent>(image_entity);
-			//	if (geometry)
-			//	{
-			//		auto mesh = std::make_shared<resource::Mesh>();
-			//		mesh->positions = {
-			//			{ 0.0f, 3.0f, 1.0f },
-			//			{ 3.0f, 0.0f, 1.0f },
-			//			{ -3.0f, 0.0f, 1.0f },
-			//		};
-			//		mesh->normals = {
-			//			{ 0.0f, 0.0f, -1.f },
-			//			{ 0.0f, 0.0f, -1.f },
-			//			{ 0.0f, 0.0f, -1.f },
-			//		};
-			//		mesh->texcoords = {
-			//			{ 0.5f, 0.0f },
-			//			{ 1.0f, 1.0f },
-			//			{ 0.0f, 1.0f },
-			//		};
-
-			//		mesh->indices = { 0, 1, 2 };
-
-			//		resource::Submesh submesh = {};
-			//		submesh.first_index = 0;
-			//		//submesh.index_count = 3;
-			//		submesh.index_count = 3;
-			//		submesh.first_vertex = 0;
-			//		submesh.material_slot = 0;
-			//		submesh.local_bounds.min = { -0.5f, -0.5f, 0.0f };
-			//		submesh.local_bounds.max = { 0.5f, 0.5f, 0.0f };
-			//		mesh->submeshes.push_back(submesh);
-
-			//		geometry->mesh = mesh;
-			//		geometry->local_bounds = submesh.local_bounds;
-
-			//		rendering::utils::CreateRenderData(*device, *mesh);
-			//	}
-
-			//	auto* material = editor_viewport.view->scene->AddComponent<ecs::MaterialComponent>(image_entity);
-			//	if (material)
-			//	{
-			//		auto& material_slot = material->AddMaterialSlot();
-			//		material_slot.base_color = { 1.0f, 1.0f, 1.0f, 1.0f };
-			//		material_slot.metallic = 0.0f;
-			//		material_slot.roughness = 1.0f;
-			//		//material_slot.textures[0].texture = texture_resource;
-			//		//material_slot.textures[0].res_handle = texture_srv;
-			//	}
-			//}
-
-			//// light entity
-			//{
-			//	ecs::Entity light_entity = editor_viewport.view->scene->CreateEntity();
-			//	auto* transform = editor_viewport.view->scene->AddComponent<ecs::TransformComponent>(light_entity);
-			//	//transform->RotateRollPitchYaw({ - math::PI / 12.f, 0, 0});
-			//	transform->Translate({ 0,0,-1 });
-			//	auto* light = editor_viewport.view->scene->AddComponent<ecs::LightComponent>(light_entity);
-			//	light->type = ecs::LightComponent::LightType::Point;
-			//	light->intensity = 100.f;
-			//	light->range = 20.f;
-			//	light->outer_cone_angle = math::PI / 3.f;
-			//	light->inner_cone_angle = math::PI / 6.f;
-			//}
-		}
-
-		{
-			// light entity
-			{
-				ecs::Entity light_entity = editor_viewport.view->scene->CreateEntity();
-				auto transform = editor_viewport.view->scene->AddComponent<ecs::TransformComponent>(light_entity);
-				{
-					const XMVECTOR source_direction = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
-					const XMVECTOR target_direction = XMVector3Normalize(XMVectorSet(1.0f, -1.0f, 1.0f, 0.0f));
-					const XMVECTOR rotation_axis = XMVector3Normalize(XMVector3Cross(source_direction, target_direction));
-					const float rotation_angle = std::acos((std::max)(-1.0f, (std::min)(1.0f, XMVectorGetX(XMVector3Dot(source_direction, target_direction)))));
-					XMStoreFloat4(&transform->rotation, XMQuaternionRotationAxis(rotation_axis, rotation_angle));
-					transform->SetDirty();
-				}
-				auto light = editor_viewport.view->scene->AddComponent<ecs::LightComponent>(light_entity);
-				light->type = ecs::LightComponent::LightType::Directional;
-				light->intensity = 100.f;
-				//light->range = 20.f;
-				//light->outer_cone_angle = math::PI / 3.f;
-				//light->inner_cone_angle = math::PI / 6.f;
-
-				auto name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(light_entity);
-				name->value = "Light";
-			}
-
-			// environment entity
-			{
-				ecs::Entity env_entity = editor_viewport.view->scene->CreateEntity();
-				
-				auto env = editor_viewport.view->scene->AddComponent<ecs::SkyComponent>(env_entity);
-				env->SetActive(true);
-				auto environment_lighting = editor_viewport.view->scene->AddComponent<ecs::EnvironmentLightingComponent>(env_entity);
-				environment_lighting->gi_mode = ecs::EnvironmentLightingComponent::DDGI;
-				environment_lighting->indirect_diffuse_scale = 1.f;
-				auto ddgi_volume = editor_viewport.view->scene->AddComponent<ecs::DDGIVolumeComponent>(env_entity);
-				ddgi_volume->probe_counts = { 16, 16, 16 };
-				ddgi_volume->probe_spacing = { 2.0f, 2.0f, 2.0f };
-				ddgi_volume->max_distance = 4.f;
-				ddgi_volume->probes_per_frame = 128u;
-				//ddgi_volume->volume_offset = { 5.0f, 0.0f, 5.0f };
-
-				auto name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(env_entity);
-				name->value = "Environment";
-			}
-
-			//// plane entity
-			//{
-			//	ecs::Entity plane_entity = editor_viewport.view->scene->CreateEntity();
-			//	auto transform = editor_viewport.view->scene->AddComponent<ecs::TransformComponent>(plane_entity);
-			//	if (transform)
-			//	{
-			//		transform->Translate({ 0.f, -5.f, 0.f });
-			//		transform->Scale({ 10.f, 10.f, 10.f });
-			//	}
-			//	auto geometry = editor_viewport.view->scene->AddComponent<ecs::GeometryComponent>(plane_entity);
-			//	if (geometry)
-			//	{
-			//		//geometry->SetCastShadow(true);
-
-			//		auto mesh = std::make_shared<resource::Mesh>();
-			//		mesh->positions = {
-			//			{ 1.0f, 0.0f, 1.0f },
-			//			{ -1.0f, 0.0f, 1.0f },
-			//			{ 1.0f, 0.0f, -1.0f },
-			//			{ -1.0f, 0.0f, -1.0f },
-			//		};
-			//		mesh->normals = {
-			//			{ 0.0f, 1.0f, 0.f },
-			//			{ 0.0f, 1.0f, 0.f },
-			//			{ 0.0f, 1.0f, 0.f },
-			//			{ 0.0f, 1.0f, 0.f },
-			//		};
-
-			//		mesh->indices = { 1, 0, 2, 1, 2, 3 };
-
-			//		resource::Submesh submesh = {};
-			//		submesh.first_index = 0;
-			//		submesh.index_count = 6;
-			//		submesh.first_vertex = 0;
-			//		submesh.material_slot = 0;
-			//		submesh.local_bounds.min = { -1.0f, 0.0f, -1.0f };
-			//		submesh.local_bounds.max = { 1.0f, 0.0f, 1.0f };
-			//		mesh->submeshes.push_back(submesh);
-
-			//		geometry->SetMesh(mesh);
-
-			//		rendering::utils::CreateRenderData(*device, *mesh);
-			//	}
-
-			//	auto material = editor_viewport.view->scene->AddComponent<ecs::MaterialComponent>(plane_entity);
-			//	if (material)
-			//	{
-			//		auto& material_slot = material->AddMaterialSlot();
-			//		material_slot.base_color = { 0.70f, 0.82f, 0.68f, 1.0f };
-			//		material_slot.metallic = 0.0f;
-			//		material_slot.roughness = 0.5f;
-			//		material_slot.flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW;
-			//	}
-
-			//	auto name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(plane_entity);
-			//	name->value = "Plane";
-
-			//}
-
-			//// side wall plane entity
-			//{
-			//	ecs::Entity side_wall_entity = editor_viewport.view->scene->CreateEntity();
-			//	editor_viewport.view->scene->AddComponent<ecs::TransformComponent>(side_wall_entity);
-
-			//	auto geometry = editor_viewport.view->scene->AddComponent<ecs::GeometryComponent>(side_wall_entity);
-			//	if (geometry)
-			//	{
-			//		auto mesh = std::make_shared<resource::Mesh>();
-			//		mesh->positions = {
-			//			{ 10.0f, 15.0f, 10.0f },
-			//			{ 10.0f, -5.0f, 10.0f },
-			//			{ 10.0f, 15.0f, -10.0f },
-			//			{ 10.0f, -5.0f, -10.0f },
-			//		};
-			//		mesh->normals = {
-			//			{ -1.0f, 0.0f, 0.0f },
-			//			{ -1.0f, 0.0f, 0.0f },
-			//			{ -1.0f, 0.0f, 0.0f },
-			//			{ -1.0f, 0.0f, 0.0f },
-			//		};
-
-			//		mesh->indices = { 1, 0, 2, 1, 2, 3 };
-
-			//		resource::Submesh submesh = {};
-			//		submesh.first_index = 0;
-			//		submesh.index_count = 6;
-			//		submesh.first_vertex = 0;
-			//		submesh.material_slot = 0;
-			//		submesh.local_bounds.min = { 9.999f, -5.0f, -10.0f };
-			//		submesh.local_bounds.max = { 10.001f, 15.0f, 10.0f };
-			//		mesh->submeshes.push_back(submesh);
-
-			//		geometry->SetMesh(mesh);
-			//		rendering::utils::CreateRenderData(*device, *mesh);
-			//	}
-
-			//	auto material = editor_viewport.view->scene->AddComponent<ecs::MaterialComponent>(side_wall_entity);
-			//	if (material)
-			//	{
-			//		auto& material_slot = material->AddMaterialSlot();
-			//		material_slot.base_color = { 0.9f, 0.35f, 0.35f, 1.0f };
-			//		material_slot.metallic = 0.0f;
-			//		material_slot.roughness = 0.5f;
-			//		material_slot.flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW;
-			//	}
-
-			//	auto name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(side_wall_entity);
-			//	name->value = "Side Wall";
-			//}
-
-			//// back wall plane entity
-			//{
-			//	ecs::Entity back_wall_entity = editor_viewport.view->scene->CreateEntity();
-			//	editor_viewport.view->scene->AddComponent<ecs::TransformComponent>(back_wall_entity);
-
-			//	auto geometry = editor_viewport.view->scene->AddComponent<ecs::GeometryComponent>(back_wall_entity);
-			//	if (geometry)
-			//	{
-			//		auto mesh = std::make_shared<resource::Mesh>();
-			//		mesh->positions = {
-			//			{ -10.0f, 15.0f, 10.0f },
-			//			{ -10.0f, -5.0f, 10.0f },
-			//			{ 10.0f, 15.0f, 10.0f },
-			//			{ 10.0f, -5.0f, 10.0f },
-			//		};
-			//		mesh->normals = {
-			//			{ 0.0f, 0.0f, -1.0f },
-			//			{ 0.0f, 0.0f, -1.0f },
-			//			{ 0.0f, 0.0f, -1.0f },
-			//			{ 0.0f, 0.0f, -1.0f },
-			//		};
-
-			//		mesh->indices = { 1, 0, 2, 1, 2, 3 };
-
-			//		resource::Submesh submesh = {};
-			//		submesh.first_index = 0;
-			//		submesh.index_count = 6;
-			//		submesh.first_vertex = 0;
-			//		submesh.material_slot = 0;
-			//		submesh.local_bounds.min = { -10.0f, -5.0f, 9.999f };
-			//		submesh.local_bounds.max = { 10.0f, 15.0f, 10.001f };
-			//		mesh->submeshes.push_back(submesh);
-
-			//		geometry->SetMesh(mesh);
-			//		rendering::utils::CreateRenderData(*device, *mesh);
-			//	}
-
-			//	auto material = editor_viewport.view->scene->AddComponent<ecs::MaterialComponent>(back_wall_entity);
-			//	if (material)
-			//	{
-			//		auto& material_slot = material->AddMaterialSlot();
-			//		material_slot.base_color = { 0.35f, 0.45f, 0.9f, 1.0f };
-			//		material_slot.metallic = 0.0f;
-			//		material_slot.roughness = 0.5f;
-			//		material_slot.flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW;
-			//	}
-
-			//	auto name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(back_wall_entity);
-			//	name->value = "Back Wall";
-			//}
-		}
-
-		StartAssetImport(contents_root_dir + "Models/glTF/Sponza/glTF/Sponza.gltf");
-		asset_importer.sample_script_task_id = StartAssetImport(contents_root_dir + "Models/glTF/CesiumMan/glTF-Binary/CesiumMan.glb");
-		UpdateEntityList();
-	}
 	void EditorApplication::UpdateEntityList()
 	{
 		static std::mutex entity_list_mutex;
