@@ -28,6 +28,7 @@
 #include "imgui-docking/imgui_internal.h"
 #ifdef _WIN32
 #include "imgui-docking/imgui_impl_win32.h"
+#include <shellapi.h>
 #endif
 #include "IconsMaterialDesign.h"
 #include "Themes.h"
@@ -121,8 +122,15 @@ namespace won::editor
 		{
 			constexpr const char* main_window = "Main";
 			constexpr const char* file_menu = "File";
+			constexpr const char* build_menu = "Build";
 			constexpr const char* window_menu = "Window";
 			constexpr const char* plugins_menu = "Plugins";
+			constexpr const char* package_project = "Package Project";
+			constexpr const char* package_project_started = "Packaging project: ";
+			constexpr const char* package_project_completed = "Package completed.";
+			constexpr const char* package_project_failed = "Package failed.";
+			constexpr const char* package_project_missing_settings = "Project settings path is empty.";
+			constexpr const char* package_tool_not_found = "PackageTool not found: ";
 			constexpr const char* new_scene = "New Scene";
 			constexpr const char* save_scene = "Save Scene";
 			constexpr const char* save_scene_as = "Save Scene As...";
@@ -3405,6 +3413,31 @@ namespace won::editor
 				}
 				ImGui::Separator();
 				ImGui::TextDisabled("%s", current_scene_path.empty() ? editor_text::unsaved_scene : current_scene_path.c_str());
+				ImGui::EndMenu();
+			}
+			if (ImGui::BeginMenu(editor_text::build_menu))
+			{
+				const bool can_package_project = !loaded_project_settings.settings_path.empty();
+				if (ImGui::MenuItem(editor_text::package_project, nullptr, false, can_package_project))
+				{
+					project::SaveSettings(loaded_project_settings.settings_path, loaded_project_settings);
+
+					const String package_tool_path = io::CombinePath(io::GetExecutableDirectory(), "PackageTool.exe");
+					if (!io::IsFile(package_tool_path))
+					{
+						backlog::Post(editor_text::package_tool_not_found + package_tool_path, backlog::LogLevel::Warning);
+					}
+					else
+					{
+						const String arguments = "\"" + loaded_project_settings.settings_path + "\" Release";
+						HINSTANCE result = ShellExecuteA(static_cast<HWND>(window ? window->GetNativeHandle() : nullptr), "open", package_tool_path.c_str(), arguments.c_str(), io::GetExecutableDirectory().c_str(), SW_SHOWNORMAL);
+						backlog::Post(reinterpret_cast<INT_PTR>(result) > 32 ? editor_text::package_project_started + loaded_project_settings.settings_path : editor_text::package_project_failed, reinterpret_cast<INT_PTR>(result) > 32 ? backlog::LogLevel::Default : backlog::LogLevel::Warning);
+					}
+				}
+				if (!can_package_project)
+				{
+					ImGui::TextDisabled(editor_text::package_project_missing_settings);
+				}
 				ImGui::EndMenu();
 			}
 			if (ImGui::BeginMenu(editor_text::window_menu))
