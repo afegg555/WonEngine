@@ -1,0 +1,16 @@
+{
+    "backend_type": "DirectX12",
+    "content_root": "Contents",
+    "enabled_plugins": "",
+    "project_name": "ScriptedTriangle",
+    "startup_scene": "Scenes/ScriptedTriangle.wonscene",
+    "version": "1",
+    "vsync_enabled": "true",
+    "window_fullscreen": "false",
+    "window_height": "720",
+    "window_resizable": "true",
+    "window_title": "Won Engine Scripted Triangle",
+    "window_use_title_bar": "true",
+    "window_visible": "true",
+    "window_width": "1280"
+}

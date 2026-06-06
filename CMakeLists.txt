@@ -3,7 +3,6 @@ cmake_minimum_required(VERSION 3.20)
 project(WonEngine LANGUAGES C CXX)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
-set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "Tools")
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -20,8 +19,9 @@ elseif(UNIX)
 endif()
 
 set(FINAL_OUT_DIR "${CMAKE_SOURCE_DIR}/Binary/${OS_NAME}")
-set(SHADER_BIN_DIR "${CMAKE_SOURCE_DIR}/CompiledShaders")
+set(SHADER_BIN_DIR "${FINAL_OUT_DIR}/CompiledShaders")
 set(CONTENTS_ROOT_DIR "${CMAKE_SOURCE_DIR}/Contents")
+set(PROJECTS_ROOT_DIR "${CMAKE_SOURCE_DIR}/Projects" CACHE PATH "Default projects root directory")
 file(MAKE_DIRECTORY "${SHADER_BIN_DIR}")
 
 set(LUA_SOURCES
@@ -217,6 +217,7 @@ set(RUNTIME_RENDERING_INTERNAL
 set(RUNTIME_CONFIGURATION
     Source/Runtime/Public/Configuration.h
     Source/Runtime/Private/Configuration.cpp
+    Source/Runtime/Public/ProjectSettings.h
 )
 
 set(RUNTIME_PLUGIN
@@ -465,13 +466,18 @@ set_source_files_properties(${SHADERS_HLSL} PROPERTIES HEADER_FILE_ONLY TRUE)
 set(Editor_PUBLIC
     Source/Editor/main.cpp
     Source/Editor/Editor.h
+    Source/Editor/EditorSettings.h
     Source/Editor/Editor.cpp
     Source/Editor/Themes.h
     Source/Editor/Themes.cpp
 )
 
-set(SAMPLE_GAME_SOURCES
-    Source/SampleGame/main.cpp
+set(HELLO_TRIANGLE_SOURCES
+    Source/Samples/HelloTriangle/main.cpp
+)
+
+set(PLAYER_SOURCES
+    Source/Player/main.cpp
 )
 
 set(Editor_IMGUI
@@ -495,6 +501,10 @@ set(SHADER_OFFLINE_COMPILER_SOURCES
     Source/Tools/ShaderOfflineCompiler/main.cpp
 )
 
+set(PACKAGE_TOOL_SOURCES
+    Source/Tools/PackageTool/main.cpp
+)
+
 set(PLUGIN_ASSET_IMPORTER
     Source/Plugins/AssetImporter/AssetImporter.cpp
     Source/Plugins/AssetImporter/plugin.json
@@ -516,13 +526,22 @@ add_executable(Editor
 )
 
 source_group("ImGui" FILES ${Editor_IMGUI})
+set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT Editor)
 
-add_executable(SampleGame
-    ${SAMPLE_GAME_SOURCES}
+add_executable(HelloTriangle
+    ${HELLO_TRIANGLE_SOURCES}
+)
+
+add_executable(Player
+    ${PLAYER_SOURCES}
 )
 
 add_executable(ShaderOfflineCompiler
     ${SHADER_OFFLINE_COMPILER_SOURCES}
+)
+
+add_executable(PackageTool
+    ${PACKAGE_TOOL_SOURCES}
 )
 
 add_library(AssetImporter SHARED
@@ -566,8 +585,10 @@ target_include_directories(Runtime
 
 target_link_libraries(Editor PRIVATE Runtime)
 add_dependencies(Editor AssetImporter)
-target_link_libraries(SampleGame PRIVATE Runtime)
+target_link_libraries(HelloTriangle PRIVATE Runtime)
+target_link_libraries(Player PRIVATE Runtime)
 target_link_libraries(ShaderOfflineCompiler PRIVATE Runtime)
+target_link_libraries(PackageTool PRIVATE Runtime)
 target_link_libraries(AssetImporter PRIVATE
     debug assimp-vc143-mtd
     optimized assimp-vc143-mt
@@ -612,6 +633,23 @@ set_target_properties(ShaderOfflineCompiler PROPERTIES
     FOLDER "Tools"
 )
 
+set_target_properties(PackageTool PROPERTIES
+    FOLDER "Tools"
+)
+
+set_target_properties(HelloTriangle PROPERTIES
+    FOLDER "Samples (Native)"
+)
+
+set_target_properties(Editor PROPERTIES
+    WIN32_EXECUTABLE TRUE
+)
+
+set_target_properties(Player PROPERTIES
+    FOLDER "Tools"
+    WIN32_EXECUTABLE TRUE
+)
+
 set_target_properties(AssetImporter PROPERTIES
     FOLDER "Plugins"
 )
@@ -642,15 +680,23 @@ endif()
 target_compile_definitions(Editor
     PRIVATE
         CONTENTS_ROOT_DIR="${CONTENTS_ROOT_DIR}"
+        PROJECTS_ROOT_DIR="${PROJECTS_ROOT_DIR}"
 )
 
-target_compile_definitions(SampleGame
+target_compile_definitions(HelloTriangle
     PRIVATE
         CONTENTS_ROOT_DIR="${CONTENTS_ROOT_DIR}"
 )
 
+target_compile_definitions(PackageTool
+    PRIVATE
+        ENGINE_ROOT_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+)
+
 if(MSVC)
     target_compile_options(Runtime PRIVATE /W4 /permissive-)
+    target_link_options(Editor PRIVATE /ENTRY:mainCRTStartup)
+    target_link_options(Player PRIVATE /ENTRY:mainCRTStartup)
     set_source_files_properties(${LUA_SOURCES} PROPERTIES COMPILE_OPTIONS "/W3")
     set_target_properties(Runtime PROPERTIES
         MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL"
@@ -660,5 +706,6 @@ endif()
 if(WIN32)
     target_link_libraries(Runtime PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler dwmapi ole32 shell32 uuid)
     target_link_libraries(Editor PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler)
-    target_link_libraries(SampleGame PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler)
+    target_link_libraries(HelloTriangle PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler)
+    target_link_libraries(Player PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler)
 endif()

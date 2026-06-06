@@ -1,26 +1,26 @@
 #pragma once
 #include "RuntimeExport.h"
 #include "RHIDevice.h"
+#include "Types.h"
 #include "View.h"
 #include "Window.h"
 #include "RHIResource.h"
 #include "MathUtils.h"
 #include "JobSystem.h"
+#include "ShaderManifest.h"
 
 #include <atomic>
 #include <memory>
 #include <mutex>
 
-namespace won::resource
-{
-    class ShaderLibrary;
-}
 namespace won::rendering
 {
     struct RendererDesc
     {
         std::shared_ptr<RHIDevice> device;
+        String shader_bin_root_path;
         RHIClearColor clear_color = { 0.0f, 0.3f, 0.3f, 1.0f };
+        bool vsync_enabled = true;
     };
 
     struct RendererDebugOptions
@@ -110,6 +110,8 @@ namespace won::rendering
         virtual void EndFrame() = 0;
         virtual void WaitIdle() = 0;
         virtual void Shutdown() = 0;
+        virtual bool ReloadShaders() = 0;
+        virtual std::shared_ptr<RHIShader> GetShader(resource::ShaderId shader_id) const = 0;
         virtual void SetClearColor(const RHIClearColor& color) = 0;
         virtual RHIClearColor GetClearColor() const = 0;
         virtual void SetDebugOptions(const RendererDebugOptions& options) = 0;
@@ -298,5 +300,4 @@ namespace won::rendering
     };
 
     WONENGINE_API std::shared_ptr<Renderer> CreateRenderer(const RendererDesc& desc);
-    WONENGINE_API void ReloadShaderLibrary(std::shared_ptr<RHIDevice> device);
 }

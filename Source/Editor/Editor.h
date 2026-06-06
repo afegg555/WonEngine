@@ -1,4 +1,5 @@
 #include "Application.h"
+#include "EditorSettings.h"
 #include "FileSystem.h"
 #include "JobSystem.h"
 #include "Plugin.h"
@@ -32,6 +33,7 @@ namespace won::editor
 	{
 	public:
 		void Initialize(const ApplicationDesc& desc) override;
+		void Initialize(const ApplicationDesc& desc, const project::ProjectSettings& loaded_project_settings_in);
 		void Shutdown() override;
 		void Update(float dt) override;
 
@@ -143,7 +145,6 @@ namespace won::editor
 		bool SaveScene(const String& path);
 		void LoadScene(const String& path);
 		void RebindSceneResources();
-		void LoadSampleScene();
 		void UpdateEntityList();
 		void UpdateDebugPrimitiveMesh();
 		uint64 StartAssetImport(const String& path);
@@ -272,13 +273,14 @@ namespace won::editor
 
 		std::vector<ecs::Entity> sorted_entities;
 		std::vector<EditorPluginInfo> plugins;
-		String enabled_plugin_ids;
 
+		project::ProjectSettings loaded_project_settings;
 		ecs::Scene loaded_scene;
 		String current_scene_path;
 		EditorViewport editor_viewport;
 		EditorAssetImporter asset_importer;
 		ContentBrowserState content_browser = {};
+		EditorSettings editor_settings;
 		std::unique_ptr<io::DirectoryWatcher> contents_watcher;
 		float contents_watcher_poll_timer = 0.0f;
 		float editor_camera_speed = 5.0f;

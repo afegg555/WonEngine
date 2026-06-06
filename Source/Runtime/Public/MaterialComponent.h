@@ -11,10 +11,11 @@ namespace won::ecs
     struct MaterialSlot
     {
         uint32 flags = SHADER_MATERIAL_FLAG_NONE;
-        uint32 shader_type = SHADER_MATERIAL_TYPE_UNLIT;
+        uint32 shader_type = SHADER_MATERIAL_TYPE_PBR;
 
         inline static const std::vector<std::string> shader_defines[] = {
             {"UNLIT"}, // SHADER_MATERIAL_TYPE_UNLIT,
+            {}, // SHADER_MATERIAL_TYPE_PBR,
         };
         static_assert(SHADER_MATERIAL_TYPE_COUNT == arraysize(shader_defines), "These values must match!");
 

@@ -12,7 +12,6 @@
 #include "ResourceAsset.h"
 #include "StringUtils.h"
 #include "Backlog.h"
-#include "Configuration.h"
 #include "Profiler.h"
 #include "SceneComponents.h"
 #include "JobSystem.h"
@@ -29,9 +28,12 @@
 #include "imgui-docking/imgui_internal.h"
 #ifdef _WIN32
 #include "imgui-docking/imgui_impl_win32.h"
+#include <shellapi.h>
 #endif
 #include "IconsMaterialDesign.h"
 #include "Themes.h"
+
+#include <filesystem>
 
 #define DEFAULTBUTTONWIDTH 200
 
@@ -49,8 +51,8 @@ namespace won::editor
 	static RHIShader imgui_ps;
 	static RHIShader editor_grid_vs;
 	static RHIShader editor_grid_ps;
-	static String contents_root_dir = String(CONTENTS_ROOT_DIR) + "/";
-       static String editor_settings_path = "EditorSettings.cfg";
+	static String contents_root_dir;
+	static String editor_contents_root_dir;
 	namespace
 	{
 		constexpr const char* asset_importer_plugin_id = "AssetImporter";
@@ -114,33 +116,23 @@ namespace won::editor
 			uint32 channel_count = 0;
 		};
 
-		constexpr const char* editor_content_current_folder_key = "editor.content.current_folder";
-		constexpr const char* editor_content_type_filter_key = "editor.content.type_filter";
-		constexpr const char* editor_content_tile_size_key = "editor.content.tile_size";
-		constexpr const char* editor_viewport_show_grid_key = "editor.viewport.show_grid";
-		constexpr const char* editor_viewport_use_wireframe_key = "editor.viewport.use_wireframe";
-		constexpr const char* editor_viewport_show_bvh_debug_key = "editor.viewport.show_bvh_debug";
-		constexpr const char* editor_viewport_show_cpu_bvh_nodes_key = "editor.viewport.show_cpu_bvh_nodes";
-		constexpr const char* editor_viewport_show_gpu_bvh_nodes_key = "editor.viewport.show_gpu_bvh_nodes";
-		constexpr const char* editor_viewport_show_ddgi_overlay_key = "editor.viewport.show_ddgi_overlay";
-		constexpr const char* editor_viewport_show_ddgi_volume_key = "editor.viewport.show_ddgi_volume";
-		constexpr const char* editor_viewport_show_ddgi_probes_key = "editor.viewport.show_ddgi_probes";
-		constexpr const char* editor_viewport_show_ddgi_text_key = "editor.viewport.show_ddgi_text";
-		constexpr const char* editor_viewport_ddgi_max_probe_draw_count_key = "editor.viewport.ddgi_max_probe_draw_count";
-		constexpr const char* editor_camera_speed_key = "editor.camera.speed";
-		constexpr const char* editor_plugins_enabled_key = "editor.plugins.enabled";
-		constexpr const char* editor_scene_last_path_key = "editor.scene.last_path";
 		constexpr const char* generated_asset_directory = "Generated";
 		constexpr const char* scene_directory_name = "Scenes";
-		constexpr const char* scene_file_extension = "wonscene";
 		constexpr const char* default_scene_file_name = "NewScene";
 
 		namespace editor_text
 		{
 			constexpr const char* main_window = "Main";
 			constexpr const char* file_menu = "File";
+			constexpr const char* build_menu = "Build";
 			constexpr const char* window_menu = "Window";
 			constexpr const char* plugins_menu = "Plugins";
+			constexpr const char* package_project = "Package Project";
+			constexpr const char* package_project_started = "Packaging project: ";
+			constexpr const char* package_project_completed = "Package completed.";
+			constexpr const char* package_project_failed = "Package failed.";
+			constexpr const char* package_project_missing_settings = "Project settings path is empty.";
+			constexpr const char* package_tool_not_found = "PackageTool not found: ";
 			constexpr const char* new_scene = "New Scene";
 			constexpr const char* save_scene = "Save Scene";
 			constexpr const char* save_scene_as = "Save Scene As...";
@@ -348,6 +340,7 @@ namespace won::editor
 			constexpr const char* selected_slot = "Selected Slot";
 			constexpr const char* shader_type = "Shader Type";
 			constexpr const char* unlit = "Unlit";
+			constexpr const char* pbr = "PBR";
 			constexpr const char* base_color = "Base Color";
 			constexpr const char* metallic = "Metallic";
 			constexpr const char* roughness = "Roughness";
@@ -669,7 +662,7 @@ namespace won::editor
 			ImFont* custom_font = io.Fonts->AddFontFromFileTTF(font_file_path.c_str(), FontSize * FONTUPSCALE, NULL, &generic_ranges_everything[0]); //Set as default font.
 			if (custom_font && merge_icon)
 			{
-				std::string font_icon_path = std::string(CONTENTS_ROOT_DIR) + "/Fonts/MaterialIcons-Regular.ttf";
+				std::string font_icon_path = editor_contents_root_dir + "Fonts/MaterialIcons-Regular.ttf";
 				ImFontConfig config;
 				config.MergeMode = true;
 				config.GlyphOffset = ImVec2(0, 3);
@@ -1015,19 +1008,49 @@ namespace won::editor
 
 	void EditorApplication::Initialize(const ApplicationDesc& desc)
 	{
+		project::ProjectSettings empty_project_settings = {};
+		Initialize(desc, empty_project_settings);
+	}
+
+	void EditorApplication::Initialize(const ApplicationDesc& desc, const project::ProjectSettings& loaded_project_settings_in)
+	{
+		loaded_project_settings = loaded_project_settings_in;
 		Application::Initialize(desc);
+		contents_root_dir = project::GetContentRoot(loaded_project_settings);
+		contents_root_dir = io::NormalizePath(contents_root_dir);
+		if (!contents_root_dir.empty() && contents_root_dir.back() != '/')
+		{
+			contents_root_dir += "/";
+		}
+		if (!contents_root_dir.empty())
+		{
+			std::error_code error;
+			std::filesystem::current_path(std::filesystem::u8path(contents_root_dir), error);
+		}
+		editor_contents_root_dir = io::NormalizePath(String(CONTENTS_ROOT_DIR));
+		if (!editor_contents_root_dir.empty() && editor_contents_root_dir.back() != '/')
+		{
+			editor_contents_root_dir += "/";
+		}
+		editor_settings.settings_path = io::CombinePath(io::GetExecutableDirectory(), editor_settings_file_name);
 		LoadEditorSettings();
 
 		ecs::SceneDesc scene_desc = {};
 		scene_desc.script_runtime = script_runtime.get();
 		loaded_scene = ecs::Scene(scene_desc);
-		editor_viewport.view = &GetView();
-		editor_viewport.view->scene = &loaded_scene;
+		rendering::View editor_view = {};
+		editor_view.scene = &loaded_scene;
+		editor_view.viewport.width = project_settings.window_width;
+		editor_view.viewport.height = project_settings.window_height;
+		editor_view.scissor.width = project_settings.window_width;
+		editor_view.scissor.height = project_settings.window_height;
+		uint32 editor_view_index = AddView(editor_view);
+		editor_viewport.view = &GetView(editor_view_index);
 
 		{
 			ShaderCompilerOptions compiler_options;
 			compiler_options.backend = ShaderCompilerBackend::DXC;
-			compiler_options.shader_source_root_path = contents_root_dir + "CustomShaders";
+			compiler_options.shader_source_root_path = editor_contents_root_dir + "CustomShaders";
 			std::shared_ptr<ShaderCompiler> compiler = CreateShaderCompiler(compiler_options);
 
 			ShaderCompileDesc compile_desc;
@@ -1080,7 +1103,7 @@ namespace won::editor
 		ImGui_ImplWin32_Init(window->GetNativeHandle());
 #endif
 
-		std::string font_folder_path = contents_root_dir + "Fonts";
+		std::string font_folder_path = editor_contents_root_dir + "Fonts";
 		AddImGuiFont(font_folder_path + "/Noto_Sans_KR/static", "NotoSansKR-Regular.ttf");
 
 		InitImGui();
@@ -1088,7 +1111,21 @@ namespace won::editor
 
 		LoadPlugins();
 
-		CreateStartupScene();
+		bool startup_scene_loaded = false;
+		String startup_scene_path = loaded_project_settings.startup_scene;
+		if (!startup_scene_path.empty())
+		{
+			startup_scene_path = project::ResolveProjectContentPath(contents_root_dir, startup_scene_path);
+			if (io::IsFile(startup_scene_path))
+			{
+				LoadScene(startup_scene_path);
+				startup_scene_loaded = true;
+			}
+		}
+		if (!startup_scene_loaded)
+		{
+			CreateStartupScene();
+		}
 		contents_watcher = io::CreateDirectoryWatcher(contents_root_dir, true);
 		contents_watcher_poll_timer = 0.0f;
 
@@ -1100,6 +1137,11 @@ namespace won::editor
 	void EditorApplication::Shutdown()
 	{
 		SaveEditorSettings();
+		if (!loaded_project_settings.settings_path.empty())
+		{
+			project::SaveSettings(loaded_project_settings.settings_path, loaded_project_settings);
+		}
+		WaitIdle();
 
 		imgui_pso.reset();
 		editor_grid_pso.reset();
@@ -1253,7 +1295,7 @@ namespace won::editor
 				{
 					Vector<uint8> compressed_pixels;
 					uint32 compressed_mip_levels = 1;
-					if (rendering::utils::CompressTextureBC(*device, *task->image, binary_format, compressed_pixels, compressed_mip_levels))
+					if (rendering::utils::CompressTextureBC(*device, *renderer, *task->image, binary_format, compressed_pixels, compressed_mip_levels))
 					{
 						const String binary_disk_path = io::CombinePath(contents_root_dir, task->binary_path);
 						binary_saved = resource::SaveTextureBinary(binary_disk_path,
@@ -1333,7 +1375,11 @@ namespace won::editor
 				{
 					continue;
 				}
-				changed_script_paths.push_back(change.path);
+				const String changed_script_path = io::GetRelativePath(contents_root_dir, change.path);
+				if (!changed_script_path.empty())
+				{
+					changed_script_paths.push_back(changed_script_path);
+				}
 			}
 
 			auto script_array = editor_viewport.view->scene->GetComponentArray<ecs::ScriptComponent>();
@@ -1402,7 +1448,7 @@ namespace won::editor
 
 		if (won::io::IsPressed(io::Button('R')))
 		{
-			rendering::ReloadShaderLibrary(device);
+			renderer->ReloadShaders();
 		}
 
 		auto camera = editor_viewport.view->scene->GetComponent<ecs::CameraComponent>(editor_viewport.view->camera_entity);
@@ -1446,7 +1492,12 @@ namespace won::editor
 
 		const String plugin_root_path = io::CombinePath(io::GetExecutableDirectory(), "Plugins");
 		Vector<plugin::PluginInfo> plugin_list = plugin::ScanPluginList(plugin_root_path);
-		const String enabled_tokens = ";" + enabled_plugin_ids + ";";
+		String enabled_tokens = ";";
+		for (const String& plugin_id : loaded_project_settings.enabled_plugins)
+		{
+			enabled_tokens += plugin_id;
+			enabled_tokens += ";";
+		}
 		for (const plugin::PluginInfo& plugin_info : plugin_list)
 		{
 			EditorPluginInfo editor_plugin_info = {};
@@ -1638,7 +1689,19 @@ namespace won::editor
 			backlog::Post(editor_text::plugin_disabled_next_restart + plugin_info.info.plugin_id);
 		}
 
-		SaveEditorSettings();
+		auto plugin_it = std::find(loaded_project_settings.enabled_plugins.begin(), loaded_project_settings.enabled_plugins.end(), plugin_info.info.plugin_id);
+		if (plugin_info.enabled)
+		{
+			if (plugin_it == loaded_project_settings.enabled_plugins.end())
+			{
+				loaded_project_settings.enabled_plugins.push_back(plugin_info.info.plugin_id);
+			}
+		}
+		else if (plugin_it != loaded_project_settings.enabled_plugins.end())
+		{
+			loaded_project_settings.enabled_plugins.erase(plugin_it);
+		}
+
 	}
 
 	uint64 EditorApplication::StartAssetImport(const String& path)
@@ -2367,8 +2430,8 @@ namespace won::editor
 			}
 			if (script_component)
 			{
-				const String pulse_scale_path = contents_root_dir + "Scripts/PulseScale.lua";
-				const String rotator_path = contents_root_dir + "Scripts/Rotator.lua";
+				const String pulse_scale_path = "Scripts/PulseScale.lua";
+				const String rotator_path = "Scripts/Rotator.lua";
 				if (!HasScript(*script_component, pulse_scale_path))
 				{
 					ScriptSlot script_slot = {};
@@ -2653,114 +2716,49 @@ namespace won::editor
 
 	void EditorApplication::LoadEditorSettings()
 	{
-		config::Clear();
-		config::LoadFromFile(editor_settings_path);
+		EditorSettings loaded_settings = {};
+		LoadSettings(editor_settings.settings_path, loaded_settings);
+		loaded_settings.settings_path = editor_settings.settings_path;
+		editor_settings = loaded_settings;
 
-		String string_value;
-		int int_value = 0;
-		float float_value = 0.0f;
-		bool bool_value = false;
-
-		if (config::TryGetString(editor_content_current_folder_key, string_value))
-		{
-			content_browser.current_folder = string_value;
-		}
-		if (config::TryGetInt(editor_content_type_filter_key, int_value))
-		{
-			content_browser.type_filter = static_cast<ContentAssetType>(int_value);
-		}
-		if (config::TryGetFloat(editor_content_tile_size_key, float_value))
-		{
-			content_browser.tile_size = (std::max)(48.0f, (std::min)(128.0f, float_value));
-		}
-		if (config::TryGetBool(editor_viewport_show_grid_key, bool_value))
-		{
-			editor_viewport.debug_settings.show_grid = bool_value;
-		}
-		if (config::TryGetBool(editor_viewport_use_wireframe_key, bool_value))
-		{
-			editor_viewport.debug_settings.use_wireframe = bool_value;
-		}
-		if (config::TryGetBool(editor_viewport_show_bvh_debug_key, bool_value))
-		{
-			editor_viewport.debug_settings.show_bvh_debug = bool_value;
-		}
-		if (config::TryGetBool(editor_viewport_show_cpu_bvh_nodes_key, bool_value))
-		{
-			editor_viewport.debug_settings.show_cpu_bvh_nodes = bool_value;
-		}
-		if (config::TryGetBool(editor_viewport_show_gpu_bvh_nodes_key, bool_value))
-		{
-			editor_viewport.debug_settings.show_gpu_bvh_nodes = bool_value;
-		}
-		if (config::TryGetBool(editor_viewport_show_ddgi_overlay_key, bool_value))
-		{
-			editor_viewport.debug_settings.show_ddgi_overlay = bool_value;
-		}
-		if (config::TryGetBool(editor_viewport_show_ddgi_volume_key, bool_value))
-		{
-			editor_viewport.debug_settings.show_ddgi_volume = bool_value;
-		}
-		if (config::TryGetBool(editor_viewport_show_ddgi_probes_key, bool_value))
-		{
-			editor_viewport.debug_settings.show_ddgi_probes = bool_value;
-		}
-		if (config::TryGetBool(editor_viewport_show_ddgi_text_key, bool_value))
-		{
-			editor_viewport.debug_settings.show_ddgi_text = bool_value;
-		}
-		if (config::TryGetInt(editor_viewport_ddgi_max_probe_draw_count_key, int_value))
-		{
-			editor_viewport.debug_settings.ddgi_max_probe_draw_count = (std::max)(1, int_value);
-		}
-		if (config::TryGetFloat(editor_camera_speed_key, float_value))
-		{
-			editor_camera_speed = (std::max)(0.1f, float_value);
-		}
-		if (config::TryGetString(editor_plugins_enabled_key, string_value))
-		{
-			enabled_plugin_ids = string_value;
-		}
+		content_browser.current_folder = editor_settings.content_current_folder;
+		content_browser.type_filter = static_cast<ContentAssetType>(editor_settings.content_type_filter);
+		content_browser.tile_size = (std::max)(48.0f, (std::min)(128.0f, editor_settings.content_tile_size));
+		editor_viewport.debug_settings.show_grid = editor_settings.viewport_show_grid;
+		editor_viewport.debug_settings.use_wireframe = editor_settings.viewport_use_wireframe;
+		editor_viewport.debug_settings.show_bvh_debug = editor_settings.viewport_show_bvh_debug;
+		editor_viewport.debug_settings.show_cpu_bvh_nodes = editor_settings.viewport_show_cpu_bvh_nodes;
+		editor_viewport.debug_settings.show_gpu_bvh_nodes = editor_settings.viewport_show_gpu_bvh_nodes;
+		editor_viewport.debug_settings.show_ddgi_overlay = editor_settings.viewport_show_ddgi_overlay;
+		editor_viewport.debug_settings.show_ddgi_volume = editor_settings.viewport_show_ddgi_volume;
+		editor_viewport.debug_settings.show_ddgi_probes = editor_settings.viewport_show_ddgi_probes;
+		editor_viewport.debug_settings.show_ddgi_text = editor_settings.viewport_show_ddgi_text;
+		editor_viewport.debug_settings.ddgi_max_probe_draw_count = (std::max)(1, editor_settings.viewport_ddgi_max_probe_draw_count);
+		editor_camera_speed = (std::max)(0.1f, editor_settings.camera_speed);
 	}
 
 	void EditorApplication::SaveEditorSettings()
 	{
-		enabled_plugin_ids.clear();
-		for (const EditorPluginInfo& plugin_info : plugins)
-		{
-			if (plugin_info.info.type == plugin::PluginType::EditorDefault || !plugin_info.enabled)
-			{
-				continue;
-			}
-			if (!enabled_plugin_ids.empty())
-			{
-				enabled_plugin_ids += ";";
-			}
-			enabled_plugin_ids += plugin_info.info.plugin_id;
-		}
-
-		config::SetString(editor_content_current_folder_key, content_browser.current_folder);
-		config::SetInt(editor_content_type_filter_key, static_cast<int>(content_browser.type_filter));
-		config::SetFloat(editor_content_tile_size_key, content_browser.tile_size);
-		config::SetBool(editor_viewport_show_grid_key, editor_viewport.debug_settings.show_grid);
-		config::SetBool(editor_viewport_use_wireframe_key, editor_viewport.debug_settings.use_wireframe);
-		config::SetBool(editor_viewport_show_bvh_debug_key, editor_viewport.debug_settings.show_bvh_debug);
-		config::SetBool(editor_viewport_show_cpu_bvh_nodes_key, editor_viewport.debug_settings.show_cpu_bvh_nodes);
-		config::SetBool(editor_viewport_show_gpu_bvh_nodes_key, editor_viewport.debug_settings.show_gpu_bvh_nodes);
-		config::SetBool(editor_viewport_show_ddgi_overlay_key, editor_viewport.debug_settings.show_ddgi_overlay);
-		config::SetBool(editor_viewport_show_ddgi_volume_key, editor_viewport.debug_settings.show_ddgi_volume);
-		config::SetBool(editor_viewport_show_ddgi_probes_key, editor_viewport.debug_settings.show_ddgi_probes);
-		config::SetBool(editor_viewport_show_ddgi_text_key, editor_viewport.debug_settings.show_ddgi_text);
-		config::SetInt(editor_viewport_ddgi_max_probe_draw_count_key, editor_viewport.debug_settings.ddgi_max_probe_draw_count);
-		config::SetFloat(editor_camera_speed_key, editor_camera_speed);
-		config::SetString(editor_plugins_enabled_key, enabled_plugin_ids);
+		editor_settings.content_current_folder = content_browser.current_folder;
+		editor_settings.content_type_filter = static_cast<int>(content_browser.type_filter);
+		editor_settings.content_tile_size = content_browser.tile_size;
+		editor_settings.viewport_show_grid = editor_viewport.debug_settings.show_grid;
+		editor_settings.viewport_use_wireframe = editor_viewport.debug_settings.use_wireframe;
+		editor_settings.viewport_show_bvh_debug = editor_viewport.debug_settings.show_bvh_debug;
+		editor_settings.viewport_show_cpu_bvh_nodes = editor_viewport.debug_settings.show_cpu_bvh_nodes;
+		editor_settings.viewport_show_gpu_bvh_nodes = editor_viewport.debug_settings.show_gpu_bvh_nodes;
+		editor_settings.viewport_show_ddgi_overlay = editor_viewport.debug_settings.show_ddgi_overlay;
+		editor_settings.viewport_show_ddgi_volume = editor_viewport.debug_settings.show_ddgi_volume;
+		editor_settings.viewport_show_ddgi_probes = editor_viewport.debug_settings.show_ddgi_probes;
+		editor_settings.viewport_show_ddgi_text = editor_viewport.debug_settings.show_ddgi_text;
+		editor_settings.viewport_ddgi_max_probe_draw_count = editor_viewport.debug_settings.ddgi_max_probe_draw_count;
+		editor_settings.camera_speed = editor_camera_speed;
 		if (!current_scene_path.empty())
 		{
-			String last_editing_scene_path = io::GetRelativePath(contents_root_dir, current_scene_path);
-			config::SetString(editor_scene_last_path_key, last_editing_scene_path);
+			editor_settings.last_scene_path = io::GetRelativePath(contents_root_dir, current_scene_path);
 		}
 
-		config::SaveToFile(editor_settings_path);
+		SaveSettings(editor_settings.settings_path, editor_settings);
 	}
 
 	void EditorApplication::OnWindowResized(int width, int height)
@@ -2787,7 +2785,7 @@ namespace won::editor
 			if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "tga" || ext == "bmp" || ext == resource::texture_binary_extension) return ContentAssetType::Texture;
 			if (ext == "mat") return ContentAssetType::Material;
 			if (ext == "fbx" || ext == "obj" || ext == "gltf" || ext == "glb" || ext == "stl" || ext == resource::mesh_binary_extension) return ContentAssetType::Mesh;
-			if (ext == scene_file_extension) return ContentAssetType::Scene;
+			if (ext == resource::scene_file_extension) return ContentAssetType::Scene;
 			if (ext == "hlsl" || ext == "hlsli") return ContentAssetType::Shader;
 			if (ext == "ttf" || ext == "otf") return ContentAssetType::Font;
 			if (ext == "lua") return ContentAssetType::Script;
@@ -3428,6 +3426,35 @@ namespace won::editor
 				ImGui::TextDisabled("%s", current_scene_path.empty() ? editor_text::unsaved_scene : current_scene_path.c_str());
 				ImGui::EndMenu();
 			}
+			if (ImGui::BeginMenu(editor_text::build_menu))
+			{
+				const bool can_package_project = !loaded_project_settings.settings_path.empty();
+				if (ImGui::MenuItem(editor_text::package_project, nullptr, false, can_package_project))
+				{
+					const bool scene_saved = current_scene_path.empty() || SaveScene(current_scene_path);
+					if (scene_saved)
+					{
+						project::SaveSettings(loaded_project_settings.settings_path, loaded_project_settings);
+
+						const String package_tool_path = io::CombinePath(io::GetExecutableDirectory(), "PackageTool.exe");
+						if (!io::IsFile(package_tool_path))
+						{
+							backlog::Post(editor_text::package_tool_not_found + package_tool_path, backlog::LogLevel::Warning);
+						}
+						else
+						{
+							const String arguments = "\"" + loaded_project_settings.settings_path + "\" Release";
+							HINSTANCE result = ShellExecuteA(static_cast<HWND>(window ? window->GetNativeHandle() : nullptr), "open", package_tool_path.c_str(), arguments.c_str(), io::GetExecutableDirectory().c_str(), SW_SHOWNORMAL);
+							backlog::Post(reinterpret_cast<INT_PTR>(result) > 32 ? editor_text::package_project_started + loaded_project_settings.settings_path : editor_text::package_project_failed, reinterpret_cast<INT_PTR>(result) > 32 ? backlog::LogLevel::Default : backlog::LogLevel::Warning);
+						}
+					}
+				}
+				if (!can_package_project)
+				{
+					ImGui::TextDisabled(editor_text::package_project_missing_settings);
+				}
+				ImGui::EndMenu();
+			}
 			if (ImGui::BeginMenu(editor_text::window_menu))
 			{
 				if (ImGui::MenuItem(editor_text::reset_layout))
@@ -3607,10 +3634,10 @@ namespace won::editor
 			desc.owner_window = window ? window->GetNativeHandle() : nullptr;
 			desc.title = editor_text::save_scene_as;
 			desc.initial_directory = io::CombinePath(contents_root_dir, scene_directory_name);
-			desc.default_file_name = String(default_scene_file_name) + "." + scene_file_extension;
-			desc.default_extension = scene_file_extension;
+			desc.default_file_name = String(default_scene_file_name) + "." + resource::scene_file_extension;
+			desc.default_extension = resource::scene_file_extension;
 			desc.filter_name = editor_text::won_scene_file;
-			desc.filter_pattern = String("*.") + scene_file_extension;
+			desc.filter_pattern = String("*.") + resource::scene_file_extension;
 
 			String path;
 			if (io::SaveFileDialog(path, desc) && SaveScene(path))
@@ -3651,9 +3678,9 @@ namespace won::editor
 			desc.owner_window = window ? window->GetNativeHandle() : nullptr;
 			desc.title = editor_text::load_scene;
 			desc.initial_directory = io::CombinePath(contents_root_dir, scene_directory_name);
-			desc.default_extension = scene_file_extension;
+			desc.default_extension = resource::scene_file_extension;
 			desc.filter_name = editor_text::won_scene_file;
-			desc.filter_pattern = String("*.") + scene_file_extension;
+			desc.filter_pattern = String("*.") + resource::scene_file_extension;
 
 			String path;
 			if (io::OpenFileDialog(path, desc))
@@ -3700,6 +3727,7 @@ namespace won::editor
 						bool vsync_enabled = swapchain->IsVSyncEnabled();
 						if (ImGui::Checkbox(editor_text::vsync, &vsync_enabled))
 						{
+							project_settings.vsync_enabled = vsync_enabled;
 							swapchain->SetVSync(vsync_enabled);
 						}
 					}
@@ -4935,7 +4963,7 @@ namespace won::editor
 							}
 
 							MaterialSlot& material_slot = material_comp->GetMaterialSlot(static_cast<uint32>(selected_material_slot));
-							const char* shader_type_items[] = { editor_text::unlit };
+							const char* shader_type_items[] = { editor_text::unlit, editor_text::pbr };
 							int shader_type = static_cast<int>(material_slot.shader_type);
 							if (ImGui::Combo(editor_text::shader_type, &shader_type, shader_type_items, IM_ARRAYSIZE(shader_type_items)))
 							{
@@ -5111,8 +5139,7 @@ namespace won::editor
 							String script_label = editor_text::none_placeholder;
 							if (!script_slot.script_path.empty())
 							{
-								String relative_script_path = io::GetRelativePath(contents_root_dir, script_slot.script_path);
-								script_label = relative_script_path.empty() ? script_slot.script_path : "/Contents/" + relative_script_path;
+								script_label = script_slot.script_path.rfind(project::content_virtual_root_prefix, 0) == 0 ? script_slot.script_path : "/Contents/" + script_slot.script_path;
 							}
 
 							ImGui::SetNextItemWidth(-1.0f);
@@ -5125,12 +5152,18 @@ namespace won::editor
 										continue;
 									}
 
-									const bool selected = asset.disk_path == script_slot.script_path;
+									const String asset_script_path = io::GetRelativePath(contents_root_dir, asset.disk_path);
+									if (asset_script_path.empty())
+									{
+										continue;
+									}
+
+									const bool selected = asset_script_path == script_slot.script_path;
 									if (ImGui::Selectable(asset.virtual_path.c_str(), selected))
 									{
-										if (asset.disk_path == script_slot.script_path || !HasScript(*script_comp, asset.disk_path))
+										if (asset_script_path == script_slot.script_path || !HasScript(*script_comp, asset_script_path))
 										{
-											if (asset.disk_path != script_slot.script_path && script_runtime && script_slot.instance.IsValid())
+											if (asset_script_path != script_slot.script_path && script_runtime && script_slot.instance.IsValid())
 											{
 												script::ScriptCallContext context = {};
 												context.scene = editor_viewport.view->scene;
@@ -5141,7 +5174,7 @@ namespace won::editor
 												script_slot.initialized = false;
 											}
 
-											script_slot.script_path = asset.disk_path;
+											script_slot.script_path = asset_script_path;
 											script_slot.last_error.clear();
 										}
 										else
@@ -5165,9 +5198,10 @@ namespace won::editor
 									String dropped_path(static_cast<const char*>(payload->Data));
 									if (won::utils::ToLower(io::GetExtension(dropped_path)) == "lua")
 									{
-										if (dropped_path == script_slot.script_path || !HasScript(*script_comp, dropped_path))
+										const String dropped_script_path = io::GetRelativePath(contents_root_dir, dropped_path);
+										if (!dropped_script_path.empty() && (dropped_script_path == script_slot.script_path || !HasScript(*script_comp, dropped_script_path)))
 										{
-											if (dropped_path != script_slot.script_path && script_runtime && script_slot.instance.IsValid())
+											if (dropped_script_path != script_slot.script_path && script_runtime && script_slot.instance.IsValid())
 											{
 												script::ScriptCallContext context = {};
 												context.scene = editor_viewport.view->scene;
@@ -5178,10 +5212,10 @@ namespace won::editor
 												script_slot.initialized = false;
 											}
 
-											script_slot.script_path = dropped_path;
+											script_slot.script_path = dropped_script_path;
 											script_slot.last_error.clear();
 										}
-										else
+										else if (!dropped_script_path.empty())
 										{
 											script_slot.last_error = editor_text::script_already_exists;
 										}
@@ -5194,10 +5228,22 @@ namespace won::editor
 							std::snprintf(path_buf, sizeof(path_buf), "%s", script_slot.script_path.c_str());
 							if (ImGui::InputText(editor_text::path, path_buf, sizeof(path_buf)))
 							{
-								String new_path = path_buf;
-								if (won::utils::StartsWith(new_path, "/Contents/"))
+								String new_path = io::NormalizePath(path_buf);
+								if (new_path.rfind(project::content_virtual_root_prefix, 0) == 0)
 								{
-									new_path = contents_root_dir + new_path.substr(10);
+									new_path = io::NormalizePath(new_path.substr(project::content_virtual_root_prefix_length));
+								}
+								else if (io::IsAbsolutePath(new_path))
+								{
+									const String relative_path = io::GetRelativePath(contents_root_dir, new_path);
+									if (!relative_path.empty())
+									{
+										new_path = relative_path;
+									}
+									else
+									{
+										new_path = script_slot.script_path;
+									}
 								}
 								if (new_path.empty() || new_path == script_slot.script_path || !HasScript(*script_comp, new_path))
 								{
@@ -5732,8 +5778,8 @@ namespace won::editor
 		auto camera_transform = editor_viewport.view->scene->AddComponent<ecs::TransformComponent>(editor_viewport.view->camera_entity);
 		if (camera_transform)
 		{
-			camera_transform->position = { -4.7f, 2.0f, 0.3f };
-			camera_transform->RotateRollPitchYaw({ 0.f, math::PI / 2.f, 0 });
+			camera_transform->position = { 0.0f, 0.0f, 0.0f };
+			camera_transform->rotation = { 0.0f, 0.0f, 0.0f, 1.0f };
 			camera_transform->SetDirty();
 		}
 
@@ -5820,7 +5866,7 @@ namespace won::editor
 		current_scene_path = path;
 		String relative_path = io::GetRelativePath(contents_root_dir, path);
 		String config_path = relative_path.empty() ? path : relative_path;
-		config::SetString(editor_scene_last_path_key, config_path);
+		editor_settings.last_scene_path = config_path;
 		RebuildContentBrowser();
 		backlog::Post(editor_text::scene_saved + path);
 		return true;
@@ -5844,15 +5890,7 @@ namespace won::editor
 					continue;
 				}
 
-				String disk_path = geometry.mesh_asset_path;
-				if (won::utils::StartsWith(disk_path, "/Contents/"))
-				{
-					disk_path = io::CombinePath(contents_root_dir, disk_path.substr(String("/Contents/").size()));
-				}
-				else if (!io::IsAbsolutePath(disk_path))
-				{
-					disk_path = io::CombinePath(contents_root_dir, disk_path);
-				}
+				String disk_path = project::ResolveProjectContentPath(contents_root_dir, geometry.mesh_asset_path);
 				String binary_path;
 				resource::AssetMeta meta = {};
 				if (won::utils::ToLower(io::GetExtension(disk_path)) == resource::mesh_binary_extension)
@@ -5861,15 +5899,7 @@ namespace won::editor
 				}
 				else if (resource::LoadAssetMeta(resource::GetAssetMetaPath(disk_path), meta))
 				{
-					binary_path = meta.binary_path;
-					if (won::utils::StartsWith(binary_path, "/Contents/"))
-					{
-						binary_path = io::CombinePath(contents_root_dir, binary_path.substr(String("/Contents/").size()));
-					}
-					else if (!io::IsAbsolutePath(binary_path))
-					{
-						binary_path = io::CombinePath(contents_root_dir, binary_path);
-					}
+					binary_path = project::ResolveProjectContentPath(contents_root_dir, meta.binary_path);
 				}
 
 				std::shared_ptr<resource::Mesh> mesh = resource::LoadMeshBinary(binary_path);
@@ -5895,15 +5925,7 @@ namespace won::editor
 							continue;
 						}
 
-						String disk_path = texture_map.texture_asset_path;
-						if (won::utils::StartsWith(disk_path, "/Contents/"))
-						{
-							disk_path = io::CombinePath(contents_root_dir, disk_path.substr(String("/Contents/").size()));
-						}
-						else if (!io::IsAbsolutePath(disk_path))
-						{
-							disk_path = io::CombinePath(contents_root_dir, disk_path);
-						}
+						String disk_path = project::ResolveProjectContentPath(contents_root_dir, texture_map.texture_asset_path);
 						std::shared_ptr<resource::Image> image;
 						if (won::utils::ToLower(io::GetExtension(disk_path)) == resource::texture_binary_extension)
 						{
@@ -5914,15 +5936,7 @@ namespace won::editor
 							resource::AssetMeta meta = {};
 							if (resource::LoadAssetMeta(resource::GetAssetMetaPath(disk_path), meta))
 							{
-								String binary_path = meta.binary_path;
-								if (won::utils::StartsWith(binary_path, "/Contents/"))
-								{
-									binary_path = io::CombinePath(contents_root_dir, binary_path.substr(String("/Contents/").size()));
-								}
-								else if (!io::IsAbsolutePath(binary_path))
-								{
-									binary_path = io::CombinePath(contents_root_dir, binary_path);
-								}
+								String binary_path = project::ResolveProjectContentPath(contents_root_dir, meta.binary_path);
 								image = resource::LoadTextureBinary(binary_path);
 							}
 							if (!image)
@@ -5950,15 +5964,7 @@ namespace won::editor
 				ecs::Text2DComponent& text = text_array->data[i];
 				if (!text.font_asset_path.empty())
 				{
-					String font_path = text.font_asset_path;
-					if (won::utils::StartsWith(font_path, "/Contents/"))
-					{
-						font_path = io::CombinePath(contents_root_dir, font_path.substr(String("/Contents/").size()));
-					}
-					else if (!io::IsAbsolutePath(font_path))
-					{
-						font_path = io::CombinePath(contents_root_dir, font_path);
-					}
+					String font_path = project::ResolveProjectContentPath(contents_root_dir, text.font_asset_path);
 					text.font = resource::LoadFontFile(font_path);
 					text.SetDirty();
 				}
@@ -5972,15 +5978,7 @@ namespace won::editor
 				ecs::Text3DComponent& text = text_array->data[i];
 				if (!text.font_asset_path.empty())
 				{
-					String font_path = text.font_asset_path;
-					if (won::utils::StartsWith(font_path, "/Contents/"))
-					{
-						font_path = io::CombinePath(contents_root_dir, font_path.substr(String("/Contents/").size()));
-					}
-					else if (!io::IsAbsolutePath(font_path))
-					{
-						font_path = io::CombinePath(contents_root_dir, font_path);
-					}
+					String font_path = project::ResolveProjectContentPath(contents_root_dir, text.font_asset_path);
 					text.font = resource::LoadFontFile(font_path);
 					text.SetDirty();
 				}
@@ -5994,13 +5992,18 @@ namespace won::editor
 				ecs::ScriptComponent& script_component = script_array->data[i];
 				for (ecs::ScriptSlot& script_slot : script_component.scripts)
 				{
-					if (won::utils::StartsWith(script_slot.script_path, "/Contents/"))
+					if (script_slot.script_path.rfind(project::content_virtual_root_prefix, 0) == 0)
 					{
-						script_slot.script_path = io::CombinePath(contents_root_dir, script_slot.script_path.substr(String("/Contents/").size()));
+						script_slot.script_path = io::NormalizePath(script_slot.script_path.substr(project::content_virtual_root_prefix_length));
 					}
-					else if (!script_slot.script_path.empty() && !io::IsAbsolutePath(script_slot.script_path))
+					else if (io::IsAbsolutePath(script_slot.script_path))
 					{
-						script_slot.script_path = io::CombinePath(contents_root_dir, script_slot.script_path);
+						const String relative_path = io::GetRelativePath(contents_root_dir, script_slot.script_path);
+						script_slot.script_path = relative_path;
+					}
+					else
+					{
+						script_slot.script_path = io::NormalizePath(script_slot.script_path);
 					}
 					script_slot.initialized = false;
 					script_slot.instance = {};
@@ -6033,7 +6036,7 @@ namespace won::editor
 		current_scene_path = path;
 		String relative_path = io::GetRelativePath(contents_root_dir, path);
 		String config_path = relative_path.empty() ? path : relative_path;
-		config::SetString(editor_scene_last_path_key, config_path);
+		editor_settings.last_scene_path = config_path;
 		editor_viewport.picked_entity = ecs::INVALID_ENTITY;
 		editor_viewport.debug_primitive_entity = ecs::INVALID_ENTITY;
 		editor_viewport.debug_primitive_mesh.reset();
@@ -6043,464 +6046,6 @@ namespace won::editor
 		backlog::Post(editor_text::scene_loaded + path);
 	}
 
-	void EditorApplication::LoadSampleScene()
-	{
-		{
-			const String noto_sans_asset_path = "Fonts/Noto_Sans_KR/static/NotoSansKR-Regular.ttf";
-			const String noto_sans_path = io::CombinePath(contents_root_dir, noto_sans_asset_path);
-			std::shared_ptr<resource::Font> noto_sans_font = resource::LoadFontFile(noto_sans_path);
-			if (noto_sans_font && noto_sans_font->IsValid())
-			{
-				ecs::Entity text_entity = editor_viewport.view->scene->CreateEntity();
-				if (auto* transform = editor_viewport.view->scene->AddComponent<ecs::TransformComponent>(text_entity))
-				{
-					transform->position = { 0.0f, 3.0f, 0.0f };
-					transform->SetDirty();
-				}
-
-				if (auto* text = editor_viewport.view->scene->AddComponent<ecs::Text3DComponent>(text_entity))
-				{
-					text->font = noto_sans_font;
-					text->font_asset_path = noto_sans_asset_path;
-					//text->text = "\xED\x85\x8C\xEC\x8A\xA4\xED\x8A\xB8";
-					text->text = "Test1234!@#$";
-					text->pixel_height = 64;
-					text->height = 0.3f;
-					text->pivot = { 0.5f, 0.5f };
-					text->SetBillboard(true);
-				}
-
-				if (auto* material = editor_viewport.view->scene->AddComponent<ecs::MaterialComponent>(text_entity))
-				{
-					MaterialSlot& material_slot = material->AddMaterialSlot();
-					material_slot.flags = SHADER_MATERIAL_FLAG_TRANSPARENT;
-					material_slot.base_color = { 0.35f, 0.85f, 1.0f, 1.0f };
-				}
-
-				if (auto* name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(text_entity))
-				{
-					name->value = "Text 3D";
-				}
-
-				ecs::Entity text_2d_entity = editor_viewport.view->scene->CreateEntity();
-				if (auto* text_2d = editor_viewport.view->scene->AddComponent<ecs::Text2DComponent>(text_2d_entity))
-				{
-					text_2d->font = noto_sans_font;
-					text_2d->font_asset_path = noto_sans_asset_path;
-					text_2d->text = "2D Text";
-					text_2d->anchor = { 0.0f, 0.0f };
-					text_2d->position = { 24.0f, 24.0f };
-					text_2d->pixel_height = 32;
-					text_2d->pivot = { 0.0f, 0.0f };
-					text_2d->layer = 1;
-				}
-
-				if (auto* material = editor_viewport.view->scene->AddComponent<ecs::MaterialComponent>(text_2d_entity))
-				{
-					MaterialSlot& material_slot = material->AddMaterialSlot();
-					material_slot.flags = SHADER_MATERIAL_FLAG_TRANSPARENT;
-					material_slot.base_color = { 1.0f, 0.78f, 0.28f, 1.0f };
-				}
-
-				if (auto* name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(text_2d_entity))
-				{
-					name->value = "Text 2D";
-				}
-			}
-
-			String image_asset_path = "Images/env_comp.png";
-			String file_path = io::CombinePath(contents_root_dir, image_asset_path);
-			std::shared_ptr<resource::Image> image = resource::LoadImageFile(file_path, 4);
-			if (image && image->IsValid())
-			{
-				rendering::utils::CreateRenderData(*device, *image, RHIFormat::R8G8B8A8Unorm, true);
-				if (image->render_data.IsValid())
-				{
-					ecs::Entity sprite_entity = editor_viewport.view->scene->CreateEntity();
-					if (auto* transform = editor_viewport.view->scene->AddComponent<ecs::TransformComponent>(sprite_entity))
-					{
-						transform->position = { 0.0f, 2.0f, 0.0f };
-						transform->SetDirty();
-					}
-
-					if (auto* sprite = editor_viewport.view->scene->AddComponent<ecs::Sprite3DComponent>(sprite_entity))
-					{
-						const float sprite_height = 2.0f;
-						const float sprite_aspect = static_cast<float>(image->width) / static_cast<float>(image->height);
-						sprite->size = { sprite_height * sprite_aspect, sprite_height };
-						sprite->SetBillboard(false);
-					}
-
-					if (auto* material = editor_viewport.view->scene->AddComponent<ecs::MaterialComponent>(sprite_entity))
-					{
-						MaterialSlot& material_slot = material->AddMaterialSlot();
-						material_slot.flags = SHADER_MATERIAL_FLAG_TRANSPARENT;
-						material_slot.base_color = { 1.0f, 1.0f, 1.0f, 1.0f };
-						material_slot.textures[BASECOLORMAP].texture_asset_path = image_asset_path;
-						material_slot.textures[BASECOLORMAP].texture = image->render_data.texture;
-						material_slot.textures[BASECOLORMAP].res_handle = image->render_data.srv;
-					}
-
-					if (auto* name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(sprite_entity))
-					{
-						name->value = "Sprite 3D";
-					}
-
-					ecs::Entity sprite_2d_entity = editor_viewport.view->scene->CreateEntity();
-					if (auto* sprite_2d = editor_viewport.view->scene->AddComponent<ecs::Sprite2DComponent>(sprite_2d_entity))
-					{
-						const float sprite_2d_height = 128.0f;
-						const float sprite_aspect = static_cast<float>(image->width) / static_cast<float>(image->height);
-						sprite_2d->anchor = { 0.0f, 0.0f };
-						sprite_2d->position = { 24.0f, 96.0f };
-						sprite_2d->size = { sprite_2d_height * sprite_aspect, sprite_2d_height };
-						sprite_2d->pivot = { 0.0f, 0.0f };
-						sprite_2d->layer = 0;
-					}
-
-					if (auto* material = editor_viewport.view->scene->AddComponent<ecs::MaterialComponent>(sprite_2d_entity))
-					{
-						MaterialSlot& material_slot = material->AddMaterialSlot();
-						material_slot.flags = SHADER_MATERIAL_FLAG_TRANSPARENT;
-						material_slot.base_color = { 1.0f, 1.0f, 1.0f, 0.55f };
-						material_slot.textures[BASECOLORMAP].texture_asset_path = image_asset_path;
-						material_slot.textures[BASECOLORMAP].texture = image->render_data.texture;
-						material_slot.textures[BASECOLORMAP].res_handle = image->render_data.srv;
-					}
-
-					if (auto* name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(sprite_2d_entity))
-					{
-						name->value = "Sprite 2D";
-					}
-				}
-			}
-
-			//String file_path = io::GetWorkingDirectory() + "/../Contents/Images/env_comp.png";
-			//std::shared_ptr<resource::Image> image = resource::LoadImageFile(file_path, 4);
-			//if (!image || !image->IsValid())
-			//{
-			//	backlog::Post(String("failed to load base color texture: ") + file_path, backlog::LogLevel::Warning);
-			//	return;
-			//}
-
-			//RHITextureDesc texture_desc = {};
-			//texture_desc.width = static_cast<uint32>(image->width);
-			//texture_desc.height = static_cast<uint32>(image->height);
-			//texture_desc.depth = 1;
-			//texture_desc.mip_levels = 1;
-			//texture_desc.array_layers = 1;
-			//texture_desc.sample_count = 1;
-			//texture_desc.format = RHIFormat::R8G8B8A8Unorm;
-			//texture_desc.usage = RHIResourceUsage::Default;
-			//texture_desc.bind_flags = RHIBindFlags::ShaderResource;
-
-			//std::shared_ptr<RHIResource> texture_resource = device->CreateTexture(texture_desc, image->pixels.data(), image->pixels.size());
-			//if (!texture_resource)
-			//{
-			//	backlog::Post("failed to create base color texture resource", backlog::LogLevel::Warning);
-			//	return;
-			//}
-
-			//RHISubresourceDesc texture_srv_desc = {};
-			//texture_srv_desc.type = RHISubresourceType::ShaderResource;
-			//texture_srv_desc.first_slice = 0;
-			//texture_srv_desc.slice_count = 1;
-			//texture_srv_desc.first_mip = 0;
-			//texture_srv_desc.mip_count = 1;
-
-			//RHISubresourceHandle texture_srv = {};
-			//if (!device->CreateSubresource(*texture_resource, texture_srv_desc, &texture_srv))
-			//{
-			//	backlog::Post("failed to create base color texture srv", backlog::LogLevel::Warning);
-			//	return;
-			//}
-
-			//// image entity
-			//{
-			//	image_entity = editor_viewport.view->scene->CreateEntity();
-
-			//	auto* transform = editor_viewport.view->scene->AddComponent<ecs::TransformComponent>(image_entity);
-			//	if (transform)
-			//	{
-			//		transform->position = { 0.0f, 0.0f, 0.0f };
-			//		transform->Scale({ 2.f,2.f,2.f });
-			//	}
-
-			//	auto* geometry = editor_viewport.view->scene->AddComponent<ecs::GeometryComponent>(image_entity);
-			//	if (geometry)
-			//	{
-			//		auto mesh = std::make_shared<resource::Mesh>();
-			//		mesh->positions = {
-			//			{ 0.0f, 3.0f, 1.0f },
-			//			{ 3.0f, 0.0f, 1.0f },
-			//			{ -3.0f, 0.0f, 1.0f },
-			//		};
-			//		mesh->normals = {
-			//			{ 0.0f, 0.0f, -1.f },
-			//			{ 0.0f, 0.0f, -1.f },
-			//			{ 0.0f, 0.0f, -1.f },
-			//		};
-			//		mesh->texcoords = {
-			//			{ 0.5f, 0.0f },
-			//			{ 1.0f, 1.0f },
-			//			{ 0.0f, 1.0f },
-			//		};
-
-			//		mesh->indices = { 0, 1, 2 };
-
-			//		resource::Submesh submesh = {};
-			//		submesh.first_index = 0;
-			//		//submesh.index_count = 3;
-			//		submesh.index_count = 3;
-			//		submesh.first_vertex = 0;
-			//		submesh.material_slot = 0;
-			//		submesh.local_bounds.min = { -0.5f, -0.5f, 0.0f };
-			//		submesh.local_bounds.max = { 0.5f, 0.5f, 0.0f };
-			//		mesh->submeshes.push_back(submesh);
-
-			//		geometry->mesh = mesh;
-			//		geometry->local_bounds = submesh.local_bounds;
-
-			//		rendering::utils::CreateRenderData(*device, *mesh);
-			//	}
-
-			//	auto* material = editor_viewport.view->scene->AddComponent<ecs::MaterialComponent>(image_entity);
-			//	if (material)
-			//	{
-			//		auto& material_slot = material->AddMaterialSlot();
-			//		material_slot.base_color = { 1.0f, 1.0f, 1.0f, 1.0f };
-			//		material_slot.metallic = 0.0f;
-			//		material_slot.roughness = 1.0f;
-			//		//material_slot.textures[0].texture = texture_resource;
-			//		//material_slot.textures[0].res_handle = texture_srv;
-			//	}
-			//}
-
-			//// light entity
-			//{
-			//	ecs::Entity light_entity = editor_viewport.view->scene->CreateEntity();
-			//	auto* transform = editor_viewport.view->scene->AddComponent<ecs::TransformComponent>(light_entity);
-			//	//transform->RotateRollPitchYaw({ - math::PI / 12.f, 0, 0});
-			//	transform->Translate({ 0,0,-1 });
-			//	auto* light = editor_viewport.view->scene->AddComponent<ecs::LightComponent>(light_entity);
-			//	light->type = ecs::LightComponent::LightType::Point;
-			//	light->intensity = 100.f;
-			//	light->range = 20.f;
-			//	light->outer_cone_angle = math::PI / 3.f;
-			//	light->inner_cone_angle = math::PI / 6.f;
-			//}
-		}
-
-		{
-			// light entity
-			{
-				ecs::Entity light_entity = editor_viewport.view->scene->CreateEntity();
-				auto transform = editor_viewport.view->scene->AddComponent<ecs::TransformComponent>(light_entity);
-				{
-					const XMVECTOR source_direction = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
-					const XMVECTOR target_direction = XMVector3Normalize(XMVectorSet(1.0f, -1.0f, 1.0f, 0.0f));
-					const XMVECTOR rotation_axis = XMVector3Normalize(XMVector3Cross(source_direction, target_direction));
-					const float rotation_angle = std::acos((std::max)(-1.0f, (std::min)(1.0f, XMVectorGetX(XMVector3Dot(source_direction, target_direction)))));
-					XMStoreFloat4(&transform->rotation, XMQuaternionRotationAxis(rotation_axis, rotation_angle));
-					transform->SetDirty();
-				}
-				auto light = editor_viewport.view->scene->AddComponent<ecs::LightComponent>(light_entity);
-				light->type = ecs::LightComponent::LightType::Directional;
-				light->intensity = 100.f;
-				//light->range = 20.f;
-				//light->outer_cone_angle = math::PI / 3.f;
-				//light->inner_cone_angle = math::PI / 6.f;
-
-				auto name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(light_entity);
-				name->value = "Light";
-			}
-
-			// environment entity
-			{
-				ecs::Entity env_entity = editor_viewport.view->scene->CreateEntity();
-				
-				auto env = editor_viewport.view->scene->AddComponent<ecs::SkyComponent>(env_entity);
-				env->SetActive(true);
-				auto environment_lighting = editor_viewport.view->scene->AddComponent<ecs::EnvironmentLightingComponent>(env_entity);
-				environment_lighting->gi_mode = ecs::EnvironmentLightingComponent::DDGI;
-				environment_lighting->indirect_diffuse_scale = 1.f;
-				auto ddgi_volume = editor_viewport.view->scene->AddComponent<ecs::DDGIVolumeComponent>(env_entity);
-				ddgi_volume->probe_counts = { 16, 16, 16 };
-				ddgi_volume->probe_spacing = { 2.0f, 2.0f, 2.0f };
-				ddgi_volume->max_distance = 4.f;
-				ddgi_volume->probes_per_frame = 128u;
-				//ddgi_volume->volume_offset = { 5.0f, 0.0f, 5.0f };
-
-				auto name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(env_entity);
-				name->value = "Environment";
-			}
-
-			//// plane entity
-			//{
-			//	ecs::Entity plane_entity = editor_viewport.view->scene->CreateEntity();
-			//	auto transform = editor_viewport.view->scene->AddComponent<ecs::TransformComponent>(plane_entity);
-			//	if (transform)
-			//	{
-			//		transform->Translate({ 0.f, -5.f, 0.f });
-			//		transform->Scale({ 10.f, 10.f, 10.f });
-			//	}
-			//	auto geometry = editor_viewport.view->scene->AddComponent<ecs::GeometryComponent>(plane_entity);
-			//	if (geometry)
-			//	{
-			//		//geometry->SetCastShadow(true);
-
-			//		auto mesh = std::make_shared<resource::Mesh>();
-			//		mesh->positions = {
-			//			{ 1.0f, 0.0f, 1.0f },
-			//			{ -1.0f, 0.0f, 1.0f },
-			//			{ 1.0f, 0.0f, -1.0f },
-			//			{ -1.0f, 0.0f, -1.0f },
-			//		};
-			//		mesh->normals = {
-			//			{ 0.0f, 1.0f, 0.f },
-			//			{ 0.0f, 1.0f, 0.f },
-			//			{ 0.0f, 1.0f, 0.f },
-			//			{ 0.0f, 1.0f, 0.f },
-			//		};
-
-			//		mesh->indices = { 1, 0, 2, 1, 2, 3 };
-
-			//		resource::Submesh submesh = {};
-			//		submesh.first_index = 0;
-			//		submesh.index_count = 6;
-			//		submesh.first_vertex = 0;
-			//		submesh.material_slot = 0;
-			//		submesh.local_bounds.min = { -1.0f, 0.0f, -1.0f };
-			//		submesh.local_bounds.max = { 1.0f, 0.0f, 1.0f };
-			//		mesh->submeshes.push_back(submesh);
-
-			//		geometry->SetMesh(mesh);
-
-			//		rendering::utils::CreateRenderData(*device, *mesh);
-			//	}
-
-			//	auto material = editor_viewport.view->scene->AddComponent<ecs::MaterialComponent>(plane_entity);
-			//	if (material)
-			//	{
-			//		auto& material_slot = material->AddMaterialSlot();
-			//		material_slot.base_color = { 0.70f, 0.82f, 0.68f, 1.0f };
-			//		material_slot.metallic = 0.0f;
-			//		material_slot.roughness = 0.5f;
-			//		material_slot.flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW;
-			//	}
-
-			//	auto name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(plane_entity);
-			//	name->value = "Plane";
-
-			//}
-
-			//// side wall plane entity
-			//{
-			//	ecs::Entity side_wall_entity = editor_viewport.view->scene->CreateEntity();
-			//	editor_viewport.view->scene->AddComponent<ecs::TransformComponent>(side_wall_entity);
-
-			//	auto geometry = editor_viewport.view->scene->AddComponent<ecs::GeometryComponent>(side_wall_entity);
-			//	if (geometry)
-			//	{
-			//		auto mesh = std::make_shared<resource::Mesh>();
-			//		mesh->positions = {
-			//			{ 10.0f, 15.0f, 10.0f },
-			//			{ 10.0f, -5.0f, 10.0f },
-			//			{ 10.0f, 15.0f, -10.0f },
-			//			{ 10.0f, -5.0f, -10.0f },
-			//		};
-			//		mesh->normals = {
-			//			{ -1.0f, 0.0f, 0.0f },
-			//			{ -1.0f, 0.0f, 0.0f },
-			//			{ -1.0f, 0.0f, 0.0f },
-			//			{ -1.0f, 0.0f, 0.0f },
-			//		};
-
-			//		mesh->indices = { 1, 0, 2, 1, 2, 3 };
-
-			//		resource::Submesh submesh = {};
-			//		submesh.first_index = 0;
-			//		submesh.index_count = 6;
-			//		submesh.first_vertex = 0;
-			//		submesh.material_slot = 0;
-			//		submesh.local_bounds.min = { 9.999f, -5.0f, -10.0f };
-			//		submesh.local_bounds.max = { 10.001f, 15.0f, 10.0f };
-			//		mesh->submeshes.push_back(submesh);
-
-			//		geometry->SetMesh(mesh);
-			//		rendering::utils::CreateRenderData(*device, *mesh);
-			//	}
-
-			//	auto material = editor_viewport.view->scene->AddComponent<ecs::MaterialComponent>(side_wall_entity);
-			//	if (material)
-			//	{
-			//		auto& material_slot = material->AddMaterialSlot();
-			//		material_slot.base_color = { 0.9f, 0.35f, 0.35f, 1.0f };
-			//		material_slot.metallic = 0.0f;
-			//		material_slot.roughness = 0.5f;
-			//		material_slot.flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW;
-			//	}
-
-			//	auto name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(side_wall_entity);
-			//	name->value = "Side Wall";
-			//}
-
-			//// back wall plane entity
-			//{
-			//	ecs::Entity back_wall_entity = editor_viewport.view->scene->CreateEntity();
-			//	editor_viewport.view->scene->AddComponent<ecs::TransformComponent>(back_wall_entity);
-
-			//	auto geometry = editor_viewport.view->scene->AddComponent<ecs::GeometryComponent>(back_wall_entity);
-			//	if (geometry)
-			//	{
-			//		auto mesh = std::make_shared<resource::Mesh>();
-			//		mesh->positions = {
-			//			{ -10.0f, 15.0f, 10.0f },
-			//			{ -10.0f, -5.0f, 10.0f },
-			//			{ 10.0f, 15.0f, 10.0f },
-			//			{ 10.0f, -5.0f, 10.0f },
-			//		};
-			//		mesh->normals = {
-			//			{ 0.0f, 0.0f, -1.0f },
-			//			{ 0.0f, 0.0f, -1.0f },
-			//			{ 0.0f, 0.0f, -1.0f },
-			//			{ 0.0f, 0.0f, -1.0f },
-			//		};
-
-			//		mesh->indices = { 1, 0, 2, 1, 2, 3 };
-
-			//		resource::Submesh submesh = {};
-			//		submesh.first_index = 0;
-			//		submesh.index_count = 6;
-			//		submesh.first_vertex = 0;
-			//		submesh.material_slot = 0;
-			//		submesh.local_bounds.min = { -10.0f, -5.0f, 9.999f };
-			//		submesh.local_bounds.max = { 10.0f, 15.0f, 10.001f };
-			//		mesh->submeshes.push_back(submesh);
-
-			//		geometry->SetMesh(mesh);
-			//		rendering::utils::CreateRenderData(*device, *mesh);
-			//	}
-
-			//	auto material = editor_viewport.view->scene->AddComponent<ecs::MaterialComponent>(back_wall_entity);
-			//	if (material)
-			//	{
-			//		auto& material_slot = material->AddMaterialSlot();
-			//		material_slot.base_color = { 0.35f, 0.45f, 0.9f, 1.0f };
-			//		material_slot.metallic = 0.0f;
-			//		material_slot.roughness = 0.5f;
-			//		material_slot.flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW;
-			//	}
-
-			//	auto name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(back_wall_entity);
-			//	name->value = "Back Wall";
-			//}
-		}
-
-		StartAssetImport(contents_root_dir + "Models/glTF/Sponza/glTF/Sponza.gltf");
-		asset_importer.sample_script_task_id = StartAssetImport(contents_root_dir + "Models/glTF/CesiumMan/glTF-Binary/CesiumMan.glb");
-		UpdateEntityList();
-	}
 	void EditorApplication::UpdateEntityList()
 	{
 		static std::mutex entity_list_mutex;

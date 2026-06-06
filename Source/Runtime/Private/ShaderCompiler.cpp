@@ -1,6 +1,7 @@
 #include "ShaderCompiler.h"
 #include "Backlog.h"
 #include "DXCShaderCompiler.h"
+#include "FileSystem.h"
 
 namespace won::resource
 {
@@ -18,11 +19,19 @@ namespace won::resource
 
         if (resolved_options.shader_bin_root_path.empty())
         {
+            const String executable_shader_bin_root_path = io::CombinePath(io::GetExecutableDirectory(), "CompiledShaders");
+            if (io::IsDirectory(executable_shader_bin_root_path))
+            {
+                resolved_options.shader_bin_root_path = executable_shader_bin_root_path;
+            }
+            else
+            {
 #if defined(WONENGINE_SHADER_BIN_DIR)
-            resolved_options.shader_bin_root_path = WONENGINE_SHADER_BIN_DIR;
+                resolved_options.shader_bin_root_path = WONENGINE_SHADER_BIN_DIR;
 #else
-            resolved_options.shader_bin_root_path = "";
+                resolved_options.shader_bin_root_path = "";
 #endif
+            }
         }
 
         switch (resolved_options.backend)

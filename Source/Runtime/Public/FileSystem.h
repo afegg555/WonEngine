@@ -43,6 +43,8 @@ namespace won::io
 
     WONENGINE_API bool Exists(const String& path);
     WONENGINE_API bool CreateDirectories(const String& path);
+    WONENGINE_API bool CopyFileTo(const String& from, const String& to, bool overwrite);
+    WONENGINE_API bool RemoveDirectoryRecursive(const String& path);
     WONENGINE_API bool ReadAllBytes(const String& path, FileData* out_data);
     WONENGINE_API bool WriteAllBytes(const String& path, const uint8* data, Size size);
     WONENGINE_API bool GetLastTimestamp(const String& path, uint64* out_timestamp);

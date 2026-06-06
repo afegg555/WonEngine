@@ -294,10 +294,89 @@ namespace won::serialize
         return keys;
     }
 
+    Vector<String> JsonArchive::GetStringValues() const
+    {
+        Vector<String> values;
+        const nlohmann::json* root_node = impl->CurrentNode();
+        if (!root_node)
+        {
+            return values;
+        }
+
+        Vector<const nlohmann::json*> stack;
+        stack.push_back(root_node);
+        while (!stack.empty())
+        {
+            const nlohmann::json* node = stack.back();
+            stack.pop_back();
+            if (node->is_object())
+            {
+                for (auto it = node->begin(); it != node->end(); ++it)
+                {
+                    stack.push_back(&(*it));
+                }
+            }
+            else if (node->is_array())
+            {
+                for (const nlohmann::json& item : *node)
+                {
+                    stack.push_back(&item);
+                }
+            }
+            else if (node->is_string())
+            {
+                values.push_back(node->get<String>());
+            }
+        }
+
+        return values;
+    }
+
     bool JsonArchive::HasField(const char* name) const
     {
         const nlohmann::json* node = impl->CurrentNode();
         return node && node->is_object() && name && node->contains(name);
+    }
+
+    bool JsonArchive::FieldToString(const char* name, String& out_value) const
+    {
+        if (!name)
+        {
+            impl->SetError("JsonArchive field name is null.");
+            return false;
+        }
+
+        const nlohmann::json* current = impl->CurrentNode();
+        if (!current || !current->is_object())
+        {
+            impl->SetError("JsonArchive field requires an object context.");
+            return false;
+        }
+
+        auto it = current->find(name);
+        if (it == current->end())
+        {
+            return false;
+        }
+
+        const nlohmann::json& value = *it;
+        if (value.is_string())
+        {
+            out_value = value.get<String>();
+            return true;
+        }
+        if (value.is_boolean())
+        {
+            out_value = value.get<bool>() ? "true" : "false";
+            return true;
+        }
+        if (value.is_number())
+        {
+            out_value = value.dump();
+            return true;
+        }
+
+        return false;
     }
 
     bool JsonArchive::BeginField(const char* name)

@@ -11,7 +11,7 @@ namespace won::ecs
 
 namespace won::serialize
 {
-    inline constexpr uint32 scene_format_version = 1;
+    inline constexpr uint32 scene_format_version = 2;
 
     struct SceneSerializeDesc
     {

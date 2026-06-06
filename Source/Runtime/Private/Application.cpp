@@ -6,6 +6,7 @@
 #include "JobSystem.h"
 #include "Platform.h"
 #include "EventHandler.h"
+#include "FileSystem.h"
 #include "Input.h"
 #include "Profiler.h"
 #include "ScriptRuntime.h"
@@ -14,11 +15,21 @@ namespace won
 {
     void Application::Initialize(const ApplicationDesc& desc)
     {
+        project_settings = desc.project_settings;
+
         reflection::RegisterBuiltinTypes();
 
         jobsystem::Initialize(desc.jobsystem_thread_count);
 
-        window = platform::CreateNativeWindow(desc.window);
+        platform::WindowDesc window_desc = {};
+        window_desc.title = project_settings.window_title.c_str();
+        window_desc.width = project_settings.window_width;
+        window_desc.height = project_settings.window_height;
+        window_desc.fullscreen = project_settings.window_fullscreen;
+        window_desc.resizable = project_settings.window_resizable;
+        window_desc.use_title_bar = project_settings.window_use_title_bar;
+        window_desc.visible = project_settings.window_visible;
+        window = platform::CreateNativeWindow(window_desc);
         if (!window)
         {
             is_running = false;
@@ -26,16 +37,23 @@ namespace won
         }
 
         rendering::RHIDeviceDesc device_desc;
-        device_desc.backend = desc.backend_type;
+        device_desc.backend = project_settings.backend_type;
         device_desc.preference = desc.device_preference;
         device_desc.enable_debug_layer = true; // test
 
         device = rendering::CreateRHIDevice(device_desc);
 
-        rendering::ReloadShaderLibrary(device);
-
         rendering::RendererDesc renderer_desc;
         renderer_desc.device = device;
+        if (!project_settings.project_root.empty())
+        {
+            renderer_desc.shader_bin_root_path = io::NormalizePath(io::CombinePath(project_settings.project_root, "CompiledShaders"));
+        }
+        else
+        {
+            renderer_desc.shader_bin_root_path = io::NormalizePath(io::CombinePath(io::GetExecutableDirectory(), "CompiledShaders"));
+        }
+        renderer_desc.vsync_enabled = project_settings.vsync_enabled;
         renderer = rendering::CreateRenderer(renderer_desc);
 
         script::ScriptRuntimeDesc script_desc = {};
@@ -44,14 +62,6 @@ namespace won
         {
             script_runtime.reset();
         }
-
-        views.clear();
-        rendering::View default_view = {};
-        default_view.viewport.width = 1280;
-        default_view.viewport.height = 720;
-        default_view.scissor.width = 1280;
-        default_view.scissor.height = 720;
-        AddView(default_view);
 
         frame_timer.Reset();
         is_first_frame = true;
@@ -74,8 +84,7 @@ namespace won
         {
             if (msg.message == WM_QUIT)
             {
-                WaitIdle();
-                Shutdown();
+                is_running = false;
                 return;
             }
 
@@ -107,6 +116,11 @@ namespace won
     
     void Application::Shutdown()
     {
+        if (!project_settings.settings_path.empty())
+        {
+            project::SaveSettings(project_settings.settings_path, project_settings);
+        }
+
         is_running = false;
         views.clear();
 
@@ -140,7 +154,8 @@ namespace won
         {
             io::Reset();
         }
-        Vector<ecs::Scene*> updated_scenes;
+        ++update_index;
+
         for (const std::unique_ptr<rendering::View>& view_ptr : views)
         {
             if (!view_ptr)
@@ -155,23 +170,13 @@ namespace won
                 continue;
             }
 
-            bool already_updated = false;
-            for (ecs::Scene* updated_scene : updated_scenes)
-            {
-                if (updated_scene == scene)
-                {
-                    already_updated = true;
-                    break;
-                }
-            }
-
-            if (already_updated)
+            if (scene->GetUpdateIndex() == update_index)
             {
                 continue;
             }
 
             view.Update(dt);
-            updated_scenes.push_back(scene);
+            scene->SetUpdateIndex(update_index);
         }
         profiler::EndRange(range);
     }
@@ -198,7 +203,25 @@ namespace won
 
     void Application::WaitIdle()
     {
-        renderer->WaitIdle();
+        if (renderer)
+        {
+            renderer->WaitIdle();
+        }
+    }
+
+    rendering::RHIDevice* Application::GetDevice()
+    {
+        return device.get();
+    }
+
+    script::ScriptRuntime* Application::GetScriptRuntime()
+    {
+        return script_runtime.get();
+    }
+
+    void Application::ClearViews()
+    {
+        views.clear();
     }
     
     void Application::RenderScene()
@@ -207,7 +230,7 @@ namespace won
         {
             for (const std::unique_ptr<rendering::View>& view_ptr : views)
             {
-                if (view_ptr)
+                if (view_ptr && view_ptr->scene)
                 {
                     renderer->Render(*view_ptr);
                 }
@@ -250,6 +273,8 @@ namespace won
 
         const int width = window->GetWidth();
         const int height = window->GetHeight();
+        project_settings.window_width = width;
+        project_settings.window_height = height;
         if (renderer)
         {
             renderer->OnResize(*window, static_cast<uint32>(width), static_cast<uint32>(height));

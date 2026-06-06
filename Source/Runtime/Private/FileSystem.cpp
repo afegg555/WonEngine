@@ -214,6 +214,37 @@ namespace won::io
         return std::filesystem::create_directories(fs_path, error);
     }
 
+    bool CopyFileTo(const String& from, const String& to, bool overwrite)
+    {
+        std::error_code error;
+        const std::filesystem::path from_path = std::filesystem::u8path(from);
+        const std::filesystem::path to_path = std::filesystem::u8path(to);
+        if (to_path.has_parent_path())
+        {
+            std::filesystem::create_directories(to_path.parent_path(), error);
+            if (error)
+            {
+                return false;
+            }
+        }
+
+        const std::filesystem::copy_options options = overwrite ? std::filesystem::copy_options::overwrite_existing : std::filesystem::copy_options::none;
+        return std::filesystem::copy_file(from_path, to_path, options, error);
+    }
+
+    bool RemoveDirectoryRecursive(const String& path)
+    {
+        std::error_code error;
+        const std::filesystem::path fs_path = std::filesystem::u8path(path);
+        if (!std::filesystem::exists(fs_path, error))
+        {
+            return !error;
+        }
+
+        std::filesystem::remove_all(fs_path, error);
+        return !error;
+    }
+
     bool ReadAllBytes(const String& path, FileData* out_data)
     {
         if (out_data == nullptr)
@@ -479,7 +510,15 @@ namespace won::io
                 dialog->SetTitle(title.c_str());
             }
 
-            const WString initial_directory = std::filesystem::u8path(desc.initial_directory).wstring();
+            const WString filter_name = std::filesystem::u8path(desc.filter_name.empty() ? "All Files" : desc.filter_name).wstring();
+            const WString filter_pattern = std::filesystem::u8path(desc.filter_pattern.empty() ? "*.*" : desc.filter_pattern).wstring();
+            const COMDLG_FILTERSPEC filter = { filter_name.c_str(), filter_pattern.c_str() };
+            dialog->SetFileTypes(1, &filter);
+            dialog->SetFileTypeIndex(1);
+
+            std::filesystem::path initial_directory_path = std::filesystem::u8path(desc.initial_directory).lexically_normal();
+            initial_directory_path.make_preferred(); // "/" -> "\\"
+            const WString initial_directory = initial_directory_path.wstring();
             if (!initial_directory.empty())
             {
                 IShellItem* folder = nullptr;
@@ -489,12 +528,6 @@ namespace won::io
                     folder->Release();
                 }
             }
-
-            const WString filter_name = std::filesystem::u8path(desc.filter_name.empty() ? "All Files" : desc.filter_name).wstring();
-            const WString filter_pattern = std::filesystem::u8path(desc.filter_pattern.empty() ? "*.*" : desc.filter_pattern).wstring();
-            const COMDLG_FILTERSPEC filter = { filter_name.c_str(), filter_pattern.c_str() };
-            dialog->SetFileTypes(1, &filter);
-            dialog->SetFileTypeIndex(1);
 
             if (SUCCEEDED(dialog->Show(reinterpret_cast<HWND>(desc.owner_window))))
             {
@@ -551,7 +584,9 @@ namespace won::io
                 dialog->SetTitle(title.c_str());
             }
 
-            const WString initial_directory = std::filesystem::u8path(desc.initial_directory).wstring();
+            std::filesystem::path initial_directory_path = std::filesystem::u8path(desc.initial_directory).lexically_normal();
+            initial_directory_path.make_preferred(); // "/" -> "\\"
+            const WString initial_directory = initial_directory_path.wstring();
             if (!initial_directory.empty())
             {
                 IShellItem* folder = nullptr;

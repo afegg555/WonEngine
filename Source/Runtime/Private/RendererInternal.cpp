@@ -484,6 +484,7 @@ namespace won::rendering
                 backlog::Post("failed to create swapchain", backlog::LogLevel::Error);
                 return false;
             }
+            swapchain->SetVSync(vsync_enabled);
             current_window->SetRHISwapchain(swapchain);
         }
 
@@ -1399,7 +1400,6 @@ namespace won::rendering
     {
         const Scene::RenderData& render_data = view.scene->GetRenderData();
 
-        resource::ShaderLibrary& shader_library = GetShaderLibrary();
         RHICompareOp depth_compare = RHICompareOp::GreaterEqual;
         const bool draw_wireframe = pass == RenderPassType::MainPass && debug_options.wireframe_enable;
         const bool draw_primitives = pass == RenderPassType::MainPass && (flags & DrawScene_Primitive) != 0;
@@ -1418,23 +1418,15 @@ namespace won::rendering
         RHISubresourceBinding shader_frame_binding = {};
         shader_frame_binding.resource = shader_frame_buffer.get();
         shader_frame_binding.subresource = shader_frame_buffer_cbv;
-        command_list.SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
 
         RHISubresourceBinding shader_camera_binding = {};
         shader_camera_binding.resource = shader_camera_buffer.get();
         shader_camera_binding.subresource = shader_camera_buffer_cbv;
-        command_list.SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_camera_binding);
-        command_list.SetConstantBuffer(RHIShaderStage::Pixel, 0, shader_frame_binding);
-        command_list.SetConstantBuffer(RHIShaderStage::Pixel, 1, shader_camera_binding);
 
         if ((flags & (DrawScene_Opaque | DrawScene_Transparent)) != 0 && !render_data.mesh_renderables.empty())
         {
-            std::shared_ptr<RHIPipeline> pipeline = shader_library.GetPipeline(pipeline_hash);
-            if (!pipeline)
-            {
-                return false;
-            }
-            command_list.SetGraphicsPipeline(*pipeline);
+            GraphicsPipelineHash current_pipeline_hash = {};
+            bool has_current_pipeline = false;
 
             for (const auto& renderable : render_data.mesh_renderables)
             {
@@ -1458,6 +1450,28 @@ namespace won::rendering
                     continue;
                 }
 
+                // TODO: reduce pso switch
+                GraphicsPipelineHash renderable_pipeline_hash = pipeline_hash;
+                if (pass == RenderPassType::MainPass)
+                {
+                    renderable_pipeline_hash.storage.bits.shader_type = draw_wireframe ? SHADER_MATERIAL_TYPE_UNLIT : renderable.shader_type;
+                }
+                if (!has_current_pipeline || !(current_pipeline_hash == renderable_pipeline_hash))
+                {
+                    std::shared_ptr<RHIPipeline> pipeline = shader_library.GetPipeline(renderable_pipeline_hash);
+                    if (!pipeline)
+                    {
+                        continue;
+                    }
+                    command_list.SetGraphicsPipeline(*pipeline);
+                    command_list.SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
+                    command_list.SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_camera_binding);
+                    command_list.SetConstantBuffer(RHIShaderStage::Pixel, 0, shader_frame_binding);
+                    command_list.SetConstantBuffer(RHIShaderStage::Pixel, 1, shader_camera_binding);
+                    current_pipeline_hash = renderable_pipeline_hash;
+                    has_current_pipeline = true;
+                }
+
                 command_list.SetIndexBuffer(*renderable.index_buffer, sizeof(uint32), renderable.index_offset, renderable.index_count * sizeof(uint32));
                 command_list.SetPrimitiveTopology(ToRHIPrimitiveTopology(renderable.primitive_topology));
                 command_list.PushConstants(RHIShaderStage::Vertex, &renderable.push_constants, sizeof(ObjectPushConstants), 0);
@@ -1469,12 +1483,8 @@ namespace won::rendering
         {
             GraphicsPipelineHash double_sided_pipeline_hash = pipeline_hash;
             double_sided_pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
-            std::shared_ptr<RHIPipeline> pipeline = shader_library.GetPipeline(double_sided_pipeline_hash);
-            if (!pipeline)
-            {
-                return false;
-            }
-            command_list.SetGraphicsPipeline(*pipeline);
+            GraphicsPipelineHash current_pipeline_hash = {};
+            bool has_current_pipeline = false;
 
             for (const auto& renderable : render_data.double_sided_renderables)
             {
@@ -1498,6 +1508,28 @@ namespace won::rendering
                     continue;
                 }
 
+                // TODO: reduce pso switch
+                GraphicsPipelineHash renderable_pipeline_hash = double_sided_pipeline_hash;
+                if (pass == RenderPassType::MainPass)
+                {
+                    renderable_pipeline_hash.storage.bits.shader_type = draw_wireframe ? SHADER_MATERIAL_TYPE_UNLIT : renderable.shader_type;
+                }
+                if (!has_current_pipeline || !(current_pipeline_hash == renderable_pipeline_hash))
+                {
+                    std::shared_ptr<RHIPipeline> pipeline = shader_library.GetPipeline(renderable_pipeline_hash);
+                    if (!pipeline)
+                    {
+                        continue;
+                    }
+                    command_list.SetGraphicsPipeline(*pipeline);
+                    command_list.SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
+                    command_list.SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_camera_binding);
+                    command_list.SetConstantBuffer(RHIShaderStage::Pixel, 0, shader_frame_binding);
+                    command_list.SetConstantBuffer(RHIShaderStage::Pixel, 1, shader_camera_binding);
+                    current_pipeline_hash = renderable_pipeline_hash;
+                    has_current_pipeline = true;
+                }
+
                 command_list.SetIndexBuffer(*renderable.index_buffer, sizeof(uint32), renderable.index_offset, renderable.index_count * sizeof(uint32));
                 command_list.SetPrimitiveTopology(ToRHIPrimitiveTopology(renderable.primitive_topology));
                 command_list.PushConstants(RHIShaderStage::Vertex, &renderable.push_constants, sizeof(ObjectPushConstants), 0);
@@ -1517,6 +1549,10 @@ namespace won::rendering
             if (line_pipeline)
             {
                 command_list.SetGraphicsPipeline(*line_pipeline);
+                command_list.SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
+                command_list.SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_camera_binding);
+                command_list.SetConstantBuffer(RHIShaderStage::Pixel, 0, shader_frame_binding);
+                command_list.SetConstantBuffer(RHIShaderStage::Pixel, 1, shader_camera_binding);
 
                 for (const auto& renderable : render_data.line_renderables)
                 {
@@ -1552,6 +1588,10 @@ namespace won::rendering
             if (point_pipeline)
             {
                 command_list.SetGraphicsPipeline(*point_pipeline);
+                command_list.SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
+                command_list.SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_camera_binding);
+                command_list.SetConstantBuffer(RHIShaderStage::Pixel, 0, shader_frame_binding);
+                command_list.SetConstantBuffer(RHIShaderStage::Pixel, 1, shader_camera_binding);
 
                 for (const auto& renderable : render_data.point_renderables)
                 {
@@ -1674,6 +1714,10 @@ namespace won::rendering
                     active_type = item.type;
                     has_active_pipeline = true;
                     command_list.SetGraphicsPipeline(item.type == SpriteTextDrawItem::Sprite ? *sprite_pipeline : *text_pipeline);
+                    command_list.SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
+                    command_list.SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_camera_binding);
+                    command_list.SetConstantBuffer(RHIShaderStage::Pixel, 0, shader_frame_binding);
+                    command_list.SetConstantBuffer(RHIShaderStage::Pixel, 1, shader_camera_binding);
                 }
 
                 if (item.type == SpriteTextDrawItem::Sprite)
@@ -1789,6 +1833,10 @@ namespace won::rendering
                     active_type = item.type;
                     has_active_pipeline = true;
                     command_list.SetGraphicsPipeline(item.type == Sprite2DDrawItem::Sprite ? *sprite_2d_pipeline : *text_2d_pipeline);
+                    command_list.SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
+                    command_list.SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_camera_binding);
+                    command_list.SetConstantBuffer(RHIShaderStage::Pixel, 0, shader_frame_binding);
+                    command_list.SetConstantBuffer(RHIShaderStage::Pixel, 1, shader_camera_binding);
                 }
 
                 if (item.type == Sprite2DDrawItem::Sprite)
@@ -1834,7 +1882,9 @@ namespace won::rendering
     void RendererInternal::Initialize(const RendererDesc& desc)
     {
         device = desc.device;
+        shader_compiler_options.shader_bin_root_path = desc.shader_bin_root_path;
         clear_color = desc.clear_color;
+        vsync_enabled = desc.vsync_enabled;
 
         for (uint32 i = 0; i < max_frames_in_flight; ++i)
         {
@@ -1906,6 +1956,29 @@ namespace won::rendering
         }
 
         current_frame_slot = 0;
+        ReloadShaders();
+    }
+
+    bool RendererInternal::ReloadShaders()
+    {
+        if (!device)
+        {
+            return false;
+        }
+
+        WaitIdle();
+        shader_library = resource::ShaderLibrary(shader_compiler_options);
+        if (!shader_library.LoadManifest(resource::GetDefaultShaderManifest()))
+        {
+            return false;
+        }
+
+        return shader_library.BuildAllGraphicsPipelines(device, RENDERTARGET_BUFFER_FORMAT, DEPTH_BUFFER_FORMAT, 1u);
+    }
+
+    std::shared_ptr<RHIShader> RendererInternal::GetShader(resource::ShaderId shader_id) const
+    {
+        return shader_library.GetShader(shader_id);
     }
 
     void RendererInternal::BeginFrame(platform::Window& window)
@@ -1972,7 +2045,6 @@ namespace won::rendering
 
     void RendererInternal::UpdateDDGIProbe(FrameContext& frame_context, const ShaderEnvironmentLighting& environment_lighting, const ShaderDDGIVolume& ddgi_volume, const RHISubresourceBinding& shader_frame_binding, const RHISubresourceBinding& shader_camera_binding, RHICommandList& command_list)
     {
-        resource::ShaderLibrary& shader_library = GetShaderLibrary();
         std::shared_ptr<RHIShader> current_ddgi_probe_update_shader = shader_library.GetShader(ShaderId::CSDDGIProbeUpdate);
         if (ddgi_probe_update_shader != current_ddgi_probe_update_shader)
         {
@@ -2237,7 +2309,7 @@ namespace won::rendering
             jobsystem::Execute(GetRenderingWorkContext(), [this](jobsystem::JobArgs args) {
                 enqueued_work_command_allocator->Reset();
                 enqueued_work_command_list->Begin(*enqueued_work_command_allocator);
-                enqueued_work_succeeded = utils::FlushEnqueuedRenderingWork(*device, *enqueued_work_command_list, enqueued_work_scratch_resources);
+                enqueued_work_succeeded = utils::FlushEnqueuedRenderingWork(*device, *this, *enqueued_work_command_list, enqueued_work_scratch_resources);
             });
         }
 
@@ -2309,11 +2381,11 @@ namespace won::rendering
             command_list->SetViewport(viewport);
             command_list->SetScissor(scissor);
 
+            if ((render_data.shader_sky.flags & SHADER_SKY_FLAG_ACTIVE) != 0)
             {
                 auto gpu_range = profiler::ScopedRangeGPU("Sky Pass", *command_list);
                 command_list->BeginEvent("Sky Pass");
                 command_list->SetRenderTargets(color_targets, nullptr);
-                resource::ShaderLibrary& shader_library = GetShaderLibrary();
                 GraphicsPipelineHash sky_pipeline_hash = {};
                 sky_pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::SkyPass);
                 sky_pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
@@ -2622,6 +2694,7 @@ namespace won::rendering
         back_buffers_rtv = {};
         depth_buffer_dsv = {};
         depth_buffer = nullptr;
+        shader_library.ClearAll();
         device.reset();
     }
 }
