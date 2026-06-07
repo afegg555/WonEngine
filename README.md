@@ -29,18 +29,28 @@ WonEngine is currently developed and tested on Windows.
 
 #### Setup
 
-Generate the Visual Studio project files by running the provided batch file:
+Build the editor from the WonEngine directory by running the provided batch file:
 
 ```bat
-GenerateProjectFiles.bat
+Build_Windows.bat Editor
 ```
 
-Then open the generated Visual Studio solution and build the `Editor` target.
+The script configures CMake and writes build output to `Binary/Windows`. Release is used by default. For a Debug build:
+
+```bat
+Build_Windows.bat Editor Debug
+```
+
+To build every target:
+
+```bat
+Build_Windows.bat
+```
 
 To run the editor:
 
 ```text
-Binary/Windows/Editor.exe
+Binary\Windows\Editor.exe
 ```
 
 ### Other Platforms
@@ -54,17 +64,20 @@ Linux and console-oriented platforms are planned but not currently supported.
 
 ## Engine Architecture
 
-WonEngine is structured around runtime code, editor code, shaders, plugins, and offline tools.
+WonEngine is structured around runtime code, editor code, player and sample applications, shaders, plugins, and offline tools.
 
 ```text
 Source/
   Runtime/        Core engine runtime source
   Editor/         Editor application source
+  Player/         Player application source
+  Samples/        Native sample application source
   Shaders/        HLSL shader source and shader interop headers
   Plugins/        Runtime plugin source
-  Tools/          Offline tool source, including ShaderOfflineCompiler
+  Tools/          Offline tool source, including ShaderOfflineCompiler and PackageTool
+  Vendor/         Third-party source
 
 Contents/         Editor and runtime assets
-CompiledShaders/  Generated shader binaries
+Projects/         Project files
 Binary/           Build output
 ```
