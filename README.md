@@ -11,7 +11,7 @@ WonEngine is a work-in-progress C++ rendering engine for experimenting with mode
 ## Showcase
 
 <p align="center">
-  <img src="Docs/.png" width="900" alt="WonEngine Editor Showcase">
+  <img src="Docs/showcase_image1.png" width="900" alt="WonEngine Editor Showcase">
 </p>
 
 > Screenshots and videos will be added as the renderer and editor become more stable.
