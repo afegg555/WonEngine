@@ -10,12 +10,15 @@ using namespace won::editor;
 int main(int argc, char** argv)
 {
 	ApplicationDesc app_desc = {};
+	const char* default_editor_splash_image = "Images/editor_splash_screen.png";
 	const String editor_project_settings_path = io::CombinePath(io::GetExecutableDirectory(), "Editor.wonproj");
 	app_desc.project_settings.settings_path = io::NormalizePath(editor_project_settings_path);
 	app_desc.project_settings.project_root = io::NormalizePath(io::GetExecutableDirectory());
 	app_desc.project_settings.project_name = "WonEditor";
 	app_desc.project_settings.content_root = io::NormalizePath(String(CONTENTS_ROOT_DIR));
 	app_desc.project_settings.window_title = "Won Engine";
+	app_desc.project_settings.splash_title = "Won Editor";
+	app_desc.project_settings.splash_status = "Starting editor...";
 #ifdef EDITOR_USE_CUSTOM_TITLEBAR
 	app_desc.project_settings.window_use_title_bar = false;
 #else
@@ -25,6 +28,10 @@ int main(int argc, char** argv)
 	{
 		std::fprintf(stderr, "Failed to load editor project: %s\n", editor_project_settings_path.c_str());
 		return 1;
+	}
+	if (app_desc.project_settings.splash_image.empty())
+	{
+		app_desc.project_settings.splash_image = default_editor_splash_image;
 	}
 
 	String project_settings_path;

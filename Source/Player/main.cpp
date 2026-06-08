@@ -7,6 +7,7 @@
 #include "RenderingUtils.h"
 #include "Scene.h"
 #include "SceneSerializer.h"
+#include "SplashWindow.h"
 #include "StringUtils.h"
 
 #include <algorithm>
@@ -34,11 +35,35 @@ int main(int argc, char** argv)
     }
 
     const won::String content_root = won::project::GetContentRoot(app_desc.project_settings);
+    std::shared_ptr<won::platform::SplashWindow> splash = nullptr;
+    if (app_desc.project_settings.splash_enabled)
+    {
+        won::platform::SplashWindowDesc splash_desc = {};
+        splash_desc.title = app_desc.project_settings.splash_title.c_str();
+        splash_desc.status = app_desc.project_settings.splash_status.c_str();
+        won::String splash_image_path;
+        if (!app_desc.project_settings.splash_image.empty())
+        {
+            splash_image_path = won::project::ResolveProjectContentPath(content_root, app_desc.project_settings.splash_image);
+            splash_desc.image_path = splash_image_path.c_str();
+        }
+        splash = won::platform::CreateSplashWindow(splash_desc);
+        if (splash)
+        {
+            splash->SetStatus("Starting renderer...");
+        }
+    }
 
     won::Application app;
-    app.Initialize(app_desc);
+    won::ApplicationDesc initialize_desc = app_desc;
+    initialize_desc.defer_window_show = splash && app_desc.project_settings.window_visible;
+    app.Initialize(initialize_desc);
 
     {
+        if (splash)
+        {
+            splash->SetStatus("Loading startup scene...");
+        }
         won::ecs::SceneDesc scene_desc = {};
         scene_desc.script_runtime = app.GetScriptRuntime();
         won::ecs::Scene game_scene(scene_desc);
@@ -64,6 +89,10 @@ int main(int argc, char** argv)
 
         // reload resources
 
+        if (splash)
+        {
+            splash->SetStatus("Loading scene resources...");
+        }
         if (won::rendering::RHIDevice* device = app.GetDevice())
         {
             if (auto geometry_array = game_scene.GetComponentArray<won::ecs::GeometryComponent>())
@@ -231,6 +260,15 @@ int main(int argc, char** argv)
         game_view.scissor.width = app_desc.project_settings.window_width;
         game_view.scissor.height = app_desc.project_settings.window_height;
         app.AddView(game_view);
+
+        if (initialize_desc.defer_window_show)
+        {
+            app.ShowMainWindow();
+        }
+        if (splash)
+        {
+            splash->Close();
+        }
 
         while (app.IsRunning())
         {

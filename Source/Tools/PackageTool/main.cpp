@@ -48,6 +48,7 @@ int main(int argc, char** argv)
         }
         config = config_arg;
     }
+    const bool copy_debug_info = config == "Debug";
 
     const won::String engine_root = won::io::NormalizePath(ENGINE_ROOT_DIR);
     const won::String project_path = won::io::GetAbsolutePath(project_path_arg);
@@ -113,9 +114,10 @@ int main(int argc, char** argv)
     }
     const won::String content_root_path = won::io::NormalizePath(settings.content_root);
     const won::String startup_scene_path = settings.startup_scene.empty() ? "" : won::io::NormalizePath(settings.startup_scene);
-    const char* relative_path_names[] = { "content_root", "startup_scene" };
-    const won::String relative_path_values[] = { content_root_path, startup_scene_path };
-    for (int path_index = 0; path_index < 2; ++path_index)
+    const won::String splash_image_path = won::io::NormalizePath(settings.splash_image);
+    const char* relative_path_names[] = { "content_root", "startup_scene", "splash_image" };
+    const won::String relative_path_values[] = { content_root_path, startup_scene_path, splash_image_path };
+    for (int path_index = 0; path_index < static_cast<int>(arraysize(relative_path_names)); ++path_index)
     {
         const won::String& path = relative_path_values[path_index];
         if (!path.empty() && (won::io::IsAbsolutePath(path) || path == ".." || path.rfind("../", 0) == 0 || path.find("/../") != won::String::npos))
@@ -154,7 +156,7 @@ int main(int argc, char** argv)
     // copy debug info(Only Debug mode)
     won::Vector<won::String> package_files;
     const won::String pdb_path = won::io::CombinePath(binary_root, target + ".pdb");
-    if (won::io::IsFile(pdb_path))
+    if (copy_debug_info && won::io::IsFile(pdb_path))
     {
         package_files.push_back(pdb_path);
     }
@@ -185,6 +187,10 @@ int main(int argc, char** argv)
 
     // copy contents
     won::Vector<won::String> content_paths;
+    if (!splash_image_path.empty())
+    {
+        content_paths.push_back(splash_image_path);
+    }
     if (copy_startup_scene_references_only) // copy only referenced ones
     {
         if (!settings.startup_scene.empty())
@@ -310,6 +316,10 @@ int main(int argc, char** argv)
         for (const won::io::DirectoryEntry& entry : plugin_entries)
         {
             if (!entry.is_file)
+            {
+                continue;
+            }
+            if (!copy_debug_info && won::io::GetExtension(entry.path) == "pdb")
             {
                 continue;
             }

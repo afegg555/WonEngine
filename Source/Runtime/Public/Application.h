@@ -20,6 +20,7 @@ namespace won
         project::ProjectSettings project_settings = {};
         rendering::RHIDevicePreference device_preference = rendering::RHIDevicePreference::Default;
         uint32 jobsystem_thread_count = ~0u;
+        bool defer_window_show = false;
     };
 
     class WONENGINE_API Application
@@ -35,6 +36,7 @@ namespace won
 
         rendering::RHIDevice* GetDevice();
         script::ScriptRuntime* GetScriptRuntime();
+        void ShowMainWindow();
         void WaitIdle();
         void ClearViews();
         uint32 AddView(const rendering::View& view = {});
