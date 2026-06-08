@@ -5,6 +5,7 @@ CompiledShaders/
 build/
 Contents/Generated/
 Contents/Models/
+Projects/FeatureValidation/
 
 *.ini
 *.log

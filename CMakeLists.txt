@@ -323,12 +323,16 @@ set(RUNTIME_ECS_SYSTEMS
 set(RUNTIME_PLATFORM
     Source/Runtime/Public/Platform.h
     Source/Runtime/Public/Window.h
+    Source/Runtime/Public/SplashWindow.h
     Source/Runtime/Private/Window.cpp
+    Source/Runtime/Private/SplashWindow.cpp
 )
 
 set(RUNTIME_PLATFORM_WINDOWS
     Source/Runtime/Private/WindowWin32.h
     Source/Runtime/Private/WindowWin32.cpp
+    Source/Runtime/Private/SplashWindowWin32.h
+    Source/Runtime/Private/SplashWindowWin32.cpp
 )
 
 set(RUNTIME_APPLICATION
@@ -704,7 +708,7 @@ if(MSVC)
 endif()
 
 if(WIN32)
-    target_link_libraries(Runtime PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler dwmapi ole32 shell32 uuid)
+    target_link_libraries(Runtime PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler dwmapi gdiplus ole32 shell32 uuid)
     target_link_libraries(Editor PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler)
     target_link_libraries(HelloTriangle PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler)
     target_link_libraries(Player PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler)

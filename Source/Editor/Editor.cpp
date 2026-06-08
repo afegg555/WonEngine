@@ -19,6 +19,7 @@
 #include "Reflection.h"
 #include "BuiltinTypeMeta.h"
 #include "SceneSerializer.h"
+#include "SplashWindow.h"
 
 #include "CustomComponentExtension.h"
 #include "CustomFunctionExtension.h"
@@ -133,6 +134,15 @@ namespace won::editor
 			constexpr const char* package_project_failed = "Package failed.";
 			constexpr const char* package_project_missing_settings = "Project settings path is empty.";
 			constexpr const char* package_tool_not_found = "PackageTool not found: ";
+			constexpr const char* splash_starting_renderer = "Starting renderer...";
+			constexpr const char* splash_loading_editor_settings = "Loading editor settings...";
+			constexpr const char* splash_loading_plugins = "Loading plugins...";
+			constexpr const char* splash_loading_startup_scene = "Loading startup scene...";
+			constexpr const char* new_project = "New Project";
+			constexpr const char* load_project = "Load Project";
+			constexpr const char* save_project = "Save Project";
+			constexpr const char* project_settings = "Project Settings";
+			constexpr const char* no_project = "No Project";
 			constexpr const char* new_scene = "New Scene";
 			constexpr const char* save_scene = "Save Scene";
 			constexpr const char* save_scene_as = "Save Scene As...";
@@ -141,6 +151,7 @@ namespace won::editor
 			constexpr const char* save_current_scene_message = "Save current scene?";
 			constexpr const char* unsaved_scene = "Unsaved Scene";
 			constexpr const char* path = "Path";
+			constexpr const char* won_project_file = "Won Project";
 			constexpr const char* won_scene_file = "Won Scene";
 			constexpr const char* value = "Value";
 			constexpr const char* save = "Save";
@@ -158,6 +169,7 @@ namespace won::editor
 			constexpr const char* options_popup = "OptionsPopup";
 			constexpr const char* wireframe = "WireFrame";
 			constexpr const char* vsync = "VSync";
+			constexpr const char* reset_editor_camera = "Reset Editor Camera";
 			constexpr const char* editor_grid = "Editor Grid";
 			constexpr const char* bvh_debug = "BVH Debug";
 			constexpr const char* cpu_bvh_nodes = "CPU BVH Nodes";
@@ -352,6 +364,12 @@ namespace won::editor
 			constexpr const char* clearcoat_roughness = "Clearcoat Roughness";
 			constexpr const char* textures = "Textures";
 			constexpr const char* texture_status_format = "%s: %s";
+			constexpr const char* project_saved = "Project saved: ";
+			constexpr const char* project_loaded = "Project loaded: ";
+			constexpr const char* project_created = "Project created: ";
+			constexpr const char* save_project_failed = "Save project failed: ";
+			constexpr const char* load_project_failed = "Load project failed: ";
+			constexpr const char* create_project_failed = "Create project failed: ";
 			constexpr const char* save_scene_failed = "Save scene failed: ";
 			constexpr const char* scene_saved = "Scene saved: ";
 			constexpr const char* load_scene_failed = "Load scene failed: ";
@@ -1014,8 +1032,38 @@ namespace won::editor
 
 	void EditorApplication::Initialize(const ApplicationDesc& desc, const project::ProjectSettings& loaded_project_settings_in)
 	{
+		std::shared_ptr<platform::SplashWindow> splash = nullptr;
+		if (desc.project_settings.splash_enabled)
+		{
+			platform::SplashWindowDesc splash_desc = {};
+			splash_desc.title = desc.project_settings.splash_title.c_str();
+			splash_desc.status = desc.project_settings.splash_status.c_str();
+			splash_desc.style.title_top = 382;
+			splash_desc.style.title_height = 52;
+			splash_desc.style.status_top = 444;
+			splash_desc.style.status_height = 32;
+			String splash_image_path;
+			if (!desc.project_settings.splash_image.empty())
+			{
+				splash_image_path = project::ResolveProjectContentPath(project::GetContentRoot(desc.project_settings), desc.project_settings.splash_image);
+				splash_desc.image_path = splash_image_path.c_str();
+			}
+			splash = platform::CreateSplashWindow(splash_desc);
+		}
+
 		loaded_project_settings = loaded_project_settings_in;
-		Application::Initialize(desc);
+		const bool defer_main_window_show = splash && desc.project_settings.window_visible;
+		if (splash)
+		{
+			splash->SetStatus(editor_text::splash_starting_renderer);
+		}
+		ApplicationDesc initialize_desc = desc;
+		initialize_desc.defer_window_show = defer_main_window_show;
+		Application::Initialize(initialize_desc);
+		if (splash)
+		{
+			splash->SetStatus(editor_text::splash_loading_editor_settings);
+		}
 		contents_root_dir = project::GetContentRoot(loaded_project_settings);
 		contents_root_dir = io::NormalizePath(contents_root_dir);
 		if (!contents_root_dir.empty() && contents_root_dir.back() != '/')
@@ -1109,8 +1157,16 @@ namespace won::editor
 		InitImGui();
 		InitEditorGrid();
 
+		if (splash)
+		{
+			splash->SetStatus(editor_text::splash_loading_plugins);
+		}
 		LoadPlugins();
 
+		if (splash)
+		{
+			splash->SetStatus(editor_text::splash_loading_startup_scene);
+		}
 		bool startup_scene_loaded = false;
 		String startup_scene_path = loaded_project_settings.startup_scene;
 		if (!startup_scene_path.empty())
@@ -1132,6 +1188,14 @@ namespace won::editor
 		//main_viewport_pos = { 0, 0 };
 		//main_viewport_size = { static_cast<float>(editor_viewport.view->viewport.width), static_cast<float>(editor_viewport.view->viewport.height) };
 		UpdateEntityList();
+		if (defer_main_window_show)
+		{
+			ShowMainWindow();
+		}
+		if (splash)
+		{
+			splash->Close();
+		}
 	}
 
 	void EditorApplication::Shutdown()
@@ -3379,9 +3443,15 @@ namespace won::editor
 		static bool open_save_scene_as = false;
 		static bool open_load_scene = false;
 		static bool open_new_scene = false;
+		static bool open_load_project = false;
+		static bool open_new_project = false;
 		static bool save_as_then_load = false;
 		static bool save_as_then_new_scene = false;
+		static bool save_as_then_load_project = false;
+		static bool save_as_then_new_project = false;
 		static bool save_current_then_new_scene = false;
+		static bool save_current_then_load_project = false;
+		static bool save_current_then_new_project = false;
 		static bool focus_contents_browser_on_startup = true;
 		bool open_save_current_scene = false;
 
@@ -3389,11 +3459,58 @@ namespace won::editor
 		{
 			if (ImGui::BeginMenu(editor_text::file_menu))
 			{
+				if (ImGui::MenuItem(editor_text::new_project))
+				{
+					save_as_then_load = false;
+					save_as_then_new_scene = false;
+					save_as_then_load_project = false;
+					save_as_then_new_project = false;
+					save_current_then_new_scene = false;
+					save_current_then_load_project = false;
+					save_current_then_new_project = true;
+					open_save_current_scene = true;
+				}
+				if (ImGui::MenuItem(editor_text::load_project))
+				{
+					save_as_then_load = false;
+					save_as_then_new_scene = false;
+					save_as_then_load_project = false;
+					save_as_then_new_project = false;
+					save_current_then_new_scene = false;
+					save_current_then_load_project = true;
+					save_current_then_new_project = false;
+					open_save_current_scene = true;
+				}
+				if (ImGui::MenuItem(editor_text::save_project, nullptr, false, !loaded_project_settings.settings_path.empty()))
+				{
+					SaveProject();
+				}
+				if (ImGui::MenuItem(editor_text::project_settings))
+				{
+					show_project_settings_window = true;
+				}
+				ImGui::TextDisabled("%s", loaded_project_settings.settings_path.empty() ? editor_text::no_project : loaded_project_settings.settings_path.c_str());
+				ImGui::Separator();
 				if (ImGui::MenuItem(editor_text::new_scene))
 				{
 					save_as_then_load = false;
 					save_as_then_new_scene = false;
+					save_as_then_load_project = false;
+					save_as_then_new_project = false;
 					save_current_then_new_scene = true;
+					save_current_then_load_project = false;
+					save_current_then_new_project = false;
+					open_save_current_scene = true;
+				}
+				if (ImGui::MenuItem(editor_text::load_scene))
+				{
+					save_as_then_load = false;
+					save_as_then_new_scene = false;
+					save_as_then_load_project = false;
+					save_as_then_new_project = false;
+					save_current_then_new_scene = false;
+					save_current_then_load_project = false;
+					save_current_then_new_project = false;
 					open_save_current_scene = true;
 				}
 				if (ImGui::MenuItem(editor_text::save_scene))
@@ -3402,6 +3519,8 @@ namespace won::editor
 					{
 						save_as_then_load = false;
 						save_as_then_new_scene = false;
+						save_as_then_load_project = false;
+						save_as_then_new_project = false;
 						open_save_scene_as = true;
 					}
 					else
@@ -3413,16 +3532,10 @@ namespace won::editor
 				{
 					save_as_then_load = false;
 					save_as_then_new_scene = false;
+					save_as_then_load_project = false;
+					save_as_then_new_project = false;
 					open_save_scene_as = true;
 				}
-				if (ImGui::MenuItem(editor_text::load_scene))
-				{
-					save_as_then_load = false;
-					save_as_then_new_scene = false;
-					save_current_then_new_scene = false;
-					open_save_current_scene = true;
-				}
-				ImGui::Separator();
 				ImGui::TextDisabled("%s", current_scene_path.empty() ? editor_text::unsaved_scene : current_scene_path.c_str());
 				ImGui::EndMenu();
 			}
@@ -3509,8 +3622,10 @@ namespace won::editor
 			const float controls_pos_x = ImGui::GetWindowWidth() - controls_width - ImGui::GetStyle().WindowPadding.x;
 			const float drag_width = (std::max)(0.0f, controls_pos_x - ImGui::GetCursorPosX() - button_spacing);
 			ImGui::InvisibleButton("TitleBarDragZone", ImVec2(drag_width, button_size));
+			static bool title_bar_drag_suppressed = false;
 			if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
 			{
+				title_bar_drag_suppressed = true;
 				if (window->IsMaximized())
 				{
 					window->Restore();
@@ -3525,22 +3640,37 @@ namespace won::editor
 			static int drag_start_cursor_y = 0;
 			static int drag_start_window_x = 0;
 			static int drag_start_window_y = 0;
+			static float drag_start_cursor_ratio_x = 0.5f;
 			if (ImGui::IsItemActivated())
 			{
 				title_bar_dragging = window->GetCursorPosition(drag_start_cursor_x, drag_start_cursor_y) && window->GetPosition(drag_start_window_x, drag_start_window_y);
+				const int drag_start_window_width = (std::max)(1, window->GetWidth());
+				drag_start_cursor_ratio_x = static_cast<float>(drag_start_cursor_x - drag_start_window_x) / static_cast<float>(drag_start_window_width);
+				drag_start_cursor_ratio_x = (std::max)(0.05f, (std::min)(0.95f, drag_start_cursor_ratio_x));
 			}
-			if (title_bar_dragging && ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+			if (!title_bar_drag_suppressed && title_bar_dragging && ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
 			{
 				int cursor_x = 0;
 				int cursor_y = 0;
 				if (window->GetCursorPosition(cursor_x, cursor_y))
 				{
+					if (window->IsMaximized())
+					{
+						const int drag_start_cursor_offset_y = drag_start_cursor_y - drag_start_window_y;
+						window->Restore();
+						const int restored_width = (std::max)(1, window->GetWidth());
+						drag_start_window_x = cursor_x - static_cast<int>(static_cast<float>(restored_width) * drag_start_cursor_ratio_x);
+						drag_start_window_y = cursor_y - drag_start_cursor_offset_y;
+						drag_start_cursor_x = cursor_x;
+						drag_start_cursor_y = cursor_y;
+					}
 					window->SetPosition(drag_start_window_x + cursor_x - drag_start_cursor_x, drag_start_window_y + cursor_y - drag_start_cursor_y);
 				}
 			}
 			if (!ImGui::IsItemActive())
 			{
 				title_bar_dragging = false;
+				title_bar_drag_suppressed = false;
 			}
 			ImGui::SameLine();
 			ImGui::SetCursorPosX(controls_pos_x);
@@ -3582,8 +3712,10 @@ namespace won::editor
 			{
 				if (current_scene_path.empty())
 				{
-					save_as_then_load = !save_current_then_new_scene;
+					save_as_then_load = !save_current_then_new_scene && !save_current_then_load_project && !save_current_then_new_project;
 					save_as_then_new_scene = save_current_then_new_scene;
+					save_as_then_load_project = save_current_then_load_project;
+					save_as_then_new_project = save_current_then_new_project;
 					open_save_scene_as = true;
 					ImGui::CloseCurrentPopup();
 				}
@@ -3593,11 +3725,21 @@ namespace won::editor
 					{
 						open_new_scene = true;
 					}
+					else if (save_current_then_load_project)
+					{
+						open_load_project = true;
+					}
+					else if (save_current_then_new_project)
+					{
+						open_new_project = true;
+					}
 					else
 					{
 						open_load_scene = true;
 					}
 					save_current_then_new_scene = false;
+					save_current_then_load_project = false;
+					save_current_then_new_project = false;
 					ImGui::CloseCurrentPopup();
 				}
 			}
@@ -3608,19 +3750,33 @@ namespace won::editor
 				{
 					open_new_scene = true;
 				}
+				else if (save_current_then_load_project)
+				{
+					open_load_project = true;
+				}
+				else if (save_current_then_new_project)
+				{
+					open_new_project = true;
+				}
 				else
 				{
 					open_load_scene = true;
 				}
 				save_current_then_new_scene = false;
+				save_current_then_load_project = false;
+				save_current_then_new_project = false;
 				ImGui::CloseCurrentPopup();
 			}
 			ImGui::SameLine();
 			if (ImGui::Button(editor_text::cancel))
 			{
 				save_current_then_new_scene = false;
+				save_current_then_load_project = false;
+				save_current_then_new_project = false;
 				save_as_then_load = false;
 				save_as_then_new_scene = false;
+				save_as_then_load_project = false;
+				save_as_then_new_project = false;
 				ImGui::CloseCurrentPopup();
 			}
 			ImGui::EndPopup();
@@ -3650,9 +3806,19 @@ namespace won::editor
 				{
 					open_new_scene = true;
 				}
+				if (save_as_then_load_project)
+				{
+					open_load_project = true;
+				}
+				if (save_as_then_new_project)
+				{
+					open_new_project = true;
+				}
 			}
 			save_as_then_load = false;
 			save_as_then_new_scene = false;
+			save_as_then_load_project = false;
+			save_as_then_new_project = false;
 		}
 
 		if (open_new_scene)
@@ -3686,6 +3852,47 @@ namespace won::editor
 			if (io::OpenFileDialog(path, desc))
 			{
 				LoadScene(path);
+			}
+		}
+
+		if (open_new_project)
+		{
+			open_new_project = false;
+
+			io::FileDialogDesc desc = {};
+			desc.owner_window = window ? window->GetNativeHandle() : nullptr;
+			desc.title = editor_text::new_project;
+			const String projects_directory = io::NormalizePath(String(PROJECTS_ROOT_DIR));
+			desc.initial_directory = !loaded_project_settings.project_root.empty() ? loaded_project_settings.project_root : io::IsDirectory(projects_directory) ? projects_directory : io::GetExecutableDirectory();
+			desc.default_file_name = String("NewProject.") + project::project_file_extension;
+			desc.default_extension = project::project_file_extension;
+			desc.filter_name = editor_text::won_project_file;
+			desc.filter_pattern = String("*.") + project::project_file_extension;
+
+			String path;
+			if (io::SaveFileDialog(path, desc))
+			{
+				NewProject(path);
+			}
+		}
+
+		if (open_load_project)
+		{
+			open_load_project = false;
+
+			io::FileDialogDesc desc = {};
+			desc.owner_window = window ? window->GetNativeHandle() : nullptr;
+			desc.title = editor_text::load_project;
+			const String projects_directory = io::NormalizePath(String(PROJECTS_ROOT_DIR));
+			desc.initial_directory = !loaded_project_settings.project_root.empty() ? loaded_project_settings.project_root : io::IsDirectory(projects_directory) ? projects_directory : io::GetExecutableDirectory();
+			desc.default_extension = project::project_file_extension;
+			desc.filter_name = editor_text::won_project_file;
+			desc.filter_pattern = String("*.") + project::project_file_extension;
+
+			String path;
+			if (io::OpenFileDialog(path, desc))
+			{
+				LoadProject(path);
 			}
 		}
 
@@ -3730,6 +3937,33 @@ namespace won::editor
 							project_settings.vsync_enabled = vsync_enabled;
 							swapchain->SetVSync(vsync_enabled);
 						}
+					}
+				}
+
+				if (ImGui::Button(editor_text::reset_editor_camera))
+				{
+					if (editor_viewport.view && editor_viewport.view->scene && editor_viewport.view->camera_entity != ecs::INVALID_ENTITY)
+					{
+						if (auto transform = editor_viewport.view->scene->GetComponent<ecs::TransformComponent>(editor_viewport.view->camera_entity))
+						{
+							transform->position = { 0.0f, 0.0f, 0.0f };
+							transform->rotation = { 0.0f, 0.0f, 0.0f, 1.0f };
+							transform->SetDirty();
+						}
+						if (auto camera = editor_viewport.view->scene->GetComponent<ecs::CameraComponent>(editor_viewport.view->camera_entity))
+						{
+							float viewport_width = static_cast<float>(editor_viewport.view->viewport.width);
+							float viewport_height = static_cast<float>(editor_viewport.view->viewport.height);
+							if (viewport_height <= 0.0f)
+							{
+								viewport_height = 1.0f;
+							}
+							camera->SetAspectRatio(viewport_width / viewport_height);
+							camera->SetNearFar(0.1f, 1000.0f);
+							camera->SetFOV_Y(math::PI / 3.0f);
+							camera->SetOrtho(false);
+						}
+						editor_viewport.camera_controller = {};
 					}
 				}
 
@@ -3806,6 +4040,8 @@ namespace won::editor
 		ImGui::End();
 		ImGui::PopStyleVar();
 		ImGui::PopStyleColor();
+
+		DrawProjectSettingsWindow(&show_project_settings_window);
 
 		//ImGui::Begin("Scene Tree");
 		//ImGui::Text("...");
@@ -5824,6 +6060,318 @@ namespace won::editor
 		CreateEditorCamera();
 	}
 
+	bool EditorApplication::NewProject(const String& path)
+	{
+		if (path.empty())
+		{
+			return false;
+		}
+
+		String settings_path = io::NormalizePath(path);
+		if (io::GetExtension(settings_path) != project::project_file_extension)
+		{
+			settings_path = io::ReplaceExtension(settings_path, project::project_file_extension);
+		}
+
+		String project_root = io::NormalizePath(io::GetDirectoryFromPath(settings_path));
+		if (project_root.empty() || !io::CreateDirectories(project_root))
+		{
+			backlog::Post(editor_text::create_project_failed + project_root, backlog::LogLevel::Warning);
+			return false;
+		}
+
+		project::ProjectSettings new_project_settings = {};
+		new_project_settings.settings_path = settings_path;
+		new_project_settings.project_root = project_root;
+		new_project_settings.project_name = io::ReplaceExtension(io::GetFilename(settings_path), "");
+		if (new_project_settings.project_name.empty())
+		{
+			new_project_settings.project_name = "NewProject";
+		}
+		new_project_settings.content_root = "Contents";
+		new_project_settings.startup_scene = String(scene_directory_name) + "/" + default_scene_file_name + "." + resource::scene_file_extension;
+		new_project_settings.window_title = new_project_settings.project_name;
+		new_project_settings.splash_title = new_project_settings.project_name;
+
+		const String new_content_root = project::GetContentRoot(new_project_settings);
+		if (!io::CreateDirectories(new_content_root) ||
+			!io::CreateDirectories(io::CombinePath(new_content_root, scene_directory_name)) ||
+			!io::CreateDirectories(io::CombinePath(new_content_root, "Images")))
+		{
+			backlog::Post(editor_text::create_project_failed + new_content_root, backlog::LogLevel::Warning);
+			return false;
+		}
+
+		if (!project::SaveSettings(settings_path, new_project_settings))
+		{
+			backlog::Post(editor_text::create_project_failed + settings_path, backlog::LogLevel::Warning);
+			return false;
+		}
+
+		if (!LoadProject(settings_path))
+		{
+			return false;
+		}
+
+		const String startup_scene_path = project::ResolveProjectContentPath(contents_root_dir, loaded_project_settings.startup_scene);
+		if (!SaveScene(startup_scene_path))
+		{
+			return false;
+		}
+		SaveProject();
+		backlog::Post(editor_text::project_created + settings_path);
+		return true;
+	}
+
+	bool EditorApplication::LoadProject(const String& path)
+	{
+		if (path.empty())
+		{
+			return false;
+		}
+
+		project::ProjectSettings project_settings_to_load = {};
+		const String settings_path = io::NormalizePath(path);
+		if (!io::IsFile(settings_path) || !project::LoadSettings(settings_path, project_settings_to_load))
+		{
+			backlog::Post(editor_text::load_project_failed + settings_path, backlog::LogLevel::Warning);
+			return false;
+		}
+
+		for (const std::shared_ptr<EditorAssetImporter::ImportTask>& task : asset_importer.tasks)
+		{
+			if (!task)
+			{
+				continue;
+			}
+
+			jobsystem::Wait(task->context);
+			ReleaseAssetImportResult(task->result_handle.exchange(0));
+		}
+		asset_importer.tasks.clear();
+		for (const std::shared_ptr<EditorAssetImporter::TextureLoadTask>& task : asset_importer.texture_tasks)
+		{
+			if (!task)
+			{
+				continue;
+			}
+
+			jobsystem::Wait(task->context);
+		}
+		asset_importer.texture_tasks.clear();
+		asset_importer = {};
+
+		WaitIdle();
+		loaded_project_settings = project_settings_to_load;
+		contents_root_dir = project::GetContentRoot(loaded_project_settings);
+		contents_root_dir = io::NormalizePath(contents_root_dir);
+		if (!contents_root_dir.empty() && contents_root_dir.back() != '/')
+		{
+			contents_root_dir += "/";
+		}
+
+		ecs::SceneDesc scene_desc = {};
+		scene_desc.script_runtime = script_runtime.get();
+		loaded_scene = ecs::Scene(scene_desc);
+		if (editor_viewport.view)
+		{
+			editor_viewport.view->scene = &loaded_scene;
+			editor_viewport.view->camera_entity = ecs::INVALID_ENTITY;
+		}
+		current_scene_path.clear();
+		editor_viewport.picked_entity = ecs::INVALID_ENTITY;
+		editor_viewport.debug_primitive_entity = ecs::INVALID_ENTITY;
+		editor_viewport.debug_primitive_mesh.reset();
+		editor_viewport.deferred_res_removals.clear();
+		editor_viewport.camera_controller = {};
+		plugins.clear();
+		LoadPlugins();
+
+		bool startup_scene_loaded = false;
+		String startup_scene_path = loaded_project_settings.startup_scene;
+		if (!startup_scene_path.empty())
+		{
+			startup_scene_path = project::ResolveProjectContentPath(contents_root_dir, startup_scene_path);
+			if (io::IsFile(startup_scene_path))
+			{
+				LoadScene(startup_scene_path);
+				startup_scene_loaded = true;
+			}
+		}
+		if (!startup_scene_loaded)
+		{
+			CreateStartupScene();
+		}
+
+		content_browser.current_folder = project::content_virtual_root;
+		content_browser.search[0] = '\0';
+		content_browser.initialized = false;
+		contents_watcher = io::CreateDirectoryWatcher(contents_root_dir, true);
+		contents_watcher_poll_timer = 0.0f;
+		RebuildContentBrowser();
+		UpdateEntityList();
+		backlog::Post(editor_text::project_loaded + settings_path);
+		return true;
+	}
+
+	bool EditorApplication::SaveProject()
+	{
+		if (loaded_project_settings.settings_path.empty())
+		{
+			backlog::Post(editor_text::save_project_failed + String(editor_text::package_project_missing_settings), backlog::LogLevel::Warning);
+			return false;
+		}
+
+		const String settings_directory = io::GetDirectoryFromPath(loaded_project_settings.settings_path);
+		if (!settings_directory.empty() && !io::CreateDirectories(settings_directory))
+		{
+			backlog::Post(editor_text::save_project_failed + settings_directory, backlog::LogLevel::Warning);
+			return false;
+		}
+
+		if (!project::SaveSettings(loaded_project_settings.settings_path, loaded_project_settings))
+		{
+			backlog::Post(editor_text::save_project_failed + loaded_project_settings.settings_path, backlog::LogLevel::Warning);
+			return false;
+		}
+
+		String saved_content_root = project::GetContentRoot(loaded_project_settings);
+		saved_content_root = io::NormalizePath(saved_content_root);
+		if (!saved_content_root.empty() && saved_content_root.back() != '/')
+		{
+			saved_content_root += "/";
+		}
+		if (saved_content_root != contents_root_dir)
+		{
+			contents_root_dir = saved_content_root;
+			io::CreateDirectories(contents_root_dir);
+			content_browser.current_folder = project::content_virtual_root;
+			content_browser.initialized = false;
+			contents_watcher = io::CreateDirectoryWatcher(contents_root_dir, true);
+			contents_watcher_poll_timer = 0.0f;
+			RebuildContentBrowser();
+		}
+
+		backlog::Post(editor_text::project_saved + loaded_project_settings.settings_path);
+		return true;
+	}
+
+	void EditorApplication::DrawProjectSettingsWindow(bool* open)
+	{
+		if (!open || !*open)
+		{
+			return;
+		}
+
+		ImGui::SetNextWindowSize(ImVec2(520.0f, 560.0f), ImGuiCond_FirstUseEver);
+		if (ImGui::Begin(editor_text::project_settings, open))
+		{
+			auto draw_label = [](const char* label)
+			{
+				ImGui::TableNextRow();
+				ImGui::TableSetColumnIndex(0);
+				ImGui::TextUnformatted(label);
+				ImGui::TableSetColumnIndex(1);
+				ImGui::SetNextItemWidth(-1.0f);
+			};
+
+			auto draw_string_field = [](const char* label, String& value)
+			{
+				char buffer[1024] = {};
+				strncpy_s(buffer, value.c_str(), sizeof(buffer) - 1);
+				String id = "##";
+				id += label;
+				if (ImGui::InputText(id.c_str(), buffer, sizeof(buffer)))
+				{
+					value = buffer;
+				}
+			};
+
+			if (ImGui::BeginTable("ProjectSettingsTable", 2, ImGuiTableFlags_SizingStretchProp))
+			{
+				ImGui::TableSetupColumn("Label", ImGuiTableColumnFlags_WidthFixed, 140.0f);
+				ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
+
+				draw_label("Project Name");
+				draw_string_field("Project Name", loaded_project_settings.project_name);
+				draw_label("Content Root");
+				draw_string_field("Content Root", loaded_project_settings.content_root);
+				draw_label("Startup Scene");
+				draw_string_field("Startup Scene", loaded_project_settings.startup_scene);
+				draw_label("Window Title");
+				draw_string_field("Window Title", loaded_project_settings.window_title);
+				draw_label("Window Width");
+				ImGui::InputInt("##Window Width", &loaded_project_settings.window_width);
+				loaded_project_settings.window_width = (std::max)(1, loaded_project_settings.window_width);
+				draw_label("Window Height");
+				ImGui::InputInt("##Window Height", &loaded_project_settings.window_height);
+				loaded_project_settings.window_height = (std::max)(1, loaded_project_settings.window_height);
+				draw_label("Fullscreen");
+				ImGui::Checkbox("##Fullscreen", &loaded_project_settings.window_fullscreen);
+				draw_label("Resizable");
+				ImGui::Checkbox("##Resizable", &loaded_project_settings.window_resizable);
+				draw_label("Use Title Bar");
+				ImGui::Checkbox("##Use Title Bar", &loaded_project_settings.window_use_title_bar);
+				draw_label("Window Visible");
+				ImGui::Checkbox("##Window Visible", &loaded_project_settings.window_visible);
+				draw_label("VSync");
+				ImGui::Checkbox("##VSync", &loaded_project_settings.vsync_enabled);
+
+				const char* backend_items[] = { "DirectX12", "Vulkan", "Metal" };
+				int backend_index = 0;
+				if (loaded_project_settings.backend_type == rendering::RHIBackend::Vulkan)
+				{
+					backend_index = 1;
+				}
+				else if (loaded_project_settings.backend_type == rendering::RHIBackend::Metal)
+				{
+					backend_index = 2;
+				}
+				draw_label("Backend");
+				if (ImGui::Combo("##Backend", &backend_index, backend_items, IM_ARRAYSIZE(backend_items)))
+				{
+					loaded_project_settings.backend_type = backend_index == 1 ? rendering::RHIBackend::Vulkan : backend_index == 2 ? rendering::RHIBackend::Metal : rendering::RHIBackend::DirectX12;
+				}
+
+				ImGui::EndTable();
+			}
+
+			ImGui::Separator();
+			if (ImGui::BeginTable("SplashSettingsTable", 2, ImGuiTableFlags_SizingStretchProp))
+			{
+				ImGui::TableSetupColumn("Label", ImGuiTableColumnFlags_WidthFixed, 140.0f);
+				ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
+
+				draw_label("Splash Enabled");
+				ImGui::Checkbox("##Splash Enabled", &loaded_project_settings.splash_enabled);
+				draw_label("Splash Title");
+				draw_string_field("Splash Title", loaded_project_settings.splash_title);
+				draw_label("Splash Status");
+				draw_string_field("Splash Status", loaded_project_settings.splash_status);
+				draw_label("Splash Image");
+				draw_string_field("Splash Image", loaded_project_settings.splash_image);
+
+				ImGui::EndTable();
+			}
+
+			ImGui::Separator();
+			const bool can_save_project = !loaded_project_settings.settings_path.empty();
+			if (!can_save_project)
+			{
+				ImGui::BeginDisabled();
+			}
+			if (ImGui::Button(editor_text::save_project))
+			{
+				SaveProject();
+			}
+			if (!can_save_project)
+			{
+				ImGui::EndDisabled();
+			}
+		}
+		ImGui::End();
+	}
+
 	bool EditorApplication::SaveScene(const String& path)
 	{
 		if (path.empty() || !editor_viewport.view || !editor_viewport.view->scene)
@@ -6055,7 +6603,14 @@ namespace won::editor
 
 		sorted_entities.clear();
 		sorted_entities.reserve(entities.size());
-		sorted_entities.insert(sorted_entities.end(), entities.begin(), entities.end());
+		for (ecs::Entity entity : entities)
+		{
+			if (entity == editor_viewport.view->camera_entity || entity == editor_viewport.debug_primitive_entity)
+			{
+				continue;
+			}
+			sorted_entities.push_back(entity);
+		}
 
 		std::sort(sorted_entities.begin(), sorted_entities.end());
 	}

@@ -28,7 +28,7 @@ namespace won
         window_desc.fullscreen = project_settings.window_fullscreen;
         window_desc.resizable = project_settings.window_resizable;
         window_desc.use_title_bar = project_settings.window_use_title_bar;
-        window_desc.visible = project_settings.window_visible;
+        window_desc.visible = project_settings.window_visible && !desc.defer_window_show;
         window = platform::CreateNativeWindow(window_desc);
         if (!window)
         {
@@ -71,6 +71,14 @@ namespace won
     bool Application::IsRunning() const
     {
         return is_running;
+    }
+
+    void Application::ShowMainWindow()
+    {
+        if (window)
+        {
+            window->Show();
+        }
     }
 
     void Application::Run()

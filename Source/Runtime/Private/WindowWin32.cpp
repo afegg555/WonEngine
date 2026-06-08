@@ -341,21 +341,14 @@ namespace won::platform
                 const int window_width = window_rect.right - window_rect.left;
                 const int window_height = window_rect.bottom - window_rect.top;
 
-                if (window->is_resizable && !window->IsMaximized())
-                {
-                    const bool left = x < border_size;
-                    const bool right = x >= window_width - border_size;
-                    const bool top = y < border_size;
-                    const bool bottom = y >= window_height - border_size;
-                    if (left && top) return HTTOPLEFT;
-                    if (right && top) return HTTOPRIGHT;
-                    if (left && bottom) return HTBOTTOMLEFT;
-                    if (right && bottom) return HTBOTTOMRIGHT;
-                    if (left) return HTLEFT;
-                    if (right) return HTRIGHT;
-                    if (top) return HTTOP;
-                    if (bottom) return HTBOTTOM;
-                }
+				if (window->is_resizable && !window->IsMaximized())
+				{
+					const bool right = x >= window_width - border_size;
+					const bool bottom = y >= window_height - border_size;
+					if (right && bottom) return HTBOTTOMRIGHT;
+					if (right) return HTRIGHT;
+					if (bottom) return HTBOTTOM;
+				}
                 return HTCLIENT;
             }
             break;

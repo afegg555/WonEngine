@@ -142,8 +142,12 @@ namespace won::editor
 		void DrawEditorGrid();
 		void CreateEditorCamera();
 		void CreateStartupScene();
+		bool NewProject(const String& path);
+		bool LoadProject(const String& path);
+		bool SaveProject();
 		bool SaveScene(const String& path);
 		void LoadScene(const String& path);
+		void DrawProjectSettingsWindow(bool* open);
 		void RebindSceneResources();
 		void UpdateEntityList();
 		void UpdateDebugPrimitiveMesh();
@@ -277,6 +281,7 @@ namespace won::editor
 		project::ProjectSettings loaded_project_settings;
 		ecs::Scene loaded_scene;
 		String current_scene_path;
+		bool show_project_settings_window = false;
 		EditorViewport editor_viewport;
 		EditorAssetImporter asset_importer;
 		ContentBrowserState content_browser = {};

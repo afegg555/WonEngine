@@ -29,6 +29,10 @@ namespace won::project
         bool window_use_title_bar = true;
         bool window_visible = true;
         bool vsync_enabled = true;
+        bool splash_enabled = true;
+        String splash_title = "Won Engine";
+        String splash_status = "Starting...";
+        String splash_image;
         rendering::RHIBackend backend_type = rendering::RHIBackend::DirectX12;
         Vector<String> enabled_plugins;
     };
@@ -137,6 +141,22 @@ namespace won::project
         {
             settings.vsync_enabled = bool_value;
         }
+        if (configuration.GetBool("splash_enabled", bool_value))
+        {
+            settings.splash_enabled = bool_value;
+        }
+        if (const char* string_value = configuration.GetString("splash_title"))
+        {
+            settings.splash_title = string_value;
+        }
+        if (const char* string_value = configuration.GetString("splash_status"))
+        {
+            settings.splash_status = string_value;
+        }
+        if (const char* string_value = configuration.GetString("splash_image"))
+        {
+            settings.splash_image = string_value;
+        }
         if (const char* string_value = configuration.GetString("backend_type"))
         {
             String backend_type = string_value;
@@ -193,6 +213,10 @@ namespace won::project
         configuration.SetBool("window_use_title_bar", settings.window_use_title_bar);
         configuration.SetBool("window_visible", settings.window_visible);
         configuration.SetBool("vsync_enabled", settings.vsync_enabled);
+        configuration.SetBool("splash_enabled", settings.splash_enabled);
+        configuration.SetString("splash_title", settings.splash_title.c_str());
+        configuration.SetString("splash_status", settings.splash_status.c_str());
+        configuration.SetString("splash_image", settings.splash_image.c_str());
 
         String backend_type = "DirectX12";
         if (settings.backend_type == rendering::RHIBackend::Vulkan)
