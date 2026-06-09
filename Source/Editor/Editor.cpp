@@ -172,6 +172,7 @@ namespace won::editor
 			constexpr const char* vsync = "VSync";
 			constexpr const char* reset_editor_camera = "Reset Editor Camera";
 			constexpr const char* editor_grid = "Editor Grid";
+			constexpr const char* collider_3d = "Collider3D";
 			constexpr const char* bvh_debug = "BVH Debug";
 			constexpr const char* cpu_bvh_nodes = "CPU BVH Nodes";
 			constexpr const char* gpu_bvh_nodes = "GPU BVH Nodes";
@@ -263,6 +264,7 @@ namespace won::editor
 			constexpr const char* environment_lighting_component = "EnvironmentLightingComponent";
 			constexpr const char* ddgi_volume_component = "DDGIVolumeComponent";
 			constexpr const char* geometry_component = "GeometryComponent";
+			constexpr const char* collider_3d_component = "Collider3DComponent";
 			constexpr const char* sprite_2d_component = "Sprite2DComponent";
 			constexpr const char* text_2d_component = "Text2DComponent";
 			constexpr const char* sprite_3d_component = "Sprite3DComponent";
@@ -330,6 +332,12 @@ namespace won::editor
 			constexpr const char* view_bias = "View Bias";
 			constexpr const char* max_distance = "Max Distance";
 			constexpr const char* mesh_format = "Mesh: %s";
+			constexpr const char* trigger = "Trigger";
+			constexpr const char* box = "Box";
+			constexpr const char* sphere = "Sphere";
+			constexpr const char* offset = "Offset";
+			constexpr const char* half_extent = "Half Extent";
+			constexpr const char* radius = "Radius";
 			constexpr const char* anchor = "Anchor";
 			constexpr const char* size = "Size";
 			constexpr const char* pivot = "Pivot";
@@ -460,6 +468,7 @@ namespace won::editor
 			case reflection::TypeMeta<EnvironmentLightingComponent>::type_id:
 			case reflection::TypeMeta<DDGIVolumeComponent>::type_id:
 			case reflection::TypeMeta<GeometryComponent>::type_id:
+			case reflection::TypeMeta<Collider3DComponent>::type_id:
 			case reflection::TypeMeta<Sprite2DComponent>::type_id:
 			case reflection::TypeMeta<Sprite3DComponent>::type_id:
 			case reflection::TypeMeta<Text2DComponent>::type_id:
@@ -2565,6 +2574,8 @@ namespace won::editor
 			EditorPrimitiveCPUBVHLeaf,
 			EditorPrimitiveGPUBVHInternal,
 			EditorPrimitiveGPUBVHLeaf,
+			EditorPrimitiveCollider3D,
+			EditorPrimitiveCollider3DTrigger,
 			EditorPrimitiveMaterialCount
 		};
 
@@ -2576,7 +2587,9 @@ namespace won::editor
 			theme::cpu_bvh_internal_color,
 			theme::cpu_bvh_leaf_color,
 			theme::gpu_bvh_internal_color,
-			theme::gpu_bvh_leaf_color
+			theme::gpu_bvh_leaf_color,
+			theme::collider_3d_color,
+			theme::collider_3d_trigger_color
 		};
 
 		if (auto material = editor_viewport.view->scene->GetComponent<ecs::MaterialComponent>(editor_viewport.debug_primitive_entity))
@@ -2651,6 +2664,87 @@ namespace won::editor
 			add_line({ position.x, position.y - size, position.z }, { position.x, position.y + size, position.z }, material_slot);
 			add_line({ position.x, position.y, position.z - size }, { position.x, position.y, position.z + size }, material_slot);
 		};
+
+		auto add_sphere = [&](const float3& center, float radius, uint32 material_slot)
+		{
+			if (radius <= 0.0f)
+			{
+				return;
+			}
+
+			constexpr uint32 segment_count = 32;
+			float3 previous_xy = { center.x + radius, center.y, center.z };
+			float3 previous_xz = { center.x + radius, center.y, center.z };
+			float3 previous_yz = { center.x, center.y + radius, center.z };
+			for (uint32 segment_index = 1; segment_index <= segment_count; ++segment_index)
+			{
+				const float angle = math::PI * 2.0f * static_cast<float>(segment_index) / static_cast<float>(segment_count);
+				const float cos_angle = std::cos(angle);
+				const float sin_angle = std::sin(angle);
+				const float3 current_xy = { center.x + cos_angle * radius, center.y + sin_angle * radius, center.z };
+				const float3 current_xz = { center.x + cos_angle * radius, center.y, center.z + sin_angle * radius };
+				const float3 current_yz = { center.x, center.y + cos_angle * radius, center.z + sin_angle * radius };
+				add_line(previous_xy, current_xy, material_slot);
+				add_line(previous_xz, current_xz, material_slot);
+				add_line(previous_yz, current_yz, material_slot);
+				previous_xy = current_xy;
+				previous_xz = current_xz;
+				previous_yz = current_yz;
+			}
+		};
+
+		if (editor_viewport.debug_settings.show_colliders)
+		{
+			auto collider_3d_array = editor_viewport.view->scene->GetComponentArray<ecs::Collider3DComponent>().get();
+			auto transform_array = editor_viewport.view->scene->GetComponentArray<ecs::TransformComponent>().get();
+			if (collider_3d_array && transform_array)
+			{
+				for (Size collider_index = 0; collider_index < collider_3d_array->GetSize(); ++collider_index)
+				{
+					const ecs::Entity entity = collider_3d_array->index_to_entity[collider_index];
+					if (!transform_array->HasData(entity))
+					{
+						continue;
+					}
+
+					const ecs::Collider3DComponent& collider = collider_3d_array->data[collider_index];
+					if (!collider.IsEnabled())
+					{
+						continue;
+					}
+
+					const ecs::TransformComponent& transform = transform_array->GetData(entity);
+					const XMMATRIX world = transform.GetWorldTransform();
+					const uint32 material_slot = collider.IsTrigger() ? EditorPrimitiveCollider3DTrigger : EditorPrimitiveCollider3D;
+					if (collider.shape_type == ecs::Collider3DComponent::Sphere)
+					{
+						const XMVECTOR center = XMVector3TransformCoord(XMLoadFloat3(&collider.offset), world);
+						const float scale_x = XMVectorGetX(XMVector3Length(world.r[0]));
+						const float scale_y = XMVectorGetX(XMVector3Length(world.r[1]));
+						const float scale_z = XMVectorGetX(XMVector3Length(world.r[2]));
+						const float max_scale = (std::max)((std::max)(scale_x, scale_y), scale_z);
+						float3 world_center = {};
+						XMStoreFloat3(&world_center, center);
+						add_sphere(world_center, (std::max)(0.0f, collider.radius) * max_scale, material_slot);
+					}
+					else
+					{
+						math::AABB local_bounds = {};
+						const float3 half_extent = {
+							(std::max)(0.0f, collider.half_extent.x),
+							(std::max)(0.0f, collider.half_extent.y),
+							(std::max)(0.0f, collider.half_extent.z)
+						};
+						local_bounds.CreateFromHalfWidth(collider.offset, half_extent);
+						const math::AABB world_bounds = local_bounds.TransformAABB(world);
+						if (world_bounds.IsValid())
+						{
+							add_box(world_bounds.min, world_bounds.max, material_slot);
+						}
+					}
+				}
+			}
+		}
 
 		if (editor_viewport.debug_settings.show_ddgi_overlay && renderer)
 		{
@@ -2796,6 +2890,7 @@ namespace won::editor
 		content_browser.type_filter = static_cast<ContentAssetType>(editor_settings.content_type_filter);
 		content_browser.tile_size = (std::max)(48.0f, (std::min)(128.0f, editor_settings.content_tile_size));
 		editor_viewport.debug_settings.show_grid = editor_settings.viewport_show_grid;
+		editor_viewport.debug_settings.show_colliders = editor_settings.viewport_show_colliders;
 		editor_viewport.debug_settings.use_wireframe = editor_settings.viewport_use_wireframe;
 		editor_viewport.debug_settings.show_bvh_debug = editor_settings.viewport_show_bvh_debug;
 		editor_viewport.debug_settings.show_cpu_bvh_nodes = editor_settings.viewport_show_cpu_bvh_nodes;
@@ -2814,6 +2909,7 @@ namespace won::editor
 		editor_settings.content_type_filter = static_cast<int>(content_browser.type_filter);
 		editor_settings.content_tile_size = content_browser.tile_size;
 		editor_settings.viewport_show_grid = editor_viewport.debug_settings.show_grid;
+		editor_settings.viewport_show_colliders = editor_viewport.debug_settings.show_colliders;
 		editor_settings.viewport_use_wireframe = editor_viewport.debug_settings.use_wireframe;
 		editor_settings.viewport_show_bvh_debug = editor_viewport.debug_settings.show_bvh_debug;
 		editor_settings.viewport_show_cpu_bvh_nodes = editor_viewport.debug_settings.show_cpu_bvh_nodes;
@@ -3976,6 +4072,7 @@ namespace won::editor
 
 				ImGui::Separator();
 				ImGui::Checkbox(editor_text::editor_grid, &editor_viewport.debug_settings.show_grid);
+				ImGui::Checkbox(editor_text::collider_3d, &editor_viewport.debug_settings.show_colliders);
 				ImGui::Separator();
 				ImGui::Checkbox(editor_text::bvh_debug, &editor_viewport.debug_settings.show_bvh_debug);
 				if (editor_viewport.debug_settings.show_bvh_debug)
@@ -4812,6 +4909,71 @@ namespace won::editor
 
 							editor_viewport.view->scene->RemoveComponent<GeometryComponent>(entity);
 							editor_viewport.view->scene->SetBVHDirty();
+						});
+					}
+
+					ImGui::PopID();
+					ImGui::Separator();
+				}
+
+				Collider3DComponent* collider_3d_comp = editor_viewport.view->scene->GetComponent<Collider3DComponent>(editor_viewport.picked_entity);
+				if (collider_3d_comp)
+				{
+					ImGui::PushID("Collider3DComponent");
+					ImGui::Text(editor_text::collider_3d_component);
+					bool remove_component = DrawComponentRemoveButton(editor_text::collider_3d_component);
+
+					if (!remove_component)
+					{
+						int shape_type = static_cast<int>(collider_3d_comp->shape_type);
+						const char* shape_type_items[] = { editor_text::box, editor_text::sphere };
+						if (ImGui::Combo(editor_text::type, &shape_type, shape_type_items, arraysize(shape_type_items)))
+						{
+							collider_3d_comp->shape_type = static_cast<Collider3DComponent::ShapeType>(shape_type);
+							collider_3d_comp->SetDirty();
+						}
+
+						bool enabled = collider_3d_comp->IsEnabled();
+						if (ImGui::Checkbox(editor_text::enabled, &enabled))
+						{
+							collider_3d_comp->SetEnabled(enabled);
+						}
+
+						bool trigger = collider_3d_comp->IsTrigger();
+						if (ImGui::Checkbox(editor_text::trigger, &trigger))
+						{
+							collider_3d_comp->SetTrigger(trigger);
+						}
+
+						float offset[3] = { collider_3d_comp->offset.x, collider_3d_comp->offset.y, collider_3d_comp->offset.z };
+						if (ImGui::InputFloat3(editor_text::offset, offset))
+						{
+							collider_3d_comp->offset = { offset[0], offset[1], offset[2] };
+							collider_3d_comp->SetDirty();
+						}
+
+						float half_extent[3] = { collider_3d_comp->half_extent.x, collider_3d_comp->half_extent.y, collider_3d_comp->half_extent.z };
+						if (ImGui::InputFloat3(editor_text::half_extent, half_extent))
+						{
+							collider_3d_comp->half_extent = {
+								(std::max)(0.0f, half_extent[0]),
+								(std::max)(0.0f, half_extent[1]),
+								(std::max)(0.0f, half_extent[2])
+							};
+							collider_3d_comp->SetDirty();
+						}
+
+						if (ImGui::InputFloat(editor_text::radius, &collider_3d_comp->radius))
+						{
+							collider_3d_comp->radius = (std::max)(0.0f, collider_3d_comp->radius);
+							collider_3d_comp->SetDirty();
+						}
+					}
+					else
+					{
+						const ecs::Entity entity = editor_viewport.picked_entity;
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+							editor_viewport.view->scene->RemoveComponent<Collider3DComponent>(entity);
 						});
 					}
 

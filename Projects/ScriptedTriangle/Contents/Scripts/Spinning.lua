@@ -12,4 +12,8 @@ function script.OnUpdate(self, dt)
     won.transform.rotate_euler(0.0, dt * 1.25, 0.0)
 end
 
+function script.OnTriggerEnter3D(self)
+    won.log.info("On Trigger Enter")
+end
+
 return script

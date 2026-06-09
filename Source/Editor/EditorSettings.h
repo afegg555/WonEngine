@@ -14,6 +14,7 @@ namespace won::editor
         int content_type_filter = 0;
         float content_tile_size = 72.0f;
         bool viewport_show_grid = false;
+        bool viewport_show_colliders = true;
         bool viewport_use_wireframe = false;
         bool viewport_show_bvh_debug = false;
         bool viewport_show_cpu_bvh_nodes = true;
@@ -58,6 +59,10 @@ namespace won::editor
         if (configuration.GetBool("editor.viewport.show_grid", bool_value))
         {
             settings.viewport_show_grid = bool_value;
+        }
+        if (configuration.GetBool("editor.viewport.show_colliders", bool_value))
+        {
+            settings.viewport_show_colliders = bool_value;
         }
         if (configuration.GetBool("editor.viewport.use_wireframe", bool_value))
         {
@@ -115,6 +120,7 @@ namespace won::editor
         configuration.SetInt("editor.content.type_filter", settings.content_type_filter);
         configuration.SetFloat("editor.content.tile_size", settings.content_tile_size);
         configuration.SetBool("editor.viewport.show_grid", settings.viewport_show_grid);
+        configuration.SetBool("editor.viewport.show_colliders", settings.viewport_show_colliders);
         configuration.SetBool("editor.viewport.use_wireframe", settings.viewport_use_wireframe);
         configuration.SetBool("editor.viewport.show_bvh_debug", settings.viewport_show_bvh_debug);
         configuration.SetBool("editor.viewport.show_cpu_bvh_nodes", settings.viewport_show_cpu_bvh_nodes);

@@ -85,6 +85,11 @@ namespace won::reflection
         WON_REFLECT_ENUM_VALUE("DDGI", won::ecs::EnvironmentLightingComponent::DDGI)
     WON_REFLECT_ENUM_END()
 
+    WON_REFLECT_ENUM(won::ecs::Collider3DComponent::ShapeType, "Collider3DShapeType")
+        WON_REFLECT_ENUM_VALUE("Box", won::ecs::Collider3DComponent::Box)
+        WON_REFLECT_ENUM_VALUE("Sphere", won::ecs::Collider3DComponent::Sphere)
+    WON_REFLECT_ENUM_END()
+
     WON_REFLECT_STRUCT(won::ecs::NameComponent, "NameComponent")
         WON_REFLECT_FIELD(value, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
@@ -206,6 +211,14 @@ namespace won::reflection
         WON_REFLECT_FIELD(speed, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(loop, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(playing, won::FieldFlagEditable | won::FieldFlagSerializable)
+    WON_REFLECT_STRUCT_END()
+
+    WON_REFLECT_STRUCT(won::ecs::Collider3DComponent, "Collider3DComponent")
+        WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(shape_type, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(offset, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(half_extent, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(radius, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::MaterialSlot::TextureMap, "TextureMap")

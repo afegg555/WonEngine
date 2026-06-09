@@ -10,21 +10,6 @@ namespace won::ecs
     {
     }
 
-    ComponentMask ScriptUpdateSystem::GetReadMask() const
-    {
-        return script_component_mask;
-    }
-
-    ComponentMask ScriptUpdateSystem::GetWriteMask() const
-    {
-        return script_component_mask | transform_component_mask | name_component_mask;
-    }
-
-    SystemExecutionPolicy ScriptUpdateSystem::GetExecutionPolicy() const
-    {
-        return SystemExecutionPolicy::Synchronous;
-    }
-
     void ScriptUpdateSystem::Update(Scene& scene, float delta_time)
     {
         if (!script_runtime)

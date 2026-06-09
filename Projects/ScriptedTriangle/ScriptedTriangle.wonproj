@@ -2,6 +2,7 @@
     "backend_type": "DirectX12",
     "content_root": "Contents",
     "enabled_plugins": "",
+    "input_action_map": "Config/Input.woninput",
     "project_name": "ScriptedTriangle",
     "splash_enabled": "true",
     "splash_image": "",

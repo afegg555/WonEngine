@@ -5,6 +5,7 @@
 #include "SceneComponents.h"
 #include "BuiltinTypeMeta.h"
 #include "TransformUpdateSystem.h"
+#include "Collider3DUpdateSystem.h"
 #include "EnvironmentUpdateSystem.h"
 #include "CameraUpdateSystem.h"
 #include "LightUpdateSystem.h"
@@ -15,6 +16,7 @@
 #include "SpriteUpdateSystem.h"
 #include "TextUpdateSystem.h"
 #include "ScriptUpdateSystem.h"
+#include "ScriptEventDispatchSystem.h"
 #include "ShaderInterop_Renderer.h"
 #include "BVH.h"
 #include "RenderingUtils.h"
@@ -42,9 +44,51 @@ namespace won::ecs
     struct RayCastHit
     {
         Entity entity = INVALID_ENTITY;
-        uint32 triangle_index = 0;
         float distance = (std::numeric_limits<float>::max)();
+    };
+
+    struct RayCastBVHHit
+    {
+        RayCastHit hit = {};
+        uint32 triangle_index = UINT32_MAX;
         float2 barycentric = {};
+    };
+
+    struct OverlapHit
+    {
+        Entity entity = INVALID_ENTITY;
+    };
+
+    enum class Collider3DTriggerEventType
+    {
+        Enter,
+        Stay,
+        Exit,
+    };
+
+    struct Collider3DPairKey
+    {
+        Entity a = INVALID_ENTITY;
+        Entity b = INVALID_ENTITY;
+    };
+
+    struct Collider3DTriggerEvent
+    {
+        Collider3DTriggerEventType type = Collider3DTriggerEventType::Enter;
+        Entity self = INVALID_ENTITY;
+        Entity other = INVALID_ENTITY;
+    };
+
+    struct Collider3DWorld
+    {
+        Vector<Collider3DPairKey> active_trigger_pairs;
+        Vector<Collider3DTriggerEvent> trigger_events;
+
+        void Clear()
+        {
+            active_trigger_pairs.clear();
+            trigger_events.clear();
+        }
     };
 
     class Scene
@@ -69,12 +113,18 @@ namespace won::ecs
             component_manager.RegisterComponent<DDGIVolumeComponent>();
             component_manager.RegisterComponent<AnimationComponent>();
             component_manager.RegisterComponent<ScriptComponent>();
+            component_manager.RegisterComponent<Collider3DComponent>();
 
             if (desc.script_runtime)
             {
                 AddSystem(std::make_shared<ScriptUpdateSystem>(desc.script_runtime));
             }
             AddSystem(std::make_shared<TransformUpdateSystem>());
+            AddSystem(std::make_shared<Collider3DUpdateSystem>());
+            if (desc.script_runtime)
+            {
+                AddSystem(std::make_shared<ScriptEventDispatchSystem>(desc.script_runtime));
+            }
             AddSystem(std::make_shared<EnvironmentUpdateSystem>());
             AddSystem(std::make_shared<CameraUpdateSystem>());
             AddSystem(std::make_shared<LightUpdateSystem>());
@@ -149,6 +199,7 @@ namespace won::ecs
             render_data.Clear();
             scene_bvh.Clear();
             scene_bvh_entities.clear();
+            collider_3d_world.Clear();
             next_entity = INVALID_ENTITY + 1;
             SetBVHDirty();
         }
@@ -632,7 +683,7 @@ namespace won::ecs
             return !mesh_gpu_bvh_pending;
         }
 
-        bool RayCastClosest(const math::Ray& ray, RayCastHit& out_hit, bool use_local_bvh = true)
+        bool RayCastBVH(const math::Ray& ray, RayCastBVHHit& out_hit, bool use_local_bvh = true)
         {
             out_hit = {};
 
@@ -762,7 +813,7 @@ namespace won::ecs
                     }
 
                     out_distance = closest_distance;
-                    out_hit.entity = entity;
+                    out_hit.hit.entity = entity;
                     out_hit.triangle_index = closest_triangle_index;
                     out_hit.barycentric = closest_barycentric;
                     return true;
@@ -774,8 +825,163 @@ namespace won::ecs
                 return false;
             }
 
-            out_hit.distance = bvh_hit.distance;
+            out_hit.hit.distance = bvh_hit.distance;
             return true;
+        }
+
+        bool RayCastCollider3D(const math::Ray& ray, RayCastHit& out_hit, float max_distance = (std::numeric_limits<float>::max)())
+        {
+            out_hit = {};
+
+            auto collider_3d_array = GetComponentArray<Collider3DComponent>().get();
+            if (!collider_3d_array)
+            {
+                return false;
+            }
+
+            const XMVECTOR ray_direction = XMLoadFloat3(&ray.direction);
+            const float ray_direction_length_sq = XMVectorGetX(XMVector3LengthSq(ray_direction));
+            if (ray_direction_length_sq <= 0.000001f || max_distance < 0.0f)
+            {
+                return false;
+            }
+
+            math::Ray query_ray = ray;
+            XMStoreFloat3(&query_ray.direction, XMVector3Normalize(ray_direction));
+
+            bool found_hit = false;
+            float closest_distance = max_distance;
+            for (Size i = 0; i < collider_3d_array->GetSize(); ++i)
+            {
+                const Collider3DComponent& collider = collider_3d_array->data[i];
+                if (!collider.IsEnabled() || !collider.world_bounds.IsValid())
+                {
+                    continue;
+                }
+
+                float distance = 0.0f;
+                bool hit = false;
+                if (collider.shape_type == Collider3DComponent::Sphere)
+                {
+                    const XMVECTOR origin = XMLoadFloat3(&query_ray.origin);
+                    const XMVECTOR direction = XMLoadFloat3(&query_ray.direction);
+                    const XMVECTOR center = XMLoadFloat3(&collider.world_sphere.center);
+                    const XMVECTOR m = origin - center;
+                    const float b = XMVectorGetX(XMVector3Dot(m, direction));
+                    const float c = XMVectorGetX(XMVector3Dot(m, m)) - collider.world_sphere.radius * collider.world_sphere.radius;
+                    const float discriminant = b * b - c;
+                    if (!(c > 0.0f && b > 0.0f) && discriminant >= 0.0f)
+                    {
+                        distance = -b - std::sqrt(discriminant);
+                        if (distance < 0.0f)
+                        {
+                            distance = 0.0f;
+                        }
+                        hit = distance <= closest_distance;
+                    }
+                }
+                else
+                {
+                    hit = collider.world_bounds.IntersectAABB(query_ray, 0.0f, closest_distance, distance);
+                }
+
+                if (!hit)
+                {
+                    continue;
+                }
+
+                found_hit = true;
+                closest_distance = distance;
+                out_hit.entity = collider_3d_array->index_to_entity[i];
+                out_hit.distance = distance;
+            }
+
+            if (!found_hit)
+            {
+                out_hit = {};
+                return false;
+            }
+            return true;
+        }
+
+        void OverlapCollider3D(const math::AABB& bounds, Vector<OverlapHit>& out_hits)
+        {
+            out_hits.clear();
+            if (!bounds.IsValid())
+            {
+                return;
+            }
+
+            auto collider_3d_array = GetComponentArray<Collider3DComponent>().get();
+            if (!collider_3d_array)
+            {
+                return;
+            }
+
+            for (Size i = 0; i < collider_3d_array->GetSize(); ++i)
+            {
+                const Collider3DComponent& collider = collider_3d_array->data[i];
+                const math::AABB& collider_bounds = collider.world_bounds;
+                if (!collider.IsEnabled() || !collider_bounds.IsValid())
+                {
+                    continue;
+                }
+
+                const bool overlap =
+                    bounds.min.x <= collider_bounds.max.x && bounds.max.x >= collider_bounds.min.x &&
+                    bounds.min.y <= collider_bounds.max.y && bounds.max.y >= collider_bounds.min.y &&
+                    bounds.min.z <= collider_bounds.max.z && bounds.max.z >= collider_bounds.min.z;
+                if (overlap)
+                {
+                    out_hits.push_back({ collider_3d_array->index_to_entity[i] });
+                }
+            }
+        }
+
+        void OverlapCollider3D(const math::Sphere& sphere, Vector<OverlapHit>& out_hits)
+        {
+            out_hits.clear();
+            auto collider_3d_array = GetComponentArray<Collider3DComponent>().get();
+            if (!collider_3d_array)
+            {
+                return;
+            }
+
+            const float sphere_radius = (std::max)(0.0f, sphere.radius);
+            for (Size i = 0; i < collider_3d_array->GetSize(); ++i)
+            {
+                const Collider3DComponent& collider = collider_3d_array->data[i];
+                if (!collider.IsEnabled() || !collider.world_bounds.IsValid())
+                {
+                    continue;
+                }
+
+                bool overlap = false;
+                if (collider.shape_type == Collider3DComponent::Sphere)
+                {
+                    const float dx = sphere.center.x - collider.world_sphere.center.x;
+                    const float dy = sphere.center.y - collider.world_sphere.center.y;
+                    const float dz = sphere.center.z - collider.world_sphere.center.z;
+                    const float radius_sum = sphere_radius + collider.world_sphere.radius;
+                    overlap = dx * dx + dy * dy + dz * dz <= radius_sum * radius_sum;
+                }
+                else
+                {
+                    const math::AABB& bounds = collider.world_bounds;
+                    const float closest_x = (std::max)(bounds.min.x, (std::min)(sphere.center.x, bounds.max.x));
+                    const float closest_y = (std::max)(bounds.min.y, (std::min)(sphere.center.y, bounds.max.y));
+                    const float closest_z = (std::max)(bounds.min.z, (std::min)(sphere.center.z, bounds.max.z));
+                    const float dx = sphere.center.x - closest_x;
+                    const float dy = sphere.center.y - closest_y;
+                    const float dz = sphere.center.z - closest_z;
+                    overlap = dx * dx + dy * dy + dz * dz <= sphere_radius * sphere_radius;
+                }
+
+                if (overlap)
+                {
+                    out_hits.push_back({ collider_3d_array->index_to_entity[i] });
+                }
+            }
         }
 
         struct RenderData
@@ -957,18 +1163,31 @@ namespace won::ecs
             return render_data;
         }
 
+        const Vector<Collider3DTriggerEvent>& GetCollider3DTriggerEvents() const
+        {
+            return collider_3d_world.trigger_events;
+        }
+
         const math::bvh::BVH& GetSceneBVH() const
         {
             return scene_bvh;
         }
 
     private:
+        friend class Collider3DUpdateSystem;
+
+        Collider3DWorld& GetCollider3DWorld()
+        {
+            return collider_3d_world;
+        }
+
         RenderData render_data;
         ComponentManager component_manager;
         Vector<Entity> entities;
         Entity next_entity = INVALID_ENTITY + 1;
         math::bvh::BVH scene_bvh;
         Vector<Entity> scene_bvh_entities;
+        Collider3DWorld collider_3d_world;
         Vector<std::shared_ptr<System>> systems;
         Vector<Vector<uint32>> system_execution_batches;
         uint64 update_index = 0;

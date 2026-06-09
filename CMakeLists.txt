@@ -295,6 +295,7 @@ set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/DDGIVolumeComponent.h
     Source/Runtime/Public/AnimationComponent.h
     Source/Runtime/Public/ScriptComponent.h
+    Source/Runtime/Public/Collider3DComponent.h
 )
 
 set(RUNTIME_ECS_SYSTEMS
@@ -309,6 +310,8 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Public/SpriteUpdateSystem.h
     Source/Runtime/Public/TextUpdateSystem.h
     Source/Runtime/Public/ScriptUpdateSystem.h
+    Source/Runtime/Public/ScriptEventDispatchSystem.h
+    Source/Runtime/Public/Collider3DUpdateSystem.h
     Source/Runtime/Private/EnvironmentUpdateSystem.cpp
     Source/Runtime/Private/CameraUpdateSystem.cpp
     Source/Runtime/Private/GeometryUpdateSystem.cpp
@@ -320,6 +323,8 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Private/SpriteUpdateSystem.cpp
     Source/Runtime/Private/TextUpdateSystem.cpp
     Source/Runtime/Private/ScriptUpdateSystem.cpp
+    Source/Runtime/Private/ScriptEventDispatchSystem.cpp
+    Source/Runtime/Private/Collider3DUpdateSystem.cpp
 )
 
 set(RUNTIME_PLATFORM

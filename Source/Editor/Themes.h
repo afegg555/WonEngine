@@ -13,6 +13,8 @@ namespace won
 		inline const float4 cpu_bvh_leaf_color = { 0.15f, 0.85f, 1.0f, 1.0f };
 		inline const float4 gpu_bvh_internal_color = { 1.0f, 0.45f, 0.15f, 1.0f };
 		inline const float4 gpu_bvh_leaf_color = { 1.0f, 0.85f, 0.15f, 1.0f };
+		inline const float4 collider_3d_color = { 0.2f, 0.85f, 1.0f, 1.0f };
+		inline const float4 collider_3d_trigger_color = { 1.0f, 0.65f, 0.2f, 1.0f };
 		inline const float4 editor_grid_color = { 0.32f, 0.32f, 0.34f, 0.55f };
 		inline const float4 editor_grid_axis_x_color = { 0.82f, 0.24f, 0.24f, 0.85f };
 		inline const float4 editor_grid_axis_z_color = { 0.24f, 0.42f, 0.88f, 0.85f };
