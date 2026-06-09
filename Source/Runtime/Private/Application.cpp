@@ -63,6 +63,13 @@ namespace won
             script_runtime.reset();
         }
 
+        if (!project_settings.input_action_map.empty())
+        {
+            const String content_root = project::GetContentRoot(project_settings);
+            const String input_action_map_path = project::ResolveProjectContentPath(content_root, project_settings.input_action_map);
+            io::LoadActionMap(input_action_map_path);
+        }
+
         frame_timer.Reset();
         is_first_frame = true;
         is_running = true;
@@ -140,6 +147,8 @@ namespace won
 
         profiler::Shutdown();
         window.reset();
+        io::Reset();
+        io::ClearActionMap();
 
         if (script_runtime)
         {

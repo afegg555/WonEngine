@@ -60,6 +60,10 @@ namespace won::script
         static int LuaTransformRotateEuler(lua_State* state);
         static int LuaInputIsKeyDown(lua_State* state);
         static int LuaInputIsKeyPressed(lua_State* state);
+        static int LuaInputIsActionDown(lua_State* state);
+        static int LuaInputIsActionPressed(lua_State* state);
+        static int LuaInputGetActionValue(lua_State* state);
+        static int LuaInputGetActionAxis2D(lua_State* state);
         static int LuaSceneFindByName(lua_State* state);
 
         void RegisterAPI();

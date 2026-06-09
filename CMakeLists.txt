@@ -133,6 +133,7 @@ set(RUNTIME_UTILS
 set(RUNTIME_IO
     Source/Runtime/Public/FileSystem.h
     Source/Runtime/Public/Input.h
+    Source/Runtime/Public/InputActionMap.h
     Source/Runtime/Private/FileSystem.cpp
     Source/Runtime/Private/Input.cpp
 )

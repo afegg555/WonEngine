@@ -519,6 +519,32 @@ namespace won::script
         return 1;
     }
 
+    int LuaScriptRuntime::LuaInputIsActionDown(lua_State* state)
+    {
+        lua_pushboolean(state, io::IsActionDown(luaL_checkstring(state, 1)));
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaInputIsActionPressed(lua_State* state)
+    {
+        lua_pushboolean(state, io::IsActionPressed(luaL_checkstring(state, 1)));
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaInputGetActionValue(lua_State* state)
+    {
+        lua_pushnumber(state, static_cast<lua_Number>(io::GetActionValue(luaL_checkstring(state, 1))));
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaInputGetActionAxis2D(lua_State* state)
+    {
+        const float2 axis = io::GetActionAxis2D(luaL_checkstring(state, 1));
+        lua_pushnumber(state, static_cast<lua_Number>(axis.x));
+        lua_pushnumber(state, static_cast<lua_Number>(axis.y));
+        return 2;
+    }
+
     int LuaScriptRuntime::LuaSceneFindByName(lua_State* state)
     {
         LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
@@ -611,6 +637,14 @@ namespace won::script
         lua_setfield(lua_state, -2, "is_key_down");
         lua_pushcfunction(lua_state, LuaInputIsKeyPressed);
         lua_setfield(lua_state, -2, "is_key_pressed");
+        lua_pushcfunction(lua_state, LuaInputIsActionDown);
+        lua_setfield(lua_state, -2, "is_action_down");
+        lua_pushcfunction(lua_state, LuaInputIsActionPressed);
+        lua_setfield(lua_state, -2, "is_action_pressed");
+        lua_pushcfunction(lua_state, LuaInputGetActionValue);
+        lua_setfield(lua_state, -2, "get_action_value");
+        lua_pushcfunction(lua_state, LuaInputGetActionAxis2D);
+        lua_setfield(lua_state, -2, "get_action_axis2d");
         lua_setfield(lua_state, -2, "input");
 
         lua_newtable(lua_state);
