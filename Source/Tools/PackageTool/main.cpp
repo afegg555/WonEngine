@@ -115,8 +115,9 @@ int main(int argc, char** argv)
     const won::String content_root_path = won::io::NormalizePath(settings.content_root);
     const won::String startup_scene_path = settings.startup_scene.empty() ? "" : won::io::NormalizePath(settings.startup_scene);
     const won::String splash_image_path = won::io::NormalizePath(settings.splash_image);
-    const char* relative_path_names[] = { "content_root", "startup_scene", "splash_image" };
-    const won::String relative_path_values[] = { content_root_path, startup_scene_path, splash_image_path };
+    const won::String input_action_map_path = won::io::NormalizePath(settings.input_action_map);
+    const char* relative_path_names[] = { "content_root", "startup_scene", "splash_image", "input_action_map" };
+    const won::String relative_path_values[] = { content_root_path, startup_scene_path, splash_image_path, input_action_map_path };
     for (int path_index = 0; path_index < static_cast<int>(arraysize(relative_path_names)); ++path_index)
     {
         const won::String& path = relative_path_values[path_index];
@@ -190,6 +191,10 @@ int main(int argc, char** argv)
     if (!splash_image_path.empty())
     {
         content_paths.push_back(splash_image_path);
+    }
+    if (!input_action_map_path.empty() && won::io::IsFile(won::io::CombinePath(content_source, input_action_map_path)))
+    {
+        content_paths.push_back(input_action_map_path);
     }
     if (copy_startup_scene_references_only) // copy only referenced ones
     {

@@ -71,12 +71,63 @@ namespace won::io
 		KEYBOARD_BUTTON_ALT,
 		KEYBOARD_BUTTON_ALTGR,
 
+		GAMEPAD_BUTTON_A = 384,
+		GAMEPAD_BUTTON_B,
+		GAMEPAD_BUTTON_X,
+		GAMEPAD_BUTTON_Y,
+		GAMEPAD_BUTTON_BACK,
+		GAMEPAD_BUTTON_START,
+		GAMEPAD_BUTTON_DPAD_UP,
+		GAMEPAD_BUTTON_DPAD_DOWN,
+		GAMEPAD_BUTTON_DPAD_LEFT,
+		GAMEPAD_BUTTON_DPAD_RIGHT,
+		GAMEPAD_BUTTON_LEFT_SHOULDER,
+		GAMEPAD_BUTTON_RIGHT_SHOULDER,
+		GAMEPAD_BUTTON_LEFT_THUMB,
+		GAMEPAD_BUTTON_RIGHT_THUMB,
+
 		BUTTON_COUNT
     };
 
+	enum class InputEventType
+	{
+		Button,
+		MouseMove,
+		MouseWheel,
+		GamepadAxis,
+		FocusLost
+	};
+
+	// gamepad axes
+	enum class InputAxis
+	{
+		None,
+		GamepadLeftStickX,
+		GamepadLeftStickY,
+		GamepadRightStickX,
+		GamepadRightStickY,
+		GamepadLeftTrigger,
+		GamepadRightTrigger
+	};
+
+	// represents raw input events from the platform
+	struct InputEvent
+	{
+		InputEventType type = InputEventType::Button;
+		uint32 device_index = 0;
+		Button button = BUTTON_NONE;
+		InputAxis axis = InputAxis::None;
+		float2 position = float2(0, 0);
+		float2 delta = float2(0, 0);
+		float value = 0.0f;
+		bool pressed = false;
+	};
+
 	struct KeyboardState
 	{
-		bool buttons[Button::BUTTON_COUNT] = {};
+		bool digits[10] = {};
+		bool characters[26] = {};
+		bool buttons[KEYBOARD_BUTTON_ALTGR - KEYBOARD_BUTTON_UP + 1] = {};
 	};
 
 	struct MouseState
@@ -90,15 +141,52 @@ namespace won::io
 		bool right_button_press = false;
 	};
 
+	struct GamepadState
+	{
+		bool connected = false;
+		bool buttons[GAMEPAD_BUTTON_RIGHT_THUMB - GAMEPAD_BUTTON_A + 1] = {};
+		float2 left_stick = float2(0, 0);
+		float2 right_stick = float2(0, 0);
+		float left_trigger = 0.0f;
+		float right_trigger = 0.0f;
+	};
+
+	enum class InputActionType
+	{
+		Button,
+		Axis1D,
+		Axis2D
+	};
+
+	struct InputActionState
+	{
+		InputActionType type = InputActionType::Button;
+		bool down = false;
+		bool pressed = false;
+		bool released = false;
+		float value = 0.0f;
+		float2 axis = float2(0, 0);
+	};
+
+	WONENGINE_API void PushInputEvent(const InputEvent& event);
 	WONENGINE_API void Update(WindowType window);
 	WONENGINE_API void Reset();
+	WONENGINE_API bool LoadActionMap(const String& path);
+	WONENGINE_API void ClearActionMap();
 	WONENGINE_API bool IsDown(Button button);
 	WONENGINE_API bool IsPressed(Button button);
 	WONENGINE_API bool IsReleased(Button button);
 	WONENGINE_API bool IsDoubleClicked();
 	WONENGINE_API void SetDoubleClickInterval(double seconds); // default is 0.5
 	WONENGINE_API Button GetButtonFromString(StringView value);
+	WONENGINE_API const InputActionState* GetActionState(StringView action_name);
+	WONENGINE_API bool IsActionDown(StringView action_name);
+	WONENGINE_API bool IsActionPressed(StringView action_name);
+	WONENGINE_API bool IsActionReleased(StringView action_name);
+	WONENGINE_API float GetActionValue(StringView action_name);
+	WONENGINE_API float2 GetActionAxis2D(StringView action_name);
 
 	WONENGINE_API const KeyboardState& GetKeyboardState();
 	WONENGINE_API const MouseState& GetMouseState();
+	WONENGINE_API const GamepadState* GetGamepadState(uint32 device_index = 0);
 }
