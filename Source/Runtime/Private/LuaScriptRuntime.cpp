@@ -35,24 +35,30 @@ namespace won::script
             }
         };
 
-        const char* GetFunctionName(LuaScriptFunction function)
+        const char* GetFunctionName(ScriptCallType type)
         {
-            switch (function)
+            switch (type)
             {
-            case LuaScriptFunction::OnCreate:
+            case ScriptCallType::OnCreate:
                 return "OnCreate";
-            case LuaScriptFunction::OnUpdate:
+            case ScriptCallType::OnUpdate:
                 return "OnUpdate";
-            case LuaScriptFunction::OnDestroy:
+            case ScriptCallType::OnDestroy:
                 return "OnDestroy";
+            case ScriptCallType::OnTriggerEnter3D:
+                return "OnTriggerEnter3D";
+            case ScriptCallType::OnTriggerStay3D:
+                return "OnTriggerStay3D";
+            case ScriptCallType::OnTriggerExit3D:
+                return "OnTriggerExit3D";
             default:
                 return "";
             }
         }
 
-        uint32 GetFunctionIndex(LuaScriptFunction function)
+        uint32 GetFunctionIndex(ScriptCallType type)
         {
-            return static_cast<uint32>(function);
+            return static_cast<uint32>(type);
         }
     }
 
@@ -212,21 +218,6 @@ namespace won::script
         it->second = new_module;
         out_error.clear();
         return true;
-    }
-
-    bool LuaScriptRuntime::CallOnCreate(ScriptInstanceHandle handle, const ScriptCallContext& context, String& out_error)
-    {
-        return CallFunction(handle, LuaScriptFunction::OnCreate, context, 0.0f, false, out_error);
-    }
-
-    bool LuaScriptRuntime::CallOnUpdate(ScriptInstanceHandle handle, const ScriptCallContext& context, float delta_time, String& out_error)
-    {
-        return CallFunction(handle, LuaScriptFunction::OnUpdate, context, delta_time, true, out_error);
-    }
-
-    bool LuaScriptRuntime::CallOnDestroy(ScriptInstanceHandle handle, const ScriptCallContext& context, String& out_error)
-    {
-        return CallFunction(handle, LuaScriptFunction::OnDestroy, context, 0.0f, false, out_error);
     }
 
     int LuaScriptRuntime::LuaLogInfo(lua_State* state)
@@ -661,7 +652,7 @@ namespace won::script
         out_module = {};
         out_module.script_path = script_path;
         out_module.module_ref = lua_no_ref;
-        for (uint32 i = 0; i < static_cast<uint32>(LuaScriptFunction::Count); ++i)
+        for (uint32 i = 0; i < lua_script_builtin_function_count; ++i)
         {
             out_module.function_refs[i] = lua_no_ref;
         }
@@ -702,10 +693,10 @@ namespace won::script
         // lua_pushvalue(lua_state, -1); // duplicates the module table so one copy can be stored as module_ref
         out_module.module_ref = luaL_ref(lua_state, LUA_REGISTRYINDEX); // stores the stack top in the registry and returns an integer reference
 
-        for (uint32 i = 0; i < static_cast<uint32>(LuaScriptFunction::Count); ++i)
+        for (uint32 i = 0; i < lua_script_builtin_function_count; ++i)
         {
-            LuaScriptFunction function = static_cast<LuaScriptFunction>(i);
-            if (!LoadFunctionRef(out_module.module_ref, GetFunctionName(function), out_module.function_refs[i], out_error))
+            ScriptCallType type = static_cast<ScriptCallType>(i);
+            if (!LoadFunctionRef(out_module.module_ref, GetFunctionName(type), out_module.function_refs[i], out_error))
             {
                 UnloadModule(out_module);
                 return false;
@@ -754,7 +745,7 @@ namespace won::script
             module.module_ref = lua_no_ref;
         }
 
-        for (uint32 i = 0; i < static_cast<uint32>(LuaScriptFunction::Count); ++i)
+        for (uint32 i = 0; i < lua_script_builtin_function_count; ++i)
         {
             if (module.function_refs[i] != lua_no_ref)
             {
@@ -762,10 +753,25 @@ namespace won::script
                 module.function_refs[i] = lua_no_ref;
             }
         }
+
+        for (auto& entry : module.custom_function_refs)
+        {
+            if (entry.second != lua_no_ref)
+            {
+                luaL_unref(lua_state, LUA_REGISTRYINDEX, entry.second);
+            }
+        }
+        module.custom_function_refs.clear();
     }
 
-    bool LuaScriptRuntime::CallFunction(ScriptInstanceHandle handle, LuaScriptFunction function, const ScriptCallContext& context, float delta_time, bool has_delta_time, String& out_error)
+    bool LuaScriptRuntime::Call(ScriptInstanceHandle handle, const ScriptCallDesc& desc, String& out_error)
     {
+        const won::function::Call* call = desc.call;
+        if (call && call->output_count)
+        {
+            *call->output_count = 0;
+        }
+
         if (!lua_state)
         {
             out_error = "Lua state is not initialized.";
@@ -792,37 +798,219 @@ namespace won::script
             return false;
         }
 
-        const int function_ref = module_it->second.function_refs[GetFunctionIndex(function)];
+        const char* function_name = desc.function_name ? desc.function_name : "";
+        int function_ref = lua_no_ref;
+
+        if (desc.type == ScriptCallType::Custom)
+        {
+            if (!desc.function_name || desc.function_name[0] == '\0')
+            {
+                out_error = "Custom script function name is empty.";
+                return false;
+            }
+            function_name = desc.function_name;
+            auto function_it = module_it->second.custom_function_refs.find(function_name);
+            if (function_it == module_it->second.custom_function_refs.end())
+            {
+                String load_error;
+                if (!LoadFunctionRef(module_it->second.module_ref, function_name, function_ref, load_error))
+                {
+                    out_error = String("Custom script function was not found: ") + function_name;
+                    if (!load_error.empty())
+                    {
+                        out_error += ". ";
+                        out_error += load_error;
+                    }
+                    return false;
+                }
+
+                module_it->second.custom_function_refs[function_name] = function_ref;
+            }
+            else
+            {
+                function_ref = function_it->second;
+            }
+        }
+        else
+        {
+            function_name = GetFunctionName(desc.type);
+            function_ref = module_it->second.function_refs[GetFunctionIndex(desc.type)];
+        }
+
         if (function_ref == lua_no_ref)
         {
+			// without builtin function. this is ok
             out_error.clear();
             return true;
         }
 
         LuaStackGuard stack_guard(lua_state);
+
         lua_rawgeti(lua_state, LUA_REGISTRYINDEX, function_ref); // pushes the cached script function onto the stack       stack: [function]
+
         lua_rawgeti(lua_state, LUA_REGISTRYINDEX, instance_it->second.self_ref); // pushes the self table used as the first script argument       stack: [function, self]
-        lua_pushinteger(lua_state, static_cast<lua_Integer>(context.entity)); // pushes the entity_id       stack: [function, self, entity_id]
+        lua_pushinteger(lua_state, static_cast<lua_Integer>(desc.context.entity)); // pushes the entity_id       stack: [function, self, entity_id]
         lua_setfield(lua_state, -2, "entity"); // set self's "entity" field and pops the pushed entity_id       stack: [function, self.entity]
 
         int arg_count = 1;
-        if (has_delta_time)
+        if (call && call->inputs)
         {
-            lua_pushnumber(lua_state, static_cast<lua_Number>(delta_time)); // pushes dt as the second script argument
-            arg_count = 2;
+            for (uint32 i = 0; i < call->input_count; ++i)
+            {
+                const won::function::Value& input = call->inputs[i];
+                switch (input.type)
+                {
+                case won::ValueType::Bool:
+                    lua_pushboolean(lua_state, input.bool_value);
+                    break;
+                case won::ValueType::Int8:
+                case won::ValueType::Int16:
+                case won::ValueType::Int32:
+                    lua_pushinteger(lua_state, static_cast<lua_Integer>(input.int32_value));
+                    break;
+                case won::ValueType::UInt8:
+                case won::ValueType::UInt16:
+                case won::ValueType::UInt32:
+                    lua_pushinteger(lua_state, static_cast<lua_Integer>(input.uint32_value));
+                    break;
+                case won::ValueType::Int64:
+                    lua_pushinteger(lua_state, static_cast<lua_Integer>(input.int64_value));
+                    break;
+                case won::ValueType::UInt64:
+                    lua_pushinteger(lua_state, static_cast<lua_Integer>(input.uint64_value));
+                    break;
+                case won::ValueType::Float32:
+                    lua_pushnumber(lua_state, static_cast<lua_Number>(input.float_value));
+                    break;
+                case won::ValueType::Float64:
+                    lua_pushnumber(lua_state, static_cast<lua_Number>(input.double_value));
+                    break;
+                case won::ValueType::String:
+                    lua_pushstring(lua_state, input.string_value ? input.string_value : "");
+                    break;
+                case won::ValueType::Pointer:
+                    lua_pushlightuserdata(lua_state, input.pointer_value);
+                    break;
+                default:
+                    out_error = String(function_name) + " input type is not supported.";
+                    return false;
+                }
+                ++arg_count;
+            }
         }
 
         ScriptCallContext previous_context = current_context;
-        current_context = context;
-        if (lua_pcall(lua_state, arg_count, 0, 0) != LUA_OK) // calls the script function and consumes the function plus its arguments
+        current_context = desc.context;
+        const bool wants_outputs = call && call->outputs && call->output_capacity > 0;
+        const int result_count = wants_outputs ? LUA_MULTRET : 0;
+        output_strings.clear();
+        if (wants_outputs)
+        {
+            output_strings.reserve(call->output_capacity);
+        }
+
+        if (lua_pcall(lua_state, arg_count, result_count, 0) != LUA_OK) // calls the script function and consumes the function plus its arguments
         {
             const char* error = lua_tostring(lua_state, -1);
-            out_error = error ? error : String("Failed to call ") + GetFunctionName(function) + ".";
+            out_error = "Failed to call script function: ";
+            out_error += function_name;
+            out_error += "(";
+            if (call && call->inputs)
+            {
+                for (uint32 i = 0; i < call->input_count; ++i)
+                {
+                    if (i > 0)
+                    {
+                        out_error += ", ";
+                    }
+
+                    switch (call->inputs[i].type)
+                    {
+                    case won::ValueType::Bool: out_error += "Bool"; break;
+                    case won::ValueType::Int8: out_error += "Int8"; break;
+                    case won::ValueType::UInt8: out_error += "UInt8"; break;
+                    case won::ValueType::Int16: out_error += "Int16"; break;
+                    case won::ValueType::UInt16: out_error += "UInt16"; break;
+                    case won::ValueType::Int32: out_error += "Int32"; break;
+                    case won::ValueType::UInt32: out_error += "UInt32"; break;
+                    case won::ValueType::Int64: out_error += "Int64"; break;
+                    case won::ValueType::UInt64: out_error += "UInt64"; break;
+                    case won::ValueType::Float32: out_error += "Float32"; break;
+                    case won::ValueType::Float64: out_error += "Float64"; break;
+                    case won::ValueType::String: out_error += "String"; break;
+                    case won::ValueType::Pointer: out_error += "Pointer"; break;
+                    default: out_error += "Unsupported"; break;
+                    }
+                }
+            }
+            out_error += ")";
+            if (error && error[0] != '\0')
+            {
+                out_error += ". ";
+                out_error += error;
+            }
             current_context = previous_context;
             return false;
         }
 
         current_context = previous_context;
+        if (wants_outputs)
+        {
+            int actual_result_count = lua_gettop(lua_state) - stack_guard.top;
+            if (actual_result_count < 0)
+            {
+                actual_result_count = 0;
+            }
+            uint32 readable_count = call->output_capacity;
+            if (actual_result_count < static_cast<int>(readable_count))
+            {
+                readable_count = static_cast<uint32>(actual_result_count);
+            }
+            const int first_result = stack_guard.top + 1;
+            uint32 written_count = 0;
+            for (uint32 i = 0; i < readable_count; ++i)
+            {
+                won::function::Value& output = call->outputs[i];
+                output = {};
+                const int result_index = first_result + static_cast<int>(i);
+                if (lua_isboolean(lua_state, result_index))
+                {
+                    output.type = won::ValueType::Bool;
+                    output.bool_value = lua_toboolean(lua_state, result_index) != 0;
+                }
+                else if (lua_isinteger(lua_state, result_index))
+                {
+                    output.type = won::ValueType::Int64;
+                    output.int64_value = static_cast<int64>(lua_tointeger(lua_state, result_index));
+                }
+                else if (lua_isnumber(lua_state, result_index))
+                {
+                    output.type = won::ValueType::Float64;
+                    output.double_value = static_cast<double>(lua_tonumber(lua_state, result_index));
+                }
+                else if (lua_isstring(lua_state, result_index))
+                {
+                    output.type = won::ValueType::String;
+                    output_strings.push_back(lua_tostring(lua_state, result_index));
+                    output.string_value = output_strings.back().c_str();
+                }
+                else if (lua_islightuserdata(lua_state, result_index))
+                {
+                    output.type = won::ValueType::Pointer;
+                    output.pointer_value = lua_touserdata(lua_state, result_index);
+                }
+                else
+                {
+                    output.type = won::ValueType::Unknown;
+                }
+                ++written_count;
+            }
+            if (call->output_count)
+            {
+                *call->output_count = written_count;
+            }
+        }
+
         out_error.clear();
         return true;
     }

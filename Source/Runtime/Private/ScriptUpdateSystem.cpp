@@ -72,7 +72,10 @@ namespace won::ecs
 
                 if (!script_slot.initialized)
                 {
-                    if (!script_runtime->CallOnCreate(script_slot.instance, context, script_slot.last_error))
+                    script::ScriptCallDesc call_desc = {};
+                    call_desc.type = script::ScriptCallType::OnCreate;
+                    call_desc.context = context;
+                    if (!script_runtime->Call(script_slot.instance, call_desc, script_slot.last_error))
                     {
                         continue;
                     }
@@ -80,7 +83,15 @@ namespace won::ecs
                     script_slot.initialized = true;
                 }
 
-                script_runtime->CallOnUpdate(script_slot.instance, context, delta_time, script_slot.last_error);
+                won::function::Value inputs[1] = {};
+                inputs[0].type = won::ValueType::Float32;
+                inputs[0].float_value = delta_time;
+                won::function::Call call = { inputs, 1, nullptr, 0, nullptr };
+                script::ScriptCallDesc call_desc = {};
+                call_desc.type = script::ScriptCallType::OnUpdate;
+                call_desc.context = context;
+                call_desc.call = &call;
+                script_runtime->Call(script_slot.instance, call_desc, script_slot.last_error);
             }
         }
     }

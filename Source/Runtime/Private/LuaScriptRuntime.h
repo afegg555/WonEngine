@@ -6,20 +6,14 @@ struct lua_State;
 
 namespace won::script
 {
-    enum class LuaScriptFunction : uint32
-    {
-        OnCreate,
-        OnUpdate,
-        OnDestroy,
-
-        Count
-    };
+    inline constexpr uint32 lua_script_builtin_function_count = static_cast<uint32>(ScriptCallType::OnTriggerExit3D) + 1u;
 
     struct LuaScriptModule
     {
         String script_path;
         int module_ref = 0;
-        int function_refs[static_cast<uint32>(LuaScriptFunction::Count)] = {};
+        int function_refs[lua_script_builtin_function_count] = {};
+        UnorderedMap<String, int> custom_function_refs;
         uint32 ref_count = 0;
     };
 
@@ -39,9 +33,7 @@ namespace won::script
         void DestroyInstance(ScriptInstanceHandle handle) override;
         bool ReloadScript(const String& script_path, String& out_error) override;
 
-        bool CallOnCreate(ScriptInstanceHandle handle, const ScriptCallContext& context, String& out_error) override;
-        bool CallOnUpdate(ScriptInstanceHandle handle, const ScriptCallContext& context, float delta_time, String& out_error) override;
-        bool CallOnDestroy(ScriptInstanceHandle handle, const ScriptCallContext& context, String& out_error) override;
+        bool Call(ScriptInstanceHandle handle, const ScriptCallDesc& desc, String& out_error) override;
 
     private:
         static int LuaLogInfo(lua_State* state);
@@ -70,11 +62,11 @@ namespace won::script
         bool LoadModule(const String& script_path, LuaScriptModule& out_module, String& out_error);
         bool LoadFunctionRef(int module_ref, const char* function_name, int& out_function_ref, String& out_error);
         void UnloadModule(LuaScriptModule& module);
-        bool CallFunction(ScriptInstanceHandle handle, LuaScriptFunction function, const ScriptCallContext& context, float delta_time, bool has_delta_time, String& out_error);
 
         lua_State* lua_state = nullptr;
         uint64 next_instance_id = 1;
         ScriptCallContext current_context = {};
+        Vector<String> output_strings;
         UnorderedMap<String, LuaScriptModule> modules;
         UnorderedMap<uint64, LuaScriptInstance> instances;
     };

@@ -47,6 +47,7 @@ namespace won::editor
 	using namespace rendering;
 	using namespace plugin;
 	using namespace ecs;
+	namespace function = won::plugin::function;
 
 	static RHIShader imgui_vs;
 	static RHIShader imgui_ps;
@@ -1476,7 +1477,10 @@ namespace won::editor
 
 							if (script_slot.instance.IsValid())
 							{
-								script_runtime->CallOnDestroy(script_slot.instance, context, script_slot.last_error);
+								script::ScriptCallDesc call_desc = {};
+								call_desc.type = script::ScriptCallType::OnDestroy;
+								call_desc.context = context;
+								script_runtime->Call(script_slot.instance, call_desc, script_slot.last_error);
 								script_runtime->DestroyInstance(script_slot.instance);
 								script_slot.instance = {};
 							}
@@ -1490,7 +1494,10 @@ namespace won::editor
 							}
 
 							script_slot.initialized = false;
-							if (script_runtime->CallOnCreate(script_slot.instance, context, script_slot.last_error))
+							script::ScriptCallDesc call_desc = {};
+							call_desc.type = script::ScriptCallType::OnCreate;
+							call_desc.context = context;
+							if (script_runtime->Call(script_slot.instance, call_desc, script_slot.last_error))
 							{
 								script_slot.initialized = true;
 							}
@@ -5334,7 +5341,10 @@ namespace won::editor
 
 							if (script_slot.instance.IsValid())
 							{
-								script_runtime->CallOnDestroy(script_slot.instance, context, script_slot.last_error);
+								script::ScriptCallDesc call_desc = {};
+								call_desc.type = script::ScriptCallType::OnDestroy;
+								call_desc.context = context;
+								script_runtime->Call(script_slot.instance, call_desc, script_slot.last_error);
 								script_runtime->DestroyInstance(script_slot.instance);
 								script_slot.instance = {};
 							}
@@ -5347,7 +5357,10 @@ namespace won::editor
 							}
 
 							script_slot.initialized = false;
-							if (script_runtime->CallOnCreate(script_slot.instance, context, script_slot.last_error))
+							script::ScriptCallDesc call_desc = {};
+							call_desc.type = script::ScriptCallType::OnCreate;
+							call_desc.context = context;
+							if (script_runtime->Call(script_slot.instance, call_desc, script_slot.last_error))
 							{
 								script_slot.initialized = true;
 							}
@@ -5404,7 +5417,10 @@ namespace won::editor
 												script::ScriptCallContext context = {};
 												context.scene = editor_viewport.view->scene;
 												context.entity = editor_viewport.picked_entity;
-												script_runtime->CallOnDestroy(script_slot.instance, context, script_slot.last_error);
+												script::ScriptCallDesc call_desc = {};
+												call_desc.type = script::ScriptCallType::OnDestroy;
+												call_desc.context = context;
+												script_runtime->Call(script_slot.instance, call_desc, script_slot.last_error);
 												script_runtime->DestroyInstance(script_slot.instance);
 												script_slot.instance = {};
 												script_slot.initialized = false;
@@ -5442,7 +5458,10 @@ namespace won::editor
 												script::ScriptCallContext context = {};
 												context.scene = editor_viewport.view->scene;
 												context.entity = editor_viewport.picked_entity;
-												script_runtime->CallOnDestroy(script_slot.instance, context, script_slot.last_error);
+												script::ScriptCallDesc call_desc = {};
+												call_desc.type = script::ScriptCallType::OnDestroy;
+												call_desc.context = context;
+												script_runtime->Call(script_slot.instance, call_desc, script_slot.last_error);
 												script_runtime->DestroyInstance(script_slot.instance);
 												script_slot.instance = {};
 												script_slot.initialized = false;
@@ -5488,7 +5507,10 @@ namespace won::editor
 										script::ScriptCallContext context = {};
 										context.scene = editor_viewport.view->scene;
 										context.entity = editor_viewport.picked_entity;
-										script_runtime->CallOnDestroy(script_slot.instance, context, script_slot.last_error);
+										script::ScriptCallDesc call_desc = {};
+										call_desc.type = script::ScriptCallType::OnDestroy;
+										call_desc.context = context;
+										script_runtime->Call(script_slot.instance, call_desc, script_slot.last_error);
 										script_runtime->DestroyInstance(script_slot.instance);
 										script_slot.instance = {};
 										script_slot.initialized = false;
@@ -5545,7 +5567,10 @@ namespace won::editor
 									script::ScriptCallContext context = {};
 									context.scene = editor_viewport.view->scene;
 									context.entity = editor_viewport.picked_entity;
-									script_runtime->CallOnDestroy(script_slot.instance, context, script_slot.last_error);
+									script::ScriptCallDesc call_desc = {};
+									call_desc.type = script::ScriptCallType::OnDestroy;
+									call_desc.context = context;
+									script_runtime->Call(script_slot.instance, call_desc, script_slot.last_error);
 									script_runtime->DestroyInstance(script_slot.instance);
 								}
 
@@ -5589,7 +5614,10 @@ namespace won::editor
 								{
 									if (script_slot.instance.IsValid())
 									{
-										script_runtime->CallOnDestroy(script_slot.instance, context, script_slot.last_error);
+										script::ScriptCallDesc call_desc = {};
+										call_desc.type = script::ScriptCallType::OnDestroy;
+										call_desc.context = context;
+										script_runtime->Call(script_slot.instance, call_desc, script_slot.last_error);
 										script_runtime->DestroyInstance(script_slot.instance);
 									}
 								}
