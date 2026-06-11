@@ -1098,6 +1098,8 @@ namespace won::editor
 		loaded_scene = ecs::Scene(scene_desc);
 		rendering::View editor_view = {};
 		editor_view.scene = &loaded_scene;
+		editor_view.options.resize_policy = rendering::ViewResizePolicy::Manual;
+		editor_view.options.update_camera_aspect = false;
 		editor_view.viewport.width = project_settings.window_width;
 		editor_view.viewport.height = project_settings.window_height;
 		editor_view.scissor.width = project_settings.window_width;

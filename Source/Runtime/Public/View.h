@@ -9,6 +9,12 @@ namespace won::rendering
         Forward
     };
 
+    enum class ViewResizePolicy
+    {
+        Manual,
+        MatchWindow
+    };
+
     struct Rect
     {
         int32 x = 0;
@@ -17,11 +23,18 @@ namespace won::rendering
         int32 height = 0;
     };
 
+    struct ViewOptions
+    {
+        ViewResizePolicy resize_policy = ViewResizePolicy::MatchWindow;
+        bool update_camera_aspect = true;
+    };
+
     struct View
     {
         ecs::Entity camera_entity = {};
         ecs::Scene* scene = nullptr;
         RenderPathType render_path_type = RenderPathType::Forward;
+        ViewOptions options = {};
         Rect viewport = {};
         Rect scissor = {};
 

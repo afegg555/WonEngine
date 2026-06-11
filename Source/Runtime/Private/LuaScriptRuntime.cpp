@@ -2,6 +2,7 @@
 
 #include "Backlog.h"
 #include "Input.h"
+#include "MaterialComponent.h"
 #include "NameComponent.h"
 #include "Scene.h"
 #include "TransformComponent.h"
@@ -496,6 +497,79 @@ namespace won::script
         return 1;
     }
 
+    int LuaScriptRuntime::LuaMaterialHas(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        lua_pushboolean(state, runtime->current_context.scene->GetComponent<ecs::MaterialComponent>(entity) != nullptr);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaMaterialGetBaseColor(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        const int arg_count = lua_gettop(state);
+        const bool has_entity_arg = arg_count >= 1 && lua_isinteger(state, 1);
+        const ecs::Entity entity = has_entity_arg ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        const uint32 slot_index = has_entity_arg && arg_count >= 2 ? static_cast<uint32>(luaL_checkinteger(state, 2)) : 0u;
+        ecs::MaterialComponent* material = runtime->current_context.scene->GetComponent<ecs::MaterialComponent>(entity);
+        if (!material || slot_index >= material->GetMaterialSlotCount())
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        const float4& base_color = material->GetMaterialSlot(slot_index).base_color;
+        lua_pushnumber(state, base_color.x);
+        lua_pushnumber(state, base_color.y);
+        lua_pushnumber(state, base_color.z);
+        lua_pushnumber(state, base_color.w);
+        return 4;
+    }
+
+    int LuaScriptRuntime::LuaMaterialSetBaseColor(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const int arg_count = lua_gettop(state);
+        const bool has_entity_arg = arg_count >= 5 && lua_isinteger(state, 1);
+        const bool has_slot_arg = has_entity_arg && arg_count >= 6 && lua_isinteger(state, 2);
+        const ecs::Entity entity = has_entity_arg ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        const uint32 slot_index = has_slot_arg ? static_cast<uint32>(luaL_checkinteger(state, 2)) : 0u;
+        const int value_index = has_slot_arg ? 3 : (has_entity_arg ? 2 : 1);
+        ecs::MaterialComponent* material = runtime->current_context.scene->GetComponent<ecs::MaterialComponent>(entity);
+        if (!material || slot_index >= material->GetMaterialSlotCount())
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        ecs::MaterialSlot& material_slot = material->GetMaterialSlot(slot_index);
+        material_slot.base_color.x = static_cast<float>(luaL_checknumber(state, value_index));
+        material_slot.base_color.y = static_cast<float>(luaL_checknumber(state, value_index + 1));
+        material_slot.base_color.z = static_cast<float>(luaL_checknumber(state, value_index + 2));
+        material_slot.base_color.w = static_cast<float>(luaL_optnumber(state, value_index + 3, 1.0));
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
     int LuaScriptRuntime::LuaInputIsKeyDown(lua_State* state)
     {
         const io::Button button = io::GetButtonFromString(luaL_checkstring(state, 1));
@@ -622,6 +696,18 @@ namespace won::script
         lua_pushcclosure(lua_state, LuaTransformRotateEuler, 1);
         lua_setfield(lua_state, -2, "rotate_euler");
         lua_setfield(lua_state, -2, "transform");
+
+        lua_newtable(lua_state);
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaMaterialHas, 1);
+        lua_setfield(lua_state, -2, "has");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaMaterialGetBaseColor, 1);
+        lua_setfield(lua_state, -2, "get_base_color");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaMaterialSetBaseColor, 1);
+        lua_setfield(lua_state, -2, "set_base_color");
+        lua_setfield(lua_state, -2, "material");
 
         lua_newtable(lua_state);
         lua_pushcfunction(lua_state, LuaInputIsKeyDown);

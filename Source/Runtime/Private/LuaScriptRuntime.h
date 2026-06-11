@@ -50,6 +50,9 @@ namespace won::script
         static int LuaTransformGetScale(lua_State* state);
         static int LuaTransformSetScale(lua_State* state);
         static int LuaTransformRotateEuler(lua_State* state);
+        static int LuaMaterialHas(lua_State* state);
+        static int LuaMaterialGetBaseColor(lua_State* state);
+        static int LuaMaterialSetBaseColor(lua_State* state);
         static int LuaInputIsKeyDown(lua_State* state);
         static int LuaInputIsKeyPressed(lua_State* state);
         static int LuaInputIsActionDown(lua_State* state);

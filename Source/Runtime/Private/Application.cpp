@@ -278,7 +278,39 @@ namespace won
 
     void Application::OnWindowResized(int width, int height)
     {
-        return;
+        if (width <= 0 || height <= 0)
+        {
+            return;
+        }
+
+        for (const std::unique_ptr<rendering::View>& view_ptr : views)
+        {
+            if (!view_ptr)
+            {
+                continue;
+            }
+
+            rendering::View& view = *view_ptr;
+            if (view.options.resize_policy == rendering::ViewResizePolicy::MatchWindow)
+            {
+                view.viewport.x = 0;
+                view.viewport.y = 0;
+                view.viewport.width = width;
+                view.viewport.height = height;
+                view.scissor = view.viewport;
+            }
+
+            if (!view.options.update_camera_aspect || view.viewport.width <= 0 || view.viewport.height <= 0 || !view.scene || view.camera_entity == ecs::INVALID_ENTITY)
+            {
+                continue;
+            }
+
+            ecs::CameraComponent* camera = view.scene->GetComponent<ecs::CameraComponent>(view.camera_entity);
+            if (camera)
+            {
+                camera->SetAspectRatio(static_cast<float>(view.viewport.width) / static_cast<float>(view.viewport.height));
+            }
+        }
     }
 
     void Application::ProcessWindowResize()
