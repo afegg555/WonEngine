@@ -594,7 +594,7 @@ namespace won::editor
 			float4x4 matrix = {};
 			XMStoreFloat4x4(&matrix, rotation_matrix);
 
-			float pitch = asin(-matrix._32);
+			float pitch = asin(std::clamp(-matrix._32, -1.0f, 1.0f));
 			float yaw = atan2(matrix._31, matrix._33);
 			float roll = atan2(matrix._12, matrix._22);
 
