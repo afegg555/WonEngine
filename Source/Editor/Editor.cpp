@@ -265,6 +265,16 @@ namespace won::editor
 			constexpr const char* ddgi_volume_component = "DDGIVolumeComponent";
 			constexpr const char* geometry_component = "GeometryComponent";
 			constexpr const char* collider_3d_component = "Collider3DComponent";
+			constexpr const char* rigidbody_3d_component = "Rigidbody3DComponent";
+			constexpr const char* motion_type = "Motion Type";
+			constexpr const char* static_str = "Static";
+			constexpr const char* kinematic = "Kinematic";
+			constexpr const char* mass = "Mass";
+			constexpr const char* friction = "Friction";
+			constexpr const char* restitution = "Restitution";
+			constexpr const char* gravity_factor = "Gravity Factor";
+			constexpr const char* linear_velocity = "Linear Velocity";
+			constexpr const char* angular_velocity = "Angular Velocity";
 			constexpr const char* sprite_2d_component = "Sprite2DComponent";
 			constexpr const char* text_2d_component = "Text2DComponent";
 			constexpr const char* sprite_3d_component = "Sprite3DComponent";
@@ -469,6 +479,7 @@ namespace won::editor
 			case reflection::TypeMeta<DDGIVolumeComponent>::type_id:
 			case reflection::TypeMeta<GeometryComponent>::type_id:
 			case reflection::TypeMeta<Collider3DComponent>::type_id:
+			case reflection::TypeMeta<Rigidbody3DComponent>::type_id:
 			case reflection::TypeMeta<Sprite2DComponent>::type_id:
 			case reflection::TypeMeta<Sprite3DComponent>::type_id:
 			case reflection::TypeMeta<Text2DComponent>::type_id:
@@ -1095,6 +1106,7 @@ namespace won::editor
 
 		ecs::SceneDesc scene_desc = {};
 		scene_desc.script_runtime = script_runtime.get();
+		scene_desc.physics = project::GetPhysicsDesc(project_settings);
 		loaded_scene = ecs::Scene(scene_desc);
 		rendering::View editor_view = {};
 		editor_view.scene = &loaded_scene;
@@ -4983,6 +4995,78 @@ namespace won::editor
 					ImGui::Separator();
 				}
 
+				Rigidbody3DComponent* rigidbody_3d_comp = editor_viewport.view->scene->GetComponent<Rigidbody3DComponent>(editor_viewport.picked_entity);
+				if (rigidbody_3d_comp)
+				{
+					ImGui::PushID("Rigidbody3DComponent");
+					ImGui::Text(editor_text::rigidbody_3d_component);
+					bool remove_component = DrawComponentRemoveButton(editor_text::rigidbody_3d_component);
+
+					if (!remove_component)
+					{
+						int motion_type = static_cast<int>(rigidbody_3d_comp->motion_type);
+						const char* motion_type_items[] = { editor_text::static_str, editor_text::kinematic, editor_text::dynamic };
+						if (ImGui::Combo(editor_text::motion_type, &motion_type, motion_type_items, arraysize(motion_type_items)))
+						{
+							rigidbody_3d_comp->motion_type = static_cast<Rigidbody3DComponent::MotionType>(motion_type);
+							rigidbody_3d_comp->SetDirty();
+						}
+
+						bool enabled = rigidbody_3d_comp->IsEnabled();
+						if (ImGui::Checkbox(editor_text::enabled, &enabled))
+						{
+							rigidbody_3d_comp->SetEnabled(enabled);
+						}
+
+						if (ImGui::InputFloat(editor_text::mass, &rigidbody_3d_comp->mass))
+						{
+							rigidbody_3d_comp->mass = (std::max)(0.001f, rigidbody_3d_comp->mass);
+							rigidbody_3d_comp->SetDirty();
+						}
+
+						if (ImGui::InputFloat(editor_text::friction, &rigidbody_3d_comp->friction))
+						{
+							rigidbody_3d_comp->friction = (std::max)(0.0f, rigidbody_3d_comp->friction);
+							rigidbody_3d_comp->SetDirty();
+						}
+
+						if (ImGui::InputFloat(editor_text::restitution, &rigidbody_3d_comp->restitution))
+						{
+							rigidbody_3d_comp->restitution = (std::max)(0.0f, (std::min)(1.0f, rigidbody_3d_comp->restitution));
+							rigidbody_3d_comp->SetDirty();
+						}
+
+						if (ImGui::InputFloat(editor_text::gravity_factor, &rigidbody_3d_comp->gravity_factor))
+						{
+							rigidbody_3d_comp->SetDirty();
+						}
+
+						float linear_vel[3] = { rigidbody_3d_comp->linear_velocity.x, rigidbody_3d_comp->linear_velocity.y, rigidbody_3d_comp->linear_velocity.z };
+						if (ImGui::InputFloat3(editor_text::linear_velocity, linear_vel))
+						{
+							rigidbody_3d_comp->linear_velocity = { linear_vel[0], linear_vel[1], linear_vel[2] };
+							rigidbody_3d_comp->SetDirty();
+						}
+
+						float angular_vel[3] = { rigidbody_3d_comp->angular_velocity.x, rigidbody_3d_comp->angular_velocity.y, rigidbody_3d_comp->angular_velocity.z };
+						if (ImGui::InputFloat3(editor_text::angular_velocity, angular_vel))
+						{
+							rigidbody_3d_comp->angular_velocity = { angular_vel[0], angular_vel[1], angular_vel[2] };
+							rigidbody_3d_comp->SetDirty();
+						}
+					}
+					else
+					{
+						const ecs::Entity entity = editor_viewport.picked_entity;
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+							editor_viewport.view->scene->RemoveComponent<Rigidbody3DComponent>(entity);
+						});
+					}
+
+					ImGui::PopID();
+					ImGui::Separator();
+				}
+
 				Sprite2DComponent* sprite_2d_comp = editor_viewport.view->scene->GetComponent<Sprite2DComponent>(editor_viewport.picked_entity);
 				if (sprite_2d_comp)
 				{
@@ -6364,6 +6448,7 @@ namespace won::editor
 
 		ecs::SceneDesc scene_desc = {};
 		scene_desc.script_runtime = script_runtime.get();
+		scene_desc.physics = project::GetPhysicsDesc(loaded_project_settings);
 		loaded_scene = ecs::Scene(scene_desc);
 		if (editor_viewport.view)
 		{

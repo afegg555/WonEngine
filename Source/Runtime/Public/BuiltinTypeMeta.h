@@ -90,6 +90,12 @@ namespace won::reflection
         WON_REFLECT_ENUM_VALUE("Sphere", won::ecs::Collider3DComponent::Sphere)
     WON_REFLECT_ENUM_END()
 
+    WON_REFLECT_ENUM(won::ecs::Rigidbody3DComponent::MotionType, "Rigidbody3DMotionType")
+        WON_REFLECT_ENUM_VALUE("Static", won::ecs::Rigidbody3DComponent::MotionType::Static)
+        WON_REFLECT_ENUM_VALUE("Kinematic", won::ecs::Rigidbody3DComponent::MotionType::Kinematic)
+        WON_REFLECT_ENUM_VALUE("Dynamic", won::ecs::Rigidbody3DComponent::MotionType::Dynamic)
+    WON_REFLECT_ENUM_END()
+
     WON_REFLECT_STRUCT(won::ecs::NameComponent, "NameComponent")
         WON_REFLECT_FIELD(value, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
@@ -220,6 +226,17 @@ namespace won::reflection
         WON_REFLECT_FIELD(offset, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(half_extent, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(radius, won::FieldFlagEditable | won::FieldFlagSerializable)
+    WON_REFLECT_STRUCT_END()
+
+    WON_REFLECT_STRUCT(won::ecs::Rigidbody3DComponent, "Rigidbody3DComponent")
+        WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(motion_type, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(mass, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(friction, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(restitution, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(gravity_factor, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(linear_velocity, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(angular_velocity, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::MaterialSlot::TextureMap, "TextureMap")

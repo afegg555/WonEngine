@@ -4,19 +4,8 @@
 #include "System.h"
 #include "SceneComponents.h"
 #include "BuiltinTypeMeta.h"
-#include "TransformUpdateSystem.h"
-#include "Collider3DUpdateSystem.h"
-#include "EnvironmentUpdateSystem.h"
-#include "CameraUpdateSystem.h"
-#include "LightUpdateSystem.h"
-#include "GeometryUpdateSystem.h"
-#include "MaterialUpdateSystem.h"
-#include "AnimationUpdateSystem.h"
-#include "RenderableUpdateSystem.h"
-#include "SpriteUpdateSystem.h"
-#include "TextUpdateSystem.h"
-#include "ScriptUpdateSystem.h"
-#include "ScriptEventDispatchSystem.h"
+#include "Systems.h"
+#include "PhysicsWorld.h"
 #include "ShaderInterop_Renderer.h"
 #include "BVH.h"
 #include "RenderingUtils.h"
@@ -39,6 +28,7 @@ namespace won::ecs
     struct SceneDesc
     {
         script::ScriptRuntime* script_runtime = nullptr; // Non-owning.
+        won::physics::PhysicsWorldDesc physics;
     };
 
     struct RayCastHit
@@ -59,37 +49,7 @@ namespace won::ecs
         Entity entity = INVALID_ENTITY;
     };
 
-    enum class Collider3DTriggerEventType
-    {
-        Enter,
-        Stay,
-        Exit,
-    };
 
-    struct Collider3DPairKey
-    {
-        Entity a = INVALID_ENTITY;
-        Entity b = INVALID_ENTITY;
-    };
-
-    struct Collider3DTriggerEvent
-    {
-        Collider3DTriggerEventType type = Collider3DTriggerEventType::Enter;
-        Entity self = INVALID_ENTITY;
-        Entity other = INVALID_ENTITY;
-    };
-
-    struct Collider3DWorld
-    {
-        Vector<Collider3DPairKey> active_trigger_pairs;
-        Vector<Collider3DTriggerEvent> trigger_events;
-
-        void Clear()
-        {
-            active_trigger_pairs.clear();
-            trigger_events.clear();
-        }
-    };
 
     class Scene
     {
@@ -114,13 +74,14 @@ namespace won::ecs
             component_manager.RegisterComponent<AnimationComponent>();
             component_manager.RegisterComponent<ScriptComponent>();
             component_manager.RegisterComponent<Collider3DComponent>();
+            component_manager.RegisterComponent<Rigidbody3DComponent>();
 
             if (desc.script_runtime)
             {
                 AddSystem(std::make_shared<ScriptUpdateSystem>(desc.script_runtime));
             }
             AddSystem(std::make_shared<TransformUpdateSystem>());
-            AddSystem(std::make_shared<Collider3DUpdateSystem>());
+            AddSystem(std::make_shared<PhysicsUpdateSystem>());
             if (desc.script_runtime)
             {
                 AddSystem(std::make_shared<ScriptEventDispatchSystem>(desc.script_runtime));
@@ -134,6 +95,8 @@ namespace won::ecs
             AddSystem(std::make_shared<RenderableUpdateSystem>());
             AddSystem(std::make_shared<SpriteUpdateSystem>());
             AddSystem(std::make_shared<TextUpdateSystem>());
+
+            physics_world = std::make_unique<won::physics::PhysicsWorld>(desc.physics);
         }
 
         Entity CreateEntity()
@@ -199,7 +162,7 @@ namespace won::ecs
             render_data.Clear();
             scene_bvh.Clear();
             scene_bvh_entities.clear();
-            collider_3d_world.Clear();
+            physics_world->Clear();
             next_entity = INVALID_ENTITY + 1;
             SetBVHDirty();
         }
@@ -1163,9 +1126,14 @@ namespace won::ecs
             return render_data;
         }
 
-        const Vector<Collider3DTriggerEvent>& GetCollider3DTriggerEvents() const
+        const Vector<physics::Collider3DTriggerEvent>& GetCollider3DTriggerEvents() const
         {
-            return collider_3d_world.trigger_events;
+            return physics_world->GetTriggerEvents();
+        }
+
+        won::physics::PhysicsWorld* GetPhysicsWorld() const
+        {
+            return physics_world.get();
         }
 
         const math::bvh::BVH& GetSceneBVH() const
@@ -1174,25 +1142,18 @@ namespace won::ecs
         }
 
     private:
-        friend class Collider3DUpdateSystem;
-
-        Collider3DWorld& GetCollider3DWorld()
-        {
-            return collider_3d_world;
-        }
-
         RenderData render_data;
         ComponentManager component_manager;
         Vector<Entity> entities;
         Entity next_entity = INVALID_ENTITY + 1;
         math::bvh::BVH scene_bvh;
         Vector<Entity> scene_bvh_entities;
-        Collider3DWorld collider_3d_world;
         Vector<std::shared_ptr<System>> systems;
         Vector<Vector<uint32>> system_execution_batches;
         uint64 update_index = 0;
         bool cpu_bvh_dirty = true;
         bool gpu_bvh_dirty = true;
         bool system_schedule_dirty = true;
+        std::unique_ptr<won::physics::PhysicsWorld> physics_world;
     };
 }

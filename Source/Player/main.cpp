@@ -66,6 +66,7 @@ int main(int argc, char** argv)
         }
         won::ecs::SceneDesc scene_desc = {};
         scene_desc.script_runtime = app.GetScriptRuntime();
+        scene_desc.physics = won::project::GetPhysicsDesc(app_desc.project_settings);
         won::ecs::Scene game_scene(scene_desc);
 
         won::String startup_scene_path = app_desc.project_settings.startup_scene;

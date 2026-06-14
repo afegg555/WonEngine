@@ -18,6 +18,7 @@
 #include "AnimationComponent.h"
 #include "ScriptComponent.h"
 #include "Collider3DComponent.h"
+#include "Rigidbody3DComponent.h"
 
 namespace won::ecs
 {
@@ -43,7 +44,8 @@ namespace won::ecs
         Sprite2D,
         Text2D,
         Script,
-        Collider3D
+        Collider3D,
+        Rigidbody3D
     };
 
     constexpr ComponentMask ComponentMaskFromBit(SceneComponentBit bit)
@@ -70,4 +72,5 @@ namespace won::ecs
     inline constexpr ComponentMask text_2d_component_mask = ComponentMaskFromBit(SceneComponentBit::Text2D);
     inline constexpr ComponentMask script_component_mask = ComponentMaskFromBit(SceneComponentBit::Script);
     inline constexpr ComponentMask collider_3d_component_mask = ComponentMaskFromBit(SceneComponentBit::Collider3D);
+    inline constexpr ComponentMask rigidbody_3d_component_mask = ComponentMaskFromBit(SceneComponentBit::Rigidbody3D);
 }

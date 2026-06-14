@@ -10,6 +10,7 @@
 #include "Input.h"
 #include "Profiler.h"
 #include "ScriptRuntime.h"
+#include "PhysicsWorld.h"
 
 namespace won
 {
@@ -20,6 +21,7 @@ namespace won
         reflection::RegisterBuiltinTypes();
 
         jobsystem::Initialize(desc.jobsystem_thread_count);
+        won::physics::Initialize();
 
         platform::WindowDesc window_desc = {};
         window_desc.title = project_settings.window_title.c_str();
@@ -157,6 +159,7 @@ namespace won
         }
 
         device.reset();
+        won::physics::Shutdown();
         jobsystem::ShutDown();
     }
 

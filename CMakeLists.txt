@@ -274,7 +274,12 @@ set(RUNTIME_ECS
     Source/Runtime/Public/ComponentManager.h
     Source/Runtime/Public/Scene.h
     Source/Runtime/Public/System.h
+    Source/Runtime/Public/PhysicsWorld.h
+    Source/Runtime/Private/PhysicsWorld.cpp
+    Source/Runtime/Public/PhysicsUpdateSystem.h
+    Source/Runtime/Private/PhysicsUpdateSystem.cpp
 )
+
 
 set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/SceneComponents.h
@@ -296,9 +301,11 @@ set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/AnimationComponent.h
     Source/Runtime/Public/ScriptComponent.h
     Source/Runtime/Public/Collider3DComponent.h
+    Source/Runtime/Public/Rigidbody3DComponent.h
 )
 
 set(RUNTIME_ECS_SYSTEMS
+    Source/Runtime/Public/Systems.h
     Source/Runtime/Public/EnvironmentUpdateSystem.h
     Source/Runtime/Public/CameraUpdateSystem.h
     Source/Runtime/Public/GeometryUpdateSystem.h
@@ -311,7 +318,6 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Public/TextUpdateSystem.h
     Source/Runtime/Public/ScriptUpdateSystem.h
     Source/Runtime/Public/ScriptEventDispatchSystem.h
-    Source/Runtime/Public/Collider3DUpdateSystem.h
     Source/Runtime/Private/EnvironmentUpdateSystem.cpp
     Source/Runtime/Private/CameraUpdateSystem.cpp
     Source/Runtime/Private/GeometryUpdateSystem.cpp
@@ -324,8 +330,8 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Private/TextUpdateSystem.cpp
     Source/Runtime/Private/ScriptUpdateSystem.cpp
     Source/Runtime/Private/ScriptEventDispatchSystem.cpp
-    Source/Runtime/Private/Collider3DUpdateSystem.cpp
 )
+
 
 set(RUNTIME_PLATFORM
     Source/Runtime/Public/Platform.h

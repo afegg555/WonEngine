@@ -1,0 +1,15 @@
+#pragma once
+
+#include "TransformUpdateSystem.h"
+#include "PhysicsUpdateSystem.h"
+#include "EnvironmentUpdateSystem.h"
+#include "CameraUpdateSystem.h"
+#include "LightUpdateSystem.h"
+#include "GeometryUpdateSystem.h"
+#include "MaterialUpdateSystem.h"
+#include "AnimationUpdateSystem.h"
+#include "RenderableUpdateSystem.h"
+#include "SpriteUpdateSystem.h"
+#include "TextUpdateSystem.h"
+#include "ScriptUpdateSystem.h"
+#include "ScriptEventDispatchSystem.h"

@@ -12,13 +12,13 @@ namespace won::ecs
 
     void ScriptEventDispatchSystem::Update(Scene& scene, float delta_time)
     {
-        const Vector<Collider3DTriggerEvent>& events = scene.GetCollider3DTriggerEvents();
+        const auto& events = scene.GetPhysicsWorld()->GetTriggerEvents();
         if (!script_runtime || events.empty())
         {
             return;
         }
 
-        for (const Collider3DTriggerEvent& event : events)
+        for (const physics::Collider3DTriggerEvent& event : events)
         {
             ScriptComponent* script_component = scene.GetComponent<ScriptComponent>(event.self);
             if (!script_component || !script_component->enabled)
@@ -49,16 +49,16 @@ namespace won::ecs
                 call_desc.context = context;
                 switch (event.type)
                 {
-                case Collider3DTriggerEventType::Enter:
+                case physics::Collider3DTriggerEventType::Enter:
                     call_desc.type = script::ScriptCallType::OnTriggerEnter3D;
                     break;
-                case Collider3DTriggerEventType::Stay:
+                case physics::Collider3DTriggerEventType::Stay:
                     inputs[1].type = won::ValueType::Float32;
                     inputs[1].float_value = delta_time;
                     call.input_count = 2;
                     call_desc.type = script::ScriptCallType::OnTriggerStay3D;
                     break;
-                case Collider3DTriggerEventType::Exit:
+                case physics::Collider3DTriggerEventType::Exit:
                     call_desc.type = script::ScriptCallType::OnTriggerExit3D;
                     break;
                 default:
