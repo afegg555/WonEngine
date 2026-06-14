@@ -16,11 +16,11 @@ namespace won::ecs
 
         uint32 flags = Empty;
 
-        // these values will be updated on CameraUpdateSystem
-        // you can use TransformComponent for manipulation !!
+        // These values are updated by CameraUpdateSystem.
+        // Use TransformComponent for manipulation.
         float3 eye = { 0, 0, 0 }; // vec(0, 0, 0) * transform_matrix
-        float3 forward = { 0, 1, 0 }; // vec(0, 1, 0) * transform_matrix
-        float3 up = { 0, 0, 1 }; // vec(0, 0, 1) * transform_matrix
+        float3 forward = { 0, 0, 1 }; // vec(0, 0, 1) * transform_matrix
+        float3 up = { 0, 1, 0 }; // vec(0, 1, 0) * transform_matrix
         float4x4 view, projection, view_projection;
         float4x4 inv_view, inv_projection, inv_view_projection;
         float3 corners_np[4]; // top-left, top-right, bottom-left, bottom-right

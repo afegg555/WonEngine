@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Entity.h"
+#include "FunctionTypes.h"
 #include "RuntimeExport.h"
 #include "Types.h"
 
@@ -44,6 +45,28 @@ namespace won::script
         ecs::Entity entity = ecs::INVALID_ENTITY;
     };
 
+    enum class ScriptCallType
+    {
+		// engine-defined events
+        OnCreate,
+        OnUpdate,
+        OnDestroy,
+        OnTriggerEnter3D,
+        OnTriggerStay3D,
+        OnTriggerExit3D,
+
+		// user-defined
+        Custom,
+    };
+
+    struct ScriptCallDesc
+    {
+        ScriptCallType type = ScriptCallType::Custom;
+        ScriptCallContext context = {};
+        const char* function_name = nullptr;
+        const won::function::Call* call = nullptr;
+    };
+
     class WONENGINE_API ScriptRuntime
     {
     public:
@@ -56,9 +79,7 @@ namespace won::script
         virtual void DestroyInstance(ScriptInstanceHandle handle) = 0;
         virtual bool ReloadScript(const String& script_path, String& out_error) = 0;
 
-        virtual bool CallOnCreate(ScriptInstanceHandle handle, const ScriptCallContext& context, String& out_error) = 0;
-        virtual bool CallOnUpdate(ScriptInstanceHandle handle, const ScriptCallContext& context, float delta_time, String& out_error) = 0;
-        virtual bool CallOnDestroy(ScriptInstanceHandle handle, const ScriptCallContext& context, String& out_error) = 0;
+        virtual bool Call(ScriptInstanceHandle handle, const ScriptCallDesc& desc, String& out_error) = 0;
     };
 
     WONENGINE_API std::shared_ptr<ScriptRuntime> CreateScriptRuntime(const ScriptRuntimeDesc& desc);

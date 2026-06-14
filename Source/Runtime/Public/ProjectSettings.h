@@ -4,6 +4,7 @@
 #include "RHIDevice.h"
 #include "ResourceExtension.h"
 #include "Types.h"
+#include "PhysicsWorld.h"
 
 namespace won::project
 {
@@ -37,7 +38,27 @@ namespace won::project
         String input_action_map = String("Config/Input.") + resource::input_action_map_extension;
         rendering::RHIBackend backend_type = rendering::RHIBackend::DirectX12;
         Vector<String> enabled_plugins;
+
+        // Physics
+        uint32 physics_temp_allocator_size     = physics::default_temp_allocator_size;
+        uint32 physics_max_bodies              = physics::default_max_bodies;
+        uint32 physics_max_body_pairs          = physics::default_max_body_pairs;
+        uint32 physics_max_contact_constraints = physics::default_max_contact_constraints;
+        float  physics_hz                      = physics::default_physics_hz;
+        int    physics_max_steps_per_frame     = physics::default_max_steps_per_frame;
     };
+
+    inline physics::PhysicsWorldDesc GetPhysicsDesc(const ProjectSettings& settings)
+    {
+        physics::PhysicsWorldDesc desc;
+        desc.temp_allocator_size = settings.physics_temp_allocator_size;
+        desc.max_bodies = settings.physics_max_bodies;
+        desc.max_body_pairs = settings.physics_max_body_pairs;
+        desc.max_contact_constraints = settings.physics_max_contact_constraints;
+        desc.physics_hz = settings.physics_hz;
+        desc.max_steps_per_frame = settings.physics_max_steps_per_frame;
+        return desc;
+    }
 
     inline String GetContentRoot(const ProjectSettings& settings)
     {
@@ -200,6 +221,20 @@ namespace won::project
             }
         }
 
+        float float_value = 0.0f;
+        if (configuration.GetInt("physics_temp_allocator_size", int_value))
+            settings.physics_temp_allocator_size = static_cast<uint32>(int_value);
+        if (configuration.GetInt("physics_max_bodies", int_value))
+            settings.physics_max_bodies = static_cast<uint32>(int_value);
+        if (configuration.GetInt("physics_max_body_pairs", int_value))
+            settings.physics_max_body_pairs = static_cast<uint32>(int_value);
+        if (configuration.GetInt("physics_max_contact_constraints", int_value))
+            settings.physics_max_contact_constraints = static_cast<uint32>(int_value);
+        if (configuration.GetFloat("physics_hz", float_value))
+            settings.physics_hz = float_value;
+        if (configuration.GetInt("physics_max_steps_per_frame", int_value))
+            settings.physics_max_steps_per_frame = int_value;
+
         out_settings = settings;
         return settings.version == project_settings_version;
     }
@@ -245,6 +280,14 @@ namespace won::project
             enabled_plugins += settings.enabled_plugins[plugin_index];
         }
         configuration.SetString("enabled_plugins", enabled_plugins.c_str());
+
+        configuration.SetInt("physics_temp_allocator_size", static_cast<int>(settings.physics_temp_allocator_size));
+        configuration.SetInt("physics_max_bodies",              static_cast<int>(settings.physics_max_bodies));
+        configuration.SetInt("physics_max_body_pairs",          static_cast<int>(settings.physics_max_body_pairs));
+        configuration.SetInt("physics_max_contact_constraints", static_cast<int>(settings.physics_max_contact_constraints));
+        configuration.SetFloat("physics_hz",                   settings.physics_hz);
+        configuration.SetInt("physics_max_steps_per_frame",    settings.physics_max_steps_per_frame);
+
         return configuration.SaveToFile(path.c_str());
     }
 }

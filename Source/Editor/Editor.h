@@ -212,6 +212,7 @@ namespace won::editor
 		struct ViewportDebugSettings
 		{
 			bool show_grid = false;
+			bool show_colliders = true;
 			bool show_ddgi_overlay = false;
 			bool show_ddgi_volume = true;
 			bool show_ddgi_probes = true;

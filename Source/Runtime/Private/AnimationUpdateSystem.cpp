@@ -38,6 +38,10 @@ namespace won::ecs
             }
 
             const GeometryComponent& geometry = geometry_array->GetData(entity);
+            if (geometry.mesh && animation.clips.empty() && !geometry.mesh->animation_clips.empty())
+            {
+                animation.clips = geometry.mesh->animation_clips;
+            }
             if (!geometry.mesh || !geometry.mesh->skeleton || !geometry.mesh->skeleton->IsValid() || animation.clips.empty())
             {
                 animation.bone_matrices.clear();
@@ -83,6 +87,10 @@ namespace won::ecs
             }
 
             GeometryComponent& geometry = geometry_array->GetData(entity);
+            if (geometry.mesh && animation.clips.empty() && !geometry.mesh->animation_clips.empty())
+            {
+                animation.clips = geometry.mesh->animation_clips;
+            }
             if (!geometry.mesh || !geometry.mesh->skeleton || !geometry.mesh->skeleton->IsValid() || animation.clips.empty())
             {
                 animation.bone_matrices.clear();

@@ -9,6 +9,12 @@ namespace won::rendering
         Forward
     };
 
+    enum class ViewResizePolicy
+    {
+        Manual,
+        MatchWindow
+    };
+
     struct Rect
     {
         int32 x = 0;
@@ -17,11 +23,18 @@ namespace won::rendering
         int32 height = 0;
     };
 
+    struct ViewOptions
+    {
+        ViewResizePolicy resize_policy = ViewResizePolicy::MatchWindow;
+        bool update_camera_aspect = true;
+    };
+
     struct View
     {
         ecs::Entity camera_entity = {};
         ecs::Scene* scene = nullptr;
         RenderPathType render_path_type = RenderPathType::Forward;
+        ViewOptions options = {};
         Rect viewport = {};
         Rect scissor = {};
 
@@ -77,7 +90,14 @@ namespace won::rendering
                 XMStoreFloat3(&ray.direction, XMVector3Normalize(far_position - XMLoadFloat3(&camera->eye)));
             }
 
-            return scene->RayCastClosest(ray, out_hit, use_local_bvh);
+            ecs::RayCastBVHHit bvh_hit = {};
+            if (!scene->RayCastBVH(ray, bvh_hit, use_local_bvh))
+            {
+                return false;
+            }
+
+            out_hit = bvh_hit.hit;
+            return true;
         }
     };
 }

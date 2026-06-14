@@ -916,6 +916,10 @@ namespace won::serialize
                 {
                     text->SetDirty();
                 }
+                if (ecs::Collider3DComponent* collider = scene.GetComponent<ecs::Collider3DComponent>(entity))
+                {
+                    collider->SetDirty();
+                }
             }
             scene.SetBVHDirty();
             archive.EndObject();

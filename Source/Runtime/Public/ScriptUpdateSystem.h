@@ -10,9 +10,9 @@ namespace won::ecs
     public:
         explicit ScriptUpdateSystem(script::ScriptRuntime* script_runtime);
 
-        ComponentMask GetReadMask() const override;
-        ComponentMask GetWriteMask() const override;
-        SystemExecutionPolicy GetExecutionPolicy() const override;
+        ComponentMask GetReadMask() const override { return script_component_mask; }
+        ComponentMask GetWriteMask() const override { return script_component_mask | transform_component_mask | name_component_mask; }
+        SystemExecutionPolicy GetExecutionPolicy() const override { return SystemExecutionPolicy::Synchronous; }
         void Update(Scene& scene, float delta_time) override;
 
     private:

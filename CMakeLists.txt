@@ -113,6 +113,7 @@ set(PLUGIN_PUBLIC
     Source/Plugins/Include/StableHash.h
     Source/Plugins/Include/ReflectionTypes.h
     Source/Plugins/Include/PluginABI.h
+    Source/Plugins/Include/FunctionTypes.h
     Source/Plugins/Include/CustomFunctionExtension.h
     Source/Plugins/Include/CustomComponentExtension.h
     Source/Plugins/Include/CustomSystemExtension.h
@@ -273,7 +274,12 @@ set(RUNTIME_ECS
     Source/Runtime/Public/ComponentManager.h
     Source/Runtime/Public/Scene.h
     Source/Runtime/Public/System.h
+    Source/Runtime/Public/PhysicsWorld.h
+    Source/Runtime/Private/PhysicsWorld.cpp
+    Source/Runtime/Public/PhysicsUpdateSystem.h
+    Source/Runtime/Private/PhysicsUpdateSystem.cpp
 )
+
 
 set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/SceneComponents.h
@@ -294,9 +300,12 @@ set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/DDGIVolumeComponent.h
     Source/Runtime/Public/AnimationComponent.h
     Source/Runtime/Public/ScriptComponent.h
+    Source/Runtime/Public/Collider3DComponent.h
+    Source/Runtime/Public/Rigidbody3DComponent.h
 )
 
 set(RUNTIME_ECS_SYSTEMS
+    Source/Runtime/Public/Systems.h
     Source/Runtime/Public/EnvironmentUpdateSystem.h
     Source/Runtime/Public/CameraUpdateSystem.h
     Source/Runtime/Public/GeometryUpdateSystem.h
@@ -308,6 +317,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Public/SpriteUpdateSystem.h
     Source/Runtime/Public/TextUpdateSystem.h
     Source/Runtime/Public/ScriptUpdateSystem.h
+    Source/Runtime/Public/ScriptEventDispatchSystem.h
     Source/Runtime/Private/EnvironmentUpdateSystem.cpp
     Source/Runtime/Private/CameraUpdateSystem.cpp
     Source/Runtime/Private/GeometryUpdateSystem.cpp
@@ -319,7 +329,9 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Private/SpriteUpdateSystem.cpp
     Source/Runtime/Private/TextUpdateSystem.cpp
     Source/Runtime/Private/ScriptUpdateSystem.cpp
+    Source/Runtime/Private/ScriptEventDispatchSystem.cpp
 )
+
 
 set(RUNTIME_PLATFORM
     Source/Runtime/Public/Platform.h
@@ -399,6 +411,11 @@ set(SHADERS_HLSL
     Source/Shaders/Compressonator/bcn_common_api.h
     Source/Shaders/Compressonator/bcn_common_kernel.h
 )
+
+# Jolt Physics target integration (from source)
+set(ENABLE_ALL_WARNINGS OFF CACHE BOOL "" FORCE) # Disable warnings-as-errors for Jolt
+add_subdirectory(Source/Vendor/JoltPhysics/Build JoltPhysics)
+set_target_properties(Jolt PROPERTIES FOLDER "Vendors")
 
 set(WONENGINE_RUNTIME_LIBRARY_TYPE STATIC)
 if(WONENGINE_BUILD_SHARED_RUNTIME)
@@ -587,6 +604,8 @@ target_include_directories(Runtime
     PRIVATE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Vendor/lua/src>
 )
+
+target_link_libraries(Runtime PUBLIC Jolt)
 
 target_link_libraries(Editor PRIVATE Runtime)
 add_dependencies(Editor AssetImporter)
