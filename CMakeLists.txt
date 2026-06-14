@@ -406,6 +406,11 @@ set(SHADERS_HLSL
     Source/Shaders/Compressonator/bcn_common_kernel.h
 )
 
+# Jolt Physics target integration (from source)
+set(ENABLE_ALL_WARNINGS OFF CACHE BOOL "" FORCE) # Disable warnings-as-errors for Jolt
+add_subdirectory(Source/Vendor/JoltPhysics/Build JoltPhysics)
+set_target_properties(Jolt PROPERTIES FOLDER "Vendors")
+
 set(WONENGINE_RUNTIME_LIBRARY_TYPE STATIC)
 if(WONENGINE_BUILD_SHARED_RUNTIME)
     set(WONENGINE_RUNTIME_LIBRARY_TYPE SHARED)
@@ -593,6 +598,8 @@ target_include_directories(Runtime
     PRIVATE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Vendor/lua/src>
 )
+
+target_link_libraries(Runtime PUBLIC Jolt)
 
 target_link_libraries(Editor PRIVATE Runtime)
 add_dependencies(Editor AssetImporter)
