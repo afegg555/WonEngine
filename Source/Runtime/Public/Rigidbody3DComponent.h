@@ -29,9 +29,6 @@ namespace won::ecs
         float3 linear_velocity = {};
         float3 angular_velocity = {};
 
-        // Stores Jolt's BodyID as a uint32. 0xffffffff represents invalid/not-created.
-        uint32 body_id = 0xffffffff;
-
         constexpr void SetDirty(bool value = true) { if (value) { flags |= Dirty; } else { flags &= ~Dirty; } }
         constexpr bool IsDirty() const { return (flags & Dirty) != 0; }
         constexpr void SetEnabled(bool value = true) { if (IsEnabled() == value) { return; } if (value) { flags |= Enabled; } else { flags &= ~Enabled; } SetDirty(); }

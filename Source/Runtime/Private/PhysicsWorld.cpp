@@ -434,9 +434,9 @@ namespace won::physics
             body_interface.SetAngularVelocity(body_id, JPH::Vec3(rb->angular_velocity.x, rb->angular_velocity.y, rb->angular_velocity.z));
         }
 
+
         if (rb)
         {
-            rb->body_id = body_id.GetIndexAndSequenceNumber();
             rb->SetDirty(false);
         }
         collider.SetDirty(false);
