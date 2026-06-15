@@ -63,7 +63,6 @@ namespace won::physics
         bool HasBody(won::ecs::Entity entity) const;
 
         bool IsDynamic(won::ecs::Entity entity) const;
-        bool IsAdded(won::ecs::Entity entity) const;
 
         void CleanupBodies(const std::unordered_set<won::ecs::Entity>& active_entities);
 

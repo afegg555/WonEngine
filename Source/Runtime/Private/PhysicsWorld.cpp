@@ -486,15 +486,6 @@ namespace won::physics
         return body_interface.GetMotionType(it->second) == JPH::EMotionType::Dynamic;
     }
 
-    bool PhysicsWorld::IsAdded(won::ecs::Entity entity) const
-    {
-        auto it = impl->entity_to_body.find(entity);
-        if (it == impl->entity_to_body.end())
-            return false;
-
-        JPH::BodyInterface& body_interface = impl->physics_system->GetBodyInterface();
-        return body_interface.IsAdded(it->second);
-    }
 
     void PhysicsWorld::CleanupBodies(const std::unordered_set<won::ecs::Entity>& active_entities)
     {
@@ -526,8 +517,6 @@ namespace won::physics
 
         JPH::BodyID body_id = it->second;
         JPH::BodyInterface& body_interface = impl->physics_system->GetBodyInterface();
-        if (!body_interface.IsAdded(body_id))
-            return;
 
         JPH::EMotionType motion_type = body_interface.GetMotionType(body_id);
         if (motion_type == JPH::EMotionType::Static || motion_type == JPH::EMotionType::Kinematic)
