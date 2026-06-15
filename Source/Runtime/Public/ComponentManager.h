@@ -31,7 +31,7 @@ namespace won::ecs
         {
             // map entity to array index
             entity_to_index[entity] = data.size();
-            index_to_entity[data.size()] = entity;
+            index_to_entity.push_back(entity);
             data.push_back(component);
         }
 
@@ -63,7 +63,7 @@ namespace won::ecs
             index_to_entity[index_to_remove] = last_entity;
 
             entity_to_index.erase(entity);
-            index_to_entity.erase(last_index);
+            index_to_entity.pop_back();
             data.pop_back();
         }
 
@@ -104,8 +104,7 @@ namespace won::ecs
 
         Entity GetEntity(Size index) const override
         {
-            auto it = index_to_entity.find(index);
-            return it != index_to_entity.end() ? it->second : INVALID_ENTITY;
+            return index < index_to_entity.size() ? index_to_entity[index] : INVALID_ENTITY;
         }
 
         void Clear() override
@@ -117,7 +116,7 @@ namespace won::ecs
 
         Vector<T> data;
         UnorderedMap<Entity, Size> entity_to_index;
-        UnorderedMap<Size, Entity> index_to_entity;
+        Vector<Entity> index_to_entity;
     };
 
     class DynamicComponentArray : public IComponentArray
@@ -167,7 +166,7 @@ namespace won::ecs
                 std::memset(memory, 0, type_desc->size);
             }
             entity_to_index[entity] = data.size();
-            index_to_entity[data.size()] = entity;
+            index_to_entity.push_back(entity);
             data.push_back(memory);
         }
 
@@ -197,7 +196,7 @@ namespace won::ecs
             }
 
             entity_to_index.erase(entity);
-            index_to_entity.erase(last_index);
+            index_to_entity.pop_back();
             data.pop_back();
         }
 
@@ -238,8 +237,7 @@ namespace won::ecs
 
         Entity GetEntity(Size index) const override
         {
-            auto it = index_to_entity.find(index);
-            return it != index_to_entity.end() ? it->second : INVALID_ENTITY;
+            return index < index_to_entity.size() ? index_to_entity[index] : INVALID_ENTITY;
         }
 
         void Clear() override
@@ -265,7 +263,7 @@ namespace won::ecs
         memory::PoolAllocator allocator;
         Vector<void*> data;
         UnorderedMap<Entity, Size> entity_to_index;
-        UnorderedMap<Size, Entity> index_to_entity;
+        Vector<Entity> index_to_entity;
     };
 
     class ComponentManager {

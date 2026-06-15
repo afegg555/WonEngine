@@ -276,8 +276,6 @@ set(RUNTIME_ECS
     Source/Runtime/Public/System.h
     Source/Runtime/Public/PhysicsWorld.h
     Source/Runtime/Private/PhysicsWorld.cpp
-    Source/Runtime/Public/PhysicsUpdateSystem.h
-    Source/Runtime/Private/PhysicsUpdateSystem.cpp
 )
 
 
@@ -318,6 +316,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Public/TextUpdateSystem.h
     Source/Runtime/Public/ScriptUpdateSystem.h
     Source/Runtime/Public/ScriptEventDispatchSystem.h
+    Source/Runtime/Public/PhysicsUpdateSystem.h
     Source/Runtime/Private/EnvironmentUpdateSystem.cpp
     Source/Runtime/Private/CameraUpdateSystem.cpp
     Source/Runtime/Private/GeometryUpdateSystem.cpp
@@ -330,6 +329,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Private/TextUpdateSystem.cpp
     Source/Runtime/Private/ScriptUpdateSystem.cpp
     Source/Runtime/Private/ScriptEventDispatchSystem.cpp
+    Source/Runtime/Private/PhysicsUpdateSystem.cpp
 )
 
 

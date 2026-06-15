@@ -7,10 +7,6 @@
 #include "PhysicsWorld.h"
 #include "JobSystem.h"
 
-#include <unordered_set>
-#include <algorithm>
-#include <cmath>
-
 using namespace DirectX;
 
 namespace won::ecs
@@ -28,51 +24,44 @@ namespace won::ecs
             return;
         }
 
-        // 1. Reconciliation: Create Jolt bodies for new entities, Recreate if dirty, remove if gone
-
-        std::unordered_set<Entity> current_entities;
-        for (Size i = 0; i < collider_array->GetSize(); ++i)
+        jobsystem::Context sub_ctx;
+        jobsystem::Dispatch(sub_ctx, (uint32_t)collider_array->GetSize(), jobsystem::groupsize, [&](jobsystem::JobArgs args)
         {
-            const Entity entity = collider_array->index_to_entity[i];
-            current_entities.insert(entity);
+            const Entity entity = collider_array->index_to_entity[args.job_index];
 
-            bool has_rb = rigidbody_array && rigidbody_array->HasData(entity);
-            Rigidbody3DComponent* rb = has_rb ? &rigidbody_array->GetData(entity) : nullptr;
+            TransformComponent& transform = transform_array->GetData(entity);
+            Collider3DComponent& collider = collider_array->data[args.job_index];
+            Rigidbody3DComponent* rb = (rigidbody_array && rigidbody_array->HasData(entity)) ? &rigidbody_array->GetData(entity) : nullptr;
 
             if (!physics_world->HasBody(entity))
             {
-                physics_world->AddBody(entity, transform_array->GetData(entity), collider_array->data[i], rb);
+                physics_world->AddBody(entity, transform, collider, rb);
+            }
+            else if (collider.IsDirty() || (rb && rb->IsDirty()))
+            {
+                physics_world->RemoveBody(entity);
+                physics_world->AddBody(entity, transform, collider, rb);
             }
             else
             {
-                physics_world->UpdateBody(entity, transform_array->GetData(entity), collider_array->data[i], rb);
+				physics_world->SyncTransformToPhysics(entity, transform, collider); // sync kinematic / static body transform
             }
-        }
+        });
+        jobsystem::Wait(sub_ctx);
 
-        // Clean up Jolt bodies for entities that no longer have a collider component
-        physics_world->CleanupBodies(current_entities);
-
-        // 2. Sync manual transform changes (or Kinematic movement) from ECS to Jolt
-        for (Size i = 0; i < collider_array->GetSize(); ++i)
-        {
-            const Entity entity = collider_array->index_to_entity[i];
-            if (physics_world->IsAdded(entity))
-            {
-                physics_world->SyncTransformToPhysics(entity, transform_array->GetData(entity), collider_array->data[i]);
-            }
-        }
-
-        // 3. Step physics simulation
+        // step physics simulation
         physics_world->Step(delta_time);
 
-        // 4. Sync Jolt results back to ECS transforms for dynamic bodies
-        for (Size i = 0; i < collider_array->GetSize(); ++i)
+        jobsystem::Context post_ctx;
+        jobsystem::Dispatch(post_ctx, (uint32_t)collider_array->GetSize(), jobsystem::groupsize, [&](jobsystem::JobArgs args)
         {
-            const Entity entity = collider_array->index_to_entity[i];
-            if (physics_world->IsAdded(entity) && physics_world->IsDynamic(entity))
+            const Entity entity = collider_array->index_to_entity[args.job_index];
+            Collider3DComponent& collider = collider_array->data[args.job_index];
+
+            if (physics_world->HasBody(entity) && physics_world->IsDynamic(entity))
             {
                 TransformComponent& transform = transform_array->GetData(entity);
-                const Collider3DComponent& collider = collider_array->data[i];
+
 
                 float3 body_pos;
                 float4 body_rot;
@@ -103,7 +92,6 @@ namespace won::ecs
                     XMStoreFloat3(&transform.position, T);
                     XMStoreFloat4(&transform.rotation, R);
                     transform.SetDirty();
-                    transform.UpdateTransform();
                 }
 
                 if (rigidbody_array && rigidbody_array->HasData(entity))
@@ -116,57 +104,49 @@ namespace won::ecs
                     rb.angular_velocity = ang_vel;
                 }
             }
-        }
 
-        // 5. Update ECS Collider bounds using the new world transform
-        uint32_t groupsize = 64;
-        jobsystem::Context bounds_ctx;
-        jobsystem::Dispatch(bounds_ctx, static_cast<uint32_t>(collider_array->GetSize()), groupsize, [&](jobsystem::JobArgs args) {
-            const Entity entity = collider_array->index_to_entity[args.job_index];
-            Collider3DComponent& collider = collider_array->data[args.job_index];
-
-            collider.world_bounds.Invalidate();
-            collider.world_sphere = {};
-            if (!transform_array->HasData(entity))
+            // Update Collider Bounds
+            if (transform_array->HasData(entity))
             {
-                return;
+                const TransformComponent& transform = transform_array->GetData(entity);
+                const XMMATRIX world = transform.GetWorldTransform();
+
+                collider.world_bounds.Invalidate();
+                collider.world_sphere = {};
+
+                if (collider.shape_type == Collider3DComponent::Sphere)
+                {
+                    const XMVECTOR center = XMVector3TransformCoord(XMLoadFloat3(&collider.offset), world);
+                    const float scale_x = XMVectorGetX(XMVector3Length(world.r[0]));
+                    const float scale_y = XMVectorGetX(XMVector3Length(world.r[1]));
+                    const float scale_z = XMVectorGetX(XMVector3Length(world.r[2]));
+                    const float max_scale = (std::max)((std::max)(scale_x, scale_y), scale_z);
+
+                    XMStoreFloat3(&collider.world_sphere.center, center);
+                    collider.world_sphere.radius = (std::max)(0.0f, collider.radius) * max_scale;
+                    const float3 half_width = { collider.world_sphere.radius, collider.world_sphere.radius, collider.world_sphere.radius };
+                    collider.world_bounds.CreateFromHalfWidth(collider.world_sphere.center, half_width);
+                }
+                else
+                {
+                    math::AABB local_bounds = {};
+                    const float3 half_extent = {
+                        (std::max)(0.0f, collider.half_extent.x),
+                        (std::max)(0.0f, collider.half_extent.y),
+                        (std::max)(0.0f, collider.half_extent.z)
+                    };
+                    local_bounds.CreateFromHalfWidth(collider.offset, half_extent);
+                    collider.world_bounds = local_bounds.TransformAABB(world);
+
+                    collider.world_sphere.center = collider.world_bounds.GetCenter();
+                    const float3 extent = collider.world_bounds.GetExtent();
+                    collider.world_sphere.radius = std::sqrt(extent.x * extent.x + extent.y * extent.y + extent.z * extent.z);
+                }
+
+                collider.SetDirty(false);
             }
-
-            const TransformComponent& transform = transform_array->GetData(entity);
-            const XMMATRIX world = transform.GetWorldTransform();
-
-            if (collider.shape_type == Collider3DComponent::Sphere)
-            {
-                const XMVECTOR center = XMVector3TransformCoord(XMLoadFloat3(&collider.offset), world);
-                const float scale_x = XMVectorGetX(XMVector3Length(world.r[0]));
-                const float scale_y = XMVectorGetX(XMVector3Length(world.r[1]));
-                const float scale_z = XMVectorGetX(XMVector3Length(world.r[2]));
-                const float max_scale = (std::max)((std::max)(scale_x, scale_y), scale_z);
-
-                XMStoreFloat3(&collider.world_sphere.center, center);
-                collider.world_sphere.radius = (std::max)(0.0f, collider.radius) * max_scale;
-                const float3 half_width = { collider.world_sphere.radius, collider.world_sphere.radius, collider.world_sphere.radius };
-                collider.world_bounds.CreateFromHalfWidth(collider.world_sphere.center, half_width);
-            }
-            else
-            {
-                math::AABB local_bounds = {};
-                const float3 half_extent = {
-                    (std::max)(0.0f, collider.half_extent.x),
-                    (std::max)(0.0f, collider.half_extent.y),
-                    (std::max)(0.0f, collider.half_extent.z)
-                };
-                local_bounds.CreateFromHalfWidth(collider.offset, half_extent);
-                collider.world_bounds = local_bounds.TransformAABB(world);
-
-                collider.world_sphere.center = collider.world_bounds.GetCenter();
-                const float3 extent = collider.world_bounds.GetExtent();
-                collider.world_sphere.radius = std::sqrt(extent.x * extent.x + extent.y * extent.y + extent.z * extent.z);
-            }
-
-            collider.SetDirty(false);
         });
-        jobsystem::Wait(bounds_ctx);
+        jobsystem::Wait(post_ctx);
 
         scene.SetBVHDirty(true);
     }

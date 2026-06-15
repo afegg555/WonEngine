@@ -18,10 +18,8 @@
 #include <Jolt/Physics/Body/BodyInterface.h>
 #include <Jolt/Physics/Collision/ContactListener.h>
 
-#include <unordered_map>
-#include <unordered_set>
-#include <vector>
 #include <mutex>
+#include <shared_mutex>
 #include <algorithm>
 #include <cassert>
 #include <cmath>
@@ -167,10 +165,13 @@ namespace won::physics
             };
 
             std::mutex mutex;
-            std::vector<ContactPair> active_pairs;
+            Vector<ContactPair> active_pairs;
 
             void OnContactAdded(const JPH::Body& inBody1, const JPH::Body& inBody2, const JPH::ContactManifold& inManifold, JPH::ContactSettings& ioSettings) override
             {
+                if (!inBody1.IsSensor() && !inBody2.IsSensor())
+                    return;
+
                 std::lock_guard<std::mutex> lock(mutex);
                 ContactPair p = { inBody1.GetID(), inBody2.GetID() };
                 if (std::find(active_pairs.begin(), active_pairs.end(), p) == active_pairs.end())
@@ -209,11 +210,12 @@ namespace won::physics
         Detail::ObjectLayerPairFilterImpl object_pair_filter;
         Detail::MyContactListener contact_listener;
 
-        std::unordered_map<won::ecs::Entity, JPH::BodyID> entity_to_body;
-        std::unordered_map<JPH::BodyID, won::ecs::Entity> body_to_entity;
+        mutable std::shared_mutex bodies_mutex;
+        UnorderedMap<won::ecs::Entity, JPH::BodyID> entity_to_body;
+        UnorderedMap<JPH::BodyID, won::ecs::Entity> body_to_entity;
 
-        std::vector<ActiveTriggerPair> active_trigger_pairs;
-        std::vector<Collider3DTriggerEvent> trigger_events;
+        Vector<ActiveTriggerPair> active_trigger_pairs;
+        Vector<Collider3DTriggerEvent> trigger_events;
 
         float accumulator = 0.0f;
         float fixed_step;
@@ -262,6 +264,7 @@ namespace won::physics
             trigger_events.clear();
             accumulator = 0.0f;
         }
+
     };
 
     PhysicsWorld::PhysicsWorld(const PhysicsWorldDesc& desc)
@@ -291,7 +294,7 @@ namespace won::physics
         }
 
         // Generate trigger events
-        std::vector<ActiveTriggerPair> current_pairs;
+        Vector<ActiveTriggerPair> current_pairs;
         {
             std::lock_guard<std::mutex> lock(impl->contact_listener.mutex);
             current_pairs.reserve(impl->contact_listener.active_pairs.size());
@@ -321,28 +324,29 @@ namespace won::physics
 
         impl->trigger_events.clear();
 
-        auto contains_pair = [](const std::vector<ActiveTriggerPair>& pairs, const ActiveTriggerPair& pair)
+        auto pair_less = [](const ActiveTriggerPair& l, const ActiveTriggerPair& r)
         {
-            for (const ActiveTriggerPair& current : pairs)
-            {
-                if (current.a == pair.a && current.b == pair.b)
-                {
-                    return true;
-                }
-            }
-            return false;
+            return l.a < r.a || (l.a == r.a && l.b < r.b);
         };
+        auto pair_equal = [](const ActiveTriggerPair& l, const ActiveTriggerPair& r)
+        {
+            return l.a == r.a && l.b == r.b;
+        };
+
+        std::sort(current_pairs.begin(), current_pairs.end(), pair_less);
+        // active_trigger_pairs is kept sorted from the previous frame
 
         for (const ActiveTriggerPair& pair : current_pairs)
         {
-            const Collider3DTriggerEventType type = contains_pair(impl->active_trigger_pairs, pair) ? Collider3DTriggerEventType::Stay : Collider3DTriggerEventType::Enter;
+            const bool was_active = std::binary_search(impl->active_trigger_pairs.begin(), impl->active_trigger_pairs.end(), pair, pair_less);
+            const Collider3DTriggerEventType type = was_active ? Collider3DTriggerEventType::Stay : Collider3DTriggerEventType::Enter;
             impl->trigger_events.push_back({ type, pair.a, pair.b });
             impl->trigger_events.push_back({ type, pair.b, pair.a });
         }
 
         for (const ActiveTriggerPair& pair : impl->active_trigger_pairs)
         {
-            if (!contains_pair(current_pairs, pair))
+            if (!std::binary_search(current_pairs.begin(), current_pairs.end(), pair, pair_less))
             {
                 impl->trigger_events.push_back({ Collider3DTriggerEventType::Exit, pair.a, pair.b });
                 impl->trigger_events.push_back({ Collider3DTriggerEventType::Exit, pair.b, pair.a });
@@ -354,19 +358,24 @@ namespace won::physics
 
     void PhysicsWorld::AddBody(won::ecs::Entity entity, const won::ecs::TransformComponent& transform, won::ecs::Collider3DComponent& collider, won::ecs::Rigidbody3DComponent* rb)
     {
+        XMMATRIX world = transform.GetWorldTransform();
+        XMVECTOR world_scale_vec, world_rot_vec, world_pos_vec;
+        XMMatrixDecompose(&world_scale_vec, &world_rot_vec, &world_pos_vec, world);
+        XMFLOAT3 world_scale; XMStoreFloat3(&world_scale, world_scale_vec);
+
         JPH::Ref<JPH::Shape> shape;
         if (collider.shape_type == won::ecs::Collider3DComponent::Sphere)
         {
-            float max_scale = (std::max)((std::max)(transform.scale.x, transform.scale.y), transform.scale.z);
+            float max_scale = (std::max)((std::max)(world_scale.x, world_scale.y), world_scale.z);
             float radius = (std::max)(0.001f, collider.radius * max_scale);
             shape = new JPH::SphereShape(radius);
         }
         else
         {
             float3 extent = {
-                (std::max)(0.001f, collider.half_extent.x * transform.scale.x),
-                (std::max)(0.001f, collider.half_extent.y * transform.scale.y),
-                (std::max)(0.001f, collider.half_extent.z * transform.scale.z)
+                (std::max)(0.001f, collider.half_extent.x * world_scale.x),
+                (std::max)(0.001f, collider.half_extent.y * world_scale.y),
+                (std::max)(0.001f, collider.half_extent.z * world_scale.z)
             };
             shape = new JPH::BoxShape(JPH::Vec3(extent.x, extent.y, extent.z));
         }
@@ -390,14 +399,9 @@ namespace won::physics
             object_layer = Detail::ObjectLayers::MOVING;
         }
 
-        XMMATRIX world = transform.GetWorldTransform();
         XMVECTOR world_pos = XMVector3TransformCoord(XMLoadFloat3(&collider.offset), world);
-        XMVECTOR world_rot = XMLoadFloat4(&transform.rotation);
-
-        XMFLOAT3 pos;
-        XMStoreFloat3(&pos, world_pos);
-        XMFLOAT4 rot;
-        XMStoreFloat4(&rot, world_rot);
+        XMFLOAT3 pos; XMStoreFloat3(&pos, world_pos);
+        XMFLOAT4 rot; XMStoreFloat4(&rot, world_rot_vec);
 
         JPH::BodyCreationSettings settings(
             shape,
@@ -437,142 +441,121 @@ namespace won::physics
         }
         collider.SetDirty(false);
 
-        impl->entity_to_body[entity] = body_id;
-        impl->body_to_entity[body_id] = entity;
-    }
-
-    void PhysicsWorld::UpdateBody(won::ecs::Entity entity, const won::ecs::TransformComponent& transform, won::ecs::Collider3DComponent& collider, won::ecs::Rigidbody3DComponent* rb)
-    {
-        bool needs_recreate = collider.IsDirty();
-        if (rb && rb->IsDirty())
         {
-            needs_recreate = true;
-        }
-
-        if (needs_recreate)
-        {
-            RemoveBody(entity);
-            AddBody(entity, transform, collider, rb);
+            std::unique_lock lock(impl->bodies_mutex);
+            impl->entity_to_body[entity] = body_id;
+            impl->body_to_entity[body_id] = entity;
         }
     }
 
     void PhysicsWorld::RemoveBody(won::ecs::Entity entity)
     {
-        auto it = impl->entity_to_body.find(entity);
-        if (it != impl->entity_to_body.end())
+        JPH::BodyID body_id;
         {
-            JPH::BodyID body_id = it->second;
-            JPH::BodyInterface& body_interface = impl->physics_system->GetBodyInterface();
-            body_interface.RemoveBody(body_id);
-            body_interface.DestroyBody(body_id);
-
+            std::unique_lock lock(impl->bodies_mutex);
+            auto it = impl->entity_to_body.find(entity);
+            if (it == impl->entity_to_body.end())
+                return;
+            body_id = it->second;
             impl->body_to_entity.erase(body_id);
             impl->entity_to_body.erase(it);
         }
+        JPH::BodyInterface& body_interface = impl->physics_system->GetBodyInterface();
+        body_interface.RemoveBody(body_id);
+        body_interface.DestroyBody(body_id);
     }
 
     bool PhysicsWorld::HasBody(won::ecs::Entity entity) const
     {
+        std::shared_lock lock(impl->bodies_mutex);
         return impl->entity_to_body.find(entity) != impl->entity_to_body.end();
     }
 
     bool PhysicsWorld::IsDynamic(won::ecs::Entity entity) const
     {
-        auto it = impl->entity_to_body.find(entity);
-        if (it == impl->entity_to_body.end())
-            return false;
-
-        JPH::BodyInterface& body_interface = impl->physics_system->GetBodyInterface();
-        return body_interface.GetMotionType(it->second) == JPH::EMotionType::Dynamic;
-    }
-
-    bool PhysicsWorld::IsAdded(won::ecs::Entity entity) const
-    {
-        auto it = impl->entity_to_body.find(entity);
-        if (it == impl->entity_to_body.end())
-            return false;
-
-        JPH::BodyInterface& body_interface = impl->physics_system->GetBodyInterface();
-        return body_interface.IsAdded(it->second);
-    }
-
-    void PhysicsWorld::CleanupBodies(const std::unordered_set<won::ecs::Entity>& active_entities)
-    {
-        for (auto it = impl->entity_to_body.begin(); it != impl->entity_to_body.end(); )
+        JPH::BodyID body_id;
         {
-            const won::ecs::Entity entity = it->first;
-            if (active_entities.find(entity) == active_entities.end())
-            {
-                JPH::BodyID body_id = it->second;
-                JPH::BodyInterface& body_interface = impl->physics_system->GetBodyInterface();
-                body_interface.RemoveBody(body_id);
-                body_interface.DestroyBody(body_id);
-
-                impl->body_to_entity.erase(body_id);
-                it = impl->entity_to_body.erase(it);
-            }
-            else
-            {
-                ++it;
-            }
+            std::shared_lock lock(impl->bodies_mutex);
+            auto it = impl->entity_to_body.find(entity);
+            if (it == impl->entity_to_body.end())
+                return false;
+            body_id = it->second;
         }
+        return impl->physics_system->GetBodyInterface().GetMotionType(body_id) == JPH::EMotionType::Dynamic;
     }
 
     void PhysicsWorld::SyncTransformToPhysics(won::ecs::Entity entity, const won::ecs::TransformComponent& transform, const won::ecs::Collider3DComponent& collider)
     {
-        auto it = impl->entity_to_body.find(entity);
-        if (it == impl->entity_to_body.end())
-            return;
+        JPH::BodyID body_id;
+        {
+            std::shared_lock lock(impl->bodies_mutex);
+            auto it = impl->entity_to_body.find(entity);
+            if (it == impl->entity_to_body.end())
+                return;
+            body_id = it->second;
+        }
 
-        JPH::BodyID body_id = it->second;
         JPH::BodyInterface& body_interface = impl->physics_system->GetBodyInterface();
-        if (!body_interface.IsAdded(body_id))
-            return;
 
         JPH::EMotionType motion_type = body_interface.GetMotionType(body_id);
-        if (motion_type == JPH::EMotionType::Static || motion_type == JPH::EMotionType::Kinematic)
+        if (motion_type != JPH::EMotionType::Static && motion_type != JPH::EMotionType::Kinematic)
+            return;
+
+        XMMATRIX world = transform.GetWorldTransform();
+        XMVECTOR world_scale_vec, world_rot_vec, world_pos_vec;
+        XMMatrixDecompose(&world_scale_vec, &world_rot_vec, &world_pos_vec, world);
+
+        XMVECTOR world_pos = XMVector3TransformCoord(XMLoadFloat3(&collider.offset), world);
+        XMFLOAT3 pos; XMStoreFloat3(&pos, world_pos);
+        XMFLOAT4 rot; XMStoreFloat4(&rot, world_rot_vec);
+
+        JPH::RVec3 current_pos;
+        JPH::Quat current_rot;
+        body_interface.GetPositionAndRotation(body_id, current_pos, current_rot);
+
+        float pos_diff = std::abs(current_pos.GetX() - pos.x) + std::abs(current_pos.GetY() - pos.y) + std::abs(current_pos.GetZ() - pos.z);
+        float rot_diff = std::abs(current_rot.GetX() - rot.x) + std::abs(current_rot.GetY() - rot.y) + std::abs(current_rot.GetZ() - rot.z) + std::abs(current_rot.GetW() - rot.w);
+
+        if (pos_diff > 1e-5f || rot_diff > 1e-5f)
         {
-            XMMATRIX world = transform.GetWorldTransform();
-            XMVECTOR world_pos = XMVector3TransformCoord(XMLoadFloat3(&collider.offset), world);
-            XMVECTOR world_rot = XMLoadFloat4(&transform.rotation);
-
-            XMFLOAT3 pos;
-            XMStoreFloat3(&pos, world_pos);
-            XMFLOAT4 rot;
-            XMStoreFloat4(&rot, world_rot);
-
             body_interface.SetPositionAndRotation(body_id, JPH::RVec3(pos.x, pos.y, pos.z), JPH::Quat(rot.x, rot.y, rot.z, rot.w), JPH::EActivation::Activate);
         }
     }
 
     void PhysicsWorld::GetBodyTransform(won::ecs::Entity entity, float3& out_position, float4& out_rotation) const
     {
-        auto it = impl->entity_to_body.find(entity);
-        if (it == impl->entity_to_body.end())
-            return;
-
-        JPH::BodyInterface& body_interface = impl->physics_system->GetBodyInterface();
+        JPH::BodyID body_id;
+        {
+            std::shared_lock lock(impl->bodies_mutex);
+            auto it = impl->entity_to_body.find(entity);
+            if (it == impl->entity_to_body.end())
+                return;
+            body_id = it->second;
+        }
         JPH::RVec3 pos;
         JPH::Quat rot;
-        body_interface.GetPositionAndRotation(it->second, pos, rot);
+        impl->physics_system->GetBodyInterface().GetPositionAndRotation(body_id, pos, rot);
         out_position = { pos.GetX(), pos.GetY(), pos.GetZ() };
         out_rotation = { rot.GetX(), rot.GetY(), rot.GetZ(), rot.GetW() };
     }
 
     void PhysicsWorld::GetBodyVelocity(won::ecs::Entity entity, float3& out_linear, float3& out_angular) const
     {
-        auto it = impl->entity_to_body.find(entity);
-        if (it == impl->entity_to_body.end())
-            return;
-
-        JPH::BodyInterface& body_interface = impl->physics_system->GetBodyInterface();
-        JPH::Vec3 lin = body_interface.GetLinearVelocity(it->second);
-        JPH::Vec3 ang = body_interface.GetAngularVelocity(it->second);
+        JPH::BodyID body_id;
+        {
+            std::shared_lock lock(impl->bodies_mutex);
+            auto it = impl->entity_to_body.find(entity);
+            if (it == impl->entity_to_body.end())
+                return;
+            body_id = it->second;
+        }
+        JPH::Vec3 lin = impl->physics_system->GetBodyInterface().GetLinearVelocity(body_id);
+        JPH::Vec3 ang = impl->physics_system->GetBodyInterface().GetAngularVelocity(body_id);
         out_linear = { lin.GetX(), lin.GetY(), lin.GetZ() };
         out_angular = { ang.GetX(), ang.GetY(), ang.GetZ() };
     }
 
-    const std::vector<Collider3DTriggerEvent>& PhysicsWorld::GetTriggerEvents() const
+    const Vector<Collider3DTriggerEvent>& PhysicsWorld::GetTriggerEvents() const
     {
         return impl->trigger_events;
     }

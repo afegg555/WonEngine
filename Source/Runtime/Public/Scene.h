@@ -140,6 +140,8 @@ namespace won::ecs
 
             for (Entity current : entities_to_destroy)
             {
+                if (physics_world && HasComponent<Collider3DComponent>(current))
+                    physics_world->RemoveBody(current);
                 component_manager.RemoveComponents(current);
             }
 
@@ -171,7 +173,17 @@ namespace won::ecs
         Component* AddComponent(Entity entity, Args&&... args)
         {
             Component component { std::forward<Args>(args)... };
-            return component_manager.AddComponent<Component>(entity, component);
+            Component* result = component_manager.AddComponent<Component>(entity, component);
+
+            if constexpr (std::is_same_v<Component, HierarchyComponent>)
+            {
+                SetHierarchyTopologyDirty(true);
+                if (HasComponent<TransformComponent>(entity))
+                {
+                    GetComponent<TransformComponent>(entity)->SetDirty(true);
+                }
+            }
+            return result;
         }
 
         void RegisterComponent(const won::TypeDesc* type_desc)
@@ -181,7 +193,18 @@ namespace won::ecs
 
         void* AddComponent(Entity entity, won::TypeId type_id, const void* component)
         {
-            return component_manager.AddComponent(entity, type_id, component);
+            void* result = component_manager.AddComponent(entity, type_id, component);
+
+            const won::TypeDesc* hierarchy_desc = reflection::TypeMeta<HierarchyComponent>::Get();
+            if (hierarchy_desc && type_id == hierarchy_desc->type_id)
+            {
+                SetHierarchyTopologyDirty(true);
+                if (HasComponent<TransformComponent>(entity))
+                {
+                    GetComponent<TransformComponent>(entity)->SetDirty(true);
+                }
+            }
+            return result;
         }
 
         void* AddComponent(Entity entity, const won::TypeDesc* type_desc)
@@ -191,7 +214,18 @@ namespace won::ecs
                 return nullptr;
             }
             component_manager.RegisterComponent(type_desc);
-            return component_manager.AddComponent(entity, type_desc->type_id, nullptr);
+            void* result = component_manager.AddComponent(entity, type_desc->type_id, nullptr);
+
+            const won::TypeDesc* hierarchy_desc = reflection::TypeMeta<HierarchyComponent>::Get();
+            if (hierarchy_desc && type_desc->type_id == hierarchy_desc->type_id)
+            {
+                SetHierarchyTopologyDirty(true);
+                if (HasComponent<TransformComponent>(entity))
+                {
+                    GetComponent<TransformComponent>(entity)->SetDirty(true);
+                }
+            }
+            return result;
         }
 
         template <typename Component>
@@ -213,12 +247,41 @@ namespace won::ecs
         template <typename Component>
         void RemoveComponent(Entity entity)
         {
+            if constexpr (std::is_same_v<Component, Collider3DComponent>)
+            {
+                if (physics_world)
+                    physics_world->RemoveBody(entity);
+            }
+
             component_manager.RemoveComponent<Component>(entity);
+
+            if constexpr (std::is_same_v<Component, HierarchyComponent>)
+            {
+                SetHierarchyTopologyDirty(true);
+                if (HasComponent<TransformComponent>(entity))
+                {
+                    GetComponent<TransformComponent>(entity)->SetDirty(true);
+                }
+            }
         }
 
         void RemoveComponent(Entity entity, won::TypeId type_id)
         {
+            const won::TypeDesc* collider_desc = reflection::TypeMeta<Collider3DComponent>::Get();
+            if (collider_desc && type_id == collider_desc->type_id && physics_world)
+                physics_world->RemoveBody(entity);
+
             component_manager.RemoveComponent(entity, type_id);
+
+            const won::TypeDesc* hierarchy_desc = reflection::TypeMeta<HierarchyComponent>::Get();
+            if (hierarchy_desc && type_id == hierarchy_desc->type_id)
+            {
+                SetHierarchyTopologyDirty(true);
+                if (HasComponent<TransformComponent>(entity))
+                {
+                    GetComponent<TransformComponent>(entity)->SetDirty(true);
+                }
+            }
         }
 
         template <typename Component>
@@ -1141,7 +1204,19 @@ namespace won::ecs
             return scene_bvh;
         }
 
+        void SetHierarchyTopologyDirty(bool value = true)
+        {
+            hierarchy_topology_dirty = value;
+        }
+
+        bool IsHierarchyTopologyDirty() const
+        {
+            return hierarchy_topology_dirty;
+        }
+
     private:
+        bool hierarchy_topology_dirty = true;
+
         RenderData render_data;
         ComponentManager component_manager;
         Vector<Entity> entities;

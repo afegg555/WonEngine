@@ -9,6 +9,7 @@
 #include <vector>
 #include <map>
 #include <unordered_map>
+#include <unordered_set>
 #include <memory>
 #include <array>
 
@@ -40,6 +41,9 @@ namespace won
 
     template <typename K, typename V>
     using UnorderedMap = std::unordered_map<K, V>;
+
+    template <typename T>
+    using UnorderedSet = std::unordered_set<T>;
 
     template<typename T>
     void CheckType() {
