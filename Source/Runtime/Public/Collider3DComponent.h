@@ -22,7 +22,7 @@ namespace won::ecs
             Sphere,
         };
 
-        uint32 flags = Dirty | Enabled | Trigger;
+        uint32 flags = Dirty | Enabled;
         ShapeType shape_type = Box;
         float3 offset = {};
         float3 half_extent = { 0.5f, 0.5f, 0.5f };

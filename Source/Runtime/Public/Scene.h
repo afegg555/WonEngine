@@ -140,6 +140,8 @@ namespace won::ecs
 
             for (Entity current : entities_to_destroy)
             {
+                if (physics_world && HasComponent<Collider3DComponent>(current))
+                    physics_world->RemoveBody(current);
                 component_manager.RemoveComponents(current);
             }
 
@@ -245,6 +247,12 @@ namespace won::ecs
         template <typename Component>
         void RemoveComponent(Entity entity)
         {
+            if constexpr (std::is_same_v<Component, Collider3DComponent>)
+            {
+                if (physics_world)
+                    physics_world->RemoveBody(entity);
+            }
+
             component_manager.RemoveComponent<Component>(entity);
 
             if constexpr (std::is_same_v<Component, HierarchyComponent>)
@@ -259,6 +267,10 @@ namespace won::ecs
 
         void RemoveComponent(Entity entity, won::TypeId type_id)
         {
+            const won::TypeDesc* collider_desc = reflection::TypeMeta<Collider3DComponent>::Get();
+            if (collider_desc && type_id == collider_desc->type_id && physics_world)
+                physics_world->RemoveBody(entity);
+
             component_manager.RemoveComponent(entity, type_id);
 
             const won::TypeDesc* hierarchy_desc = reflection::TypeMeta<HierarchyComponent>::Get();
