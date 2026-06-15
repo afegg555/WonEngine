@@ -1,9 +1,6 @@
 #pragma once
 #include "Types.h"
 #include "RuntimeExport.h"
-#include <memory>
-#include <vector>
-#include <unordered_set>
 
 namespace won::ecs
 {
@@ -58,20 +55,17 @@ namespace won::physics
         void Clear();
 
         void AddBody(won::ecs::Entity entity, const won::ecs::TransformComponent& transform, won::ecs::Collider3DComponent& collider, won::ecs::Rigidbody3DComponent* rb);
-        void UpdateBody(won::ecs::Entity entity, const won::ecs::TransformComponent& transform, won::ecs::Collider3DComponent& collider, won::ecs::Rigidbody3DComponent* rb);
         void RemoveBody(won::ecs::Entity entity);
         bool HasBody(won::ecs::Entity entity) const;
 
         bool IsDynamic(won::ecs::Entity entity) const;
-
-        void CleanupBodies(const std::unordered_set<won::ecs::Entity>& active_entities);
 
         void SyncTransformToPhysics(won::ecs::Entity entity, const won::ecs::TransformComponent& transform, const won::ecs::Collider3DComponent& collider);
         
         void GetBodyTransform(won::ecs::Entity entity, float3& out_position, float4& out_rotation) const;
         void GetBodyVelocity(won::ecs::Entity entity, float3& out_linear, float3& out_angular) const;
 
-        const std::vector<Collider3DTriggerEvent>& GetTriggerEvents() const;
+        const Vector<Collider3DTriggerEvent>& GetTriggerEvents() const;
 
     private:
         std::unique_ptr<PhysicsWorldImpl> impl;
