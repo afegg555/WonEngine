@@ -107,6 +107,7 @@ endforeach()
 set(RUNTIME_CORE
     Source/Runtime/Public/Types.h
     Source/Runtime/Public/RuntimeExport.h
+    Source/Runtime/Public/Platform.h
 )
 
 set(PLUGIN_PUBLIC
@@ -333,8 +334,7 @@ set(RUNTIME_ECS_SYSTEMS
 )
 
 
-set(RUNTIME_PLATFORM
-    Source/Runtime/Public/Platform.h
+set(RUNTIME_WINDOW
     Source/Runtime/Public/Window.h
     Source/Runtime/Public/SplashWindow.h
     Source/Runtime/Private/Window.cpp
@@ -445,7 +445,7 @@ add_library(Runtime ${WONENGINE_RUNTIME_LIBRARY_TYPE}
     ${RUNTIME_ECS}
     ${RUNTIME_ECS_COMPONENTS}
     ${RUNTIME_ECS_SYSTEMS}
-    ${RUNTIME_PLATFORM}
+    ${RUNTIME_WINDOW}
     ${RUNTIME_PLATFORM_WINDOWS}
     ${RUNTIME_APPLICATION}
     ${RUNTIME_ALLOCATOR}
@@ -476,8 +476,8 @@ source_group("Math" FILES ${RUNTIME_MATH})
 source_group("ECS" FILES ${RUNTIME_ECS})
 source_group("ECS/Components" FILES ${RUNTIME_ECS_COMPONENTS})
 source_group("ECS/Systems" FILES ${RUNTIME_ECS_SYSTEMS})
-source_group("Platform" FILES ${RUNTIME_PLATFORM})
-source_group("Platform/Windows" FILES ${RUNTIME_PLATFORM_WINDOWS})
+source_group("Window" FILES ${RUNTIME_WINDOW})
+source_group("Window/Windows" FILES ${RUNTIME_PLATFORM_WINDOWS})
 source_group("Allocator" FILES ${RUNTIME_ALLOCATOR})
 source_group("Version" FILES ${RUNTIME_VERSION})
 source_group("ShaderInterop" FILES ${SHADERS_INTEROP})
