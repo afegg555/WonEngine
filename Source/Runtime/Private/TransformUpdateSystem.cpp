@@ -10,8 +10,6 @@
 
 namespace won::ecs
 {
-    static std::mutex shadow_caster_world_bound_mutex;
-
     void TransformUpdateSystem::Update(Scene& scene, float delta_time)
     {
         jobsystem::Context sub_ctx;
@@ -31,43 +29,69 @@ namespace won::ecs
             
             });
 
-        jobsystem::Wait(sub_ctx); // dependencies
-
         auto hierarchy_array = scene.GetComponentArray<HierarchyComponent>().get();
 
-        // update world transform using hierarchy
-        jobsystem::Dispatch(sub_ctx, (uint32_t)hierarchy_array->data.size(), groupsize, [&](jobsystem::JobArgs args) {
+        // rebuild update order cache if scene topology is dirty
+        if (scene.IsHierarchyTopologyDirty())
+        {
+            hierarchy_update_order_cache.clear();
 
-            HierarchyComponent& hierarchy = hierarchy_array->data[args.job_index];
-            Entity entity = hierarchy_array->index_to_entity[args.job_index];
+            UnorderedMap<Entity, Vector<Entity>> parent_to_children;
+            Vector<Entity> roots;
 
-            TransformComponent& transform_child = transform_array->GetData(entity);
-            XMMATRIX worldmatrix = transform_child.GetLocalTransform();
-
-            Entity parent_id = hierarchy.parent_id;
-            while (parent_id != INVALID_ENTITY)
+            for (Size i = 0; i < hierarchy_array->GetSize(); ++i)
             {
-                if (!transform_array->HasData(parent_id))
-                {
-                    break;
-                }
+                Entity entity = hierarchy_array->index_to_entity[i];
+                Entity parent_id = hierarchy_array->data[i].parent_id;
 
-                TransformComponent& transform_parent = transform_array->GetData(parent_id);
-                worldmatrix *= transform_parent.GetLocalTransform();
-
-                if (hierarchy_array->HasData(parent_id))
+                if (parent_id != INVALID_ENTITY && transform_array->HasData(parent_id) && hierarchy_array->HasData(parent_id))
                 {
-                    HierarchyComponent& hier_recursive = hierarchy_array->GetData(parent_id);
-                    parent_id = hier_recursive.parent_id;
+                    parent_to_children[parent_id].push_back(entity);
                 }
                 else
                 {
-                    parent_id = INVALID_ENTITY;
+                    roots.push_back(entity);
                 }
             }
-            XMStoreFloat4x4(&transform_child.world_transform, worldmatrix);
-            });
-        jobsystem::Wait(sub_ctx);
+
+            // DFS hierarchy tree traversal
+            hierarchy_update_order_cache.reserve(hierarchy_array->GetSize());
+            Vector<Entity> stack = std::move(roots);
+            while (!stack.empty())
+            {
+                Entity current = stack.back();
+                stack.pop_back();
+
+                hierarchy_update_order_cache.push_back(current);
+
+                auto it = parent_to_children.find(current);
+                if (it != parent_to_children.end())
+                {
+                    for (Entity child : it->second)
+                    {
+                        stack.push_back(child);
+                    }
+                }
+            }
+
+            scene.SetHierarchyTopologyDirty(false);
+        }
+
+        jobsystem::Wait(sub_ctx); // wait for local transforms to complete before propagating to world transforms
+
+        // update world transform using topologically sorted order (flat linear loop)
+        for (Entity entity : hierarchy_update_order_cache)
+        {
+            Entity parent_id = hierarchy_array->GetData(entity).parent_id;
+            if (parent_id != INVALID_ENTITY && transform_array->HasData(parent_id))
+            {
+                TransformComponent& transform = transform_array->GetData(entity);
+                XMMATRIX parent_world = transform_array->GetData(parent_id).GetWorldTransform();
+                XMMATRIX local = transform.GetLocalTransform();
+
+                XMStoreFloat4x4(&transform.world_transform, local * parent_world);
+            }
+        }
 
         auto geometry_array = scene.GetComponentArray<GeometryComponent>().get();
 

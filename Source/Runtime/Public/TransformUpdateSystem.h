@@ -4,6 +4,7 @@
 #include "Types.h"
 #include "RuntimeExport.h"
 #include "SceneComponents.h"
+#include <mutex>
 
 namespace won::ecs
 {
@@ -15,5 +16,9 @@ namespace won::ecs
         ComponentMask GetReadMask() const override { return transform_component_mask | hierarchy_component_mask | geometry_component_mask; }
         ComponentMask GetWriteMask() const override { return transform_component_mask; }
         void Update(Scene& scene, float delta_time) override;
+
+    private:
+        mutable std::mutex shadow_caster_world_bound_mutex;
+        Vector<Entity> hierarchy_update_order_cache;
     };
 }
