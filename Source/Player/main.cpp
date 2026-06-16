@@ -67,6 +67,7 @@ int main(int argc, char** argv)
         won::ecs::SceneDesc scene_desc = {};
         scene_desc.script_runtime = app.GetScriptRuntime();
         scene_desc.physics = won::project::GetPhysicsDesc(app_desc.project_settings);
+        scene_desc.audio_mixer = app.GetAudioMixer();
         won::ecs::Scene game_scene(scene_desc);
 
         won::String startup_scene_path = app_desc.project_settings.startup_scene;
@@ -218,6 +219,27 @@ int main(int argc, char** argv)
                     else
                     {
                         wonlog_warning("Failed to load scene font: %s", font_path.c_str());
+                    }
+                }
+            }
+            if (auto audio_source_array = game_scene.GetComponentArray<won::ecs::AudioSourceComponent>())
+            {
+                for (won::Size i = 0; i < audio_source_array->GetSize(); ++i)
+                {
+                    won::ecs::AudioSourceComponent& source = audio_source_array->data[i];
+                    if (source.sound_asset_path.empty())
+                    {
+                        continue;
+                    }
+                    const won::String sound_path = won::project::ResolveProjectContentPath(content_root, source.sound_asset_path);
+                    source.sound = won::resource::LoadSoundFile(sound_path);
+                    if (source.sound)
+                    {
+                        source.SetDirty();
+                    }
+                    else
+                    {
+                        wonlog_warning("Failed to load scene sound: %s", sound_path.c_str());
                     }
                 }
             }

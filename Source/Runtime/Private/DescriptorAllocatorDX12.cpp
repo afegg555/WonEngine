@@ -1,4 +1,4 @@
-#include "DescriptorAllocatorDX12.h"
+﻿#include "DescriptorAllocatorDX12.h"
 
 #include "Backlog.h"
 #include "MathUtils.h"
@@ -11,16 +11,16 @@ namespace won::rendering
 {
     namespace
     {
-        constexpr uint32 kRtvCpuStagingDescriptorCount = 4096;
-        constexpr uint32 kDsvCpuStagingDescriptorCount = 2048;
-        constexpr uint32 kCbvSrvUavCpuStagingDescriptorCount = 1000000;
-        constexpr uint32 kSamplerCpuStagingDescriptorCount = 2048;
-        constexpr uint32 kCbvSrvUavGpuDescriptorCount = 1000000;
-        constexpr uint32 kSamplerGpuDescriptorCount = 2048;
-        constexpr uint32 kCbvSrvUavTransientDescriptorCount = 262144;
-        constexpr uint32 kSamplerTransientDescriptorCount = 1024;
-        constexpr uint32 kCbvSrvUavPersistentDescriptorCount = kCbvSrvUavGpuDescriptorCount - kCbvSrvUavTransientDescriptorCount;
-        constexpr uint32 kSamplerPersistentDescriptorCount = kSamplerGpuDescriptorCount - kSamplerTransientDescriptorCount;
+        constexpr uint32 rtv_cpu_staging_descriptor_count = 4096;
+        constexpr uint32 dsv_cpu_staging_descriptor_count = 2048;
+        constexpr uint32 cbv_srv_uav_cpu_staging_descriptor_count = 1000000;
+        constexpr uint32 sampler_cpu_staging_descriptor_count = 2048;
+        constexpr uint32 cbv_srv_uav_gpu_descriptor_count = 1000000;
+        constexpr uint32 sampler_gpu_descriptor_count = 2048;
+        constexpr uint32 cbv_srv_uav_transient_descriptor_count = 262144;
+        constexpr uint32 sampler_transient_descriptor_count = 1024;
+        constexpr uint32 cbv_srv_uav_persistent_descriptor_count = cbv_srv_uav_gpu_descriptor_count - cbv_srv_uav_transient_descriptor_count;
+        constexpr uint32 sampler_persistent_descriptor_count = sampler_gpu_descriptor_count - sampler_transient_descriptor_count;
 
         UINT AlignConstantBufferSize(UINT size)
         {
@@ -45,27 +45,27 @@ namespace won::rendering
         cbv_srv_uav_gpu_heap.gpu_heap.heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
         sampler_gpu_heap.gpu_heap.heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
 
-        if (!CreateDescriptorHeap(rtv_cpu_staging_heap, kRtvCpuStagingDescriptorCount, false))
+        if (!CreateDescriptorHeap(rtv_cpu_staging_heap, rtv_cpu_staging_descriptor_count, false))
         {
             return;
         }
-        if (!CreateDescriptorHeap(dsv_cpu_staging_heap, kDsvCpuStagingDescriptorCount, false))
+        if (!CreateDescriptorHeap(dsv_cpu_staging_heap, dsv_cpu_staging_descriptor_count, false))
         {
             return;
         }
-        if (!CreateDescriptorHeap(cbv_srv_uav_cpu_staging_heap, kCbvSrvUavCpuStagingDescriptorCount, false))
+        if (!CreateDescriptorHeap(cbv_srv_uav_cpu_staging_heap, cbv_srv_uav_cpu_staging_descriptor_count, false))
         {
             return;
         }
-        if (!CreateDescriptorHeap(sampler_cpu_staging_heap, kSamplerCpuStagingDescriptorCount, false))
+        if (!CreateDescriptorHeap(sampler_cpu_staging_heap, sampler_cpu_staging_descriptor_count, false))
         {
             return;
         }
-        if (!CreateDescriptorHeap(cbv_srv_uav_gpu_heap.gpu_heap, kCbvSrvUavGpuDescriptorCount, true))
+        if (!CreateDescriptorHeap(cbv_srv_uav_gpu_heap.gpu_heap, cbv_srv_uav_gpu_descriptor_count, true))
         {
             return;
         }
-        if (!CreateDescriptorHeap(sampler_gpu_heap.gpu_heap, kSamplerGpuDescriptorCount, true))
+        if (!CreateDescriptorHeap(sampler_gpu_heap.gpu_heap, sampler_gpu_descriptor_count, true))
         {
             return;
         }
@@ -101,7 +101,7 @@ namespace won::rendering
         int& out_descriptor_index)
     {
         int descriptor_index = -1;
-        if (!AllocateFromHeap(sampler_cpu_staging_heap, kSamplerPersistentDescriptorCount, descriptor_index))
+        if (!AllocateFromHeap(sampler_cpu_staging_heap, sampler_persistent_descriptor_count, descriptor_index))
         {
             backlog::Post("Sampler descriptor heap allocation failed", backlog::LogLevel::Error);
             return false;
@@ -159,7 +159,7 @@ namespace won::rendering
 
         int descriptor_index = -1;
         const uint32 max_descriptor_count = target_heap->heap_type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV ?
-            kCbvSrvUavPersistentDescriptorCount :
+            cbv_srv_uav_persistent_descriptor_count :
             target_heap->capacity;
         if (!AllocateFromHeap(*target_heap, max_descriptor_count, descriptor_index))
         {
@@ -294,13 +294,13 @@ namespace won::rendering
         {
         case D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV:
             ring_heap = &cbv_srv_uav_gpu_heap;
-            transient_start = kCbvSrvUavPersistentDescriptorCount;
-            transient_count = kCbvSrvUavTransientDescriptorCount;
+            transient_start = cbv_srv_uav_persistent_descriptor_count;
+            transient_count = cbv_srv_uav_transient_descriptor_count;
             break;
         case D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER:
             ring_heap = &sampler_gpu_heap;
-            transient_start = kSamplerPersistentDescriptorCount;
-            transient_count = kSamplerTransientDescriptorCount;
+            transient_start = sampler_persistent_descriptor_count;
+            transient_count = sampler_transient_descriptor_count;
             break;
         default:
             return false;
@@ -486,10 +486,10 @@ namespace won::rendering
 
     bool DescriptorAllocatorDX12::CreateNullDescriptors()
     {
-        if (!AllocateFromHeap(cbv_srv_uav_cpu_staging_heap, kCbvSrvUavPersistentDescriptorCount, null_cbv_descriptor_index) ||
-            !AllocateFromHeap(cbv_srv_uav_cpu_staging_heap, kCbvSrvUavPersistentDescriptorCount, null_srv_descriptor_index) ||
-            !AllocateFromHeap(cbv_srv_uav_cpu_staging_heap, kCbvSrvUavPersistentDescriptorCount, null_uav_descriptor_index) ||
-            !AllocateFromHeap(sampler_cpu_staging_heap, kSamplerPersistentDescriptorCount, null_sampler_descriptor_index))
+        if (!AllocateFromHeap(cbv_srv_uav_cpu_staging_heap, cbv_srv_uav_persistent_descriptor_count, null_cbv_descriptor_index) ||
+            !AllocateFromHeap(cbv_srv_uav_cpu_staging_heap, cbv_srv_uav_persistent_descriptor_count, null_srv_descriptor_index) ||
+            !AllocateFromHeap(cbv_srv_uav_cpu_staging_heap, cbv_srv_uav_persistent_descriptor_count, null_uav_descriptor_index) ||
+            !AllocateFromHeap(sampler_cpu_staging_heap, sampler_persistent_descriptor_count, null_sampler_descriptor_index))
         {
             backlog::Post("Failed to allocate null descriptors", backlog::LogLevel::Error);
             return false;

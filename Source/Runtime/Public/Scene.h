@@ -6,6 +6,7 @@
 #include "BuiltinTypeMeta.h"
 #include "Systems.h"
 #include "PhysicsWorld.h"
+#include "AudioMixer.h"
 #include "ShaderInterop_Renderer.h"
 #include "BVH.h"
 #include "RenderingUtils.h"
@@ -29,6 +30,7 @@ namespace won::ecs
     {
         script::ScriptRuntime* script_runtime = nullptr; // Non-owning.
         won::physics::PhysicsWorldDesc physics;
+        won::audio::AudioMixer* audio_mixer = nullptr; // Non-owning. Owned by Application.
     };
 
     struct RayCastHit
@@ -75,6 +77,8 @@ namespace won::ecs
             component_manager.RegisterComponent<ScriptComponent>();
             component_manager.RegisterComponent<Collider3DComponent>();
             component_manager.RegisterComponent<Rigidbody3DComponent>();
+            component_manager.RegisterComponent<AudioSourceComponent>();
+            component_manager.RegisterComponent<AudioListenerComponent>();
 
             if (desc.script_runtime)
             {
@@ -95,6 +99,7 @@ namespace won::ecs
             AddSystem(std::make_shared<RenderableUpdateSystem>());
             AddSystem(std::make_shared<SpriteUpdateSystem>());
             AddSystem(std::make_shared<TextUpdateSystem>());
+            AddSystem(std::make_shared<AudioUpdateSystem>(desc.audio_mixer));
 
             physics_world = std::make_unique<won::physics::PhysicsWorld>(desc.physics);
         }

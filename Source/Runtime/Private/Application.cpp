@@ -72,6 +72,17 @@ namespace won
             io::LoadActionMap(input_action_map_path);
         }
 
+        audio_mixer = std::make_unique<won::audio::AudioMixer>(desc.audio.sample_rate, desc.audio.channel_count);
+        audio_driver = won::audio::CreateAudioDriver();
+        if (audio_driver)
+        {
+            if (audio_driver->Start(desc.audio, won::audio::AudioMixer::StaticMixCallback, audio_mixer.get()))
+            {
+				// sample rate and channel count may be adjusted by the driver internally
+                audio_mixer->SetFormat(audio_driver->GetSampleRate(), audio_driver->GetChannelCount());
+            }
+        }
+
         frame_timer.Reset();
         is_first_frame = true;
         is_running = true;
@@ -140,6 +151,13 @@ namespace won
 
         is_running = false;
         views.clear();
+
+        if (audio_driver)
+        {
+            audio_driver->Stop();
+            audio_driver.reset();
+        }
+        audio_mixer.reset();
 
         if (renderer)
         {
@@ -237,6 +255,11 @@ namespace won
     script::ScriptRuntime* Application::GetScriptRuntime()
     {
         return script_runtime.get();
+    }
+
+    won::audio::AudioMixer* Application::GetAudioMixer()
+    {
+        return audio_mixer.get();
     }
 
     void Application::ClearViews()

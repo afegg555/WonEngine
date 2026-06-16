@@ -19,9 +19,18 @@
 #include "ScriptComponent.h"
 #include "Collider3DComponent.h"
 #include "Rigidbody3DComponent.h"
+#include "AudioSourceComponent.h"
+#include "AudioListenerComponent.h"
 
 namespace won::ecs
 {
+#ifdef AudioSource
+#undef AudioSource
+#endif
+#ifdef AudioListener
+#undef AudioListener
+#endif
+
     using ComponentMask = uint64;
 
     enum class SceneComponentBit : uint32
@@ -45,7 +54,9 @@ namespace won::ecs
         Text2D,
         Script,
         Collider3D,
-        Rigidbody3D
+        Rigidbody3D,
+        AudioSource,
+        AudioListener
     };
 
     constexpr ComponentMask ComponentMaskFromBit(SceneComponentBit bit)
@@ -73,4 +84,6 @@ namespace won::ecs
     inline constexpr ComponentMask script_component_mask = ComponentMaskFromBit(SceneComponentBit::Script);
     inline constexpr ComponentMask collider_3d_component_mask = ComponentMaskFromBit(SceneComponentBit::Collider3D);
     inline constexpr ComponentMask rigidbody_3d_component_mask = ComponentMaskFromBit(SceneComponentBit::Rigidbody3D);
+    inline constexpr ComponentMask audio_source_component_mask = ComponentMaskFromBit(SceneComponentBit::AudioSource);
+    inline constexpr ComponentMask audio_listener_component_mask = ComponentMaskFromBit(SceneComponentBit::AudioListener);
 }
