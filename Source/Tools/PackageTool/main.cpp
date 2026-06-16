@@ -216,7 +216,8 @@ int main(int argc, char** argv)
                 won::resource::texture_binary_extension,
                 won::resource::lua_script_file_extension,
                 won::resource::true_type_font_extension,
-                won::resource::open_type_font_extension
+                won::resource::open_type_font_extension,
+                won::resource::sound_file_extension
             };
 
             const won::Vector<won::String> scene_strings = scene_archive.GetStringValues();

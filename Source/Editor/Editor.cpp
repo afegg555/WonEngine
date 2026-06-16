@@ -415,6 +415,15 @@ namespace won::editor
 			constexpr const char* anisotropy_map = "Anisotropy Map";
 			constexpr const char* roughness_map = "Roughness Map";
 			constexpr const char* metallic_map = "Metallic Map";
+			constexpr const char* audio_source_component = "AudioSourceComponent";
+			constexpr const char* audio_listener_component = "AudioListenerComponent";
+			constexpr const char* sound_asset_path = "Sound Path";
+			constexpr const char* volume = "Volume";
+			constexpr const char* pitch = "Pitch";
+			constexpr const char* min_distance = "Min Distance";
+			constexpr const char* is_3d = "3D Spatial";
+			constexpr const char* play_on_start = "Play On Start";
+			constexpr const char* is_playing = "Playing";
 		}
 
 		// temp
@@ -487,6 +496,8 @@ namespace won::editor
 			case reflection::TypeMeta<AnimationComponent>::type_id:
 			case reflection::TypeMeta<MaterialComponent>::type_id:
 			case reflection::TypeMeta<ScriptComponent>::type_id:
+			case reflection::TypeMeta<AudioSourceComponent>::type_id:
+			case reflection::TypeMeta<AudioListenerComponent>::type_id:
 				return true;
 			default:
 				return false;
@@ -1107,6 +1118,7 @@ namespace won::editor
 		ecs::SceneDesc scene_desc = {};
 		scene_desc.script_runtime = script_runtime.get();
 		scene_desc.physics = project::GetPhysicsDesc(project_settings);
+		scene_desc.audio_mixer = audio_mixer.get();
 		loaded_scene = ecs::Scene(scene_desc);
 		rendering::View editor_view = {};
 		editor_view.scene = &loaded_scene;
@@ -5067,6 +5079,113 @@ namespace won::editor
 					ImGui::Separator();
 				}
 
+				AudioSourceComponent* audio_source_comp = editor_viewport.view->scene->GetComponent<AudioSourceComponent>(editor_viewport.picked_entity);
+				if (audio_source_comp)
+				{
+					ImGui::PushID("AudioSourceComponent");
+					ImGui::Text(editor_text::audio_source_component);
+					bool remove_component = DrawComponentRemoveButton(editor_text::audio_source_component);
+
+					if (!remove_component)
+					{
+						bool enabled = audio_source_comp->IsEnabled();
+						if (ImGui::Checkbox(editor_text::enabled, &enabled))
+						{
+							audio_source_comp->SetEnabled(enabled);
+						}
+
+						char sound_path[1024];
+						strncpy(sound_path, audio_source_comp->sound_asset_path.c_str(), sizeof(sound_path) - 1);
+						sound_path[sizeof(sound_path) - 1] = '\0';
+						if (ImGui::InputText(editor_text::sound_asset_path, sound_path, sizeof(sound_path)))
+						{
+							audio_source_comp->sound_asset_path = sound_path;
+							audio_source_comp->SetDirty();
+						}
+
+						if (ImGui::SliderFloat(editor_text::volume, &audio_source_comp->volume, 0.0f, 2.0f))
+						{
+							audio_source_comp->volume = (std::max)(0.0f, audio_source_comp->volume);
+						}
+
+						if (ImGui::SliderFloat(editor_text::pitch, &audio_source_comp->pitch, 0.01f, 4.0f))
+						{
+							audio_source_comp->pitch = (std::max)(0.001f, audio_source_comp->pitch);
+						}
+
+						bool is_3d = audio_source_comp->Is3D();
+						if (ImGui::Checkbox(editor_text::is_3d, &is_3d))
+						{
+							audio_source_comp->Set3D(is_3d);
+						}
+
+						if (is_3d)
+						{
+							if (ImGui::InputFloat(editor_text::min_distance, &audio_source_comp->min_distance))
+							{
+								audio_source_comp->min_distance = (std::max)(0.001f, audio_source_comp->min_distance);
+								audio_source_comp->SetDirty();
+							}
+							if (ImGui::InputFloat(editor_text::max_distance, &audio_source_comp->max_distance))
+							{
+								audio_source_comp->max_distance = (std::max)(audio_source_comp->min_distance, audio_source_comp->max_distance);
+								audio_source_comp->SetDirty();
+							}
+						}
+
+						bool loop = audio_source_comp->IsLoop();
+						if (ImGui::Checkbox(editor_text::loop, &loop))
+						{
+							audio_source_comp->SetLoop(loop);
+						}
+
+						bool play_on_start = audio_source_comp->IsPlayOnStart();
+						if (ImGui::Checkbox(editor_text::play_on_start, &play_on_start))
+						{
+							audio_source_comp->SetPlayOnStart(play_on_start);
+						}
+
+						bool is_playing = audio_source_comp->IsPlaying();
+						if (ImGui::Checkbox(editor_text::is_playing, &is_playing))
+						{
+							audio_source_comp->SetPlaying(is_playing);
+						}
+					}
+					else
+					{
+						const ecs::Entity entity = editor_viewport.picked_entity;
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+							editor_viewport.view->scene->RemoveComponent<AudioSourceComponent>(entity);
+						});
+					}
+
+					ImGui::PopID();
+					ImGui::Separator();
+				}
+
+				AudioListenerComponent* audio_listener_comp = editor_viewport.view->scene->GetComponent<AudioListenerComponent>(editor_viewport.picked_entity);
+				if (audio_listener_comp)
+				{
+					ImGui::PushID("AudioListenerComponent");
+					ImGui::Text(editor_text::audio_listener_component);
+					bool remove_component = DrawComponentRemoveButton(editor_text::audio_listener_component);
+
+					if (!remove_component)
+					{
+						ImGui::Checkbox(editor_text::enabled, &audio_listener_comp->enabled);
+					}
+					else
+					{
+						const ecs::Entity entity = editor_viewport.picked_entity;
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+							editor_viewport.view->scene->RemoveComponent<AudioListenerComponent>(entity);
+						});
+					}
+
+					ImGui::PopID();
+					ImGui::Separator();
+				}
+
 				Sprite2DComponent* sprite_2d_comp = editor_viewport.view->scene->GetComponent<Sprite2DComponent>(editor_viewport.picked_entity);
 				if (sprite_2d_comp)
 				{
@@ -6449,6 +6568,7 @@ namespace won::editor
 		ecs::SceneDesc scene_desc = {};
 		scene_desc.script_runtime = script_runtime.get();
 		scene_desc.physics = project::GetPhysicsDesc(loaded_project_settings);
+		scene_desc.audio_mixer = audio_mixer.get();
 		loaded_scene = ecs::Scene(scene_desc);
 		if (editor_viewport.view)
 		{

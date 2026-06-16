@@ -188,6 +188,7 @@ set(RUNTIME_RESOURCE
     Source/Runtime/Public/ResourceAsset.h
     Source/Runtime/Public/Font.h
     Source/Runtime/Public/Image.h
+    Source/Runtime/Public/Sound.h
     Source/Runtime/Public/Mesh.h
     Source/Runtime/Public/ShaderCompiler.h
     Source/Runtime/Public/ShaderManifest.h
@@ -195,6 +196,7 @@ set(RUNTIME_RESOURCE
     Source/Runtime/Private/ShaderLibrary.h
     Source/Runtime/Private/Font.cpp
     Source/Runtime/Private/Image.cpp
+    Source/Runtime/Private/Sound.cpp
     Source/Runtime/Private/ResourceAsset.cpp
     Source/Runtime/Private/ShaderCompiler.cpp
     Source/Runtime/Private/ShaderManifest.cpp
@@ -301,6 +303,20 @@ set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/ScriptComponent.h
     Source/Runtime/Public/Collider3DComponent.h
     Source/Runtime/Public/Rigidbody3DComponent.h
+    Source/Runtime/Public/AudioSourceComponent.h
+    Source/Runtime/Public/AudioListenerComponent.h
+)
+
+set(RUNTIME_AUDIO
+    Source/Runtime/Public/AudioDriver.h
+    Source/Runtime/Public/AudioMixer.h
+    Source/Runtime/Private/AudioMixer.cpp
+    Source/Runtime/Private/AudioDriver.cpp
+)
+
+set(RUNTIME_AUDIO_WINDOWS
+    Source/Runtime/Private/AudioDriverXAudio2.h
+    Source/Runtime/Private/AudioDriverXAudio2.cpp
 )
 
 set(RUNTIME_ECS_SYSTEMS
@@ -318,6 +334,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Public/ScriptUpdateSystem.h
     Source/Runtime/Public/ScriptEventDispatchSystem.h
     Source/Runtime/Public/PhysicsUpdateSystem.h
+    Source/Runtime/Public/AudioUpdateSystem.h
     Source/Runtime/Private/EnvironmentUpdateSystem.cpp
     Source/Runtime/Private/CameraUpdateSystem.cpp
     Source/Runtime/Private/GeometryUpdateSystem.cpp
@@ -331,6 +348,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Private/ScriptUpdateSystem.cpp
     Source/Runtime/Private/ScriptEventDispatchSystem.cpp
     Source/Runtime/Private/PhysicsUpdateSystem.cpp
+    Source/Runtime/Private/AudioUpdateSystem.cpp
 )
 
 
@@ -445,6 +463,8 @@ add_library(Runtime ${WONENGINE_RUNTIME_LIBRARY_TYPE}
     ${RUNTIME_ECS}
     ${RUNTIME_ECS_COMPONENTS}
     ${RUNTIME_ECS_SYSTEMS}
+    ${RUNTIME_AUDIO}
+    ${RUNTIME_AUDIO_WINDOWS}
     ${RUNTIME_WINDOW}
     ${RUNTIME_PLATFORM_WINDOWS}
     ${RUNTIME_APPLICATION}
@@ -476,6 +496,8 @@ source_group("Math" FILES ${RUNTIME_MATH})
 source_group("ECS" FILES ${RUNTIME_ECS})
 source_group("ECS/Components" FILES ${RUNTIME_ECS_COMPONENTS})
 source_group("ECS/Systems" FILES ${RUNTIME_ECS_SYSTEMS})
+source_group("Audio" FILES ${RUNTIME_AUDIO})
+source_group("Audio/Windows" FILES ${RUNTIME_AUDIO_WINDOWS})
 source_group("Window" FILES ${RUNTIME_WINDOW})
 source_group("Window/Windows" FILES ${RUNTIME_PLATFORM_WINDOWS})
 source_group("Allocator" FILES ${RUNTIME_ALLOCATOR})
@@ -728,7 +750,7 @@ if(MSVC)
 endif()
 
 if(WIN32)
-    target_link_libraries(Runtime PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler dwmapi gdiplus ole32 shell32 uuid)
+    target_link_libraries(Runtime PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler dwmapi gdiplus ole32 shell32 uuid xaudio2)
     target_link_libraries(Editor PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler)
     target_link_libraries(HelloTriangle PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler)
     target_link_libraries(Player PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler)

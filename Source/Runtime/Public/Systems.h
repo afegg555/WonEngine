@@ -13,3 +13,4 @@
 #include "TextUpdateSystem.h"
 #include "ScriptUpdateSystem.h"
 #include "ScriptEventDispatchSystem.h"
+#include "AudioUpdateSystem.h"

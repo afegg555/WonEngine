@@ -12,4 +12,5 @@ namespace won::resource
     inline constexpr const char* input_action_map_extension = "woninput";
     inline constexpr const char* shader_binary_extension = "woncso";
     inline constexpr const char* shader_dependency_extension = "wondep";
+    inline constexpr const char* sound_file_extension = "wav";
 }

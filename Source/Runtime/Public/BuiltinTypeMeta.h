@@ -239,6 +239,19 @@ namespace won::reflection
         WON_REFLECT_FIELD(angular_velocity, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
+    WON_REFLECT_STRUCT(won::ecs::AudioSourceComponent, "AudioSourceComponent")
+        WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(sound_asset_path, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(volume, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(pitch, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(min_distance, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(max_distance, won::FieldFlagEditable | won::FieldFlagSerializable)
+    WON_REFLECT_STRUCT_END()
+
+    WON_REFLECT_STRUCT(won::ecs::AudioListenerComponent, "AudioListenerComponent")
+        WON_REFLECT_FIELD(enabled, won::FieldFlagEditable | won::FieldFlagSerializable)
+    WON_REFLECT_STRUCT_END()
+
     WON_REFLECT_STRUCT(won::ecs::MaterialSlot::TextureMap, "TextureMap")
         WON_REFLECT_FIELD(texture_asset_path, won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
