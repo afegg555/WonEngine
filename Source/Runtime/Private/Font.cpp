@@ -87,6 +87,12 @@ namespace won::resource
 
         {
             std::lock_guard<std::mutex> lock(font_cache_mutex);
+            auto it = font_cache.find(key);
+            if (it != font_cache.end())
+            {
+                if (auto existing = it->second.lock())
+                    return existing;
+            }
             font_cache[key] = loaded;
         }
 

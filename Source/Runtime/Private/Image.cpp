@@ -61,6 +61,12 @@ namespace won::resource
 
         {
             std::lock_guard<std::mutex> lock(image_cache_mutex);
+            auto it = image_cache.find(key);
+            if (it != image_cache.end())
+            {
+                if (auto existing = it->second.lock())
+                    return existing;
+            }
             image_cache[key] = loaded;
         }
 

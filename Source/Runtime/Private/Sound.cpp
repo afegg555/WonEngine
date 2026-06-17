@@ -128,6 +128,12 @@ namespace won::resource
 
         {
             std::lock_guard<std::mutex> lock(sound_cache_mutex);
+            auto it = sound_cache.find(key);
+            if (it != sound_cache.end())
+            {
+                if (auto existing = it->second.lock())
+                    return existing;
+            }
             sound_cache[key] = loaded;
         }
 

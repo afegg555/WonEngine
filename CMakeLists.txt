@@ -433,6 +433,10 @@ set(SHADERS_HLSL
 # Jolt Physics target integration (from source)
 set(ENABLE_ALL_WARNINGS OFF CACHE BOOL "" FORCE) # Disable warnings-as-errors for Jolt
 add_subdirectory(Source/Vendor/JoltPhysics/Build JoltPhysics)
+set(BUILD_DX12 OFF CACHE BOOL "" FORCE)
+set(BUILD_SAMPLE OFF CACHE BOOL "" FORCE)
+set(BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+add_subdirectory(Source/Vendor/DirectXTex DirectXTex)
 set_target_properties(Jolt PROPERTIES FOLDER "Vendors")
 
 set(WONENGINE_RUNTIME_LIBRARY_TYPE STATIC)
@@ -549,9 +553,8 @@ set(PACKAGE_TOOL_SOURCES
     Source/Tools/PackageTool/main.cpp
 )
 
-set(PLUGIN_ASSET_IMPORTER
-    Source/Plugins/AssetImporter/AssetImporter.cpp
-    Source/Plugins/AssetImporter/plugin.json
+set(ASSET_IMPORTER_TOOL_SOURCES
+    Source/Tools/AssetImporterTool/main.cpp
 )
 
 set(PLUGIN_PRINT_LOG_SAMPLE
@@ -588,8 +591,8 @@ add_executable(PackageTool
     ${PACKAGE_TOOL_SOURCES}
 )
 
-add_library(AssetImporter SHARED
-    ${PLUGIN_ASSET_IMPORTER}
+add_executable(AssetImporterTool
+    ${ASSET_IMPORTER_TOOL_SOURCES}
 )
 
 add_library(PrintLogSample SHARED
@@ -600,7 +603,7 @@ add_library(CustomComponentSample SHARED
     ${PLUGIN_CUSTOM_COMPONENT_SAMPLE}
 )
 
-foreach(PLUGIN_TARGET AssetImporter PrintLogSample CustomComponentSample)
+foreach(PLUGIN_TARGET PrintLogSample CustomComponentSample)
     set(PLUGIN_OUTPUT_DIR "${FINAL_OUT_DIR}/Plugins/${PLUGIN_TARGET}")
     set_target_properties(${PLUGIN_TARGET} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${PLUGIN_OUTPUT_DIR}"
@@ -630,37 +633,33 @@ target_include_directories(Runtime
 target_link_libraries(Runtime PUBLIC Jolt)
 
 target_link_libraries(Editor PRIVATE Runtime)
-add_dependencies(Editor AssetImporter)
 target_link_libraries(HelloTriangle PRIVATE Runtime)
 target_link_libraries(Player PRIVATE Runtime)
 target_link_libraries(ShaderOfflineCompiler PRIVATE Runtime)
 target_link_libraries(PackageTool PRIVATE Runtime)
-target_link_libraries(AssetImporter PRIVATE
-    debug assimp-vc143-mtd
-    optimized assimp-vc143-mt
-)
 target_include_directories(PrintLogSample PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins/Include>
 )
 target_include_directories(CustomComponentSample PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins/Include>
 )
-target_include_directories(AssetImporter PRIVATE
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Vendor>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins/Include>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins/AssetImporter/ThirdParty/assimp/include>
+target_include_directories(AssetImporterTool PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Tools/AssetImporterTool/ThirdParty/assimp/include>
 )
-target_compile_definitions(AssetImporter PRIVATE ASSIMP_DLL)
-target_link_directories(AssetImporter PRIVATE
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins/AssetImporter/ThirdParty/assimp/lib>
+target_link_libraries(AssetImporterTool PRIVATE
+    Runtime
+    DirectXTex
+    debug    assimp-vc143-mtd
+    optimized assimp-vc143-mt
 )
-add_custom_command(TARGET AssetImporter POST_BUILD
+target_link_directories(AssetImporterTool PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Tools/AssetImporterTool/ThirdParty/assimp/lib>
+)
+target_compile_definitions(AssetImporterTool PRIVATE ASSIMP_DLL)
+add_custom_command(TARGET AssetImporterTool POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "$<IF:$<CONFIG:Debug>,${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins/AssetImporter/ThirdParty/assimp/bin/assimp-vc143-mtd.dll,${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins/AssetImporter/ThirdParty/assimp/bin/assimp-vc143-mt.dll>"
-        "$<TARGET_FILE_DIR:AssetImporter>"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins/AssetImporter/plugin.json"
-        "$<TARGET_FILE_DIR:AssetImporter>/plugin.json"
+        "$<IF:$<CONFIG:Debug>,${CMAKE_CURRENT_SOURCE_DIR}/Source/Tools/AssetImporterTool/ThirdParty/assimp/bin/assimp-vc143-mtd.dll,${CMAKE_CURRENT_SOURCE_DIR}/Source/Tools/AssetImporterTool/ThirdParty/assimp/bin/assimp-vc143-mt.dll>"
+        "$<TARGET_FILE_DIR:AssetImporterTool>"
 )
 
 add_custom_command(TARGET PrintLogSample POST_BUILD
@@ -683,6 +682,14 @@ set_target_properties(PackageTool PROPERTIES
     FOLDER "Tools"
 )
 
+set_target_properties(AssetImporterTool PROPERTIES
+    FOLDER "Tools"
+)
+
+set_target_properties(DirectXTex PROPERTIES
+    FOLDER "Vendors"
+)
+
 set_target_properties(HelloTriangle PROPERTIES
     FOLDER "Samples (Native)"
 )
@@ -694,10 +701,6 @@ set_target_properties(Editor PROPERTIES
 set_target_properties(Player PROPERTIES
     FOLDER "Tools"
     WIN32_EXECUTABLE TRUE
-)
-
-set_target_properties(AssetImporter PROPERTIES
-    FOLDER "Plugins"
 )
 
 set_target_properties(PrintLogSample PROPERTIES

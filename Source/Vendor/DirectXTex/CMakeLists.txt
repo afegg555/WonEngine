@@ -27,13 +27,13 @@ option(BUILD_TOOLS "Build tex command-line tools" ON)
 
 option(BUILD_SHARED_LIBS "Build DirectXTex as a shared library" OFF)
 
-option(BUILD_SAMPLE "Build DDSView sample (requires fxc.exe)" ON)
+option(BUILD_SAMPLE "Build DDSView sample (requires fxc.exe)" OFF)
 
 # Includes the functions for Direct3D 11 resources and DirectCompute compression
 option(BUILD_DX11 "Build with DirectX11 Runtime support (requires fxc.exe)" ON)
 
 # Includes the functions for creating Direct3D 12 resources at runtime
-option(BUILD_DX12 "Build with DirectX12 Runtime support" ON)
+option(BUILD_DX12 "Build with DirectX12 Runtime support" OFF)
 
 # Enable the use of OpenMP for software BC6H/BC7 compression
 option(BC_USE_OPENMP "Build with OpenMP support" ON)
@@ -738,7 +738,7 @@ if(BUILD_TOOLS AND (NOT VCPKG_TOOLCHAIN) AND CMAKE_SOURCE_DIR STREQUAL CMAKE_CUR
 endif()
 
 #--- Test suite
-if(WIN32 AND (NOT WINDOWS_STORE) AND (NOT (DEFINED XBOX_CONSOLE_TARGET)))
+if(WIN32 AND (NOT WINDOWS_STORE) AND (NOT (DEFINED XBOX_CONSOLE_TARGET)) AND (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR))
     include(CTest)
     if(BUILD_TESTING AND (EXISTS "${CMAKE_CURRENT_LIST_DIR}/Tests/CMakeLists.txt"))
         enable_testing()
