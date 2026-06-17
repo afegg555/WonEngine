@@ -30,12 +30,25 @@ int main(int argc, char** argv)
     const won::String target = "Player"; // TODO: support Player variants (ex. PackageTool Projects/ScriptedTriangle/ScriptedTriangle.wonproj """"VRPlayer"""")
     const char* project_path_arg = arguments.GetString("0");
     const char* config_arg = arguments.GetString("1");
-    const char* check_extra = arguments.GetString("2");
+    const char* manifest_arg = arguments.GetString("2");
+    const char* check_extra = arguments.GetString("3");
 
     if (project_path_arg == nullptr || project_path_arg[0] == '\0' || check_extra != nullptr)
     {
-        std::cout << "Usage: PackageTool project_path [Debug|Release]\n";
+        std::cout << "Usage: PackageTool project_path [Debug|Release] [--manifest]\n";
         return 1;
+    }
+
+    bool generate_manifest = false;
+    if (manifest_arg != nullptr)
+    {
+        if (won::String(manifest_arg) != "--manifest")
+        {
+            std::cout << "Invalid argument: " << manifest_arg << "\n";
+            std::cout << "Usage: PackageTool project_path [Debug|Release] [--manifest]\n";
+            return 1;
+        }
+        generate_manifest = true;
     }
 
     won::String config = "Release";
@@ -261,6 +274,9 @@ int main(int argc, char** argv)
         }
     }
 
+    // normalize and validate all content paths before copying
+    won::Vector<won::String> normalized_content_paths;
+    normalized_content_paths.reserve(content_paths.size());
     for (const won::String& content_path_string : content_paths)
     {
         const won::String content_path = won::io::NormalizePath(content_path_string);
@@ -269,7 +285,27 @@ int main(int argc, char** argv)
             std::cout << "Content path must be relative: " << content_path << "\n";
             return 1;
         }
+        normalized_content_paths.push_back(content_path);
+    }
 
+    // pre-copy validation: report all missing files before touching the package directory
+    bool any_missing = false;
+    for (const won::String& content_path : normalized_content_paths)
+    {
+        const won::String from = won::io::CombinePath(content_source, content_path);
+        if (!won::io::IsFile(from))
+        {
+            std::cout << "Missing scene dependency: " << content_path << "\n";
+            any_missing = true;
+        }
+    }
+    if (any_missing)
+    {
+        return 1;
+    }
+
+    for (const won::String& content_path : normalized_content_paths)
+    {
         const won::String from = won::io::CombinePath(content_source, content_path);
         const won::String to = won::io::CombinePath(content_target, content_path);
         if (!won::io::CopyFileTo(from, to, true))
@@ -366,6 +402,30 @@ int main(int argc, char** argv)
     {
         std::cout << "Compiled shader binaries not found: " << shader_output << "\n";
         return 1;
+    }
+
+    if (generate_manifest)
+    {
+        won::serialize::JsonArchive manifest(won::serialize::ArchiveMode::Write);
+        manifest.BeginObject();
+        manifest.Field("project_name", settings.project_name);
+        manifest.Field("build_config", config);
+        manifest.BeginArray("assets");
+        for (const won::String& content_path : normalized_content_paths)
+        {
+            won::String path_copy = content_path;
+            manifest.Item(path_copy);
+        }
+        manifest.EndArray();
+        manifest.EndObject();
+
+        const won::String manifest_path = won::io::CombinePath(package_root, "cook_manifest.json");
+        if (!manifest.SaveToFile(manifest_path))
+        {
+            std::cout << "Failed to write cook_manifest.json\n";
+            return 1;
+        }
+        std::cout << "Manifest: " << manifest_path << "\n";
     }
 
     std::cout << "Package completed: " << package_root << "\n";
