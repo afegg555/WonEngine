@@ -209,6 +209,23 @@ int main(int argc, char** argv)
     {
         content_paths.push_back(input_action_map_path);
     }
+
+    // copy all GameData schema files (Config/*.gamedata) - always included regardless of referenced_assets_only
+    {
+        const won::String config_source = won::io::CombinePath(content_source, "Config");
+        won::Vector<won::io::DirectoryEntry> config_entries;
+        if (won::io::EnumerateDirectoryRecursive(config_source, &config_entries))
+        {
+            for (const won::io::DirectoryEntry& entry : config_entries)
+            {
+                if (entry.is_file && won::io::GetExtension(entry.path) == won::resource::game_data_schema_extension)
+                {
+                    content_paths.push_back(won::io::CombinePath("Config", won::io::GetRelativePath(config_source, entry.path)));
+                }
+            }
+        }
+    }
+
     if (referenced_assets_only) // copy only assets referenced by packaged scenes
     {
         // build scene list: packaged_scenes if set, otherwise fall back to startup_scene
@@ -390,7 +407,7 @@ int main(int argc, char** argv)
     settings.settings_path.clear();
     settings.project_root.clear();
     settings.content_root = "Contents";
-    if (!won::project::SaveSettings(won::io::CombinePath(package_root, won::project::default_project_file_name), settings))
+    if (!won::project::SaveSettings(won::io::CombinePath(package_root, won::io::GetFilename(source_settings_path)), settings))
     {
         std::cout << "Failed to write project settings.\n";
         return 1;

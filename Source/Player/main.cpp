@@ -17,14 +17,21 @@ int main(int argc, char** argv)
     // GetExecutableDirectory()
 
     won::ApplicationDesc app_desc = {};
-    const won::String project_path = won::io::GetAbsolutePath(argc > 1 ? argv[1] : won::io::GetExecutableDirectory());
-    won::String project_settings_path = project_path;
-    if (!won::io::IsFile(project_settings_path)) // if input arg is not .wonproj
+    won::String project_settings_path;
+    if (argc > 1)
     {
-        project_settings_path = won::io::CombinePath(project_path, won::io::ReplaceExtension(won::io::GetFilename(project_path), won::project::project_file_extension)); // check if MyGame.wonproj exists
+        project_settings_path = won::io::GetAbsolutePath(argv[1]);
+    }
+    else
+    {
+        // derive from executable name: ScriptedTriangle.exe -> ScriptedTriangle.wonproj
+        const won::String exe_path = won::io::GetAbsolutePath(argc > 0 ? argv[0] : won::io::GetExecutableDirectory());
+        const won::String exe_dir = won::io::IsFile(exe_path) ? won::io::GetDirectoryFromPath(exe_path) : exe_path;
+        const won::String exe_name = won::io::GetFilename(exe_path);
+        project_settings_path = won::io::CombinePath(exe_dir, won::io::ReplaceExtension(exe_name, won::project::project_file_extension));
         if (!won::io::IsFile(project_settings_path))
         {
-            project_settings_path = won::io::CombinePath(project_path, won::project::default_project_file_name); // default fallback to MyGame/Project.wonproj
+            project_settings_path = won::io::CombinePath(exe_dir, won::project::default_project_file_name);
         }
     }
     if (!won::project::LoadSettings(project_settings_path, app_desc.project_settings))

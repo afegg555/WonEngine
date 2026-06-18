@@ -1,6 +1,6 @@
 #pragma once
+#include "KeyValueStore.h"
 #include "RuntimeExport.h"
-#include "Types.h"
 
 namespace won::config
 {
@@ -15,11 +15,15 @@ namespace won::config
         bool GetFloat(const char* key, float& out_value) const;
         void SetBool(const char* key, bool value);
         bool GetBool(const char* key, bool& out_value) const;
-        bool LoadFromCommandLine(int argc, char** argv);
+        void RemoveKey(const char* key);
+        uint32 GetKeyCount() const;
+        const char* GetKey(uint32 index) const;
+
         bool LoadFromFile(const char* path);
         bool SaveToFile(const char* path) const;
+        bool LoadFromCommandLine(int argc, char** argv);
 
     private:
-        Map<String, String> values;
+        KeyValueStore store;
     };
 }

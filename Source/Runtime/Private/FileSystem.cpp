@@ -483,6 +483,36 @@ namespace won::io
         return std::filesystem::create_directories(fs_path);
     }
 
+#if defined(_WIN32)
+    static String GetAppDataDirectory(const KNOWNFOLDERID& folder_id, const String& app_name)
+    {
+        PWSTR path_tmp = nullptr;
+        String base_path = SUCCEEDED(SHGetKnownFolderPath(folder_id, 0, nullptr, &path_tmp))
+            ? (String)std::filesystem::path(path_tmp).generic_string()
+            : GetWorkingDirectory();
+        CoTaskMemFree(path_tmp);
+        return NormalizePath(CombinePath(base_path, app_name));
+    }
+#endif
+
+    String GetSaveDirectory(const String& app_name)
+    {
+#if defined(_WIN32)
+        return GetAppDataDirectory(FOLDERID_RoamingAppData, app_name);
+#else
+        return NormalizePath(CombinePath(CombinePath(GetWorkingDirectory(), "WonEngine"), app_name));
+#endif
+    }
+
+    String GetCacheDirectory(const String& app_name)
+    {
+#if defined(_WIN32)
+        return GetAppDataDirectory(FOLDERID_LocalAppData, app_name);
+#else
+        return NormalizePath(CombinePath(CombinePath(GetWorkingDirectory(), "WonEngine"), app_name));
+#endif
+    }
+
     bool OpenFileDialog(String& out_path, const FileDialogDesc& desc)
     {
         out_path.clear();

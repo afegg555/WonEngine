@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <ctime>
 
 namespace won::utils
 {
@@ -154,5 +155,19 @@ namespace won::utils
     uint64 Hash(StringView input)
     {
         return StableHash(input.data(), input.size());
+    }
+
+    String GetCurrentDateTime(StringView format)
+    {
+        std::time_t t = std::time(nullptr);
+        std::tm tm = {};
+#if defined(_WIN32)
+        localtime_s(&tm, &t);
+#else
+        localtime_r(&t, &tm);
+#endif
+        char buf[64];
+        std::strftime(buf, sizeof(buf), format.data(), &tm);
+        return buf;
     }
 }

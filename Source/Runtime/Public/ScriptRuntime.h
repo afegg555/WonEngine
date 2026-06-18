@@ -12,6 +12,11 @@ namespace won::ecs
     class Scene;
 }
 
+namespace won::game
+{
+    class GameData;
+}
+
 namespace won::script
 {
     enum class ScriptBackend
@@ -22,6 +27,7 @@ namespace won::script
     struct ScriptRuntimeDesc
     {
         ScriptBackend backend = ScriptBackend::Lua;
+        game::GameData* game_data = nullptr;
     };
 
     struct ScriptInstanceHandle

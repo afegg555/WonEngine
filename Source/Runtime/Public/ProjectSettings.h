@@ -35,7 +35,8 @@ namespace won::project
         String splash_title = "Won Engine";
         String splash_status = "Starting...";
         String splash_image;
-        String input_action_map = String("Config/Input.") + resource::input_action_map_extension;
+        String input_action_map;
+        String game_data_schema;
         rendering::RHIBackend backend_type = rendering::RHIBackend::DirectX12;
         Vector<String> enabled_plugins;
         Vector<String> packaged_scenes;
@@ -185,6 +186,10 @@ namespace won::project
         {
             settings.input_action_map = string_value;
         }
+        if (const char* string_value = configuration.GetString("game_data_schema"))
+        {
+            settings.game_data_schema = string_value;
+        }
         if (const char* string_value = configuration.GetString("backend_type"))
         {
             String backend_type = string_value;
@@ -261,6 +266,7 @@ namespace won::project
         configuration.SetString("splash_status", settings.splash_status.c_str());
         configuration.SetString("splash_image", settings.splash_image.c_str());
         configuration.SetString("input_action_map", settings.input_action_map.c_str());
+        configuration.SetString("game_data_schema", settings.game_data_schema.c_str());
 
         String backend_type = "DirectX12";
         if (settings.backend_type == rendering::RHIBackend::Vulkan)

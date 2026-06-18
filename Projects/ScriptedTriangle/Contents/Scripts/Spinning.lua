@@ -2,7 +2,8 @@ local script = {}
 
 function script.OnCreate(self)
     self.time = 0.0
-    won.log.info("Spinning script loaded")
+    local count = won.game_data.get_int("count")
+    won.log.info("Spinning script loaded. count = " .. tostring(count))
 end
 
 function script.OnUpdate(self, dt)
@@ -10,6 +11,11 @@ function script.OnUpdate(self, dt)
     local scale = 1.0 + math.sin(self.time * 3.0) * 0.15
     won.transform.set_scale(scale, scale, scale)
     won.transform.rotate_euler(0.0, dt * 1.25, 0.0)
+
+    local count = won.game_data.get_int("count")
+    if count then
+        won.game_data.set_int("count", count + 1)
+    end
 end
 
 function script.OnTriggerEnter3D(self)

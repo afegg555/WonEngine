@@ -1,6 +1,7 @@
 #include "Application.h"
 
 #include "Backlog.h"
+#include "ResourceExtension.h"
 #include "BuiltinTypeReflection.h"
 #include "CameraComponent.h"
 #include "JsonArchive.h"
@@ -15,13 +16,29 @@
 #include "Input.h"
 #include "Profiler.h"
 #include "ScriptRuntime.h"
+#include "StringUtils.h"
 #include "PhysicsWorld.h"
 
 namespace won
 {
+	// currently uses a hash of the schema filename to derive the save file name... maybe changed ??
+    static String DeriveGameDataSaveFile(const String& schema_path)
+    {
+        const String stem = io::ReplaceExtension(io::GetFilename(schema_path), "");
+        const uint64 h = utils::Hash(stem);
+        return std::to_string(h) + "." + resource::game_data_schema_extension;
+    }
+
     void Application::Initialize(const ApplicationDesc& desc)
     {
         project_settings = desc.project_settings;
+
+        if (!project_settings.project_name.empty())
+        {
+            const String log_dir = io::CombinePath(io::GetCacheDirectory(project_settings.project_name), "Logs");
+            io::CreateFolder(log_dir);
+            backlog::SetLogFile(io::CombinePath(log_dir, utils::GetCurrentDateTime() + ".log"));
+        }
 
         reflection::RegisterBuiltinTypes();
 
@@ -64,6 +81,7 @@ namespace won
         renderer = rendering::CreateRenderer(renderer_desc);
 
         script::ScriptRuntimeDesc script_desc = {};
+        script_desc.game_data = &game_data;
         script_runtime = script::CreateScriptRuntime(script_desc);
         if (script_runtime && !script_runtime->Initialize())
         {
@@ -74,7 +92,37 @@ namespace won
         {
             const String content_root = project::GetContentRoot(project_settings);
             const String input_action_map_path = project::ResolveProjectContentPath(content_root, project_settings.input_action_map);
-            io::LoadActionMap(input_action_map_path);
+            if (io::LoadActionMap(input_action_map_path))
+            {
+                backlog::Post("[Input] action map loaded: " + input_action_map_path);
+            }
+            else
+            {
+                backlog::Post("[Input] failed to load action map: " + input_action_map_path, backlog::LogLevel::Error);
+            }
+        }
+
+        if (!project_settings.game_data_schema.empty())
+        {
+            const String content_root = project::GetContentRoot(project_settings);
+            const String schema_path = project::ResolveProjectContentPath(content_root, project_settings.game_data_schema);
+            const String save_file = DeriveGameDataSaveFile(project_settings.game_data_schema);
+            if (game_data.LoadSchema(schema_path.c_str()))
+            {
+                backlog::Post("[GameData] schema loaded: " + schema_path);
+            }
+            else
+            {
+                backlog::Post("[GameData] failed to load schema: " + schema_path, backlog::LogLevel::Error);
+            }
+            if (game_data.Load(project_settings.project_name.c_str(), save_file.c_str()))
+            {
+                backlog::Post("[GameData] save loaded: " + save_file);
+            }
+            else
+            {
+                backlog::Post("[GameData] no save found, using defaults: " + save_file, backlog::LogLevel::Default);
+            }
         }
 
         audio_mixer = std::make_unique<won::audio::AudioMixer>(desc.audio.sample_rate, desc.audio.channel_count);
@@ -83,9 +131,18 @@ namespace won
         {
             if (audio_driver->Start(desc.audio, won::audio::AudioMixer::StaticMixCallback, audio_mixer.get()))
             {
-				// sample rate and channel count may be adjusted by the driver internally
+                // sample rate and channel count may be adjusted by the driver internally
                 audio_mixer->SetFormat(audio_driver->GetSampleRate(), audio_driver->GetChannelCount());
+                backlog::Post("[Audio] driver started: " + std::to_string(audio_driver->GetSampleRate()) + "Hz, " + std::to_string(audio_driver->GetChannelCount()) + "ch");
             }
+            else
+            {
+                backlog::Post("[Audio] driver failed to start", backlog::LogLevel::Error);
+            }
+        }
+        else
+        {
+            backlog::Post("[Audio] no audio driver available", backlog::LogLevel::Error);
         }
 
         frame_timer.Reset();
@@ -195,6 +252,19 @@ namespace won
     
     void Application::Shutdown()
     {
+        if (!project_settings.game_data_schema.empty() && !project_settings.project_name.empty())
+        {
+            const String save_file = DeriveGameDataSaveFile(project_settings.game_data_schema);
+            if (game_data.Save(project_settings.project_name.c_str(), save_file.c_str()))
+            {
+                backlog::Post("[GameData] saved: " + save_file);
+            }
+            else
+            {
+                backlog::Post("[GameData] failed to save: " + save_file, backlog::LogLevel::Error);
+            }
+        }
+
         if (!project_settings.settings_path.empty())
         {
             project::SaveSettings(project_settings.settings_path, project_settings);
@@ -311,6 +381,11 @@ namespace won
     won::audio::AudioMixer* Application::GetAudioMixer()
     {
         return audio_mixer.get();
+    }
+
+    game::GameData* Application::GetGameData()
+    {
+        return &game_data;
     }
 
     void Application::ClearViews()

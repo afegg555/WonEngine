@@ -13,4 +13,5 @@ namespace won::utils
     WONENGINE_API String ToLower(StringView input);
     WONENGINE_API bool StartsWith(StringView input, StringView prefix);
     WONENGINE_API uint64 Hash(StringView input);
+    WONENGINE_API String GetCurrentDateTime(StringView format = "%Y-%m-%d_%H-%M-%S");
 }
