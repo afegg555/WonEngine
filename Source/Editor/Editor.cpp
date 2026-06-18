@@ -57,66 +57,7 @@ namespace won::editor
 	static String editor_contents_root_dir;
 	namespace
 	{
-		constexpr const char* asset_importer_plugin_id = "AssetImporter";
-		constexpr const char* asset_importer_import_id = "asset_importer.import";
-		constexpr const char* asset_importer_get_result_info_id = "asset_importer.get_result_info";
-		constexpr const char* asset_importer_get_stream_info_id = "asset_importer.get_stream_info";
-		constexpr const char* asset_importer_copy_stream_id = "asset_importer.copy_stream";
-		constexpr const char* asset_importer_get_struct_field_count_id = "asset_importer.get_struct_field_count";
-		constexpr const char* asset_importer_get_struct_field_info_id = "asset_importer.get_struct_field_info";
-		constexpr const char* asset_importer_get_material_info_id = "asset_importer.get_material_info";
-		constexpr const char* asset_importer_get_material_texture_count_id = "asset_importer.get_material_texture_count";
-		constexpr const char* asset_importer_get_material_texture_id = "asset_importer.get_material_texture";
-		constexpr const char* asset_importer_get_embedded_texture_info_id = "asset_importer.get_embedded_texture_info";
-		constexpr const char* asset_importer_copy_embedded_texture_id = "asset_importer.copy_embedded_texture";
-		constexpr const char* asset_importer_get_bone_name_id = "asset_importer.get_bone_name";
-		constexpr const char* asset_importer_get_animation_clip_name_id = "asset_importer.get_animation_clip_name";
-		constexpr const char* asset_importer_release_result_id = "asset_importer.release_result";
-		constexpr uint32 asset_texture_source_file = 0;
-		constexpr uint32 asset_texture_source_embedded = 1;
 
-		struct AssetImporterMatrix
-		{
-			float values[16] = {};
-		};
-
-		struct AssetImporterBone
-		{
-			int32 parent_index = -1;
-			AssetImporterMatrix inverse_bind_matrix = {};
-			AssetImporterMatrix bind_local_transform = {};
-		};
-
-		struct AssetImporterVec3Key
-		{
-			float time = 0.0f;
-			float3 value = {};
-		};
-
-		struct AssetImporterQuatKey
-		{
-			float time = 0.0f;
-			float4 value = {};
-		};
-
-		struct AssetImporterAnimationChannel
-		{
-			uint32 bone_index = 0;
-			uint32 first_position_key = 0;
-			uint32 position_key_count = 0;
-			uint32 first_rotation_key = 0;
-			uint32 rotation_key_count = 0;
-			uint32 first_scale_key = 0;
-			uint32 scale_key_count = 0;
-		};
-
-		struct AssetImporterAnimationClip
-		{
-			float duration = 0.0f;
-			float ticks_per_second = 1.0f;
-			uint32 first_channel = 0;
-			uint32 channel_count = 0;
-		};
 
 		constexpr const char* generated_asset_directory = "Generated";
 		constexpr const char* scene_directory_name = "Scenes";
@@ -396,11 +337,10 @@ namespace won::editor
 			constexpr const char* scene_loaded = "Scene loaded: ";
 			constexpr const char* content_browser_import_commit_failed = "Content Browser import commit failed: ";
 			constexpr const char* content_browser_import_failed = "Content Browser import failed: ";
-			constexpr const char* asset_importer_missing_functions = "AssetImporter plugin is missing required functions.";
+			constexpr const char* asset_importer_tool_not_found = "AssetImporterTool not found: ";
 			constexpr const char* failed_register_component_type = "Failed to register component type: ";
 			constexpr const char* failed_enable_plugin = "Failed to enable plugin: ";
 			constexpr const char* plugin_disabled_next_restart = "Plugin will be disabled on next editor restart: ";
-			constexpr const char* content_browser_import_asset_importer_not_ready = "Content Browser import failed: AssetImporter is not ready.";
 			constexpr const char* base_color_map = "Base Color Map";
 			constexpr const char* normal_map = "Normal Map";
 			constexpr const char* emissive_map = "Emissive Map";
@@ -1259,20 +1199,8 @@ namespace won::editor
 			}
 
 			jobsystem::Wait(task->context);
-			ReleaseAssetImportResult(task->result_handle.exchange(0));
 		}
 		asset_importer.tasks.clear();
-		for (const std::shared_ptr<EditorAssetImporter::TextureLoadTask>& task : asset_importer.texture_tasks)
-		{
-			if (!task)
-			{
-				continue;
-			}
-
-			jobsystem::Wait(task->context);
-		}
-		asset_importer.texture_tasks.clear();
-		asset_importer = {};
 		contents_watcher.reset();
 		contents_watcher_poll_timer = 0.0f;
 		editor_viewport.debug_primitive_entity = ecs::INVALID_ENTITY;
@@ -1322,8 +1250,7 @@ namespace won::editor
 				continue;
 			}
 
-			const uint64 result_handle = task->result_handle.load();
-			if (result_handle != 0 && !task->failed.load())
+			if (!task->failed.load())
 			{
 				if (CommitAssetImportResult(*task))
 				{
@@ -1334,128 +1261,12 @@ namespace won::editor
 					backlog::Post(editor_text::content_browser_import_commit_failed + task->path, backlog::LogLevel::Warning);
 				}
 			}
-			else if (task->failed.load())
+			else
 			{
 				backlog::Post(editor_text::content_browser_import_failed + task->path, backlog::LogLevel::Warning);
 			}
 
-			ReleaseAssetImportResult(task->result_handle.exchange(0));
 			it = asset_importer.tasks.erase(it);
-			continue;
-		}
-		for (auto it = asset_importer.texture_tasks.begin(); it != asset_importer.texture_tasks.end();)
-		{
-			std::shared_ptr<EditorAssetImporter::TextureLoadTask> task = *it;
-			if (!task)
-			{
-				it = asset_importer.texture_tasks.erase(it);
-				continue;
-			}
-
-			if (!task->finished.load())
-			{
-				++it;
-				continue;
-			}
-
-			if (!task->failed.load() && task->image && task->image->IsValid() && device && editor_viewport.view && editor_viewport.view->scene)
-			{
-				const bool color_texture = task->texture_slot == BASECOLORMAP || task->texture_slot == EMISSIVEMAP || task->texture_slot == SHEENCOLORMAP;
-				const RHIFormat texture_format = color_texture ? RHIFormat::R8G8B8A8UnormSrgb : RHIFormat::R8G8B8A8Unorm;
-				bool has_alpha = false;
-				for (Size pixel_index = 3; pixel_index < task->image->pixels.size(); pixel_index += 4)
-				{
-					if (task->image->pixels[pixel_index] < 255)
-					{
-						has_alpha = true;
-						break;
-					}
-				}
-				const RHIFormat binary_format = has_alpha ?
-					(color_texture ? RHIFormat::BC3UnormSrgb : RHIFormat::BC3Unorm) :
-					(color_texture ? RHIFormat::BC1UnormSrgb : RHIFormat::BC1Unorm);
-				bool binary_saved = false;
-				std::shared_ptr<resource::Image> render_image = task->image;
-				String texture_asset_key;
-				if (task->source_type == asset_texture_source_file)
-				{
-					texture_asset_key = io::GetRelativePath(contents_root_dir, task->source_path);
-					if (texture_asset_key.empty())
-					{
-						texture_asset_key = task->source_path;
-					}
-				}
-				else
-				{
-					texture_asset_key = task->source_path;
-				}
-				texture_asset_key += "#" + std::to_string(static_cast<uint32>(binary_format));
-				task->asset_id = std::to_string(won::utils::Hash(texture_asset_key));
-				task->binary_path = String(generated_asset_directory) + "/" + task->asset_id + "." + resource::texture_binary_extension;
-				{
-					Vector<uint8> compressed_pixels;
-					uint32 compressed_mip_levels = 1;
-					if (rendering::utils::CompressTextureBC(*device, *renderer, *task->image, binary_format, compressed_pixels, compressed_mip_levels))
-					{
-						const String binary_disk_path = io::CombinePath(contents_root_dir, task->binary_path);
-						binary_saved = resource::SaveTextureBinary(binary_disk_path,
-							static_cast<uint32>(task->image->width), static_cast<uint32>(task->image->height), compressed_mip_levels, binary_format, compressed_pixels);
-						if (binary_saved)
-						{
-							std::shared_ptr<resource::Image> binary_image = resource::LoadTextureBinary(binary_disk_path);
-							if (binary_image && binary_image->IsValid())
-							{
-								render_image = binary_image;
-								if (task->source_type == asset_texture_source_file && !task->source_path.empty())
-								{
-									String source_asset_path = io::GetRelativePath(contents_root_dir, task->source_path);
-									if (source_asset_path.empty())
-									{
-										source_asset_path = task->source_path;
-									}
-									resource::AssetMeta meta = {};
-									meta.asset_id = task->asset_id;
-									meta.source_asset_path = source_asset_path;
-									meta.asset_type = "texture";
-									meta.binary_path = task->binary_path;
-									io::GetLastTimestamp(task->source_path, &meta.source_timestamp);
-									resource::SaveAssetMeta(resource::GetAssetMetaPath(task->source_path), meta);
-								}
-							}
-							else
-							{
-								binary_saved = false;
-							}
-						}
-					}
-				}
-				if (rendering::utils::CreateRenderData(*device, *render_image, texture_format, !binary_saved))
-				{
-					if (MaterialComponent* material = editor_viewport.view->scene->GetComponent<MaterialComponent>(task->entity))
-					{
-						if (task->material_index < material->material_slots.size() && task->texture_slot < TEXTURESLOT_COUNT)
-						{
-							MaterialSlot::TextureMap& texture_map = material->material_slots[task->material_index].textures[task->texture_slot];
-							if (binary_saved)
-							{
-								texture_map.texture_asset_path = task->binary_path;
-							}
-							else if (task->source_type == asset_texture_source_file)
-							{
-								texture_map.texture_asset_path = io::GetRelativePath(contents_root_dir, task->source_path);
-								if (texture_map.texture_asset_path.empty())
-								{
-									texture_map.texture_asset_path = task->source_path;
-								}
-							}
-							texture_map.texture = render_image->render_data.texture;
-							texture_map.res_handle = render_image->render_data.srv;
-						}
-					}
-				}
-			}
-
-			it = asset_importer.texture_tasks.erase(it);
 		}
 		if (entity_list_dirty)
 		{
@@ -1594,7 +1405,7 @@ namespace won::editor
 	void EditorApplication::LoadPlugins()
 	{
 		plugins.clear();
-		asset_importer = {};
+		asset_importer.tasks.clear();
 
 		const String plugin_root_path = io::CombinePath(io::GetExecutableDirectory(), "Plugins");
 		Vector<plugin::PluginInfo> plugin_list = plugin::ScanPluginList(plugin_root_path);
@@ -1621,11 +1432,6 @@ namespace won::editor
 
 			plugins.push_back(editor_plugin_info);
 		}
-
-		if (asset_importer.functions.plugin && !asset_importer.IsValid())
-		{
-			backlog::Post(editor_text::asset_importer_missing_functions, backlog::LogLevel::Warning);
-		}
 	}
 
 	void EditorApplication::RegisterPluginExtensions(const std::shared_ptr<plugin::Plugin>& plugin)
@@ -1635,86 +1441,8 @@ namespace won::editor
 			return;
 		}
 
-		const String plugin_id = plugin->GetPluginId() ? plugin->GetPluginId() : "";
-		if (plugin_id == asset_importer_plugin_id)
-		{
-			asset_importer.functions.plugin = plugin;
-		}
-
 		for (const plugin::PluginExtension& extension : plugin->GetExtensions())
 		{
-			if (extension.extension_type == function::ExtensionType && plugin_id == asset_importer_plugin_id)
-			{
-				if (!extension.descriptor)
-				{
-					continue;
-				}
-
-				const auto* desc = static_cast<const function::Desc*>(extension.descriptor);
-				if (!desc || desc->struct_size < sizeof(function::Desc) || !desc->Invoke)
-				{
-					continue;
-				}
-
-				if (extension.extension_id == asset_importer_import_id)
-				{
-					asset_importer.functions.import = desc;
-				}
-				else if (extension.extension_id == asset_importer_get_result_info_id)
-				{
-					asset_importer.functions.get_result_info = desc;
-				}
-				else if (extension.extension_id == asset_importer_get_stream_info_id)
-				{
-					asset_importer.functions.get_stream_info = desc;
-				}
-				else if (extension.extension_id == asset_importer_copy_stream_id)
-				{
-					asset_importer.functions.copy_stream = desc;
-				}
-				else if (extension.extension_id == asset_importer_get_struct_field_count_id)
-				{
-					asset_importer.functions.get_struct_field_count = desc;
-				}
-				else if (extension.extension_id == asset_importer_get_struct_field_info_id)
-				{
-					asset_importer.functions.get_struct_field_info = desc;
-				}
-				else if (extension.extension_id == asset_importer_get_material_info_id)
-				{
-					asset_importer.functions.get_material_info = desc;
-				}
-				else if (extension.extension_id == asset_importer_get_material_texture_count_id)
-				{
-					asset_importer.functions.get_material_texture_count = desc;
-				}
-				else if (extension.extension_id == asset_importer_get_material_texture_id)
-				{
-					asset_importer.functions.get_material_texture = desc;
-				}
-				else if (extension.extension_id == asset_importer_get_embedded_texture_info_id)
-				{
-					asset_importer.functions.get_embedded_texture_info = desc;
-				}
-				else if (extension.extension_id == asset_importer_copy_embedded_texture_id)
-				{
-					asset_importer.functions.copy_embedded_texture = desc;
-				}
-				else if (extension.extension_id == asset_importer_get_bone_name_id)
-				{
-					asset_importer.functions.get_bone_name = desc;
-				}
-				else if (extension.extension_id == asset_importer_get_animation_clip_name_id)
-				{
-					asset_importer.functions.get_animation_clip_name = desc;
-				}
-				else if (extension.extension_id == asset_importer_release_result_id)
-				{
-					asset_importer.functions.release_result = desc;
-				}
-				continue;
-			}
-
 			if (extension.extension_type == component::ExtensionType)
 			{
 				if (!extension.descriptor)
@@ -1812,9 +1540,10 @@ namespace won::editor
 
 	uint64 EditorApplication::StartAssetImport(const String& path)
 	{
-		if (path.empty() || !asset_importer.IsValid())
+		const String tool_path = io::CombinePath(io::GetExecutableDirectory(), "AssetImporterTool.exe");
+		if (path.empty() || !io::IsFile(tool_path))
 		{
-			backlog::Post(editor_text::content_browser_import_asset_importer_not_ready, backlog::LogLevel::Warning);
+			backlog::Post(editor_text::asset_importer_tool_not_found, backlog::LogLevel::Warning);
 			return 0;
 		}
 
@@ -1825,591 +1554,37 @@ namespace won::editor
 		task->context.priority = jobsystem::Priority::Streaming;
 		asset_importer.tasks.push_back(task);
 
-		EditorAssetImporter::Functions functions = asset_importer.functions;
-		jobsystem::Execute(task->context, [task, functions](jobsystem::JobArgs args)
+		const String settings_path = loaded_project_settings.settings_path;
+		jobsystem::Execute(task->context, [task, tool_path, settings_path](jobsystem::JobArgs)
 		{
-			if (!functions.plugin || !functions.import || !functions.import->Invoke)
+			String cmd = "\"" + tool_path + "\" \"" + settings_path + "\" \"" + task->path + "\"";
+			std::vector<char> cmd_buf(cmd.begin(), cmd.end());
+			cmd_buf.push_back('\0');
+
+			STARTUPINFOA si = {};
+			si.cb = sizeof(si);
+			PROCESS_INFORMATION pi = {};
+			if (!CreateProcessA(nullptr, cmd_buf.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &pi))
 			{
 				task->failed.store(true);
 				task->finished.store(true);
 				return;
 			}
 
-			auto invoke = [&](const function::Desc* desc, const function::Value* inputs, uint32 input_count, function::Value* outputs, uint32 output_capacity, uint32& output_count) -> bool
-			{
-				output_count = 0;
-				if (!desc || !desc->Invoke)
-				{
-					return false;
-				}
+			CloseHandle(pi.hThread);
+			WaitForSingleObject(pi.hProcess, INFINITE);
 
-				function::Call call = { inputs, input_count, outputs, output_capacity, &output_count };
-				return desc->Invoke(functions.plugin->GetHandle(), &call);
-			};
+			DWORD exit_code = 0;
+			GetExitCodeProcess(pi.hProcess, &exit_code);
+			CloseHandle(pi.hProcess);
 
-			function::Value inputs[1] = {};
-			inputs[0].type = won::ValueType::String;
-			inputs[0].string_value = task->path.c_str();
-
-			function::Value outputs[1] = {};
-			uint32 output_count = 0;
-			function::Call call = { inputs, 1, outputs, 1, &output_count };
-			if (!functions.import->Invoke(functions.plugin->GetHandle(), &call) || output_count != 1 || outputs[0].type != won::ValueType::UInt64 || outputs[0].uint64_value == 0)
+			if (exit_code != 0)
 			{
 				task->failed.store(true);
-				task->finished.store(true);
-				return;
 			}
-
-			const uint64 result_handle = outputs[0].uint64_value;
-			task->result_handle.store(result_handle);
-
-			function::Value result_input[1] = {};
-			result_input[0].type = won::ValueType::UInt64;
-			result_input[0].uint64_value = result_handle;
-
-			function::Value result_outputs[3] = {};
-			if (!invoke(functions.get_result_info, result_input, 1, result_outputs, 3, output_count) || output_count != 3 ||
-				result_outputs[0].type != won::ValueType::String || result_outputs[1].type != won::ValueType::UInt32 ||
-				result_outputs[2].type != won::ValueType::UInt32)
-			{
-				task->failed.store(true);
-				task->finished.store(true);
-				return;
-			}
-
-			EditorAssetImporter::PreparedAsset prepared = {};
-			prepared.name = result_outputs[0].string_value ? result_outputs[0].string_value : task->path;
-			const uint32 stream_count = result_outputs[1].uint32_value;
-			const uint32 material_count = result_outputs[2].uint32_value;
-			if (stream_count == 0)
-			{
-				task->failed.store(true);
-				task->finished.store(true);
-				return;
-			}
-
-			prepared.mesh = std::make_shared<resource::Mesh>();
-			auto copy_stream = [&](uint32 stream_index, void* dst, uint64 byte_size) -> bool
-			{
-				function::Value copy_stream_inputs[4] = {};
-				copy_stream_inputs[0].type = won::ValueType::UInt64;
-				copy_stream_inputs[0].uint64_value = result_handle;
-				copy_stream_inputs[1].type = won::ValueType::UInt32;
-				copy_stream_inputs[1].uint32_value = stream_index;
-				copy_stream_inputs[2].type = won::ValueType::Pointer;
-				copy_stream_inputs[2].pointer_value = dst;
-				copy_stream_inputs[3].type = won::ValueType::UInt64;
-				copy_stream_inputs[3].uint64_value = byte_size;
-
-				function::Value copy_stream_outputs[1] = {};
-				return invoke(functions.copy_stream, copy_stream_inputs, 4, copy_stream_outputs, 1, output_count) && output_count == 1 &&
-					copy_stream_outputs[0].type == won::ValueType::UInt64 && copy_stream_outputs[0].uint64_value == byte_size;
-			};
-
-			Vector<AssetImporterBone> imported_bones;
-			Vector<AssetImporterAnimationClip> imported_animation_clips;
-			Vector<AssetImporterAnimationChannel> imported_animation_channels;
-			Vector<AssetImporterVec3Key> imported_position_keys;
-			Vector<AssetImporterQuatKey> imported_rotation_keys;
-			Vector<AssetImporterVec3Key> imported_scale_keys;
-			for (uint32 stream_index = 0; stream_index < stream_count; ++stream_index)
-			{
-				function::Value stream_inputs[2] = {};
-				stream_inputs[0].type = won::ValueType::UInt64;
-				stream_inputs[0].uint64_value = result_handle;
-				stream_inputs[1].type = won::ValueType::UInt32;
-				stream_inputs[1].uint32_value = stream_index;
-
-				function::Value stream_outputs[5] = {};
-				if (!invoke(functions.get_stream_info, stream_inputs, 2, stream_outputs, 5, output_count) || output_count != 5 ||
-					stream_outputs[0].type != won::ValueType::String || stream_outputs[1].type != won::ValueType::UInt32 ||
-					stream_outputs[2].type != won::ValueType::String || stream_outputs[3].type != won::ValueType::UInt32 ||
-					stream_outputs[4].type != won::ValueType::UInt64)
-				{
-					task->failed.store(true);
-					task->finished.store(true);
-					return;
-				}
-
-				const String stream_name = stream_outputs[0].string_value ? stream_outputs[0].string_value : "";
-				const won::ValueType value_type = static_cast<won::ValueType>(stream_outputs[1].uint32_value);
-				const String type_name = stream_outputs[2].string_value ? stream_outputs[2].string_value : "";
-				const uint32 element_size = stream_outputs[3].uint32_value;
-				const uint64 count = stream_outputs[4].uint64_value;
-				if (count == 0 || element_size == 0)
-				{
-					continue;
-				}
-
-				const uint64 byte_size = count * element_size;
-				if (stream_name == "positions" && value_type == won::ValueType::Float32x3 && element_size == sizeof(float3))
-				{
-					prepared.mesh->positions.resize(static_cast<Size>(count));
-					if (!copy_stream(stream_index, prepared.mesh->positions.data(), byte_size))
-					{
-						task->failed.store(true);
-						task->finished.store(true);
-						return;
-					}
-				}
-				else if (stream_name == "normals" && value_type == won::ValueType::Float32x3 && element_size == sizeof(float3))
-				{
-					prepared.mesh->normals.resize(static_cast<Size>(count));
-					if (!copy_stream(stream_index, prepared.mesh->normals.data(), byte_size))
-					{
-						task->failed.store(true);
-						task->finished.store(true);
-						return;
-					}
-				}
-				else if (stream_name == "tangents" && value_type == won::ValueType::Float32x4 && element_size == sizeof(float4))
-				{
-					prepared.mesh->tangents.resize(static_cast<Size>(count));
-					if (!copy_stream(stream_index, prepared.mesh->tangents.data(), byte_size))
-					{
-						task->failed.store(true);
-						task->finished.store(true);
-						return;
-					}
-				}
-				else if (stream_name == "texcoords" && value_type == won::ValueType::Float32x2 && element_size == sizeof(float2))
-				{
-					prepared.mesh->texcoords.resize(static_cast<Size>(count));
-					if (!copy_stream(stream_index, prepared.mesh->texcoords.data(), byte_size))
-					{
-						task->failed.store(true);
-						task->finished.store(true);
-						return;
-					}
-				}
-				else if (stream_name == "bone_indices" && value_type == won::ValueType::UInt32x4 && element_size == sizeof(uint4))
-				{
-					prepared.mesh->bone_indices.resize(static_cast<Size>(count));
-					if (!copy_stream(stream_index, prepared.mesh->bone_indices.data(), byte_size))
-					{
-						task->failed.store(true);
-						task->finished.store(true);
-						return;
-					}
-				}
-				else if (stream_name == "bone_weights" && value_type == won::ValueType::Float32x4 && element_size == sizeof(float4))
-				{
-					prepared.mesh->bone_weights.resize(static_cast<Size>(count));
-					if (!copy_stream(stream_index, prepared.mesh->bone_weights.data(), byte_size))
-					{
-						task->failed.store(true);
-						task->finished.store(true);
-						return;
-					}
-				}
-				else if (stream_name == "indices" && value_type == won::ValueType::UInt32 && element_size == sizeof(uint32))
-				{
-					prepared.mesh->indices.resize(static_cast<Size>(count));
-					if (!copy_stream(stream_index, prepared.mesh->indices.data(), byte_size))
-					{
-						task->failed.store(true);
-						task->finished.store(true);
-						return;
-					}
-				}
-				else if (stream_name == "submeshes" && value_type == won::ValueType::CustomStruct && type_name == "asset_importer.submesh")
-				{
-					std::vector<uint8> stream_bytes(static_cast<Size>(byte_size));
-					if (!copy_stream(stream_index, stream_bytes.data(), byte_size))
-					{
-						task->failed.store(true);
-						task->finished.store(true);
-						return;
-					}
-
-					function::Value field_count_inputs[1] = {};
-					field_count_inputs[0].type = won::ValueType::String;
-					field_count_inputs[0].string_value = type_name.c_str();
-					function::Value field_count_outputs[1] = {};
-					if (!invoke(functions.get_struct_field_count, field_count_inputs, 1, field_count_outputs, 1, output_count) || output_count != 1 ||
-						field_count_outputs[0].type != won::ValueType::UInt32)
-					{
-						task->failed.store(true);
-						task->finished.store(true);
-						return;
-					}
-
-					uint32 first_index_offset = UINT32_MAX;
-					uint32 index_count_offset = UINT32_MAX;
-					uint32 first_vertex_offset = UINT32_MAX;
-					uint32 material_index_offset = UINT32_MAX;
-					uint32 bounds_min_offset = UINT32_MAX;
-					uint32 bounds_max_offset = UINT32_MAX;
-					for (uint32 field_index = 0; field_index < field_count_outputs[0].uint32_value; ++field_index)
-					{
-						function::Value field_info_inputs[2] = {};
-						field_info_inputs[0].type = won::ValueType::String;
-						field_info_inputs[0].string_value = type_name.c_str();
-						field_info_inputs[1].type = won::ValueType::UInt32;
-						field_info_inputs[1].uint32_value = field_index;
-						function::Value field_info_outputs[5] = {};
-						if (!invoke(functions.get_struct_field_info, field_info_inputs, 2, field_info_outputs, 5, output_count) || output_count != 5)
-						{
-							task->failed.store(true);
-							task->finished.store(true);
-							return;
-						}
-
-						const String field_name = field_info_outputs[0].string_value ? field_info_outputs[0].string_value : "";
-						const uint32 field_offset = field_info_outputs[2].uint32_value;
-						if (field_name == "first_index") { first_index_offset = field_offset; }
-						else if (field_name == "index_count") { index_count_offset = field_offset; }
-						else if (field_name == "first_vertex") { first_vertex_offset = field_offset; }
-						else if (field_name == "material_index") { material_index_offset = field_offset; }
-						else if (field_name == "bounds_min") { bounds_min_offset = field_offset; }
-						else if (field_name == "bounds_max") { bounds_max_offset = field_offset; }
-					}
-					if (first_index_offset == UINT32_MAX || index_count_offset == UINT32_MAX || first_vertex_offset == UINT32_MAX ||
-						material_index_offset == UINT32_MAX || bounds_min_offset == UINT32_MAX || bounds_max_offset == UINT32_MAX)
-					{
-						task->failed.store(true);
-						task->finished.store(true);
-						return;
-					}
-
-					prepared.mesh->submeshes.resize(static_cast<Size>(count));
-					for (uint64 i = 0; i < count; ++i)
-					{
-						const uint8* element = stream_bytes.data() + static_cast<Size>(i * element_size);
-						resource::Submesh& submesh = prepared.mesh->submeshes[static_cast<Size>(i)];
-						submesh.first_index = *reinterpret_cast<const uint32*>(element + first_index_offset);
-						submesh.index_count = *reinterpret_cast<const uint32*>(element + index_count_offset);
-						submesh.first_vertex = *reinterpret_cast<const uint32*>(element + first_vertex_offset);
-						submesh.material_slot = *reinterpret_cast<const uint32*>(element + material_index_offset);
-						submesh.local_bounds.min = *reinterpret_cast<const float3*>(element + bounds_min_offset);
-						submesh.local_bounds.max = *reinterpret_cast<const float3*>(element + bounds_max_offset);
-					}
-				}
-				else if (stream_name == "bones" && value_type == won::ValueType::CustomStruct && type_name == "asset_importer.bone" && element_size == sizeof(AssetImporterBone))
-				{
-					imported_bones.resize(static_cast<Size>(count));
-					if (!copy_stream(stream_index, imported_bones.data(), byte_size))
-					{
-						task->failed.store(true);
-						task->finished.store(true);
-						return;
-					}
-				}
-				else if (stream_name == "animation_clips" && value_type == won::ValueType::CustomStruct && type_name == "asset_importer.animation_clip" && element_size == sizeof(AssetImporterAnimationClip))
-				{
-					imported_animation_clips.resize(static_cast<Size>(count));
-					if (!copy_stream(stream_index, imported_animation_clips.data(), byte_size))
-					{
-						task->failed.store(true);
-						task->finished.store(true);
-						return;
-					}
-				}
-				else if (stream_name == "animation_channels" && value_type == won::ValueType::CustomStruct && type_name == "asset_importer.animation_channel" && element_size == sizeof(AssetImporterAnimationChannel))
-				{
-					imported_animation_channels.resize(static_cast<Size>(count));
-					if (!copy_stream(stream_index, imported_animation_channels.data(), byte_size))
-					{
-						task->failed.store(true);
-						task->finished.store(true);
-						return;
-					}
-				}
-				else if (stream_name == "animation_position_keys" && value_type == won::ValueType::CustomStruct && type_name == "asset_importer.vec3_key" && element_size == sizeof(AssetImporterVec3Key))
-				{
-					imported_position_keys.resize(static_cast<Size>(count));
-					if (!copy_stream(stream_index, imported_position_keys.data(), byte_size))
-					{
-						task->failed.store(true);
-						task->finished.store(true);
-						return;
-					}
-				}
-				else if (stream_name == "animation_rotation_keys" && value_type == won::ValueType::CustomStruct && type_name == "asset_importer.quat_key" && element_size == sizeof(AssetImporterQuatKey))
-				{
-					imported_rotation_keys.resize(static_cast<Size>(count));
-					if (!copy_stream(stream_index, imported_rotation_keys.data(), byte_size))
-					{
-						task->failed.store(true);
-						task->finished.store(true);
-						return;
-					}
-				}
-				else if (stream_name == "animation_scale_keys" && value_type == won::ValueType::CustomStruct && type_name == "asset_importer.vec3_key" && element_size == sizeof(AssetImporterVec3Key))
-				{
-					imported_scale_keys.resize(static_cast<Size>(count));
-					if (!copy_stream(stream_index, imported_scale_keys.data(), byte_size))
-					{
-						task->failed.store(true);
-						task->finished.store(true);
-						return;
-					}
-				}
-			}
-
-			auto to_float4x4 = [](const AssetImporterMatrix& matrix)
-			{
-				float4x4 result = {};
-				std::memcpy(&result, matrix.values, sizeof(result));
-				return result;
-			};
-			auto get_indexed_name = [&](const function::Desc* desc, uint32 index) -> String
-			{
-				function::Value name_inputs[2] = {};
-				name_inputs[0].type = won::ValueType::UInt64;
-				name_inputs[0].uint64_value = result_handle;
-				name_inputs[1].type = won::ValueType::UInt32;
-				name_inputs[1].uint32_value = index;
-
-				function::Value name_outputs[1] = {};
-				if (!invoke(desc, name_inputs, 2, name_outputs, 1, output_count) || output_count != 1 || name_outputs[0].type != won::ValueType::String)
-				{
-					return "";
-				}
-				return name_outputs[0].string_value ? name_outputs[0].string_value : "";
-			};
-
-			if (!imported_bones.empty())
-			{
-				prepared.skeleton = std::make_shared<resource::Skeleton>();
-				prepared.skeleton->bones.reserve(imported_bones.size());
-				for (Size bone_index = 0; bone_index < imported_bones.size(); ++bone_index)
-				{
-					const AssetImporterBone& imported_bone = imported_bones[bone_index];
-					resource::Bone bone = {};
-					bone.name = get_indexed_name(functions.get_bone_name, static_cast<uint32>(bone_index));
-					bone.parent_index = imported_bone.parent_index;
-					bone.inverse_bind_matrix = to_float4x4(imported_bone.inverse_bind_matrix);
-					bone.bind_local_transform = to_float4x4(imported_bone.bind_local_transform);
-					prepared.skeleton->bone_name_to_index[bone.name] = static_cast<uint32>(prepared.skeleton->bones.size());
-					prepared.skeleton->bones.push_back(bone);
-				}
-			}
-
-			if (prepared.skeleton && prepared.skeleton->IsValid() && !imported_animation_clips.empty())
-			{
-				prepared.animation_clips.reserve(imported_animation_clips.size());
-				for (Size clip_index = 0; clip_index < imported_animation_clips.size(); ++clip_index)
-				{
-					const AssetImporterAnimationClip& imported_clip = imported_animation_clips[clip_index];
-					auto clip = std::make_shared<resource::AnimationClip>();
-					clip->name = get_indexed_name(functions.get_animation_clip_name, static_cast<uint32>(clip_index));
-					clip->duration = imported_clip.duration;
-					clip->ticks_per_second = imported_clip.ticks_per_second > 0.0f ? imported_clip.ticks_per_second : 1.0f;
-					const Size first_channel = imported_clip.first_channel;
-					const Size channel_end = first_channel + imported_clip.channel_count;
-					if (channel_end > imported_animation_channels.size())
-					{
-						continue;
-					}
-
-					for (Size channel_index = first_channel; channel_index < channel_end; ++channel_index)
-					{
-						const AssetImporterAnimationChannel& imported_channel = imported_animation_channels[channel_index];
-						resource::AnimationChannel channel = {};
-						channel.bone_index = imported_channel.bone_index;
-						const Size position_end = static_cast<Size>(imported_channel.first_position_key) + imported_channel.position_key_count;
-						const Size rotation_end = static_cast<Size>(imported_channel.first_rotation_key) + imported_channel.rotation_key_count;
-						const Size scale_end = static_cast<Size>(imported_channel.first_scale_key) + imported_channel.scale_key_count;
-						if (position_end > imported_position_keys.size() || rotation_end > imported_rotation_keys.size() || scale_end > imported_scale_keys.size())
-						{
-							continue;
-						}
-
-						channel.positions.reserve(imported_channel.position_key_count);
-						for (Size key_index = imported_channel.first_position_key; key_index < position_end; ++key_index)
-						{
-							channel.positions.push_back({ imported_position_keys[key_index].time, imported_position_keys[key_index].value });
-						}
-						channel.rotations.reserve(imported_channel.rotation_key_count);
-						for (Size key_index = imported_channel.first_rotation_key; key_index < rotation_end; ++key_index)
-						{
-							channel.rotations.push_back({ imported_rotation_keys[key_index].time, imported_rotation_keys[key_index].value });
-						}
-						channel.scales.reserve(imported_channel.scale_key_count);
-						for (Size key_index = imported_channel.first_scale_key; key_index < scale_end; ++key_index)
-						{
-							channel.scales.push_back({ imported_scale_keys[key_index].time, imported_scale_keys[key_index].value });
-						}
-						if (channel.IsValid())
-						{
-							clip->channels.push_back(std::move(channel));
-						}
-					}
-
-					if (clip->IsValid())
-					{
-						prepared.animation_clips.push_back(std::move(clip));
-					}
-				}
-			}
-
-			if (!prepared.mesh || !prepared.mesh->IsValid())
-			{
-				task->failed.store(true);
-				task->finished.store(true);
-				return;
-			}
-
-			prepared.material_slots.reserve((std::max)(1u, material_count));
-			for (uint32 material_index = 0; material_index < material_count; ++material_index)
-			{
-				function::Value material_inputs[2] = {};
-				material_inputs[0].type = won::ValueType::UInt64;
-				material_inputs[0].uint64_value = result_handle;
-				material_inputs[1].type = won::ValueType::UInt32;
-				material_inputs[1].uint32_value = material_index;
-
-				function::Value material_outputs[9] = {};
-				if (!invoke(functions.get_material_info, material_inputs, 2, material_outputs, 9, output_count) || output_count != 9)
-				{
-					task->failed.store(true);
-					task->finished.store(true);
-					return;
-				}
-
-				ecs::MaterialSlot material_slot = {};
-				material_slot.base_color = { material_outputs[0].float_values[0], material_outputs[0].float_values[1], material_outputs[0].float_values[2], material_outputs[0].float_values[3] };
-				material_slot.metallic = material_outputs[1].float_value;
-				material_slot.roughness = material_outputs[2].float_value;
-				material_slot.reflectance = material_outputs[3].float_value;
-				material_slot.anisotropy = material_outputs[4].float_value;
-				material_slot.sheen_color = { material_outputs[5].float_values[0], material_outputs[5].float_values[1], material_outputs[5].float_values[2] };
-				material_slot.sheen_roughness = material_outputs[6].float_value;
-				material_slot.clearcoat = material_outputs[7].float_value;
-				material_slot.clearcoat_roughness = material_outputs[8].float_value;
-
-				function::Value texture_count_inputs[2] = {};
-				texture_count_inputs[0].type = won::ValueType::UInt64;
-				texture_count_inputs[0].uint64_value = result_handle;
-				texture_count_inputs[1].type = won::ValueType::UInt32;
-				texture_count_inputs[1].uint32_value = material_index;
-				function::Value texture_count_outputs[1] = {};
-				if (!invoke(functions.get_material_texture_count, texture_count_inputs, 2, texture_count_outputs, 1, output_count) || output_count != 1 ||
-					texture_count_outputs[0].type != won::ValueType::UInt32)
-				{
-					task->failed.store(true);
-					task->finished.store(true);
-					return;
-				}
-
-				for (uint32 texture_index = 0; texture_index < texture_count_outputs[0].uint32_value; ++texture_index)
-				{
-					function::Value texture_inputs[3] = {};
-					texture_inputs[0].type = won::ValueType::UInt64;
-					texture_inputs[0].uint64_value = result_handle;
-					texture_inputs[1].type = won::ValueType::UInt32;
-					texture_inputs[1].uint32_value = material_index;
-					texture_inputs[2].type = won::ValueType::UInt32;
-					texture_inputs[2].uint32_value = texture_index;
-
-					function::Value texture_outputs[3] = {};
-					if (!invoke(functions.get_material_texture, texture_inputs, 3, texture_outputs, 3, output_count) || output_count != 3 ||
-						texture_outputs[0].type != won::ValueType::String || texture_outputs[1].type != won::ValueType::UInt32 ||
-						texture_outputs[2].type != won::ValueType::String)
-					{
-						task->failed.store(true);
-						task->finished.store(true);
-						return;
-					}
-
-					const String semantic = texture_outputs[0].string_value ? texture_outputs[0].string_value : "";
-					const uint32 source_type = texture_outputs[1].uint32_value;
-					const String texture_source = texture_outputs[2].string_value ? texture_outputs[2].string_value : "";
-					uint32 texture_slot = TEXTURESLOT_COUNT;
-					if (semantic == "base_color") { texture_slot = BASECOLORMAP; }
-					else if (semantic == "normal") { texture_slot = NORMALMAP; }
-					else if (semantic == "emissive") { texture_slot = EMISSIVEMAP; }
-					else if (semantic == "displacement") { texture_slot = DISPLACEMENTMAP; }
-					else if (semantic == "occlusion") { texture_slot = OCCLUSIONMAP; }
-					else if (semantic == "metallic") { texture_slot = METALLICMAP; }
-					else if (semantic == "roughness") { texture_slot = ROUGHNESSMAP; }
-					else if (semantic == "sheen_color") { texture_slot = SHEENCOLORMAP; }
-					else if (semantic == "sheen_roughness") { texture_slot = SHEENROUGHNESSMAP; }
-					else if (semantic == "clearcoat") { texture_slot = CLEARCOATMAP; }
-					else if (semantic == "clearcoat_roughness") { texture_slot = CLEARCOATROUGHNESSMAP; }
-					else if (semantic == "clearcoat_normal") { texture_slot = CLEARCOATNORMALMAP; }
-					else if (semantic == "anisotropy") { texture_slot = ANISOTROPYMAP; }
-					else if (semantic == "opacity") { texture_slot = OPACITYMAP; }
-					if (texture_slot >= TEXTURESLOT_COUNT)
-					{
-						continue;
-					}
-					EditorAssetImporter::TextureRequest texture_request = {};
-					texture_request.material_index = material_index;
-					texture_request.texture_slot = texture_slot;
-					texture_request.source_type = source_type;
-					texture_request.source_path = texture_source;
-					if (source_type == asset_texture_source_embedded && functions.get_embedded_texture_info && functions.copy_embedded_texture)
-					{
-						function::Value embedded_info_inputs[2] = {};
-						embedded_info_inputs[0].type = won::ValueType::UInt64;
-						embedded_info_inputs[0].uint64_value = result_handle;
-						embedded_info_inputs[1].type = won::ValueType::String;
-						embedded_info_inputs[1].string_value = texture_source.c_str();
-
-						function::Value embedded_info_outputs[4] = {};
-						if (invoke(functions.get_embedded_texture_info, embedded_info_inputs, 2, embedded_info_outputs, 4, output_count) && output_count == 4 &&
-							embedded_info_outputs[0].type == won::ValueType::UInt32 && embedded_info_outputs[1].type == won::ValueType::UInt32 &&
-							embedded_info_outputs[2].type == won::ValueType::Bool && embedded_info_outputs[3].type == won::ValueType::UInt64 &&
-							embedded_info_outputs[3].uint64_value > 0)
-						{
-							texture_request.embedded_width = embedded_info_outputs[0].uint32_value;
-							texture_request.embedded_height = embedded_info_outputs[1].uint32_value;
-							texture_request.embedded_compressed = embedded_info_outputs[2].bool_value;
-							const uint64 embedded_byte_size = embedded_info_outputs[3].uint64_value;
-							texture_request.embedded_bytes.resize(static_cast<Size>(embedded_byte_size));
-
-							function::Value copy_embedded_inputs[4] = {};
-							copy_embedded_inputs[0].type = won::ValueType::UInt64;
-							copy_embedded_inputs[0].uint64_value = result_handle;
-							copy_embedded_inputs[1].type = won::ValueType::String;
-							copy_embedded_inputs[1].string_value = texture_source.c_str();
-							copy_embedded_inputs[2].type = won::ValueType::Pointer;
-							copy_embedded_inputs[2].pointer_value = texture_request.embedded_bytes.data();
-							copy_embedded_inputs[3].type = won::ValueType::UInt64;
-							copy_embedded_inputs[3].uint64_value = embedded_byte_size;
-
-							function::Value copy_embedded_outputs[1] = {};
-							if (!invoke(functions.copy_embedded_texture, copy_embedded_inputs, 4, copy_embedded_outputs, 1, output_count) || output_count != 1 ||
-								copy_embedded_outputs[0].type != won::ValueType::UInt64 || copy_embedded_outputs[0].uint64_value != embedded_byte_size)
-							{
-								texture_request.embedded_bytes.clear();
-							}
-						}
-					}
-
-					prepared.texture_requests.push_back(std::move(texture_request));
-				}
-
-				prepared.material_slots.push_back(material_slot);
-			}
-
-			if (prepared.material_slots.empty())
-			{
-				prepared.material_slots.emplace_back();
-			}
-
-			task->prepared = std::move(prepared);
 			task->finished.store(true);
 		});
 		return task->id;
-	}
-
-	void EditorApplication::ReleaseAssetImportResult(uint64 result_handle)
-	{
-		if (result_handle == 0 || !asset_importer.functions.plugin || !asset_importer.functions.release_result || !asset_importer.functions.release_result->Invoke)
-		{
-			return;
-		}
-
-		function::Value inputs[1] = {};
-		inputs[0].type = won::ValueType::UInt64;
-		inputs[0].uint64_value = result_handle;
-		uint32 output_count = 0;
-		function::Call call = { inputs, 1, nullptr, 0, &output_count };
-		asset_importer.functions.release_result->Invoke(asset_importer.functions.plugin->GetHandle(), &call);
 	}
 
 	bool EditorApplication::CommitAssetImportResult(EditorAssetImporter::ImportTask& task)
@@ -2419,32 +1594,46 @@ namespace won::editor
 			return false;
 		}
 
-		EditorAssetImporter::PreparedAsset& prepared = task.prepared;
-		if (!prepared.mesh || !prepared.mesh->IsValid() || !rendering::utils::CreateRenderData(*device, *prepared.mesh))
+		resource::AssetMeta meta = {};
+		if (!resource::LoadAssetMeta(resource::GetAssetMetaPath(task.path), meta) || meta.binary_path.empty())
 		{
 			return false;
 		}
-		prepared.mesh->skeleton = prepared.skeleton;
-		prepared.mesh->animation_clips = prepared.animation_clips;
 
-		String source_mesh_asset_path = io::GetRelativePath(contents_root_dir, task.path);
-		if (source_mesh_asset_path.empty())
-		{
-			source_mesh_asset_path = task.path;
-		}
-		const String mesh_binary_path = String(generated_asset_directory) + "/" + std::to_string(won::utils::Hash(source_mesh_asset_path)) + "." + resource::mesh_binary_extension;
-		if (!resource::SaveMeshBinary(io::CombinePath(contents_root_dir, mesh_binary_path), *prepared.mesh))
+		auto mesh = resource::LoadMeshBinary(io::CombinePath(contents_root_dir, meta.binary_path));
+		if (!mesh || !mesh->IsValid() || !rendering::utils::CreateRenderData(*device, *mesh))
 		{
 			return false;
 		}
+
+		Vector<ecs::MaterialSlot> material_slots;
+		const String mat_binary_path = String(generated_asset_directory) + "/" + meta.asset_id + "." + resource::material_binary_extension;
+		resource::LoadMaterialBinary(io::CombinePath(contents_root_dir, mat_binary_path), material_slots);
+		if (material_slots.empty())
 		{
-			resource::AssetMeta meta = {};
-			meta.asset_id = std::to_string(won::utils::Hash(source_mesh_asset_path));
-			meta.source_asset_path = source_mesh_asset_path;
-			meta.asset_type = "mesh";
-			meta.binary_path = mesh_binary_path;
-			io::GetLastTimestamp(task.path, &meta.source_timestamp);
-			resource::SaveAssetMeta(resource::GetAssetMetaPath(task.path), meta);
+			material_slots.emplace_back();
+		}
+
+		for (ecs::MaterialSlot& slot : material_slots)
+		{
+			for (uint32 tex_index = 0; tex_index < TEXTURESLOT_COUNT; ++tex_index)
+			{
+				ecs::MaterialSlot::TextureMap& texture_map = slot.textures[tex_index];
+				if (texture_map.texture_asset_path.empty())
+				{
+					continue;
+				}
+				auto image = resource::LoadTextureBinary(io::CombinePath(contents_root_dir, texture_map.texture_asset_path));
+				if (!image || !image->IsValid())
+				{
+					continue;
+				}
+				if (rendering::utils::CreateRenderData(*device, *image, image->format, false))
+				{
+					texture_map.texture = image->render_data.texture;
+					texture_map.res_handle = image->render_data.srv;
+				}
+			}
 		}
 
 		ecs::Scene* scene = editor_viewport.view->scene;
@@ -2455,101 +1644,23 @@ namespace won::editor
 		}
 		if (auto* name = scene->AddComponent<ecs::NameComponent>(root_entity))
 		{
-			name->value = prepared.name;
+			name->value = meta.asset_name.empty() ? io::GetFilename(task.path) : meta.asset_name;
 		}
 		if (auto* material = scene->AddComponent<ecs::MaterialComponent>(root_entity))
 		{
-			material->material_slots = std::move(prepared.material_slots);
+			material->material_slots = std::move(material_slots);
 		}
 		if (auto* geometry = scene->AddComponent<ecs::GeometryComponent>(root_entity))
 		{
-			geometry->mesh_asset_path = mesh_binary_path;
-			geometry->SetMesh(prepared.mesh);
+			geometry->mesh_asset_path = meta.binary_path;
+			geometry->SetMesh(mesh);
 			geometry->SetCastShadow(true);
 		}
-		if (prepared.skeleton && prepared.skeleton->IsValid() && !prepared.animation_clips.empty())
+		if (mesh->skeleton && mesh->skeleton->IsValid() && !mesh->animation_clips.empty())
 		{
 			if (auto* animation = scene->AddComponent<ecs::AnimationComponent>(root_entity))
 			{
-				animation->clips = prepared.animation_clips;
-			}
-		}
-
-		for (EditorAssetImporter::TextureRequest& texture_request : prepared.texture_requests)
-		{
-			auto texture_task = std::make_shared<EditorAssetImporter::TextureLoadTask>();
-			texture_task->entity = root_entity;
-			texture_task->material_index = texture_request.material_index;
-			texture_task->texture_slot = texture_request.texture_slot;
-			texture_task->source_type = texture_request.source_type;
-			if (texture_request.source_type == asset_texture_source_file)
-			{
-				texture_task->source_path = std::move(texture_request.source_path);
-			}
-			else
-			{
-				texture_task->source_path = source_mesh_asset_path + "#" + texture_request.source_path;
-			}
-			texture_task->embedded_width = texture_request.embedded_width;
-			texture_task->embedded_height = texture_request.embedded_height;
-			texture_task->embedded_compressed = texture_request.embedded_compressed;
-			texture_task->embedded_bytes = std::move(texture_request.embedded_bytes);
-			texture_task->context.priority = jobsystem::Priority::Streaming;
-			asset_importer.texture_tasks.push_back(texture_task);
-
-			jobsystem::Execute(texture_task->context, [texture_task](jobsystem::JobArgs args)
-			{
-				if (texture_task->source_type == asset_texture_source_file)
-				{
-					texture_task->image = resource::LoadImageFile(texture_task->source_path, 4);
-				}
-				else if (texture_task->source_type == asset_texture_source_embedded)
-				{
-					if (texture_task->embedded_compressed)
-					{
-						texture_task->image = resource::LoadImageMemory(texture_task->embedded_bytes.data(), texture_task->embedded_bytes.size(), 4);
-					}
-					else if (texture_task->embedded_width > 0 && texture_task->embedded_height > 0 && texture_task->embedded_bytes.size() == static_cast<Size>(texture_task->embedded_width) * static_cast<Size>(texture_task->embedded_height) * 4)
-					{
-						texture_task->image = std::make_shared<resource::Image>();
-						texture_task->image->width = static_cast<int32>(texture_task->embedded_width);
-						texture_task->image->height = static_cast<int32>(texture_task->embedded_height);
-						texture_task->image->channels = 4;
-						texture_task->image->pixels = std::move(texture_task->embedded_bytes);
-					}
-				}
-
-				if (!texture_task->image || !texture_task->image->IsValid())
-				{
-					texture_task->failed.store(true);
-				}
-				texture_task->finished.store(true);
-			});
-		}
-
-		if (task.id == asset_importer.sample_script_task_id)
-		{
-			ScriptComponent* script_component = scene->GetComponent<ScriptComponent>(root_entity);
-			if (!script_component)
-			{
-				script_component = scene->AddComponent<ScriptComponent>(root_entity);
-			}
-			if (script_component)
-			{
-				const String pulse_scale_path = "Scripts/PulseScale.lua";
-				const String rotator_path = "Scripts/Rotator.lua";
-				if (!HasScript(*script_component, pulse_scale_path))
-				{
-					ScriptSlot script_slot = {};
-					script_slot.script_path = pulse_scale_path;
-					script_component->scripts.push_back(script_slot);
-				}
-				if (!HasScript(*script_component, rotator_path))
-				{
-					ScriptSlot script_slot = {};
-					script_slot.script_path = rotator_path;
-					script_component->scripts.push_back(script_slot);
-				}
+				animation->clips = mesh->animation_clips;
 			}
 		}
 
@@ -6541,20 +5652,8 @@ namespace won::editor
 			}
 
 			jobsystem::Wait(task->context);
-			ReleaseAssetImportResult(task->result_handle.exchange(0));
 		}
 		asset_importer.tasks.clear();
-		for (const std::shared_ptr<EditorAssetImporter::TextureLoadTask>& task : asset_importer.texture_tasks)
-		{
-			if (!task)
-			{
-				continue;
-			}
-
-			jobsystem::Wait(task->context);
-		}
-		asset_importer.texture_tasks.clear();
-		asset_importer = {};
 
 		WaitIdle();
 		loaded_project_settings = project_settings_to_load;

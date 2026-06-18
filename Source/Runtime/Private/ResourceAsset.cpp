@@ -3,6 +3,7 @@
 #include "BinaryArchive.h"
 #include "FileSystem.h"
 #include "JsonArchive.h"
+#include "ShaderInterop_Renderer.h"
 #include <cstring>
 #include <fstream>
 
@@ -260,8 +261,29 @@ namespace won::resource
         archive.Field("asset_type", out_meta.asset_type);
         archive.Field("binary_path", out_meta.binary_path);
         archive.Field("source_timestamp", out_meta.source_timestamp);
+
+        if (out_meta.version >= 2)
+        {
+            archive.Field("asset_name", out_meta.asset_name);
+            if (archive.BeginObject("texture"))
+            {
+                archive.Field("is_srgb", out_meta.texture.is_srgb);
+                archive.Field("generate_mipmaps", out_meta.texture.generate_mipmaps);
+                archive.EndObject();
+            }
+            if (archive.BeginObject("mesh"))
+            {
+                archive.Field("scale", out_meta.mesh.scale);
+                archive.Field("import_animations", out_meta.mesh.import_animations);
+                archive.Field("import_normals", out_meta.mesh.import_normals);
+                archive.Field("import_tangents", out_meta.mesh.import_tangents);
+                archive.Field("import_skeleton", out_meta.mesh.import_skeleton);
+                archive.EndObject();
+            }
+        }
+
         archive.EndObject();
-        return !archive.HasError() && out_meta.version == asset_format_version;
+        return !archive.HasError() && out_meta.version <= asset_format_version;
     }
 
     bool SaveAssetMeta(const String& meta_path, const AssetMeta& meta)
@@ -270,16 +292,36 @@ namespace won::resource
         archive.BeginObject();
         uint32 version = asset_format_version;
         String asset_id = meta.asset_id;
+        String asset_name = meta.asset_name;
         String source_asset_path = meta.source_asset_path;
         String asset_type = meta.asset_type;
         String binary_path = meta.binary_path;
         uint64 source_timestamp = meta.source_timestamp;
+        bool is_srgb = meta.texture.is_srgb;
+        bool generate_mipmaps = meta.texture.generate_mipmaps;
+        float mesh_scale = meta.mesh.scale;
+        bool import_animations = meta.mesh.import_animations;
+        bool import_normals = meta.mesh.import_normals;
+        bool import_tangents = meta.mesh.import_tangents;
+        bool import_skeleton = meta.mesh.import_skeleton;
         archive.Field("version", version);
         archive.Field("asset_id", asset_id);
         archive.Field("source_asset_path", source_asset_path);
         archive.Field("asset_type", asset_type);
         archive.Field("binary_path", binary_path);
         archive.Field("source_timestamp", source_timestamp);
+        archive.Field("asset_name", asset_name);
+        archive.BeginObject("texture");
+        archive.Field("is_srgb", is_srgb);
+        archive.Field("generate_mipmaps", generate_mipmaps);
+        archive.EndObject();
+        archive.BeginObject("mesh");
+        archive.Field("scale", mesh_scale);
+        archive.Field("import_animations", import_animations);
+        archive.Field("import_normals", import_normals);
+        archive.Field("import_tangents", import_tangents);
+        archive.Field("import_skeleton", import_skeleton);
+        archive.EndObject();
         archive.EndObject();
         return !archive.HasError() && archive.SaveToFile(meta_path);
     }
@@ -460,5 +502,102 @@ namespace won::resource
             return nullptr;
         }
         return image->IsValid() ? image : nullptr;
+    }
+
+    bool SaveMaterialBinary(const String& path, const Vector<ecs::MaterialSlot>& slots)
+    {
+        if (path.empty())
+        {
+            return false;
+        }
+
+        serialize::JsonArchive archive(serialize::ArchiveMode::Write);
+        archive.BeginObject();
+        archive.BeginArray("material_slots");
+        for (const ecs::MaterialSlot& slot : slots)
+        {
+            archive.BeginItem();
+            archive.BeginObject();
+            archive.Field("flags", slot.flags);
+            archive.Field("shader_type", slot.shader_type);
+            archive.Field("base_color", slot.base_color);
+            archive.Field("metallic", slot.metallic);
+            archive.Field("roughness", slot.roughness);
+            archive.Field("reflectance", slot.reflectance);
+            archive.Field("anisotropy", slot.anisotropy);
+            archive.Field("sheen_color", slot.sheen_color);
+            archive.Field("sheen_roughness", slot.sheen_roughness);
+            archive.Field("clearcoat", slot.clearcoat);
+            archive.Field("clearcoat_roughness", slot.clearcoat_roughness);
+            archive.BeginArray("textures");
+            for (uint32 i = 0; i < TEXTURESLOT_COUNT; ++i)
+            {
+                archive.Item(slot.textures[i].texture_asset_path);
+            }
+            archive.EndArray();
+            archive.EndObject();
+            archive.EndItem();
+        }
+        archive.EndArray();
+        archive.EndObject();
+        return !archive.HasError() && archive.SaveToFile(path);
+    }
+
+    bool LoadMaterialBinary(const String& path, Vector<ecs::MaterialSlot>& out_slots)
+    {
+        if (path.empty())
+        {
+            return false;
+        }
+
+        serialize::JsonArchive archive(serialize::ArchiveMode::Read);
+        if (!archive.LoadFromFile(path) || !archive.BeginObject())
+        {
+            return false;
+        }
+
+        out_slots.clear();
+        if (archive.BeginArray("material_slots"))
+        {
+            const Size count = archive.GetArraySize();
+            for (Size slot_index = 0; slot_index < count; ++slot_index)
+            {
+                if (!archive.BeginItem())
+                {
+                    continue;
+                }
+                if (archive.BeginObject())
+                {
+                    ecs::MaterialSlot slot = {};
+                    archive.Field("flags", slot.flags);
+                    archive.Field("shader_type", slot.shader_type);
+                    archive.Field("base_color", slot.base_color);
+                    archive.Field("metallic", slot.metallic);
+                    archive.Field("roughness", slot.roughness);
+                    archive.Field("reflectance", slot.reflectance);
+                    archive.Field("anisotropy", slot.anisotropy);
+                    archive.Field("sheen_color", slot.sheen_color);
+                    archive.Field("sheen_roughness", slot.sheen_roughness);
+                    archive.Field("clearcoat", slot.clearcoat);
+                    archive.Field("clearcoat_roughness", slot.clearcoat_roughness);
+                    if (archive.BeginArray("textures"))
+                    {
+                        const Size texture_count = archive.GetArraySize();
+                        for (Size i = 0; i < texture_count && i < TEXTURESLOT_COUNT; ++i)
+                        {
+                            archive.Item(slot.textures[i].texture_asset_path);
+                        }
+                        archive.EndArray();
+                    }
+                    archive.EndObject();
+                    out_slots.push_back(std::move(slot));
+                }
+                archive.EndItem();
+            }
+            archive.EndArray();
+        }
+
+        archive.EndObject();
+        return !archive.HasError();
     }
 }

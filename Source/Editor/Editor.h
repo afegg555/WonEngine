@@ -15,18 +15,6 @@ namespace won::ecs
 	struct TransformComponent;
 }
 
-namespace won::resource
-{
-	struct AnimationClip;
-	struct Image;
-	struct Skeleton;
-}
-
-namespace won::plugin::function
-{
-	struct Desc;
-}
-
 namespace won::editor
 {
 	class EditorApplication : public Application
@@ -44,94 +32,16 @@ namespace won::editor
 	private:
 		struct EditorAssetImporter
 		{
-			struct Functions
-			{
-				std::shared_ptr<plugin::Plugin> plugin;
-				const plugin::function::Desc* import = nullptr;
-				const plugin::function::Desc* get_result_info = nullptr;
-				const plugin::function::Desc* get_stream_info = nullptr;
-				const plugin::function::Desc* copy_stream = nullptr;
-				const plugin::function::Desc* get_struct_field_count = nullptr;
-				const plugin::function::Desc* get_struct_field_info = nullptr;
-				const plugin::function::Desc* get_material_info = nullptr;
-				const plugin::function::Desc* get_material_texture_count = nullptr;
-				const plugin::function::Desc* get_material_texture = nullptr;
-				const plugin::function::Desc* get_embedded_texture_info = nullptr;
-				const plugin::function::Desc* copy_embedded_texture = nullptr;
-				const plugin::function::Desc* get_bone_name = nullptr;
-				const plugin::function::Desc* get_animation_clip_name = nullptr;
-				const plugin::function::Desc* release_result = nullptr;
-
-				bool IsValid() const
-				{
-					return plugin && import && get_result_info && get_stream_info && copy_stream && get_struct_field_count && get_struct_field_info &&
-						get_material_info && get_material_texture_count && get_material_texture && get_embedded_texture_info && copy_embedded_texture &&
-						get_bone_name && get_animation_clip_name && release_result;
-				}
-			};
-
-			struct TextureRequest
-			{
-				uint32 material_index = 0;
-				uint32 texture_slot = 0;
-				uint32 source_type = 0;
-				String source_path;
-				uint32 embedded_width = 0;
-				uint32 embedded_height = 0;
-				bool embedded_compressed = false;
-				Vector<uint8> embedded_bytes;
-			};
-
-			struct PreparedAsset
-			{
-				String name;
-				std::shared_ptr<resource::Mesh> mesh;
-				std::shared_ptr<resource::Skeleton> skeleton;
-				Vector<std::shared_ptr<resource::AnimationClip>> animation_clips;
-				Vector<ecs::MaterialSlot> material_slots;
-				Vector<TextureRequest> texture_requests;
-			};
-
 			struct ImportTask
 			{
 				String path; // absolute path of asset
 				std::atomic_bool finished{ false };
 				std::atomic_bool failed{ false };
-				std::atomic<uint64> result_handle{ 0 };
 				jobsystem::Context context;
-				PreparedAsset prepared;
 				uint64 id = 0;
 			};
 
-			struct TextureLoadTask
-			{
-				ecs::Entity entity = ecs::INVALID_ENTITY;
-				uint32 material_index = 0;
-				uint32 texture_slot = 0;
-				uint32 source_type = 0; // file or embedded
-				String source_path;
-				String asset_id;
-				String binary_path;
-				uint32 embedded_width = 0;
-				uint32 embedded_height = 0;
-				bool embedded_compressed = false;
-				Vector<uint8> embedded_bytes;
-				
-				std::shared_ptr<resource::Image> image;
-				std::atomic_bool finished{ false };
-				std::atomic_bool failed{ false };
-				jobsystem::Context context;
-			};
-
-			Functions functions;
-			uint64 sample_script_task_id = 0;
 			std::vector<std::shared_ptr<ImportTask>> tasks;
-			std::vector<std::shared_ptr<TextureLoadTask>> texture_tasks;
-
-			bool IsValid() const
-			{
-				return functions.IsValid();
-			}
 		};
 
 		void LoadPlugins();
@@ -153,7 +63,6 @@ namespace won::editor
 		void UpdateDebugPrimitiveMesh();
 		uint64 StartAssetImport(const String& path);
 		bool CommitAssetImportResult(EditorAssetImporter::ImportTask& task);
-		void ReleaseAssetImportResult(uint64 result_handle);
 		void LoadEditorSettings();
 		void SaveEditorSettings();
 
