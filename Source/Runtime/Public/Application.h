@@ -1,4 +1,5 @@
 #pragma once
+#include "EventHandler.h"
 #include "Types.h"
 #include "Renderer.h"
 #include "Timer.h"
@@ -68,6 +69,7 @@ namespace won
         utils::Timer frame_timer;
         uint64 update_index = 0;
         bool is_first_frame = true;
+        eventhandler::Handle scene_load_handle;
     };
 }
 

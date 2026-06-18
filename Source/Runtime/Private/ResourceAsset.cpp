@@ -1,9 +1,22 @@
 #include "ResourceAsset.h"
 #include "Animation.h"
+#include "AudioSourceComponent.h"
+#include "Backlog.h"
 #include "BinaryArchive.h"
 #include "FileSystem.h"
+#include "Font.h"
+#include "GeometryComponent.h"
+#include "JobSystem.h"
 #include "JsonArchive.h"
+#include "ProjectSettings.h"
+#include "RenderingUtils.h"
+#include "Scene.h"
+#include "ScriptComponent.h"
 #include "ShaderInterop_Renderer.h"
+#include "Sound.h"
+#include "StringUtils.h"
+#include "Text2DComponent.h"
+#include "Text3DComponent.h"
 #include <cstring>
 #include <fstream>
 
@@ -599,5 +612,175 @@ namespace won::resource
 
         archive.EndObject();
         return !archive.HasError();
+    }
+
+    void LoadSceneResources(ecs::Scene& scene, rendering::RHIDevice& device, const String& content_root)
+    {
+        backlog::Post("[LoadSceneResources] begin", backlog::LogLevel::Default);
+
+        jobsystem::Context ctx;
+
+        if (auto geometry_array = scene.GetComponentArray<ecs::GeometryComponent>())
+        {
+            const uint32 count = static_cast<uint32>(geometry_array->GetSize());
+            backlog::Post("[LoadSceneResources] dispatching " + std::to_string(count) + " mesh job(s)", backlog::LogLevel::Default);
+            jobsystem::Dispatch(ctx, count, 1, [geometry_array, &device, &content_root](jobsystem::JobArgs args)
+            {
+                ecs::GeometryComponent& geometry = geometry_array->data[args.job_index];
+                if (geometry.mesh_asset_path.empty())
+                    return;
+                const String mesh_path = project::ResolveProjectContentPath(content_root, geometry.mesh_asset_path);
+                String binary_path = mesh_path;
+                if (utils::ToLower(io::GetExtension(mesh_path)) != mesh_binary_extension)
+                {
+                    AssetMeta meta = {};
+                    if (LoadAssetMeta(GetAssetMetaPath(mesh_path), meta) && !meta.binary_path.empty())
+                        binary_path = project::ResolveProjectContentPath(content_root, meta.binary_path);
+                }
+                auto mesh = LoadMeshBinary(binary_path);
+                if (mesh && rendering::utils::CreateRenderData(device, *mesh))
+                {
+                    geometry.SetMesh(mesh);
+                    backlog::Post("[LoadSceneResources] mesh loaded: " + binary_path, backlog::LogLevel::Default);
+                }
+                else
+                {
+                    backlog::Post("[LoadSceneResources] mesh load failed: " + binary_path, backlog::LogLevel::Warning);
+                }
+            });
+        }
+
+        if (auto material_array = scene.GetComponentArray<ecs::MaterialComponent>())
+        {
+            // flatten texture maps for index-based dispatch
+            struct TextureJob { ecs::MaterialSlot::TextureMap* map; uint32 slot; };
+            Vector<TextureJob> texture_jobs;
+            for (Size i = 0; i < material_array->GetSize(); ++i)
+            {
+                for (ecs::MaterialSlot& material_slot : material_array->data[i].material_slots)
+                {
+                    for (uint32 s = 0; s < static_cast<uint32>(TEXTURESLOT_COUNT); ++s)
+                    {
+                        if (!material_slot.textures[s].texture_asset_path.empty())
+                            texture_jobs.push_back({ &material_slot.textures[s], s });
+                    }
+                }
+            }
+            const uint32 count = static_cast<uint32>(texture_jobs.size());
+            backlog::Post("[LoadSceneResources] dispatching " + std::to_string(count) + " texture job(s)", backlog::LogLevel::Default);
+            jobsystem::Dispatch(ctx, count, 1, [jobs = std::move(texture_jobs), &device, &content_root](jobsystem::JobArgs args)
+            {
+                auto& [texture_map, texture_slot] = jobs[args.job_index];
+                const String texture_path = project::ResolveProjectContentPath(content_root, texture_map->texture_asset_path);
+                std::shared_ptr<Image> image;
+                if (utils::ToLower(io::GetExtension(texture_path)) == texture_binary_extension)
+                {
+                    image = LoadTextureBinary(texture_path);
+                }
+                else
+                {
+                    AssetMeta meta = {};
+                    if (LoadAssetMeta(GetAssetMetaPath(texture_path), meta) && !meta.binary_path.empty())
+                        image = LoadTextureBinary(project::ResolveProjectContentPath(content_root, meta.binary_path));
+                    if (!image)
+                        image = LoadImageFile(texture_path, 4);
+                }
+                const bool color_texture = texture_slot == BASECOLORMAP || texture_slot == EMISSIVEMAP || texture_slot == SHEENCOLORMAP;
+                const rendering::RHIFormat fmt = color_texture ? rendering::RHIFormat::R8G8B8A8UnormSrgb : rendering::RHIFormat::R8G8B8A8Unorm;
+                if (image && image->IsValid() && rendering::utils::CreateRenderData(device, *image, fmt, true))
+                {
+                    texture_map->texture = image->render_data.texture;
+                    texture_map->res_handle = image->render_data.srv;
+                    backlog::Post("[LoadSceneResources] texture loaded: " + texture_path, backlog::LogLevel::Default);
+                }
+                else
+                {
+                    backlog::Post("[LoadSceneResources] texture load failed: " + texture_path, backlog::LogLevel::Warning);
+                }
+            });
+        }
+
+        if (auto text2d_array = scene.GetComponentArray<ecs::Text2DComponent>())
+        {
+            const uint32 count = static_cast<uint32>(text2d_array->GetSize());
+            if (count > 0)
+                backlog::Post("[LoadSceneResources] dispatching " + std::to_string(count) + " text2d font job(s)", backlog::LogLevel::Default);
+            jobsystem::Dispatch(ctx, count, 1, [text2d_array, &device, &content_root](jobsystem::JobArgs args)
+            {
+                ecs::Text2DComponent& text = text2d_array->data[args.job_index];
+                if (text.font_asset_path.empty())
+                    return;
+                text.font = LoadFontFile(project::ResolveProjectContentPath(content_root, text.font_asset_path));
+                if (text.font)
+                {
+                    rendering::utils::CreateRenderData(device, *text.font);
+                    text.SetDirty();
+                    backlog::Post("[LoadSceneResources] font loaded: " + text.font_asset_path, backlog::LogLevel::Default);
+                }
+                else
+                {
+                    backlog::Post("[LoadSceneResources] font load failed: " + text.font_asset_path, backlog::LogLevel::Warning);
+                }
+            });
+        }
+
+        if (auto text3d_array = scene.GetComponentArray<ecs::Text3DComponent>())
+        {
+            const uint32 count = static_cast<uint32>(text3d_array->GetSize());
+            if (count > 0)
+                backlog::Post("[LoadSceneResources] dispatching " + std::to_string(count) + " text3d font job(s)", backlog::LogLevel::Default);
+            jobsystem::Dispatch(ctx, count, 1, [text3d_array, &device, &content_root](jobsystem::JobArgs args)
+            {
+                ecs::Text3DComponent& text = text3d_array->data[args.job_index];
+                if (text.font_asset_path.empty())
+                    return;
+                text.font = LoadFontFile(project::ResolveProjectContentPath(content_root, text.font_asset_path));
+                if (text.font)
+                {
+                    rendering::utils::CreateRenderData(device, *text.font);
+                    text.SetDirty();
+                    backlog::Post("[LoadSceneResources] font loaded: " + text.font_asset_path, backlog::LogLevel::Default);
+                }
+                else
+                {
+                    backlog::Post("[LoadSceneResources] font load failed: " + text.font_asset_path, backlog::LogLevel::Warning);
+                }
+            });
+        }
+
+        if (auto audio_array = scene.GetComponentArray<ecs::AudioSourceComponent>())
+        {
+            const uint32 count = static_cast<uint32>(audio_array->GetSize());
+            if (count > 0)
+                backlog::Post("[LoadSceneResources] dispatching " + std::to_string(count) + " audio job(s)", backlog::LogLevel::Default);
+            jobsystem::Dispatch(ctx, count, 1, [audio_array, &content_root](jobsystem::JobArgs args)
+            {
+                ecs::AudioSourceComponent& source = audio_array->data[args.job_index];
+                if (source.sound_asset_path.empty())
+                    return;
+                source.sound = LoadSoundFile(project::ResolveProjectContentPath(content_root, source.sound_asset_path));
+                if (source.sound)
+                {
+                    source.SetDirty();
+                    backlog::Post("[LoadSceneResources] sound loaded: " + source.sound_asset_path, backlog::LogLevel::Default);
+                }
+                else
+                {
+                    backlog::Post("[LoadSceneResources] sound load failed: " + source.sound_asset_path, backlog::LogLevel::Warning);
+                }
+            });
+        }
+
+        jobsystem::Wait(ctx);
+        backlog::Post("[LoadSceneResources] all jobs complete", backlog::LogLevel::Default);
+
+        if (auto script_array = scene.GetComponentArray<ecs::ScriptComponent>())
+        {
+            for (Size i = 0; i < script_array->GetSize(); ++i)
+            {
+                for (ecs::ScriptSlot& script_slot : script_array->data[i].scripts)
+                    script_slot.script_path = project::ResolveProjectContentPath(content_root, script_slot.script_path);
+            }
+        }
     }
 }

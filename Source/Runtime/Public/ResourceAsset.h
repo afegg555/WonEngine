@@ -6,6 +6,9 @@
 #include "RuntimeExport.h"
 #include "Types.h"
 
+namespace won::ecs { class Scene; }
+namespace won::rendering { class RHIDevice; }
+
 namespace won::resource
 {
     inline constexpr uint32 asset_format_version = 2;
@@ -49,4 +52,6 @@ namespace won::resource
 
     WONENGINE_API bool SaveMaterialBinary(const String& path, const Vector<ecs::MaterialSlot>& slots);
     WONENGINE_API bool LoadMaterialBinary(const String& path, Vector<ecs::MaterialSlot>& out_slots);
+
+    WONENGINE_API void LoadSceneResources(ecs::Scene& scene, rendering::RHIDevice& device, const String& content_root);
 }

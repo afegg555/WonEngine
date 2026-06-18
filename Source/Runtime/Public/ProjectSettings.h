@@ -38,6 +38,7 @@ namespace won::project
         String input_action_map = String("Config/Input.") + resource::input_action_map_extension;
         rendering::RHIBackend backend_type = rendering::RHIBackend::DirectX12;
         Vector<String> enabled_plugins;
+        Vector<String> packaged_scenes;
 
         // Physics
         uint32 physics_temp_allocator_size     = physics::default_temp_allocator_size;
@@ -200,26 +201,27 @@ namespace won::project
                 settings.backend_type = rendering::RHIBackend::DirectX12;
             }
         }
-        settings.enabled_plugins.clear();
-        if (const char* string_value = configuration.GetString("enabled_plugins"))
+        auto parse_semicolon_list = [&configuration](const char* key, Vector<String>& out)
         {
-            String enabled_plugins_value = string_value;
-            Size start_pos = 0;
-            while (start_pos <= enabled_plugins_value.size())
+            out.clear();
+            if (const char* string_value = configuration.GetString(key))
             {
-                const Size separator_pos = enabled_plugins_value.find(';', start_pos);
-                String plugin_id = separator_pos == String::npos ? enabled_plugins_value.substr(start_pos) : enabled_plugins_value.substr(start_pos, separator_pos - start_pos);
-                if (!plugin_id.empty())
+                String value = string_value;
+                Size start_pos = 0;
+                while (start_pos <= value.size())
                 {
-                    settings.enabled_plugins.push_back(plugin_id);
+                    const Size sep = value.find(';', start_pos);
+                    String item = sep == String::npos ? value.substr(start_pos) : value.substr(start_pos, sep - start_pos);
+                    if (!item.empty())
+                        out.push_back(item);
+                    if (sep == String::npos)
+                        break;
+                    start_pos = sep + 1;
                 }
-                if (separator_pos == String::npos)
-                {
-                    break;
-                }
-                start_pos = separator_pos + 1;
             }
-        }
+        };
+        parse_semicolon_list("enabled_plugins", settings.enabled_plugins);
+        parse_semicolon_list("packaged_scenes", settings.packaged_scenes);
 
         float float_value = 0.0f;
         if (configuration.GetInt("physics_temp_allocator_size", int_value))
@@ -270,16 +272,18 @@ namespace won::project
             backend_type = "Metal";
         }
         configuration.SetString("backend_type", backend_type.c_str());
-        String enabled_plugins;
-        for (Size plugin_index = 0; plugin_index < settings.enabled_plugins.size(); ++plugin_index)
+        auto serialize_semicolon_list = [](const Vector<String>& items) -> String
         {
-            if (plugin_index > 0)
+            String result;
+            for (Size i = 0; i < items.size(); ++i)
             {
-                enabled_plugins += ";";
+                if (i > 0) result += ";";
+                result += items[i];
             }
-            enabled_plugins += settings.enabled_plugins[plugin_index];
-        }
-        configuration.SetString("enabled_plugins", enabled_plugins.c_str());
+            return result;
+        };
+        configuration.SetString("enabled_plugins", serialize_semicolon_list(settings.enabled_plugins).c_str());
+        configuration.SetString("packaged_scenes", serialize_semicolon_list(settings.packaged_scenes).c_str());
 
         configuration.SetInt("physics_temp_allocator_size", static_cast<int>(settings.physics_temp_allocator_size));
         configuration.SetInt("physics_max_bodies",              static_cast<int>(settings.physics_max_bodies));

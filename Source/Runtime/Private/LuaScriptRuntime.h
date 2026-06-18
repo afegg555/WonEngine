@@ -1,5 +1,6 @@
 #pragma once
 
+#include "EventHandler.h"
 #include "ScriptRuntime.h"
 
 struct lua_State;
@@ -60,6 +61,9 @@ namespace won::script
         static int LuaInputGetActionValue(lua_State* state);
         static int LuaInputGetActionAxis2D(lua_State* state);
         static int LuaSceneFindByName(lua_State* state);
+        static int LuaEventSubscribe(lua_State* state);
+        static int LuaEventPost(lua_State* state);
+        static int LuaEventFire(lua_State* state);
 
         void RegisterAPI();
         bool LoadModule(const String& script_path, LuaScriptModule& out_module, String& out_error);
@@ -72,5 +76,6 @@ namespace won::script
         Vector<String> output_strings;
         UnorderedMap<String, LuaScriptModule> modules;
         UnorderedMap<uint64, LuaScriptInstance> instances;
+        Vector<eventhandler::Handle> event_handles;
     };
 }

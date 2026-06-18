@@ -1,7 +1,12 @@
 #include "Application.h"
 
+#include "Backlog.h"
 #include "BuiltinTypeReflection.h"
+#include "CameraComponent.h"
+#include "JsonArchive.h"
 #include "Renderer.h"
+#include "ResourceAsset.h"
+#include "SceneSerializer.h"
 #include "Window.h"
 #include "JobSystem.h"
 #include "Platform.h"
@@ -86,6 +91,52 @@ namespace won
         frame_timer.Reset();
         is_first_frame = true;
         is_running = true;
+
+        scene_load_handle = eventhandler::Subscribe(
+            eventhandler::EVENT_SCENE_LOAD,
+            [this](const won::function::Value& payload)
+            {
+                if (payload.type != won::ValueType::String || !payload.string_value)
+                    return;
+                const String path = won::io::CombinePath(
+                    won::project::GetContentRoot(project_settings), payload.string_value);
+                backlog::Post("[SceneTransition] requested: " + path, backlog::LogLevel::Default);
+                eventhandler::SubscribeOnce(
+                    eventhandler::EVENT_THREAD_SAFE_POINT,
+                    [this, path](const won::function::Value&)
+                    {
+                        backlog::Post("[SceneTransition] loading: " + path, backlog::LogLevel::Default);
+						// currently we only support one scene at a time, so we will load the scene into the first view
+                        for (const std::unique_ptr<rendering::View>& view_ptr : views)
+                        {
+                            if (!view_ptr || !view_ptr->scene)
+                                continue;
+                            WaitIdle();
+                            serialize::JsonArchive archive(serialize::ArchiveMode::Read);
+                            if (archive.LoadFromFile(path))
+                            {
+                                view_ptr->scene->ClearEntities();
+                                serialize::Serialize(archive, *view_ptr->scene);
+                                resource::LoadSceneResources(*view_ptr->scene, *device, project::GetContentRoot(project_settings));
+                                backlog::Post("[SceneTransition] complete: " + path, backlog::LogLevel::Default);
+                            }
+                            else
+                            {
+                                backlog::Post("[SceneTransition] failed to load archive: " + path, backlog::LogLevel::Error);
+                            }
+                            view_ptr->camera_entity = ecs::INVALID_ENTITY;
+                            for (ecs::Entity e : view_ptr->scene->GetEntities())
+                            {
+                                if (view_ptr->scene->GetComponent<ecs::CameraComponent>(e))
+                                {
+                                    view_ptr->camera_entity = e;
+                                    break;
+                                }
+                            }
+                            break;
+                        }
+                    });
+            });
     }
 
     bool Application::IsRunning() const
@@ -122,7 +173,7 @@ namespace won
 #endif
 
         ProcessWindowResize();
-        eventhandler::FireEvent(eventhandler::EVENT_THREAD_SAFE_POINT, 0);
+        eventhandler::FireEvent(eventhandler::EVENT_THREAD_SAFE_POINT);
 
         float dt = 0.0f;
         if (is_first_frame)

@@ -3435,7 +3435,7 @@ namespace won::editor
 				}
 				selected_index = -1;
 
-				eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, delete_entity](uint64) {
+				eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, delete_entity](const won::function::Value&) {
 					if (delete_entity == editor_viewport.view->camera_entity)
 					{
 						return;
@@ -3546,7 +3546,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<NameComponent>(entity);
 						});
 					}
@@ -3590,7 +3590,7 @@ namespace won::editor
 					else if (can_remove_transform)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<TransformComponent>(entity);
 							editor_viewport.view->scene->SetBVHDirty();
 						});
@@ -3618,7 +3618,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<HierarchyComponent>(entity);
 						});
 					}
@@ -3691,7 +3691,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<LightComponent>(entity);
 						});
 					}
@@ -3753,7 +3753,7 @@ namespace won::editor
 					else if (can_remove_camera)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							if (entity != editor_viewport.view->camera_entity)
 							{
 								editor_viewport.view->scene->RemoveComponent<CameraComponent>(entity);
@@ -3841,7 +3841,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<SkyComponent>(entity);
 						});
 					}
@@ -3864,7 +3864,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<FogVolumeComponent>(entity);
 						});
 					}
@@ -3908,7 +3908,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<EnvironmentLightingComponent>(entity);
 						});
 					}
@@ -3988,7 +3988,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<DDGIVolumeComponent>(entity);
 						});
 					}
@@ -4017,7 +4017,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							EditorViewport::DeferredResRemoval deferred_res_removal = {};
 							deferred_res_removal.frames_left = 8;
 
@@ -4109,7 +4109,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<Collider3DComponent>(entity);
 						});
 					}
@@ -4181,7 +4181,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<Rigidbody3DComponent>(entity);
 						});
 					}
@@ -4265,7 +4265,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<AudioSourceComponent>(entity);
 						});
 					}
@@ -4288,7 +4288,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<AudioListenerComponent>(entity);
 						});
 					}
@@ -4349,7 +4349,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<Sprite2DComponent>(entity);
 						});
 					}
@@ -4413,7 +4413,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<Text2DComponent>(entity);
 						});
 					}
@@ -4461,7 +4461,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<Sprite3DComponent>(entity);
 						});
 					}
@@ -4518,7 +4518,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<Text3DComponent>(entity);
 						});
 					}
@@ -4609,7 +4609,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<AnimationComponent>(entity);
 						});
 					}
@@ -4765,7 +4765,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							EditorViewport::DeferredResRemoval deferred_res_removal = {};
 							deferred_res_removal.frames_left = 8;
 
@@ -5081,7 +5081,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							ScriptComponent* script = editor_viewport.view->scene->GetComponent<ScriptComponent>(entity);
 							if (script && script_runtime)
 							{
@@ -5119,7 +5119,7 @@ namespace won::editor
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						const won::TypeId type_id = type_desc->type_id;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity, type_id](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity, type_id](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent(entity, type_id);
 						});
 					}

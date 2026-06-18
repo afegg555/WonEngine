@@ -86,17 +86,13 @@ struct COMInitializer
             String ext = utils::ToLower(io::GetExtension(file_path));
             String dir = io::GetDirectoryFromPath(file_path);
             asset_data.name = io::GetFilename(file_path);
-            if (ext == "obj" || ext == "gltf" || ext == "glb")
-            {
 
-            }
-            else
+            Assimp::Importer importer;
+            if (!importer.IsExtensionSupported("." + ext))
             {
                 std::cerr << "AssetImporter::ImportAssetData : format(" << ext << ") not supported\n";
                 return false;
             }
-
-            Assimp::Importer importer;
 
             unsigned flags =
                 aiProcess_Triangulate |
