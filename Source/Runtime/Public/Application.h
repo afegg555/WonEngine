@@ -1,4 +1,6 @@
 #pragma once
+#include "EventHandler.h"
+#include "GameData.h"
 #include "Types.h"
 #include "Renderer.h"
 #include "Timer.h"
@@ -40,6 +42,7 @@ namespace won
         rendering::RHIDevice* GetDevice();
         script::ScriptRuntime* GetScriptRuntime();
         won::audio::AudioMixer* GetAudioMixer();
+        game::GameData* GetGameData();
         void ShowMainWindow();
         void WaitIdle();
         void ClearViews();
@@ -65,9 +68,11 @@ namespace won
         std::unique_ptr<won::audio::IAudioDriver> audio_driver;
         Vector<std::unique_ptr<rendering::View>> views;
         project::ProjectSettings project_settings;
+        game::GameData game_data;
         utils::Timer frame_timer;
         uint64 update_index = 0;
         bool is_first_frame = true;
+        eventhandler::Handle scene_load_handle;
     };
 }
 

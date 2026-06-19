@@ -842,25 +842,25 @@ namespace won::editor
 		XMVECTOR xup = XMVector3Normalize(XMLoadFloat3(&camera.up));
 		XMVECTOR xright = XMVector3Normalize(XMVector3Cross(xup, xforward));
 
-		if (io::IsDown(io::Button('W')))
+		if (can_begin_interaction && io::IsDown(io::Button('W')))
 		{
 			float3 translation{};
 			XMStoreFloat3(&translation, XMVectorScale(xforward, dt * move_speed));
 			transform.Translate(translation);
 		}
-		if (io::IsDown(io::Button('A')))
+		if (can_begin_interaction && io::IsDown(io::Button('A')))
 		{
 			float3 translation{};
 			XMStoreFloat3(&translation, XMVectorScale(xright, -dt * move_speed));
 			transform.Translate(translation);
 		}
-		if (io::IsDown(io::Button('S')))
+		if (can_begin_interaction && io::IsDown(io::Button('S')))
 		{
 			float3 translation{};
 			XMStoreFloat3(&translation, XMVectorScale(xforward, -dt * move_speed));
 			transform.Translate(translation);
 		}
-		if (io::IsDown(io::Button('D')))
+		if (can_begin_interaction && io::IsDown(io::Button('D')))
 		{
 			float3 translation{};
 			XMStoreFloat3(&translation, XMVectorScale(xright, dt * move_speed));
@@ -1282,14 +1282,18 @@ namespace won::editor
 			contents_watcher->Poll(&file_changes);
 			for (const io::DirectoryWatcher::FileChange& change : file_changes)
 			{
-				if (won::utils::ToLower(io::GetExtension(change.path)) != "lua")
+				const String ext = won::utils::ToLower(io::GetExtension(change.path));
+				if (ext == resource::lua_script_file_extension)
 				{
-					continue;
+					const String changed_script_path = io::GetRelativePath(contents_root_dir, change.path);
+					if (!changed_script_path.empty())
+					{
+						changed_script_paths.push_back(changed_script_path);
+					}
 				}
-				const String changed_script_path = io::GetRelativePath(contents_root_dir, change.path);
-				if (!changed_script_path.empty())
+				else if (ext == resource::game_data_schema_extension)
 				{
-					changed_script_paths.push_back(changed_script_path);
+				    game_data_editor.loaded_schema_path.clear();
 				}
 			}
 
@@ -2729,7 +2733,7 @@ namespace won::editor
 				{
 					show_project_settings_window = true;
 				}
-				ImGui::TextDisabled("%s", loaded_project_settings.settings_path.empty() ? editor_text::no_project : loaded_project_settings.settings_path.c_str());
+					ImGui::TextDisabled("%s", loaded_project_settings.settings_path.empty() ? editor_text::no_project : loaded_project_settings.settings_path.c_str());
 				ImGui::Separator();
 				if (ImGui::MenuItem(editor_text::new_scene))
 				{
@@ -3435,7 +3439,7 @@ namespace won::editor
 				}
 				selected_index = -1;
 
-				eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, delete_entity](uint64) {
+				eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, delete_entity](const won::function::Value&) {
 					if (delete_entity == editor_viewport.view->camera_entity)
 					{
 						return;
@@ -3546,7 +3550,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<NameComponent>(entity);
 						});
 					}
@@ -3590,7 +3594,7 @@ namespace won::editor
 					else if (can_remove_transform)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<TransformComponent>(entity);
 							editor_viewport.view->scene->SetBVHDirty();
 						});
@@ -3618,7 +3622,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<HierarchyComponent>(entity);
 						});
 					}
@@ -3691,7 +3695,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<LightComponent>(entity);
 						});
 					}
@@ -3753,7 +3757,7 @@ namespace won::editor
 					else if (can_remove_camera)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							if (entity != editor_viewport.view->camera_entity)
 							{
 								editor_viewport.view->scene->RemoveComponent<CameraComponent>(entity);
@@ -3841,7 +3845,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<SkyComponent>(entity);
 						});
 					}
@@ -3864,7 +3868,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<FogVolumeComponent>(entity);
 						});
 					}
@@ -3908,7 +3912,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<EnvironmentLightingComponent>(entity);
 						});
 					}
@@ -3988,7 +3992,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<DDGIVolumeComponent>(entity);
 						});
 					}
@@ -4017,7 +4021,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							EditorViewport::DeferredResRemoval deferred_res_removal = {};
 							deferred_res_removal.frames_left = 8;
 
@@ -4109,7 +4113,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<Collider3DComponent>(entity);
 						});
 					}
@@ -4181,7 +4185,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<Rigidbody3DComponent>(entity);
 						});
 					}
@@ -4265,7 +4269,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<AudioSourceComponent>(entity);
 						});
 					}
@@ -4288,7 +4292,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<AudioListenerComponent>(entity);
 						});
 					}
@@ -4349,7 +4353,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<Sprite2DComponent>(entity);
 						});
 					}
@@ -4413,7 +4417,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<Text2DComponent>(entity);
 						});
 					}
@@ -4461,7 +4465,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<Sprite3DComponent>(entity);
 						});
 					}
@@ -4518,7 +4522,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<Text3DComponent>(entity);
 						});
 					}
@@ -4609,7 +4613,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<AnimationComponent>(entity);
 						});
 					}
@@ -4765,7 +4769,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							EditorViewport::DeferredResRemoval deferred_res_removal = {};
 							deferred_res_removal.frames_left = 8;
 
@@ -5081,7 +5085,7 @@ namespace won::editor
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							ScriptComponent* script = editor_viewport.view->scene->GetComponent<ScriptComponent>(entity);
 							if (script && script_runtime)
 							{
@@ -5119,7 +5123,7 @@ namespace won::editor
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						const won::TypeId type_id = type_desc->type_id;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity, type_id](uint64) {
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity, type_id](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent(entity, type_id);
 						});
 					}
@@ -5704,6 +5708,7 @@ namespace won::editor
 		content_browser.initialized = false;
 		contents_watcher = io::CreateDirectoryWatcher(contents_root_dir, true);
 		contents_watcher_poll_timer = 0.0f;
+		game_data_editor = {};
 		RebuildContentBrowser();
 		UpdateEntityList();
 		backlog::Post(editor_text::project_loaded + settings_path);
@@ -5771,7 +5776,7 @@ namespace won::editor
 				ImGui::SetNextItemWidth(-1.0f);
 			};
 
-			auto draw_string_field = [](const char* label, String& value)
+			auto draw_string_field = [](const char* label, String& value) -> bool
 			{
 				char buffer[1024] = {};
 				strncpy_s(buffer, value.c_str(), sizeof(buffer) - 1);
@@ -5780,7 +5785,9 @@ namespace won::editor
 				if (ImGui::InputText(id.c_str(), buffer, sizeof(buffer)))
 				{
 					value = buffer;
+					return true;
 				}
+				return false;
 			};
 
 			if (ImGui::BeginTable("ProjectSettingsTable", 2, ImGuiTableFlags_SizingStretchProp))
@@ -5848,6 +5855,189 @@ namespace won::editor
 				draw_string_field("Splash Image", loaded_project_settings.splash_image);
 
 				ImGui::EndTable();
+			}
+
+			ImGui::Separator();
+			if (ImGui::BeginTable("GameDataSettingsTable", 2, ImGuiTableFlags_SizingStretchProp))
+			{
+				ImGui::TableSetupColumn("Label", ImGuiTableColumnFlags_WidthFixed, 140.0f);
+				ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
+
+				// Schema path row: input + New button
+				draw_label("Game Data Schema");
+				{
+					const float btn_w = ImGui::CalcTextSize("New...").x + ImGui::GetStyle().FramePadding.x * 2.0f;
+					ImGui::SetNextItemWidth(-(btn_w + ImGui::GetStyle().ItemSpacing.x));
+					char buf[1024] = {};
+					strncpy_s(buf, loaded_project_settings.game_data_schema.c_str(), sizeof(buf) - 1);
+					if (ImGui::InputText("##gdschema", buf, sizeof(buf)))
+					{
+						loaded_project_settings.game_data_schema = buf;
+						game_data_editor.loaded_schema_path.clear();
+					}
+					ImGui::SameLine();
+					const bool no_project = loaded_project_settings.settings_path.empty();
+					if (no_project)
+					{
+						ImGui::BeginDisabled();
+					}
+					if (ImGui::Button("New...##gdnew"))
+					{
+						ImGui::OpenPopup("##gd_new_schema_popup");
+					}
+					if (no_project)
+					{
+						ImGui::EndDisabled();
+					}
+					if (ImGui::BeginPopup("##gd_new_schema_popup"))
+					{
+						ImGui::TextUnformatted("File name:");
+						ImGui::SetNextItemWidth(200.0f);
+						ImGui::InputText("##gd_schema_fname", game_data_editor.new_schema_filename, sizeof(game_data_editor.new_schema_filename));
+						if (ImGui::Button("Create##gdcreate"))
+						{
+							if (game_data_editor.new_schema_filename[0] != '\0')
+							{
+								String filename = game_data_editor.new_schema_filename;
+								if (io::GetExtension(filename) != resource::game_data_schema_extension)
+								{
+									filename += ".";
+									filename += resource::game_data_schema_extension;
+								}
+								const String config_dir = io::CombinePath(project::GetContentRoot(loaded_project_settings), "Config");
+								io::CreateDirectories(config_dir);
+								const String new_path = io::CombinePath(config_dir, filename);
+								game::GameData new_gd;
+								if (new_gd.SaveSchema(new_path.c_str()))
+								{
+									loaded_project_settings.game_data_schema = String("Config/") + filename;
+									game_data_editor.game_data = std::move(new_gd);
+									game_data_editor.loaded_schema_path = loaded_project_settings.game_data_schema;
+									game_data_editor.dirty = false;
+									game_data_editor.new_schema_filename[0] = '\0';
+								}
+								ImGui::CloseCurrentPopup();
+							}
+						}
+						ImGui::SameLine();
+						if (ImGui::Button("Cancel##gdcancel"))
+						{
+							ImGui::CloseCurrentPopup();
+						}
+						ImGui::EndPopup();
+					}
+				}
+
+				ImGui::EndTable();
+			}
+
+			// sync schema when path changes
+			const String& schema_setting = loaded_project_settings.game_data_schema;
+			if (schema_setting != game_data_editor.loaded_schema_path)
+			{
+				game_data_editor.game_data = game::GameData{};
+				if (!schema_setting.empty())
+				{
+					const String full_path = project::ResolveProjectContentPath(contents_root_dir, schema_setting);
+					game_data_editor.game_data.LoadSchema(full_path.c_str());
+				}
+				game_data_editor.loaded_schema_path = schema_setting;
+				game_data_editor.dirty = false;
+			}
+
+			if (!schema_setting.empty())
+			{
+				ImGui::Spacing();
+				game::GameData& gd = game_data_editor.game_data;
+				static const char* type_names[] = { "string", "int", "float", "bool" };
+
+				constexpr ImGuiTableFlags table_flags =
+					ImGuiTableFlags_Borders |
+					ImGuiTableFlags_RowBg |
+					ImGuiTableFlags_SizingStretchProp;
+
+				if (ImGui::BeginTable("##gd_table", 4, table_flags))
+				{
+					ImGui::TableSetupColumn("Key",     ImGuiTableColumnFlags_WidthStretch);
+					ImGui::TableSetupColumn("Type",    ImGuiTableColumnFlags_WidthFixed, 70.0f);
+					ImGui::TableSetupColumn("Default", ImGuiTableColumnFlags_WidthStretch);
+					ImGui::TableSetupColumn("",        ImGuiTableColumnFlags_WidthFixed, 26.0f);
+					ImGui::TableHeadersRow();
+
+					int remove_index = -1;
+					for (uint32 i = 0; i < gd.GetFieldCount(); ++i)
+					{
+						ImGui::TableNextRow();
+						ImGui::TableSetColumnIndex(0);
+						ImGui::TextUnformatted(gd.GetFieldKey(i));
+						ImGui::TableSetColumnIndex(1);
+						ImGui::TextUnformatted(gd.GetFieldType(i));
+						ImGui::TableSetColumnIndex(2);
+						ImGui::TextUnformatted(gd.GetFieldDefault(i));
+						ImGui::TableSetColumnIndex(3);
+						const String del_id = String("X##d") + std::to_string(i);
+						if (ImGui::SmallButton(del_id.c_str()))
+						{
+							remove_index = static_cast<int>(i);
+						}
+					}
+
+					ImGui::EndTable();
+
+					if (remove_index >= 0)
+					{
+						const char* key = gd.GetFieldKey(static_cast<uint32>(remove_index));
+						if (key)
+						{
+							gd.RemoveField(key);
+							game_data_editor.dirty = true;
+						}
+					}
+				}
+
+				ImGui::Spacing();
+				ImGui::SetNextItemWidth(150.0f);
+				ImGui::InputText("##gd_newkey", game_data_editor.new_key, sizeof(game_data_editor.new_key));
+				ImGui::SameLine();
+				ImGui::SetNextItemWidth(80.0f);
+				ImGui::Combo("##gd_newtype", &game_data_editor.new_type_index, type_names, IM_ARRAYSIZE(type_names));
+				ImGui::SameLine();
+				ImGui::SetNextItemWidth(120.0f);
+				ImGui::InputText("##gd_newdefault", game_data_editor.new_default, sizeof(game_data_editor.new_default));
+				ImGui::SameLine();
+				if (ImGui::Button("Add##gd_add"))
+				{
+					if (game_data_editor.new_key[0] != '\0')
+					{
+						gd.AddField(
+							game_data_editor.new_key,
+							type_names[game_data_editor.new_type_index],
+							game_data_editor.new_default);
+						game_data_editor.new_key[0] = '\0';
+						game_data_editor.new_default[0] = '\0';
+						game_data_editor.dirty = true;
+					}
+				}
+
+				ImGui::Spacing();
+				const bool schema_save_disabled = !game_data_editor.dirty;
+				if (schema_save_disabled)
+				{
+					ImGui::BeginDisabled();
+				}
+				if (ImGui::Button("Save Schema##gd_save"))
+				{
+					const String full_path = project::ResolveProjectContentPath(contents_root_dir, schema_setting);
+					io::CreateDirectories(io::GetDirectoryFromPath(full_path));
+					if (gd.SaveSchema(full_path.c_str()))
+					{
+						game_data_editor.dirty = false;
+					}
+				}
+				if (schema_save_disabled)
+				{
+					ImGui::EndDisabled();
+				}
 			}
 
 			ImGui::Separator();
@@ -6110,4 +6300,5 @@ namespace won::editor
 
 		std::sort(sorted_entities.begin(), sorted_entities.end());
 	}
+
 }

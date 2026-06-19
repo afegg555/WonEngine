@@ -8,16 +8,16 @@
 #include <iostream>
 #include <string>
 
-#define WONENGINE_PACKAGE_COPY_STARTUP_SCENE_REFERENCES_ONLY
+#define WONENGINE_PACKAGE_REFERENCED_ASSETS_ONLY
 
 int main(int argc, char** argv)
 {
     // currently Windows only.
     // TODO: support other platforms
-#ifdef WONENGINE_PACKAGE_COPY_STARTUP_SCENE_REFERENCES_ONLY
-    constexpr bool copy_startup_scene_references_only = true;
+#ifdef WONENGINE_PACKAGE_REFERENCED_ASSETS_ONLY
+    constexpr bool referenced_assets_only = true;
 #else
-    constexpr bool copy_startup_scene_references_only = false;
+    constexpr bool referenced_assets_only = false;
 #endif
 
     won::config::Configuration arguments;
@@ -209,55 +209,82 @@ int main(int argc, char** argv)
     {
         content_paths.push_back(input_action_map_path);
     }
-    if (copy_startup_scene_references_only) // copy only referenced ones
+
+    // copy all GameData schema files (Config/*.gamedata) - always included regardless of referenced_assets_only
     {
+        const won::String config_source = won::io::CombinePath(content_source, "Config");
+        won::Vector<won::io::DirectoryEntry> config_entries;
+        if (won::io::EnumerateDirectoryRecursive(config_source, &config_entries))
+        {
+            for (const won::io::DirectoryEntry& entry : config_entries)
+            {
+                if (entry.is_file && won::io::GetExtension(entry.path) == won::resource::game_data_schema_extension)
+                {
+                    content_paths.push_back(won::io::CombinePath("Config", won::io::GetRelativePath(config_source, entry.path)));
+                }
+            }
+        }
+    }
+
+    if (referenced_assets_only) // copy only assets referenced by packaged scenes
+    {
+        // build scene list: packaged_scenes if set, otherwise fall back to startup_scene
+        won::Vector<won::String> scenes_to_package = settings.packaged_scenes;
+        if (scenes_to_package.empty() && !settings.startup_scene.empty())
+            scenes_to_package.push_back(settings.startup_scene);
+
+        // ensure startup_scene is always included
         if (!settings.startup_scene.empty())
         {
-            content_paths.push_back(settings.startup_scene);
-            const won::String scene_path = won::io::CombinePath(content_source, settings.startup_scene);
+            bool found = false;
+            for (const won::String& s : scenes_to_package)
+            {
+                if (s == settings.startup_scene) { found = true; break; }
+            }
+            if (!found)
+                scenes_to_package.insert(scenes_to_package.begin(), settings.startup_scene);
+        }
+
+        const char* packaged_content_extensions[] =
+        {
+            won::resource::scene_file_extension,
+            won::resource::mesh_binary_extension,
+            won::resource::texture_binary_extension,
+            won::resource::lua_script_file_extension,
+            won::resource::true_type_font_extension,
+            won::resource::open_type_font_extension,
+            won::resource::sound_file_extension
+        };
+
+        for (const won::String& scene_relative : scenes_to_package)
+        {
+            content_paths.push_back(scene_relative);
+
+            const won::String scene_path = won::io::CombinePath(content_source, scene_relative);
             won::serialize::JsonArchive scene_archive(won::serialize::ArchiveMode::Read);
             if (!scene_archive.LoadFromFile(scene_path))
             {
-                std::cout << "Failed to parse startup scene: " << scene_path << "\n";
+                std::cout << "Failed to parse scene: " << scene_path << "\n";
                 return 1;
             }
-
-            const char* packaged_content_extensions[] =
-            {
-                won::resource::scene_file_extension,
-                won::resource::mesh_binary_extension,
-                won::resource::texture_binary_extension,
-                won::resource::lua_script_file_extension,
-                won::resource::true_type_font_extension,
-                won::resource::open_type_font_extension,
-                won::resource::sound_file_extension
-            };
 
             const won::Vector<won::String> scene_strings = scene_archive.GetStringValues();
             for (won::String value : scene_strings)
             {
                 if (value.rfind("/Contents/", 0) == 0)
-                {
                     value = value.substr(10);
-                }
                 const won::String ext = won::io::GetExtension(value);
                 bool should_copy = false;
-                for (const char* packaged_content_extension : packaged_content_extensions)
+                for (const char* packaged_ext : packaged_content_extensions)
                 {
-                    if (ext == packaged_content_extension)
-                    {
-                        should_copy = true;
-                        break;
-                    }
+                    if (ext == packaged_ext) { should_copy = true; break; }
                 }
                 if (should_copy)
-                {
                     content_paths.push_back(value);
-                }
             }
         }
     }
-    else // copy all
+    else // copy all contents
     {
         won::Vector<won::io::DirectoryEntry> content_entries;
         if (!won::io::EnumerateDirectoryRecursive(content_source, &content_entries))
@@ -380,7 +407,7 @@ int main(int argc, char** argv)
     settings.settings_path.clear();
     settings.project_root.clear();
     settings.content_root = "Contents";
-    if (!won::project::SaveSettings(won::io::CombinePath(package_root, won::project::default_project_file_name), settings))
+    if (!won::project::SaveSettings(won::io::CombinePath(package_root, won::io::GetFilename(source_settings_path)), settings))
     {
         std::cout << "Failed to write project settings.\n";
         return 1;

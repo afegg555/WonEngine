@@ -1,6 +1,7 @@
 #include "Application.h"
 #include "EditorSettings.h"
 #include "FileSystem.h"
+#include "GameData.h"
 #include "JobSystem.h"
 #include "Plugin.h"
 #include "Entity.h"
@@ -188,10 +189,22 @@ namespace won::editor
 		std::vector<ecs::Entity> sorted_entities;
 		std::vector<EditorPluginInfo> plugins;
 
+		struct GameDataEditorState
+		{
+			game::GameData game_data;
+			String loaded_schema_path;
+			bool dirty = false;
+			char new_key[256] = {};
+			int new_type_index = 0;
+			char new_default[256] = {};
+			char new_schema_filename[256] = {};
+		};
+
 		project::ProjectSettings loaded_project_settings;
 		ecs::Scene loaded_scene;
 		String current_scene_path;
 		bool show_project_settings_window = false;
+		GameDataEditorState game_data_editor = {};
 		EditorViewport editor_viewport;
 		EditorAssetImporter asset_importer;
 		ContentBrowserState content_browser = {};

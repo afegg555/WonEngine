@@ -9,7 +9,7 @@ namespace won::serialize
 {
     struct JsonArchiveDesc
     {
-        bool pretty = true; // write indented JSON
+        bool pretty = false;
     };
 
     class WONENGINE_API JsonArchive

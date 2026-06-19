@@ -15,6 +15,7 @@
 
 #include "ShaderInterop.h"
 
+#include <algorithm>
 #include <cstring>
 #include <cmath>
 
@@ -1423,38 +1424,29 @@ namespace won::rendering
         shader_camera_binding.resource = shader_camera_buffer.get();
         shader_camera_binding.subresource = shader_camera_buffer_cbv;
 
-        if ((flags & (DrawScene_Opaque | DrawScene_Transparent)) != 0 && !render_data.mesh_renderables.empty())
+        auto draw_renderables = [&](const Scene::RenderData::Renderable* renderables, Size count, bool is_transparent)
         {
             GraphicsPipelineHash current_pipeline_hash = {};
             bool has_current_pipeline = false;
-
-            for (const auto& renderable : render_data.mesh_renderables)
+            for (Size ri = 0; ri < count; ++ri)
             {
-                if (renderable.IsTransparent())
-                {
-                    if ((flags & DrawScene_Transparent) == 0)
-                    {
-                        continue;
-                    }
-                }
-                else
-                {
-                    if ((flags & DrawScene_Opaque) == 0)
-                    {
-                        continue;
-                    }
-                }
-
+                const Scene::RenderData::Renderable& renderable = renderables[ri];
                 if (pass == RenderPassType::ShadowPass && !renderable.IsCastShadow())
                 {
                     continue;
                 }
-
                 // TODO: reduce pso switch
                 GraphicsPipelineHash renderable_pipeline_hash = pipeline_hash;
+                renderable_pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(
+                    renderable.IsDoubleSided() ? RHICullMode::None : RHICullMode::Back);
                 if (pass == RenderPassType::MainPass)
                 {
                     renderable_pipeline_hash.storage.bits.shader_type = draw_wireframe ? SHADER_MATERIAL_TYPE_UNLIT : renderable.shader_type;
+                    if (is_transparent)
+                    {
+                        renderable_pipeline_hash.storage.bits.blend = 1;
+                        renderable_pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
+                    }
                 }
                 if (!has_current_pipeline || !(current_pipeline_hash == renderable_pipeline_hash))
                 {
@@ -1471,70 +1463,21 @@ namespace won::rendering
                     current_pipeline_hash = renderable_pipeline_hash;
                     has_current_pipeline = true;
                 }
-
                 command_list.SetIndexBuffer(*renderable.index_buffer, sizeof(uint32), renderable.index_offset, renderable.index_count * sizeof(uint32));
                 command_list.SetPrimitiveTopology(ToRHIPrimitiveTopology(renderable.primitive_topology));
                 command_list.PushConstants(RHIShaderStage::Vertex, &renderable.push_constants, sizeof(ObjectPushConstants), 0);
                 command_list.DrawIndexed(renderable.index_count, 1, 0, 0, 0);
             }
+        };
+
+        if ((flags & DrawScene_Opaque) != 0 && !render_data.opaque_renderables.empty())
+        {
+            draw_renderables(render_data.opaque_renderables.data(), render_data.opaque_renderables.size(), false);
         }
 
-        if ((flags & (DrawScene_Opaque | DrawScene_Transparent)) != 0 && !render_data.double_sided_renderables.empty())
+        if ((flags & DrawScene_Transparent) != 0 && !render_data.transparent_renderables.empty())
         {
-            GraphicsPipelineHash double_sided_pipeline_hash = pipeline_hash;
-            double_sided_pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
-            GraphicsPipelineHash current_pipeline_hash = {};
-            bool has_current_pipeline = false;
-
-            for (const auto& renderable : render_data.double_sided_renderables)
-            {
-                if (renderable.IsTransparent())
-                {
-                    if ((flags & DrawScene_Transparent) == 0)
-                    {
-                        continue;
-                    }
-                }
-                else
-                {
-                    if ((flags & DrawScene_Opaque) == 0)
-                    {
-                        continue;
-                    }
-                }
-
-                if (pass == RenderPassType::ShadowPass && !renderable.IsCastShadow())
-                {
-                    continue;
-                }
-
-                // TODO: reduce pso switch
-                GraphicsPipelineHash renderable_pipeline_hash = double_sided_pipeline_hash;
-                if (pass == RenderPassType::MainPass)
-                {
-                    renderable_pipeline_hash.storage.bits.shader_type = draw_wireframe ? SHADER_MATERIAL_TYPE_UNLIT : renderable.shader_type;
-                }
-                if (!has_current_pipeline || !(current_pipeline_hash == renderable_pipeline_hash))
-                {
-                    std::shared_ptr<RHIPipeline> pipeline = shader_library.GetPipeline(renderable_pipeline_hash);
-                    if (!pipeline)
-                    {
-                        continue;
-                    }
-                    command_list.SetGraphicsPipeline(*pipeline);
-                    command_list.SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
-                    command_list.SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_camera_binding);
-                    command_list.SetConstantBuffer(RHIShaderStage::Pixel, 0, shader_frame_binding);
-                    command_list.SetConstantBuffer(RHIShaderStage::Pixel, 1, shader_camera_binding);
-                    current_pipeline_hash = renderable_pipeline_hash;
-                    has_current_pipeline = true;
-                }
-
-                command_list.SetIndexBuffer(*renderable.index_buffer, sizeof(uint32), renderable.index_offset, renderable.index_count * sizeof(uint32));
-                command_list.SetPrimitiveTopology(ToRHIPrimitiveTopology(renderable.primitive_topology));
-                command_list.PushConstants(RHIShaderStage::Vertex, &renderable.push_constants, sizeof(ObjectPushConstants), 0);
-                command_list.DrawIndexed(renderable.index_count, 1, 0, 0, 0);
-            }
+            draw_renderables(render_data.transparent_renderables.data(), render_data.transparent_renderables.size(), true);
         }
 
         if (draw_primitives)
@@ -2276,7 +2219,22 @@ namespace won::rendering
 
         FrameContext& frame_context = GetFrameContext();
 
-        const Scene::RenderData render_data = view.scene->GetRenderData();
+        Scene::RenderData render_data = view.scene->GetRenderData();
+
+		// sort transparent objects back to front
+        if (!render_data.transparent_renderables.empty())
+        {
+            const ecs::CameraComponent* camera = view.scene->GetComponent<ecs::CameraComponent>(view.camera_entity);
+            const float3 eye = camera ? camera->eye : float3{ 0.0f, 0.0f, 0.0f };
+            const XMVECTOR x_eye = XMLoadFloat3(&eye);
+            std::sort(render_data.transparent_renderables.begin(), render_data.transparent_renderables.end(),
+                [&x_eye](const Scene::RenderData::Renderable& a, const Scene::RenderData::Renderable& b)
+                {
+                    const float da = XMVectorGetX(XMVector3LengthSq(XMVectorSubtract(XMLoadFloat3(&a.world_position), x_eye)));
+                    const float db = XMVectorGetX(XMVector3LengthSq(XMVectorSubtract(XMLoadFloat3(&b.world_position), x_eye)));
+                    return da > db;
+                });
+        }
 
         {
             auto cpu_range = profiler::ScopedRangeCPU("Create Render Resources");

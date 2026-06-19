@@ -14,4 +14,5 @@ namespace won::resource
     inline constexpr const char* shader_dependency_extension = "wondep";
     inline constexpr const char* sound_file_extension = "wav";
     inline constexpr const char* material_binary_extension = "wonmat";
+    inline constexpr const char* game_data_schema_extension = "gamedata";
 }

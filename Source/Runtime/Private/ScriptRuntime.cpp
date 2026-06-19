@@ -10,7 +10,7 @@ namespace won::script
         switch (desc.backend)
         {
         case ScriptBackend::Lua:
-            return std::make_shared<LuaScriptRuntime>();
+            return std::make_shared<LuaScriptRuntime>(desc);
         default:
             return nullptr;
         }

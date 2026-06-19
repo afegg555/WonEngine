@@ -1,5 +1,6 @@
 #include "ScriptEventDispatchSystem.h"
 
+#include "EventHandler.h"
 #include "Scene.h"
 #include "ScriptComponent.h"
 
@@ -12,6 +13,8 @@ namespace won::ecs
 
     void ScriptEventDispatchSystem::Update(Scene& scene, float delta_time)
     {
+        eventhandler::Dispatch();
+
         const auto& events = scene.GetPhysicsWorld()->GetTriggerEvents();
         if (!script_runtime || events.empty())
         {

@@ -1,6 +1,8 @@
 #include "LuaScriptRuntime.h"
 
 #include "Backlog.h"
+#include "EventHandler.h"
+#include "GameData.h"
 #include "Input.h"
 #include "MaterialComponent.h"
 #include "NameComponent.h"
@@ -61,6 +63,51 @@ namespace won::script
         {
             return static_cast<uint32>(type);
         }
+
+        void PushValue(lua_State* state, const won::function::Value& v)
+        {
+            switch (v.type)
+            {
+            case won::ValueType::Bool:    lua_pushboolean(state, v.bool_value);                         break;
+            case won::ValueType::Int32:   lua_pushinteger(state, v.int32_value);                        break;
+            case won::ValueType::Int64:   lua_pushinteger(state, static_cast<lua_Integer>(v.int64_value)); break;
+            case won::ValueType::Float32: lua_pushnumber(state, v.float_value);                         break;
+            case won::ValueType::Float64: lua_pushnumber(state, v.double_value);                        break;
+            case won::ValueType::String:  lua_pushstring(state, v.string_value ? v.string_value : ""); break;
+            default:                      lua_pushnil(state);                                           break;
+            }
+        }
+
+        won::function::Value ToValue(lua_State* state, int index)
+        {
+            won::function::Value v;
+            if (lua_isboolean(state, index))
+            {
+                v.type = won::ValueType::Bool;
+                v.bool_value = lua_toboolean(state, index) != 0;
+            }
+            else if (lua_isinteger(state, index))
+            {
+                v.type = won::ValueType::Int64;
+                v.int64_value = lua_tointeger(state, index);
+            }
+            else if (lua_isnumber(state, index))
+            {
+                v.type = won::ValueType::Float64;
+                v.double_value = lua_tonumber(state, index);
+            }
+            else if (lua_isstring(state, index))
+            {
+                v.type = won::ValueType::String;
+                v.string_value = lua_tostring(state, index);
+            }
+            return v;
+        }
+    }
+
+    LuaScriptRuntime::LuaScriptRuntime(const ScriptRuntimeDesc& desc)
+    {
+        game_data = desc.game_data;
     }
 
     bool LuaScriptRuntime::Initialize()
@@ -135,6 +182,7 @@ namespace won::script
             module.ref_count = 0;
             module_it = modules.emplace(desc.script_path, module).first;
         }
+        won::backlog::Post("[LuaScriptRuntime] instance created: " + desc.script_path);
 
         lua_newtable(lua_state); // creates the per-instance self table on top of the stack
         const int self_ref = luaL_ref(lua_state, LUA_REGISTRYINDEX); // stores the self table in the registry
@@ -640,6 +688,179 @@ namespace won::script
         return 1;
     }
 
+    int LuaScriptRuntime::LuaEventSubscribe(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        const char* name = luaL_checkstring(state, 1);
+        luaL_checktype(state, 2, LUA_TFUNCTION);
+
+        const uint64 id = won::eventhandler::HashEvent(name);
+        const int lua_ref = luaL_ref(state, LUA_REGISTRYINDEX);
+
+        eventhandler::Handle handle = eventhandler::Subscribe(id,
+            [runtime, lua_ref](const won::function::Value& payload)
+            {
+                lua_rawgeti(runtime->lua_state, LUA_REGISTRYINDEX, lua_ref);
+                PushValue(runtime->lua_state, payload);
+                lua_pcall(runtime->lua_state, 1, 0, 0);
+            });
+
+        runtime->event_handles.push_back(std::move(handle));
+        return 0;
+    }
+
+    int LuaScriptRuntime::LuaEventPost(lua_State* state)
+    {
+        const char* name = luaL_checkstring(state, 1);
+        won::function::Value payload;
+        if (lua_gettop(state) >= 2)
+            payload = ToValue(state, 2);
+        eventhandler::PostEvent(won::eventhandler::HashEvent(name), payload);
+        return 0;
+    }
+
+    int LuaScriptRuntime::LuaEventFire(lua_State* state)
+    {
+        const char* name = luaL_checkstring(state, 1);
+        won::function::Value payload;
+        if (lua_gettop(state) >= 2)
+            payload = ToValue(state, 2);
+        eventhandler::FireEvent(won::eventhandler::HashEvent(name), payload);
+        return 0;
+    }
+
+    int LuaScriptRuntime::LuaGameDataGetString(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->game_data)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+        const char* key = luaL_checkstring(state, 1);
+        const char* value = runtime->game_data->GetString(key);
+        if (!value)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+        lua_pushstring(state, value);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaGameDataSetString(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->game_data)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+        const char* key = luaL_checkstring(state, 1);
+        const char* value = luaL_checkstring(state, 2);
+        lua_pushboolean(state, runtime->game_data->SetString(key, value) ? 1 : 0);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaGameDataGetInt(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->game_data)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+        const char* key = luaL_checkstring(state, 1);
+        int value = 0;
+        if (!runtime->game_data->GetInt(key, value))
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+        lua_pushinteger(state, static_cast<lua_Integer>(value));
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaGameDataSetInt(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->game_data)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+        const char* key = luaL_checkstring(state, 1);
+        const int value = static_cast<int>(luaL_checkinteger(state, 2));
+        lua_pushboolean(state, runtime->game_data->SetInt(key, value) ? 1 : 0);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaGameDataGetFloat(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->game_data)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+        const char* key = luaL_checkstring(state, 1);
+        float value = 0.0f;
+        if (!runtime->game_data->GetFloat(key, value))
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+        lua_pushnumber(state, static_cast<lua_Number>(value));
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaGameDataSetFloat(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->game_data)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+        const char* key = luaL_checkstring(state, 1);
+        const float value = static_cast<float>(luaL_checknumber(state, 2));
+        lua_pushboolean(state, runtime->game_data->SetFloat(key, value) ? 1 : 0);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaGameDataGetBool(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->game_data)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+        const char* key = luaL_checkstring(state, 1);
+        bool value = false;
+        if (!runtime->game_data->GetBool(key, value))
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+        lua_pushboolean(state, value ? 1 : 0);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaGameDataSetBool(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->game_data)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+        const char* key = luaL_checkstring(state, 1);
+        const bool value = lua_toboolean(state, 2) != 0;
+        lua_pushboolean(state, runtime->game_data->SetBool(key, value) ? 1 : 0);
+        return 1;
+    }
+
     void LuaScriptRuntime::RegisterAPI()
     {
         if (!lua_state)
@@ -730,6 +951,45 @@ namespace won::script
         lua_setfield(lua_state, -2, "find_by_name");
         lua_setfield(lua_state, -2, "scene");
 
+        lua_newtable(lua_state);
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaEventSubscribe, 1);
+        lua_setfield(lua_state, -2, "subscribe");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaEventPost, 1);
+        lua_setfield(lua_state, -2, "post");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaEventFire, 1);
+        lua_setfield(lua_state, -2, "fire");
+        lua_setfield(lua_state, -2, "event");
+
+        lua_newtable(lua_state);
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaGameDataGetString, 1);
+        lua_setfield(lua_state, -2, "get_string");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaGameDataSetString, 1);
+        lua_setfield(lua_state, -2, "set_string");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaGameDataGetInt, 1);
+        lua_setfield(lua_state, -2, "get_int");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaGameDataSetInt, 1);
+        lua_setfield(lua_state, -2, "set_int");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaGameDataGetFloat, 1);
+        lua_setfield(lua_state, -2, "get_float");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaGameDataSetFloat, 1);
+        lua_setfield(lua_state, -2, "set_float");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaGameDataGetBool, 1);
+        lua_setfield(lua_state, -2, "get_bool");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaGameDataSetBool, 1);
+        lua_setfield(lua_state, -2, "set_bool");
+        lua_setfield(lua_state, -2, "game_data");
+
         lua_setglobal(lua_state, "won");
     }
 
@@ -790,6 +1050,7 @@ namespace won::script
         }
 
         out_error.clear();
+        won::backlog::Post("[LuaScriptRuntime] script loaded: " + script_path);
         return true;
     }
 

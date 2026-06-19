@@ -335,146 +335,110 @@ namespace won::ecs
             if (system_schedule_dirty)
             {
                 system_execution_batches.clear();
-                system_execution_batches.reserve(systems.size());
 
                 const uint32 system_count = static_cast<uint32>(systems.size());
-
                 Vector<ComponentMask> read_masks(system_count);
                 Vector<ComponentMask> write_masks(system_count);
-
-                uint32 active_system_count = 0;
                 for (uint32 i = 0; i < system_count; ++i)
                 {
-                    if (!systems[i])
+                    if (systems[i])
+                    {
+                        read_masks[i] = systems[i]->GetReadMask();
+                        write_masks[i] = systems[i]->GetWriteMask();
+                    }
+                }
+
+                for (uint32 phase = 0; phase < static_cast<uint32>(SystemPhase::Count); ++phase)
+                {
+                    Vector<uint32> phase_systems;
+                    for (uint32 i = 0; i < system_count; ++i)
+                    {
+                        if (systems[i] && static_cast<uint32>(systems[i]->GetPhase()) == phase)
+                        {
+                            phase_systems.push_back(i);
+                        }
+                    }
+                    if (phase_systems.empty())
                     {
                         continue;
                     }
 
-                    ++active_system_count;
-                    read_masks[i] = systems[i]->GetReadMask();
-                    write_masks[i] = systems[i]->GetWriteMask();
-                }
+                    const uint32 n = static_cast<uint32>(phase_systems.size());
+                    Vector<Vector<uint32>> graph(n);
+                    Vector<uint32> indegree(n, 0);
 
-                Vector<Vector<uint32>> graph(system_count);
-                Vector<uint32> indegree(system_count, 0);
-
-                auto add_edge = [&](uint32 from, uint32 to)
-                    {
-                        if (from == to)
+                    auto add_edge = [&](uint32 from, uint32 to)
                         {
-                            return;
-                        }
-                        graph[from].push_back(to);
-                        ++indegree[to];
-                    };
+                            if (from == to) return;
+                            graph[from].push_back(to);
+                            ++indegree[to];
+                        };
 
-                for (uint32 i = 0; i < system_count; ++i)
-                {
-                    if (!systems[i])
+                    for (uint32 a = 0; a < n; ++a)
                     {
-                        continue;
+                        for (uint32 b = a + 1; b < n; ++b)
+                        {
+                            const uint32 i = phase_systems[a];
+                            const uint32 j = phase_systems[b];
+                            const bool raw_i_to_j = (write_masks[i] & read_masks[j]) != 0;
+                            const bool raw_j_to_i = (write_masks[j] & read_masks[i]) != 0;
+                            const bool waw = (write_masks[i] & write_masks[j]) != 0;
+                            if (raw_i_to_j) add_edge(a, b);
+                            if (raw_j_to_i) add_edge(b, a);
+                            if (waw) add_edge(a, b); // deterministic for a < b
+                        }
                     }
 
-                    for (uint32 j = i + 1; j < system_count; ++j)
-                    {
-                        if (!systems[j])
-                        {
-                            continue;
-                        }
+                    Vector<uint8> processed(n, 0);
+                    uint32 processed_count = 0;
+                    bool had_cycle = false;
 
-                        const ComponentMask read_i = read_masks[i];
-                        const ComponentMask write_i = write_masks[i];
-                        const ComponentMask read_j = read_masks[j];
-                        const ComponentMask write_j = write_masks[j];
-
-                        const bool raw_i_to_j = (write_i & read_j) != 0;
-                        const bool raw_j_to_i = (write_j & read_i) != 0;
-                        const bool waw = (write_i & write_j) != 0;
-
-                        if (raw_i_to_j)
+                    auto build_ready = [&]()
                         {
-                            add_edge(i, j);
-                        }
-                        if (raw_j_to_i)
-                        {
-                            add_edge(j, i);
-                        }
-                        if (waw)
-                        {
-                            add_edge(i, j); // deterministic for i < j
-                        }
-                    }
-                }
-
-                Vector<uint8> processed(system_count, 0);
-
-                auto build_ready = [&]()
-                    {
-                        Vector<uint32> ready;
-                        ready.reserve(system_count);
-                        for (uint32 i = 0; i < system_count; ++i)
-                        {
-                            if (systems[i] && !processed[i] && indegree[i] == 0)
+                            Vector<uint32> ready;
+                            for (uint32 a = 0; a < n; ++a)
                             {
-                                ready.push_back(i);
+                                if (!processed[a] && indegree[a] == 0)
+                                {
+                                    ready.push_back(a);
+                                }
                             }
-                        }
-                        return ready;
-                    };
+                            return ready;
+                        };
 
-                uint32 processed_count = 0;
-                bool had_cycle = false;
-
-                while (processed_count < active_system_count)
-                {
-                    Vector<uint32> batch = build_ready();
-
-                    if (batch.empty())
+                    while (processed_count < n)
                     {
-                        had_cycle = true;
-
-                        // Force progress: pick first unprocessed system and break its incoming edges.
-                        uint32 forced = UINT32_MAX;
-                        for (uint32 i = 0; i < system_count; ++i)
+                        Vector<uint32> batch_local = build_ready();
+                        if (batch_local.empty())
                         {
-                            if (systems[i] && !processed[i])
+                            had_cycle = true;
+                            for (uint32 a = 0; a < n; ++a)
                             {
-                                forced = i;
-                                break;
+                                if (!processed[a]) { indegree[a] = 0; batch_local.push_back(a); break; }
                             }
+                            if (batch_local.empty()) break;
                         }
 
-                        if (forced == UINT32_MAX)
+                        Vector<uint32> batch_global;
+                        batch_global.reserve(batch_local.size());
+                        for (uint32 a : batch_local)
                         {
-                            break;
+                            batch_global.push_back(phase_systems[a]);
                         }
+                        system_execution_batches.push_back(std::move(batch_global));
 
-                        indegree[forced] = 0;
-                        batch.push_back(forced);
-                    }
-
-                    system_execution_batches.push_back(batch);
-
-                    for (uint32 s : batch)
-                    {
-                        if (!systems[s] || processed[s])
+                        for (uint32 a : batch_local)
                         {
-                            continue;
-                        }
-
-                        processed[s] = 1;
-                        ++processed_count;
-
-                        for (uint32 to : graph[s])
-                        {
-                            if (indegree[to] > 0)
+                            processed[a] = 1;
+                            ++processed_count;
+                            for (uint32 to : graph[a])
                             {
-                                --indegree[to];
+                                if (indegree[to] > 0) --indegree[to];
                             }
                         }
                     }
+                    assert(!had_cycle);
                 }
-                assert(had_cycle == false);
                 system_schedule_dirty = false;
             }
 
@@ -1029,6 +993,7 @@ namespace won::ecs
 
                 ObjectPushConstants push_constants;
                 std::shared_ptr<rendering::RHIResource> index_buffer;
+                float3 world_position = {};
                 uint32 index_offset = 0;
                 uint32 index_count = 0;
                 uint32 flags = None;
@@ -1141,8 +1106,8 @@ namespace won::ecs
             Vector<float4> shader_bone_matrices;
             Vector<ShaderBVHNode> shader_bvh_nodes;
             Vector<ShaderBVHInstance> shader_bvh_instances;
-            Vector<Renderable> mesh_renderables;
-            Vector<Renderable> double_sided_renderables;
+            Vector<Renderable> opaque_renderables;
+            Vector<Renderable> transparent_renderables;
             Vector<Renderable> line_renderables;
             Vector<Renderable> point_renderables;
             Vector<Sprite2DRenderable> sprite_2d_renderables;
@@ -1167,8 +1132,8 @@ namespace won::ecs
                 shader_bone_matrices.clear();
                 shader_bvh_nodes.clear();
                 shader_bvh_instances.clear();
-                mesh_renderables.clear();
-                double_sided_renderables.clear();
+                opaque_renderables.clear();
+                transparent_renderables.clear();
                 line_renderables.clear();
                 point_renderables.clear();
                 sprite_2d_renderables.clear();

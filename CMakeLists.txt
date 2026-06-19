@@ -220,8 +220,11 @@ set(RUNTIME_RENDERING_INTERNAL
 )
 
 set(RUNTIME_CONFIGURATION
+    Source/Runtime/Public/KeyValueStore.h
     Source/Runtime/Public/Configuration.h
+    Source/Runtime/Public/GameData.h
     Source/Runtime/Private/Configuration.cpp
+    Source/Runtime/Private/GameData.cpp
     Source/Runtime/Public/ProjectSettings.h
 )
 
@@ -637,6 +640,8 @@ target_link_libraries(HelloTriangle PRIVATE Runtime)
 target_link_libraries(Player PRIVATE Runtime)
 target_link_libraries(ShaderOfflineCompiler PRIVATE Runtime)
 target_link_libraries(PackageTool PRIVATE Runtime)
+
+add_dependencies(Editor PackageTool ShaderOfflineCompiler AssetImporterTool)
 target_include_directories(PrintLogSample PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins/Include>
 )

@@ -67,4 +67,9 @@ namespace won::io
     WONENGINE_API bool CreateFolder(const String& path);
     WONENGINE_API bool OpenFileDialog(String& out_path, const FileDialogDesc& desc);
     WONENGINE_API bool SaveFileDialog(String& out_path, const FileDialogDesc& desc);
+
+    // %APPDATA%\<app_name>\ - save data and settings (AppData/Roaming in Windows)
+    WONENGINE_API String GetSaveDirectory(const String& app_name);
+    // %LOCALAPPDATA%\<app_name>\ - caches and other recreatable data (AppData/Local in Windows)
+    WONENGINE_API String GetCacheDirectory(const String& app_name);
 }

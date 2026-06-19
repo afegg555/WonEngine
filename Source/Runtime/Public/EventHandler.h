@@ -1,5 +1,7 @@
 #pragma once
+#include "FunctionTypes.h"
 #include "RuntimeExport.h"
+#include "StableHash.h"
 #include "Types.h"
 
 #include <functional>
@@ -7,27 +9,21 @@
 
 namespace won::eventhandler
 {
-    inline constexpr int EVENT_THREAD_SAFE_POINT = -1;
-    inline constexpr int EVENT_RELOAD_SHADERS = -2;
-    inline constexpr int EVENT_SET_VSYNC = -3;
+    constexpr uint64 HashEvent(const char* name) { return won::StableHash(name); }
+
+    inline constexpr uint64 EVENT_THREAD_SAFE_POINT = HashEvent("won.thread_safe_point");
+    inline constexpr uint64 EVENT_SCENE_LOAD        = HashEvent("won.scene.load");
 
     struct Handle
     {
         std::shared_ptr<void> internal_state;
-        bool IsValid() const { return internal_state.get() != nullptr; }
+        bool IsValid() const { return internal_state != nullptr; }
     };
 
-    WONENGINE_API Handle Subscribe(int id, std::function<void(uint64)> callback);
-    WONENGINE_API void SubscribeOnce(int id, std::function<void(uint64)> callback);
-    WONENGINE_API void FireEvent(int id, uint64 userdata);
+    WONENGINE_API Handle Subscribe(uint64 id, std::function<void(const function::Value&)> callback);
+    WONENGINE_API void SubscribeOnce(uint64 id, std::function<void(const function::Value&)> callback);
 
-    inline void Subscribe_Once(int id, std::function<void(uint64)> callback)
-    {
-        SubscribeOnce(id, std::move(callback));
-    }
-
-    inline void SetVSync(bool enabled)
-    {
-        FireEvent(EVENT_SET_VSYNC, enabled ? 1ull : 0ull);
-    }
+    WONENGINE_API void FireEvent(uint64 id, const function::Value& payload = {});
+    WONENGINE_API void PostEvent(uint64 id, const function::Value& payload = {});
+    WONENGINE_API void Dispatch();
 }

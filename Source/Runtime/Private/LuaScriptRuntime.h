@@ -1,8 +1,14 @@
 #pragma once
 
+#include "EventHandler.h"
 #include "ScriptRuntime.h"
 
 struct lua_State;
+
+namespace won::game
+{
+    class GameData;
+}
 
 namespace won::script
 {
@@ -26,6 +32,8 @@ namespace won::script
     class LuaScriptRuntime : public ScriptRuntime
     {
     public:
+        explicit LuaScriptRuntime(const ScriptRuntimeDesc& desc);
+
         bool Initialize() override;
         void Shutdown() override;
 
@@ -60,6 +68,17 @@ namespace won::script
         static int LuaInputGetActionValue(lua_State* state);
         static int LuaInputGetActionAxis2D(lua_State* state);
         static int LuaSceneFindByName(lua_State* state);
+        static int LuaEventSubscribe(lua_State* state);
+        static int LuaEventPost(lua_State* state);
+        static int LuaEventFire(lua_State* state);
+        static int LuaGameDataGetString(lua_State* state);
+        static int LuaGameDataSetString(lua_State* state);
+        static int LuaGameDataGetInt(lua_State* state);
+        static int LuaGameDataSetInt(lua_State* state);
+        static int LuaGameDataGetFloat(lua_State* state);
+        static int LuaGameDataSetFloat(lua_State* state);
+        static int LuaGameDataGetBool(lua_State* state);
+        static int LuaGameDataSetBool(lua_State* state);
 
         void RegisterAPI();
         bool LoadModule(const String& script_path, LuaScriptModule& out_module, String& out_error);
@@ -72,5 +91,7 @@ namespace won::script
         Vector<String> output_strings;
         UnorderedMap<String, LuaScriptModule> modules;
         UnorderedMap<uint64, LuaScriptInstance> instances;
+        Vector<eventhandler::Handle> event_handles;
+        game::GameData* game_data = nullptr;
     };
 }
