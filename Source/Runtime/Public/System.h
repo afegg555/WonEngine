@@ -16,6 +16,15 @@ namespace won::ecs
         Synchronous, // run immediately on the caller thread
     };
 
+    enum class SystemPhase : uint32
+    {
+        PreSimulation  = 0,
+        Simulation     = 1,
+        PostSimulation = 2,
+
+        Count,
+    };
+
     class WONENGINE_API System
     {
     public:
@@ -23,6 +32,7 @@ namespace won::ecs
         virtual ComponentMask GetReadMask() const { return 0; }
         virtual ComponentMask GetWriteMask() const { return 0; }
         virtual SystemExecutionPolicy GetExecutionPolicy() const { return SystemExecutionPolicy::ParallelJob; }
+        virtual SystemPhase GetPhase() const { return SystemPhase::PostSimulation; }
         virtual void Update(Scene& scene, float delta_time) = 0;
     };
 }

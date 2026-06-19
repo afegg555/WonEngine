@@ -115,7 +115,7 @@ This document tracks user-facing and developer-facing features available in WonE
 - [x] Mesh rendering
 - [x] Submesh rendering
 - [x] Material slot rendering
-- [~] Transparent material flag support
+- [x] Transparent material flag support (`SHADER_MATERIAL_FLAG_TRANSPARENT`)
 - [x] Line primitive rendering
 - [x] Point primitive rendering
 - [x] Runtime shader reload
@@ -188,6 +188,12 @@ This document tracks user-facing and developer-facing features available in WonE
 - [ ] FSR
 - [ ] DLSS
 - [ ] Color grading
+
+## Material Flags (v0.1 Limitations)
+
+- Transparent draw ordering is back-to-front sorted per object (not per triangle); overlapping transparent meshes may show artifacts depending on camera angle.
+- Double-sided (`SHADER_MATERIAL_FLAG_DOUBLE_SIDED`) disables backface culling at the rasterizer level; no normal flipping on back faces.
+- Wireframe is a global editor/runtime debug toggle, not a per-material flag.
 
 ## Scene Rendering Features
 
