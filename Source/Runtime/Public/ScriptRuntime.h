@@ -17,6 +17,11 @@ namespace won::game
     class GameData;
 }
 
+namespace won::audio
+{
+    class AudioMixer;
+}
+
 namespace won::script
 {
     enum class ScriptBackend
@@ -28,6 +33,7 @@ namespace won::script
     {
         ScriptBackend backend = ScriptBackend::Lua;
         game::GameData* game_data = nullptr;
+        audio::AudioMixer* audio_mixer = nullptr;
     };
 
     struct ScriptInstanceHandle

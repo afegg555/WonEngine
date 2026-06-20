@@ -6,6 +6,7 @@
 #include "Input.h"
 #include "Scene.h"
 #include "SceneComponents.h"
+#include "Sound.h"
 
 extern "C"
 {
@@ -106,6 +107,7 @@ namespace won::script
     LuaScriptRuntime::LuaScriptRuntime(const ScriptRuntimeDesc& desc)
     {
         game_data = desc.game_data;
+        audio_mixer = desc.audio_mixer;
     }
 
     bool LuaScriptRuntime::Initialize()
@@ -859,6 +861,537 @@ namespace won::script
         return 1;
     }
 
+    int LuaScriptRuntime::LuaEntityCreate(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        const ecs::Entity entity = runtime->current_context.scene->CreateEntity();
+        lua_pushinteger(state, static_cast<lua_Integer>(entity));
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaTransformAdd(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        runtime->current_context.scene->AddComponent<ecs::TransformComponent>(entity);
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaMaterialAdd(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        runtime->current_context.scene->AddComponent<ecs::MaterialComponent>(entity);
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaColliderHas(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        lua_pushboolean(state, runtime->current_context.scene->GetComponent<ecs::Collider3DComponent>(entity) != nullptr);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaColliderAdd(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        runtime->current_context.scene->AddComponent<ecs::Collider3DComponent>(entity);
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaColliderIsEnabled(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        ecs::Collider3DComponent* collider = runtime->current_context.scene->GetComponent<ecs::Collider3DComponent>(entity);
+        if (!collider)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        lua_pushboolean(state, collider->IsEnabled());
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaColliderSetEnabled(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const int arg_count = lua_gettop(state);
+        const bool has_entity_arg = arg_count >= 2 && lua_isinteger(state, 1);
+        const ecs::Entity entity = has_entity_arg ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        const bool value = lua_toboolean(state, has_entity_arg ? 2 : 1) != 0;
+        ecs::Collider3DComponent* collider = runtime->current_context.scene->GetComponent<ecs::Collider3DComponent>(entity);
+        if (!collider)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        collider->SetEnabled(value);
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaColliderIsTrigger(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        ecs::Collider3DComponent* collider = runtime->current_context.scene->GetComponent<ecs::Collider3DComponent>(entity);
+        if (!collider)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        lua_pushboolean(state, collider->IsTrigger());
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaColliderSetTrigger(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const int arg_count = lua_gettop(state);
+        const bool has_entity_arg = arg_count >= 2 && lua_isinteger(state, 1);
+        const ecs::Entity entity = has_entity_arg ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        const bool value = lua_toboolean(state, has_entity_arg ? 2 : 1) != 0;
+        ecs::Collider3DComponent* collider = runtime->current_context.scene->GetComponent<ecs::Collider3DComponent>(entity);
+        if (!collider)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        collider->SetTrigger(value);
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaRigidbodyHas(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        lua_pushboolean(state, runtime->current_context.scene->GetComponent<ecs::Rigidbody3DComponent>(entity) != nullptr);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaRigidbodyAdd(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        runtime->current_context.scene->AddComponent<ecs::Rigidbody3DComponent>(entity);
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaRigidbodyGetVelocity(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        ecs::Rigidbody3DComponent* rb = runtime->current_context.scene->GetComponent<ecs::Rigidbody3DComponent>(entity);
+        if (!rb)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        lua_pushnumber(state, rb->linear_velocity.x);
+        lua_pushnumber(state, rb->linear_velocity.y);
+        lua_pushnumber(state, rb->linear_velocity.z);
+        return 3;
+    }
+
+    int LuaScriptRuntime::LuaRigidbodySetVelocity(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const int arg_count = lua_gettop(state);
+        const bool has_entity_arg = arg_count >= 4 && lua_isinteger(state, 1);
+        const ecs::Entity entity = has_entity_arg ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        const int value_index = has_entity_arg ? 2 : 1;
+        ecs::Rigidbody3DComponent* rb = runtime->current_context.scene->GetComponent<ecs::Rigidbody3DComponent>(entity);
+        if (!rb)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        rb->linear_velocity.x = static_cast<float>(luaL_checknumber(state, value_index));
+        rb->linear_velocity.y = static_cast<float>(luaL_checknumber(state, value_index + 1));
+        rb->linear_velocity.z = static_cast<float>(luaL_checknumber(state, value_index + 2));
+        rb->SetDirty();
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaRigidbodyGetAngularVelocity(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        ecs::Rigidbody3DComponent* rb = runtime->current_context.scene->GetComponent<ecs::Rigidbody3DComponent>(entity);
+        if (!rb)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        lua_pushnumber(state, rb->angular_velocity.x);
+        lua_pushnumber(state, rb->angular_velocity.y);
+        lua_pushnumber(state, rb->angular_velocity.z);
+        return 3;
+    }
+
+    int LuaScriptRuntime::LuaRigidbodySetAngularVelocity(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const int arg_count = lua_gettop(state);
+        const bool has_entity_arg = arg_count >= 4 && lua_isinteger(state, 1);
+        const ecs::Entity entity = has_entity_arg ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        const int value_index = has_entity_arg ? 2 : 1;
+        ecs::Rigidbody3DComponent* rb = runtime->current_context.scene->GetComponent<ecs::Rigidbody3DComponent>(entity);
+        if (!rb)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        rb->angular_velocity.x = static_cast<float>(luaL_checknumber(state, value_index));
+        rb->angular_velocity.y = static_cast<float>(luaL_checknumber(state, value_index + 1));
+        rb->angular_velocity.z = static_cast<float>(luaL_checknumber(state, value_index + 2));
+        rb->SetDirty();
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAudioSourceHas(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        lua_pushboolean(state, runtime->current_context.scene->GetComponent<ecs::AudioSourceComponent>(entity) != nullptr);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAudioSourceAdd(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const int arg_count = lua_gettop(state);
+        const bool has_entity_arg = arg_count >= 1 && lua_isinteger(state, 1);
+        const ecs::Entity entity = has_entity_arg ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        ecs::AudioSourceComponent* source = runtime->current_context.scene->AddComponent<ecs::AudioSourceComponent>(entity);
+        if (source && has_entity_arg && arg_count >= 2 && lua_isstring(state, 2))
+        {
+            source->sound_asset_path = lua_tostring(state, 2);
+            source->SetDirty();
+        }
+        else if (source && !has_entity_arg && arg_count >= 1 && lua_isstring(state, 1))
+        {
+            source->sound_asset_path = lua_tostring(state, 1);
+            source->SetDirty();
+        }
+        lua_pushboolean(state, source != nullptr);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAudioSourcePlay(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        ecs::AudioSourceComponent* source = runtime->current_context.scene->GetComponent<ecs::AudioSourceComponent>(entity);
+        if (!source)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        source->SetPlaying(true);
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAudioSourceStop(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        ecs::AudioSourceComponent* source = runtime->current_context.scene->GetComponent<ecs::AudioSourceComponent>(entity);
+        if (!source)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        source->SetPlaying(false);
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAudioSourceIsPlaying(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        ecs::AudioSourceComponent* source = runtime->current_context.scene->GetComponent<ecs::AudioSourceComponent>(entity);
+        if (!source)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        lua_pushboolean(state, source->IsPlaying());
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAudioSourceSetVolume(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const int arg_count = lua_gettop(state);
+        const bool has_entity_arg = arg_count >= 2 && lua_isinteger(state, 1);
+        const ecs::Entity entity = has_entity_arg ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        const float volume = static_cast<float>(luaL_checknumber(state, has_entity_arg ? 2 : 1));
+        ecs::AudioSourceComponent* source = runtime->current_context.scene->GetComponent<ecs::AudioSourceComponent>(entity);
+        if (!source)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        source->volume = volume;
+        source->SetDirty();
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAudioPlayOneShot(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->audio_mixer)
+        {
+            lua_pushinteger(state, static_cast<lua_Integer>(audio::invalid_voice_handle));
+            return 1;
+        }
+
+        const char* path = luaL_checkstring(state, 1);
+        const float volume = static_cast<float>(luaL_optnumber(state, 2, 1.0));
+
+        auto sound = resource::LoadSoundFile(path);
+        if (!sound || !sound->IsValid())
+        {
+            won::backlog::Post(String("[Audio] play_oneshot: sound not found: ") + path, won::backlog::LogLevel::Warning);
+            lua_pushinteger(state, static_cast<lua_Integer>(audio::invalid_voice_handle));
+            return 1;
+        }
+
+        audio::VoiceParams params;
+        params.volume = volume;
+        params.loop = false;
+        const audio::VoiceHandle handle = runtime->audio_mixer->Play(*sound, params);
+        lua_pushinteger(state, static_cast<lua_Integer>(handle));
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAudioListenerHas(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        lua_pushboolean(state, runtime->current_context.scene->GetComponent<ecs::AudioListenerComponent>(entity) != nullptr);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAudioListenerAdd(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        runtime->current_context.scene->AddComponent<ecs::AudioListenerComponent>(entity);
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAudioListenerIsEnabled(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        ecs::AudioListenerComponent* listener = runtime->current_context.scene->GetComponent<ecs::AudioListenerComponent>(entity);
+        if (!listener)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        lua_pushboolean(state, listener->enabled);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAudioListenerSetEnabled(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const int arg_count = lua_gettop(state);
+        const bool has_entity_arg = arg_count >= 2 && lua_isinteger(state, 1);
+        const ecs::Entity entity = has_entity_arg ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        const bool value = lua_toboolean(state, has_entity_arg ? 2 : 1) != 0;
+        ecs::AudioListenerComponent* listener = runtime->current_context.scene->GetComponent<ecs::AudioListenerComponent>(entity);
+        if (!listener)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        listener->enabled = value;
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
     void LuaScriptRuntime::RegisterAPI()
     {
         if (!lua_state)
@@ -879,6 +1412,9 @@ namespace won::script
 
         lua_newtable(lua_state); // stack: [won_table, entity_table]
         lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaEntityCreate, 1);
+        lua_setfield(lua_state, -2, "create");
+        lua_pushlightuserdata(lua_state, this);
         lua_pushcclosure(lua_state, LuaEntityIsValid, 1);
         lua_setfield(lua_state, -2, "is_valid");
         lua_pushlightuserdata(lua_state, this);
@@ -896,6 +1432,9 @@ namespace won::script
         lua_pushlightuserdata(lua_state, this);
         lua_pushcclosure(lua_state, LuaTransformHas, 1);
         lua_setfield(lua_state, -2, "has");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaTransformAdd, 1);
+        lua_setfield(lua_state, -2, "add");
         lua_pushlightuserdata(lua_state, this);
         lua_pushcclosure(lua_state, LuaTransformGetPosition, 1);
         lua_setfield(lua_state, -2, "get_position");
@@ -920,6 +1459,9 @@ namespace won::script
         lua_pushlightuserdata(lua_state, this);
         lua_pushcclosure(lua_state, LuaMaterialHas, 1);
         lua_setfield(lua_state, -2, "has");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaMaterialAdd, 1);
+        lua_setfield(lua_state, -2, "add");
         lua_pushlightuserdata(lua_state, this);
         lua_pushcclosure(lua_state, LuaMaterialGetBaseColor, 1);
         lua_setfield(lua_state, -2, "get_base_color");
@@ -948,6 +1490,87 @@ namespace won::script
         lua_pushcclosure(lua_state, LuaSceneFindByName, 1);
         lua_setfield(lua_state, -2, "find_by_name");
         lua_setfield(lua_state, -2, "scene");
+
+        lua_newtable(lua_state);
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaColliderHas, 1);
+        lua_setfield(lua_state, -2, "has");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaColliderAdd, 1);
+        lua_setfield(lua_state, -2, "add");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaColliderIsEnabled, 1);
+        lua_setfield(lua_state, -2, "is_enabled");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaColliderSetEnabled, 1);
+        lua_setfield(lua_state, -2, "set_enabled");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaColliderIsTrigger, 1);
+        lua_setfield(lua_state, -2, "is_trigger");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaColliderSetTrigger, 1);
+        lua_setfield(lua_state, -2, "set_trigger");
+        lua_setfield(lua_state, -2, "collider");
+
+        lua_newtable(lua_state);
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaRigidbodyHas, 1);
+        lua_setfield(lua_state, -2, "has");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaRigidbodyAdd, 1);
+        lua_setfield(lua_state, -2, "add");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaRigidbodyGetVelocity, 1);
+        lua_setfield(lua_state, -2, "get_velocity");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaRigidbodySetVelocity, 1);
+        lua_setfield(lua_state, -2, "set_velocity");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaRigidbodyGetAngularVelocity, 1);
+        lua_setfield(lua_state, -2, "get_angular_velocity");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaRigidbodySetAngularVelocity, 1);
+        lua_setfield(lua_state, -2, "set_angular_velocity");
+        lua_setfield(lua_state, -2, "rigidbody");
+
+        lua_newtable(lua_state);
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAudioSourceHas, 1);
+        lua_setfield(lua_state, -2, "has");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAudioSourceAdd, 1);
+        lua_setfield(lua_state, -2, "add");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAudioSourcePlay, 1);
+        lua_setfield(lua_state, -2, "play");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAudioSourceStop, 1);
+        lua_setfield(lua_state, -2, "stop");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAudioSourceIsPlaying, 1);
+        lua_setfield(lua_state, -2, "is_playing");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAudioSourceSetVolume, 1);
+        lua_setfield(lua_state, -2, "set_volume");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAudioPlayOneShot, 1);
+        lua_setfield(lua_state, -2, "play_oneshot");
+        lua_setfield(lua_state, -2, "audio_source");
+
+        lua_newtable(lua_state);
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAudioListenerHas, 1);
+        lua_setfield(lua_state, -2, "has");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAudioListenerAdd, 1);
+        lua_setfield(lua_state, -2, "add");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAudioListenerIsEnabled, 1);
+        lua_setfield(lua_state, -2, "is_enabled");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAudioListenerSetEnabled, 1);
+        lua_setfield(lua_state, -2, "set_enabled");
+        lua_setfield(lua_state, -2, "audio_listener");
 
         lua_newtable(lua_state);
         lua_pushlightuserdata(lua_state, this);

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "AudioMixer.h"
 #include "EventHandler.h"
 #include "ScriptRuntime.h"
 
@@ -47,10 +48,14 @@ namespace won::script
         static int LuaLogInfo(lua_State* state);
         static int LuaLogWarn(lua_State* state);
         static int LuaLogError(lua_State* state);
+
+        static int LuaEntityCreate(lua_State* state);
         static int LuaEntityIsValid(lua_State* state);
         static int LuaEntityDestroy(lua_State* state);
         static int LuaEntityGetName(lua_State* state);
         static int LuaEntitySetName(lua_State* state);
+
+        static int LuaTransformAdd(lua_State* state);
         static int LuaTransformHas(lua_State* state);
         static int LuaTransformGetPosition(lua_State* state);
         static int LuaTransformSetPosition(lua_State* state);
@@ -58,19 +63,52 @@ namespace won::script
         static int LuaTransformGetScale(lua_State* state);
         static int LuaTransformSetScale(lua_State* state);
         static int LuaTransformRotateEuler(lua_State* state);
+
+        static int LuaMaterialAdd(lua_State* state);
         static int LuaMaterialHas(lua_State* state);
         static int LuaMaterialGetBaseColor(lua_State* state);
         static int LuaMaterialSetBaseColor(lua_State* state);
+
+        static int LuaColliderHas(lua_State* state);
+        static int LuaColliderAdd(lua_State* state);
+        static int LuaColliderIsEnabled(lua_State* state);
+        static int LuaColliderSetEnabled(lua_State* state);
+        static int LuaColliderIsTrigger(lua_State* state);
+        static int LuaColliderSetTrigger(lua_State* state);
+
+        static int LuaRigidbodyHas(lua_State* state);
+        static int LuaRigidbodyAdd(lua_State* state);
+        static int LuaRigidbodyGetVelocity(lua_State* state);
+        static int LuaRigidbodySetVelocity(lua_State* state);
+        static int LuaRigidbodyGetAngularVelocity(lua_State* state);
+        static int LuaRigidbodySetAngularVelocity(lua_State* state);
+
+        static int LuaAudioSourceHas(lua_State* state);
+        static int LuaAudioSourceAdd(lua_State* state);
+        static int LuaAudioSourcePlay(lua_State* state);
+        static int LuaAudioSourceStop(lua_State* state);
+        static int LuaAudioSourceIsPlaying(lua_State* state);
+        static int LuaAudioSourceSetVolume(lua_State* state);
+        static int LuaAudioPlayOneShot(lua_State* state);
+
+        static int LuaAudioListenerHas(lua_State* state);
+        static int LuaAudioListenerAdd(lua_State* state);
+        static int LuaAudioListenerIsEnabled(lua_State* state);
+        static int LuaAudioListenerSetEnabled(lua_State* state);
+
         static int LuaInputIsKeyDown(lua_State* state);
         static int LuaInputIsKeyPressed(lua_State* state);
         static int LuaInputIsActionDown(lua_State* state);
         static int LuaInputIsActionPressed(lua_State* state);
         static int LuaInputGetActionValue(lua_State* state);
         static int LuaInputGetActionAxis2D(lua_State* state);
+
         static int LuaSceneFindByName(lua_State* state);
+
         static int LuaEventSubscribe(lua_State* state);
         static int LuaEventPost(lua_State* state);
         static int LuaEventFire(lua_State* state);
+
         static int LuaGameDataGetString(lua_State* state);
         static int LuaGameDataSetString(lua_State* state);
         static int LuaGameDataGetInt(lua_State* state);
@@ -93,5 +131,6 @@ namespace won::script
         UnorderedMap<uint64, LuaScriptInstance> instances;
         Vector<eventhandler::Handle> event_handles;
         game::GameData* game_data = nullptr;
+        audio::AudioMixer* audio_mixer = nullptr;
     };
 }
