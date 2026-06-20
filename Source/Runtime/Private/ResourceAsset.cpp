@@ -1,22 +1,18 @@
 #include "ResourceAsset.h"
 #include "Animation.h"
-#include "AudioSourceComponent.h"
 #include "Backlog.h"
 #include "BinaryArchive.h"
 #include "FileSystem.h"
 #include "Font.h"
-#include "GeometryComponent.h"
 #include "JobSystem.h"
 #include "JsonArchive.h"
 #include "ProjectSettings.h"
 #include "RenderingUtils.h"
 #include "Scene.h"
-#include "ScriptComponent.h"
+#include "SceneComponents.h"
 #include "ShaderInterop_Renderer.h"
 #include "Sound.h"
 #include "StringUtils.h"
-#include "Text2DComponent.h"
-#include "Text3DComponent.h"
 #include <cstring>
 #include <fstream>
 

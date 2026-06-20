@@ -2,7 +2,6 @@
 
 #include "MathUtils.h"
 #include "Scene.h"
-#include "LightComponent.h"
 #include "JobSystem.h"
 #include "Backlog.h"
 

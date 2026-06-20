@@ -1,10 +1,6 @@
 #include "SpriteUpdateSystem.h"
 
-#include "MaterialComponent.h"
 #include "Scene.h"
-#include "Sprite2DComponent.h"
-#include "Sprite3DComponent.h"
-#include "TransformComponent.h"
 #include "MathUtils.h"
 
 #include <iterator>

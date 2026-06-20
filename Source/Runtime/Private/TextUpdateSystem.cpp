@@ -1,11 +1,7 @@
 #include "TextUpdateSystem.h"
 
-#include "MaterialComponent.h"
 #include "Scene.h"
 #include "StringUtils.h"
-#include "Text2DComponent.h"
-#include "Text3DComponent.h"
-#include "TransformComponent.h"
 #include "MathUtils.h"
 
 #include <algorithm>

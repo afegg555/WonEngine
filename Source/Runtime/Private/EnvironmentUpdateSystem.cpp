@@ -2,8 +2,6 @@
 
 #include "MathUtils.h"
 #include "Scene.h"
-#include "SkyComponent.h"
-#include "TransformComponent.h"
 #include "JobSystem.h"
 #include "Backlog.h"
 

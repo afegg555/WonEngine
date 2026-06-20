@@ -1,8 +1,4 @@
 #include "PhysicsUpdateSystem.h"
-#include "Collider3DComponent.h"
-#include "Rigidbody3DComponent.h"
-#include "TransformComponent.h"
-#include "HierarchyComponent.h"
 #include "Scene.h"
 #include "PhysicsWorld.h"
 #include "JobSystem.h"

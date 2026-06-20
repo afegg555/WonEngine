@@ -4,10 +4,8 @@
 #include "EventHandler.h"
 #include "GameData.h"
 #include "Input.h"
-#include "MaterialComponent.h"
-#include "NameComponent.h"
 #include "Scene.h"
-#include "TransformComponent.h"
+#include "SceneComponents.h"
 
 extern "C"
 {
