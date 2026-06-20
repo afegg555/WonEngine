@@ -1,0 +1,163 @@
+#include "View.h"
+#include "CameraComponent.h"
+#include "MathUtils.h"
+#include "JobSystem.h"
+#include "Primitives.h"
+
+#include <numeric>
+
+namespace won::rendering
+{
+    void View::Update(float dt)
+    {
+        if (scene)
+        {
+            scene->Update(dt);
+            BuildSortedIndices();
+        }
+    }
+
+    bool View::RayCast(float2 screen_position, ecs::RayCastHit& out_hit, bool use_local_bvh) const
+    {
+        out_hit = {};
+        if (!scene || viewport.width <= 0 || viewport.height <= 0)
+        {
+            return false;
+        }
+
+        ecs::CameraComponent* camera = scene->GetComponent<ecs::CameraComponent>(camera_entity);
+        if (!camera)
+        {
+            return false;
+        }
+
+        const float viewport_x = static_cast<float>(viewport.x);
+        const float viewport_y = static_cast<float>(viewport.y);
+        const float viewport_width = static_cast<float>(viewport.width);
+        const float viewport_height = static_cast<float>(viewport.height);
+        if (screen_position.x < viewport_x || screen_position.y < viewport_y ||
+            screen_position.x > viewport_x + viewport_width || screen_position.y > viewport_y + viewport_height)
+        {
+            return false;
+        }
+
+        const float viewport_u = (screen_position.x - viewport_x) / viewport_width;
+        const float viewport_v = (screen_position.y - viewport_y) / viewport_height;
+        const float ndc_x = viewport_u * 2.0f - 1.0f;
+        const float ndc_y = 1.0f - viewport_v * 2.0f;
+        const XMMATRIX inv_view_projection = XMLoadFloat4x4(&camera->inv_view_projection);
+        const XMVECTOR near_position = XMVector3TransformCoord(XMVectorSet(ndc_x, ndc_y, 1.0f, 1.0f), inv_view_projection);
+        const XMVECTOR far_position = XMVector3TransformCoord(XMVectorSet(ndc_x, ndc_y, 0.0f, 1.0f), inv_view_projection);
+
+        math::Ray ray = {};
+        if (camera->IsOrtho())
+        {
+            XMStoreFloat3(&ray.origin, near_position);
+            XMStoreFloat3(&ray.direction, XMVector3Normalize(far_position - near_position));
+        }
+        else
+        {
+            ray.origin = camera->eye;
+            XMStoreFloat3(&ray.direction, XMVector3Normalize(far_position - XMLoadFloat3(&camera->eye)));
+        }
+
+        ecs::RayCastBVHHit bvh_hit = {};
+        if (!scene->RayCastBVH(ray, bvh_hit, use_local_bvh))
+        {
+            return false;
+        }
+
+        out_hit = bvh_hit.hit;
+        return true;
+    }
+
+    void View::BuildSortedIndices()
+    {
+        if (!scene || camera_entity == ecs::INVALID_ENTITY)
+            return;
+
+        const ecs::Scene::RenderData& render_data = scene->GetRenderData();
+        const ecs::CameraComponent* camera = scene->GetComponent<ecs::CameraComponent>(camera_entity);
+        const float3 eye = camera ? camera->eye : float3{};
+        const math::Frustum* frustum = (options.enable_frustum_culling && camera) ? &camera->frustum : nullptr;
+
+        jobsystem::Context ctx;
+
+        jobsystem::Execute(ctx, [&](jobsystem::JobArgs)
+        {
+            const auto& renderables = render_data.opaque_renderables;
+            if (!frustum)
+            {
+                sorted_opaque_indices.resize(renderables.size());
+                std::iota(sorted_opaque_indices.begin(), sorted_opaque_indices.end(), 0u);
+            }
+            else
+            {
+                sorted_opaque_indices.clear();
+                for (uint32 i = 0; i < static_cast<uint32>(renderables.size()); ++i)
+                {
+                    const auto& r = renderables[i];
+                    if (!r.aabb.IsValid() || r.aabb.IntersectFrustum(*frustum))
+                        sorted_opaque_indices.push_back(i);
+                }
+            }
+            std::sort(sorted_opaque_indices.begin(), sorted_opaque_indices.end(),
+                [&](uint32 a, uint32 b)
+                {
+                    return math::DistanceSquared(renderables[a].world_position, eye) <
+                           math::DistanceSquared(renderables[b].world_position, eye);
+                });
+        });
+
+        jobsystem::Execute(ctx, [&](jobsystem::JobArgs)
+        {
+            const auto& renderables = render_data.transparent_renderables;
+            if (!frustum)
+            {
+                sorted_transparent_indices.resize(renderables.size());
+                std::iota(sorted_transparent_indices.begin(), sorted_transparent_indices.end(), 0u);
+            }
+            else
+            {
+                sorted_transparent_indices.clear();
+                for (uint32 i = 0; i < static_cast<uint32>(renderables.size()); ++i)
+                {
+                    const auto& r = renderables[i];
+                    if (!r.aabb.IsValid() || r.aabb.IntersectFrustum(*frustum))
+                        sorted_transparent_indices.push_back(i);
+                }
+            }
+            std::sort(sorted_transparent_indices.begin(), sorted_transparent_indices.end(),
+                [&](uint32 a, uint32 b)
+                {
+                    return math::DistanceSquared(renderables[a].world_position, eye) >
+                           math::DistanceSquared(renderables[b].world_position, eye);
+                });
+        });
+
+        jobsystem::Execute(ctx, [&](jobsystem::JobArgs)
+        {
+            sorted_sprite_3d_indices.resize(render_data.sprite_3d_renderables.size());
+            std::iota(sorted_sprite_3d_indices.begin(), sorted_sprite_3d_indices.end(), 0u);
+            std::sort(sorted_sprite_3d_indices.begin(), sorted_sprite_3d_indices.end(),
+                [&](uint32 a, uint32 b)
+                {
+                    return math::DistanceSquared(render_data.sprite_3d_renderables[a].world_position, eye) >
+                           math::DistanceSquared(render_data.sprite_3d_renderables[b].world_position, eye);
+                });
+        });
+
+        jobsystem::Execute(ctx, [&](jobsystem::JobArgs)
+        {
+            sorted_sprite_2d_indices.resize(render_data.sprite_2d_renderables.size());
+            std::iota(sorted_sprite_2d_indices.begin(), sorted_sprite_2d_indices.end(), 0u);
+            std::stable_sort(sorted_sprite_2d_indices.begin(), sorted_sprite_2d_indices.end(),
+                [&](uint32 a, uint32 b)
+                {
+                    return render_data.sprite_2d_renderables[a].layer < render_data.sprite_2d_renderables[b].layer;
+                });
+        });
+
+        jobsystem::Wait(ctx);
+    }
+}

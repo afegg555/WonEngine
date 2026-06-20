@@ -69,6 +69,7 @@ namespace won::ecs
             XMStoreFloat4x4(&camera.view_projection, view_projection);
             XMStoreFloat4x4(&camera.inv_view, inv_view);
             XMStoreFloat4x4(&camera.inv_view_projection, inv_view_projection);
+            camera.frustum.FromVPMatrix(camera.view_projection);
             });
 
         jobsystem::Wait(sub_ctx);

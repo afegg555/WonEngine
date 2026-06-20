@@ -212,6 +212,7 @@ set(RUNTIME_RENDERING
     Source/Runtime/Private/Renderer.cpp
     Source/Runtime/Private/RenderingUtils.cpp
     Source/Runtime/Public/View.h
+    Source/Runtime/Private/View.cpp
 )
 
 set(RUNTIME_RENDERING_INTERNAL

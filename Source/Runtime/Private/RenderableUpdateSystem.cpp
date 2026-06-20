@@ -29,6 +29,7 @@ namespace won::ecs
         const auto material_array = scene.GetComponentArray<MaterialComponent>().get();
         const auto transform_array = scene.GetComponentArray<TransformComponent>().get();
         const auto animation_array = scene.GetComponentArray<AnimationComponent>().get();
+
         render_data.shader_instances.resize(transform_array->GetSize());
 
         render_data.opaque_renderables.clear();
@@ -80,6 +81,9 @@ namespace won::ecs
                 }
 
                 const float3 world_position = math::GetPosition(transform.world_transform);
+                const math::AABB world_aabb = geometry_comp.local_bounds.IsValid()
+                    ? geometry_comp.local_bounds.TransformAABB(transform.world_transform)
+                    : math::AABB{};
 
                 for (Size i = 0; i < geometry_comp.mesh->submeshes.size(); ++i)
                 {
@@ -101,6 +105,7 @@ namespace won::ecs
                     renderable.index_offset = mesh_render_data.indices.offset + submesh.first_index * sizeof(uint32);
                     renderable.index_count = submesh.index_count;
                     renderable.world_position = world_position;
+                    renderable.aabb = world_aabb;
                     renderable.primitive_topology = submesh.primitive_topology;
                     renderable.shader_type = material_slot.shader_type;
                     renderable.flags = Scene::RenderData::Renderable::None;

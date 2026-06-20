@@ -5,6 +5,7 @@
 #include "Sprite2DComponent.h"
 #include "Sprite3DComponent.h"
 #include "TransformComponent.h"
+#include "MathUtils.h"
 
 #include <iterator>
 
@@ -92,6 +93,7 @@ namespace won::ecs
             Scene::RenderData::Sprite3DRenderable renderable = {};
             renderable.instance_index = static_cast<uint32>(transform_array->entity_to_index[entity]);
             renderable.material_index = material.material_offset;
+            renderable.world_position = math::GetPosition(transform_array->GetData(entity).world_transform);
             renderable.size = sprite.size;
             renderable.pivot = sprite.pivot;
             renderable.uv_rect = sprite.uv_rect;
@@ -131,8 +133,5 @@ namespace won::ecs
         {
             render_data.sprite_3d_renderables.insert(render_data.sprite_3d_renderables.end(), std::make_move_iterator(bucket.sprite_3d_renderables.begin()), std::make_move_iterator(bucket.sprite_3d_renderables.end()));
         }
-        std::stable_sort(render_data.sprite_2d_renderables.begin(), render_data.sprite_2d_renderables.end(), [](const Scene::RenderData::Sprite2DRenderable& lhs, const Scene::RenderData::Sprite2DRenderable& rhs) {
-            return lhs.layer < rhs.layer;
-        });
     }
 }

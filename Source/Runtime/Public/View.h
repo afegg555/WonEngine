@@ -27,10 +27,12 @@ namespace won::rendering
     {
         ViewResizePolicy resize_policy = ViewResizePolicy::MatchWindow;
         bool update_camera_aspect = true;
+        bool enable_frustum_culling = true;
     };
 
-    struct View
+    class View
     {
+    public:
         ecs::Entity camera_entity = {};
         ecs::Scene* scene = nullptr;
         RenderPathType render_path_type = RenderPathType::Forward;
@@ -38,66 +40,15 @@ namespace won::rendering
         Rect viewport = {};
         Rect scissor = {};
 
-        void Update(float dt)
-        {
-            if (scene)
-            {
-                scene->Update(dt);
-            }
-        }
+        Vector<uint32> sorted_opaque_indices;       // front-to-back
+        Vector<uint32> sorted_transparent_indices;  // back-to-front
+        Vector<uint32> sorted_sprite_3d_indices;    // back-to-front
+        Vector<uint32> sorted_sprite_2d_indices;    // by layer
 
-        bool RayCast(float2 screen_position, ecs::RayCastHit& out_hit, bool use_local_bvh = true) const
-        {
-            out_hit = {};
-            if (!scene || viewport.width <= 0 || viewport.height <= 0)
-            {
-                return false;
-            }
+        void Update(float dt);
+        bool RayCast(float2 screen_position, ecs::RayCastHit& out_hit, bool use_local_bvh = true) const;
 
-            ecs::CameraComponent* camera = scene->GetComponent<ecs::CameraComponent>(camera_entity);
-            if (!camera)
-            {
-                return false;
-            }
-
-            const float viewport_x = static_cast<float>(viewport.x);
-            const float viewport_y = static_cast<float>(viewport.y);
-            const float viewport_width = static_cast<float>(viewport.width);
-            const float viewport_height = static_cast<float>(viewport.height);
-            if (screen_position.x < viewport_x || screen_position.y < viewport_y ||
-                screen_position.x > viewport_x + viewport_width || screen_position.y > viewport_y + viewport_height)
-            {
-                return false;
-            }
-
-            const float viewport_u = (screen_position.x - viewport_x) / viewport_width;
-            const float viewport_v = (screen_position.y - viewport_y) / viewport_height;
-            const float ndc_x = viewport_u * 2.0f - 1.0f;
-            const float ndc_y = 1.0f - viewport_v * 2.0f;
-            const XMMATRIX inv_view_projection = XMLoadFloat4x4(&camera->inv_view_projection);
-            const XMVECTOR near_position = XMVector3TransformCoord(XMVectorSet(ndc_x, ndc_y, 1.0f, 1.0f), inv_view_projection);
-            const XMVECTOR far_position = XMVector3TransformCoord(XMVectorSet(ndc_x, ndc_y, 0.0f, 1.0f), inv_view_projection);
-
-            math::Ray ray = {};
-            if (camera->IsOrtho())
-            {
-                XMStoreFloat3(&ray.origin, near_position);
-                XMStoreFloat3(&ray.direction, XMVector3Normalize(far_position - near_position));
-            }
-            else
-            {
-                ray.origin = camera->eye;
-                XMStoreFloat3(&ray.direction, XMVector3Normalize(far_position - XMLoadFloat3(&camera->eye)));
-            }
-
-            ecs::RayCastBVHHit bvh_hit = {};
-            if (!scene->RayCastBVH(ray, bvh_hit, use_local_bvh))
-            {
-                return false;
-            }
-
-            out_hit = bvh_hit.hit;
-            return true;
-        }
+    private:
+        void BuildSortedIndices();
     };
 }
