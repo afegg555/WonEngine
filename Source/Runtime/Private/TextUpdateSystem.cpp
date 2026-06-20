@@ -6,6 +6,7 @@
 #include "Text2DComponent.h"
 #include "Text3DComponent.h"
 #include "TransformComponent.h"
+#include "MathUtils.h"
 
 #include <algorithm>
 #include <iterator>
@@ -25,8 +26,8 @@ namespace won::ecs
         struct TextBucket
         {
             Vector<GlyphRequest> glyph_requests;
-            Vector<Scene::RenderData::Text2DRenderable> text_2d_renderables;
-            Vector<Scene::RenderData::Text3DRenderable> text_3d_renderables;
+            Vector<Scene::RenderData::Sprite2DRenderable> sprite_2d_renderables;
+            Vector<Scene::RenderData::Sprite3DRenderable> sprite_3d_renderables;
         };
 
         Scene::RenderData& render_data = scene.GetRenderData();
@@ -34,8 +35,6 @@ namespace won::ecs
         const auto text_3d_array = scene.GetComponentArray<Text3DComponent>().get();
         const auto transform_array = scene.GetComponentArray<TransformComponent>().get();
         const auto material_array = scene.GetComponentArray<MaterialComponent>().get();
-        render_data.text_2d_renderables.clear();
-        render_data.text_3d_renderables.clear();
         if (!material_array)
         {
             return;
@@ -148,15 +147,17 @@ namespace won::ecs
                 const float glyph_visual_x = line_x + layout.pen_x + glyph->offset.x;
                 const float baseline_y = pivot_y_offset + line_advance * static_cast<float>(layout.line_index);
                 const float glyph_top_y = baseline_y + glyph->offset.y;
-                Scene::RenderData::Text2DRenderable renderable = {};
+                Scene::RenderData::Sprite2DRenderable renderable = {};
+                renderable.flags |= Scene::RenderData::Sprite2DRenderable::Text;
                 renderable.material_index = material_array->GetData(entity).material_offset;
                 renderable.font = text.font;
                 renderable.anchor = text.anchor;
                 renderable.position = { text.position.x + glyph_visual_x, text.position.y + glyph_top_y };
                 renderable.size = glyph->size;
+                renderable.pivot = { 0.0f, 0.0f };
                 renderable.uv_rect = { glyph->uv_min.x, glyph->uv_min.y, glyph->uv_max.x, glyph->uv_max.y };
                 renderable.layer = text.layer;
-                bucket.text_2d_renderables.push_back(renderable);
+                bucket.sprite_2d_renderables.push_back(renderable);
             }
 
             text.SetDirty(false);
@@ -263,8 +264,10 @@ namespace won::ecs
                         continue;
                     }
 
-                    Scene::RenderData::Text3DRenderable renderable = {};
+                    Scene::RenderData::Sprite3DRenderable renderable = {};
+                    renderable.flags |= Scene::RenderData::Sprite3DRenderable::Text;
                     renderable.instance_index = static_cast<uint32>(transform_array->entity_to_index[entity]);
+                    renderable.world_position = math::GetPosition(transform_array->GetData(entity).world_transform);
                     if (material_array && material_array->HasData(entity) && material_array->GetData(entity).GetMaterialSlotCount() > 0)
                     {
                         renderable.material_index = material_array->GetData(entity).material_offset;
@@ -275,14 +278,14 @@ namespace won::ecs
                     const float baseline_y = pivot_y_offset - line_advance * static_cast<float>(layout.line_index);
                     const float glyph_top_y = baseline_y - glyph->offset.y * glyph_world_scale;
                     renderable.font = text.font;
-                    renderable.position = { -glyph_visual_x - glyph_size.x, glyph_top_y - glyph_size.y };
+                    renderable.pivot = { (glyph_visual_x + glyph_size.x) / glyph_size.x, (glyph_size.y - glyph_top_y) / glyph_size.y };
                     renderable.size = glyph_size;
                     renderable.uv_rect = { glyph->uv_min.x, glyph->uv_min.y, glyph->uv_max.x, glyph->uv_max.y };
                     if (text.IsBillboard())
                     {
-                        renderable.flags |= Scene::RenderData::Text3DRenderable::Billboard;
+                        renderable.flags |= Scene::RenderData::Sprite3DRenderable::Billboard;
                     }
-                    bucket.text_3d_renderables.push_back(renderable);
+                    bucket.sprite_3d_renderables.push_back(renderable);
                 }
             }
 
@@ -291,26 +294,26 @@ namespace won::ecs
         }
         jobsystem::Wait(sub_ctx);
 
-        Size text_2d_renderable_count = 0;
-        Size text_3d_renderable_count = 0;
+        Size sprite_2d_renderable_count = 0;
+        Size sprite_3d_renderable_count = 0;
         for (const TextBucket& bucket : text_2d_buckets)
         {
-            text_2d_renderable_count += bucket.text_2d_renderables.size();
+            sprite_2d_renderable_count += bucket.sprite_2d_renderables.size();
         }
         for (const TextBucket& bucket : text_3d_buckets)
         {
-            text_3d_renderable_count += bucket.text_3d_renderables.size();
+            sprite_3d_renderable_count += bucket.sprite_3d_renderables.size();
         }
 
-        render_data.text_2d_renderables.reserve(text_2d_renderable_count);
-        render_data.text_3d_renderables.reserve(text_3d_renderable_count);
+        render_data.sprite_2d_renderables.reserve(render_data.sprite_2d_renderables.size() + sprite_2d_renderable_count);
+        render_data.sprite_3d_renderables.reserve(render_data.sprite_3d_renderables.size() + sprite_3d_renderable_count);
         for (TextBucket& bucket : text_2d_buckets)
         {
-            render_data.text_2d_renderables.insert(render_data.text_2d_renderables.end(), std::make_move_iterator(bucket.text_2d_renderables.begin()), std::make_move_iterator(bucket.text_2d_renderables.end()));
+            render_data.sprite_2d_renderables.insert(render_data.sprite_2d_renderables.end(), std::make_move_iterator(bucket.sprite_2d_renderables.begin()), std::make_move_iterator(bucket.sprite_2d_renderables.end()));
         }
         for (TextBucket& bucket : text_3d_buckets)
         {
-            render_data.text_3d_renderables.insert(render_data.text_3d_renderables.end(), std::make_move_iterator(bucket.text_3d_renderables.begin()), std::make_move_iterator(bucket.text_3d_renderables.end()));
+            render_data.sprite_3d_renderables.insert(render_data.sprite_3d_renderables.end(), std::make_move_iterator(bucket.sprite_3d_renderables.begin()), std::make_move_iterator(bucket.sprite_3d_renderables.end()));
         }
 
         Vector<std::shared_ptr<resource::Font>> dirty_fonts;

@@ -1424,11 +1424,11 @@ namespace won::rendering
         shader_camera_binding.resource = shader_camera_buffer.get();
         shader_camera_binding.subresource = shader_camera_buffer_cbv;
 
-        auto draw_renderables = [&](const Scene::RenderData::Renderable* renderables, Size count, bool is_transparent)
+        auto draw_renderables = [&](const Vector<Scene::RenderData::Renderable>& renderables, const Vector<uint32>& indices, bool is_transparent)
         {
             GraphicsPipelineHash current_pipeline_hash = {};
             bool has_current_pipeline = false;
-            for (Size ri = 0; ri < count; ++ri)
+            for (uint32 ri : indices)
             {
                 const Scene::RenderData::Renderable& renderable = renderables[ri];
                 if (pass == RenderPassType::ShadowPass && !renderable.IsCastShadow())
@@ -1472,12 +1472,12 @@ namespace won::rendering
 
         if ((flags & DrawScene_Opaque) != 0 && !render_data.opaque_renderables.empty())
         {
-            draw_renderables(render_data.opaque_renderables.data(), render_data.opaque_renderables.size(), false);
+            draw_renderables(render_data.opaque_renderables, view.sorted_opaque_indices, false);
         }
 
         if ((flags & DrawScene_Transparent) != 0 && !render_data.transparent_renderables.empty())
         {
-            draw_renderables(render_data.transparent_renderables.data(), render_data.transparent_renderables.size(), true);
+            draw_renderables(render_data.transparent_renderables, view.sorted_transparent_indices, true);
         }
 
         if (draw_primitives)
@@ -1561,21 +1561,8 @@ namespace won::rendering
             }
         }
 
-        if (pass == RenderPassType::Sprite3DPass && (flags & DrawScene_3DSprite) != 0 && (!render_data.sprite_3d_renderables.empty() || !render_data.text_3d_renderables.empty()))
+        if (pass == RenderPassType::Sprite3DPass && (flags & DrawScene_3DSprite) != 0 && !render_data.sprite_3d_renderables.empty())
         {
-            struct SpriteTextDrawItem
-            {
-                enum Type : uint32
-                {
-                    Sprite,
-                    Text
-                };
-
-                Type type = Sprite;
-                Size index = 0;
-                float distance_sq = 0.0f;
-            };
-
             GraphicsPipelineHash sprite_pipeline_hash = {};
             sprite_pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::Sprite3DPass);
             sprite_pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
@@ -1599,73 +1586,25 @@ namespace won::rendering
                 return false;
             }
 
-            float3 camera_position = {};
-            if (const ecs::CameraComponent* camera_component = view.scene->GetComponent<ecs::CameraComponent>(view.camera_entity))
-            {
-                camera_position = camera_component->eye;
-            }
-
-            auto get_distance_sq = [&](uint32 instance_index, const float2& local_center)
-            {
-                if (instance_index >= render_data.shader_instances.size())
-                {
-                    return 0.0f;
-                }
-
-                float3 world_center = {};
-                const ShaderInstance& instance = render_data.shader_instances[instance_index];
-                XMVECTOR xcenter = XMVectorSet(local_center.x, local_center.y, 0.0f, 1.0f);
-                XMMATRIX xworld = XMLoadFloat4x4(&instance.world_transform);
-                XMStoreFloat3(&world_center, XMVector3Transform(xcenter, xworld));
-                const float3 to_camera = { world_center.x - camera_position.x, world_center.y - camera_position.y, world_center.z - camera_position.z };
-                return to_camera.x * to_camera.x + to_camera.y * to_camera.y + to_camera.z * to_camera.z;
-            };
-
-            Vector<SpriteTextDrawItem> draw_items;
-            if (!render_data.sprite_3d_renderables.empty())
-            {
-                draw_items.reserve(draw_items.size() + render_data.sprite_3d_renderables.size());
-                for (Size sprite_index = 0; sprite_index < render_data.sprite_3d_renderables.size(); ++sprite_index)
-                {
-                    const Scene::RenderData::Sprite3DRenderable& renderable = render_data.sprite_3d_renderables[sprite_index];
-                    const float2 local_center = { (0.5f - renderable.pivot.x) * renderable.size.x, (0.5f - renderable.pivot.y) * renderable.size.y };
-                    draw_items.push_back({ SpriteTextDrawItem::Sprite, sprite_index, get_distance_sq(renderable.instance_index, local_center) });
-                }
-            }
-            if (!render_data.text_3d_renderables.empty())
-            {
-                draw_items.reserve(draw_items.size() + render_data.text_3d_renderables.size());
-                for (Size text_index = 0; text_index < render_data.text_3d_renderables.size(); ++text_index)
-                {
-                    const Scene::RenderData::Text3DRenderable& renderable = render_data.text_3d_renderables[text_index];
-                    const float2 local_center = { renderable.position.x + renderable.size.x * 0.5f, renderable.position.y + renderable.size.y * 0.5f };
-                    draw_items.push_back({ SpriteTextDrawItem::Text, text_index, get_distance_sq(renderable.instance_index, local_center) });
-                }
-            }
-
-            std::sort(draw_items.begin(), draw_items.end(), [](const SpriteTextDrawItem& lhs, const SpriteTextDrawItem& rhs) {
-                return lhs.distance_sq > rhs.distance_sq;
-            });
-
             command_list.SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
-            SpriteTextDrawItem::Type active_type = SpriteTextDrawItem::Text;
+            bool active_is_text = false;
             bool has_active_pipeline = false;
-            for (const SpriteTextDrawItem& item : draw_items)
+            for (uint32 idx : view.sorted_sprite_3d_indices)
             {
-                if (!has_active_pipeline || active_type != item.type)
+                const Scene::RenderData::Sprite3DRenderable& renderable = render_data.sprite_3d_renderables[idx];
+                if (!has_active_pipeline || active_is_text != renderable.IsText())
                 {
-                    active_type = item.type;
+                    active_is_text = renderable.IsText();
                     has_active_pipeline = true;
-                    command_list.SetGraphicsPipeline(item.type == SpriteTextDrawItem::Sprite ? *sprite_pipeline : *text_pipeline);
+                    command_list.SetGraphicsPipeline(renderable.IsText() ? *text_pipeline : *sprite_pipeline);
                     command_list.SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
                     command_list.SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_camera_binding);
                     command_list.SetConstantBuffer(RHIShaderStage::Pixel, 0, shader_frame_binding);
                     command_list.SetConstantBuffer(RHIShaderStage::Pixel, 1, shader_camera_binding);
                 }
 
-                if (item.type == SpriteTextDrawItem::Sprite)
+                if (!renderable.IsText())
                 {
-                    const Scene::RenderData::Sprite3DRenderable& renderable = render_data.sprite_3d_renderables[item.index];
                     SpritePushConstants push_constants = {};
                     push_constants.Init();
                     push_constants.size_pivot = { renderable.size.x, renderable.size.y, renderable.pivot.x, renderable.pivot.y };
@@ -1681,7 +1620,6 @@ namespace won::rendering
                 }
                 else
                 {
-                    const Scene::RenderData::Text3DRenderable& renderable = render_data.text_3d_renderables[item.index];
                     if (!renderable.font || !utils::CreateRenderData(*device, *renderable.font) || !renderable.font->render_data.IsValid())
                     {
                         continue;
@@ -1690,39 +1628,25 @@ namespace won::rendering
                     {
                         continue;
                     }
-
-                    SpritePushConstants sprite_push_constants = {};
-                    sprite_push_constants.Init();
-                    sprite_push_constants.size_pivot = { renderable.size.x, renderable.size.y, -renderable.position.x / renderable.size.x, -renderable.position.y / renderable.size.y };
-                    sprite_push_constants.uv_rect = renderable.uv_rect;
-                    sprite_push_constants.instance_index = renderable.instance_index;
+                    SpritePushConstants push_constants = {};
+                    push_constants.Init();
+                    push_constants.size_pivot = { renderable.size.x, renderable.size.y, renderable.pivot.x, renderable.pivot.y };
+                    push_constants.uv_rect = renderable.uv_rect;
+                    push_constants.instance_index = renderable.instance_index;
                     if (renderable.IsBillboard())
                     {
-                        sprite_push_constants.flags |= SHADER_SPRITE_FLAG_BILLBOARD;
+                        push_constants.flags |= SHADER_SPRITE_FLAG_BILLBOARD;
                     }
-                    sprite_push_constants.material_index = renderable.material_index;
-                    sprite_push_constants.SetResourceIndex(static_cast<uint32>(renderable.font->render_data.atlas_srv.descriptor_index));
-                    command_list.PushConstants(RHIShaderStage::Vertex, &sprite_push_constants, sizeof(SpritePushConstants), 0);
+                    push_constants.material_index = renderable.material_index;
+                    push_constants.SetResourceIndex(static_cast<uint32>(renderable.font->render_data.atlas_srv.descriptor_index));
+                    command_list.PushConstants(RHIShaderStage::Vertex, &push_constants, sizeof(SpritePushConstants), 0);
                     command_list.Draw(6, 1, 0, 0);
                 }
             }
         }
 
-        if (pass == RenderPassType::Sprite2DPass && (flags & DrawScene_2DSprite) != 0 && (!render_data.sprite_2d_renderables.empty() || !render_data.text_2d_renderables.empty()))
+        if (pass == RenderPassType::Sprite2DPass && (flags & DrawScene_2DSprite) != 0 && !render_data.sprite_2d_renderables.empty())
         {
-            struct Sprite2DDrawItem
-            {
-                enum Type : uint32
-                {
-                    Sprite,
-                    Text
-                };
-
-                Type type = Sprite;
-                Size index = 0;
-                int32 layer = 0;
-            };
-
             GraphicsPipelineHash sprite_2d_pipeline_hash = {};
             sprite_2d_pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::Sprite2DPass);
             sprite_2d_pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
@@ -1741,22 +1665,6 @@ namespace won::rendering
                 return false;
             }
 
-            Vector<Sprite2DDrawItem> draw_items;
-            draw_items.reserve(render_data.sprite_2d_renderables.size() + render_data.text_2d_renderables.size());
-            for (Size sprite_index = 0; sprite_index < render_data.sprite_2d_renderables.size(); ++sprite_index)
-            {
-                const Scene::RenderData::Sprite2DRenderable& renderable = render_data.sprite_2d_renderables[sprite_index];
-                draw_items.push_back({ Sprite2DDrawItem::Sprite, sprite_index, renderable.layer });
-            }
-            for (Size text_index = 0; text_index < render_data.text_2d_renderables.size(); ++text_index)
-            {
-                const Scene::RenderData::Text2DRenderable& renderable = render_data.text_2d_renderables[text_index];
-                draw_items.push_back({ Sprite2DDrawItem::Text, text_index, renderable.layer });
-            }
-            std::stable_sort(draw_items.begin(), draw_items.end(), [](const Sprite2DDrawItem& lhs, const Sprite2DDrawItem& rhs) {
-                return lhs.layer < rhs.layer;
-            });
-
             const float2 viewport_size = { static_cast<float>(view.viewport.width), static_cast<float>(view.viewport.height) };
             auto pack_sprite_2d_position = [&](const float2& anchor, const float2& position)
             {
@@ -1767,24 +1675,24 @@ namespace won::rendering
             };
 
             command_list.SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
-            Sprite2DDrawItem::Type active_type = Sprite2DDrawItem::Text;
+            bool active_is_text_2d = false;
             bool has_active_pipeline = false;
-            for (const Sprite2DDrawItem& item : draw_items)
+            for (uint32 idx : view.sorted_sprite_2d_indices)
             {
-                if (!has_active_pipeline || active_type != item.type)
+                const Scene::RenderData::Sprite2DRenderable& renderable = render_data.sprite_2d_renderables[idx];
+                if (!has_active_pipeline || active_is_text_2d != renderable.IsText())
                 {
-                    active_type = item.type;
+                    active_is_text_2d = renderable.IsText();
                     has_active_pipeline = true;
-                    command_list.SetGraphicsPipeline(item.type == Sprite2DDrawItem::Sprite ? *sprite_2d_pipeline : *text_2d_pipeline);
+                    command_list.SetGraphicsPipeline(renderable.IsText() ? *text_2d_pipeline : *sprite_2d_pipeline);
                     command_list.SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
                     command_list.SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_camera_binding);
                     command_list.SetConstantBuffer(RHIShaderStage::Pixel, 0, shader_frame_binding);
                     command_list.SetConstantBuffer(RHIShaderStage::Pixel, 1, shader_camera_binding);
                 }
 
-                if (item.type == Sprite2DDrawItem::Sprite)
+                if (!renderable.IsText())
                 {
-                    const Scene::RenderData::Sprite2DRenderable& renderable = render_data.sprite_2d_renderables[item.index];
                     SpritePushConstants push_constants = {};
                     push_constants.Init();
                     push_constants.size_pivot = { renderable.size.x, renderable.size.y, renderable.pivot.x, renderable.pivot.y };
@@ -1796,7 +1704,6 @@ namespace won::rendering
                 }
                 else
                 {
-                    const Scene::RenderData::Text2DRenderable& renderable = render_data.text_2d_renderables[item.index];
                     if (!renderable.font || !utils::CreateRenderData(*device, *renderable.font) || !renderable.font->render_data.IsValid())
                     {
                         continue;
@@ -1805,10 +1712,9 @@ namespace won::rendering
                     {
                         continue;
                     }
-
                     SpritePushConstants push_constants = {};
                     push_constants.Init();
-                    push_constants.size_pivot = { renderable.size.x, renderable.size.y, 0.0f, 0.0f };
+                    push_constants.size_pivot = { renderable.size.x, renderable.size.y, renderable.pivot.x, renderable.pivot.y };
                     push_constants.uv_rect = renderable.uv_rect;
                     push_constants.instance_index = pack_sprite_2d_position(renderable.anchor, renderable.position);
                     push_constants.material_index = renderable.material_index;
@@ -2205,7 +2111,9 @@ namespace won::rendering
         {
         case RenderPathType::Forward:
         default:
-            RenderForwardPath(view);
+            {
+                RenderForwardPath(view);
+            }
             break;
         }
     }
@@ -2219,22 +2127,7 @@ namespace won::rendering
 
         FrameContext& frame_context = GetFrameContext();
 
-        Scene::RenderData render_data = view.scene->GetRenderData();
-
-		// sort transparent objects back to front
-        if (!render_data.transparent_renderables.empty())
-        {
-            const ecs::CameraComponent* camera = view.scene->GetComponent<ecs::CameraComponent>(view.camera_entity);
-            const float3 eye = camera ? camera->eye : float3{ 0.0f, 0.0f, 0.0f };
-            const XMVECTOR x_eye = XMLoadFloat3(&eye);
-            std::sort(render_data.transparent_renderables.begin(), render_data.transparent_renderables.end(),
-                [&x_eye](const Scene::RenderData::Renderable& a, const Scene::RenderData::Renderable& b)
-                {
-                    const float da = XMVectorGetX(XMVector3LengthSq(XMVectorSubtract(XMLoadFloat3(&a.world_position), x_eye)));
-                    const float db = XMVectorGetX(XMVector3LengthSq(XMVectorSubtract(XMLoadFloat3(&b.world_position), x_eye)));
-                    return da > db;
-                });
-        }
+        const Scene::RenderData& render_data = view.scene->GetRenderData();
 
         {
             auto cpu_range = profiler::ScopedRangeCPU("Create Render Resources");
@@ -2279,7 +2172,7 @@ namespace won::rendering
 
         jobsystem::Execute(GetRenderingWorkContext(), [this, view, command_list](jobsystem::JobArgs args) {
             FrameContext& frame_context = GetFrameContext();
-            const Scene::RenderData render_data = view.scene->GetRenderData();
+            const Scene::RenderData& render_data = view.scene->GetRenderData();
 
             {
                 auto cpu_range = profiler::ScopedRangeCPU("Update Scene GPU Data");

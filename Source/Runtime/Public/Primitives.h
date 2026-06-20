@@ -11,6 +11,38 @@ namespace won::math
         float3 direction = { 0.0f, 0.0f, 1.0f };
     };
 
+    struct Plane
+    {
+        float3 normal = { 0.0f, 1.0f, 0.0f };
+        float distance = 0.0f;
+    };
+
+    struct Frustum
+    {
+        std::array<Plane, 6> planes = {};
+
+		// Gribb-Hartmann method : Frusutm Extraction from View-Projection Matrix
+        void FromVPMatrix(const float4x4& vp)
+        {
+            auto make_plane = [](float nx, float ny, float nz, float d) -> Plane
+            {
+                const float len = std::sqrtf(nx * nx + ny * ny + nz * nz);
+                if (len > 0.0f)
+                {
+                    return { { nx / len, ny / len, nz / len }, d / len };
+                }
+                return { { nx, ny, nz }, d };
+            };
+
+            planes[0] = make_plane(vp._14 + vp._11, vp._24 + vp._21, vp._34 + vp._31, vp._44 + vp._41); // Left
+            planes[1] = make_plane(vp._14 - vp._11, vp._24 - vp._21, vp._34 - vp._31, vp._44 - vp._41); // Right
+            planes[2] = make_plane(vp._14 + vp._12, vp._24 + vp._22, vp._34 + vp._32, vp._44 + vp._42); // Bottom
+            planes[3] = make_plane(vp._14 - vp._12, vp._24 - vp._22, vp._34 - vp._32, vp._44 - vp._42); // Top
+            planes[4] = make_plane(vp._13,          vp._23,          vp._33,          vp._43);          // Near
+            planes[5] = make_plane(vp._14 - vp._13, vp._24 - vp._23, vp._34 - vp._33, vp._44 - vp._43); // Far
+        }
+    };
+
     struct AABB
     {
         float3 min = {};
@@ -118,6 +150,24 @@ namespace won::math
             return TransformAABB(world);
         }
 
+        inline bool IntersectFrustum(const Frustum& frustum) const
+        {
+            for (const Plane& plane : frustum.planes)
+            {
+                const float3 p = {
+                    plane.normal.x >= 0.0f ? max.x : min.x,
+                    plane.normal.y >= 0.0f ? max.y : min.y,
+                    plane.normal.z >= 0.0f ? max.z : min.z,
+                };
+                if (plane.normal.x * p.x + plane.normal.y * p.y + plane.normal.z * p.z + plane.distance < 0.0f)
+                {
+                    return false;
+                }
+            }
+            return true;
+
+        }
+
         inline bool IntersectAABB(const Ray& ray, float min_distance, float max_distance, float& out_distance) const
         {
             if (!IsValid())
@@ -164,17 +214,6 @@ namespace won::math
             out_distance = near_distance;
             return true;
         }
-    };
-
-    struct Plane
-    {
-        float3 normal = { 0.0f, 1.0f, 0.0f };
-        float distance = 0.0f;
-    };
-
-    struct Frustum
-    {
-        std::array<Plane, 6> planes = {};
     };
 
     struct Sphere

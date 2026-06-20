@@ -26,7 +26,7 @@ namespace won::ecs
 
         render_data.shader_materials.resize(material_slot_sum);
 
-        jobsystem::Dispatch(sub_ctx, (uint32_t)material_array->GetSize(), groupsize, [&](jobsystem::JobArgs args) {
+        jobsystem::Dispatch(sub_ctx, (uint32_t)material_array->GetSize(), groupsize_light, [&](jobsystem::JobArgs args) {
             const MaterialComponent& material_comp = material_array->data[args.job_index];
 
             for (size_t i = 0; i < material_comp.GetMaterialSlotCount(); ++i)

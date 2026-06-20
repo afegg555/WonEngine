@@ -35,7 +35,7 @@ namespace won::ecs
 
         render_data.shader_geometries.resize(submesh_sum);
 
-        jobsystem::Dispatch(sub_ctx, (uint32_t)geometry_array->GetSize(), groupsize, [&](jobsystem::JobArgs args) {
+        jobsystem::Dispatch(sub_ctx, (uint32_t)geometry_array->GetSize(), groupsize_light, [&](jobsystem::JobArgs args) {
             GeometryComponent& geometry_comp = geometry_array->data[args.job_index];
             if (!geometry_comp.mesh)
             {

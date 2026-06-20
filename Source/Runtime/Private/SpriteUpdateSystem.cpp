@@ -5,6 +5,7 @@
 #include "Sprite2DComponent.h"
 #include "Sprite3DComponent.h"
 #include "TransformComponent.h"
+#include "MathUtils.h"
 
 #include <iterator>
 
@@ -38,8 +39,8 @@ namespace won::ecs
         if (sprite_2d_array)
         {
             const uint32 sprite_2d_job_count = static_cast<uint32>(sprite_2d_array->GetSize());
-            sprite_2d_buckets.resize(jobsystem::DispatchGroupCount(sprite_2d_job_count, groupsize));
-            jobsystem::Dispatch(sub_ctx, sprite_2d_job_count, groupsize, [&](jobsystem::JobArgs args) {
+            sprite_2d_buckets.resize(jobsystem::DispatchGroupCount(sprite_2d_job_count, groupsize_light));
+            jobsystem::Dispatch(sub_ctx, sprite_2d_job_count, groupsize_light, [&](jobsystem::JobArgs args) {
                 SpriteBucket& bucket = sprite_2d_buckets[args.group_id];
 
                 const Entity entity = sprite_2d_array->index_to_entity[args.job_index];
@@ -71,8 +72,8 @@ namespace won::ecs
         if (sprite_3d_array && transform_array)
         {
             const uint32 sprite_3d_job_count = static_cast<uint32>(sprite_3d_array->GetSize());
-            sprite_3d_buckets.resize(jobsystem::DispatchGroupCount(sprite_3d_job_count, groupsize));
-            jobsystem::Dispatch(sub_ctx, sprite_3d_job_count, groupsize, [&](jobsystem::JobArgs args) {
+            sprite_3d_buckets.resize(jobsystem::DispatchGroupCount(sprite_3d_job_count, groupsize_light));
+            jobsystem::Dispatch(sub_ctx, sprite_3d_job_count, groupsize_light, [&](jobsystem::JobArgs args) {
             SpriteBucket& bucket = sprite_3d_buckets[args.group_id];
 
             const Entity entity = sprite_3d_array->index_to_entity[args.job_index];
@@ -92,12 +93,40 @@ namespace won::ecs
             Scene::RenderData::Sprite3DRenderable renderable = {};
             renderable.instance_index = static_cast<uint32>(transform_array->entity_to_index[entity]);
             renderable.material_index = material.material_offset;
+            renderable.world_position = math::GetPosition(transform_array->GetData(entity).world_transform);
             renderable.size = sprite.size;
             renderable.pivot = sprite.pivot;
             renderable.uv_rect = sprite.uv_rect;
             if (sprite.IsBillboard())
             {
                 renderable.flags |= Scene::RenderData::Sprite3DRenderable::Billboard;
+                const float r = std::max(sprite.size.x, sprite.size.y) * 0.5f;
+                renderable.aabb.min = { renderable.world_position.x - r, renderable.world_position.y - r, renderable.world_position.z - r };
+                renderable.aabb.max = { renderable.world_position.x + r, renderable.world_position.y + r, renderable.world_position.z + r };
+            }
+            else
+            {
+                const float lx = -sprite.pivot.x * sprite.size.x;
+                const float ly = -sprite.pivot.y * sprite.size.y;
+                const float3 local_corners[4] = {
+                    { lx,                  ly,                  0.0f },
+                    { lx + sprite.size.x,  ly,                  0.0f },
+                    { lx,                  ly + sprite.size.y,  0.0f },
+                    { lx + sprite.size.x,  ly + sprite.size.y,  0.0f },
+                };
+                const XMMATRIX world = XMLoadFloat4x4(&transform_array->GetData(entity).world_transform);
+                renderable.aabb.Invalidate();
+                for (const float3& c : local_corners)
+                {
+                    float3 wc = {};
+                    XMStoreFloat3(&wc, XMVector3TransformCoord(XMLoadFloat3(&c), world));
+                    renderable.aabb.min.x = std::min(renderable.aabb.min.x, wc.x);
+                    renderable.aabb.min.y = std::min(renderable.aabb.min.y, wc.y);
+                    renderable.aabb.min.z = std::min(renderable.aabb.min.z, wc.z);
+                    renderable.aabb.max.x = std::max(renderable.aabb.max.x, wc.x);
+                    renderable.aabb.max.y = std::max(renderable.aabb.max.y, wc.y);
+                    renderable.aabb.max.z = std::max(renderable.aabb.max.z, wc.z);
+                }
             }
             if ((material_slot.flags & SHADER_MATERIAL_FLAG_TRANSPARENT) != 0)
             {
@@ -131,8 +160,5 @@ namespace won::ecs
         {
             render_data.sprite_3d_renderables.insert(render_data.sprite_3d_renderables.end(), std::make_move_iterator(bucket.sprite_3d_renderables.begin()), std::make_move_iterator(bucket.sprite_3d_renderables.end()));
         }
-        std::stable_sort(render_data.sprite_2d_renderables.begin(), render_data.sprite_2d_renderables.end(), [](const Scene::RenderData::Sprite2DRenderable& lhs, const Scene::RenderData::Sprite2DRenderable& rhs) {
-            return lhs.layer < rhs.layer;
-        });
     }
 }

@@ -1,6 +1,7 @@
 #pragma once
 #include "Types.h"
 #include "MathUtils.h"
+#include "Primitives.h"
 #include "ShaderInterop_Renderer.h"
 
 namespace won::ecs
@@ -25,6 +26,7 @@ namespace won::ecs
         float4x4 inv_view, inv_projection, inv_view_projection;
         float3 corners_np[4]; // top-left, top-right, bottom-left, bottom-right
         float3 corners_fp[4];
+        math::Frustum frustum;
 
         float near_plane = 0.1f;
         float far_plane = 1000.f;

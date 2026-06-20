@@ -27,7 +27,7 @@ namespace won::ecs
         jobsystem::Context sub_ctx;
         std::atomic<uint32> total_bone_count{ 0 };
 
-        jobsystem::Dispatch(sub_ctx, (uint32)animation_array->GetSize(), jobsystem::groupsize, [&](jobsystem::JobArgs args) {
+        jobsystem::Dispatch(sub_ctx, (uint32)animation_array->GetSize(), jobsystem::groupsize_heavy, [&](jobsystem::JobArgs args) {
             const Entity entity = animation_array->index_to_entity[args.job_index];
             AnimationComponent& animation = animation_array->data[args.job_index];
             animation.bone_matrix_offset = 0;
@@ -76,7 +76,7 @@ namespace won::ecs
 
         render_data.shader_bone_matrices.resize(static_cast<Size>(final_bone_count) * 4);
 
-        jobsystem::Dispatch(sub_ctx, (uint32)animation_array->GetSize(), jobsystem::groupsize, [&](jobsystem::JobArgs args) {
+        jobsystem::Dispatch(sub_ctx, (uint32)animation_array->GetSize(), jobsystem::groupsize_heavy, [&](jobsystem::JobArgs args) {
             const Entity entity = animation_array->index_to_entity[args.job_index];
             AnimationComponent& animation = animation_array->data[args.job_index];
             if (!geometry_array->HasData(entity))

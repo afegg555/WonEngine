@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "ComponentManager.h"
 #include "Entity.h"
 #include "System.h"
@@ -994,6 +994,7 @@ namespace won::ecs
                 ObjectPushConstants push_constants;
                 std::shared_ptr<rendering::RHIResource> index_buffer;
                 float3 world_position = {};
+                math::AABB aabb = {};
                 uint32 index_offset = 0;
                 uint32 index_count = 0;
                 uint32 flags = None;
@@ -1029,71 +1030,46 @@ namespace won::ecs
             {
                 enum Flags : uint32
                 {
-                    None = 0,
-                    Billboard = 1 << 0,
-                    Transparent = 1 << 1,
+                    None        = 0,
+                    Text        = 1 << 0,
+                    Billboard   = 1 << 1,
+                    Transparent = 1 << 2,
                 };
 
                 uint32 instance_index = 0;
                 uint32 material_index = 0;
+                float3 world_position = {};
+                math::AABB aabb = {};
                 float2 size = { 1.0f, 1.0f };
                 float2 pivot = { 0.5f, 0.5f };
                 float4 uv_rect = { 0.0f, 0.0f, 1.0f, 1.0f };
                 uint32 flags = None;
+                std::shared_ptr<resource::Font> font;
 
-                bool IsBillboard() const
-                {
-                    return (flags & Billboard) != 0;
-                }
-
-                bool IsTransparent() const
-                {
-                    return (flags & Transparent) != 0;
-                }
+                bool IsText()        const { return (flags & Text) != 0; }
+                bool IsBillboard()   const { return (flags & Billboard) != 0; }
+                bool IsTransparent() const { return (flags & Transparent) != 0; }
             };
 
             struct Sprite2DRenderable
             {
+                enum Flags : uint32
+                {
+                    None = 0,
+                    Text = 1 << 0,
+                };
+
                 uint32 material_index = 0;
                 float2 anchor = { 0.0f, 0.0f };
                 float2 position = { 0.0f, 0.0f };
                 float2 size = { 1.0f, 1.0f };
                 float2 pivot = { 0.5f, 0.5f };
                 float4 uv_rect = { 0.0f, 0.0f, 1.0f, 1.0f };
-                int32 layer = 0;
-            };
-
-            struct Text3DRenderable
-            {
-                enum Flags : uint32
-                {
-                    None = 0,
-                    Billboard = 1 << 0,
-                };
-
-                uint32 instance_index = 0;
-                uint32 material_index = 0;
-                std::shared_ptr<resource::Font> font;
-                float2 position = { 0.0f, 0.0f };
-                float2 size = { 0.0f, 0.0f };
-                float4 uv_rect = { 0.0f, 0.0f, 0.0f, 0.0f };
+                int32  layer = 0;
                 uint32 flags = None;
-
-                bool IsBillboard() const
-                {
-                    return (flags & Billboard) != 0;
-                }
-            };
-
-            struct Text2DRenderable
-            {
-                uint32 material_index = 0;
                 std::shared_ptr<resource::Font> font;
-                float2 anchor = { 0.0f, 0.0f };
-                float2 position = { 0.0f, 0.0f };
-                float2 size = { 0.0f, 0.0f };
-                float4 uv_rect = { 0.0f, 0.0f, 0.0f, 0.0f };
-                int32 layer = 0;
+
+                bool IsText() const { return (flags & Text) != 0; }
             };
 
             ShaderSky shader_sky;
@@ -1111,9 +1087,7 @@ namespace won::ecs
             Vector<Renderable> line_renderables;
             Vector<Renderable> point_renderables;
             Vector<Sprite2DRenderable> sprite_2d_renderables;
-            Vector<Text2DRenderable> text_2d_renderables;
             Vector<Sprite3DRenderable> sprite_3d_renderables;
-            Vector<Text3DRenderable> text_3d_renderables;
 
             Vector<ShaderLight> shader_lights; // all lights
             Vector<ShaderShadowCascade> shader_shadow_cascades; // lights with shadow map
@@ -1137,9 +1111,7 @@ namespace won::ecs
                 line_renderables.clear();
                 point_renderables.clear();
                 sprite_2d_renderables.clear();
-                text_2d_renderables.clear();
                 sprite_3d_renderables.clear();
-                text_3d_renderables.clear();
 
                 shader_lights.clear();
                 shader_shadow_cascades.clear();
@@ -1155,6 +1127,11 @@ namespace won::ecs
         };
 
         RenderData& GetRenderData()
+        {
+            return render_data;
+        }
+
+        const RenderData& GetRenderData() const
         {
             return render_data;
         }

@@ -62,7 +62,7 @@ namespace won::ecs
         }
 
         jobsystem::Context ctx;
-        jobsystem::Dispatch(ctx, (uint32_t)audio_source_array->GetSize(), jobsystem::groupsize, [&](jobsystem::JobArgs args)
+        jobsystem::Dispatch(ctx, (uint32_t)audio_source_array->GetSize(), jobsystem::groupsize_light, [&](jobsystem::JobArgs args)
         {
             const Entity entity = audio_source_array->index_to_entity[args.job_index];
             AudioSourceComponent& source = audio_source_array->data[args.job_index];
