@@ -2,9 +2,6 @@
 
 #include "MathUtils.h"
 #include "Scene.h"
-#include "TransformComponent.h"
-#include "HierarchyComponent.h"
-#include "GeometryComponent.h"
 #include "JobSystem.h"
 #include <mutex>
 

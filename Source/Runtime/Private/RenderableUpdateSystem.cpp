@@ -2,10 +2,6 @@
 
 #include "Scene.h"
 #include "JobSystem.h"
-#include "TransformComponent.h"
-#include "GeometryComponent.h"
-#include "MaterialComponent.h"
-#include "AnimationComponent.h"
 #include "MathUtils.h"
 
 #include <iterator>

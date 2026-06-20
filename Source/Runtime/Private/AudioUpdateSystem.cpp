@@ -1,7 +1,4 @@
 #include "AudioUpdateSystem.h"
-#include "AudioSourceComponent.h"
-#include "AudioListenerComponent.h"
-#include "TransformComponent.h"
 #include "Scene.h"
 #include "Sound.h"
 #include "JobSystem.h"

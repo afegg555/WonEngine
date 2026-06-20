@@ -1,7 +1,5 @@
 #include "AnimationUpdateSystem.h"
 
-#include "AnimationComponent.h"
-#include "GeometryComponent.h"
 #include "JobSystem.h"
 #include "MathUtils.h"
 #include "Mesh.h"

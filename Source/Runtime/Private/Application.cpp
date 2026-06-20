@@ -80,8 +80,29 @@ namespace won
         renderer_desc.vsync_enabled = project_settings.vsync_enabled;
         renderer = rendering::CreateRenderer(renderer_desc);
 
+        audio_mixer = std::make_unique<won::audio::AudioMixer>(desc.audio.sample_rate, desc.audio.channel_count);
+        audio_driver = won::audio::CreateAudioDriver();
+        if (audio_driver)
+        {
+            if (audio_driver->Start(desc.audio, won::audio::AudioMixer::StaticMixCallback, audio_mixer.get()))
+            {
+                // sample rate and channel count may be adjusted by the driver internally
+                audio_mixer->SetFormat(audio_driver->GetSampleRate(), audio_driver->GetChannelCount());
+                backlog::Post("[Audio] driver started: " + std::to_string(audio_driver->GetSampleRate()) + "Hz, " + std::to_string(audio_driver->GetChannelCount()) + "ch");
+            }
+            else
+            {
+                backlog::Post("[Audio] driver failed to start", backlog::LogLevel::Error);
+            }
+        }
+        else
+        {
+            backlog::Post("[Audio] no audio driver available", backlog::LogLevel::Error);
+        }
+
         script::ScriptRuntimeDesc script_desc = {};
         script_desc.game_data = &game_data;
+        script_desc.audio_mixer = audio_mixer.get();
         script_runtime = script::CreateScriptRuntime(script_desc);
         if (script_runtime && !script_runtime->Initialize())
         {
@@ -123,26 +144,6 @@ namespace won
             {
                 backlog::Post("[GameData] no save found, using defaults: " + save_file, backlog::LogLevel::Default);
             }
-        }
-
-        audio_mixer = std::make_unique<won::audio::AudioMixer>(desc.audio.sample_rate, desc.audio.channel_count);
-        audio_driver = won::audio::CreateAudioDriver();
-        if (audio_driver)
-        {
-            if (audio_driver->Start(desc.audio, won::audio::AudioMixer::StaticMixCallback, audio_mixer.get()))
-            {
-                // sample rate and channel count may be adjusted by the driver internally
-                audio_mixer->SetFormat(audio_driver->GetSampleRate(), audio_driver->GetChannelCount());
-                backlog::Post("[Audio] driver started: " + std::to_string(audio_driver->GetSampleRate()) + "Hz, " + std::to_string(audio_driver->GetChannelCount()) + "ch");
-            }
-            else
-            {
-                backlog::Post("[Audio] driver failed to start", backlog::LogLevel::Error);
-            }
-        }
-        else
-        {
-            backlog::Post("[Audio] no audio driver available", backlog::LogLevel::Error);
         }
 
         frame_timer.Reset();
