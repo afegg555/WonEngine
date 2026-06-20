@@ -100,6 +100,9 @@ namespace won::ecs
             if (sprite.IsBillboard())
             {
                 renderable.flags |= Scene::RenderData::Sprite3DRenderable::Billboard;
+                const float r = std::max(sprite.size.x, sprite.size.y) * 0.5f;
+                renderable.aabb.min = { renderable.world_position.x - r, renderable.world_position.y - r, renderable.world_position.z - r };
+                renderable.aabb.max = { renderable.world_position.x + r, renderable.world_position.y + r, renderable.world_position.z + r };
             }
             if ((material_slot.flags & SHADER_MATERIAL_FLAG_TRANSPARENT) != 0)
             {

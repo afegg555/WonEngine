@@ -137,24 +137,59 @@ namespace won::rendering
 
         jobsystem::Execute(ctx, [&](jobsystem::JobArgs)
         {
-            sorted_sprite_3d_indices.resize(render_data.sprite_3d_renderables.size());
-            std::iota(sorted_sprite_3d_indices.begin(), sorted_sprite_3d_indices.end(), 0u);
+            const auto& renderables = render_data.sprite_3d_renderables;
+            if (!frustum)
+            {
+                sorted_sprite_3d_indices.resize(renderables.size());
+                std::iota(sorted_sprite_3d_indices.begin(), sorted_sprite_3d_indices.end(), 0u);
+            }
+            else
+            {
+                sorted_sprite_3d_indices.clear();
+                for (uint32 i = 0; i < static_cast<uint32>(renderables.size()); ++i)
+                {
+                    const auto& r = renderables[i];
+                    if (!r.aabb.IsValid() || r.aabb.IntersectFrustum(*frustum))
+                        sorted_sprite_3d_indices.push_back(i);
+                }
+            }
             std::sort(sorted_sprite_3d_indices.begin(), sorted_sprite_3d_indices.end(),
                 [&](uint32 a, uint32 b)
                 {
-                    return math::DistanceSquared(render_data.sprite_3d_renderables[a].world_position, eye) >
-                           math::DistanceSquared(render_data.sprite_3d_renderables[b].world_position, eye);
+                    return math::DistanceSquared(renderables[a].world_position, eye) >
+                           math::DistanceSquared(renderables[b].world_position, eye);
                 });
         });
 
         jobsystem::Execute(ctx, [&](jobsystem::JobArgs)
         {
-            sorted_sprite_2d_indices.resize(render_data.sprite_2d_renderables.size());
-            std::iota(sorted_sprite_2d_indices.begin(), sorted_sprite_2d_indices.end(), 0u);
+            const auto& renderables = render_data.sprite_2d_renderables;
+            if (!options.enable_viewport_culling)
+            {
+                sorted_sprite_2d_indices.resize(renderables.size());
+                std::iota(sorted_sprite_2d_indices.begin(), sorted_sprite_2d_indices.end(), 0u);
+            }
+            else
+            {
+                const float vp_w = static_cast<float>(viewport.width);
+                const float vp_h = static_cast<float>(viewport.height);
+                sorted_sprite_2d_indices.clear();
+                for (uint32 i = 0; i < static_cast<uint32>(renderables.size()); ++i)
+                {
+                    const auto& r = renderables[i];
+                    const float px = r.anchor.x * vp_w + r.position.x;
+                    const float py = r.anchor.y * vp_h + r.position.y;
+                    const float l = px - r.pivot.x * r.size.x;
+                    const float t = py - r.pivot.y * r.size.y;
+                    if (l > vp_w || l + r.size.x < 0.0f || t > vp_h || t + r.size.y < 0.0f)
+                        continue;
+                    sorted_sprite_2d_indices.push_back(i);
+                }
+            }
             std::stable_sort(sorted_sprite_2d_indices.begin(), sorted_sprite_2d_indices.end(),
                 [&](uint32 a, uint32 b)
                 {
-                    return render_data.sprite_2d_renderables[a].layer < render_data.sprite_2d_renderables[b].layer;
+                    return renderables[a].layer < renderables[b].layer;
                 });
         });
 

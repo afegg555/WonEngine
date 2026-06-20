@@ -1039,6 +1039,7 @@ namespace won::ecs
                 uint32 instance_index = 0;
                 uint32 material_index = 0;
                 float3 world_position = {};
+                math::AABB aabb = {};
                 float2 size = { 1.0f, 1.0f };
                 float2 pivot = { 0.5f, 0.5f };
                 float4 uv_rect = { 0.0f, 0.0f, 1.0f, 1.0f };
