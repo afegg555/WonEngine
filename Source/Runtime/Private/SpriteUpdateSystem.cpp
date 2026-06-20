@@ -104,6 +104,30 @@ namespace won::ecs
                 renderable.aabb.min = { renderable.world_position.x - r, renderable.world_position.y - r, renderable.world_position.z - r };
                 renderable.aabb.max = { renderable.world_position.x + r, renderable.world_position.y + r, renderable.world_position.z + r };
             }
+            else
+            {
+                const float lx = -sprite.pivot.x * sprite.size.x;
+                const float ly = -sprite.pivot.y * sprite.size.y;
+                const float3 local_corners[4] = {
+                    { lx,                  ly,                  0.0f },
+                    { lx + sprite.size.x,  ly,                  0.0f },
+                    { lx,                  ly + sprite.size.y,  0.0f },
+                    { lx + sprite.size.x,  ly + sprite.size.y,  0.0f },
+                };
+                const XMMATRIX world = XMLoadFloat4x4(&transform_array->GetData(entity).world_transform);
+                renderable.aabb.Invalidate();
+                for (const float3& c : local_corners)
+                {
+                    float3 wc = {};
+                    XMStoreFloat3(&wc, XMVector3TransformCoord(XMLoadFloat3(&c), world));
+                    renderable.aabb.min.x = std::min(renderable.aabb.min.x, wc.x);
+                    renderable.aabb.min.y = std::min(renderable.aabb.min.y, wc.y);
+                    renderable.aabb.min.z = std::min(renderable.aabb.min.z, wc.z);
+                    renderable.aabb.max.x = std::max(renderable.aabb.max.x, wc.x);
+                    renderable.aabb.max.y = std::max(renderable.aabb.max.y, wc.y);
+                    renderable.aabb.max.z = std::max(renderable.aabb.max.z, wc.z);
+                }
+            }
             if ((material_slot.flags & SHADER_MATERIAL_FLAG_TRANSPARENT) != 0)
             {
                 renderable.flags |= Scene::RenderData::Sprite3DRenderable::Transparent;
