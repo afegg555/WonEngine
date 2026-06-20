@@ -39,8 +39,8 @@ namespace won::ecs
         if (sprite_2d_array)
         {
             const uint32 sprite_2d_job_count = static_cast<uint32>(sprite_2d_array->GetSize());
-            sprite_2d_buckets.resize(jobsystem::DispatchGroupCount(sprite_2d_job_count, groupsize));
-            jobsystem::Dispatch(sub_ctx, sprite_2d_job_count, groupsize, [&](jobsystem::JobArgs args) {
+            sprite_2d_buckets.resize(jobsystem::DispatchGroupCount(sprite_2d_job_count, groupsize_light));
+            jobsystem::Dispatch(sub_ctx, sprite_2d_job_count, groupsize_light, [&](jobsystem::JobArgs args) {
                 SpriteBucket& bucket = sprite_2d_buckets[args.group_id];
 
                 const Entity entity = sprite_2d_array->index_to_entity[args.job_index];
@@ -72,8 +72,8 @@ namespace won::ecs
         if (sprite_3d_array && transform_array)
         {
             const uint32 sprite_3d_job_count = static_cast<uint32>(sprite_3d_array->GetSize());
-            sprite_3d_buckets.resize(jobsystem::DispatchGroupCount(sprite_3d_job_count, groupsize));
-            jobsystem::Dispatch(sub_ctx, sprite_3d_job_count, groupsize, [&](jobsystem::JobArgs args) {
+            sprite_3d_buckets.resize(jobsystem::DispatchGroupCount(sprite_3d_job_count, groupsize_light));
+            jobsystem::Dispatch(sub_ctx, sprite_3d_job_count, groupsize_light, [&](jobsystem::JobArgs args) {
             SpriteBucket& bucket = sprite_3d_buckets[args.group_id];
 
             const Entity entity = sprite_3d_array->index_to_entity[args.job_index];

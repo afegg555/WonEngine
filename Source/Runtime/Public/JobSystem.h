@@ -8,7 +8,10 @@
 
 namespace won::jobsystem
 {
-    static constexpr uint32_t groupsize = 256u;
+    static constexpr uint32_t groupsize_heavy  =  32u; // expensive per-item work (bone matrix, physics)
+    static constexpr uint32_t groupsize_medium = 128u; // moderate per-item work (transform, geometry)
+    static constexpr uint32_t groupsize_light  = 512u; // cheap per-item work (sprite, material, light)
+    static constexpr uint32_t groupsize        = groupsize_medium; // default
 
     WONENGINE_API void Initialize(uint32 max_thread_count = ~0u);
     WONENGINE_API void ShutDown();

@@ -25,7 +25,7 @@ namespace won::ecs
         }
 
         jobsystem::Context sub_ctx;
-        jobsystem::Dispatch(sub_ctx, (uint32_t)collider_array->GetSize(), jobsystem::groupsize, [&](jobsystem::JobArgs args)
+        jobsystem::Dispatch(sub_ctx, (uint32_t)collider_array->GetSize(), jobsystem::groupsize_heavy, [&](jobsystem::JobArgs args)
         {
             const Entity entity = collider_array->index_to_entity[args.job_index];
 
@@ -53,7 +53,7 @@ namespace won::ecs
         physics_world->Step(delta_time);
 
         jobsystem::Context post_ctx;
-        jobsystem::Dispatch(post_ctx, (uint32_t)collider_array->GetSize(), jobsystem::groupsize, [&](jobsystem::JobArgs args)
+        jobsystem::Dispatch(post_ctx, (uint32_t)collider_array->GetSize(), jobsystem::groupsize_heavy, [&](jobsystem::JobArgs args)
         {
             const Entity entity = collider_array->index_to_entity[args.job_index];
             Collider3DComponent& collider = collider_array->data[args.job_index];

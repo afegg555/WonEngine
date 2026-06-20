@@ -15,7 +15,7 @@ namespace won::ecs
         auto camera_array = scene.GetComponentArray<CameraComponent>().get();
         auto transform_array = scene.GetComponentArray<TransformComponent>().get();
 
-        jobsystem::Dispatch(sub_ctx, (uint32_t)camera_array->GetSize(), groupsize, [&](jobsystem::JobArgs args) {
+        jobsystem::Dispatch(sub_ctx, (uint32_t)camera_array->GetSize(), groupsize_light, [&](jobsystem::JobArgs args) {
             CameraComponent& camera = camera_array->data[args.job_index];
             Entity entity = camera_array->index_to_entity[args.job_index];
 
