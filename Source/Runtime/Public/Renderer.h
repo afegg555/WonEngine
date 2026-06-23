@@ -93,6 +93,9 @@ namespace won::rendering
     {
         RendererDebugDDGIState ddgi = {};
         RendererDebugBVHState bvh = {};
+
+        uint32 draw_call_count = 0;
+        uint32 renderable_count = 0;
     };
 
     constexpr RHIFormat RENDERTARGET_BUFFER_FORMAT = RHIFormat::R8G8B8A8Unorm;

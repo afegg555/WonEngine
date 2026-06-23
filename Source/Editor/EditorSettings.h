@@ -23,6 +23,7 @@ namespace won::editor
         bool viewport_show_ddgi_volume = true;
         bool viewport_show_ddgi_probes = true;
         bool viewport_show_ddgi_text = true;
+        bool viewport_show_renderer_stats = false;
         int viewport_ddgi_max_probe_draw_count = 4096;
         float camera_speed = 5.0f;
         String last_scene_path;
@@ -96,6 +97,10 @@ namespace won::editor
         {
             settings.viewport_show_ddgi_text = bool_value;
         }
+        if (configuration.GetBool("editor.viewport.show_renderer_stats", bool_value))
+        {
+            settings.viewport_show_renderer_stats = bool_value;
+        }
         if (configuration.GetInt("editor.viewport.ddgi_max_probe_draw_count", int_value))
         {
             settings.viewport_ddgi_max_probe_draw_count = int_value;
@@ -129,6 +134,7 @@ namespace won::editor
         configuration.SetBool("editor.viewport.show_ddgi_volume", settings.viewport_show_ddgi_volume);
         configuration.SetBool("editor.viewport.show_ddgi_probes", settings.viewport_show_ddgi_probes);
         configuration.SetBool("editor.viewport.show_ddgi_text", settings.viewport_show_ddgi_text);
+        configuration.SetBool("editor.viewport.show_renderer_stats", settings.viewport_show_renderer_stats);
         configuration.SetInt("editor.viewport.ddgi_max_probe_draw_count", settings.viewport_ddgi_max_probe_draw_count);
         configuration.SetFloat("editor.camera.speed", settings.camera_speed);
         configuration.SetString("editor.scene.last_path", settings.last_scene_path.c_str());

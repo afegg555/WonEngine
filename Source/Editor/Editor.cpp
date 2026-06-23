@@ -117,6 +117,7 @@ namespace won::editor
 			constexpr const char* bvh_debug = "BVH Debug";
 			constexpr const char* cpu_bvh_nodes = "CPU BVH Nodes";
 			constexpr const char* gpu_bvh_nodes = "GPU BVH Nodes";
+			constexpr const char* renderer_stats = "Renderer Stats";
 			constexpr const char* ddgi_debug_overlay = "DDGI Debug Overlay";
 			constexpr const char* ddgi_volume = "DDGI Volume";
 			constexpr const char* ddgi_probes = "DDGI Probes";
@@ -2040,6 +2041,7 @@ namespace won::editor
 		editor_viewport.debug_settings.show_ddgi_volume = editor_settings.viewport_show_ddgi_volume;
 		editor_viewport.debug_settings.show_ddgi_probes = editor_settings.viewport_show_ddgi_probes;
 		editor_viewport.debug_settings.show_ddgi_text = editor_settings.viewport_show_ddgi_text;
+		editor_viewport.debug_settings.show_renderer_stats = editor_settings.viewport_show_renderer_stats;
 		editor_viewport.debug_settings.ddgi_max_probe_draw_count = (std::max)(1, editor_settings.viewport_ddgi_max_probe_draw_count);
 		editor_camera_speed = (std::max)(0.1f, editor_settings.camera_speed);
 	}
@@ -2059,6 +2061,7 @@ namespace won::editor
 		editor_settings.viewport_show_ddgi_volume = editor_viewport.debug_settings.show_ddgi_volume;
 		editor_settings.viewport_show_ddgi_probes = editor_viewport.debug_settings.show_ddgi_probes;
 		editor_settings.viewport_show_ddgi_text = editor_viewport.debug_settings.show_ddgi_text;
+		editor_settings.viewport_show_renderer_stats = editor_viewport.debug_settings.show_renderer_stats;
 		editor_settings.viewport_ddgi_max_probe_draw_count = editor_viewport.debug_settings.ddgi_max_probe_draw_count;
 		editor_settings.camera_speed = editor_camera_speed;
 		if (!current_scene_path.empty())
@@ -3212,6 +3215,7 @@ namespace won::editor
 				}
 
 				ImGui::Separator();
+				ImGui::Checkbox(editor_text::renderer_stats, &editor_viewport.debug_settings.show_renderer_stats);
 				ImGui::Checkbox(editor_text::editor_grid, &editor_viewport.debug_settings.show_grid);
 				ImGui::Checkbox(editor_text::collider_3d, &editor_viewport.debug_settings.show_colliders);
 				ImGui::Separator();
@@ -3280,6 +3284,29 @@ namespace won::editor
 						editor_viewport.debug_settings.show_ddgi_text,
 						editor_viewport.debug_settings.ddgi_max_probe_draw_count);
 				}
+			}
+
+			if (renderer && editor_viewport.debug_settings.show_renderer_stats)
+			{
+				const rendering::RendererDebugState stats = renderer->GetDebugState();
+				ImGui::SetNextWindowPos(
+					ImVec2(viewport_pos.x + 8.0f, viewport_pos.y + viewport_size.y - 8.0f),
+					ImGuiCond_Always, ImVec2(0.0f, 1.0f));
+				ImGui::SetNextWindowBgAlpha(0.5f);
+				constexpr ImGuiWindowFlags overlay_flags =
+					ImGuiWindowFlags_NoDecoration |
+					ImGuiWindowFlags_NoDocking |
+					ImGuiWindowFlags_AlwaysAutoResize |
+					ImGuiWindowFlags_NoSavedSettings |
+					ImGuiWindowFlags_NoFocusOnAppearing |
+					ImGuiWindowFlags_NoNav |
+					ImGuiWindowFlags_NoMove;
+				if (ImGui::Begin("##renderer_stats", nullptr, overlay_flags))
+				{
+					ImGui::Text("Draw Calls : %u", stats.draw_call_count);
+					ImGui::Text("Renderables: %u", stats.renderable_count);
+				}
+				ImGui::End();
 			}
 		}
 		ImGui::End();

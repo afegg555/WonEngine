@@ -1491,6 +1491,11 @@ namespace won::rendering
         {
             if (!draw_wireframe)
                 depth_compare = RHICompareOp::Equal;
+            debug_state.draw_call_count = 0;
+            debug_state.renderable_count =
+                static_cast<uint32>(render_data.opaque_renderables.size() + render_data.transparent_renderables.size()
+                + render_data.sprite_3d_renderables.size() + render_data.sprite_2d_renderables.size()
+                + render_data.line_renderables.size() + render_data.point_renderables.size());
         }
 
         GraphicsPipelineHash pipeline_hash = {};
@@ -1519,6 +1524,8 @@ namespace won::rendering
             command_list.SetPrimitiveTopology(ToRHIPrimitiveTopology(first.primitive_topology));
             command_list.PushConstants(RHIShaderStage::Vertex, &push, sizeof(ObjectPushConstants), 0);
             command_list.DrawIndexed(first.index_count, size, 0, 0, 0);
+            if (pass == RenderPassType::MainPass)
+                ++debug_state.draw_call_count;
         };
 
         if ((flags & DrawScene_Opaque) != 0 && !render_data.opaque_renderables.empty())
@@ -1627,6 +1634,8 @@ namespace won::rendering
                 command_list.SetPrimitiveTopology(ToRHIPrimitiveTopology(renderable.primitive_topology));
                 command_list.PushConstants(RHIShaderStage::Vertex, &push, sizeof(ObjectPushConstants), 0);
                 command_list.DrawIndexed(renderable.index_count, 1, 0, 0, 0);
+                if (pass == RenderPassType::MainPass)
+                    ++debug_state.draw_call_count;
             }
         }
 
@@ -1668,6 +1677,7 @@ namespace won::rendering
                     command_list.SetPrimitiveTopology(ToRHIPrimitiveTopology(renderable.primitive_topology));
                     command_list.PushConstants(RHIShaderStage::Vertex, &renderable.push_constants, sizeof(ObjectPushConstants), 0);
                     command_list.DrawIndexed(renderable.index_count, 1, 0, 0, 0);
+                    ++debug_state.draw_call_count;
                 }
             }
 
@@ -1707,6 +1717,7 @@ namespace won::rendering
                     command_list.SetPrimitiveTopology(ToRHIPrimitiveTopology(renderable.primitive_topology));
                     command_list.PushConstants(RHIShaderStage::Vertex, &renderable.push_constants, sizeof(ObjectPushConstants), 0);
                     command_list.DrawIndexed(renderable.index_count, 1, 0, 0, 0);
+                    ++debug_state.draw_call_count;
                 }
             }
         }
@@ -1767,6 +1778,7 @@ namespace won::rendering
                     }
                     command_list.PushConstants(RHIShaderStage::Vertex, &push_constants, sizeof(SpritePushConstants), 0);
                     command_list.Draw(6, 1, 0, 0);
+                    ++debug_state.draw_call_count;
                 }
                 else
                 {
@@ -1791,6 +1803,7 @@ namespace won::rendering
                     push_constants.SetResourceIndex(static_cast<uint32>(renderable.font->render_data.atlas_srv.descriptor_index));
                     command_list.PushConstants(RHIShaderStage::Vertex, &push_constants, sizeof(SpritePushConstants), 0);
                     command_list.Draw(6, 1, 0, 0);
+                    ++debug_state.draw_call_count;
                 }
             }
         }
@@ -1851,6 +1864,7 @@ namespace won::rendering
                     push_constants.material_index = renderable.material_index;
                     command_list.PushConstants(RHIShaderStage::Vertex, &push_constants, sizeof(SpritePushConstants), 0);
                     command_list.Draw(6, 1, 0, 0);
+                    ++debug_state.draw_call_count;
                 }
                 else
                 {
@@ -1871,6 +1885,7 @@ namespace won::rendering
                     push_constants.SetResourceIndex(static_cast<uint32>(renderable.font->render_data.atlas_srv.descriptor_index));
                     command_list.PushConstants(RHIShaderStage::Vertex, &push_constants, sizeof(SpritePushConstants), 0);
                     command_list.Draw(6, 1, 0, 0);
+                    ++debug_state.draw_call_count;
                 }
             }
         }
