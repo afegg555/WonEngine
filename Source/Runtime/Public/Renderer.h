@@ -276,6 +276,7 @@ namespace won::rendering
             std::mutex deferred_res_removal_mutex;
             std::shared_ptr<RHIFence> fence;
             std::shared_ptr<RHIResource> shader_instance_upload_buffer;
+            std::shared_ptr<RHIResource> shader_instance_sort_upload_buffer;
             std::shared_ptr<RHIResource> shader_geometry_upload_buffer;
             std::shared_ptr<RHIResource> shader_material_upload_buffer;
             std::shared_ptr<RHIResource> shader_light_upload_buffer;

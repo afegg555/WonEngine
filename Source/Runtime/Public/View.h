@@ -41,7 +41,7 @@ namespace won::rendering
         Rect viewport = {};
         Rect scissor = {};
 
-        Vector<uint32> sorted_opaque_indices;       // front-to-back
+        Vector<uint32> sorted_opaque_indices;       // batch-key order
         Vector<uint32> sorted_transparent_indices;  // back-to-front
         Vector<uint32> sorted_sprite_3d_indices;    // back-to-front
         Vector<uint32> sorted_sprite_2d_indices;    // by layer

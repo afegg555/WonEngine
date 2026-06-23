@@ -95,7 +95,7 @@ namespace won::ecs
                     push_constants.Init();
                     push_constants.geometry_index = geometry_comp.geometry_offset + (uint)i;
                     push_constants.material_index = material_comp.material_offset + submesh.material_slot;
-                    push_constants.instance_index = (uint)transform_array->entity_to_index[entity];
+                    push_constants.draw_offset = (uint)args.job_index;
 
                     renderable.index_buffer = mesh_render_data.buffer;
                     renderable.index_offset = mesh_render_data.indices.offset + submesh.first_index * sizeof(uint32);

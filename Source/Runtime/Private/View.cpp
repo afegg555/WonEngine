@@ -104,8 +104,17 @@ namespace won::rendering
             std::sort(sorted_opaque_indices.begin(), sorted_opaque_indices.end(),
                 [&](uint32 a, uint32 b)
                 {
-                    return math::DistanceSquared(renderables[a].world_position, eye) <
-                           math::DistanceSquared(renderables[b].world_position, eye);
+                    const auto& ra = renderables[a];
+                    const auto& rb = renderables[b];
+                    if (ra.push_constants.geometry_index != rb.push_constants.geometry_index)
+                        return ra.push_constants.geometry_index < rb.push_constants.geometry_index;
+                    if (ra.push_constants.material_index != rb.push_constants.material_index)
+                        return ra.push_constants.material_index < rb.push_constants.material_index;
+                    if (ra.shader_type != rb.shader_type)
+                        return ra.shader_type < rb.shader_type;
+                    if (ra.IsDoubleSided() != rb.IsDoubleSided())
+                        return ra.IsDoubleSided() < rb.IsDoubleSided();
+                    return ra.primitive_topology < rb.primitive_topology;
                 });
         });
 

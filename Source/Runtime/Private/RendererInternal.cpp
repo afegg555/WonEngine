@@ -568,7 +568,7 @@ namespace won::rendering
         return true;
     }
 
-    bool RendererInternal::UpdateSceneGPUData(FrameContext& frame_context, const Scene::RenderData& render_data, RHICommandList& command_list)
+    bool RendererInternal::UpdateSceneGPUData(FrameContext& frame_context, const Scene::RenderData& render_data, const View& view, RHICommandList& command_list)
     {
         const Vector<ShaderInstance>& shader_instances = render_data.shader_instances;
         const Vector<ShaderGeometry>& shader_geometries = render_data.shader_geometries;
@@ -723,6 +723,88 @@ namespace won::rendering
             command_list.TransitionResource(*shader_instance_default_buffer, RHIResourceState::CopyDest);
             command_list.CopyResource(*shader_instance_default_buffer, *frame_context.shader_instance_upload_buffer);
             command_list.TransitionResource(*shader_instance_default_buffer, RHIResourceState::ShaderRead);
+        }
+
+        {
+            const auto& opaque = render_data.opaque_renderables;
+            const auto& transparent = render_data.transparent_renderables;
+            const uint32 opaque_count = static_cast<uint32>(view.sorted_opaque_indices.size());
+            const uint32 transparent_count = static_cast<uint32>(view.sorted_transparent_indices.size());
+            const Size required_sort_buffer_size = (opaque_count + transparent_count) * sizeof(uint32);
+
+            if (required_sort_buffer_size == 0)
+            {
+                frame_context.shader_instance_sort_upload_buffer = nullptr;
+                frame_context.RemoveResourceDeferred(shader_instance_sort_default_buffer);
+                shader_instance_sort_default_buffer_srv = {};
+            }
+            else
+            {
+                Size current_default_size = shader_instance_sort_default_buffer
+                    ? shader_instance_sort_default_buffer->GetDesc().buffer_desc.size : 0;
+
+                if (!shader_instance_sort_default_buffer || current_default_size < required_sort_buffer_size)
+                {
+                    frame_context.RemoveResourceDeferred(shader_instance_sort_default_buffer);
+                    RHIBufferDesc desc = {};
+                    desc.size = required_sort_buffer_size;
+                    desc.usage = RHIResourceUsage::Default;
+                    desc.bind_flags = RHIBindFlags::ShaderResource;
+                    shader_instance_sort_default_buffer = device->CreateBuffer(desc);
+                    if (!shader_instance_sort_default_buffer)
+                    {
+                        backlog::Post("failed to create shader instance sort default buffer", backlog::LogLevel::Error);
+                        return false;
+                    }
+                    shader_instance_sort_default_buffer->SetName("Shader Instance Sort Default Buffer");
+
+                    shader_instance_sort_default_buffer_srv = {};
+                    RHISubresourceDesc srv_desc = {};
+                    srv_desc.type = RHISubresourceType::ShaderResource;
+                    srv_desc.buffer_offset = 0;
+                    srv_desc.buffer_size = required_sort_buffer_size;
+                    srv_desc.buffer_stride = sizeof(uint32);
+                    if (!device->CreateSubresource(*shader_instance_sort_default_buffer, srv_desc, &shader_instance_sort_default_buffer_srv))
+                    {
+                        backlog::Post("failed to create shader instance sort subresource", backlog::LogLevel::Error);
+                        shader_instance_sort_default_buffer = nullptr;
+                        return false;
+                    }
+                }
+
+                Size current_upload_size = frame_context.shader_instance_sort_upload_buffer
+                    ? frame_context.shader_instance_sort_upload_buffer->GetDesc().buffer_desc.size : 0;
+
+                if (!frame_context.shader_instance_sort_upload_buffer || current_upload_size < required_sort_buffer_size)
+                {
+                    RHIBufferDesc upload_desc = {};
+                    upload_desc.size = required_sort_buffer_size;
+                    upload_desc.usage = RHIResourceUsage::Upload;
+                    upload_desc.bind_flags = RHIBindFlags::None;
+                    frame_context.shader_instance_sort_upload_buffer = device->CreateBuffer(upload_desc);
+                    if (!frame_context.shader_instance_sort_upload_buffer)
+                    {
+                        backlog::Post("failed to create shader instance sort upload buffer", backlog::LogLevel::Error);
+                        return false;
+                    }
+                    frame_context.shader_instance_sort_upload_buffer->SetName("Shader Instance Sort Upload Buffer");
+                }
+
+                uint32* mapped = static_cast<uint32*>(frame_context.shader_instance_sort_upload_buffer->GetMappedData());
+                if (!mapped)
+                {
+                    backlog::Post("failed to access mapped instance sort upload buffer", backlog::LogLevel::Error);
+                    return false;
+                }
+                for (uint32 i = 0; i < opaque_count; ++i)
+                    mapped[i] = opaque[view.sorted_opaque_indices[i]].push_constants.draw_offset;
+                for (uint32 i = 0; i < transparent_count; ++i)
+                    mapped[opaque_count + i] = transparent[view.sorted_transparent_indices[i]].push_constants.draw_offset;
+
+                command_list.TransitionResource(*shader_instance_sort_default_buffer, RHIResourceState::CopyDest);
+                command_list.CopyResource(*shader_instance_sort_default_buffer, *frame_context.shader_instance_sort_upload_buffer);
+                command_list.TransitionResource(*shader_instance_sort_default_buffer, RHIResourceState::ShaderRead);
+            }
         }
 
         if (required_geometry_buffer_size == 0)
@@ -1118,6 +1200,7 @@ namespace won::rendering
         shader_frame.scene.bvh_instance_buffer = shader_bvh_instance_default_buffer_srv.descriptor_index;
         shader_frame.scene.bvh_node_count = static_cast<uint32>(render_data.shader_bvh_nodes.size());
         shader_frame.scene.bvh_instance_count = static_cast<uint32>(render_data.shader_bvh_instances.size());
+        shader_frame.scene.instance_sort_buffer = shader_instance_sort_default_buffer_srv.descriptor_index;
         shader_frame.sky = render_data.shader_sky;
         shader_frame.environment_lighting = render_data.shader_environment_lighting;
         shader_frame.ddgi_volume = render_data.shader_ddgi_volume;
@@ -1404,9 +1487,10 @@ namespace won::rendering
         RHICompareOp depth_compare = RHICompareOp::GreaterEqual;
         const bool draw_wireframe = pass == RenderPassType::MainPass && debug_options.wireframe_enable;
         const bool draw_primitives = pass == RenderPassType::MainPass && (flags & DrawScene_Primitive) != 0;
-        if (pass == RenderPassType::MainPass && !draw_wireframe)
+        if (pass == RenderPassType::MainPass)
         {
-            depth_compare = RHICompareOp::Equal;
+            if (!draw_wireframe)
+                depth_compare = RHICompareOp::Equal;
         }
 
         GraphicsPipelineHash pipeline_hash = {};
@@ -1424,63 +1508,129 @@ namespace won::rendering
         shader_camera_binding.resource = shader_camera_buffer.get();
         shader_camera_binding.subresource = shader_camera_buffer_cbv;
 
-        auto draw_renderables = [&](const Vector<Scene::RenderData::Renderable>& renderables, const Vector<uint32>& indices, bool is_transparent)
+        auto flush_batch = [&](const Vector<Scene::RenderData::Renderable>& renderables, const Vector<uint32>& sort_indices, uint32 start, uint32 size)
         {
-            GraphicsPipelineHash current_pipeline_hash = {};
-            bool has_current_pipeline = false;
-            for (uint32 ri : indices)
+            if (size == 0)
+                return;
+            const auto& first = renderables[sort_indices[start]];
+            ObjectPushConstants push = first.push_constants;
+            push.draw_offset = start; // starting offset of sort_indices
+            command_list.SetIndexBuffer(*first.index_buffer, sizeof(uint32), first.index_offset, first.index_count * sizeof(uint32));
+            command_list.SetPrimitiveTopology(ToRHIPrimitiveTopology(first.primitive_topology));
+            command_list.PushConstants(RHIShaderStage::Vertex, &push, sizeof(ObjectPushConstants), 0);
+            command_list.DrawIndexed(first.index_count, size, 0, 0, 0);
+        };
+
+        if ((flags & DrawScene_Opaque) != 0 && !render_data.opaque_renderables.empty())
+        {
+            uint32 batch_geometry_index = 0;
+            uint32 batch_material_index = 0;
+            uint32 batch_start = 0;
+            uint32 batch_size = 0;
+            GraphicsPipelineHash current_hash = {};
+            bool has_pipeline = false;
+
+            for (uint32 i = 0; i < static_cast<uint32>(view.sorted_opaque_indices.size()); ++i)
             {
-                const Scene::RenderData::Renderable& renderable = renderables[ri];
+                const Scene::RenderData::Renderable& renderable = render_data.opaque_renderables[view.sorted_opaque_indices[i]];
+
                 if (pass == RenderPassType::ShadowPass && !renderable.IsCastShadow())
                 {
+                    flush_batch(render_data.opaque_renderables, view.sorted_opaque_indices, batch_start, batch_size);
+                    batch_size = 0;
                     continue;
                 }
-                // TODO: reduce pso switch
-                GraphicsPipelineHash renderable_pipeline_hash = pipeline_hash;
-                renderable_pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(
+
+                const bool can_extend = batch_size > 0
+                    && renderable.push_constants.geometry_index == batch_geometry_index
+                    && renderable.push_constants.material_index == batch_material_index;
+
+                if (!can_extend)
+                {
+                    flush_batch(render_data.opaque_renderables, view.sorted_opaque_indices, batch_start, batch_size);
+                    batch_size = 0;
+
+                    GraphicsPipelineHash renderable_hash = pipeline_hash;
+                    renderable_hash.storage.bits.cull_mode = static_cast<uint64>(
+                        renderable.IsDoubleSided() ? RHICullMode::None : RHICullMode::Back);
+                    if (pass == RenderPassType::MainPass)
+                        renderable_hash.storage.bits.shader_type = draw_wireframe ? SHADER_MATERIAL_TYPE_UNLIT : renderable.shader_type;
+
+                    if (!has_pipeline || !(current_hash == renderable_hash))
+                    {
+                        std::shared_ptr<RHIPipeline> pipeline = shader_library.GetPipeline(renderable_hash);
+                        if (!pipeline)
+                            continue;
+                        command_list.SetGraphicsPipeline(*pipeline);
+                        command_list.SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
+                        command_list.SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_camera_binding);
+                        command_list.SetConstantBuffer(RHIShaderStage::Pixel, 0, shader_frame_binding);
+                        command_list.SetConstantBuffer(RHIShaderStage::Pixel, 1, shader_camera_binding);
+                        current_hash = renderable_hash;
+                        has_pipeline = true;
+                    }
+
+                    batch_geometry_index = renderable.push_constants.geometry_index;
+                    batch_material_index = renderable.push_constants.material_index;
+                    batch_start = i;
+                    batch_size = 1;
+                }
+                else
+                {
+                    ++batch_size;
+                }
+            }
+            flush_batch(render_data.opaque_renderables, view.sorted_opaque_indices, batch_start, batch_size);
+        }
+
+        if ((flags & DrawScene_Transparent) != 0 && !render_data.transparent_renderables.empty())
+        {
+            const uint32 sort_buffer_base = static_cast<uint32>(view.sorted_opaque_indices.size());
+
+            GraphicsPipelineHash current_hash = {};
+            bool has_pipeline = false;
+
+            for (uint32 i = 0; i < static_cast<uint32>(view.sorted_transparent_indices.size()); ++i)
+            {
+                const Scene::RenderData::Renderable& renderable = render_data.transparent_renderables[view.sorted_transparent_indices[i]];
+
+                if (pass == RenderPassType::ShadowPass && !renderable.IsCastShadow())
+                    continue;
+
+                GraphicsPipelineHash renderable_hash = pipeline_hash;
+                renderable_hash.storage.bits.cull_mode = static_cast<uint64>(
                     renderable.IsDoubleSided() ? RHICullMode::None : RHICullMode::Back);
                 if (pass == RenderPassType::MainPass)
                 {
-                    renderable_pipeline_hash.storage.bits.shader_type = draw_wireframe ? SHADER_MATERIAL_TYPE_UNLIT : renderable.shader_type;
-                    if (is_transparent)
-                    {
-                        renderable_pipeline_hash.storage.bits.blend = 1;
-                        renderable_pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
-                    }
+                    renderable_hash.storage.bits.shader_type = draw_wireframe ? SHADER_MATERIAL_TYPE_UNLIT : renderable.shader_type;
+                    renderable_hash.storage.bits.blend = 1;
+                    renderable_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
                 }
-                if (!has_current_pipeline || !(current_pipeline_hash == renderable_pipeline_hash))
+
+                if (!has_pipeline || !(current_hash == renderable_hash))
                 {
-                    std::shared_ptr<RHIPipeline> pipeline = shader_library.GetPipeline(renderable_pipeline_hash);
+                    std::shared_ptr<RHIPipeline> pipeline = shader_library.GetPipeline(renderable_hash);
                     if (!pipeline)
-                    {
                         continue;
-                    }
                     command_list.SetGraphicsPipeline(*pipeline);
                     command_list.SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
                     command_list.SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_camera_binding);
                     command_list.SetConstantBuffer(RHIShaderStage::Pixel, 0, shader_frame_binding);
                     command_list.SetConstantBuffer(RHIShaderStage::Pixel, 1, shader_camera_binding);
-                    current_pipeline_hash = renderable_pipeline_hash;
-                    has_current_pipeline = true;
+                    current_hash = renderable_hash;
+                    has_pipeline = true;
                 }
+
+                ObjectPushConstants push = renderable.push_constants;
+                push.draw_offset = sort_buffer_base + i;
                 command_list.SetIndexBuffer(*renderable.index_buffer, sizeof(uint32), renderable.index_offset, renderable.index_count * sizeof(uint32));
                 command_list.SetPrimitiveTopology(ToRHIPrimitiveTopology(renderable.primitive_topology));
-                command_list.PushConstants(RHIShaderStage::Vertex, &renderable.push_constants, sizeof(ObjectPushConstants), 0);
+                command_list.PushConstants(RHIShaderStage::Vertex, &push, sizeof(ObjectPushConstants), 0);
                 command_list.DrawIndexed(renderable.index_count, 1, 0, 0, 0);
             }
-        };
-
-        if ((flags & DrawScene_Opaque) != 0 && !render_data.opaque_renderables.empty())
-        {
-            draw_renderables(render_data.opaque_renderables, view.sorted_opaque_indices, false);
         }
 
-        if ((flags & DrawScene_Transparent) != 0 && !render_data.transparent_renderables.empty())
-        {
-            draw_renderables(render_data.transparent_renderables, view.sorted_transparent_indices, true);
-        }
-
-        if (draw_primitives)
+		if (draw_primitives) // line, point
         {
             GraphicsPipelineHash line_pipeline_hash = pipeline_hash;
             line_pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::LineList);
@@ -2177,7 +2327,7 @@ namespace won::rendering
             {
                 auto cpu_range = profiler::ScopedRangeCPU("Update Scene GPU Data");
                 auto gpu_range = profiler::ScopedRangeGPU("Update Scene GPU Data", *command_list);
-                if (!UpdateSceneGPUData(frame_context, render_data, *command_list))
+                if (!UpdateSceneGPUData(frame_context, render_data, view, *command_list))
                 {
                     return;
                 }
