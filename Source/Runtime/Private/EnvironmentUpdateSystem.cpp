@@ -18,11 +18,14 @@ namespace won::ecs
         auto sky_array = scene.GetComponentArray<SkyComponent>().get();
         auto transform_array = scene.GetComponentArray<TransformComponent>().get();
 
-        if (sky_array && sky_array->GetSize() > 0)
+        if (sky_array)
         {
-            SkyComponent& sky = sky_array->data[0]; // force to use first element
-            if (sky.IsActive())
+            for (Size i = 0; i < sky_array->GetSize(); ++i)
             {
+                SkyComponent& sky = sky_array->data[i];
+                if (!sky.IsActive())
+                    continue;
+
                 render_data.shader_sky.flags = sky.flags;
                 render_data.shader_sky.SetSunDirection(sky.sun_direction);
                 render_data.shader_sky.SetSunColorIntensity(sky.sun_color, sky.sun_intensity);
@@ -31,20 +34,25 @@ namespace won::ecs
                 render_data.shader_sky.SetSkyZenithColorFalloff(sky.sky_zenith_color, sky.sky_horizon_falloff);
                 render_data.shader_sky.SetGroundHorizonColorIntensity(sky.ground_horizon_color, sky.ground_intensity);
                 render_data.shader_sky.SetGroundColorFalloff(sky.ground_color, sky.ground_falloff);
+                break;
             }
         }
 
         auto env_lighting_array = scene.GetComponentArray<EnvironmentLightingComponent>().get();
 
-        if (env_lighting_array && env_lighting_array->GetSize() > 0)
+        if (env_lighting_array)
         {
-            EnvironmentLightingComponent& env_lighting = env_lighting_array->data[0]; // force to use first element
-            if (env_lighting.IsActive())
+            for (Size i = 0; i < env_lighting_array->GetSize(); ++i)
             {
+                EnvironmentLightingComponent& env_lighting = env_lighting_array->data[i];
+                if (!env_lighting.IsActive())
+                    continue;
+
                 render_data.shader_environment_lighting.flags = SHADER_ENVIRONMENT_LIGHTING_FLAG_ACTIVE;
                 render_data.shader_environment_lighting.gi_mode = static_cast<uint32>(env_lighting.gi_mode);
                 render_data.shader_environment_lighting.SetAmbientColorIntensity(env_lighting.ambient_color, env_lighting.ambient_intensity);
                 render_data.shader_environment_lighting.SetIndirectScale(env_lighting.indirect_diffuse_scale, env_lighting.indirect_specular_scale);
+                break;
             }
         }
 
