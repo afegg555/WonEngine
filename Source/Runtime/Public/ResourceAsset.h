@@ -50,8 +50,11 @@ namespace won::resource
     WONENGINE_API bool SaveTextureBinary(const String& path, uint32 width, uint32 height, uint32 mip_levels, rendering::RHIFormat format, const Vector<uint8>& pixels);
     WONENGINE_API std::shared_ptr<Image> LoadTextureBinary(const String& path);
 
-    WONENGINE_API bool SaveMaterialBinary(const String& path, const Vector<ecs::MaterialSlot>& slots);
-    WONENGINE_API bool LoadMaterialBinary(const String& path, Vector<ecs::MaterialSlot>& out_slots);
+    WONENGINE_API bool SaveMaterialBinary(const String& path, const Vector<MaterialSlot>& slots);
+    // Saves the material and registers this exact instance as the path's cache entry, so subsequent
+    // loads of the same path share it (keeping its already-resolved GPU texture handles).
+    WONENGINE_API bool SaveMaterialBinary(const String& path, const std::shared_ptr<Material>& material);
+    WONENGINE_API std::shared_ptr<Material> LoadMaterialBinary(const String& path);
 
     WONENGINE_API void LoadSceneResources(ecs::Scene& scene, rendering::RHIDevice& device, const String& content_root);
 }

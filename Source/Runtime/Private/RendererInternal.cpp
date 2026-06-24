@@ -1492,9 +1492,13 @@ namespace won::rendering
             if (!draw_wireframe)
                 depth_compare = RHICompareOp::Equal;
             debug_state.draw_call_count = 0;
-            debug_state.renderable_count =
+            debug_state.total_renderable_count =
                 static_cast<uint32>(render_data.opaque_renderables.size() + render_data.transparent_renderables.size()
                 + render_data.sprite_3d_renderables.size() + render_data.sprite_2d_renderables.size()
+                + render_data.line_renderables.size() + render_data.point_renderables.size());
+            debug_state.visible_renderable_count =
+                static_cast<uint32>(view.sorted_opaque_indices.size() + view.sorted_transparent_indices.size()
+                + view.sorted_sprite_3d_indices.size() + view.sorted_sprite_2d_indices.size()
                 + render_data.line_renderables.size() + render_data.point_renderables.size());
         }
 

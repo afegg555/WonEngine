@@ -8,6 +8,8 @@
 #include "Mesh.h"
 #include "MaterialComponent.h"
 
+using namespace won::rendering;
+
 #define EDITOR_USE_CUSTOM_TITLEBAR
 
 namespace won::ecs

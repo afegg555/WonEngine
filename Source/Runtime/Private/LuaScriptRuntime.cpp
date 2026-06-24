@@ -609,11 +609,12 @@ namespace won::script
             return 1;
         }
 
-        ecs::MaterialSlot& material_slot = material->GetMaterialSlot(slot_index);
+        resource::MaterialSlot& material_slot = material->GetMaterialSlot(slot_index);
         material_slot.base_color.x = static_cast<float>(luaL_checknumber(state, value_index));
         material_slot.base_color.y = static_cast<float>(luaL_checknumber(state, value_index + 1));
         material_slot.base_color.z = static_cast<float>(luaL_checknumber(state, value_index + 2));
         material_slot.base_color.w = static_cast<float>(luaL_optnumber(state, value_index + 3, 1.0));
+        material->SetDirty();
         lua_pushboolean(state, true);
         return 1;
     }
@@ -901,6 +902,28 @@ namespace won::script
 
         const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
         runtime->current_context.scene->AddComponent<ecs::MaterialComponent>(entity);
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaMaterialFork(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        ecs::MaterialComponent* material = runtime->current_context.scene->GetComponent<ecs::MaterialComponent>(entity);
+        if (!material)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        material->ForkMaterial();
         lua_pushboolean(state, true);
         return 1;
     }
@@ -1468,6 +1491,9 @@ namespace won::script
         lua_pushlightuserdata(lua_state, this);
         lua_pushcclosure(lua_state, LuaMaterialSetBaseColor, 1);
         lua_setfield(lua_state, -2, "set_base_color");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaMaterialFork, 1);
+        lua_setfield(lua_state, -2, "fork");
         lua_setfield(lua_state, -2, "material");
 
         lua_newtable(lua_state);

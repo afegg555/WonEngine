@@ -15,6 +15,7 @@
 #include "StringUtils.h"
 #include <cstring>
 #include <fstream>
+#include <mutex>
 
 namespace won::resource
 {
@@ -22,6 +23,7 @@ namespace won::resource
     {
         constexpr uint32 mesh_binary_version = 1;
         constexpr uint32 mesh_binary_magic = 0x48534D57; // WMSH
+        constexpr uint32 material_binary_version = 1;
         constexpr uint32 dds_magic = 0x20534444; // DDS
         constexpr uint32 dds_fourcc_dx10 = 0x30315844; // DX10
         constexpr uint32 dds_resource_dimension_texture2d = 3;
@@ -249,6 +251,15 @@ namespace won::resource
                 }
             }
         }
+
+        std::mutex mesh_cache_mutex;
+        UnorderedMap<String, std::weak_ptr<Mesh>> mesh_cache;
+
+        std::mutex texture_cache_mutex;
+        UnorderedMap<String, std::weak_ptr<Image>> texture_cache;
+
+        std::mutex material_cache_mutex;
+        UnorderedMap<String, std::weak_ptr<Material>> material_cache;
     }
 
     String GetAssetMetaPath(const String& source_path)
@@ -371,6 +382,20 @@ namespace won::resource
             return nullptr;
         }
 
+        const String key = io::GetAbsolutePath(path);
+
+        {
+            std::lock_guard<std::mutex> lock(mesh_cache_mutex);
+            auto it = mesh_cache.find(key);
+            if (it != mesh_cache.end())
+            {
+                if (auto existing = it->second.lock())
+                {
+                    return existing;
+                }
+            }
+        }
+
         serialize::BinaryArchive archive(path, serialize::ArchiveMode::Read);
         uint32 magic = 0;
         uint32 version = 0;
@@ -393,7 +418,23 @@ namespace won::resource
         SerializeSubmeshes(archive, mesh->submeshes);
         SerializeSkeleton(archive, mesh->skeleton);
         SerializeAnimationClips(archive, mesh->animation_clips);
-        return mesh->IsValid() ? mesh : nullptr;
+        if (!mesh->IsValid())
+        {
+            return nullptr;
+        }
+
+        {
+            std::lock_guard<std::mutex> lock(mesh_cache_mutex);
+            auto it = mesh_cache.find(key);
+            if (it != mesh_cache.end())
+            {
+                if (auto existing = it->second.lock())
+                    return existing;
+            }
+            mesh_cache[key] = mesh;
+        }
+
+        return mesh;
     }
 
     bool SaveTextureBinary(const String& path, uint32 width, uint32 height, uint32 mip_levels, rendering::RHIFormat format, const Vector<uint8>& pixels)
@@ -457,6 +498,20 @@ namespace won::resource
             return nullptr;
         }
 
+        const String key = io::GetAbsolutePath(path);
+
+        {
+            std::lock_guard<std::mutex> lock(texture_cache_mutex);
+            auto it = texture_cache.find(key);
+            if (it != texture_cache.end())
+            {
+                if (auto existing = it->second.lock())
+                {
+                    return existing;
+                }
+            }
+        }
+
         std::ifstream stream(path, std::ios::binary | std::ios::ate);
         if (!stream)
         {
@@ -506,14 +561,26 @@ namespace won::resource
         image->format = format;
         image->pixels.resize(payload_size);
         stream.read(reinterpret_cast<char*>(image->pixels.data()), static_cast<std::streamsize>(image->pixels.size()));
-        if (!stream)
+        if (!stream || !image->IsValid())
         {
             return nullptr;
         }
-        return image->IsValid() ? image : nullptr;
+
+        {
+            std::lock_guard<std::mutex> lock(texture_cache_mutex);
+            auto it = texture_cache.find(key);
+            if (it != texture_cache.end())
+            {
+                if (auto existing = it->second.lock())
+                    return existing;
+            }
+            texture_cache[key] = image;
+        }
+
+        return image;
     }
 
-    bool SaveMaterialBinary(const String& path, const Vector<ecs::MaterialSlot>& slots)
+    bool SaveMaterialBinary(const String& path, const Vector<MaterialSlot>& slots)
     {
         if (path.empty())
         {
@@ -522,8 +589,10 @@ namespace won::resource
 
         serialize::JsonArchive archive(serialize::ArchiveMode::Write);
         archive.BeginObject();
+        uint32 version = material_binary_version;
+        archive.Field("version", version);
         archive.BeginArray("material_slots");
-        for (const ecs::MaterialSlot& slot : slots)
+        for (const MaterialSlot& slot : slots)
         {
             archive.BeginItem();
             archive.BeginObject();
@@ -552,20 +621,59 @@ namespace won::resource
         return !archive.HasError() && archive.SaveToFile(path);
     }
 
-    bool LoadMaterialBinary(const String& path, Vector<ecs::MaterialSlot>& out_slots)
+    bool SaveMaterialBinary(const String& path, const std::shared_ptr<Material>& material)
+    {
+        if (!material || !SaveMaterialBinary(path, material->slots))
+        {
+            return false;
+        }
+
+        // Register the just-written instance as the canonical cache entry for this path.
+        // file == instance is guaranteed, and the live GPU texture handles are preserved.
+        const String key = io::GetAbsolutePath(path);
+        std::lock_guard<std::mutex> lock(material_cache_mutex);
+        material_cache[key] = material;
+        return true;
+    }
+
+    std::shared_ptr<Material> LoadMaterialBinary(const String& path)
     {
         if (path.empty())
         {
-            return false;
+            return nullptr;
+        }
+
+        const String key = io::GetAbsolutePath(path);
+
+        {
+            std::lock_guard<std::mutex> lock(material_cache_mutex);
+            auto it = material_cache.find(key);
+            if (it != material_cache.end())
+            {
+                if (auto existing = it->second.lock())
+                {
+                    return existing;
+                }
+            }
         }
 
         serialize::JsonArchive archive(serialize::ArchiveMode::Read);
         if (!archive.LoadFromFile(path) || !archive.BeginObject())
         {
-            return false;
+            return nullptr;
         }
 
-        out_slots.clear();
+        // Missing version (legacy files written before versioning) reads as 0 and is treated as the
+        // current format; only a newer-than-known version is rejected.
+        uint32 version = 0;
+        archive.Field("version", version);
+        if (version > material_binary_version)
+        {
+            backlog::Post("[LoadMaterialBinary] unsupported material version " + std::to_string(version) + ": " + path, backlog::LogLevel::Warning);
+            return nullptr;
+        }
+
+        auto material = std::make_shared<Material>();
         if (archive.BeginArray("material_slots"))
         {
             const Size count = archive.GetArraySize();
@@ -577,7 +685,7 @@ namespace won::resource
                 }
                 if (archive.BeginObject())
                 {
-                    ecs::MaterialSlot slot = {};
+                    MaterialSlot slot = {};
                     archive.Field("flags", slot.flags);
                     archive.Field("shader_type", slot.shader_type);
                     archive.Field("base_color", slot.base_color);
@@ -599,7 +707,7 @@ namespace won::resource
                         archive.EndArray();
                     }
                     archive.EndObject();
-                    out_slots.push_back(std::move(slot));
+                    material->slots.push_back(std::move(slot));
                 }
                 archive.EndItem();
             }
@@ -607,7 +715,23 @@ namespace won::resource
         }
 
         archive.EndObject();
-        return !archive.HasError();
+        if (archive.HasError() || !material->IsValid())
+        {
+            return nullptr;
+        }
+
+        {
+            std::lock_guard<std::mutex> lock(material_cache_mutex);
+            auto it = material_cache.find(key);
+            if (it != material_cache.end())
+            {
+                if (auto existing = it->second.lock())
+                    return existing;
+            }
+            material_cache[key] = material;
+        }
+
+        return material;
     }
 
     void LoadSceneResources(ecs::Scene& scene, rendering::RHIDevice& device, const String& content_root)
@@ -648,12 +772,27 @@ namespace won::resource
 
         if (auto material_array = scene.GetComponentArray<ecs::MaterialComponent>())
         {
-            // flatten texture maps for index-based dispatch
-            struct TextureJob { ecs::MaterialSlot::TextureMap* map; uint32 slot; };
+            // load shared material resources by path first
+            const uint32 material_count = static_cast<uint32>(material_array->GetSize());
+            jobsystem::Dispatch(ctx, material_count, 1, [material_array, &content_root](jobsystem::JobArgs args)
+            {
+                ecs::MaterialComponent& material_comp = material_array->data[args.job_index];
+                if (material_comp.material_asset_path.empty())
+                    return;
+                material_comp.SetMaterial(LoadMaterialBinary(project::ResolveProjectContentPath(content_root, material_comp.material_asset_path)));
+            });
+            jobsystem::Wait(ctx);
+
+            // flatten texture maps from unique materials for index-based dispatch
+            struct TextureJob { MaterialSlot::TextureMap* map; uint32 slot; };
             Vector<TextureJob> texture_jobs;
+            UnorderedSet<Material*> seen_materials;
             for (Size i = 0; i < material_array->GetSize(); ++i)
             {
-                for (ecs::MaterialSlot& material_slot : material_array->data[i].material_slots)
+                Material* material = material_array->data[i].material.get();
+                if (!material || !seen_materials.insert(material).second)
+                    continue;
+                for (MaterialSlot& material_slot : material->slots)
                 {
                     for (uint32 s = 0; s < static_cast<uint32>(TEXTURESLOT_COUNT); ++s)
                     {

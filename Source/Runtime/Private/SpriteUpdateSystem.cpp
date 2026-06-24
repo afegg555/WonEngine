@@ -53,7 +53,7 @@ namespace won::ecs
                 }
 
                 Scene::RenderData::Sprite2DRenderable renderable = {};
-                renderable.material_index = material.material_offset;
+                renderable.material_index = material.material->material_offset;
                 renderable.anchor = sprite.anchor;
                 renderable.position = sprite.position;
                 renderable.size = sprite.size;
@@ -84,11 +84,11 @@ namespace won::ecs
             {
                 return;
             }
-            const MaterialSlot& material_slot = material.material_slots[0];
+            const resource::MaterialSlot& material_slot = material.material->slots[0];
 
             Scene::RenderData::Sprite3DRenderable renderable = {};
             renderable.instance_index = static_cast<uint32>(transform_array->entity_to_index[entity]);
-            renderable.material_index = material.material_offset;
+            renderable.material_index = material.material->material_offset;
             renderable.world_position = math::GetPosition(transform_array->GetData(entity).world_transform);
             renderable.size = sprite.size;
             renderable.pivot = sprite.pivot;

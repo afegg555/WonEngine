@@ -60,7 +60,7 @@ struct COMInitializer
             String name;
             uint64 timestamp = 0;
             std::shared_ptr<resource::Mesh> mesh;
-            Vector<ecs::MaterialSlot> materials;
+            Vector<resource::MaterialSlot> materials;
             Vector<TextureData> textures;
             Vector<EmbeddedTexture> embedded_textures;
         };
@@ -378,7 +378,7 @@ struct COMInitializer
             {
                 const aiMaterial* ai_mat = aiscene->mMaterials[i];
                 const uint32 material_index = static_cast<uint32>(asset_data.materials.size());
-                ecs::MaterialSlot& slot = asset_data.materials.emplace_back();
+                resource::MaterialSlot& slot = asset_data.materials.emplace_back();
                 aiColor4D c;
                 float v = 0.f;
 
@@ -836,7 +836,7 @@ struct COMInitializer
             }
 
             // Copy material slots so texture paths can be filled in without modifying the original
-            Vector<ecs::MaterialSlot> material_slots = data.materials;
+            Vector<resource::MaterialSlot> material_slots = data.materials;
             if (material_slots.empty())
             {
                 material_slots.emplace_back();

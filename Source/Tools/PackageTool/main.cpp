@@ -249,6 +249,7 @@ int main(int argc, char** argv)
         {
             won::resource::scene_file_extension,
             won::resource::mesh_binary_extension,
+            won::resource::material_binary_extension,
             won::resource::texture_binary_extension,
             won::resource::lua_script_file_extension,
             won::resource::true_type_font_extension,
@@ -256,23 +257,44 @@ int main(int argc, char** argv)
             won::resource::sound_file_extension
         };
 
-        for (const won::String& scene_relative : scenes_to_package)
+        // Some referenced assets are themselves JSON containers that reference further assets:
+        // a scene references meshes/textures/materials (and other scenes for transitions),
+        // and a material binary (.wonmat) references its textures. Scan them transitively.
+        auto is_scannable = [](const won::String& ext)
         {
-            content_paths.push_back(scene_relative);
+            return ext == won::resource::scene_file_extension
+                || ext == won::resource::material_binary_extension;
+        };
 
-            const won::String scene_path = won::io::CombinePath(content_source, scene_relative);
-            won::serialize::JsonArchive scene_archive(won::serialize::ArchiveMode::Read);
-            if (!scene_archive.LoadFromFile(scene_path))
+        won::Vector<won::String> work_queue = scenes_to_package;
+        won::UnorderedSet<won::String> visited;
+        for (won::Size head = 0; head < work_queue.size(); ++head)
+        {
+            won::String current = work_queue[head];
+            if (current.rfind("/Contents/", 0) == 0)
+                current = current.substr(10);
+            if (!visited.insert(current).second)
+                continue;
+            content_paths.push_back(current);
+
+            if (!is_scannable(won::io::GetExtension(current)))
+                continue;
+
+            const won::String asset_path = won::io::CombinePath(content_source, current);
+            won::serialize::JsonArchive asset_archive(won::serialize::ArchiveMode::Read);
+            if (!asset_archive.LoadFromFile(asset_path))
             {
-                std::cout << "Failed to parse scene: " << scene_path << "\n";
+                std::cout << "Failed to parse asset: " << asset_path << "\n";
                 return 1;
             }
 
-            const won::Vector<won::String> scene_strings = scene_archive.GetStringValues();
-            for (won::String value : scene_strings)
+            const won::Vector<won::String> asset_strings = asset_archive.GetStringValues();
+            for (won::String value : asset_strings)
             {
                 if (value.rfind("/Contents/", 0) == 0)
                     value = value.substr(10);
+                if (value.empty())
+                    continue;
                 const won::String ext = won::io::GetExtension(value);
                 bool should_copy = false;
                 for (const char* packaged_ext : packaged_content_extensions)
@@ -280,7 +302,7 @@ int main(int argc, char** argv)
                     if (ext == packaged_ext) { should_copy = true; break; }
                 }
                 if (should_copy)
-                    content_paths.push_back(value);
+                    work_queue.push_back(value);
             }
         }
     }

@@ -95,7 +95,8 @@ namespace won::rendering
         RendererDebugBVHState bvh = {};
 
         uint32 draw_call_count = 0;
-        uint32 renderable_count = 0;
+        uint32 total_renderable_count = 0;         // total before frustum culling
+        uint32 visible_renderable_count = 0; // after frustum culling
     };
 
     constexpr RHIFormat RENDERTARGET_BUFFER_FORMAT = RHIFormat::R8G8B8A8Unorm;

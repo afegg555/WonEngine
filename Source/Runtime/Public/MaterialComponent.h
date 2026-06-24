@@ -1,70 +1,88 @@
 #pragma once
 #include "MathTypes.h"
+#include "Material.h"
 #include "Types.h"
-#include "ShaderInterop_Renderer.h"
-#include "RHIResource.h"
 
-using namespace won::rendering;
+#include <cassert>
+#include <memory>
 
 namespace won::ecs
 {
-    struct MaterialSlot
-    {
-        uint32 flags = SHADER_MATERIAL_FLAG_NONE;
-        uint32 shader_type = SHADER_MATERIAL_TYPE_PBR;
-
-        inline static const std::vector<std::string> shader_defines[] = {
-            {"UNLIT"}, // SHADER_MATERIAL_TYPE_UNLIT,
-            {}, // SHADER_MATERIAL_TYPE_PBR,
-        };
-        static_assert(SHADER_MATERIAL_TYPE_COUNT == arraysize(shader_defines), "These values must match!");
-
-        float4 base_color = { 1.0f, 1.0f, 1.0f, 1.0f };
-        float metallic = 0.3f;
-        float roughness = 0.5f;
-        float reflectance = 0.5f; // 0.5 is good enough for most dielectric materials (this means 0.04 F0)
-        // Anisotropy factor. 0.0 = isotropic, 1.0 = anisotropy along tangent direction,
-        // -1.0 = anisotropy along bitangent direction
-        float anisotropy = 0;
-
-        float3 sheen_color = { 1.f, 1.f, 1.f };
-        float sheen_roughness = 0;
-        float clearcoat = 0;
-        float clearcoat_roughness = 0;
-
-        struct TextureMap
-        {
-            String texture_asset_path = "";
-            std::shared_ptr<RHIResource> texture = nullptr;
-            RHISubresourceHandle res_handle;
-
-            bool IsValid() const
-            {
-                return texture != nullptr && res_handle.IsValid();
-            }
-        };
-        TextureMap textures[TEXTURESLOT_COUNT];
-    };
-
     struct MaterialComponent
     {
-        Vector<MaterialSlot> material_slots = {};
-
-        uint32 material_offset = 0; // internal usage
-        MaterialSlot& GetMaterialSlot(uint32 slot_index = 0u)
+        enum Flags
         {
-            assert(slot_index < material_slots.size());
+            Empty = 0,
+            Dirty = 1 << 0,
+        };
+        uint32 flags = Dirty;
 
-            return material_slots[slot_index];
-        }
-        MaterialSlot& AddMaterialSlot()
+        // keep component lightweight: reference a shared material, which is owned by the resource layer
+        std::shared_ptr<resource::Material> material;
+        String material_asset_path;
+
+        void SetMaterial(const std::shared_ptr<resource::Material>& value)
         {
-            material_slots.push_back({});
-            return material_slots.back();
+            if (material == value)
+            {
+                return;
+            }
+
+            material = value;
+            SetDirty();
         }
+
+        void SetMaterialAssetPath(const String& value)
+        {
+            material_asset_path = value;
+        }
+
+        void ForkMaterial()
+        {
+            if (!material)
+            {
+                return;
+            }
+
+            // Fork is about exclusive ownership, not the asset path: a cache-backed material can be
+            // re-shared via the path cache, and a pathless material may still be shared by others.
+            const bool cache_backed = !material_asset_path.empty();
+            if (!cache_backed && material.use_count() <= 1)
+            {
+                return; // already this component's private instance
+            }
+
+            material = std::make_shared<resource::Material>(*material);
+            material->material_offset = 0;
+            material_asset_path.clear();
+            SetDirty();
+        }
+
+        resource::MaterialSlot& GetMaterialSlot(uint32 slot_index = 0u)
+        {
+            assert(material && slot_index < material->slots.size());
+
+            return material->slots[slot_index];
+        }
+
+        resource::MaterialSlot& AddMaterialSlot()
+        {
+            if (!material)
+            {
+                material = std::make_shared<resource::Material>();
+            }
+
+            material->slots.push_back({});
+            SetDirty();
+            return material->slots.back();
+        }
+
         Size GetMaterialSlotCount() const
         {
-            return material_slots.size();
+            return material ? material->slots.size() : 0;
         }
+
+        constexpr void SetDirty(bool value = true) { if (value) { flags |= Dirty; } else { flags &= ~Dirty; } }
+        constexpr bool IsDirty() const { return (flags & Dirty) != 0; }
     };
 }
