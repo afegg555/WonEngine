@@ -68,6 +68,7 @@ namespace won::script
         static int LuaMaterialHas(lua_State* state);
         static int LuaMaterialGetBaseColor(lua_State* state);
         static int LuaMaterialSetBaseColor(lua_State* state);
+        static int LuaMaterialFork(lua_State* state);
 
         static int LuaColliderHas(lua_State* state);
         static int LuaColliderAdd(lua_State* state);

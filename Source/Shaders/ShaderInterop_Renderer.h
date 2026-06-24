@@ -241,7 +241,8 @@ struct alignas(16) ShaderScene
 
     uint bvh_node_count;
     uint bvh_instance_count;
-    uint2 padding;
+    int instance_sort_buffer;
+    uint padding;
 
     uint4 lights; // supports indexing 128 lights
 #ifdef __cplusplus
@@ -258,6 +259,7 @@ struct alignas(16) ShaderScene
         bvh_instance_buffer = -1;
         bvh_node_count = 0;
         bvh_instance_count = 0;
+        instance_sort_buffer = -1;
 
         lights = { 0,0,0,0 };
     }
@@ -686,7 +688,7 @@ struct alignas(16) ShaderShadowCascade
 
 struct ObjectPushConstants
 {
-    uint instance_index;
+    uint draw_offset;
     uint geometry_index;
     uint material_index;
     uint padding0;
@@ -694,7 +696,7 @@ struct ObjectPushConstants
 #ifdef __cplusplus
     inline void Init()
     {
-        instance_index = 0;
+        draw_offset = 0;
         geometry_index = 0;
         material_index = 0;
     }

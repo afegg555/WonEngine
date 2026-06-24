@@ -65,7 +65,7 @@ namespace won::ecs
             {
                 const GeometryComponent& geometry_comp = geometry_array->GetData(entity);
                 const MaterialComponent& material_comp = material_array->GetData(entity);
-                if (!geometry_comp.mesh)
+                if (!geometry_comp.mesh || !material_comp.material)
                 {
                     return;
                 }
@@ -77,25 +77,28 @@ namespace won::ecs
                 }
 
                 const float3 world_position = math::GetPosition(transform.world_transform);
-                const math::AABB world_aabb = geometry_comp.local_bounds.IsValid()
-                    ? geometry_comp.local_bounds.TransformAABB(transform.world_transform)
-                    : math::AABB{};
+                math::AABB world_aabb;
+                world_aabb.Invalidate();
+                if (geometry_comp.local_bounds.IsValid())
+                {
+                    world_aabb = geometry_comp.local_bounds.TransformAABB(transform.world_transform);
+                }
 
                 for (Size i = 0; i < geometry_comp.mesh->submeshes.size(); ++i)
                 {
                     const resource::Submesh& submesh = geometry_comp.mesh->submeshes[i];
-                    if (submesh.material_slot >= material_comp.material_slots.size())
+                    if (submesh.material_slot >= material_comp.material->slots.size())
                     {
                         continue;
                     }
 
-                    const MaterialSlot& material_slot = material_comp.material_slots[submesh.material_slot];
+                    const resource::MaterialSlot& material_slot = material_comp.material->slots[submesh.material_slot];
                     Scene::RenderData::Renderable renderable = {};
                     ObjectPushConstants& push_constants = renderable.push_constants;
                     push_constants.Init();
-                    push_constants.geometry_index = geometry_comp.geometry_offset + (uint)i;
-                    push_constants.material_index = material_comp.material_offset + submesh.material_slot;
-                    push_constants.instance_index = (uint)transform_array->entity_to_index[entity];
+                    push_constants.geometry_index = geometry_comp.mesh->geometry_offset + (uint)i;
+                    push_constants.material_index = material_comp.material->material_offset + submesh.material_slot;
+                    push_constants.draw_offset = (uint)args.job_index;
 
                     renderable.index_buffer = mesh_render_data.buffer;
                     renderable.index_offset = mesh_render_data.indices.offset + submesh.first_index * sizeof(uint32);

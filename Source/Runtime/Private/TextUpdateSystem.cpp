@@ -145,7 +145,7 @@ namespace won::ecs
                 const float glyph_top_y = baseline_y + glyph->offset.y;
                 Scene::RenderData::Sprite2DRenderable renderable = {};
                 renderable.flags |= Scene::RenderData::Sprite2DRenderable::Text;
-                renderable.material_index = material_array->GetData(entity).material_offset;
+                renderable.material_index = material_array->GetData(entity).material->material_offset;
                 renderable.font = text.font;
                 renderable.anchor = text.anchor;
                 renderable.position = { text.position.x + glyph_visual_x, text.position.y + glyph_top_y };
@@ -266,7 +266,7 @@ namespace won::ecs
                     renderable.world_position = math::GetPosition(transform_array->GetData(entity).world_transform);
                     if (material_array && material_array->HasData(entity) && material_array->GetData(entity).GetMaterialSlotCount() > 0)
                     {
-                        renderable.material_index = material_array->GetData(entity).material_offset;
+                        renderable.material_index = material_array->GetData(entity).material->material_offset;
                     }
                     const float2 glyph_size = { glyph->size.x * glyph_world_scale, glyph->size.y * glyph_world_scale };
                     const float line_x = -line_widths[layout.line_index] * text.pivot.x;

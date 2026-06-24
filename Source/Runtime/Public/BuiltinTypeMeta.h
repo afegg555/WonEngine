@@ -252,11 +252,11 @@ namespace won::reflection
         WON_REFLECT_FIELD(enabled, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
-    WON_REFLECT_STRUCT(won::ecs::MaterialSlot::TextureMap, "TextureMap")
+    WON_REFLECT_STRUCT(won::resource::MaterialSlot::TextureMap, "TextureMap")
         WON_REFLECT_FIELD(texture_asset_path, won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
-    WON_REFLECT_STRUCT(won::ecs::MaterialSlot, "MaterialSlot")
+    WON_REFLECT_STRUCT(won::resource::MaterialSlot, "MaterialSlot")
         WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(shader_type, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(base_color, won::FieldFlagSerializable)
@@ -272,7 +272,7 @@ namespace won::reflection
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::MaterialComponent, "MaterialComponent")
-        WON_REFLECT_FIELD(material_slots, won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(material_asset_path, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::ScriptSlot, "ScriptSlot")

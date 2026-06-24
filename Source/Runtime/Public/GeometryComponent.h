@@ -23,8 +23,6 @@ namespace won::ecs
 
         math::AABB local_bounds = {};
 
-        uint32 geometry_offset = 0; // internal usage
-
         void SetMesh(const std::shared_ptr<resource::Mesh>& value)
         {
             if (mesh == value)

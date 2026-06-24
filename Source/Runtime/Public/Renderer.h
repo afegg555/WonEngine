@@ -93,6 +93,10 @@ namespace won::rendering
     {
         RendererDebugDDGIState ddgi = {};
         RendererDebugBVHState bvh = {};
+
+        uint32 draw_call_count = 0;
+        uint32 total_renderable_count = 0;         // total before frustum culling
+        uint32 visible_renderable_count = 0; // after frustum culling
     };
 
     constexpr RHIFormat RENDERTARGET_BUFFER_FORMAT = RHIFormat::R8G8B8A8Unorm;
@@ -276,6 +280,7 @@ namespace won::rendering
             std::mutex deferred_res_removal_mutex;
             std::shared_ptr<RHIFence> fence;
             std::shared_ptr<RHIResource> shader_instance_upload_buffer;
+            std::shared_ptr<RHIResource> shader_instance_sort_upload_buffer;
             std::shared_ptr<RHIResource> shader_geometry_upload_buffer;
             std::shared_ptr<RHIResource> shader_material_upload_buffer;
             std::shared_ptr<RHIResource> shader_light_upload_buffer;

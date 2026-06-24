@@ -273,9 +273,11 @@ namespace won::serialize
             Vector<String> mesh_resources;
             Vector<String> texture_resources;
             Vector<String> font_resources;
+            Vector<String> material_resources;
             UnorderedMap<String, uint32> mesh_resource_indices;
             UnorderedMap<String, uint32> texture_resource_indices;
             UnorderedMap<String, uint32> font_resource_indices;
+            UnorderedMap<String, uint32> material_resource_indices;
 
             UnorderedMap<ecs::Entity, uint64> entity_to_index;
             const Vector<ecs::Entity>& entities = scene.GetEntities();
@@ -395,7 +397,7 @@ namespace won::serialize
                         archive.BeginItem();
                         const bool geometry_mesh_field = type_desc->type_id == reflection::TypeMeta<ecs::GeometryComponent>::type_id && field.name && std::strcmp(field.name, "mesh_asset_path") == 0;
                         const bool text_font_field = (type_desc->type_id == reflection::TypeMeta<ecs::Text2DComponent>::type_id || type_desc->type_id == reflection::TypeMeta<ecs::Text3DComponent>::type_id) && field.name && std::strcmp(field.name, "font_asset_path") == 0;
-                        const bool material_slots_field = type_desc->type_id == reflection::TypeMeta<ecs::MaterialComponent>::type_id && field.name && std::strcmp(field.name, "material_slots") == 0;
+                        const bool material_path_field = type_desc->type_id == reflection::TypeMeta<ecs::MaterialComponent>::type_id && field.name && std::strcmp(field.name, "material_asset_path") == 0;
                         if (geometry_mesh_field)
                         {
                             const String& path = *static_cast<const String*>(field_value);
@@ -436,13 +438,35 @@ namespace won::serialize
                             }
                             archive.Value(resource_index);
                         }
-                        else if (material_slots_field)
+                        else if (material_path_field)
                         {
-                            const Vector<ecs::MaterialSlot>& material_slots = *static_cast<const Vector<ecs::MaterialSlot>*>(field_value);
-                            const won::TypeDesc* material_slot_type = reflection::TypeMeta<ecs::MaterialSlot>::Get();
-                            const won::TypeDesc* texture_map_type = reflection::TypeMeta<ecs::MaterialSlot::TextureMap>::Get();
+                            const ecs::MaterialComponent* material_comp = static_cast<const ecs::MaterialComponent*>(component);
+                            const won::TypeDesc* material_slot_type = reflection::TypeMeta<resource::MaterialSlot>::Get();
+                            const won::TypeDesc* texture_map_type = reflection::TypeMeta<resource::MaterialSlot::TextureMap>::Get();
+
+                            uint32 material_index = invalid_resource_index;
+                            if (!material_comp->material_asset_path.empty())
+                            {
+                                const String& path = material_comp->material_asset_path;
+                                auto resource_it = material_resource_indices.find(path);
+                                if (resource_it != material_resource_indices.end())
+                                {
+                                    material_index = resource_it->second;
+                                }
+                                else
+                                {
+                                    material_index = static_cast<uint32>(material_resources.size());
+                                    material_resources.push_back(path);
+                                    material_resource_indices[path] = material_index;
+                                }
+                            }
+
+                            archive.BeginObject();
+                            archive.Field("ref", material_index);
+							if (material_index == invalid_resource_index && material_comp->material && archive.BeginField("slots")) // forked material
+                            {
                             archive.BeginArray();
-                            for (const ecs::MaterialSlot& material_slot : material_slots)
+                            for (const resource::MaterialSlot& material_slot : material_comp->material->slots)
                             {
                                 archive.BeginItem();
                                 archive.BeginObject();
@@ -467,7 +491,7 @@ namespace won::serialize
                                         if (archive.BeginField(slot_field_key.c_str()))
                                         {
                                             archive.BeginArray();
-                                            for (const ecs::MaterialSlot::TextureMap& texture_map : material_slot.textures)
+                                            for (const resource::MaterialSlot::TextureMap& texture_map : material_slot.textures)
                                             {
                                                 archive.BeginItem();
                                                 archive.BeginObject();
@@ -533,6 +557,9 @@ namespace won::serialize
                                 archive.EndItem();
                             }
                             archive.EndArray();
+                            archive.EndField();
+                            }
+                            archive.EndObject();
                         }
                         else
                         {
@@ -568,6 +595,12 @@ namespace won::serialize
                 archive.Item(path);
             }
             archive.EndArray();
+            archive.BeginArray("materials");
+            for (const String& path : material_resources)
+            {
+                archive.Item(path);
+            }
+            archive.EndArray();
             archive.EndObject();
 
             archive.EndObject();
@@ -591,6 +624,7 @@ namespace won::serialize
             Vector<String> mesh_resources;
             Vector<String> texture_resources;
             Vector<String> font_resources;
+            Vector<String> material_resources;
             if (archive.BeginObject("resources"))
             {
                 if (archive.BeginArray("meshes"))
@@ -626,6 +660,18 @@ namespace won::serialize
                         String path;
                         archive.Item(path);
                         font_resources.push_back(path);
+                    }
+                    archive.EndArray();
+                }
+                if (archive.BeginArray("materials"))
+                {
+                    const Size count = archive.GetArraySize();
+                    material_resources.reserve(count);
+                    for (Size i = 0; i < count; ++i)
+                    {
+                        String path;
+                        archive.Item(path);
+                        material_resources.push_back(path);
                     }
                     archive.EndArray();
                 }
@@ -752,15 +798,23 @@ namespace won::serialize
                                                 archive.Value(resource_index);
                                                 *static_cast<String*>(field_value) = resource_index < font_resources.size() ? font_resources[resource_index] : String();
                                             }
-                                            else if (type_desc->type_id == reflection::TypeMeta<ecs::MaterialComponent>::type_id && field->name && std::strcmp(field->name, "material_slots") == 0)
+                                            else if (type_desc->type_id == reflection::TypeMeta<ecs::MaterialComponent>::type_id && field->name && std::strcmp(field->name, "material_asset_path") == 0)
                                             {
-                                                Vector<ecs::MaterialSlot>& material_slots = *static_cast<Vector<ecs::MaterialSlot>*>(field_value);
-                                                const won::TypeDesc* material_slot_type = reflection::TypeMeta<ecs::MaterialSlot>::Get();
-                                                const won::TypeDesc* texture_map_type = reflection::TypeMeta<ecs::MaterialSlot::TextureMap>::Get();
-                                                if (archive.BeginArray())
+                                                ecs::MaterialComponent* material_comp = static_cast<ecs::MaterialComponent*>(component);
+                                                const won::TypeDesc* material_slot_type = reflection::TypeMeta<resource::MaterialSlot>::Get();
+                                                const won::TypeDesc* texture_map_type = reflection::TypeMeta<resource::MaterialSlot::TextureMap>::Get();
+                                                auto material = std::make_shared<resource::Material>();
+                                                uint32 material_index = invalid_resource_index;
+                                                archive.BeginObject();
+                                                archive.Field("ref", material_index);
+                                                if (material_index != invalid_resource_index)
+                                                {
+                                                    material_comp->material_asset_path = material_index < material_resources.size() ? material_resources[material_index] : String();
+                                                }
+                                                else if (archive.BeginField("slots") && archive.BeginArray())
                                                 {
                                                     const Size slot_count = archive.GetArraySize();
-                                                    material_slots.resize(slot_count);
+                                                    material->slots.resize(slot_count);
                                                     for (Size slot_index = 0; slot_index < slot_count; ++slot_index)
                                                     {
                                                         if (!archive.BeginItem())
@@ -768,7 +822,7 @@ namespace won::serialize
                                                             continue;
                                                         }
 
-                                                        ecs::MaterialSlot& material_slot = material_slots[slot_index];
+                                                        resource::MaterialSlot& material_slot = material->slots[slot_index];
                                                         if (archive.BeginObject())
                                                         {
                                                             Vector<String> slot_field_keys = archive.GetObjectKeys();
@@ -810,7 +864,7 @@ namespace won::serialize
 
                                                                             if (texture_index < TEXTURESLOT_COUNT && archive.BeginObject())
                                                                             {
-                                                                                ecs::MaterialSlot::TextureMap& texture_map = material_slot.textures[texture_index];
+                                                                                resource::MaterialSlot::TextureMap& texture_map = material_slot.textures[texture_index];
                                                                                 Vector<String> texture_field_keys = archive.GetObjectKeys();
                                                                                 for (const String& texture_field_key : texture_field_keys)
                                                                                 {
@@ -866,6 +920,12 @@ namespace won::serialize
                                                         archive.EndItem();
                                                     }
                                                     archive.EndArray();
+                                                    archive.EndField();
+                                                }
+                                                archive.EndObject();
+                                                if (!material->slots.empty())
+                                                {
+                                                    material_comp->SetMaterial(material);
                                                 }
                                             }
                                             else

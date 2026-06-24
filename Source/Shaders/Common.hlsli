@@ -243,7 +243,7 @@ inline ShaderInstance GetInstance(uint instance_index)
 #ifndef WON_DISABLE_RENDERER_PUSHCONSTANT
 inline ShaderInstance GetInstance()
 {
-    return GetInstance(push.instance_index);
+    return GetInstance(push.draw_offset);
 }
 #endif
 

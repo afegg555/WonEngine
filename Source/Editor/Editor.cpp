@@ -117,6 +117,7 @@ namespace won::editor
 			constexpr const char* bvh_debug = "BVH Debug";
 			constexpr const char* cpu_bvh_nodes = "CPU BVH Nodes";
 			constexpr const char* gpu_bvh_nodes = "GPU BVH Nodes";
+			constexpr const char* renderer_stats = "Renderer Stats";
 			constexpr const char* ddgi_debug_overlay = "DDGI Debug Overlay";
 			constexpr const char* ddgi_volume = "DDGI Volume";
 			constexpr const char* ddgi_probes = "DDGI Probes";
@@ -308,6 +309,10 @@ namespace won::editor
 			constexpr const char* bone_matrices_format = "Bone Matrices: %d";
 			constexpr const char* bone_matrix_offset_format = "Bone Matrix Offset: %u";
 			constexpr const char* material_slots_format = "Material Slots: %d";
+			constexpr const char* fork_material = "Fork Material";
+			constexpr const char* save_material_asset = "Save as Material Asset";
+			constexpr const char* won_material_file = "WonEngine Material";
+			constexpr const char* save_material_failed = "Failed to save material: ";
 			constexpr const char* slot_prefix = "Slot ";
 			constexpr const char* selected_slot = "Selected Slot";
 			constexpr const char* shader_type = "Shader Type";
@@ -1610,19 +1615,22 @@ namespace won::editor
 			return false;
 		}
 
-		Vector<ecs::MaterialSlot> material_slots;
 		const String mat_binary_path = String(generated_asset_directory) + "/" + meta.asset_id + "." + resource::material_binary_extension;
-		resource::LoadMaterialBinary(io::CombinePath(contents_root_dir, mat_binary_path), material_slots);
-		if (material_slots.empty())
+		auto material_resource = resource::LoadMaterialBinary(io::CombinePath(contents_root_dir, mat_binary_path));
+		if (!material_resource)
 		{
-			material_slots.emplace_back();
+			material_resource = std::make_shared<resource::Material>();
+		}
+		if (material_resource->slots.empty())
+		{
+			material_resource->slots.emplace_back();
 		}
 
-		for (ecs::MaterialSlot& slot : material_slots)
+		for (resource::MaterialSlot& slot : material_resource->slots)
 		{
 			for (uint32 tex_index = 0; tex_index < TEXTURESLOT_COUNT; ++tex_index)
 			{
-				ecs::MaterialSlot::TextureMap& texture_map = slot.textures[tex_index];
+				resource::MaterialSlot::TextureMap& texture_map = slot.textures[tex_index];
 				if (texture_map.texture_asset_path.empty())
 				{
 					continue;
@@ -1652,7 +1660,8 @@ namespace won::editor
 		}
 		if (auto* material = scene->AddComponent<ecs::MaterialComponent>(root_entity))
 		{
-			material->material_slots = std::move(material_slots);
+			material->SetMaterialAssetPath(mat_binary_path);
+			material->SetMaterial(material_resource);
 		}
 		if (auto* geometry = scene->AddComponent<ecs::GeometryComponent>(root_entity))
 		{
@@ -1735,7 +1744,7 @@ namespace won::editor
 
 		if (auto material = editor_viewport.view->scene->GetComponent<ecs::MaterialComponent>(editor_viewport.debug_primitive_entity))
 		{
-			material->material_slots.clear();
+			material->SetMaterial(std::make_shared<resource::Material>());
 			for (const float4& color : primitive_material_colors)
 			{
 				auto& material_slot = material->AddMaterialSlot();
@@ -2040,6 +2049,7 @@ namespace won::editor
 		editor_viewport.debug_settings.show_ddgi_volume = editor_settings.viewport_show_ddgi_volume;
 		editor_viewport.debug_settings.show_ddgi_probes = editor_settings.viewport_show_ddgi_probes;
 		editor_viewport.debug_settings.show_ddgi_text = editor_settings.viewport_show_ddgi_text;
+		editor_viewport.debug_settings.show_renderer_stats = editor_settings.viewport_show_renderer_stats;
 		editor_viewport.debug_settings.ddgi_max_probe_draw_count = (std::max)(1, editor_settings.viewport_ddgi_max_probe_draw_count);
 		editor_camera_speed = (std::max)(0.1f, editor_settings.camera_speed);
 	}
@@ -2059,6 +2069,7 @@ namespace won::editor
 		editor_settings.viewport_show_ddgi_volume = editor_viewport.debug_settings.show_ddgi_volume;
 		editor_settings.viewport_show_ddgi_probes = editor_viewport.debug_settings.show_ddgi_probes;
 		editor_settings.viewport_show_ddgi_text = editor_viewport.debug_settings.show_ddgi_text;
+		editor_settings.viewport_show_renderer_stats = editor_viewport.debug_settings.show_renderer_stats;
 		editor_settings.viewport_ddgi_max_probe_draw_count = editor_viewport.debug_settings.ddgi_max_probe_draw_count;
 		editor_settings.camera_speed = editor_camera_speed;
 		if (!current_scene_path.empty())
@@ -2689,6 +2700,7 @@ namespace won::editor
 		static bool open_new_scene = false;
 		static bool open_load_project = false;
 		static bool open_new_project = false;
+		static bool open_save_material_asset = false;
 		static bool save_as_then_load = false;
 		static bool save_as_then_new_scene = false;
 		static bool save_as_then_load_project = false;
@@ -3140,6 +3152,42 @@ namespace won::editor
 			}
 		}
 
+		if (open_save_material_asset)
+		{
+			open_save_material_asset = false;
+
+			MaterialComponent* material_comp = (editor_viewport.view && editor_viewport.view->scene)
+				? editor_viewport.view->scene->GetComponent<MaterialComponent>(editor_viewport.picked_entity)
+				: nullptr;
+			if (material_comp && material_comp->material)
+			{
+				io::FileDialogDesc desc = {};
+				desc.owner_window = window ? window->GetNativeHandle() : nullptr;
+				desc.title = editor_text::save_material_asset;
+				desc.initial_directory = contents_root_dir;
+				desc.default_file_name = String("Material.") + resource::material_binary_extension;
+				desc.default_extension = resource::material_binary_extension;
+				desc.filter_name = editor_text::won_material_file;
+				desc.filter_pattern = String("*.") + resource::material_binary_extension;
+
+				String path;
+				if (io::SaveFileDialog(path, desc))
+				{
+					// Save the file and register this instance as the path's canonical asset (atomic).
+					if (resource::SaveMaterialBinary(path, material_comp->material))
+					{
+						material_comp->SetMaterialAssetPath(io::GetRelativePath(contents_root_dir, path));
+						material_comp->SetDirty();
+						RebuildContentBrowser();
+					}
+					else
+					{
+						backlog::Post(editor_text::save_material_failed + path, backlog::LogLevel::Warning);
+					}
+				}
+			}
+		}
+
 		ImGui::DockSpace(dockspace_id, ImVec2(0, 0), ImGuiDockNodeFlags_PassthruCentralNode);
 
 		ImGui::End();
@@ -3212,6 +3260,7 @@ namespace won::editor
 				}
 
 				ImGui::Separator();
+				ImGui::Checkbox(editor_text::renderer_stats, &editor_viewport.debug_settings.show_renderer_stats);
 				ImGui::Checkbox(editor_text::editor_grid, &editor_viewport.debug_settings.show_grid);
 				ImGui::Checkbox(editor_text::collider_3d, &editor_viewport.debug_settings.show_colliders);
 				ImGui::Separator();
@@ -3280,6 +3329,29 @@ namespace won::editor
 						editor_viewport.debug_settings.show_ddgi_text,
 						editor_viewport.debug_settings.ddgi_max_probe_draw_count);
 				}
+			}
+
+			if (renderer && editor_viewport.debug_settings.show_renderer_stats)
+			{
+				const rendering::RendererDebugState stats = renderer->GetDebugState();
+				ImGui::SetNextWindowPos(
+					ImVec2(viewport_pos.x + 8.0f, viewport_pos.y + viewport_size.y - 8.0f),
+					ImGuiCond_Always, ImVec2(0.0f, 1.0f));
+				ImGui::SetNextWindowBgAlpha(0.5f);
+				constexpr ImGuiWindowFlags overlay_flags =
+					ImGuiWindowFlags_NoDecoration |
+					ImGuiWindowFlags_NoDocking |
+					ImGuiWindowFlags_AlwaysAutoResize |
+					ImGuiWindowFlags_NoSavedSettings |
+					ImGuiWindowFlags_NoFocusOnAppearing |
+					ImGuiWindowFlags_NoNav |
+					ImGuiWindowFlags_NoMove;
+				if (ImGui::Begin("##renderer_stats", nullptr, overlay_flags))
+				{
+					ImGui::Text("Draw Calls : %u", stats.draw_call_count);
+					ImGui::Text("Renderables: %u / %u (visible / total)", stats.visible_renderable_count, stats.total_renderable_count);
+				}
+				ImGui::End();
 			}
 		}
 		ImGui::End();
@@ -3493,9 +3565,9 @@ namespace won::editor
 						}
 
 						ecs::MaterialComponent* material = editor_viewport.view->scene->GetComponent<ecs::MaterialComponent>(entity);
-						if (material)
+						if (material && material->material)
 						{
-							for (ecs::MaterialSlot& material_slot : material->material_slots)
+							for (resource::MaterialSlot& material_slot : material->material->slots)
 							{
 								for (uint32 texture_slot = 0; texture_slot < TEXTURESLOT_COUNT; ++texture_slot)
 								{
@@ -4642,6 +4714,26 @@ namespace won::editor
 						int material_slot_count = static_cast<int>(material_comp->GetMaterialSlotCount());
 						ImGui::Text(editor_text::material_slots_format, material_slot_count);
 
+						// Fork is meaningful when the material is shared: cache-backed (has a path) or
+						// referenced by more than this component. Mirrors ForkMaterial()'s guard.
+						const bool fork_meaningful = material_comp->material
+							&& (!material_comp->material_asset_path.empty() || material_comp->material.use_count() > 1);
+						ImGui::BeginDisabled(!fork_meaningful);
+						if (ImGui::Button(editor_text::fork_material))
+						{
+							material_comp->ForkMaterial();
+						}
+						ImGui::EndDisabled();
+
+						// Promote an inline (forked) material to a shared .wonmat asset.
+						ImGui::SameLine();
+						ImGui::BeginDisabled(!material_comp->material || !material_comp->material_asset_path.empty());
+						if (ImGui::Button(editor_text::save_material_asset))
+						{
+							open_save_material_asset = true;
+						}
+						ImGui::EndDisabled();
+
 						if (ImGui::Button(editor_text::add_slot))
 						{
 							material_comp->AddMaterialSlot();
@@ -4655,7 +4747,8 @@ namespace won::editor
 						}
 						if (ImGui::Button(editor_text::remove_slot) && material_slot_count > 0)
 						{
-							material_comp->material_slots.erase(material_comp->material_slots.begin() + selected_material_slot);
+							material_comp->material->slots.erase(material_comp->material->slots.begin() + selected_material_slot);
+							material_comp->SetDirty();
 							material_slot_count = static_cast<int>(material_comp->GetMaterialSlotCount());
 							selected_material_slot = (std::max)(0, material_slot_count - 1);
 						}
@@ -4687,7 +4780,8 @@ namespace won::editor
 								ImGui::EndCombo();
 							}
 
-							MaterialSlot& material_slot = material_comp->GetMaterialSlot(static_cast<uint32>(selected_material_slot));
+							resource::MaterialSlot& material_slot = material_comp->GetMaterialSlot(static_cast<uint32>(selected_material_slot));
+							material_comp->SetDirty();
 							const char* shader_type_items[] = { editor_text::unlit, editor_text::pbr };
 							int shader_type = static_cast<int>(material_slot.shader_type);
 							if (ImGui::Combo(editor_text::shader_type, &shader_type, shader_type_items, IM_ARRAYSIZE(shader_type_items)))
@@ -4761,7 +4855,7 @@ namespace won::editor
 							ImGui::SeparatorText(editor_text::textures);
 							for (uint32 texture_slot = 0; texture_slot < static_cast<uint32>(TEXTURESLOT_COUNT); ++texture_slot)
 							{
-								const MaterialSlot::TextureMap& texture = material_slot.textures[texture_slot];
+								const resource::MaterialSlot::TextureMap& texture = material_slot.textures[texture_slot];
 								ImGui::Text(editor_text::texture_status_format, texture_slot_names[texture_slot], texture.IsValid() ? editor_text::assigned : editor_text::none);
 							}
 						}
@@ -4774,9 +4868,9 @@ namespace won::editor
 							deferred_res_removal.frames_left = 8;
 
 							ecs::MaterialComponent* material = editor_viewport.view->scene->GetComponent<ecs::MaterialComponent>(entity);
-							if (material)
+							if (material && material->material)
 							{
-								for (ecs::MaterialSlot& material_slot : material->material_slots)
+								for (resource::MaterialSlot& material_slot : material->material->slots)
 								{
 									for (uint32 texture_slot = 0; texture_slot < TEXTURESLOT_COUNT; ++texture_slot)
 									{
@@ -6149,11 +6243,19 @@ namespace won::editor
 			for (Size i = 0; i < material_array->GetSize(); ++i)
 			{
 				ecs::MaterialComponent& material = material_array->data[i];
-				for (ecs::MaterialSlot& material_slot : material.material_slots)
+				if (!material.material && !material.material_asset_path.empty())
+				{
+					material.SetMaterial(resource::LoadMaterialBinary(project::ResolveProjectContentPath(contents_root_dir, material.material_asset_path)));
+				}
+				if (!material.material)
+				{
+					continue;
+				}
+				for (resource::MaterialSlot& material_slot : material.material->slots)
 				{
 					for (uint32 texture_slot = 0; texture_slot < TEXTURESLOT_COUNT; ++texture_slot)
 					{
-						ecs::MaterialSlot::TextureMap& texture_map = material_slot.textures[texture_slot];
+						resource::MaterialSlot::TextureMap& texture_map = material_slot.textures[texture_slot];
 						if (texture_map.texture_asset_path.empty())
 						{
 							continue;

@@ -44,7 +44,7 @@ namespace won::rendering
         bool CreateRenderTargetResources(FrameContext& frame_context);
 
         // gpu call
-        bool UpdateSceneGPUData(FrameContext& frame_context, const ecs::Scene::RenderData& render_data, RHICommandList& command_list);
+        bool UpdateSceneGPUData(FrameContext& frame_context, const ecs::Scene::RenderData& render_data, const View& view, RHICommandList& command_list);
         bool UpdateFrameConstants(FrameContext& frame_context, const View& view, const ecs::Scene::RenderData& render_data, RHICommandList& command_list);
         bool DrawScene(const FrameContext& frame_context, const View& view, resource::RenderPassType pass, uint32 flags, RHICommandList& command_list);
         void UpdateDDGIProbe(FrameContext& frame_context, const ShaderEnvironmentLighting& environment_lighting, const ShaderDDGIVolume& ddgi_volume, const RHISubresourceBinding& shader_frame_binding, const RHISubresourceBinding& shader_camera_binding, RHICommandList& command_list);
@@ -60,6 +60,9 @@ namespace won::rendering
 
         std::shared_ptr<RHIResource> shader_instance_default_buffer;
         RHISubresourceHandle shader_instance_default_buffer_srv = {};
+
+        std::shared_ptr<RHIResource> shader_instance_sort_default_buffer;
+        RHISubresourceHandle shader_instance_sort_default_buffer_srv = {};
 
         std::shared_ptr<RHIResource> shader_geometry_default_buffer;
         RHISubresourceHandle shader_geometry_default_buffer_srv = {};

@@ -10,29 +10,71 @@ namespace won::ecs
 {
     void MaterialUpdateSystem::Update(Scene& scene, float delta_time)
     {
+        struct MaterialBucket
+        {
+            UnorderedSet<resource::Material*> materials;
+            bool dirty = false;
+        };
+
         jobsystem::Context sub_ctx;
 
         Scene::RenderData& render_data = scene.GetRenderData();
         const auto material_array = scene.GetComponentArray<MaterialComponent>().get();
 
-        // compute prefix sum
-        Size material_slot_sum = 0;
-        for (Size i = 0; i < material_array->GetSize(); ++i)
+        const uint32 job_count = static_cast<uint32>(material_array->GetSize());
+        Vector<MaterialBucket> material_buckets(jobsystem::DispatchGroupCount(job_count, groupsize_light));
+
+        jobsystem::Dispatch(sub_ctx, job_count, groupsize_light, [&](jobsystem::JobArgs args) {
+            MaterialBucket& bucket = material_buckets[args.group_id];
+            MaterialComponent& material_comp = material_array->data[args.job_index];
+
+            if (material_comp.IsDirty())
+            {
+                bucket.dirty = true;
+                material_comp.SetDirty(false);
+            }
+
+            if (material_comp.material)
+                bucket.materials.insert(material_comp.material.get());
+        });
+
+        jobsystem::Wait(sub_ctx);
+
+        bool dirty = false;
+        Vector<resource::Material*> unique_materials;
+        Size unique_slot_sum = 0;
         {
-            MaterialComponent& material_comp = material_array->data[i];
-            material_comp.material_offset = (uint32)material_slot_sum;
-            material_slot_sum += material_array->data[i].GetMaterialSlotCount();
+            UnorderedSet<resource::Material*> merged;
+            for (MaterialBucket& bucket : material_buckets)
+            {
+                dirty |= bucket.dirty;
+                for (resource::Material* material : bucket.materials)
+                {
+                    if (merged.insert(material).second)
+                    {
+                        material->material_offset = (uint32)unique_slot_sum;
+                        unique_materials.push_back(material);
+                        unique_slot_sum += material->slots.size();
+                    }
+                }
+            }
         }
 
-        render_data.shader_materials.resize(material_slot_sum);
+        const bool material_structure_changed = render_data.shader_materials.size() != unique_slot_sum;
+        if (!dirty && !material_structure_changed)
+        {
+            return;
+        }
 
-        jobsystem::Dispatch(sub_ctx, (uint32_t)material_array->GetSize(), groupsize_light, [&](jobsystem::JobArgs args) {
-            const MaterialComponent& material_comp = material_array->data[args.job_index];
+        render_data.shader_materials.resize(unique_slot_sum);
 
-            for (size_t i = 0; i < material_comp.GetMaterialSlotCount(); ++i)
+        jobsystem::Dispatch(sub_ctx, (uint32_t)unique_materials.size(), groupsize_light, [&](jobsystem::JobArgs args) {
+            resource::Material* material = unique_materials[args.job_index];
+
+            for (Size i = 0; i < material->slots.size(); ++i)
             {
-                const MaterialSlot& material_slot = material_comp.material_slots[i];
-                ShaderMaterial& shader_material = render_data.shader_materials[material_comp.material_offset + i];
+                const resource::MaterialSlot& material_slot = material->slots[i];
+                ShaderMaterial& shader_material = render_data.shader_materials[material->material_offset + i];
                 shader_material.Init();
                 shader_material.base_color = pack_half4(material_slot.base_color);
                 shader_material.emissive_color_metallic = pack_half4(0.f, 0.f, 0.f, material_slot.metallic);
