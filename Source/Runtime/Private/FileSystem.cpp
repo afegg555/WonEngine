@@ -4,6 +4,8 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <functional>
+#include <thread>
 
 #if defined(_WIN32)
 #include <shlobj.h>
@@ -513,17 +515,61 @@ namespace won::io
 #endif
     }
 
+#if defined(_WIN32)
+    namespace
+    {
+        // IFileDialog::Show requires an STA thread, but the engine initializes the main thread as MTA
+        // (XAudio2 audio driver), where Show() deadlocks. Run the dialog on a dedicated STA thread.
+        // The dialog is owned by a main-thread window, so the main thread must keep pumping messages
+        // while waiting, otherwise the dialog's cross-thread window calls deadlock against join().
+        bool RunFileDialogOnStaThread(String& out_path, const std::function<bool(String&)>& show_dialog)
+        {
+            bool result = false;
+            HANDLE done_event = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+
+            std::thread worker([&]()
+            {
+                const HRESULT init = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+                if (SUCCEEDED(init) || init == RPC_E_CHANGED_MODE)
+                {
+                    result = show_dialog(out_path);
+                }
+                if (SUCCEEDED(init))
+                {
+                    CoUninitialize();
+                }
+                SetEvent(done_event);
+            });
+
+            while (true)
+            {
+                const DWORD wait = MsgWaitForMultipleObjects(1, &done_event, FALSE, INFINITE, QS_ALLINPUT);
+                if (wait == WAIT_OBJECT_0)
+                {
+                    break;
+                }
+
+                MSG msg = {};
+                while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE))
+                {
+                    TranslateMessage(&msg);
+                    DispatchMessageW(&msg);
+                }
+            }
+
+            worker.join();
+            CloseHandle(done_event);
+            return result;
+        }
+    }
+#endif
+
     bool OpenFileDialog(String& out_path, const FileDialogDesc& desc)
     {
         out_path.clear();
 #if defined(_WIN32)
-        const HRESULT init_result = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
-        const bool should_uninitialize = SUCCEEDED(init_result);
-        if (FAILED(init_result) && init_result != RPC_E_CHANGED_MODE)
+        return RunFileDialogOnStaThread(out_path, [&desc](String& result_path) -> bool
         {
-            return false;
-        }
-
         IFileOpenDialog* dialog = nullptr;
         HRESULT result = CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog));
         if (SUCCEEDED(result) && dialog)
@@ -567,7 +613,7 @@ namespace won::io
                     PWSTR file_path = nullptr;
                     if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &file_path)) && file_path)
                     {
-                        out_path = NormalizePath(std::filesystem::path(file_path).generic_string());
+                        result_path = NormalizePath(std::filesystem::path(file_path).generic_string());
                         CoTaskMemFree(file_path);
                     }
                     item->Release();
@@ -577,11 +623,8 @@ namespace won::io
             dialog->Release();
         }
 
-        if (should_uninitialize)
-        {
-            CoUninitialize();
-        }
-        return !out_path.empty();
+        return !result_path.empty();
+        });
 #else
         return false;
 #endif
@@ -591,13 +634,8 @@ namespace won::io
     {
         out_path.clear();
 #if defined(_WIN32)
-        const HRESULT init_result = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
-        const bool should_uninitialize = SUCCEEDED(init_result);
-        if (FAILED(init_result) && init_result != RPC_E_CHANGED_MODE)
+        return RunFileDialogOnStaThread(out_path, [&desc](String& result_path) -> bool
         {
-            return false;
-        }
-
         IFileSaveDialog* dialog = nullptr;
         HRESULT result = CoCreateInstance(CLSID_FileSaveDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog));
         if (SUCCEEDED(result) && dialog)
@@ -653,7 +691,7 @@ namespace won::io
                     PWSTR file_path = nullptr;
                     if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &file_path)) && file_path)
                     {
-                        out_path = NormalizePath(std::filesystem::path(file_path).generic_string());
+                        result_path = NormalizePath(std::filesystem::path(file_path).generic_string());
                         CoTaskMemFree(file_path);
                     }
                     item->Release();
@@ -663,11 +701,8 @@ namespace won::io
             dialog->Release();
         }
 
-        if (should_uninitialize)
-        {
-            CoUninitialize();
-        }
-        return !out_path.empty();
+        return !result_path.empty();
+        });
 #else
         return false;
 #endif
