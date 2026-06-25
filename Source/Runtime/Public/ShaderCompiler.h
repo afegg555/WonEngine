@@ -16,6 +16,16 @@ namespace won::resource
         HLSL6, // DXIL
     };
 
+    inline constexpr const char* ToString(ShaderFormat format)
+    {
+        switch (format)
+        {
+        case ShaderFormat::None: return "None";
+        case ShaderFormat::HLSL6: return "HLSL6";
+        }
+        return "Unknown";
+    }
+
     enum class ShaderModel : uint8_t
     {
         SM_6_0,
@@ -27,6 +37,22 @@ namespace won::resource
         SM_6_6,
         SM_6_7,
     };
+
+    inline constexpr const char* ToString(ShaderModel model)
+    {
+        switch (model)
+        {
+        case ShaderModel::SM_6_0: return "SM_6_0";
+        case ShaderModel::SM_6_1: return "SM_6_1";
+        case ShaderModel::SM_6_2: return "SM_6_2";
+        case ShaderModel::SM_6_3: return "SM_6_3";
+        case ShaderModel::SM_6_4: return "SM_6_4";
+        case ShaderModel::SM_6_5: return "SM_6_5";
+        case ShaderModel::SM_6_6: return "SM_6_6";
+        case ShaderModel::SM_6_7: return "SM_6_7";
+        }
+        return "Unknown";
+    }
 
     struct ShaderCompilerOptions
     {

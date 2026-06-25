@@ -119,6 +119,7 @@ namespace won::reflection
         WON_REFLECT_FIELD(aperture, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(shutter_speed, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(sensitivity, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(culling_mask, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::LightComponent, "LightComponent")
@@ -250,6 +251,10 @@ namespace won::reflection
 
     WON_REFLECT_STRUCT(won::ecs::AudioListenerComponent, "AudioListenerComponent")
         WON_REFLECT_FIELD(enabled, won::FieldFlagEditable | won::FieldFlagSerializable)
+    WON_REFLECT_STRUCT_END()
+
+    WON_REFLECT_STRUCT(won::ecs::LayerComponent, "LayerComponent")
+        WON_REFLECT_FIELD(layer_mask, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::resource::MaterialSlot::TextureMap, "TextureMap")

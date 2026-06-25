@@ -17,7 +17,7 @@ namespace won::rendering
         }
     }
 
-    bool View::RayCast(float2 screen_position, ecs::RayCastHit& out_hit, bool use_local_bvh) const
+    bool View::RayCast(float2 screen_position, ecs::RayCastHit& out_hit, bool use_local_bvh, uint32 layer_mask) const
     {
         out_hit = {};
         if (!scene || viewport.width <= 0 || viewport.height <= 0)
@@ -62,7 +62,7 @@ namespace won::rendering
         }
 
         ecs::RayCastBVHHit bvh_hit = {};
-        if (!scene->RayCastBVH(ray, bvh_hit, use_local_bvh))
+        if (!scene->RayCastBVH(ray, bvh_hit, use_local_bvh, layer_mask))
         {
             return false;
         }
@@ -80,26 +80,24 @@ namespace won::rendering
         const ecs::CameraComponent* camera = scene->GetComponent<ecs::CameraComponent>(camera_entity);
         const float3 eye = camera ? camera->eye : float3{};
         const math::Frustum* frustum = (options.enable_frustum_culling && camera) ? &camera->frustum : nullptr;
+        const uint32 culling_mask = camera ? camera->culling_mask : 0xFFFFFFFF;
+        // No iota fast path: layer_mask == 0 must be culled even when culling_mask is all-ones,
+        // so every renderable needs a per-element layer test regardless of frustum presence.
 
         jobsystem::Context ctx;
 
         jobsystem::Execute(ctx, [&](jobsystem::JobArgs)
         {
             const auto& renderables = render_data.opaque_renderables;
-            if (!frustum)
+            sorted_opaque_indices.clear();
+            for (uint32 i = 0; i < static_cast<uint32>(renderables.size()); ++i)
             {
-                sorted_opaque_indices.resize(renderables.size());
-                std::iota(sorted_opaque_indices.begin(), sorted_opaque_indices.end(), 0u);
-            }
-            else
-            {
-                sorted_opaque_indices.clear();
-                for (uint32 i = 0; i < static_cast<uint32>(renderables.size()); ++i)
-                {
-                    const auto& r = renderables[i];
-                    if (!r.aabb.IsValid() || r.aabb.IntersectFrustum(*frustum))
-                        sorted_opaque_indices.push_back(i);
-                }
+                const auto& r = renderables[i];
+                if ((culling_mask & r.layer_mask) == 0)
+                    continue;
+                if (frustum && r.aabb.IsValid() && !r.aabb.IntersectFrustum(*frustum))
+                    continue;
+                sorted_opaque_indices.push_back(i);
             }
             std::sort(sorted_opaque_indices.begin(), sorted_opaque_indices.end(),
                 [&](uint32 a, uint32 b)
@@ -121,20 +119,15 @@ namespace won::rendering
         jobsystem::Execute(ctx, [&](jobsystem::JobArgs)
         {
             const auto& renderables = render_data.transparent_renderables;
-            if (!frustum)
+            sorted_transparent_indices.clear();
+            for (uint32 i = 0; i < static_cast<uint32>(renderables.size()); ++i)
             {
-                sorted_transparent_indices.resize(renderables.size());
-                std::iota(sorted_transparent_indices.begin(), sorted_transparent_indices.end(), 0u);
-            }
-            else
-            {
-                sorted_transparent_indices.clear();
-                for (uint32 i = 0; i < static_cast<uint32>(renderables.size()); ++i)
-                {
-                    const auto& r = renderables[i];
-                    if (!r.aabb.IsValid() || r.aabb.IntersectFrustum(*frustum))
-                        sorted_transparent_indices.push_back(i);
-                }
+                const auto& r = renderables[i];
+                if ((culling_mask & r.layer_mask) == 0)
+                    continue;
+                if (frustum && r.aabb.IsValid() && !r.aabb.IntersectFrustum(*frustum))
+                    continue;
+                sorted_transparent_indices.push_back(i);
             }
             std::sort(sorted_transparent_indices.begin(), sorted_transparent_indices.end(),
                 [&](uint32 a, uint32 b)
@@ -147,20 +140,15 @@ namespace won::rendering
         jobsystem::Execute(ctx, [&](jobsystem::JobArgs)
         {
             const auto& renderables = render_data.sprite_3d_renderables;
-            if (!frustum)
+            sorted_sprite_3d_indices.clear();
+            for (uint32 i = 0; i < static_cast<uint32>(renderables.size()); ++i)
             {
-                sorted_sprite_3d_indices.resize(renderables.size());
-                std::iota(sorted_sprite_3d_indices.begin(), sorted_sprite_3d_indices.end(), 0u);
-            }
-            else
-            {
-                sorted_sprite_3d_indices.clear();
-                for (uint32 i = 0; i < static_cast<uint32>(renderables.size()); ++i)
-                {
-                    const auto& r = renderables[i];
-                    if (!r.aabb.IsValid() || r.aabb.IntersectFrustum(*frustum))
-                        sorted_sprite_3d_indices.push_back(i);
-                }
+                const auto& r = renderables[i];
+                if ((culling_mask & r.layer_mask) == 0)
+                    continue;
+                if (frustum && r.aabb.IsValid() && !r.aabb.IntersectFrustum(*frustum))
+                    continue;
+                sorted_sprite_3d_indices.push_back(i);
             }
             std::sort(sorted_sprite_3d_indices.begin(), sorted_sprite_3d_indices.end(),
                 [&](uint32 a, uint32 b)

@@ -76,6 +76,12 @@ namespace won::config
             return false;
         }
 
+        bool HasKey(const char* key) const
+        {
+            if (!key) return false;
+            return values.find(key) != values.end();
+        }
+
         void RemoveKey(const char* key)
         {
             if (!key) return;

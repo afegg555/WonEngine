@@ -79,6 +79,7 @@ namespace won::ecs
             component_manager.RegisterComponent<Rigidbody3DComponent>();
             component_manager.RegisterComponent<AudioSourceComponent>();
             component_manager.RegisterComponent<AudioListenerComponent>();
+            component_manager.RegisterComponent<LayerComponent>();
 
             if (desc.script_runtime)
             {
@@ -678,7 +679,7 @@ namespace won::ecs
             return !mesh_gpu_bvh_pending;
         }
 
-        bool RayCastBVH(const math::Ray& ray, RayCastBVHHit& out_hit, bool use_local_bvh = true)
+        bool RayCastBVH(const math::Ray& ray, RayCastBVHHit& out_hit, bool use_local_bvh = true, uint32 layer_mask = 0xFFFFFFFF)
         {
             out_hit = {};
 
@@ -697,6 +698,11 @@ namespace won::ecs
                     }
 
                     const Entity entity = scene_bvh_entities[primitive.user_data];
+                    const LayerComponent* layer = GetComponent<LayerComponent>(entity);
+                    if ((layer_mask & (layer ? layer->layer_mask : 0xFFFFFFFF)) == 0)
+                    {
+                        return false;
+                    }
                     const GeometryComponent* geometry = GetComponent<GeometryComponent>(entity);
                     const TransformComponent* transform = GetComponent<TransformComponent>(entity);
                     if (!geometry || !transform || !geometry->mesh)
@@ -824,7 +830,7 @@ namespace won::ecs
             return true;
         }
 
-        bool RayCastCollider3D(const math::Ray& ray, RayCastHit& out_hit, float max_distance = (std::numeric_limits<float>::max)())
+        bool RayCastCollider3D(const math::Ray& ray, RayCastHit& out_hit, float max_distance = (std::numeric_limits<float>::max)(), uint32 layer_mask = 0xFFFFFFFF)
         {
             out_hit = {};
 
@@ -850,6 +856,12 @@ namespace won::ecs
             {
                 const Collider3DComponent& collider = collider_3d_array->data[i];
                 if (!collider.IsEnabled() || !collider.world_bounds.IsValid())
+                {
+                    continue;
+                }
+                const Entity collider_entity = collider_3d_array->index_to_entity[i];
+                const LayerComponent* layer = GetComponent<LayerComponent>(collider_entity);
+                if ((layer_mask & (layer ? layer->layer_mask : 0xFFFFFFFF)) == 0)
                 {
                     continue;
                 }
@@ -999,6 +1011,7 @@ namespace won::ecs
                 uint32 index_count = 0;
                 uint32 flags = None;
                 uint32 shader_type = SHADER_MATERIAL_TYPE_PBR;
+                uint32 layer_mask = 0xFFFFFFFF;
                 resource::PrimitiveTopology primitive_topology = resource::PrimitiveTopology::TriangleList;
 
                 bool IsTransparent() const
@@ -1044,6 +1057,7 @@ namespace won::ecs
                 float2 pivot = { 0.5f, 0.5f };
                 float4 uv_rect = { 0.0f, 0.0f, 1.0f, 1.0f };
                 uint32 flags = None;
+                uint32 layer_mask = 0xFFFFFFFF;
                 std::shared_ptr<resource::Font> font;
 
                 bool IsText()        const { return (flags & Text) != 0; }

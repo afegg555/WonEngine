@@ -22,6 +22,7 @@ namespace won::ecs
         const auto sprite_3d_array = scene.GetComponentArray<Sprite3DComponent>().get();
         const auto transform_array = scene.GetComponentArray<TransformComponent>().get();
         const auto material_array = scene.GetComponentArray<MaterialComponent>().get();
+        const auto layer_array = scene.GetComponentArray<LayerComponent>().get();
 
         render_data.sprite_2d_renderables.clear();
         render_data.sprite_3d_renderables.clear();
@@ -127,6 +128,10 @@ namespace won::ecs
             if ((material_slot.flags & SHADER_MATERIAL_FLAG_TRANSPARENT) != 0)
             {
                 renderable.flags |= Scene::RenderData::Sprite3DRenderable::Transparent;
+            }
+            if (layer_array && layer_array->HasData(entity))
+            {
+                renderable.layer_mask = layer_array->GetData(entity).layer_mask;
             }
 
             bucket.sprite_3d_renderables.push_back(renderable);

@@ -12,6 +12,17 @@ namespace won::rendering
         Compute
     };
 
+    inline constexpr const char* ToString(RHIShaderStage stage)
+    {
+        switch (stage)
+        {
+        case RHIShaderStage::Vertex: return "Vertex";
+        case RHIShaderStage::Pixel: return "Pixel";
+        case RHIShaderStage::Compute: return "Compute";
+        }
+        return "Unknown";
+    }
+
     class RHIShader final : public RHIObject
     {
     public:

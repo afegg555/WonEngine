@@ -15,6 +15,7 @@ namespace won::config
         bool GetFloat(const char* key, float& out_value) const;
         void SetBool(const char* key, bool value);
         bool GetBool(const char* key, bool& out_value) const;
+        bool HasKey(const char* key) const;
         void RemoveKey(const char* key);
         uint32 GetKeyCount() const;
         const char* GetKey(uint32 index) const;

@@ -43,6 +43,11 @@ namespace won::config
         return store.GetBool(key, out_value);
     }
 
+    bool Configuration::HasKey(const char* key) const
+    {
+        return store.HasKey(key);
+    }
+
     void Configuration::RemoveKey(const char* key)
     {
         store.RemoveKey(key);
@@ -94,10 +99,23 @@ namespace won::config
     {
         store.Clear();
         if (argc < 1 || argv == nullptr) return false;
+        // "--name" tokens are registered as boolean flag keys (query with HasKey).
+        // All other tokens are positional and numbered "0", "1", ... so flag order
+        // does not shift positional indices.
+        int positional_index = 0;
         for (int i = 1; i < argc; ++i)
         {
             if (argv[i] == nullptr) return false;
-            store.SetString(std::to_string(i - 1).c_str(), argv[i]);
+            const char* arg = argv[i];
+            if (arg[0] == '-' && arg[1] == '-')
+            {
+                store.SetBool(arg, true);
+            }
+            else
+            {
+                store.SetString(std::to_string(positional_index).c_str(), arg);
+                ++positional_index;
+            }
         }
         return true;
     }

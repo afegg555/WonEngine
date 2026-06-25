@@ -30,25 +30,13 @@ int main(int argc, char** argv)
     const won::String target = "Player"; // TODO: support Player variants (ex. PackageTool Projects/ScriptedTriangle/ScriptedTriangle.wonproj """"VRPlayer"""")
     const char* project_path_arg = arguments.GetString("0");
     const char* config_arg = arguments.GetString("1");
-    const char* manifest_arg = arguments.GetString("2");
-    const char* check_extra = arguments.GetString("3");
+    const char* check_extra = arguments.GetString("2");
+    const bool generate_manifest = arguments.HasKey("--manifest");
 
     if (project_path_arg == nullptr || project_path_arg[0] == '\0' || check_extra != nullptr)
     {
         std::cout << "Usage: PackageTool project_path [Debug|Release] [--manifest]\n";
         return 1;
-    }
-
-    bool generate_manifest = false;
-    if (manifest_arg != nullptr)
-    {
-        if (won::String(manifest_arg) != "--manifest")
-        {
-            std::cout << "Invalid argument: " << manifest_arg << "\n";
-            std::cout << "Usage: PackageTool project_path [Debug|Release] [--manifest]\n";
-            return 1;
-        }
-        generate_manifest = true;
     }
 
     won::String config = "Release";

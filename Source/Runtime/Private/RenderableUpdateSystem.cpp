@@ -25,6 +25,7 @@ namespace won::ecs
         const auto material_array = scene.GetComponentArray<MaterialComponent>().get();
         const auto transform_array = scene.GetComponentArray<TransformComponent>().get();
         const auto animation_array = scene.GetComponentArray<AnimationComponent>().get();
+        const auto layer_array = scene.GetComponentArray<LayerComponent>().get();
 
         render_data.shader_instances.resize(transform_array->GetSize());
 
@@ -108,6 +109,10 @@ namespace won::ecs
                     renderable.primitive_topology = submesh.primitive_topology;
                     renderable.shader_type = material_slot.shader_type;
                     renderable.flags = Scene::RenderData::Renderable::None;
+                    if (layer_array && layer_array->HasData(entity))
+                    {
+                        renderable.layer_mask = layer_array->GetData(entity).layer_mask;
+                    }
                     if (geometry_comp.IsCastShadow())
                     {
                         renderable.flags |= Scene::RenderData::Renderable::CastShadow;
