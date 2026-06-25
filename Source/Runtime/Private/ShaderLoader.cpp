@@ -2,6 +2,7 @@
 #include "ShaderCompiler.h"
 #include "Backlog.h"
 #include "BinaryArchive.h"
+#include "JsonArchive.h"
 #include "FileSystem.h"
 #include "ResourceExtension.h"
 
@@ -68,15 +69,55 @@ namespace won::resource::shaderloader
             return true;
         }
 
-        String GetShaderBinaryFileName(const ShaderCompileDesc& desc)
+        String GetShaderBinaryPath(const String& bin_root, const ShaderCompileDesc& desc)
         {
             String file_name = desc.source_file_name;
             if (!desc.entry_point.empty() && desc.entry_point != "main")
             {
                 file_name = io::ReplaceExtension(file_name, desc.entry_point + "." + io::GetExtension(file_name));
             }
-            return io::ReplaceExtension(file_name, shader_binary_extension);
+            file_name = io::ReplaceExtension(file_name, shader_binary_extension);
+            if (bin_root.empty())
+            {
+                return file_name;
+            }
+            return bin_root + "/" + file_name;
         }
+    }
+
+    bool DumpShaderMetadata(const String& bin_root, const String& out_file_path)
+    {
+        const ShaderManifest& manifest = GetDefaultShaderManifest();
+
+        JsonArchive archive(ArchiveMode::Write, { true });
+        archive.BeginArray();
+        for (const ShaderManifestEntry& entry : manifest)
+        {
+            const String binary_path = GetShaderBinaryPath(bin_root, entry.compile_desc);
+            const String dependency_path = io::ReplaceExtension(binary_path, shader_dependency_extension);
+
+            archive.BeginItem();
+            archive.BeginObject();
+            archive.Field("shader_id", String(ToString(entry.shader_id)));
+            archive.Field("source_file", String(entry.compile_desc.source_file_name));
+            archive.Field("entry_point", String(entry.compile_desc.entry_point));
+            archive.Field("stage", String(rendering::ToString(entry.compile_desc.stage)));
+            archive.Field("format", String(ToString(entry.compile_desc.format)));
+            archive.Field("model", String(ToString(entry.compile_desc.model)));
+            archive.Field("binary_path", binary_path);
+            archive.Field("dependency_path", dependency_path);
+            archive.EndObject();
+            archive.EndItem();
+        }
+        archive.EndArray();
+
+        if (archive.HasError() || !archive.SaveToFile(out_file_path))
+        {
+            backlog::Post("Failed to write shader metadata: " + out_file_path, backlog::LogLevel::Error);
+            return false;
+        }
+        backlog::Post("Shader metadata written: " + out_file_path);
+        return true;
     }
 
     bool LoadShader(const std::shared_ptr<ShaderCompiler>& shader_compiler, const ShaderManifestEntry& entry, std::shared_ptr<rendering::RHIShader>& out_shader)
@@ -90,7 +131,7 @@ namespace won::resource::shaderloader
         out_shader.reset();
 
         const ShaderCompileDesc& desc = entry.compile_desc;
-        String binary_file_name = shader_compiler->GetCompileOptions().shader_bin_root_path + "/" + GetShaderBinaryFileName(desc);
+        const String binary_file_name = GetShaderBinaryPath(shader_compiler->GetCompileOptions().shader_bin_root_path, desc);
 
         Vector<uint8> bytecode;
         if (IsShaderOutdated(binary_file_name))
