@@ -55,6 +55,7 @@ namespace won::reflection
         RegisterType(TypeMeta<ecs::Rigidbody3DComponent>::Get());
         RegisterType(TypeMeta<ecs::AudioSourceComponent>::Get());
         RegisterType(TypeMeta<ecs::AudioListenerComponent>::Get());
+        RegisterType(TypeMeta<ecs::LayerComponent>::Get());
         RegisterType(TypeMeta<resource::MaterialSlot::TextureMap>::Get());
         RegisterType(TypeMeta<resource::MaterialSlot>::Get());
         RegisterType(TypeMeta<ecs::MaterialComponent>::Get());

@@ -44,7 +44,7 @@ namespace won::rendering
         Vector<uint32> sorted_sprite_2d_indices;    // by layer
 
         void Update(float dt);
-        bool RayCast(float2 screen_position, ecs::RayCastHit& out_hit, bool use_local_bvh = true) const;
+        bool RayCast(float2 screen_position, ecs::RayCastHit& out_hit, bool use_local_bvh = true, uint32 layer_mask = 0xFFFFFFFF) const;
 
     private:
         void BuildSortedIndices();

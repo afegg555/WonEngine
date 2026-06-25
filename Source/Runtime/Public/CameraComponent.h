@@ -42,6 +42,8 @@ namespace won::ecs
         float shutter_speed = 1 / 125.f; // in seconds
         float sensitivity = 100; // ISO
 
+        uint32 culling_mask = 0xFFFFFFFF;
+
         constexpr void SetDirty(bool value = true) { if (value) { flags |= Dirty; } else { flags &= ~Dirty; } }
         constexpr bool IsDirty() const { return flags & Dirty; }
 
