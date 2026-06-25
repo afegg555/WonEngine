@@ -803,8 +803,17 @@ namespace won::rendering
         if (HasBindFlag(desc.bind_flags, RHIBindFlags::DepthStencil))
         {
             optimized_clear_value.Format = ToDXGIDsvFormat(desc.format);
-            optimized_clear_value.DepthStencil.Depth = 0.0f;
-            optimized_clear_value.DepthStencil.Stencil = 0;
+            optimized_clear_value.DepthStencil.Depth = OPTIMIZED_FAST_CLEAR_DEPTH;
+            optimized_clear_value.DepthStencil.Stencil = OPTIMIZED_FAST_CLEAR_STENCIL;
+            optimized_clear_value_ptr = &optimized_clear_value;
+        }
+        else if (HasBindFlag(desc.bind_flags, RHIBindFlags::RenderTarget))
+        {
+            optimized_clear_value.Format = ToDXGIResourceFormat(desc.format);
+            optimized_clear_value.Color[0] = OPTIMIZED_FAST_CLEAR_COLOR[0];
+            optimized_clear_value.Color[1] = OPTIMIZED_FAST_CLEAR_COLOR[1];
+            optimized_clear_value.Color[2] = OPTIMIZED_FAST_CLEAR_COLOR[2];
+            optimized_clear_value.Color[3] = OPTIMIZED_FAST_CLEAR_COLOR[3];
             optimized_clear_value_ptr = &optimized_clear_value;
         }
 

@@ -20,7 +20,10 @@ namespace won::resource
         PSObjectPrepass,
         PSSprite,
         PSText3D,
+        PSComposite,
 
+        CSFXAA,
+        CSTonemap,
         CSDDGIProbeUpdate,
         CSTextureMipGen,
         CSGPUBVHBuildGeneratePrimitives,

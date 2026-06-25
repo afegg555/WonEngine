@@ -32,7 +32,7 @@ namespace won::ecs
 		// Brightness of light in. The units that this is defined in depend on the type of light.
 		// Point and spot lights : luminous power lumen (800 lumen for a household light bulb)
 		// Directional lights : Illuminance lux (lm/m2). (120,000 lux for daylight sky and sun) https://google.github.io/filament/Filament.md.html#table_sunskyilluminance
-		float intensity = 800.0f;
+		float intensity = 100000.0f;
 		float range = 10.0f;
 		float outer_cone_angle = XM_PIDIV4;
 		float inner_cone_angle = 0; // default value is 0, means only outer cone angle is used

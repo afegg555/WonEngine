@@ -212,6 +212,7 @@ set(RUNTIME_RENDERING
     Source/Runtime/Private/Renderer.cpp
     Source/Runtime/Private/RenderingUtils.cpp
     Source/Runtime/Public/View.h
+    Source/Runtime/Public/ViewOptionEnums.h
     Source/Runtime/Private/View.cpp
 )
 
@@ -392,12 +393,16 @@ set(SHADERS_INTEROP
     Source/Shaders/ShaderInterop_Renderer.h
     Source/Shaders/ShaderInterop_Sprite.h
     Source/Shaders/ShaderInterop_Utility.h
+    Source/Shaders/ShaderInterop_PostProcess.h
 )
 
 set(SHADERS_HLSL
     Source/Shaders/Common.hlsli
     Source/Shaders/FullTriangleVS.hlsl
     Source/Shaders/SkyPS.hlsl
+    Source/Shaders/FXAACS.hlsl
+    Source/Shaders/TonemapCS.hlsl
+    Source/Shaders/CompositePS.hlsl
     Source/Shaders/ShadingCommon.hlsli
     Source/Shaders/BRDFCommon.hlsli
     Source/Shaders/FogCommon.hlsli

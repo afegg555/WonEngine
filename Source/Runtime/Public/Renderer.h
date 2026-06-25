@@ -99,6 +99,7 @@ namespace won::rendering
         uint32 visible_renderable_count = 0; // after frustum culling
     };
 
+    constexpr RHIFormat HDR_COLOR_BUFFER_FORMAT = RHIFormat::R16G16B16A16Float;
     constexpr RHIFormat RENDERTARGET_BUFFER_FORMAT = RHIFormat::R8G8B8A8Unorm;
     constexpr RHIFormat DEPTH_BUFFER_FORMAT = RHIFormat::D32Float;
 

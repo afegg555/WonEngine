@@ -14,6 +14,7 @@
 #include "RectPacker.h"
 
 #include "ShaderInterop.h"
+#include "ShaderInterop_PostProcess.h"
 
 #include <algorithm>
 #include <cstring>
@@ -565,6 +566,88 @@ namespace won::rendering
                 return false;
             }
         }
+
+        // Offscreen HDR ping-pong color buffers (backbuffer-sized). [0] doubles as the scene render
+        // target; the scene always renders here and the post chain composites into the backbuffer.
+        bool recreate_color_buffers = !color_buffer[0] || !color_buffer[1] || !color_buffer_rtv[0].IsValid() || !color_buffer_rtv[1].IsValid();
+        if (!recreate_color_buffers)
+        {
+            const RHITextureDesc& post_texture_desc = color_buffer[0]->GetDesc().texture_desc;
+            recreate_color_buffers =
+                post_texture_desc.width != back_buffer_texture_desc.width ||
+                post_texture_desc.height != back_buffer_texture_desc.height;
+        }
+
+        if (recreate_color_buffers)
+        {
+            for (uint32 i = 0; i < 2; ++i)
+            {
+                frame_context.RemoveResourceDeferred(color_buffer[i]);
+
+                RHITextureDesc post_desc = {};
+                post_desc.width = back_buffer_texture_desc.width;
+                post_desc.height = back_buffer_texture_desc.height;
+                post_desc.depth = 1;
+                post_desc.mip_levels = 1;
+                post_desc.array_layers = 1;
+                post_desc.sample_count = 1;
+                post_desc.format = HDR_COLOR_BUFFER_FORMAT;
+                post_desc.usage = RHIResourceUsage::Default;
+                post_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess | RHIBindFlags::RenderTarget;
+                color_buffer[i] = device->CreateTexture(post_desc);
+                if (!color_buffer[i])
+                {
+                    backlog::Post("failed to create post-process buffer", backlog::LogLevel::Error);
+                    return false;
+                }
+                color_buffer[i]->SetName(i == 0 ? "Color Buffer 0 (Scene Color)" : "Color Buffer 1");
+
+                color_buffer_srv[i] = {};
+                RHISubresourceDesc srv_desc = {};
+                srv_desc.type = RHISubresourceType::ShaderResource;
+                srv_desc.format = post_desc.format;
+                srv_desc.first_slice = 0;
+                srv_desc.slice_count = 1;
+                srv_desc.first_mip = 0;
+                srv_desc.mip_count = 1;
+                if (!device->CreateSubresource(*color_buffer[i], srv_desc, &color_buffer_srv[i]))
+                {
+                    backlog::Post("failed to create post buffer SRV", backlog::LogLevel::Error);
+                    return false;
+                }
+
+                color_buffer_uav[i] = {};
+                RHISubresourceDesc uav_desc = {};
+                uav_desc.type = RHISubresourceType::UnorderedAccess;
+                uav_desc.format = post_desc.format;
+                uav_desc.first_slice = 0;
+                uav_desc.slice_count = 1;
+                uav_desc.first_mip = 0;
+                uav_desc.mip_count = 1;
+                if (!device->CreateSubresource(*color_buffer[i], uav_desc, &color_buffer_uav[i]))
+                {
+                    backlog::Post("failed to create post buffer UAV", backlog::LogLevel::Error);
+                    return false;
+                }
+            }
+
+            color_buffer_rtv[0] = {};
+            color_buffer_rtv[1] = {};
+            RHISubresourceDesc rtv_desc = {};
+            rtv_desc.type = RHISubresourceType::RenderTarget;
+            rtv_desc.format = HDR_COLOR_BUFFER_FORMAT;
+            if (!device->CreateSubresource(*color_buffer[0], rtv_desc, &color_buffer_rtv[0]))
+            {
+                backlog::Post("failed to create post buffer 0 RTV", backlog::LogLevel::Error);
+                return false;
+            }
+            if (!device->CreateSubresource(*color_buffer[1], rtv_desc, &color_buffer_rtv[1]))
+            {
+                backlog::Post("failed to create post buffer 1 RTV", backlog::LogLevel::Error);
+                return false;
+            }
+        }
+
         return true;
     }
 
@@ -721,7 +804,7 @@ namespace won::rendering
             std::memcpy(mapped_data, patched_shader_instances.data(), required_instance_buffer_size);
 
             command_list.TransitionResource(*shader_instance_default_buffer, RHIResourceState::CopyDest);
-            command_list.CopyResource(*shader_instance_default_buffer, *frame_context.shader_instance_upload_buffer);
+            command_list.CopyBuffer(*shader_instance_default_buffer, 0, *frame_context.shader_instance_upload_buffer, 0, required_instance_buffer_size);
             command_list.TransitionResource(*shader_instance_default_buffer, RHIResourceState::ShaderRead);
         }
 
@@ -802,7 +885,7 @@ namespace won::rendering
                     mapped[opaque_count + i] = transparent[view.sorted_transparent_indices[i]].push_constants.draw_offset;
 
                 command_list.TransitionResource(*shader_instance_sort_default_buffer, RHIResourceState::CopyDest);
-                command_list.CopyResource(*shader_instance_sort_default_buffer, *frame_context.shader_instance_sort_upload_buffer);
+                command_list.CopyBuffer(*shader_instance_sort_default_buffer, 0, *frame_context.shader_instance_sort_upload_buffer, 0, required_sort_buffer_size);
                 command_list.TransitionResource(*shader_instance_sort_default_buffer, RHIResourceState::ShaderRead);
             }
         }
@@ -880,7 +963,7 @@ namespace won::rendering
             std::memcpy(mapped_data, shader_geometries.data(), required_geometry_buffer_size);
 
             command_list.TransitionResource(*shader_geometry_default_buffer, RHIResourceState::CopyDest);
-            command_list.CopyResource(*shader_geometry_default_buffer, *frame_context.shader_geometry_upload_buffer);
+            command_list.CopyBuffer(*shader_geometry_default_buffer, 0, *frame_context.shader_geometry_upload_buffer, 0, required_geometry_buffer_size);
             command_list.TransitionResource(*shader_geometry_default_buffer, RHIResourceState::ShaderRead);
         }
 
@@ -957,7 +1040,7 @@ namespace won::rendering
             std::memcpy(mapped_data, shader_materials.data(), required_material_buffer_size);
 
             command_list.TransitionResource(*shader_material_default_buffer, RHIResourceState::CopyDest);
-            command_list.CopyResource(*shader_material_default_buffer, *frame_context.shader_material_upload_buffer);
+            command_list.CopyBuffer(*shader_material_default_buffer, 0, *frame_context.shader_material_upload_buffer, 0, required_material_buffer_size);
             command_list.TransitionResource(*shader_material_default_buffer, RHIResourceState::ShaderRead);
         }
 
@@ -1034,7 +1117,7 @@ namespace won::rendering
             std::memcpy(mapped_data, shader_lights.data(), required_light_buffer_size);
 
             command_list.TransitionResource(*shader_light_default_buffer, RHIResourceState::CopyDest);
-            command_list.CopyResource(*shader_light_default_buffer, *frame_context.shader_light_upload_buffer);
+            command_list.CopyBuffer(*shader_light_default_buffer, 0, *frame_context.shader_light_upload_buffer, 0, required_light_buffer_size);
             command_list.TransitionResource(*shader_light_default_buffer, RHIResourceState::ShaderRead);
         }
 
@@ -1239,6 +1322,7 @@ namespace won::rendering
                 shader_camera.projection = camera_component->projection;
                 shader_camera.view_projection = camera_component->view_projection;
                 shader_camera.inv_view_projection = camera_component->inv_view_projection;
+				shader_camera.exposure = (camera_component->shutter_speed * camera_component->sensitivity) / (1.2f * camera_component->aperture * camera_component->aperture * 100.0f); // inverse of maximum luminance, based on f-number and shutter speed
             }
         }
 
@@ -1285,8 +1369,8 @@ namespace won::rendering
         {
             const ecs::LightComponent& light = light_array->data[light_index];
             ShaderLight& shader_light = render_data.shader_lights[light_index];
-            shader_light.shadow_slice_offset = 0u;
-            shader_light.shadow_slice_count = 0u;
+            shader_light.SetShadowSliceOffset(0u);
+            shader_light.SetShadowSliceCount(0u);
 
             if (!light.IsActive() || !light.IsDynamic() || !light.IsCastShadow())
             {
@@ -1305,8 +1389,8 @@ namespace won::rendering
             }
 
             const uint32 cascade_offset = static_cast<uint32>(render_data.shader_shadow_cascades.size());
-            shader_light.shadow_slice_offset = cascade_offset;
-            shader_light.shadow_slice_count = cascade_count;
+            shader_light.SetShadowSliceOffset(cascade_offset);
+            shader_light.SetShadowSliceCount(cascade_count);
 
             float split_distances[SHADOW_CASCADE_COUNT_MAX + 1] = {};
             split_distances[0] = camera->near_plane;
@@ -1486,7 +1570,7 @@ namespace won::rendering
 
         RHICompareOp depth_compare = RHICompareOp::GreaterEqual;
         const bool draw_wireframe = pass == RenderPassType::MainPass && debug_options.wireframe_enable;
-        const bool draw_primitives = pass == RenderPassType::MainPass && (flags & DrawScene_Primitive) != 0;
+        const bool draw_primitives = pass == RenderPassType::PrimitivePass && (flags & DrawScene_Primitive) != 0;
         if (pass == RenderPassType::MainPass)
         {
             if (!draw_wireframe)
@@ -1662,21 +1746,6 @@ namespace won::rendering
 
                 for (const auto& renderable : render_data.line_renderables)
                 {
-                    if (renderable.IsTransparent())
-                    {
-                        if ((flags & DrawScene_Transparent) == 0)
-                        {
-                            continue;
-                        }
-                    }
-                    else
-                    {
-                        if ((flags & DrawScene_Opaque) == 0)
-                        {
-                            continue;
-                        }
-                    }
-
                     command_list.SetIndexBuffer(*renderable.index_buffer, sizeof(uint32), renderable.index_offset, renderable.index_count * sizeof(uint32));
                     command_list.SetPrimitiveTopology(ToRHIPrimitiveTopology(renderable.primitive_topology));
                     command_list.PushConstants(RHIShaderStage::Vertex, &renderable.push_constants, sizeof(ObjectPushConstants), 0);
@@ -1702,21 +1771,6 @@ namespace won::rendering
 
                 for (const auto& renderable : render_data.point_renderables)
                 {
-                    if (renderable.IsTransparent())
-                    {
-                        if ((flags & DrawScene_Transparent) == 0)
-                        {
-                            continue;
-                        }
-                    }
-                    else
-                    {
-                        if ((flags & DrawScene_Opaque) == 0)
-                        {
-                            continue;
-                        }
-                    }
-
                     command_list.SetIndexBuffer(*renderable.index_buffer, sizeof(uint32), renderable.index_offset, renderable.index_count * sizeof(uint32));
                     command_list.SetPrimitiveTopology(ToRHIPrimitiveTopology(renderable.primitive_topology));
                     command_list.PushConstants(RHIShaderStage::Vertex, &renderable.push_constants, sizeof(ObjectPushConstants), 0);
@@ -1991,7 +2045,7 @@ namespace won::rendering
             return false;
         }
 
-        return shader_library.BuildAllGraphicsPipelines(device, RENDERTARGET_BUFFER_FORMAT, DEPTH_BUFFER_FORMAT, 1u);
+        return shader_library.BuildAllGraphicsPipelines(device, HDR_COLOR_BUFFER_FORMAT, RENDERTARGET_BUFFER_FORMAT, DEPTH_BUFFER_FORMAT, 1u);
     }
 
     std::shared_ptr<RHIShader> RendererInternal::GetShader(resource::ShaderId shader_id) const
@@ -2369,7 +2423,13 @@ namespace won::rendering
                 return;
             }
 
-            Vector<RHISubresourceBinding> color_targets = { back_buffer_binding };
+            // The scene always renders into the offscreen color_buffer[0]; the post chain then resolves
+            // into the backbuffer. Render target never depends on which post effects are enabled.
+            RHISubresourceBinding scene_color_binding = {};
+            scene_color_binding.resource = color_buffer[0].get();
+            scene_color_binding.subresource = color_buffer_rtv[0];
+
+            Vector<RHISubresourceBinding> color_targets = { scene_color_binding };
             RHISubresourceBinding shader_frame_binding = {};
             shader_frame_binding.resource = shader_frame_buffer.get();
             shader_frame_binding.subresource = shader_frame_buffer_cbv;
@@ -2396,8 +2456,11 @@ namespace won::rendering
                 UpdateDDGIProbe(frame_context, render_data.shader_environment_lighting, render_data.shader_ddgi_volume, shader_frame_binding, shader_camera_binding, *command_list);
             }
 
-            command_list->TransitionResource(*back_buffer_binding.resource, RHIResourceState::RenderTarget);
+            command_list->TransitionResource(*scene_color_binding.resource, RHIResourceState::RenderTarget);
             command_list->TransitionResource(*depth_buffer_binding.resource, RHIResourceState::DepthWrite);
+
+            command_list->ClearRenderTarget(scene_color_binding, { OPTIMIZED_FAST_CLEAR_COLOR[0], OPTIMIZED_FAST_CLEAR_COLOR[1], OPTIMIZED_FAST_CLEAR_COLOR[2], OPTIMIZED_FAST_CLEAR_COLOR[3] });
+
             command_list->SetViewport(viewport);
             command_list->SetScissor(scissor);
 
@@ -2506,6 +2569,7 @@ namespace won::rendering
                         shader_camera.projection = camera_component->projection;
                         shader_camera.view_projection = camera_component->view_projection;
                         shader_camera.inv_view_projection = camera_component->inv_view_projection;
+                        shader_camera.exposure = (camera_component->shutter_speed * camera_component->sensitivity) / (1.2f * camera_component->aperture * camera_component->aperture * 100.0f);
                     }
                 }
 
@@ -2540,7 +2604,189 @@ namespace won::rendering
                 command_list->SetRenderTargets(color_targets, &depth_buffer_binding);
                 {
                     auto cpu_range = profiler::ScopedRangeCPU("Draw Main Pass");
-                    DrawScene(frame_context, view, RenderPassType::MainPass, DrawScene_Opaque | DrawScene_Transparent | DrawScene_Primitive, *command_list);
+                    DrawScene(frame_context, view, RenderPassType::MainPass, DrawScene_Opaque | DrawScene_Transparent, *command_list);
+                }
+                command_list->EndEvent();
+            }
+
+
+
+            // Post chain + resolve
+            {
+                auto gpu_range = profiler::ScopedRangeGPU("Post Resolve", *command_list);
+                command_list->BeginEvent("Post Resolve");
+
+                const RHITextureDesc& color_desc = color_buffer[0]->GetDesc().texture_desc;
+                const uint32 width = color_desc.width;
+                const uint32 height = color_desc.height;
+
+                std::shared_ptr<RHIShader> current_tonemap_shader = shader_library.GetShader(ShaderId::CSTonemap);
+                if (tonemap_shader != current_tonemap_shader)
+                {
+                    tonemap_pipeline = nullptr;
+                    tonemap_shader = current_tonemap_shader;
+                }
+                if (!tonemap_pipeline && tonemap_shader)
+                {
+                    RHIComputePipelineDesc tonemap_pipeline_desc = {};
+                    tonemap_pipeline_desc.compute_shader = tonemap_shader.get();
+                    tonemap_pipeline = device->CreateComputePipeline(tonemap_pipeline_desc);
+                    if (tonemap_pipeline)
+                    {
+                        tonemap_pipeline->SetName("Tonemap Pipeline");
+                    }
+                }
+
+                const bool use_fxaa = view.options.aa_mode == AntiAliasingMode::FXAA;
+                if (use_fxaa)
+                {
+                    std::shared_ptr<RHIShader> current_fxaa_shader = shader_library.GetShader(ShaderId::CSFXAA);
+                    if (fxaa_shader != current_fxaa_shader)
+                    {
+                        fxaa_pipeline = nullptr;
+                        fxaa_shader = current_fxaa_shader;
+                    }
+                    if (!fxaa_pipeline && fxaa_shader)
+                    {
+                        RHIComputePipelineDesc fxaa_pipeline_desc = {};
+                        fxaa_pipeline_desc.compute_shader = fxaa_shader.get();
+                        fxaa_pipeline = device->CreateComputePipeline(fxaa_pipeline_desc);
+                        if (fxaa_pipeline)
+                        {
+                            fxaa_pipeline->SetName("FXAA Pipeline");
+                        }
+                    }
+                }
+
+                std::shared_ptr<RHIShader> current_composite_shader = shader_library.GetShader(ShaderId::PSComposite);
+                if (composite_shader != current_composite_shader)
+                {
+                    composite_pipeline = nullptr;
+                    composite_shader = current_composite_shader;
+                }
+                if (!composite_pipeline && composite_shader)
+                {
+                    RHIGraphicsPipelineDesc composite_desc = {};
+                    composite_desc.vertex_shader = shader_library.GetShader(ShaderId::VSFullTriangle).get();
+                    composite_desc.pixel_shader = composite_shader.get();
+                    composite_desc.blend.enable = true;
+                    composite_desc.depth_stencil.depth_test = false;
+                    composite_desc.depth_stencil.depth_write = false;
+                    composite_desc.raster.cull_mode = RHICullMode::None;
+                    composite_desc.topology = RHIPrimitiveTopology::TriangleList;
+                    composite_desc.render_target_formats = { back_buffer_binding.resource->GetDesc().texture_desc.format };
+
+                    composite_pipeline = device->CreateGraphicsPipeline(composite_desc);
+                    if (composite_pipeline)
+                    {
+                        composite_pipeline->SetName("Composite Pipeline");
+                    }
+                }
+
+                // Ping-pong index of the buffer holding the current color (no member mutation).
+                uint32 src = 0;
+
+                if (tonemap_pipeline)
+                {
+                    const uint32 dst = src ^ 1u;
+                    command_list->BeginEvent("Tonemap");
+                    command_list->TransitionResource(*color_buffer[src], RHIResourceState::ShaderRead);
+                    command_list->TransitionResource(*color_buffer[dst], RHIResourceState::ShaderWrite);
+
+                    command_list->SetComputePipeline(*tonemap_pipeline);
+                    command_list->SetConstantBuffer(RHIShaderStage::Compute, 0, shader_frame_binding);
+                    command_list->SetConstantBuffer(RHIShaderStage::Compute, 1, shader_camera_binding);
+                    TonemapPushConstants tonemap_push = {};
+                    tonemap_push.Init();
+                    tonemap_push.input_descriptor = static_cast<uint32>(color_buffer_srv[src].descriptor_index);
+                    tonemap_push.output_descriptor = static_cast<uint32>(color_buffer_uav[dst].descriptor_index);
+                    tonemap_push.resolution = uint2(width, height);
+                    tonemap_push.tonemap_type = view.options.tonemap_mode == TonemapMode::ACES ? TONEMAP_TYPE_ACES : TONEMAP_TYPE_REINHARD;
+                    command_list->PushConstants(RHIShaderStage::Compute, &tonemap_push, sizeof(tonemap_push), 0);
+                    command_list->Dispatch((width + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D,
+                                           (height + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D, 1u);
+                    command_list->UAVBarrier(*color_buffer[dst]);
+                    command_list->EndEvent();
+                    src = dst;
+                }
+
+                if (use_fxaa && fxaa_pipeline)
+                {
+                    const uint32 dst = src ^ 1u;
+                    command_list->BeginEvent("FXAA");
+                    command_list->TransitionResource(*color_buffer[src], RHIResourceState::ShaderRead);
+                    command_list->TransitionResource(*color_buffer[dst], RHIResourceState::ShaderWrite);
+
+                    command_list->SetComputePipeline(*fxaa_pipeline);
+                    command_list->SetConstantBuffer(RHIShaderStage::Compute, 0, shader_frame_binding);
+                    command_list->SetConstantBuffer(RHIShaderStage::Compute, 1, shader_camera_binding);
+                    FXAAPushConstants fxaa_push = {};
+                    fxaa_push.Init();
+                    fxaa_push.input_descriptor = static_cast<uint32>(color_buffer_srv[src].descriptor_index);
+                    fxaa_push.output_descriptor = static_cast<uint32>(color_buffer_uav[dst].descriptor_index);
+                    fxaa_push.rcp_resolution = float2(1.0f / static_cast<float>(width), 1.0f / static_cast<float>(height));
+                    fxaa_push.resolution = uint2(width, height);
+                    command_list->PushConstants(RHIShaderStage::Compute, &fxaa_push, sizeof(fxaa_push), 0);
+                    command_list->Dispatch((width + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D,
+                                           (height + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D, 1u);
+                    command_list->UAVBarrier(*color_buffer[dst]);
+                    command_list->EndEvent();
+                    src = dst;
+                }
+
+                // Make the current color buffer readable for the composite blit.
+                command_list->TransitionResource(*color_buffer[src], RHIResourceState::ShaderRead);
+
+                if (composite_pipeline)
+                {
+                    command_list->TransitionResource(*back_buffer_binding.resource, RHIResourceState::RenderTarget);
+                    command_list->SetRenderTargets({ back_buffer_binding }, nullptr);
+
+                    RHIViewport composite_viewport;
+                    composite_viewport.x = 0.0f;
+                    composite_viewport.y = 0.0f;
+                    composite_viewport.width = static_cast<float>(back_buffer_binding.resource->GetDesc().texture_desc.width);
+                    composite_viewport.height = static_cast<float>(back_buffer_binding.resource->GetDesc().texture_desc.height);
+                    composite_viewport.min_depth = 0.0f;
+                    composite_viewport.max_depth = 1.0f;
+
+                    RHIRect composite_scissor = {};
+                    composite_scissor.x = 0;
+                    composite_scissor.y = 0;
+                    composite_scissor.width = back_buffer_binding.resource->GetDesc().texture_desc.width;
+                    composite_scissor.height = back_buffer_binding.resource->GetDesc().texture_desc.height;
+
+                    command_list->SetViewport(composite_viewport);
+                    command_list->SetScissor(composite_scissor);
+
+                    command_list->SetGraphicsPipeline(*composite_pipeline);
+                    
+                    CompositePushConstants composite_push = {};
+                    composite_push.Init();
+                    composite_push.input_descriptor = static_cast<uint32>(color_buffer_srv[src].descriptor_index);
+                    command_list->PushConstants(RHIShaderStage::Pixel, &composite_push, sizeof(composite_push), 0);
+                    
+                    command_list->SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
+                    command_list->Draw(3, 1, 0, 0);
+                }
+
+                command_list->EndEvent();
+            }
+
+            // Primitives (lines/points) and sprites are drawn after the post chain, directly to the LDR
+            // backbuffer, so they are not tonemapped (debug primitives keep their literal colors).
+
+            // primitive (line/point) pass: depth-tested against the scene
+            {
+                auto gpu_range = profiler::ScopedRangeGPU("Primitive Pass", *command_list);
+                command_list->BeginEvent("Primitive Pass");
+
+                command_list->SetViewport(viewport);
+                command_list->SetScissor(scissor);
+                command_list->SetRenderTargets({ back_buffer_binding }, &depth_buffer_binding);
+                {
+                    auto cpu_range = profiler::ScopedRangeCPU("Draw Primitive Pass");
+                    DrawScene(frame_context, view, RenderPassType::PrimitivePass, DrawScene_Primitive, *command_list);
                 }
                 command_list->EndEvent();
             }
@@ -2550,7 +2796,7 @@ namespace won::rendering
                 auto gpu_range = profiler::ScopedRangeGPU("Sprite/Text3D Pass", *command_list);
                 command_list->BeginEvent("Sprite/Text3D Pass");
 
-                command_list->SetRenderTargets(color_targets, &depth_buffer_binding);
+                command_list->SetRenderTargets({ back_buffer_binding }, &depth_buffer_binding);
                 {
                     auto cpu_range = profiler::ScopedRangeCPU("Draw Sprite/Text3D Pass");
                     DrawScene(frame_context, view, RenderPassType::Sprite3DPass, DrawScene_3DSprite, *command_list);
@@ -2563,7 +2809,7 @@ namespace won::rendering
                 auto gpu_range = profiler::ScopedRangeGPU("Sprite2D Pass", *command_list);
                 command_list->BeginEvent("Sprite2D Pass");
 
-                command_list->SetRenderTargets(color_targets, nullptr);
+                command_list->SetRenderTargets({ back_buffer_binding }, nullptr);
                 {
                     auto cpu_range = profiler::ScopedRangeCPU("Draw Sprite2D Pass");
                     DrawScene(frame_context, view, RenderPassType::Sprite2DPass, DrawScene_2DSprite, *command_list);
@@ -2704,6 +2950,20 @@ namespace won::rendering
         debug_state.ddgi.probe_data_readback_valid = false;
         ddgi_probe_update_pipeline = nullptr;
         ddgi_probe_update_shader = nullptr;
+        fxaa_pipeline = nullptr;
+        tonemap_pipeline = nullptr;
+        fxaa_shader = nullptr;
+        tonemap_shader = nullptr;
+        composite_pipeline = nullptr;
+        composite_shader = nullptr;
+        color_buffer[0] = nullptr;
+        color_buffer[1] = nullptr;
+        color_buffer_rtv[0] = {};
+        color_buffer_rtv[1] = {};
+        color_buffer_srv[0] = {};
+        color_buffer_srv[1] = {};
+        color_buffer_uav[0] = {};
+        color_buffer_uav[1] = {};
         debug_state = {};
         ddgi_probe_counts = { 0, 0, 0 };
         ddgi_probe_spacing = { 0.0f, 0.0f, 0.0f };

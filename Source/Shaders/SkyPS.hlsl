@@ -33,7 +33,7 @@ float4 main(VertexOutput input) : SV_Target
     float sun_glow = pow(sun_dot, max(sky.GetSunGlowFalloff(), 1.0f)) * sky.GetSunGlowIntensity();
     color += sky.GetSunColor() * (sun_disk * sky.GetSunIntensity() + sun_glow * sky.GetSunIntensity());
 
-    color = saturateMediump(color);
-    color = color / (1.0f + color);
+    color *= camera.exposure;
+    
     return float4(color, 1.0f);
 }

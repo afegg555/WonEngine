@@ -10,7 +10,7 @@ VertexOutput main(uint vertex_id : SV_VertexID)
 {
     VertexOutput output = (VertexOutput)0;
     float2 pos = float2((vertex_id << 1) & 2, vertex_id & 2);
-    output.uv = pos * 0.5f;
+    output.uv = pos;
     output.position = float4(pos * float2(2.0f, -2.0f) + float2(-1.0f, 1.0f), 0.0f, 1.0f);
     return output;
 }
