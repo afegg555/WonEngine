@@ -10,5 +10,5 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
     }
     final_color *= input.color;
     
-    return saturateMediump(final_color);
+    return final_color;
 }

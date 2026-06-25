@@ -94,6 +94,21 @@ namespace won::rendering
         std::shared_ptr<RHIResource> depth_buffer;
         RHISubresourceHandle depth_buffer_dsv = {};
 
+        // Offscreen HDR color ping-pong buffers. The scene always renders into color_buffer[0];
+        // the post chain ping-pongs between the two and the result is composited to the backbuffer.
+        std::shared_ptr<RHIResource> color_buffer[2];
+        RHISubresourceHandle color_buffer_rtv[2] = {};
+        RHISubresourceHandle color_buffer_srv[2] = {};
+        RHISubresourceHandle color_buffer_uav[2] = {};
+        std::shared_ptr<RHIPipeline> fxaa_pipeline;
+        std::shared_ptr<RHIShader> fxaa_shader;
+
+        std::shared_ptr<RHIPipeline> tonemap_pipeline;
+        std::shared_ptr<RHIShader> tonemap_shader;
+
+        std::shared_ptr<RHIPipeline> composite_pipeline;
+        std::shared_ptr<RHIShader> composite_shader;
+
         std::shared_ptr<RHIResource> shadow_map_atlas;
         RHISubresourceHandle shadow_map_atlas_dsv = {};
         RHISubresourceHandle shadow_map_atlas_srv = {};

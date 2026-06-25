@@ -268,92 +268,86 @@ struct alignas(16) ShaderScene
 
 struct alignas(16) ShaderSky
 {
-    uint2 sun_direction_padding;
+    // !! we don't pack aggressively because ShaderSky is only one
+
+    float3 sun_direction;
     uint flags;
-    float padding;
 
-    uint2 sun_color_sun_intensity;
-    uint2 sky_horizon_color_sky_intensity;
+    float4 sun_color_sun_intensity;
+    float4 sky_horizon_color_sky_intensity;
 
-    uint2 sky_zenith_color_sky_horizon_falloff;
-    uint2 ground_horizon_color_ground_intensity;
+    float4 sky_zenith_color_sky_horizon_falloff;
+    float4 ground_horizon_color_ground_intensity;
 
-    uint2 ground_color_ground_falloff;
-    uint2 sun_params;
+    float4 ground_color_ground_falloff;
+    float4 sun_params;
 
 #ifdef __cplusplus
     inline void Init()
     {
-        sun_direction_padding = { 0,0 };
+        sun_direction = { 0,0,0 };
         flags = SHADER_SKY_FLAG_NONE;
 
-        sun_color_sun_intensity = { 0,0 };
-        sky_horizon_color_sky_intensity = { 0,0 };
+        sun_color_sun_intensity = { 0,0,0,0 };
+        sky_horizon_color_sky_intensity = { 0,0,0,0 };
 
-        sky_zenith_color_sky_horizon_falloff = { 0,0 };
-        ground_horizon_color_ground_intensity = { 0,0 };
+        sky_zenith_color_sky_horizon_falloff = { 0,0,0,0 };
+        ground_horizon_color_ground_intensity = { 0,0,0,0 };
 
-        ground_color_ground_falloff = { 0,0 };
-        sun_params = { 0,0 };
+        ground_color_ground_falloff = { 0,0,0,0 };
+        sun_params = { 0,0,0,0 };
     }
 
     inline void SetSunDirection(const float3& value)
     {
-        sun_direction_padding.x = XMConvertFloatToHalf(value.x) | (XMConvertFloatToHalf(value.y) << 16u);
-        sun_direction_padding.y = XMConvertFloatToHalf(value.z);
+        sun_direction = value;
     }
 
     inline void SetSunColorIntensity(const float3& color, float intensity)
     {
-        sun_color_sun_intensity.x = XMConvertFloatToHalf(color.x) | (XMConvertFloatToHalf(color.y) << 16u);
-        sun_color_sun_intensity.y = XMConvertFloatToHalf(color.z) | (XMConvertFloatToHalf(intensity) << 16u);
+        sun_color_sun_intensity = float4(color.x, color.y, color.z, intensity);
     }
 
     inline void SetSkyHorizonColorIntensity(const float3& color, float intensity)
     {
-        sky_horizon_color_sky_intensity.x = XMConvertFloatToHalf(color.x) | (XMConvertFloatToHalf(color.y) << 16u);
-        sky_horizon_color_sky_intensity.y = XMConvertFloatToHalf(color.z) | (XMConvertFloatToHalf(intensity) << 16u);
+        sky_horizon_color_sky_intensity = float4(color.x, color.y, color.z, intensity);
     }
 
     inline void SetSkyZenithColorFalloff(const float3& color, float falloff)
     {
-        sky_zenith_color_sky_horizon_falloff.x = XMConvertFloatToHalf(color.x) | (XMConvertFloatToHalf(color.y) << 16u);
-        sky_zenith_color_sky_horizon_falloff.y = XMConvertFloatToHalf(color.z) | (XMConvertFloatToHalf(falloff) << 16u);
+        sky_zenith_color_sky_horizon_falloff = float4(color.x, color.y, color.z, falloff);
     }
 
     inline void SetGroundHorizonColorIntensity(const float3& color, float intensity)
     {
-        ground_horizon_color_ground_intensity.x = XMConvertFloatToHalf(color.x) | (XMConvertFloatToHalf(color.y) << 16u);
-        ground_horizon_color_ground_intensity.y = XMConvertFloatToHalf(color.z) | (XMConvertFloatToHalf(intensity) << 16u);
+        ground_horizon_color_ground_intensity = float4(color.x, color.y, color.z, intensity);
     }
 
     inline void SetGroundColorFalloff(const float3& color, float falloff)
     {
-        ground_color_ground_falloff.x = XMConvertFloatToHalf(color.x) | (XMConvertFloatToHalf(color.y) << 16u);
-        ground_color_ground_falloff.y = XMConvertFloatToHalf(color.z) | (XMConvertFloatToHalf(falloff) << 16u);
+        ground_color_ground_falloff = float4(color.x, color.y, color.z, falloff);
     }
 
     inline void SetSunParams(float angular_radius, float glow_intensity, float glow_falloff)
     {
-        sun_params.x = XMConvertFloatToHalf(angular_radius) | (XMConvertFloatToHalf(glow_intensity) << 16u);
-        sun_params.y = XMConvertFloatToHalf(glow_falloff);
+        sun_params = float4(angular_radius, glow_intensity, glow_falloff, 0);
     }
 
 #else
-    inline half3 GetSunDirection() { return normalize(half3((half)f16tof32(sun_direction_padding.x), (half)f16tof32(sun_direction_padding.x >> 16u), (half)f16tof32(sun_direction_padding.y))); }
-    inline half3 GetSunColor() { return UnpackHalf4(sun_color_sun_intensity).xyz; }
-    inline half GetSunIntensity() { return UnpackHalf4(sun_color_sun_intensity).w; }
-    inline half3 GetSkyHorizonColor() { return UnpackHalf4(sky_horizon_color_sky_intensity).xyz; }
-    inline half GetSkyIntensity() { return UnpackHalf4(sky_horizon_color_sky_intensity).w; }
-    inline half3 GetSkyZenithColor() { return UnpackHalf4(sky_zenith_color_sky_horizon_falloff).xyz; }
-    inline half GetSkyHorizonFalloff() { return UnpackHalf4(sky_zenith_color_sky_horizon_falloff).w; }
-    inline half3 GetGroundHorizonColor() { return UnpackHalf4(ground_horizon_color_ground_intensity).xyz; }
-    inline half GetGroundIntensity() { return UnpackHalf4(ground_horizon_color_ground_intensity).w; }
-    inline half3 GetGroundColor() { return UnpackHalf4(ground_color_ground_falloff).xyz; }
-    inline half GetGroundFalloff() { return UnpackHalf4(ground_color_ground_falloff).w; }
-    inline half GetSunAngularRadius() { return (half)f16tof32(sun_params.x); }
-    inline half GetSunGlowIntensity() { return (half)f16tof32(sun_params.x >> 16u); }
-    inline half GetSunGlowFalloff() { return (half)f16tof32(sun_params.y); }
+    inline float3 GetSunDirection() { return normalize(sun_direction); }
+    inline float3 GetSunColor() { return sun_color_sun_intensity.xyz; }
+    inline float GetSunIntensity() { return sun_color_sun_intensity.w; }
+    inline float3 GetSkyHorizonColor() { return sky_horizon_color_sky_intensity.xyz; }
+    inline float GetSkyIntensity() { return sky_horizon_color_sky_intensity.w; }
+    inline float3 GetSkyZenithColor() { return sky_zenith_color_sky_horizon_falloff.xyz; }
+    inline float GetSkyHorizonFalloff() { return sky_zenith_color_sky_horizon_falloff.w; }
+    inline float3 GetGroundHorizonColor() { return ground_horizon_color_ground_intensity.xyz; }
+    inline float GetGroundIntensity() { return ground_horizon_color_ground_intensity.w; }
+    inline float3 GetGroundColor() { return ground_color_ground_falloff.xyz; }
+    inline float GetGroundFalloff() { return ground_color_ground_falloff.w; }
+    inline float GetSunAngularRadius() { return sun_params.x; }
+    inline float GetSunGlowIntensity() { return sun_params.y; }
+    inline float GetSunGlowFalloff() { return sun_params.z; }
 #endif
 };
 
@@ -363,35 +357,33 @@ struct alignas(16) ShaderEnvironmentLighting
     uint gi_mode;
     uint2 padding;
 
-    uint2 ambient_color_ambient_intensity;
-    uint2 indirect_diffuse_scale_indirect_specular_scale;
+    float4 ambient_color_ambient_intensity;
+    float4 indirect_diffuse_scale_indirect_specular_scale;
 
 #ifdef __cplusplus
     inline void Init()
     {
         flags = SHADER_ENVIRONMENT_LIGHTING_FLAG_NONE;
         gi_mode = SHADER_ENVIRONMENT_GI_MODE_NONE;
-        ambient_color_ambient_intensity = { 0,0 };
-        indirect_diffuse_scale_indirect_specular_scale = { 0,0 };
+        ambient_color_ambient_intensity = { 0,0,0,0 };
+        indirect_diffuse_scale_indirect_specular_scale = { 0,0,0,0 };
     }
 
     inline void SetAmbientColorIntensity(const float3& color, float intensity)
     {
-        ambient_color_ambient_intensity.x = XMConvertFloatToHalf(color.x) | (XMConvertFloatToHalf(color.y) << 16u);
-        ambient_color_ambient_intensity.y = XMConvertFloatToHalf(color.z) | (XMConvertFloatToHalf(intensity) << 16u);
+        ambient_color_ambient_intensity = float4(color.x, color.y, color.z, intensity);
     }
 
     inline void SetIndirectScale(float diffuse_scale, float specular_scale)
     {
-        indirect_diffuse_scale_indirect_specular_scale.x = XMConvertFloatToHalf(diffuse_scale) | (XMConvertFloatToHalf(specular_scale) << 16u);
-        indirect_diffuse_scale_indirect_specular_scale.y = 0;
+        indirect_diffuse_scale_indirect_specular_scale = float4(diffuse_scale, specular_scale, 0, 0);
     }
 #else
     inline bool IsActive() { return (flags & SHADER_ENVIRONMENT_LIGHTING_FLAG_ACTIVE) != 0; }
-    inline half3 GetAmbientColor() { return UnpackHalf4(ambient_color_ambient_intensity).xyz; }
-    inline half GetAmbientIntensity() { return UnpackHalf4(ambient_color_ambient_intensity).w; }
-    inline half GetIndirectDiffuseScale() { return (half)f16tof32(indirect_diffuse_scale_indirect_specular_scale.x); }
-    inline half GetIndirectSpecularScale() { return (half)f16tof32(indirect_diffuse_scale_indirect_specular_scale.x >> 16u); }
+    inline float3 GetAmbientColor() { return ambient_color_ambient_intensity.xyz; }
+    inline float GetAmbientIntensity() { return ambient_color_ambient_intensity.w; }
+    inline float GetIndirectDiffuseScale() { return indirect_diffuse_scale_indirect_specular_scale.x; }
+    inline float GetIndirectSpecularScale() { return indirect_diffuse_scale_indirect_specular_scale.y; }
 #endif
 };
 
@@ -498,6 +490,9 @@ struct alignas(16) ShaderCamera
     float4x4 view_projection;
     float4x4 inv_view_projection;
 
+    float exposure;
+    float3 _camera_padding0;
+
 #ifdef __cplusplus
     inline void Init()
     {
@@ -505,6 +500,8 @@ struct alignas(16) ShaderCamera
         projection = won::math::IDENTITY_MATRIX;
         view_projection = won::math::IDENTITY_MATRIX;
         inv_view_projection = won::math::IDENTITY_MATRIX;
+        exposure = 1.0f;
+        _camera_padding0 = float3(0, 0, 0);
     }
 #endif
 };
@@ -560,24 +557,21 @@ struct alignas(16) ShaderLight
 	float3 position;
     uint type8_flags8_range16;
 
-    uint2 direction_outer_cone_angle_cos; // direction 3 cos_outer_cone 1
-    uint2 color; // half4 packed
+    float4 color; // can't use half4 because light intensity can be greater than 65504.h
 
+    uint2 direction_outer_cone_angle_cos; // direction 3 cos_outer_cone 1
     uint inner_cone_angle_cos_padding; // cos_inner_cone 1 padding 1
-    uint shadow_slice_offset;
-    uint shadow_slice_count;
-    uint padding;
+    uint shadow_slice16_count16; // offset [0:15] count [16:31]
 #ifdef __cplusplus
     inline void Init()
     {
         position = { 0,0,0 };
         type8_flags8_range16 = 0;
 
+        color = { 0,0,0,0 };
         direction_outer_cone_angle_cos = { 0,0 };
-        color = { 0,0 };
         inner_cone_angle_cos_padding = 0;
-        shadow_slice_offset = 0;
-        shadow_slice_count = 0;
+        shadow_slice16_count16 = 0;
     }
     inline void SetType(uint type)
     {
@@ -603,14 +597,19 @@ struct alignas(16) ShaderLight
     }
     inline void SetColor(float4 value)
     {
-        color.x |= XMConvertFloatToHalf(value.x);
-        color.x |= XMConvertFloatToHalf(value.y) << 16u;
-        color.y |= XMConvertFloatToHalf(value.z);
-        color.y |= XMConvertFloatToHalf(value.w) << 16u;
+        color = value;
     }
     inline void SetInnerConeAngleCos(float value)
     {
         inner_cone_angle_cos_padding |= XMConvertFloatToHalf(value);
+    }
+    inline void SetShadowSliceOffset(uint value)
+    {
+        shadow_slice16_count16 |= value & 0xFFFFu;
+    }
+    inline void SetShadowSliceCount(uint value)
+    {
+        shadow_slice16_count16 |= (value & 0xFFFFu) << 16u;
     }
 #else
     inline min16uint GetType()
@@ -637,14 +636,9 @@ struct alignas(16) ShaderLight
     {
         return (half)f16tof32(direction_outer_cone_angle_cos.y >> 16u);
     }
-    inline half4 GetColor()
+    inline float4 GetColor()
     {
-        half4 retVal;
-        retVal.x = (half)f16tof32(color.x);
-        retVal.y = (half)f16tof32(color.x >> 16u);
-        retVal.z = (half)f16tof32(color.y);
-        retVal.w = (half)f16tof32(color.y >> 16u);
-        return retVal;
+        return color;
     }
     inline half GetInnerConeAngleCos()
     {
@@ -658,9 +652,17 @@ struct alignas(16) ShaderLight
     {
         return GetFlags() & LIGHT_FLAG_LIGHT_STATIC;
     }
+    inline uint GetShadowSliceOffset()
+    {
+        return shadow_slice16_count16 & 0xFFFFu;
+    }
+    inline uint GetShadowSliceCount()
+    {
+        return (shadow_slice16_count16 >> 16u) & 0xFFFFu;
+    }
     inline bool HasShadowSlices()
     {
-        return shadow_slice_count > 0;
+        return GetShadowSliceCount() > 0;
     }
 #endif // __cplusplus
 };
@@ -738,11 +740,11 @@ static_assert(sizeof(ShaderTextureSlot) == 16, "ShaderTextureSlot layout mismatc
 static_assert(sizeof(ShaderGeometry) == 80, "ShaderGeometry layout mismatch");
 static_assert(sizeof(ShaderMaterial) == 272, "ShaderMaterial layout mismatch");
 static_assert(sizeof(ShaderScene) == 64, "ShaderScene layout mismatch");
-static_assert(sizeof(ShaderSky) == 64, "ShaderSky layout mismatch");
-static_assert(sizeof(ShaderEnvironmentLighting) == 32, "ShaderEnvironmentLighting layout mismatch");
+static_assert(sizeof(ShaderSky) == 112, "ShaderSky layout mismatch");
+static_assert(sizeof(ShaderEnvironmentLighting) == 48, "ShaderEnvironmentLighting layout mismatch");
 static_assert(sizeof(ShaderDDGIVolume) == 112, "ShaderDDGIVolume layout mismatch");
-static_assert(sizeof(ShaderFrame) == 272, "ShaderFrame layout mismatch");
-static_assert(sizeof(ShaderCamera) == 320, "ShaderCamera layout mismatch");
+static_assert(sizeof(ShaderFrame) == 336, "ShaderFrame layout mismatch");
+static_assert(sizeof(ShaderCamera) == 336, "ShaderCamera layout mismatch");
 static_assert(sizeof(ShaderLight) == 48, "ShaderLight layout mismatch");
 static_assert(sizeof(ShaderShadowCascade) == 96, "ShaderShadowCascade layout mismatch");
 static_assert(sizeof(ObjectPushConstants) == 16, "ObjectPushConstants layout mismatch");

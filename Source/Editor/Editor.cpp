@@ -110,6 +110,8 @@ namespace won::editor
 			constexpr const char* options = "Options";
 			constexpr const char* options_popup = "OptionsPopup";
 			constexpr const char* wireframe = "WireFrame";
+			constexpr const char* anti_aliasing = "Anti-Aliasing";
+			constexpr const char* tonemap_mode = "Tonemap Mode";
 			constexpr const char* vsync = "VSync";
 			constexpr const char* reset_editor_camera = "Reset Editor Camera";
 			constexpr const char* editor_grid = "Editor Grid";
@@ -3232,6 +3234,27 @@ namespace won::editor
 					}
 				}
 
+				// Live anti-aliasing toggle for quick experimentation (does not persist to the project;
+				// the persisted default lives in Project Settings).
+				if (editor_viewport.view)
+				{
+					const char* aa_items[] = { "None", "FXAA" };
+					int aa_index = static_cast<int>(editor_viewport.view->options.aa_mode);
+					ImGui::SetNextItemWidth(120.0f);
+					if (ImGui::Combo(editor_text::anti_aliasing, &aa_index, aa_items, IM_ARRAYSIZE(aa_items)))
+					{
+						editor_viewport.view->options.aa_mode = static_cast<rendering::AntiAliasingMode>(aa_index);
+					}
+
+					const char* tonemap_items[] = { "Reinhard", "ACES" };
+					int tonemap_index = static_cast<int>(editor_viewport.view->options.tonemap_mode);
+					ImGui::SetNextItemWidth(120.0f);
+					if (ImGui::Combo(editor_text::tonemap_mode, &tonemap_index, tonemap_items, IM_ARRAYSIZE(tonemap_items)))
+					{
+						editor_viewport.view->options.tonemap_mode = static_cast<rendering::TonemapMode>(tonemap_index);
+					}
+				}
+
 				if (ImGui::Button(editor_text::reset_editor_camera))
 				{
 					if (editor_viewport.view && editor_viewport.view->scene && editor_viewport.view->camera_entity != ecs::INVALID_ENTITY)
@@ -5913,6 +5936,30 @@ namespace won::editor
 				ImGui::Checkbox("##Window Visible", &loaded_project_settings.window_visible);
 				draw_label("VSync");
 				ImGui::Checkbox("##VSync", &loaded_project_settings.vsync_enabled);
+
+				const char* aa_items[] = { "None", "FXAA" };
+				int aa_index = static_cast<int>(loaded_project_settings.aa_mode);
+				draw_label("Anti-Aliasing");
+				if (ImGui::Combo("##Anti-Aliasing", &aa_index, aa_items, IM_ARRAYSIZE(aa_items)))
+				{
+					loaded_project_settings.aa_mode = static_cast<rendering::AntiAliasingMode>(aa_index);
+					if (editor_viewport.view)
+					{
+						editor_viewport.view->options.aa_mode = loaded_project_settings.aa_mode;
+					}
+				}
+
+				const char* tonemap_items[] = { "Reinhard", "ACES" };
+				int tonemap_index = static_cast<int>(loaded_project_settings.tonemap_mode);
+				draw_label("Tonemap Mode");
+				if (ImGui::Combo("##Tonemap Mode", &tonemap_index, tonemap_items, IM_ARRAYSIZE(tonemap_items)))
+				{
+					loaded_project_settings.tonemap_mode = static_cast<rendering::TonemapMode>(tonemap_index);
+					if (editor_viewport.view)
+					{
+						editor_viewport.view->options.tonemap_mode = loaded_project_settings.tonemap_mode;
+					}
+				}
 
 				const char* backend_items[] = { "DirectX12", "Vulkan", "Metal" };
 				int backend_index = 0;

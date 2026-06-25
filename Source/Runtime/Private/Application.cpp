@@ -411,6 +411,9 @@ namespace won
     uint32 Application::AddView(const rendering::View& view)
     {
         views.push_back(std::make_unique<rendering::View>(view));
+        // Project settings provide the default render/view options (anti-aliasing, etc.).
+        views.back()->options.aa_mode = project_settings.aa_mode;
+        views.back()->options.tonemap_mode = project_settings.tonemap_mode;
         return static_cast<uint32>(views.size() - 1);
     }
 

@@ -26,7 +26,7 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
     final_color *= input.color;
 #endif // OBJECTSHADER_USE_COLOR
     
-    final_color = saturateMediump(final_color);
+    
 #else
     Surface surface;
     surface.Init();
@@ -91,6 +91,7 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
         surface.emissive_color *= emissiveMap.rgb * emissiveMap.a;
     }
 #endif // OBJECTSHADER_USE_UVSETS
+    surface.emissive_color *= GetCamera().exposure;
 #endif // OBJECTSHADER_USE_EMISSIVE
     
     {
@@ -124,7 +125,7 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
     
     final_color = base_color;
     
-    half3 ambient = half3(0.0, 0.0, 0.0);
+    float3 ambient = float3(0.0, 0.0, 0.0);
     ShaderEnvironmentLighting environment_lighting = GetEnvironmentLighting();
     if (environment_lighting.IsActive() && environment_lighting.gi_mode == SHADER_ENVIRONMENT_GI_MODE_AMBIENT)
     {
@@ -145,8 +146,8 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
 
         }
     }
-
     Lighting lighting;
+    ambient *= GetCamera().exposure;
     lighting.Create(0, 0, ambient, 0);
     
     ForwardLighting(surface, lighting);
@@ -156,11 +157,7 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
     final_color.rgb = surface.albedo * diffuse;
     final_color.rgb += specular;
     final_color.rgb += surface.emissive_color;
-    
-    final_color = saturateMediump(final_color);
-    
-    //!!! temp Reinhard tone mapping
-    final_color.xyz = final_color.xyz / (1.0 + final_color.xyz);
+
 #endif // UNLIT
  
     return final_color;

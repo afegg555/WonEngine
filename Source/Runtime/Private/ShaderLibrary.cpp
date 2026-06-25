@@ -46,7 +46,7 @@ namespace won::resource
         return load_succeeded.load();
     }
 
-    bool ShaderLibrary::BuildAllGraphicsPipelines(const std::shared_ptr<rendering::RHIDevice>& device, RHIFormat rtv_format, RHIFormat dsv_format, uint32 sample_count)
+    bool ShaderLibrary::BuildAllGraphicsPipelines(const std::shared_ptr<rendering::RHIDevice>& device, RHIFormat hdr_rtv_format, RHIFormat ldr_rtv_format, RHIFormat dsv_format, uint32 sample_count)
     {
         if (!device)
         {
@@ -65,7 +65,7 @@ namespace won::resource
         pipeline_desc.depth_stencil.depth_write = false;
         pipeline_desc.blend.enable = false;
         pipeline_desc.raster.cull_mode = RHICullMode::None;
-        pipeline_desc.render_target_formats = { rtv_format };
+        pipeline_desc.render_target_formats = { hdr_rtv_format };
         GraphicsPipelineHash pipeline_hash = {};
         pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::SkyPass);
         pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
@@ -130,7 +130,7 @@ namespace won::resource
         pipeline_desc.depth_stencil.depth_compare = RHICompareOp::Equal;
         pipeline_desc.blend.enable = false;
         pipeline_desc.raster.cull_mode = RHICullMode::Back;
-        pipeline_desc.render_target_formats = { rtv_format };
+        pipeline_desc.render_target_formats = { hdr_rtv_format };
         pipeline_hash = {};
         pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::MainPass);
         pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
@@ -178,7 +178,7 @@ namespace won::resource
         pipeline_desc.depth_stencil.depth_write = false;
         pipeline_desc.depth_stencil.depth_compare = RHICompareOp::GreaterEqual;
         pipeline_desc.blend.enable = true;
-        pipeline_desc.render_target_formats = { rtv_format };
+        pipeline_desc.render_target_formats = { hdr_rtv_format };
         pipeline_hash = {};
         pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::MainPass);
         pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
@@ -213,10 +213,10 @@ namespace won::resource
         pipeline_desc.depth_stencil.depth_compare = RHICompareOp::GreaterEqual;
         pipeline_desc.blend.enable = true;
         pipeline_desc.raster.cull_mode = RHICullMode::None;
-        pipeline_desc.render_target_formats = { rtv_format };
+        pipeline_desc.render_target_formats = { ldr_rtv_format };
         pipeline_desc.topology = RHIPrimitiveTopology::LineList;
         pipeline_hash = {};
-        pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::MainPass);
+        pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::PrimitivePass);
         pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::LineList);
         pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
         pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
@@ -238,7 +238,7 @@ namespace won::resource
         pipeline_desc.depth_stencil.depth_compare = RHICompareOp::Always;
         pipeline_desc.blend.enable = true;
         pipeline_desc.raster.cull_mode = RHICullMode::None;
-        pipeline_desc.render_target_formats = { rtv_format };
+        pipeline_desc.render_target_formats = { ldr_rtv_format };
         pipeline_desc.topology = RHIPrimitiveTopology::TriangleList;
         pipeline_hash = {};
         pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::Sprite2DPass);
@@ -263,7 +263,7 @@ namespace won::resource
         pipeline_desc.depth_stencil.depth_compare = RHICompareOp::GreaterEqual;
         pipeline_desc.blend.enable = true;
         pipeline_desc.raster.cull_mode = RHICullMode::None;
-        pipeline_desc.render_target_formats = { rtv_format };
+        pipeline_desc.render_target_formats = { ldr_rtv_format };
         pipeline_desc.topology = RHIPrimitiveTopology::TriangleList;
         pipeline_hash = {};
         pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::Sprite3DPass);

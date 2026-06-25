@@ -6,6 +6,10 @@
 
 namespace won::rendering
 {
+    inline constexpr float OPTIMIZED_FAST_CLEAR_COLOR[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+    inline constexpr float OPTIMIZED_FAST_CLEAR_DEPTH = 0.0f;
+    inline constexpr uint8 OPTIMIZED_FAST_CLEAR_STENCIL = 0;
+
     enum class RHIResourceType
     {
         Unknown,

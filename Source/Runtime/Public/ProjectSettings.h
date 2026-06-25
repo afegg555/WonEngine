@@ -2,6 +2,7 @@
 #include "Configuration.h"
 #include "FileSystem.h"
 #include "RHIDevice.h"
+#include "ViewOptionEnums.h"
 #include "ResourceExtension.h"
 #include "Types.h"
 #include "PhysicsWorld.h"
@@ -31,6 +32,8 @@ namespace won::project
         bool window_use_title_bar = true;
         bool window_visible = true;
         bool vsync_enabled = true;
+        rendering::AntiAliasingMode aa_mode = rendering::AntiAliasingMode::None;
+        rendering::TonemapMode tonemap_mode = rendering::TonemapMode::Reinhard;
         bool splash_enabled = true;
         String splash_title = "Won Engine";
         String splash_status = "Starting...";
@@ -166,6 +169,16 @@ namespace won::project
         {
             settings.vsync_enabled = bool_value;
         }
+        if (const char* string_value = configuration.GetString("aa_mode"))
+        {
+            String aa_mode = string_value;
+            settings.aa_mode = aa_mode == "FXAA" ? rendering::AntiAliasingMode::FXAA : rendering::AntiAliasingMode::None;
+        }
+        if (const char* string_value = configuration.GetString("tonemap_mode"))
+        {
+            String tonemap_mode = string_value;
+            settings.tonemap_mode = tonemap_mode == "ACES" ? rendering::TonemapMode::ACES : rendering::TonemapMode::Reinhard;
+        }
         if (configuration.GetBool("splash_enabled", bool_value))
         {
             settings.splash_enabled = bool_value;
@@ -261,6 +274,8 @@ namespace won::project
         configuration.SetBool("window_use_title_bar", settings.window_use_title_bar);
         configuration.SetBool("window_visible", settings.window_visible);
         configuration.SetBool("vsync_enabled", settings.vsync_enabled);
+        configuration.SetString("aa_mode", settings.aa_mode == rendering::AntiAliasingMode::FXAA ? "FXAA" : "None");
+        configuration.SetString("tonemap_mode", settings.tonemap_mode == rendering::TonemapMode::ACES ? "ACES" : "Reinhard");
         configuration.SetBool("splash_enabled", settings.splash_enabled);
         configuration.SetString("splash_title", settings.splash_title.c_str());
         configuration.SetString("splash_status", settings.splash_status.c_str());

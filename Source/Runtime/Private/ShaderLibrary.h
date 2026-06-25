@@ -14,6 +14,7 @@ namespace won::resource
         ShadowPass,
         DepthPrepass,
         MainPass,
+        PrimitivePass,
         Sprite2DPass,
         Sprite3DPass,
         Count
@@ -111,7 +112,7 @@ namespace won::resource
     public:
         explicit ShaderLibrary(const ShaderCompilerOptions& options = {});
         bool LoadManifest(const ShaderManifest& manifest);
-        bool BuildAllGraphicsPipelines(const std::shared_ptr<rendering::RHIDevice>& device, rendering::RHIFormat rtv_format, rendering::RHIFormat dsv_format, uint32 sample_count);
+        bool BuildAllGraphicsPipelines(const std::shared_ptr<rendering::RHIDevice>& device, rendering::RHIFormat hdr_rtv_format, rendering::RHIFormat ldr_rtv_format, rendering::RHIFormat dsv_format, uint32 sample_count);
         void SetShader(ShaderId shader_id, const std::shared_ptr<rendering::RHIShader>& shader);
         
         std::shared_ptr<rendering::RHIShader> GetShader(ShaderId shader_id) const;

@@ -242,7 +242,7 @@ inline void LightDirectional(in ShaderLight light, in Surface surface, inout Lig
     if (lighting_context.NoL <= FLT_EPSILON)
         return; // facing away from light
     
-    half3 light_color = light.GetColor().xyz;
+    half3 light_color = (half3) (light.GetColor().xyz * GetCamera().exposure); // pre exposure to avoid precision issues with small values
     
 	[branch]
     if (light.IsCastingShadow() && GetMaterial().IsReceiveShadow())
@@ -256,11 +256,11 @@ inline void LightDirectional(in ShaderLight light, in Surface surface, inout Lig
             [unroll]
             for (uint i = 0; i < 4; ++i)
             {
-                if (i >= light.shadow_slice_count)
+                if (i >= light.GetShadowSliceCount())
                 {
                     break;
                 }
-                ShaderShadowCascade cascade_candidate = GetShadowCascade(light.shadow_slice_offset + i);
+                ShaderShadowCascade cascade_candidate = GetShadowCascade(light.GetShadowSliceOffset() + i);
                 if (linear_depth <= cascade_candidate.split_far)
                 {
                     cascade_local_index = i;
@@ -269,15 +269,15 @@ inline void LightDirectional(in ShaderLight light, in Surface surface, inout Lig
                 cascade_local_index = i;
             }
 
-            ShaderShadowCascade cascade = GetShadowCascade(light.shadow_slice_offset + cascade_local_index);
+            ShaderShadowCascade cascade = GetShadowCascade(light.GetShadowSliceOffset() + cascade_local_index);
             float visibility = SampleDirectionalShadowCascade(cascade, surface.P, lighting_context.NoL);
 
-            if (cascade_local_index + 1 < light.shadow_slice_count)
+            if (cascade_local_index + 1 < light.GetShadowSliceCount())
             {
                 float split_near = camera.z_near;
                 if (cascade_local_index > 0)
                 {
-                    split_near = GetShadowCascade(light.shadow_slice_offset + cascade_local_index - 1).split_far;
+                    split_near = GetShadowCascade(light.GetShadowSliceOffset() + cascade_local_index - 1).split_far;
                 }
 
                 float cascade_range = max(cascade.split_far - split_near, 0.0001f);
@@ -287,7 +287,7 @@ inline void LightDirectional(in ShaderLight light, in Surface surface, inout Lig
                     float blend_start = cascade.split_far - blend_distance;
                     if (linear_depth > blend_start)
                     {
-                        ShaderShadowCascade next_cascade = GetShadowCascade(light.shadow_slice_offset + cascade_local_index + 1);
+                        ShaderShadowCascade next_cascade = GetShadowCascade(light.GetShadowSliceOffset() + cascade_local_index + 1);
                         float next_visibility = SampleDirectionalShadowCascade(next_cascade, surface.P, lighting_context.NoL);
                         float blend_weight = saturate((linear_depth - blend_start) / blend_distance);
                         visibility = lerp(visibility, next_visibility, blend_weight);
@@ -340,8 +340,8 @@ inline void LightPoint(in ShaderLight light, in Surface surface, inout Lighting 
 		
     if (context.NoL <= FLT_EPSILON)
         return; // facing away from light
-		
-    half3 light_color = light.GetColor().rgb;
+	
+    half3 light_color = (half3) (light.GetColor().rgb * GetCamera().exposure); // pre exposure to avoid precision issues with small values
 	
     light_color *= GetSquareFalloffAttenuation(dist2, range2);
     
@@ -376,7 +376,7 @@ inline void LightSpotlight(in ShaderLight light, in Surface surface, inout Light
     if (spot_factor <= outer_cone_angle_cos)
         return; // outside spotlight cone
 
-    half3 light_color = light.GetColor().rgb;
+    half3 light_color = (half3) (light.GetColor().rgb * GetCamera().exposure); // pre exposure to avoid precision issues with small values
     light_color *= GetSquareFalloffAttenuation(dist2, range2);
     light_color *= GetSpotAngleAttenuation(spot_factor, inner_cone_angle_cos, outer_cone_angle_cos);
     
