@@ -103,6 +103,8 @@ namespace won::script
         static int LuaInputIsActionPressed(lua_State* state);
         static int LuaInputGetActionValue(lua_State* state);
         static int LuaInputGetActionAxis2D(lua_State* state);
+        static int LuaInputGetGamepadAxis(lua_State* state);
+        static int LuaInputIsGamepadConnected(lua_State* state);
 
         static int LuaSceneFindByName(lua_State* state);
 
