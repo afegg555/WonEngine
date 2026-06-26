@@ -80,6 +80,7 @@ namespace won::ecs
             component_manager.RegisterComponent<AudioSourceComponent>();
             component_manager.RegisterComponent<AudioListenerComponent>();
             component_manager.RegisterComponent<LayerComponent>();
+            component_manager.RegisterComponent<TerrainComponent>();
 
             if (desc.script_runtime)
             {

@@ -257,6 +257,16 @@ namespace won::reflection
         WON_REFLECT_FIELD(layer_mask, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
+    WON_REFLECT_STRUCT(won::ecs::TerrainComponent, "TerrainComponent")
+        WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(resolution_x, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(resolution_z, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(world_size_x, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(world_size_z, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(height_scale, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(seed, won::FieldFlagEditable | won::FieldFlagSerializable)
+    WON_REFLECT_STRUCT_END()
+
     WON_REFLECT_STRUCT(won::resource::MaterialSlot::TextureMap, "TextureMap")
         WON_REFLECT_FIELD(texture_asset_path, won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()

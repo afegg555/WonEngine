@@ -310,6 +310,8 @@ set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/Rigidbody3DComponent.h
     Source/Runtime/Public/AudioSourceComponent.h
     Source/Runtime/Public/AudioListenerComponent.h
+    Source/Runtime/Public/LayerComponent.h
+    Source/Runtime/Public/TerrainComponent.h
 )
 
 set(RUNTIME_AUDIO
