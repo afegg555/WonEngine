@@ -659,6 +659,31 @@ namespace won::script
         return 2;
     }
 
+    int LuaScriptRuntime::LuaInputGetGamepadAxis(lua_State* state)
+    {
+        const StringView axis = luaL_checkstring(state, 1);
+        const io::GamepadState* gamepad = io::GetGamepadState(0);
+        float value = 0.0f;
+        if (gamepad && gamepad->connected)
+        {
+            if (axis == "left_x") value = gamepad->left_stick.x;
+            else if (axis == "left_y") value = gamepad->left_stick.y;
+            else if (axis == "right_x") value = gamepad->right_stick.x;
+            else if (axis == "right_y") value = gamepad->right_stick.y;
+            else if (axis == "left_trigger") value = gamepad->left_trigger;
+            else if (axis == "right_trigger") value = gamepad->right_trigger;
+        }
+        lua_pushnumber(state, static_cast<lua_Number>(value));
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaInputIsGamepadConnected(lua_State* state)
+    {
+        const io::GamepadState* gamepad = io::GetGamepadState(0);
+        lua_pushboolean(state, gamepad != nullptr && gamepad->connected);
+        return 1;
+    }
+
     int LuaScriptRuntime::LuaSceneFindByName(lua_State* state)
     {
         LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
@@ -1509,6 +1534,10 @@ namespace won::script
         lua_setfield(lua_state, -2, "get_action_value");
         lua_pushcfunction(lua_state, LuaInputGetActionAxis2D);
         lua_setfield(lua_state, -2, "get_action_axis2d");
+        lua_pushcfunction(lua_state, LuaInputGetGamepadAxis);
+        lua_setfield(lua_state, -2, "get_gamepad_axis");
+        lua_pushcfunction(lua_state, LuaInputIsGamepadConnected);
+        lua_setfield(lua_state, -2, "is_gamepad_connected");
         lua_setfield(lua_state, -2, "input");
 
         lua_newtable(lua_state);

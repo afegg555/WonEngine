@@ -22,6 +22,7 @@
 #include "AudioSourceComponent.h"
 #include "AudioListenerComponent.h"
 #include "LayerComponent.h"
+#include "TerrainComponent.h"
 
 namespace won::ecs
 {
@@ -58,7 +59,8 @@ namespace won::ecs
         Rigidbody3D,
         AudioSource,
         AudioListener,
-        Layer
+        Layer,
+        Terrain
     };
 
     constexpr ComponentMask ComponentMaskFromBit(SceneComponentBit bit)
@@ -89,4 +91,5 @@ namespace won::ecs
     inline constexpr ComponentMask audio_source_component_mask = ComponentMaskFromBit(SceneComponentBit::AudioSource);
     inline constexpr ComponentMask audio_listener_component_mask = ComponentMaskFromBit(SceneComponentBit::AudioListener);
     inline constexpr ComponentMask layer_component_mask = ComponentMaskFromBit(SceneComponentBit::Layer);
+    inline constexpr ComponentMask terrain_component_mask = ComponentMaskFromBit(SceneComponentBit::Terrain);
 }

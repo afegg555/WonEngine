@@ -5,6 +5,7 @@ namespace won::math
 {
 	inline constexpr float4x4 IDENTITY_MATRIX = float4x4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
 	inline constexpr float PI = XM_PI;
+	inline constexpr float sqrt_2 = 1.41421356237309504880f;
 
 	template<typename T>
 	constexpr T align(T value, T alignment)

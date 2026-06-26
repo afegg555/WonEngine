@@ -10,6 +10,7 @@
 #include "FileSystem.h"
 #include "Image.h"
 #include "ResourceAsset.h"
+#include "TerrainGenerator.h"
 #include "StringUtils.h"
 #include "Backlog.h"
 #include "Profiler.h"
@@ -178,6 +179,7 @@ namespace won::editor
 			constexpr const char* add_component = "Add Component";
 			constexpr const char* add_component_popup = "AddComponentPopup";
 			constexpr const char* update_scene_gpubvh = "Update Scene GPUBVH";
+			constexpr const char* regenerate_terrain = "Regenerate Terrain";
 			constexpr const char* add_slot = "Add Slot";
 			constexpr const char* remove_slot = "Remove Slot";
 			constexpr const char* reload = "Reload";
@@ -5244,6 +5246,63 @@ namespace won::editor
 							editor_viewport.view->scene->RemoveComponent(entity, type_id);
 						});
 					}
+					else if (type_desc->type_id == reflection::TypeMeta<TerrainComponent>::type_id)
+					{
+						// Authoring-time terrain bake: generate the mesh from the recipe, save it as a
+						// .wonmesh asset, and point the GeometryComponent at it. Requires Geometry on the entity.
+						ImGui::PushID("TerrainRegenerate");
+						TerrainComponent* terrain = editor_viewport.view->scene->GetComponent<TerrainComponent>(editor_viewport.picked_entity);
+						if (ImGui::Button(editor_text::regenerate_terrain))
+						{
+							GeometryComponent* geometry = editor_viewport.view->scene->GetComponent<GeometryComponent>(editor_viewport.picked_entity);
+							if (terrain && geometry && device)
+							{
+								auto terrain_mesh = GenerateTerrainMesh(*terrain);
+								if (terrain_mesh && terrain_mesh->IsValid())
+								{
+									const String terrain_rel_path = String(generated_asset_directory) + "/terrain_" + std::to_string(editor_viewport.picked_entity) + "." + resource::mesh_binary_extension;
+									const String terrain_full_path = io::CombinePath(contents_root_dir, terrain_rel_path);
+									io::CreateDirectories(io::GetDirectoryFromPath(terrain_full_path));
+									if (resource::SaveMeshBinary(terrain_full_path, *terrain_mesh))
+									{
+										// Swap the mesh at a thread-safe point and defer the old mesh's GPU
+										// resources, so in-flight command lists do not reference freed buffers.
+										const ecs::Entity terrain_entity = editor_viewport.picked_entity;
+										eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, terrain_entity, terrain_mesh, terrain_rel_path](const won::function::Value&) {
+											GeometryComponent* geom = editor_viewport.view->scene->GetComponent<GeometryComponent>(terrain_entity);
+											if (!geom || !device || !rendering::utils::CreateRenderData(*device, *terrain_mesh))
+											{
+												return;
+											}
+											if (geom->mesh && geom->mesh != terrain_mesh)
+											{
+												EditorViewport::DeferredResRemoval deferred_res_removal = {};
+												deferred_res_removal.frames_left = 8;
+												deferred_res_removal.meshes.push_back(geom->mesh);
+												if (geom->mesh->render_data.buffer)
+												{
+													deferred_res_removal.resources.push_back(geom->mesh->render_data.buffer);
+												}
+												if (geom->mesh->gpu_bvh.node_buffer)
+												{
+													deferred_res_removal.resources.push_back(geom->mesh->gpu_bvh.node_buffer);
+												}
+												if (geom->mesh->gpu_bvh.primitive_buffer)
+												{
+													deferred_res_removal.resources.push_back(geom->mesh->gpu_bvh.primitive_buffer);
+												}
+												editor_viewport.deferred_res_removals.push_back(std::move(deferred_res_removal));
+											}
+											geom->mesh_asset_path = terrain_rel_path;
+											geom->SetMesh(terrain_mesh);
+											editor_viewport.view->scene->SetBVHDirty();
+										});
+									}
+								}
+							}
+						}
+						ImGui::PopID();
+					}
 				}
 
 				if (ImGui::Button(editor_text::add_component, ImVec2(-1.0f, 0.0f)))
@@ -6242,6 +6301,14 @@ namespace won::editor
 		String relative_path = io::GetRelativePath(contents_root_dir, path);
 		String config_path = relative_path.empty() ? path : relative_path;
 		editor_settings.last_scene_path = config_path;
+		const String startup_scene_path = loaded_project_settings.startup_scene.empty()
+			? String()
+			: project::ResolveProjectContentPath(contents_root_dir, loaded_project_settings.startup_scene);
+		if (loaded_project_settings.startup_scene.empty() || !io::IsFile(startup_scene_path))
+		{
+			loaded_project_settings.startup_scene = config_path;
+			SaveProject();
+		}
 		RebuildContentBrowser();
 		backlog::Post(editor_text::scene_saved + path);
 		return true;
