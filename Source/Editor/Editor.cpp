@@ -6242,6 +6242,14 @@ namespace won::editor
 		String relative_path = io::GetRelativePath(contents_root_dir, path);
 		String config_path = relative_path.empty() ? path : relative_path;
 		editor_settings.last_scene_path = config_path;
+		const String startup_scene_path = loaded_project_settings.startup_scene.empty()
+			? String()
+			: project::ResolveProjectContentPath(contents_root_dir, loaded_project_settings.startup_scene);
+		if (loaded_project_settings.startup_scene.empty() || !io::IsFile(startup_scene_path))
+		{
+			loaded_project_settings.startup_scene = config_path;
+			SaveProject();
+		}
 		RebuildContentBrowser();
 		backlog::Post(editor_text::scene_saved + path);
 		return true;
