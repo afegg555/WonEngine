@@ -117,9 +117,14 @@ namespace won
             {
                 backlog::Post("[Input] action map loaded: " + input_action_map_path);
             }
+            else if (!io::IsFile(input_action_map_path))
+            {
+                // Missing action maps are optional because raw input remains available.
+                backlog::Post("[Input] action map not found, skipping: " + input_action_map_path, backlog::LogLevel::Warning);
+            }
             else
             {
-                backlog::Post("[Input] failed to load action map: " + input_action_map_path, backlog::LogLevel::Error);
+                backlog::Post("[Input] failed to parse action map: " + input_action_map_path, backlog::LogLevel::Error);
             }
         }
 
