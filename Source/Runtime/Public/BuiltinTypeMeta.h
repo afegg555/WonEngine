@@ -265,6 +265,13 @@ namespace won::reflection
         WON_REFLECT_FIELD(world_size_z, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(height_scale, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(seed, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(frequency, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(octaves, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(lacunarity, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(persistence, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(ridge_strength, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(warp_strength, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(island_falloff, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::resource::MaterialSlot::TextureMap, "TextureMap")

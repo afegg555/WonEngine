@@ -21,5 +21,13 @@ namespace won::ecs
         float world_size_z = 100.0f;
         float height_scale = 10.0f;
         uint32 seed = 0;
+
+        float frequency = 0.03f; // Base noise frequency; lower values produce larger terrain features
+        uint32 octaves = 4; // Number of layered noise samples used for terrain detail
+        float lacunarity = 2.0f; // Frequency multiplier applied after each octave
+        float persistence = 0.5f; // Amplitude multiplier applied after each octave
+        float ridge_strength = 0.0f; // Weight of ridged noise blended into the base terrain
+        float warp_strength = 0.0f; // Amount of noise-based warping applied to the sample coordinates
+        float island_falloff = 0.0f; // Radial falloff amount; 0 disables island shaping
     };
 }

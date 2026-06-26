@@ -190,6 +190,8 @@ set(RUNTIME_RESOURCE
     Source/Runtime/Public/Image.h
     Source/Runtime/Public/Sound.h
     Source/Runtime/Public/Mesh.h
+    Source/Runtime/Public/TerrainGenerator.h
+    Source/Runtime/Private/TerrainGenerator.cpp
     Source/Runtime/Public/ShaderCompiler.h
     Source/Runtime/Public/ShaderManifest.h
     Source/Runtime/Public/ShaderLoader.h
@@ -273,6 +275,8 @@ set(RUNTIME_REFLECTION
 set(RUNTIME_MATH
     Source/Runtime/Public/MathTypes.h
     Source/Runtime/Public/MathUtils.h
+    Source/Runtime/Public/Noise.h
+    Source/Runtime/Private/Noise.cpp
     Source/Runtime/Public/BVH.h
     Source/Runtime/Public/Primitives.h
 )
