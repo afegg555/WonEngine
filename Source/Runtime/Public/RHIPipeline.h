@@ -65,9 +65,17 @@ namespace won::rendering
         RHICompareOp depth_compare = RHICompareOp::GreaterEqual;
     };
 
+    enum class RHIBlendMode
+    {
+        Alpha,        // src_alpha / inv_src_alpha
+        Additive,     // src_alpha / one
+        Premultiplied, // one / inv_src_alpha (source already multiplied by its alpha)
+    };
+
     struct RHIBlendDesc
     {
         bool enable = false;
+        RHIBlendMode mode = RHIBlendMode::Alpha;
     };
 
     struct RHIGraphicsPipelineDesc
