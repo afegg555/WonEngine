@@ -279,6 +279,13 @@ namespace won::resource
         pipeline_hash.storage.bits.pass_mode = static_cast<uint64>(Sprite3DPassMode::Text);
         graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
 
+        // Particle variant: same Sprite3D path but additive blending for glow accumulation.
+        pipeline_desc.vertex_shader = GetShader(ShaderId::VSSprite3D).get();
+        pipeline_desc.pixel_shader = GetShader(ShaderId::PSSprite).get();
+        pipeline_desc.blend.mode = RHIBlendMode::Additive;
+        pipeline_hash.storage.bits.pass_mode = static_cast<uint64>(Sprite3DPassMode::Particle);
+        graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+
         return true;
     }
 

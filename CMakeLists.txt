@@ -318,6 +318,7 @@ set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/AudioListenerComponent.h
     Source/Runtime/Public/LayerComponent.h
     Source/Runtime/Public/TerrainComponent.h
+    Source/Runtime/Public/ParticleEmitter3DComponent.h
 )
 
 set(RUNTIME_AUDIO
@@ -344,6 +345,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Public/RenderableUpdateSystem.h
     Source/Runtime/Public/SpriteUpdateSystem.h
     Source/Runtime/Public/TextUpdateSystem.h
+    Source/Runtime/Public/ParticleUpdateSystem.h
     Source/Runtime/Public/ScriptUpdateSystem.h
     Source/Runtime/Public/ScriptEventDispatchSystem.h
     Source/Runtime/Public/PhysicsUpdateSystem.h
@@ -357,6 +359,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Private/TransformUpdateSystem.cpp
     Source/Runtime/Private/RenderableUpdateSystem.cpp
     Source/Runtime/Private/SpriteUpdateSystem.cpp
+    Source/Runtime/Private/ParticleUpdateSystem.cpp
     Source/Runtime/Private/TextUpdateSystem.cpp
     Source/Runtime/Private/ScriptUpdateSystem.cpp
     Source/Runtime/Private/ScriptEventDispatchSystem.cpp
