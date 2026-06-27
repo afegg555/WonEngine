@@ -81,6 +81,7 @@ namespace won::ecs
             component_manager.RegisterComponent<AudioListenerComponent>();
             component_manager.RegisterComponent<LayerComponent>();
             component_manager.RegisterComponent<TerrainComponent>();
+            component_manager.RegisterComponent<ParticleEmitter3DComponent>();
 
             if (desc.script_runtime)
             {
@@ -101,6 +102,7 @@ namespace won::ecs
             AddSystem(std::make_shared<RenderableUpdateSystem>());
             AddSystem(std::make_shared<SpriteUpdateSystem>());
             AddSystem(std::make_shared<TextUpdateSystem>());
+            AddSystem(std::make_shared<ParticleUpdateSystem>());
             AddSystem(std::make_shared<AudioUpdateSystem>(desc.audio_mixer));
 
             physics_world = std::make_unique<won::physics::PhysicsWorld>(desc.physics);
@@ -339,13 +341,13 @@ namespace won::ecs
                 system_execution_batches.clear();
 
                 const uint32 system_count = static_cast<uint32>(systems.size());
-                Vector<ComponentMask> read_masks(system_count);
+                Vector<ComponentMask> readonly_masks(system_count);
                 Vector<ComponentMask> write_masks(system_count);
                 for (uint32 i = 0; i < system_count; ++i)
                 {
                     if (systems[i])
                     {
-                        read_masks[i] = systems[i]->GetReadMask();
+                        readonly_masks[i] = systems[i]->GetReadOnlyMask();
                         write_masks[i] = systems[i]->GetWriteMask();
                     }
                 }
@@ -382,8 +384,8 @@ namespace won::ecs
                         {
                             const uint32 i = phase_systems[a];
                             const uint32 j = phase_systems[b];
-                            const bool raw_i_to_j = (write_masks[i] & read_masks[j]) != 0;
-                            const bool raw_j_to_i = (write_masks[j] & read_masks[i]) != 0;
+                            const bool raw_i_to_j = (write_masks[i] & readonly_masks[j]) != 0;
+                            const bool raw_j_to_i = (write_masks[j] & readonly_masks[i]) != 0;
                             const bool waw = (write_masks[i] & write_masks[j]) != 0;
                             if (raw_i_to_j) add_edge(a, b);
                             if (raw_j_to_i) add_edge(b, a);
@@ -1048,6 +1050,7 @@ namespace won::ecs
                     Text        = 1 << 0,
                     Billboard   = 1 << 1,
                     Transparent = 1 << 2,
+                    Particle    = 1 << 3,
                 };
 
                 uint32 instance_index = 0;
@@ -1059,11 +1062,15 @@ namespace won::ecs
                 float4 uv_rect = { 0.0f, 0.0f, 1.0f, 1.0f };
                 uint32 flags = None;
                 uint32 layer_mask = 0xFFFFFFFF;
+                // For particles: bindless descriptor of the per-frame float4 buffer holding
+                // interleaved [position, color] pairs, indexed by instance_index.
+                uint32 resource_index = 0;
                 std::shared_ptr<resource::Font> font;
 
                 bool IsText()        const { return (flags & Text) != 0; }
                 bool IsBillboard()   const { return (flags & Billboard) != 0; }
                 bool IsTransparent() const { return (flags & Transparent) != 0; }
+                bool IsParticle()    const { return (flags & Particle) != 0; }
             };
 
             struct Sprite2DRenderable
@@ -1103,6 +1110,9 @@ namespace won::ecs
             Vector<Renderable> point_renderables;
             Vector<Sprite2DRenderable> sprite_2d_renderables;
             Vector<Sprite3DRenderable> sprite_3d_renderables;
+            // Per-frame CPU particle GPU data: interleaved [position, color] float4 pairs,
+            // uploaded to a bindless buffer and indexed by particle Sprite3DRenderable.instance_index.
+            Vector<float4> particle_instances;
 
             Vector<ShaderLight> shader_lights; // all lights
             Vector<ShaderShadowCascade> shader_shadow_cascades; // lights with shadow map
@@ -1127,6 +1137,7 @@ namespace won::ecs
                 point_renderables.clear();
                 sprite_2d_renderables.clear();
                 sprite_3d_renderables.clear();
+                particle_instances.clear();
 
                 shader_lights.clear();
                 shader_shadow_cascades.clear();

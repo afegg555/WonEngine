@@ -23,7 +23,8 @@ namespace won::resource
     enum class Sprite3DPassMode : uint8
     {
         Sprite,
-        Text
+        Text,
+        Particle
     };
 
     enum class Sprite2DPassMode : uint8

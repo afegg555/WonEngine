@@ -1064,8 +1064,9 @@ namespace won::rendering
         if (desc.blend.enable)
         {
             pso_desc.BlendState.RenderTarget[0].BlendEnable = TRUE;
-            pso_desc.BlendState.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
-            pso_desc.BlendState.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+            // Alpha: src_alpha / inv_src_alpha. Additive: src_alpha / one. Premultiplied: one / inv_src_alpha.
+            pso_desc.BlendState.RenderTarget[0].SrcBlend = desc.blend.mode == RHIBlendMode::Premultiplied ? D3D12_BLEND_ONE : D3D12_BLEND_SRC_ALPHA;
+            pso_desc.BlendState.RenderTarget[0].DestBlend = desc.blend.mode == RHIBlendMode::Additive ? D3D12_BLEND_ONE : D3D12_BLEND_INV_SRC_ALPHA;
             pso_desc.BlendState.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
             pso_desc.BlendState.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
             pso_desc.BlendState.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;

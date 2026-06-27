@@ -808,6 +808,57 @@ namespace won::rendering
             command_list.TransitionResource(*shader_instance_default_buffer, RHIResourceState::ShaderRead);
         }
 
+        // CPU particle buffer: interleaved [position, color] float4 pairs read by Sprite3DVS particle path.
+        const Size required_particle_buffer_size = render_data.particle_instances.size() * sizeof(float4);
+        if (required_particle_buffer_size == 0)
+        {
+            frame_context.RemoveResourceDeferred(shader_particle_default_buffer);
+            shader_particle_default_buffer = nullptr;
+            shader_particle_default_buffer_srv = {};
+        }
+        else
+        {
+            Size current_particle_buffer_size = 0;
+            if (shader_particle_default_buffer)
+            {
+                current_particle_buffer_size = shader_particle_default_buffer->GetDesc().buffer_desc.size;
+            }
+
+            if (!shader_particle_default_buffer || current_particle_buffer_size < required_particle_buffer_size)
+            {
+                frame_context.RemoveResourceDeferred(shader_particle_default_buffer);
+                RHIBufferDesc shader_particle_default_buffer_desc = {};
+                shader_particle_default_buffer_desc.size = required_particle_buffer_size;
+                shader_particle_default_buffer_desc.usage = RHIResourceUsage::Default;
+                shader_particle_default_buffer_desc.bind_flags = RHIBindFlags::ShaderResource;
+                shader_particle_default_buffer = device->CreateBuffer(shader_particle_default_buffer_desc);
+                if (!shader_particle_default_buffer)
+                {
+                    backlog::Post("failed to create shader particle default buffer", backlog::LogLevel::Error);
+                    return false;
+                }
+                shader_particle_default_buffer->SetName("Shader Particle Default Buffer");
+
+                shader_particle_default_buffer_srv = {};
+                RHISubresourceDesc shader_particle_default_subresource_desc = {};
+                shader_particle_default_subresource_desc.type = RHISubresourceType::ShaderResource;
+                shader_particle_default_subresource_desc.buffer_offset = 0;
+                shader_particle_default_subresource_desc.buffer_size = shader_particle_default_buffer->GetDesc().buffer_desc.size;
+                shader_particle_default_subresource_desc.buffer_stride = sizeof(float4);
+                if (!device->CreateSubresource(*shader_particle_default_buffer, shader_particle_default_subresource_desc, &shader_particle_default_buffer_srv))
+                {
+                    backlog::Post("failed to create shader particle default subresource", backlog::LogLevel::Error);
+                    shader_particle_default_buffer = nullptr;
+                    return false;
+                }
+            }
+
+            if (!UpdateDefaultBuffer(frame_context, *shader_particle_default_buffer, render_data.particle_instances.data(), required_particle_buffer_size, RHIResourceState::ShaderRead, 0, command_list))
+            {
+                return false;
+            }
+        }
+
         {
             const auto& opaque = render_data.opaque_renderables;
             const auto& transparent = render_data.transparent_renderables;
@@ -1798,24 +1849,32 @@ namespace won::rendering
             text_pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
             text_pipeline_hash.storage.bits.pass_mode = static_cast<uint64>(Sprite3DPassMode::Text);
 
+            GraphicsPipelineHash particle_pipeline_hash = sprite_pipeline_hash;
+            particle_pipeline_hash.storage.bits.pass_mode = static_cast<uint64>(Sprite3DPassMode::Particle);
+
             std::shared_ptr<RHIPipeline> sprite_pipeline = shader_library.GetPipeline(sprite_pipeline_hash);
             std::shared_ptr<RHIPipeline> text_pipeline = shader_library.GetPipeline(text_pipeline_hash);
-            if (!sprite_pipeline || !text_pipeline)
+            std::shared_ptr<RHIPipeline> particle_pipeline = shader_library.GetPipeline(particle_pipeline_hash);
+            if (!sprite_pipeline || !text_pipeline || !particle_pipeline)
             {
                 return false;
             }
 
             command_list.SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
-            bool active_is_text = false;
+            Sprite3DPassMode active_pass_mode = Sprite3DPassMode::Sprite;
             bool has_active_pipeline = false;
             for (uint32 idx : view.sorted_sprite_3d_indices)
             {
                 const Scene::RenderData::Sprite3DRenderable& renderable = render_data.sprite_3d_renderables[idx];
-                if (!has_active_pipeline || active_is_text != renderable.IsText())
+                const Sprite3DPassMode pass_mode = renderable.IsText() ? Sprite3DPassMode::Text
+                    : (renderable.IsParticle() ? Sprite3DPassMode::Particle : Sprite3DPassMode::Sprite);
+                if (!has_active_pipeline || active_pass_mode != pass_mode)
                 {
-                    active_is_text = renderable.IsText();
+                    active_pass_mode = pass_mode;
                     has_active_pipeline = true;
-                    command_list.SetGraphicsPipeline(renderable.IsText() ? *text_pipeline : *sprite_pipeline);
+                    RHIPipeline* pipeline = pass_mode == Sprite3DPassMode::Text ? text_pipeline.get()
+                        : (pass_mode == Sprite3DPassMode::Particle ? particle_pipeline.get() : sprite_pipeline.get());
+                    command_list.SetGraphicsPipeline(*pipeline);
                     command_list.SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
                     command_list.SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_camera_binding);
                     command_list.SetConstantBuffer(RHIShaderStage::Pixel, 0, shader_frame_binding);
@@ -1833,6 +1892,11 @@ namespace won::rendering
                     if (renderable.IsBillboard())
                     {
                         push_constants.flags |= SHADER_SPRITE_FLAG_BILLBOARD;
+                    }
+                    if (renderable.IsParticle())
+                    {
+                        push_constants.flags |= SHADER_SPRITE_FLAG_PARTICLE;
+                        push_constants.SetResourceIndex(static_cast<uint32>(shader_particle_default_buffer_srv.descriptor_index));
                     }
                     command_list.PushConstants(RHIShaderStage::Vertex, &push_constants, sizeof(SpritePushConstants), 0);
                     command_list.Draw(6, 1, 0, 0);

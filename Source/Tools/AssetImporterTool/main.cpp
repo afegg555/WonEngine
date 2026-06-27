@@ -1023,6 +1023,74 @@ struct COMInitializer
             return true;
         }
 
+        // Standalone image import: compress a source image to a GPU-friendly .wontex binary
+        // (BC + mipmaps) and write its .wonmeta, the same output a mesh import produces for textures.
+        bool SaveImportedTexture(const String& content_root, const String& source_asset_path, bool is_srgb, String& out_error)
+        {
+            out_error.clear();
+            std::shared_ptr<resource::Image> image = resource::LoadImageFile(source_asset_path, 4);
+            if (!image || !image->IsValid())
+            {
+                out_error = "Failed to load image: " + source_asset_path;
+                return false;
+            }
+
+            if (!io::CreateDirectories(io::CombinePath(content_root, generated_asset_directory)))
+            {
+                out_error = "Failed to create Generated directory.";
+                return false;
+            }
+
+            String source_rel = io::GetRelativePath(content_root, source_asset_path);
+            if (source_rel.empty())
+            {
+                source_rel = source_asset_path;
+            }
+            const String asset_id = std::to_string(utils::Hash(source_rel));
+
+            bool has_alpha = false;
+            for (Size pixel_index = 3; pixel_index < image->pixels.size(); pixel_index += 4)
+            {
+                if (image->pixels[pixel_index] < 255) { has_alpha = true; break; }
+            }
+            const rendering::RHIFormat bc_format = has_alpha
+                ? (is_srgb ? rendering::RHIFormat::BC3UnormSrgb : rendering::RHIFormat::BC3Unorm)
+                : (is_srgb ? rendering::RHIFormat::BC1UnormSrgb : rendering::RHIFormat::BC1Unorm);
+
+            Vector<uint8> compressed_pixels;
+            uint32 mip_levels = 1;
+            if (!CompressTexture(*image, bc_format, true, compressed_pixels, mip_levels))
+            {
+                out_error = "Failed to compress texture.";
+                return false;
+            }
+
+            const String texture_binary_path = String(generated_asset_directory) + "/" + asset_id + "." + resource::texture_binary_extension;
+            const String texture_full_path = io::CombinePath(content_root, texture_binary_path);
+            if (!resource::SaveTextureBinary(texture_full_path, static_cast<uint32>(image->width), static_cast<uint32>(image->height), mip_levels, bc_format, compressed_pixels))
+            {
+                out_error = "Failed to save texture binary.";
+                return false;
+            }
+
+            resource::AssetMeta meta = {};
+            meta.asset_id = asset_id;
+            meta.asset_name = io::GetFilename(source_asset_path);
+            meta.source_asset_path = source_rel;
+            meta.asset_type = "texture";
+            meta.binary_path = texture_binary_path;
+            io::GetLastTimestamp(source_asset_path, &meta.source_timestamp);
+            meta.texture.is_srgb = is_srgb;
+            meta.texture.generate_mipmaps = true;
+            resource::SaveAssetMeta(resource::GetAssetMetaPath(source_asset_path), meta);
+
+            std::cout << "Imported texture: " << source_asset_path << "\n";
+            std::cout << "Asset id: " << asset_id << "\n";
+            std::cout << "Texture: " << texture_full_path << "\n";
+            std::cout << "Binary path: " << texture_binary_path << "\n";
+            return true;
+        }
+
         String ResolveProjectSettingsPath(const String& path)
         {
             const String project_path = io::GetAbsolutePath(path);
@@ -1070,6 +1138,19 @@ int main(int argc, char** argv)
     {
         std::cout << "Source asset not found: " << source_asset_path << "\n";
         return 1;
+    }
+
+    // Standalone image asset: import as a texture (.wontex) and stop.
+    const String asset_ext = utils::ToLower(io::GetExtension(source_asset_path));
+    if (asset_ext == "png" || asset_ext == "jpg" || asset_ext == "jpeg" || asset_ext == "tga" || asset_ext == "bmp")
+    {
+        String texture_error;
+        if (!SaveImportedTexture(content_root, source_asset_path, true, texture_error))
+        {
+            std::cout << texture_error << "\n";
+            return 1;
+        }
+        return 0;
     }
 
     resource::MeshImportSettings mesh_settings;

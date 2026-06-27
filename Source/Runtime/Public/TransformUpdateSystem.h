@@ -13,7 +13,7 @@ namespace won::ecs
     class WONENGINE_API TransformUpdateSystem final : public System
     {
     public:
-        ComponentMask GetReadMask() const override { return transform_component_mask | hierarchy_component_mask | geometry_component_mask; }
+        ComponentMask GetReadOnlyMask() const override { return hierarchy_component_mask | geometry_component_mask; }
         ComponentMask GetWriteMask() const override { return transform_component_mask; }
         SystemPhase GetPhase() const override { return SystemPhase::PreSimulation; }
         void Update(Scene& scene, float delta_time) override;

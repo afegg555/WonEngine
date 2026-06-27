@@ -11,6 +11,7 @@ enum SHADER_SPRITE_FLAGS
 {
     SHADER_SPRITE_FLAG_NONE = 0,
     SHADER_SPRITE_FLAG_BILLBOARD = 1 << 0,
+    SHADER_SPRITE_FLAG_PARTICLE = 1 << 1, // billboard center + color come from the bindless particle buffer (GetResourceIndex), indexed by instance_index
 };
 
 struct SpritePushConstants

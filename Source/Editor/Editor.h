@@ -181,6 +181,7 @@ namespace won::editor
 			ecs::Entity picked_entity = ecs::INVALID_ENTITY;
 			bool input_enabled = false;
 			ViewportDebugSettings debug_settings = {};
+			rendering::RendererDebugState renderer_debug_state = {}; // cached
 		};
 
 		std::shared_ptr<RHIPipeline> imgui_pso;

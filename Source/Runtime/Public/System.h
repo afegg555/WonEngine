@@ -29,7 +29,7 @@ namespace won::ecs
     {
     public:
         virtual ~System() = default;
-        virtual ComponentMask GetReadMask() const { return 0; }
+        virtual ComponentMask GetReadOnlyMask() const { return 0; }
         virtual ComponentMask GetWriteMask() const { return 0; }
         virtual SystemExecutionPolicy GetExecutionPolicy() const { return SystemExecutionPolicy::ParallelJob; }
         virtual SystemPhase GetPhase() const { return SystemPhase::PostSimulation; }

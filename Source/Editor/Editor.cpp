@@ -1227,6 +1227,8 @@ namespace won::editor
 
 	void EditorApplication::Update(float dt)
 	{
+		editor_viewport.renderer_debug_state = renderer ? renderer->GetDebugState() : rendering::RendererDebugState{};
+
 		for (auto it = editor_viewport.deferred_res_removals.begin(); it != editor_viewport.deferred_res_removals.end();)
 		{
 			if (it->frames_left > 0)
@@ -1902,7 +1904,7 @@ namespace won::editor
 
 		if (editor_viewport.debug_settings.show_ddgi_overlay && renderer)
 		{
-			const rendering::RendererDebugDDGIState& ddgi_state = renderer->GetDebugState().ddgi;
+			const rendering::RendererDebugDDGIState& ddgi_state = editor_viewport.renderer_debug_state.ddgi;
 			if (ddgi_state.volume_active)
 			{
 				if (editor_viewport.debug_settings.show_ddgi_volume)
@@ -1960,7 +1962,7 @@ namespace won::editor
 
 		if (editor_viewport.debug_settings.show_bvh_debug && renderer)
 		{
-			const rendering::RendererDebugBVHState& bvh_state = renderer->GetDebugState().bvh;
+			const rendering::RendererDebugBVHState& bvh_state = editor_viewport.renderer_debug_state.bvh;
 			if (editor_viewport.debug_settings.show_cpu_bvh_nodes && bvh_state.cpu_bvh_available)
 			{
 				for (const rendering::RendererDebugBVHState::BVHNode& node : bvh_state.cpu_nodes)
@@ -3338,15 +3340,9 @@ namespace won::editor
 				camera->SetAspectRatio(static_cast<float>(editor_viewport.view->viewport.width) / static_cast<float>(editor_viewport.view->viewport.height));
 				if (editor_viewport.debug_settings.show_ddgi_overlay)
 				{
-					rendering::RendererDebugState renderer_debug_state = {};
-					if (renderer)
-					{
-						renderer_debug_state = renderer->GetDebugState();
-					}
-
 					DrawDDGIDebugOverlay(
 						*camera,
-						renderer_debug_state,
+						editor_viewport.renderer_debug_state,
 						viewport_pos,
 						viewport_size,
 						editor_viewport.debug_settings.show_ddgi_volume,
@@ -3358,7 +3354,7 @@ namespace won::editor
 
 			if (renderer && editor_viewport.debug_settings.show_renderer_stats)
 			{
-				const rendering::RendererDebugState stats = renderer->GetDebugState();
+				const rendering::RendererDebugState& stats = editor_viewport.renderer_debug_state;
 				ImGui::SetNextWindowPos(
 					ImVec2(viewport_pos.x + 8.0f, viewport_pos.y + viewport_size.y - 8.0f),
 					ImGuiCond_Always, ImVec2(0.0f, 1.0f));

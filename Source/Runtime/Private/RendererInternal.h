@@ -61,6 +61,9 @@ namespace won::rendering
         std::shared_ptr<RHIResource> shader_instance_default_buffer;
         RHISubresourceHandle shader_instance_default_buffer_srv = {};
 
+        std::shared_ptr<RHIResource> shader_particle_default_buffer;
+        RHISubresourceHandle shader_particle_default_buffer_srv = {};
+
         std::shared_ptr<RHIResource> shader_instance_sort_default_buffer;
         RHISubresourceHandle shader_instance_sort_default_buffer_srv = {};
 

@@ -15,7 +15,7 @@ namespace won::ecs
         explicit AudioUpdateSystem(won::audio::AudioMixer* mixer);
         ~AudioUpdateSystem() override;
 
-        ComponentMask GetReadMask() const override { return transform_component_mask | audio_source_component_mask | audio_listener_component_mask; }
+        ComponentMask GetReadOnlyMask() const override { return transform_component_mask | audio_listener_component_mask; }
         ComponentMask GetWriteMask() const override { return audio_source_component_mask; }
         SystemExecutionPolicy GetExecutionPolicy() const override { return SystemExecutionPolicy::Synchronous; }
 

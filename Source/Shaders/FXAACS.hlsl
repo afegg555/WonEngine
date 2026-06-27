@@ -10,6 +10,8 @@
 
 float FXAALuma(float3 rgb)
 {
+    // rgb(vec3) to luma(float) conversion
+    // human perceives green as brighter than red, and red as brighter than blue
     return dot(rgb, float3(0.299, 0.587, 0.114));
 }
 
@@ -44,9 +46,9 @@ void main(uint3 dispatch_thread_id : SV_DispatchThreadID)
     float luma_max = max(luma_m, max(max(luma_nw, luma_ne), max(luma_sw, luma_se)));
 
     // Blend direction perpendicular to the local luma gradient.
-    float2 dir;
-    dir.x = -((luma_nw + luma_ne) - (luma_sw + luma_se));
-    dir.y =  ((luma_nw + luma_sw) - (luma_ne + luma_se));
+    float2 dir; // direction of the edge
+    dir.x = -((luma_nw + luma_ne) - (luma_sw + luma_se)); // top - bottom, edge direction is perpendicular to the gradient
+    dir.y = ((luma_nw + luma_sw) - (luma_ne + luma_se)); // left - right, edge direction is perpendicular to the gradient
 
     float dir_reduce = max((luma_nw + luma_ne + luma_sw + luma_se) * 0.25 * FXAA_REDUCE_MUL, FXAA_REDUCE_MIN);
     float rcp_dir_min = 1.0 / (min(abs(dir.x), abs(dir.y)) + dir_reduce);
