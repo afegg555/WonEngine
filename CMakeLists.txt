@@ -275,6 +275,8 @@ set(RUNTIME_REFLECTION
 set(RUNTIME_MATH
     Source/Runtime/Public/MathTypes.h
     Source/Runtime/Public/MathUtils.h
+    Source/Runtime/Public/Random.h
+    Source/Runtime/Private/Random.cpp
     Source/Runtime/Public/Noise.h
     Source/Runtime/Private/Noise.cpp
     Source/Runtime/Public/BVH.h
