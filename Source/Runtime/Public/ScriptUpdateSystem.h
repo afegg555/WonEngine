@@ -10,7 +10,7 @@ namespace won::ecs
     public:
         explicit ScriptUpdateSystem(script::ScriptRuntime* script_runtime);
 
-        ComponentMask GetReadMask() const override { return script_component_mask; }
+        ComponentMask GetReadOnlyMask() const override { return 0; }
         ComponentMask GetWriteMask() const override { return script_component_mask | transform_component_mask | name_component_mask; }
         SystemExecutionPolicy GetExecutionPolicy() const override { return SystemExecutionPolicy::Synchronous; }
         SystemPhase GetPhase() const override { return SystemPhase::PreSimulation; }
