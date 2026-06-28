@@ -34,6 +34,8 @@ namespace won::reflection
         RegisterType(TypeMeta<ecs::LightComponent::LightType>::Get());
         RegisterType(TypeMeta<ecs::EnvironmentComponent::GIMode>::Get());
         RegisterType(TypeMeta<ecs::EnvironmentComponent::SkyType>::Get());
+        RegisterType(TypeMeta<resource::MaterialType>::Get());
+        RegisterType(TypeMeta<resource::MaterialBlendMode>::Get());
         RegisterType(TypeMeta<ecs::Collider3DComponent::ShapeType>::Get());
         RegisterType(TypeMeta<ecs::Rigidbody3DComponent::MotionType>::Get());
 

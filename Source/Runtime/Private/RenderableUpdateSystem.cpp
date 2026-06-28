@@ -107,7 +107,8 @@ namespace won::ecs
                     renderable.world_position = world_position;
                     renderable.aabb = world_aabb;
                     renderable.primitive_topology = submesh.primitive_topology;
-                    renderable.shader_type = material_slot.shader_type;
+                    renderable.shader_type = static_cast<uint32>(material_slot.material_type);
+                    renderable.blend_mode = material_slot.blend_mode;
                     renderable.flags = Scene::RenderData::Renderable::None;
                     if (layer_array && layer_array->HasData(entity))
                     {
@@ -117,7 +118,7 @@ namespace won::ecs
                     {
                         renderable.flags |= Scene::RenderData::Renderable::CastShadow;
                     }
-                    if ((material_slot.flags & SHADER_MATERIAL_FLAG_DOUBLE_SIDED) != 0)
+                    if (material_slot.double_sided)
                     {
                         renderable.flags |= Scene::RenderData::Renderable::DoubleSided;
                     }
@@ -130,7 +131,7 @@ namespace won::ecs
                     {
                         bucket.point_renderables.push_back(renderable);
                     }
-                    else if ((material_slot.flags & SHADER_MATERIAL_FLAG_TRANSPARENT) != 0)
+                    else if (material_slot.IsTransparent())
                     {
                         bucket.transparent_renderables.push_back(renderable);
                     }

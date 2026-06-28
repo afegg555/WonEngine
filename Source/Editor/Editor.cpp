@@ -195,7 +195,6 @@ namespace won::editor
 			constexpr const char* enabled = "Enabled";
 			constexpr const char* script_enabled = "Script Enabled";
 			constexpr const char* double_sided = "Double Sided";
-			constexpr const char* transparent = "Transparent";
 			constexpr const char* use_vertex_colors = "Use Vertex Colors";
 			constexpr const char* receive_shadow = "Receive Shadow";
 			constexpr const char* duration_zero = "Duration: 0.000s";
@@ -320,9 +319,14 @@ namespace won::editor
 			constexpr const char* save_material_failed = "Failed to save material: ";
 			constexpr const char* slot_prefix = "Slot ";
 			constexpr const char* selected_slot = "Selected Slot";
-			constexpr const char* shader_type = "Shader Type";
+			constexpr const char* shader_type = "Material Type";
 			constexpr const char* unlit = "Unlit";
 			constexpr const char* pbr = "PBR";
+			constexpr const char* blend_mode = "Blend Mode";
+			constexpr const char* opaque = "Opaque";
+			constexpr const char* alpha = "Alpha";
+			constexpr const char* additive = "Additive";
+			constexpr const char* premultiplied = "Premultiplied";
 			constexpr const char* base_color = "Base Color";
 			constexpr const char* metallic = "Metallic";
 			constexpr const char* roughness = "Roughness";
@@ -4782,58 +4786,49 @@ namespace won::editor
 							}
 
 							resource::MaterialSlot& material_slot = material_comp->GetMaterialSlot(static_cast<uint32>(selected_material_slot));
-							material_comp->SetDirty();
-							const char* shader_type_items[] = { editor_text::unlit, editor_text::pbr };
-							int shader_type = static_cast<int>(material_slot.shader_type);
-							if (ImGui::Combo(editor_text::shader_type, &shader_type, shader_type_items, IM_ARRAYSIZE(shader_type_items)))
+							bool material_changed = false;
+							const char* material_type_items[] = { editor_text::unlit, editor_text::pbr };
+							int material_type = static_cast<int>(material_slot.material_type);
+							if (ImGui::Combo(editor_text::shader_type, &material_type, material_type_items, IM_ARRAYSIZE(material_type_items)))
 							{
-								material_slot.shader_type = static_cast<uint32>(shader_type);
+								material_slot.material_type = static_cast<resource::MaterialType>(material_type);
+								material_changed = true;
 							}
 
-							bool is_double_sided = (material_slot.flags & SHADER_MATERIAL_FLAG_DOUBLE_SIDED) != 0;
-							if (ImGui::Checkbox(editor_text::double_sided, &is_double_sided))
+							const char* blend_mode_items[] = { editor_text::opaque, editor_text::alpha, editor_text::additive, editor_text::premultiplied };
+							int blend_mode = static_cast<int>(material_slot.blend_mode);
+							if (ImGui::Combo(editor_text::blend_mode, &blend_mode, blend_mode_items, IM_ARRAYSIZE(blend_mode_items)))
 							{
-								if (is_double_sided) { material_slot.flags |= SHADER_MATERIAL_FLAG_DOUBLE_SIDED; } else { material_slot.flags &= ~SHADER_MATERIAL_FLAG_DOUBLE_SIDED; }
+								material_slot.blend_mode = static_cast<resource::MaterialBlendMode>(blend_mode);
+								material_changed = true;
 							}
 
-							bool is_transparent = (material_slot.flags & SHADER_MATERIAL_FLAG_TRANSPARENT) != 0;
-							if (ImGui::Checkbox(editor_text::transparent, &is_transparent))
-							{
-								if (is_transparent) { material_slot.flags |= SHADER_MATERIAL_FLAG_TRANSPARENT; } else { material_slot.flags &= ~SHADER_MATERIAL_FLAG_TRANSPARENT; }
-							}
-
-							bool use_vertex_colors = (material_slot.flags & SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS) != 0;
-							if (ImGui::Checkbox(editor_text::use_vertex_colors, &use_vertex_colors))
-							{
-								if (use_vertex_colors) { material_slot.flags |= SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS; } else { material_slot.flags &= ~SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS; }
-							}
-
-							bool receive_shadow = (material_slot.flags & SHADER_MATERIAL_FLAG_RECEIVE_SHADOW) != 0;
-							if (ImGui::Checkbox(editor_text::receive_shadow, &receive_shadow))
-							{
-								if (receive_shadow) { material_slot.flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW; } else { material_slot.flags &= ~SHADER_MATERIAL_FLAG_RECEIVE_SHADOW; }
-							}
+							material_changed |= ImGui::Checkbox(editor_text::double_sided, &material_slot.double_sided);
+							material_changed |= ImGui::Checkbox(editor_text::use_vertex_colors, &material_slot.use_vertex_colors);
+							material_changed |= ImGui::Checkbox(editor_text::receive_shadow, &material_slot.receive_shadow);
 
 							float base_color[4] = { material_slot.base_color.x, material_slot.base_color.y, material_slot.base_color.z, material_slot.base_color.w };
 							if (ImGui::ColorEdit4(editor_text::base_color, base_color))
 							{
 								material_slot.base_color = { base_color[0], base_color[1], base_color[2], base_color[3] };
+								material_changed = true;
 							}
 
-							ImGui::SliderFloat(editor_text::metallic, &material_slot.metallic, 0.0f, 1.0f);
-							ImGui::SliderFloat(editor_text::roughness, &material_slot.roughness, 0.0f, 1.0f);
-							ImGui::SliderFloat(editor_text::reflectance, &material_slot.reflectance, 0.0f, 1.0f);
-							ImGui::SliderFloat(editor_text::anisotropy, &material_slot.anisotropy, -1.0f, 1.0f);
+							material_changed |= ImGui::SliderFloat(editor_text::metallic, &material_slot.metallic, 0.0f, 1.0f);
+							material_changed |= ImGui::SliderFloat(editor_text::roughness, &material_slot.roughness, 0.0f, 1.0f);
+							material_changed |= ImGui::SliderFloat(editor_text::reflectance, &material_slot.reflectance, 0.0f, 1.0f);
+							material_changed |= ImGui::SliderFloat(editor_text::anisotropy, &material_slot.anisotropy, -1.0f, 1.0f);
 
 							float sheen_color[3] = { material_slot.sheen_color.x, material_slot.sheen_color.y, material_slot.sheen_color.z };
 							if (ImGui::ColorEdit3(editor_text::sheen_color, sheen_color))
 							{
 								material_slot.sheen_color = { sheen_color[0], sheen_color[1], sheen_color[2] };
+								material_changed = true;
 							}
 
-							ImGui::SliderFloat(editor_text::sheen_roughness, &material_slot.sheen_roughness, 0.0f, 1.0f);
-							ImGui::SliderFloat(editor_text::clearcoat, &material_slot.clearcoat, 0.0f, 1.0f);
-							ImGui::SliderFloat(editor_text::clearcoat_roughness, &material_slot.clearcoat_roughness, 0.0f, 1.0f);
+							material_changed |= ImGui::SliderFloat(editor_text::sheen_roughness, &material_slot.sheen_roughness, 0.0f, 1.0f);
+							material_changed |= ImGui::SliderFloat(editor_text::clearcoat, &material_slot.clearcoat, 0.0f, 1.0f);
+							material_changed |= ImGui::SliderFloat(editor_text::clearcoat_roughness, &material_slot.clearcoat_roughness, 0.0f, 1.0f);
 
 							static const char* texture_slot_names[] = {
 								editor_text::base_color_map,
@@ -4858,6 +4853,11 @@ namespace won::editor
 							{
 								const resource::MaterialSlot::TextureMap& texture = material_slot.textures[texture_slot];
 								ImGui::Text(editor_text::texture_status_format, texture_slot_names[texture_slot], texture.IsValid() ? editor_text::assigned : editor_text::none);
+							}
+
+							if (material_changed)
+							{
+								material_comp->SetDirty();
 							}
 						}
 					}

@@ -24,7 +24,6 @@ enum SHADER_MATERIAL_FLAGS
 {
     SHADER_MATERIAL_FLAG_NONE = 0,
     SHADER_MATERIAL_FLAG_DOUBLE_SIDED = 1 << 0,
-    SHADER_MATERIAL_FLAG_TRANSPARENT = 1 << 1,
     SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS = 1 << 2,
     SHADER_MATERIAL_FLAG_RECEIVE_SHADOW = 1 << 3,
 };
@@ -215,7 +214,6 @@ struct alignas(16) ShaderMaterial
     inline half3 GetSheenColor() { return UnpackHalf4(sheencolor_padding).xyz; }
 
     inline bool IsDoubleSided() { return flags & SHADER_MATERIAL_FLAG_DOUBLE_SIDED; }
-    inline bool IsTransparent() { return flags & SHADER_MATERIAL_FLAG_TRANSPARENT; }
     inline bool IsUsingVertexColors() { return flags & SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS; }
     inline bool IsReceiveShadow() { return flags & SHADER_MATERIAL_FLAG_RECEIVE_SHADOW; }
 #endif

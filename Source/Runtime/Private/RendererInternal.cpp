@@ -1748,7 +1748,7 @@ namespace won::rendering
                 if (pass == RenderPassType::MainPass)
                 {
                     renderable_hash.storage.bits.shader_type = draw_wireframe ? SHADER_MATERIAL_TYPE_UNLIT : renderable.shader_type;
-                    renderable_hash.storage.bits.blend = 1;
+                    renderable_hash.storage.bits.blend_mode = static_cast<uint64>(renderable.blend_mode);
                     renderable_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
                 }
 
@@ -1832,47 +1832,36 @@ namespace won::rendering
 
         if (pass == RenderPassType::Sprite3DPass && (flags & DrawScene_3DSprite) != 0 && !render_data.sprite_3d_renderables.empty())
         {
-            GraphicsPipelineHash sprite_pipeline_hash = {};
-            sprite_pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::Sprite3DPass);
-            sprite_pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
-            sprite_pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
-            sprite_pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
-            sprite_pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
-            sprite_pipeline_hash.storage.bits.pass_mode = static_cast<uint64>(Sprite3DPassMode::Sprite);
-
-            GraphicsPipelineHash text_pipeline_hash = {};
-            text_pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::Sprite3DPass);
-            text_pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
-            text_pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
-            text_pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
-            text_pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
-            text_pipeline_hash.storage.bits.pass_mode = static_cast<uint64>(Sprite3DPassMode::Text);
-
-            GraphicsPipelineHash particle_pipeline_hash = sprite_pipeline_hash;
-            particle_pipeline_hash.storage.bits.pass_mode = static_cast<uint64>(Sprite3DPassMode::Particle);
-
-            std::shared_ptr<RHIPipeline> sprite_pipeline = shader_library.GetPipeline(sprite_pipeline_hash);
-            std::shared_ptr<RHIPipeline> text_pipeline = shader_library.GetPipeline(text_pipeline_hash);
-            std::shared_ptr<RHIPipeline> particle_pipeline = shader_library.GetPipeline(particle_pipeline_hash);
-            if (!sprite_pipeline || !text_pipeline || !particle_pipeline)
-            {
-                return false;
-            }
+            GraphicsPipelineHash base_sprite_hash = {};
+            base_sprite_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::Sprite3DPass);
+            base_sprite_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
+            base_sprite_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
+            base_sprite_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
+            base_sprite_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
 
             command_list.SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
-            Sprite3DPassMode active_pass_mode = Sprite3DPassMode::Sprite;
+            GraphicsPipelineHash active_hash = {};
             bool has_active_pipeline = false;
             for (uint32 idx : view.sorted_sprite_3d_indices)
             {
                 const Scene::RenderData::Sprite3DRenderable& renderable = render_data.sprite_3d_renderables[idx];
                 const Sprite3DPassMode pass_mode = renderable.IsText() ? Sprite3DPassMode::Text
                     : (renderable.IsParticle() ? Sprite3DPassMode::Particle : Sprite3DPassMode::Sprite);
-                if (!has_active_pipeline || active_pass_mode != pass_mode)
+
+                GraphicsPipelineHash renderable_hash = base_sprite_hash;
+                renderable_hash.storage.bits.pass_mode = static_cast<uint64>(pass_mode);
+                renderable_hash.storage.bits.blend_mode = pass_mode == Sprite3DPassMode::Text ? 1ull : static_cast<uint64>(renderable.blend_mode);
+
+                if (!has_active_pipeline || !(active_hash == renderable_hash))
                 {
-                    active_pass_mode = pass_mode;
+                    std::shared_ptr<RHIPipeline> pipeline = shader_library.GetPipeline(renderable_hash);
+                    if (!pipeline)
+                    {
+                        has_active_pipeline = false;
+                        continue;
+                    }
+                    active_hash = renderable_hash;
                     has_active_pipeline = true;
-                    RHIPipeline* pipeline = pass_mode == Sprite3DPassMode::Text ? text_pipeline.get()
-                        : (pass_mode == Sprite3DPassMode::Particle ? particle_pipeline.get() : sprite_pipeline.get());
                     command_list.SetGraphicsPipeline(*pipeline);
                     command_list.SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
                     command_list.SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_camera_binding);

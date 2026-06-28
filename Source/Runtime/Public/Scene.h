@@ -1013,6 +1013,7 @@ namespace won::ecs
                 uint32 index_count = 0;
                 uint32 flags = None;
                 uint32 shader_type = SHADER_MATERIAL_TYPE_PBR;
+                resource::MaterialBlendMode blend_mode = resource::MaterialBlendMode::Opaque;
                 uint32 layer_mask = 0xFFFFFFFF;
                 resource::PrimitiveTopology primitive_topology = resource::PrimitiveTopology::TriangleList;
 
@@ -1060,6 +1061,7 @@ namespace won::ecs
                 float2 pivot = { 0.5f, 0.5f };
                 float4 uv_rect = { 0.0f, 0.0f, 1.0f, 1.0f };
                 uint32 flags = None;
+                resource::MaterialBlendMode blend_mode = resource::MaterialBlendMode::Alpha;
                 uint32 layer_mask = 0xFFFFFFFF;
                 // For particles: bindless descriptor of the per-frame float4 buffer holding
                 // interleaved [position, color] pairs, indexed by instance_index.

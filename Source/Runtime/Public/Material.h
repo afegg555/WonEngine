@@ -9,16 +9,27 @@
 
 namespace won::resource
 {
+    enum class MaterialType : uint32
+    {
+        Unlit,
+        PBR,
+    };
+
+    enum class MaterialBlendMode : uint32
+    {
+        Opaque,
+        Alpha,
+        Additive,
+        Premultiplied,
+    };
+
     struct MaterialSlot
     {
-        uint32 flags = SHADER_MATERIAL_FLAG_NONE;
-        uint32 shader_type = SHADER_MATERIAL_TYPE_PBR;
-
-        inline static const std::vector<std::string> shader_defines[] = {
-            {"UNLIT"}, // SHADER_MATERIAL_TYPE_UNLIT,
-            {}, // SHADER_MATERIAL_TYPE_PBR,
-        };
-        static_assert(SHADER_MATERIAL_TYPE_COUNT == arraysize(shader_defines), "These values must match!");
+        MaterialType material_type = MaterialType::PBR;
+        MaterialBlendMode blend_mode = MaterialBlendMode::Opaque;
+        bool double_sided = false;
+        bool use_vertex_colors = false;
+        bool receive_shadow = false;
 
         float4 base_color = { 1.0f, 1.0f, 1.0f, 1.0f };
         float metallic = 0.3f;
@@ -45,6 +56,8 @@ namespace won::resource
             }
         };
         TextureMap textures[TEXTURESLOT_COUNT];
+
+        bool IsTransparent() const { return blend_mode != MaterialBlendMode::Opaque; }
     };
 
     struct Material : public Resource

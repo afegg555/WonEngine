@@ -81,7 +81,11 @@ namespace won::ecs
                 shader_material.roughness_reflectance_refraction_padding = pack_half4(material_slot.roughness, material_slot.reflectance, 0.f, 0.f);
                 shader_material.anisotropy_sheenroughness_clearcoat_clearcoatroughness = pack_half4(material_slot.anisotropy, material_slot.sheen_roughness, material_slot.clearcoat, material_slot.clearcoat_roughness);
                 shader_material.sheencolor_padding = pack_half4(material_slot.sheen_color.x, material_slot.sheen_color.y, material_slot.sheen_color.z, 0.f);
-                shader_material.flags = material_slot.flags;
+                uint32 gpu_flags = SHADER_MATERIAL_FLAG_NONE;
+                if (material_slot.double_sided) { gpu_flags |= SHADER_MATERIAL_FLAG_DOUBLE_SIDED; }
+                if (material_slot.use_vertex_colors) { gpu_flags |= SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS; }
+                if (material_slot.receive_shadow) { gpu_flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW; }
+                shader_material.flags = gpu_flags;
 
                 for (uint32 texture_slot = 0; texture_slot < static_cast<uint32>(TEXTURESLOT_COUNT); ++texture_slot)
                 {

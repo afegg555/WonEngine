@@ -125,7 +125,8 @@ namespace won::ecs
                     renderable.aabb.max.z = std::max(renderable.aabb.max.z, wc.z);
                 }
             }
-            if ((material_slot.flags & SHADER_MATERIAL_FLAG_TRANSPARENT) != 0)
+            renderable.blend_mode = material_slot.blend_mode;
+            if (material_slot.IsTransparent())
             {
                 renderable.flags |= Scene::RenderData::Sprite3DRenderable::Transparent;
             }
