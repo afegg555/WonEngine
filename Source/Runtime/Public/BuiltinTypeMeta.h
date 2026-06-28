@@ -79,10 +79,15 @@ namespace won::reflection
         WON_REFLECT_ENUM_VALUE("Spot", won::ecs::LightComponent::LightType::Spot)
     WON_REFLECT_ENUM_END()
 
-    WON_REFLECT_ENUM(won::ecs::EnvironmentLightingComponent::GIMode, "GIMode")
-        WON_REFLECT_ENUM_VALUE("None", won::ecs::EnvironmentLightingComponent::None)
-        WON_REFLECT_ENUM_VALUE("Ambient", won::ecs::EnvironmentLightingComponent::Ambient)
-        WON_REFLECT_ENUM_VALUE("DDGI", won::ecs::EnvironmentLightingComponent::DDGI)
+    WON_REFLECT_ENUM(won::ecs::EnvironmentComponent::GIMode, "GIMode")
+        WON_REFLECT_ENUM_VALUE("None", won::ecs::EnvironmentComponent::GIMode::None)
+        WON_REFLECT_ENUM_VALUE("Ambient", won::ecs::EnvironmentComponent::GIMode::Ambient)
+        WON_REFLECT_ENUM_VALUE("DDGI", won::ecs::EnvironmentComponent::GIMode::DDGI)
+    WON_REFLECT_ENUM_END()
+
+    WON_REFLECT_ENUM(won::ecs::EnvironmentComponent::SkyType, "SkyType")
+        WON_REFLECT_ENUM_VALUE("None", won::ecs::EnvironmentComponent::SkyType::None)
+        WON_REFLECT_ENUM_VALUE("Procedural", won::ecs::EnvironmentComponent::SkyType::Procedural)
     WON_REFLECT_ENUM_END()
 
     WON_REFLECT_ENUM(won::ecs::Collider3DComponent::ShapeType, "Collider3DShapeType")
@@ -135,7 +140,10 @@ namespace won::reflection
         WON_REFLECT_FIELD(shadow_cascade_blend, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
-    WON_REFLECT_STRUCT(won::ecs::SkyComponent, "SkyComponent")
+    WON_REFLECT_STRUCT(won::ecs::EnvironmentComponent, "EnvironmentComponent")
+        WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(sky_type, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(gi_mode, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(sun_direction, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(sun_intensity, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(sun_color, won::FieldFlagEditable | won::FieldFlagSerializable)
@@ -150,17 +158,13 @@ namespace won::reflection
         WON_REFLECT_FIELD(ground_intensity, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(ground_color, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(ground_falloff, won::FieldFlagEditable | won::FieldFlagSerializable)
-    WON_REFLECT_STRUCT_END()
-
-    WON_REFLECT_STRUCT(won::ecs::FogVolumeComponent, "FogVolumeComponent")
-    WON_REFLECT_STRUCT_END()
-
-    WON_REFLECT_STRUCT(won::ecs::EnvironmentLightingComponent, "EnvironmentLightingComponent")
-        WON_REFLECT_FIELD(gi_mode, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(ambient_color, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(ambient_intensity, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(indirect_diffuse_scale, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(indirect_specular_scale, won::FieldFlagEditable | won::FieldFlagSerializable)
+    WON_REFLECT_STRUCT_END()
+
+    WON_REFLECT_STRUCT(won::ecs::FogVolumeComponent, "FogVolumeComponent")
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::DDGIVolumeComponent, "DDGIVolumeComponent")

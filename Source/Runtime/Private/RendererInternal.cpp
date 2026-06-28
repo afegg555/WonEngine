@@ -1335,8 +1335,7 @@ namespace won::rendering
         shader_frame.scene.bvh_node_count = static_cast<uint32>(render_data.shader_bvh_nodes.size());
         shader_frame.scene.bvh_instance_count = static_cast<uint32>(render_data.shader_bvh_instances.size());
         shader_frame.scene.instance_sort_buffer = shader_instance_sort_default_buffer_srv.descriptor_index;
-        shader_frame.sky = render_data.shader_sky;
-        shader_frame.environment_lighting = render_data.shader_environment_lighting;
+        shader_frame.environment = render_data.shader_environment;
         shader_frame.ddgi_volume = render_data.shader_ddgi_volume;
         shader_frame.ddgi_volume.irradiance_texture = ddgi_irradiance_texture_srv.descriptor_index;
         shader_frame.ddgi_volume.irradiance_texture_uav = ddgi_irradiance_texture_uav.descriptor_index;
@@ -2179,7 +2178,7 @@ namespace won::rendering
         }
     }
 
-    void RendererInternal::UpdateDDGIProbe(FrameContext& frame_context, const ShaderEnvironmentLighting& environment_lighting, const ShaderDDGIVolume& ddgi_volume, const RHISubresourceBinding& shader_frame_binding, const RHISubresourceBinding& shader_camera_binding, RHICommandList& command_list)
+    void RendererInternal::UpdateDDGIProbe(FrameContext& frame_context, const ShaderEnvironment& environment_lighting, const ShaderDDGIVolume& ddgi_volume, const RHISubresourceBinding& shader_frame_binding, const RHISubresourceBinding& shader_camera_binding, RHICommandList& command_list)
     {
         std::shared_ptr<RHIShader> current_ddgi_probe_update_shader = shader_library.GetShader(ShaderId::CSDDGIProbeUpdate);
         if (ddgi_probe_update_shader != current_ddgi_probe_update_shader)
@@ -2315,7 +2314,7 @@ namespace won::rendering
         {
             debug_state.bvh = {};
         }
-        debug_state.ddgi.gi_mode_ddgi = render_data.shader_environment_lighting.gi_mode == SHADER_ENVIRONMENT_GI_MODE_DDGI;
+        debug_state.ddgi.gi_mode_ddgi = render_data.shader_environment.gi_mode == SHADER_ENVIRONMENT_GI_MODE_DDGI;
         debug_state.ddgi.volume_active = (render_data.shader_ddgi_volume.flags & SHADER_DDGI_FLAG_ACTIVE) != 0;
         if (debug_state.ddgi.volume_active)
         {
@@ -2517,7 +2516,7 @@ namespace won::rendering
 
             {
                 auto cpu_range = profiler::ScopedRangeCPU("DDGI Probe Update");
-                UpdateDDGIProbe(frame_context, render_data.shader_environment_lighting, render_data.shader_ddgi_volume, shader_frame_binding, shader_camera_binding, *command_list);
+                UpdateDDGIProbe(frame_context, render_data.shader_environment, render_data.shader_ddgi_volume, shader_frame_binding, shader_camera_binding, *command_list);
             }
 
             command_list->TransitionResource(*scene_color_binding.resource, RHIResourceState::RenderTarget);
@@ -2528,7 +2527,7 @@ namespace won::rendering
             command_list->SetViewport(viewport);
             command_list->SetScissor(scissor);
 
-            if ((render_data.shader_sky.flags & SHADER_SKY_FLAG_ACTIVE) != 0)
+            if (render_data.shader_environment.sky_type != SHADER_SKY_TYPE_NONE)
             {
                 auto gpu_range = profiler::ScopedRangeGPU("Sky Pass", *command_list);
                 command_list->BeginEvent("Sky Pass");

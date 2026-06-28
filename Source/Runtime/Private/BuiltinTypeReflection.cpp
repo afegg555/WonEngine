@@ -32,7 +32,8 @@ namespace won::reflection
         RegisterType(TypeMeta<uint4>::Get());
 
         RegisterType(TypeMeta<ecs::LightComponent::LightType>::Get());
-        RegisterType(TypeMeta<ecs::EnvironmentLightingComponent::GIMode>::Get());
+        RegisterType(TypeMeta<ecs::EnvironmentComponent::GIMode>::Get());
+        RegisterType(TypeMeta<ecs::EnvironmentComponent::SkyType>::Get());
         RegisterType(TypeMeta<ecs::Collider3DComponent::ShapeType>::Get());
         RegisterType(TypeMeta<ecs::Rigidbody3DComponent::MotionType>::Get());
 
@@ -41,9 +42,8 @@ namespace won::reflection
         RegisterType(TypeMeta<ecs::HierarchyComponent>::Get());
         RegisterType(TypeMeta<ecs::CameraComponent>::Get());
         RegisterType(TypeMeta<ecs::LightComponent>::Get());
-        RegisterType(TypeMeta<ecs::SkyComponent>::Get());
+        RegisterType(TypeMeta<ecs::EnvironmentComponent>::Get());
         RegisterType(TypeMeta<ecs::FogVolumeComponent>::Get());
-        RegisterType(TypeMeta<ecs::EnvironmentLightingComponent>::Get());
         RegisterType(TypeMeta<ecs::DDGIVolumeComponent>::Get());
         RegisterType(TypeMeta<ecs::GeometryComponent>::Get());
         RegisterType(TypeMeta<ecs::Sprite2DComponent>::Get());

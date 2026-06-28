@@ -69,9 +69,8 @@ namespace won::ecs
             component_manager.RegisterComponent<Text3DComponent>();
             component_manager.RegisterComponent<CameraComponent>();
             component_manager.RegisterComponent<LightComponent>();
-            component_manager.RegisterComponent<SkyComponent>();
+            component_manager.RegisterComponent<EnvironmentComponent>();
             component_manager.RegisterComponent<FogVolumeComponent>();
-            component_manager.RegisterComponent<EnvironmentLightingComponent>();
             component_manager.RegisterComponent<DDGIVolumeComponent>();
             component_manager.RegisterComponent<AnimationComponent>();
             component_manager.RegisterComponent<ScriptComponent>();
@@ -550,7 +549,7 @@ namespace won::ecs
 
         bool BuildGPUBVH()
         {
-            const bool ddgi_trace_required = render_data.shader_environment_lighting.gi_mode == SHADER_ENVIRONMENT_GI_MODE_DDGI &&
+            const bool ddgi_trace_required = render_data.shader_environment.gi_mode == SHADER_ENVIRONMENT_GI_MODE_DDGI &&
                 (render_data.shader_ddgi_volume.flags & SHADER_DDGI_FLAG_ACTIVE) != 0 &&
                 render_data.shader_ddgi_volume.total_probe_count > 0;
             if (!ddgi_trace_required)
@@ -1094,8 +1093,7 @@ namespace won::ecs
                 bool IsText() const { return (flags & Text) != 0; }
             };
 
-            ShaderSky shader_sky;
-            ShaderEnvironmentLighting shader_environment_lighting;
+            ShaderEnvironment shader_environment;
             ShaderDDGIVolume shader_ddgi_volume;
 
             Vector<ShaderInstance> shader_instances;
@@ -1145,8 +1143,7 @@ namespace won::ecs
                 forward_light_mask = { 0,0,0,0 };
                 shadow_map_atlas_size = { 0, 0 };
                 shadow_caster_world_bound.Invalidate();
-                shader_sky.Init();
-                shader_environment_lighting.Init();
+                shader_environment.Init();
                 shader_ddgi_volume.Init();
                 ddgi_volume_entity = INVALID_ENTITY;
             }
