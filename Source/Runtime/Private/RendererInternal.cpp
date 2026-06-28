@@ -1428,7 +1428,7 @@ namespace won::rendering
                 continue;
             }
 
-            if (light.type != ecs::LightComponent::Directional)
+            if (light.type != ecs::LightComponent::LightType::Directional)
             {
                 continue;
             }

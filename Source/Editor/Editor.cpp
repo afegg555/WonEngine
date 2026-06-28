@@ -1872,7 +1872,7 @@ namespace won::editor
 					const ecs::TransformComponent& transform = transform_array->GetData(entity);
 					const XMMATRIX world = transform.GetWorldTransform();
 					const uint32 material_slot = collider.IsTrigger() ? EditorPrimitiveCollider3DTrigger : EditorPrimitiveCollider3D;
-					if (collider.shape_type == ecs::Collider3DComponent::Sphere)
+					if (collider.shape_type == ecs::Collider3DComponent::ShapeType::Sphere)
 					{
 						const XMVECTOR center = XMVector3TransformCoord(XMLoadFloat3(&collider.offset), world);
 						const float scale_x = XMVectorGetX(XMVector3Length(world.r[0]));

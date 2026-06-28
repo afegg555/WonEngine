@@ -41,13 +41,13 @@ namespace won::ecs
 
             switch (light.type)
             {
-            case LightComponent::Directional:
+            case LightComponent::LightType::Directional:
                 light.aabb.CreateFromHalfWidth(float3(0, 0, 0), float3(FLT_MAX, FLT_MAX, FLT_MAX));
                 break;
-            case LightComponent::Spot:
+            case LightComponent::LightType::Spot:
                 light.aabb.CreateFromHalfWidth(light.position, float3(light.range, light.range, light.range));
                 break;
-            case LightComponent::Point:
+            case LightComponent::LightType::Point:
                 light.aabb.CreateFromHalfWidth(light.position, float3(light.range, light.range, light.range));
                 break;
             default:
@@ -61,7 +61,7 @@ namespace won::ecs
                 shader_light.Init();
                 shader_light.position = light.position;
 
-                shader_light.SetType(light.type);
+                shader_light.SetType(static_cast<uint32>(light.type));
                 shader_light.SetColor({ light.color.x * light.intensity, light.color.y * light.intensity, light.color.z * light.intensity, light.intensity });
                 shader_light.SetRange(light.range);
                 shader_light.SetDirection(light.direction);

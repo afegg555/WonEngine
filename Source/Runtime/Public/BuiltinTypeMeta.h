@@ -74,9 +74,9 @@ namespace won::reflection
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_ENUM(won::ecs::LightComponent::LightType, "LightType")
-        WON_REFLECT_ENUM_VALUE("Directional", won::ecs::LightComponent::Directional)
-        WON_REFLECT_ENUM_VALUE("Point", won::ecs::LightComponent::Point)
-        WON_REFLECT_ENUM_VALUE("Spot", won::ecs::LightComponent::Spot)
+        WON_REFLECT_ENUM_VALUE("Directional", won::ecs::LightComponent::LightType::Directional)
+        WON_REFLECT_ENUM_VALUE("Point", won::ecs::LightComponent::LightType::Point)
+        WON_REFLECT_ENUM_VALUE("Spot", won::ecs::LightComponent::LightType::Spot)
     WON_REFLECT_ENUM_END()
 
     WON_REFLECT_ENUM(won::ecs::EnvironmentLightingComponent::GIMode, "GIMode")
@@ -86,8 +86,8 @@ namespace won::reflection
     WON_REFLECT_ENUM_END()
 
     WON_REFLECT_ENUM(won::ecs::Collider3DComponent::ShapeType, "Collider3DShapeType")
-        WON_REFLECT_ENUM_VALUE("Box", won::ecs::Collider3DComponent::Box)
-        WON_REFLECT_ENUM_VALUE("Sphere", won::ecs::Collider3DComponent::Sphere)
+        WON_REFLECT_ENUM_VALUE("Box", won::ecs::Collider3DComponent::ShapeType::Box)
+        WON_REFLECT_ENUM_VALUE("Sphere", won::ecs::Collider3DComponent::ShapeType::Sphere)
     WON_REFLECT_ENUM_END()
 
     WON_REFLECT_ENUM(won::ecs::Rigidbody3DComponent::MotionType, "Rigidbody3DMotionType")

@@ -871,7 +871,7 @@ namespace won::ecs
 
                 float distance = 0.0f;
                 bool hit = false;
-                if (collider.shape_type == Collider3DComponent::Sphere)
+                if (collider.shape_type == Collider3DComponent::ShapeType::Sphere)
                 {
                     const XMVECTOR origin = XMLoadFloat3(&query_ray.origin);
                     const XMVECTOR direction = XMLoadFloat3(&query_ray.direction);
@@ -967,7 +967,7 @@ namespace won::ecs
                 }
 
                 bool overlap = false;
-                if (collider.shape_type == Collider3DComponent::Sphere)
+                if (collider.shape_type == Collider3DComponent::ShapeType::Sphere)
                 {
                     const float dx = sphere.center.x - collider.world_sphere.center.x;
                     const float dy = sphere.center.y - collider.world_sphere.center.y;

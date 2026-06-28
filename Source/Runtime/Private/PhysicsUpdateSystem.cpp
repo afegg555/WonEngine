@@ -110,7 +110,7 @@ namespace won::ecs
                 collider.world_bounds.Invalidate();
                 collider.world_sphere = {};
 
-                if (collider.shape_type == Collider3DComponent::Sphere)
+                if (collider.shape_type == Collider3DComponent::ShapeType::Sphere)
                 {
                     const XMVECTOR center = XMVector3TransformCoord(XMLoadFloat3(&collider.offset), world);
                     const float scale_x = XMVectorGetX(XMVector3Length(world.r[0]));
