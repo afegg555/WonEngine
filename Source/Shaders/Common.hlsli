@@ -215,14 +215,9 @@ inline ShaderScene GetScene()
     return g_frame.scene;
 }
 
-inline ShaderSky GetSky()
+inline ShaderEnvironment GetEnvironment()
 {
-    return g_frame.sky;
-}
-
-inline ShaderEnvironmentLighting GetEnvironmentLighting()
-{
-    return g_frame.environment_lighting;
+    return g_frame.environment;
 }
 
 inline ShaderDDGIVolume GetDDGIVolume()

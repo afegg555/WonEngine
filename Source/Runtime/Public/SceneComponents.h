@@ -11,9 +11,8 @@
 #include "Text3DComponent.h"
 #include "CameraComponent.h"
 #include "LightComponent.h"
-#include "SkyComponent.h"
+#include "EnvironmentComponent.h"
 #include "FogVolumeComponent.h"
-#include "EnvironmentLightingComponent.h"
 #include "DDGIVolumeComponent.h"
 #include "AnimationComponent.h"
 #include "ScriptComponent.h"
@@ -48,9 +47,8 @@ namespace won::ecs
         Text3D,
         Camera,
         Light,
-        Sky,
+        Environment,
         FogVolume,
-        EnvironmentLighting,
         DDGIVolume,
         Animation,
         Sprite2D,
@@ -81,9 +79,8 @@ namespace won::ecs
     inline constexpr ComponentMask text_3d_component_mask = ComponentMaskFromBit(SceneComponentBit::Text3D);
     inline constexpr ComponentMask camera_component_mask = ComponentMaskFromBit(SceneComponentBit::Camera);
     inline constexpr ComponentMask light_component_mask = ComponentMaskFromBit(SceneComponentBit::Light);
-    inline constexpr ComponentMask sky_component_mask = ComponentMaskFromBit(SceneComponentBit::Sky);
+    inline constexpr ComponentMask environment_component_mask = ComponentMaskFromBit(SceneComponentBit::Environment);
     inline constexpr ComponentMask fog_volume_component_mask = ComponentMaskFromBit(SceneComponentBit::FogVolume);
-    inline constexpr ComponentMask environment_lighting_component_mask = ComponentMaskFromBit(SceneComponentBit::EnvironmentLighting);
     inline constexpr ComponentMask ddgi_volume_component_mask = ComponentMaskFromBit(SceneComponentBit::DDGIVolume);
     inline constexpr ComponentMask animation_component_mask = ComponentMaskFromBit(SceneComponentBit::Animation);
     inline constexpr ComponentMask text_2d_component_mask = ComponentMaskFromBit(SceneComponentBit::Text2D);

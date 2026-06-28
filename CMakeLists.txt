@@ -306,9 +306,8 @@ set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/HierarchyComponent.h
     Source/Runtime/Public/CameraComponent.h
     Source/Runtime/Public/LightComponent.h
-    Source/Runtime/Public/SkyComponent.h
+    Source/Runtime/Public/EnvironmentComponent.h
     Source/Runtime/Public/FogVolumeComponent.h
-    Source/Runtime/Public/EnvironmentLightingComponent.h
     Source/Runtime/Public/DDGIVolumeComponent.h
     Source/Runtime/Public/AnimationComponent.h
     Source/Runtime/Public/ScriptComponent.h

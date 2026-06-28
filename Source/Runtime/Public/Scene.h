@@ -69,9 +69,8 @@ namespace won::ecs
             component_manager.RegisterComponent<Text3DComponent>();
             component_manager.RegisterComponent<CameraComponent>();
             component_manager.RegisterComponent<LightComponent>();
-            component_manager.RegisterComponent<SkyComponent>();
+            component_manager.RegisterComponent<EnvironmentComponent>();
             component_manager.RegisterComponent<FogVolumeComponent>();
-            component_manager.RegisterComponent<EnvironmentLightingComponent>();
             component_manager.RegisterComponent<DDGIVolumeComponent>();
             component_manager.RegisterComponent<AnimationComponent>();
             component_manager.RegisterComponent<ScriptComponent>();
@@ -550,7 +549,7 @@ namespace won::ecs
 
         bool BuildGPUBVH()
         {
-            const bool ddgi_trace_required = render_data.shader_environment_lighting.gi_mode == SHADER_ENVIRONMENT_GI_MODE_DDGI &&
+            const bool ddgi_trace_required = render_data.shader_environment.gi_mode == SHADER_ENVIRONMENT_GI_MODE_DDGI &&
                 (render_data.shader_ddgi_volume.flags & SHADER_DDGI_FLAG_ACTIVE) != 0 &&
                 render_data.shader_ddgi_volume.total_probe_count > 0;
             if (!ddgi_trace_required)
@@ -871,7 +870,7 @@ namespace won::ecs
 
                 float distance = 0.0f;
                 bool hit = false;
-                if (collider.shape_type == Collider3DComponent::Sphere)
+                if (collider.shape_type == Collider3DComponent::ShapeType::Sphere)
                 {
                     const XMVECTOR origin = XMLoadFloat3(&query_ray.origin);
                     const XMVECTOR direction = XMLoadFloat3(&query_ray.direction);
@@ -967,7 +966,7 @@ namespace won::ecs
                 }
 
                 bool overlap = false;
-                if (collider.shape_type == Collider3DComponent::Sphere)
+                if (collider.shape_type == Collider3DComponent::ShapeType::Sphere)
                 {
                     const float dx = sphere.center.x - collider.world_sphere.center.x;
                     const float dy = sphere.center.y - collider.world_sphere.center.y;
@@ -1014,6 +1013,7 @@ namespace won::ecs
                 uint32 index_count = 0;
                 uint32 flags = None;
                 uint32 shader_type = SHADER_MATERIAL_TYPE_PBR;
+                resource::MaterialBlendMode blend_mode = resource::MaterialBlendMode::Opaque;
                 uint32 layer_mask = 0xFFFFFFFF;
                 resource::PrimitiveTopology primitive_topology = resource::PrimitiveTopology::TriangleList;
 
@@ -1061,6 +1061,7 @@ namespace won::ecs
                 float2 pivot = { 0.5f, 0.5f };
                 float4 uv_rect = { 0.0f, 0.0f, 1.0f, 1.0f };
                 uint32 flags = None;
+                resource::MaterialBlendMode blend_mode = resource::MaterialBlendMode::Alpha;
                 uint32 layer_mask = 0xFFFFFFFF;
                 // For particles: bindless descriptor of the per-frame float4 buffer holding
                 // interleaved [position, color] pairs, indexed by instance_index.
@@ -1094,8 +1095,7 @@ namespace won::ecs
                 bool IsText() const { return (flags & Text) != 0; }
             };
 
-            ShaderSky shader_sky;
-            ShaderEnvironmentLighting shader_environment_lighting;
+            ShaderEnvironment shader_environment;
             ShaderDDGIVolume shader_ddgi_volume;
 
             Vector<ShaderInstance> shader_instances;
@@ -1145,8 +1145,7 @@ namespace won::ecs
                 forward_light_mask = { 0,0,0,0 };
                 shadow_map_atlas_size = { 0, 0 };
                 shadow_caster_world_bound.Invalidate();
-                shader_sky.Init();
-                shader_environment_lighting.Init();
+                shader_environment.Init();
                 shader_ddgi_volume.Init();
                 ddgi_volume_entity = INVALID_ENTITY;
             }

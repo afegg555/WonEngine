@@ -136,6 +136,7 @@ namespace won::ecs
 
             // Append GPU particle data and a billboard renderable per alive particle.
             const uint32 material_index = material.material->material_offset;
+            const resource::MaterialBlendMode blend_mode = material.material->slots[0].blend_mode;
 
             for (const Particle& particle : runtime.particles)
             {
@@ -150,6 +151,7 @@ namespace won::ecs
                 Scene::RenderData::Sprite3DRenderable renderable = {};
                 renderable.instance_index = buffer_index;
                 renderable.material_index = material_index;
+                renderable.blend_mode = blend_mode;
                 renderable.world_position = particle.position;
                 renderable.size = { size, size };
                 // Particles are always alpha-blended (color fades out), so flag them transparent

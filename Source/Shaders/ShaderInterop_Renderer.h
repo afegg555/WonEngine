@@ -24,7 +24,6 @@ enum SHADER_MATERIAL_FLAGS
 {
     SHADER_MATERIAL_FLAG_NONE = 0,
     SHADER_MATERIAL_FLAG_DOUBLE_SIDED = 1 << 0,
-    SHADER_MATERIAL_FLAG_TRANSPARENT = 1 << 1,
     SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS = 1 << 2,
     SHADER_MATERIAL_FLAG_RECEIVE_SHADOW = 1 << 3,
 };
@@ -35,10 +34,10 @@ enum SHADER_CAMERA_FLAGS
     SHADER_CAMERA_FLAG_IS_ORTHOGRAPHIC = 1 << 0,
 };
 
-enum SHADER_SKY_FLAGS
+enum SHADER_SKY_TYPE
 {
-    SHADER_SKY_FLAG_NONE = 0,
-    SHADER_SKY_FLAG_ACTIVE = 1 << 0,
+    SHADER_SKY_TYPE_NONE = 0,        // no sky dome (e.g. indoor); the sky pass is skipped
+    SHADER_SKY_TYPE_PROCEDURAL = 1,
 };
 
 enum SHADER_MATERIAL_TYPE
@@ -62,12 +61,6 @@ enum SHADER_LIGHT_FLAGS
 {
     LIGHT_FLAG_LIGHT_STATIC = 1 << 0,
     LIGHT_FLAG_LIGHT_CASTING_SHADOW = 1 << 1,
-};
-
-enum SHADER_ENVIRONMENT_LIGHTING_FLAGS
-{
-    SHADER_ENVIRONMENT_LIGHTING_FLAG_NONE = 0,
-    SHADER_ENVIRONMENT_LIGHTING_FLAG_ACTIVE = 1 << 0,
 };
 
 enum SHADER_DDGI_FLAGS
@@ -221,7 +214,6 @@ struct alignas(16) ShaderMaterial
     inline half3 GetSheenColor() { return UnpackHalf4(sheencolor_padding).xyz; }
 
     inline bool IsDoubleSided() { return flags & SHADER_MATERIAL_FLAG_DOUBLE_SIDED; }
-    inline bool IsTransparent() { return flags & SHADER_MATERIAL_FLAG_TRANSPARENT; }
     inline bool IsUsingVertexColors() { return flags & SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS; }
     inline bool IsReceiveShadow() { return flags & SHADER_MATERIAL_FLAG_RECEIVE_SHADOW; }
 #endif
@@ -266,36 +258,44 @@ struct alignas(16) ShaderScene
 #endif
 };
 
-struct alignas(16) ShaderSky
+// Unified global environment (procedural sky + sun + ambient/GI)
+struct alignas(16) ShaderEnvironment
 {
-    // !! we don't pack aggressively because ShaderSky is only one
-
     float3 sun_direction;
-    uint flags;
+    uint sky_type;                  // SHADER_SKY_TYPE_*; NONE means the sky pass is skipped
 
     float4 sun_color_sun_intensity;
-    float4 sky_horizon_color_sky_intensity;
+    float4 sun_params;              // x angular_radius, y glow_intensity, z glow_falloff, w unused
 
+    float4 sky_horizon_color_sky_intensity;
     float4 sky_zenith_color_sky_horizon_falloff;
     float4 ground_horizon_color_ground_intensity;
-
     float4 ground_color_ground_falloff;
-    float4 sun_params;
+
+    float4 ambient_color_ambient_intensity;
+
+    float2 indirect_diffuse_specular_scale;
+    uint gi_mode;                   // SHADER_ENVIRONMENT_GI_MODE_*; NONE means no ambient/GI
+    uint _padding;
 
 #ifdef __cplusplus
     inline void Init()
     {
         sun_direction = { 0,0,0 };
-        flags = SHADER_SKY_FLAG_NONE;
+        sky_type = SHADER_SKY_TYPE_NONE;
 
         sun_color_sun_intensity = { 0,0,0,0 };
-        sky_horizon_color_sky_intensity = { 0,0,0,0 };
+        sun_params = { 0,0,0,0 };
 
+        sky_horizon_color_sky_intensity = { 0,0,0,0 };
         sky_zenith_color_sky_horizon_falloff = { 0,0,0,0 };
         ground_horizon_color_ground_intensity = { 0,0,0,0 };
-
         ground_color_ground_falloff = { 0,0,0,0 };
-        sun_params = { 0,0,0,0 };
+
+        ambient_color_ambient_intensity = { 0,0,0,0 };
+        indirect_diffuse_specular_scale = { 0,0 };
+        gi_mode = SHADER_ENVIRONMENT_GI_MODE_NONE;
+        _padding = 0;
     }
 
     inline void SetSunDirection(const float3& value)
@@ -333,7 +333,19 @@ struct alignas(16) ShaderSky
         sun_params = float4(angular_radius, glow_intensity, glow_falloff, 0);
     }
 
+    inline void SetAmbientColorIntensity(const float3& color, float intensity)
+    {
+        ambient_color_ambient_intensity = float4(color.x, color.y, color.z, intensity);
+    }
+
+    inline void SetIndirectScale(float diffuse_scale, float specular_scale)
+    {
+        indirect_diffuse_specular_scale = float2(diffuse_scale, specular_scale);
+    }
+
 #else
+    inline uint GetSkyType() { return sky_type; }
+    inline uint GetGIMode() { return gi_mode; }
     inline float3 GetSunDirection() { return normalize(sun_direction); }
     inline float3 GetSunColor() { return sun_color_sun_intensity.xyz; }
     inline float GetSunIntensity() { return sun_color_sun_intensity.w; }
@@ -348,42 +360,10 @@ struct alignas(16) ShaderSky
     inline float GetSunAngularRadius() { return sun_params.x; }
     inline float GetSunGlowIntensity() { return sun_params.y; }
     inline float GetSunGlowFalloff() { return sun_params.z; }
-#endif
-};
-
-struct alignas(16) ShaderEnvironmentLighting
-{
-    uint flags;
-    uint gi_mode;
-    uint2 padding;
-
-    float4 ambient_color_ambient_intensity;
-    float4 indirect_diffuse_scale_indirect_specular_scale;
-
-#ifdef __cplusplus
-    inline void Init()
-    {
-        flags = SHADER_ENVIRONMENT_LIGHTING_FLAG_NONE;
-        gi_mode = SHADER_ENVIRONMENT_GI_MODE_NONE;
-        ambient_color_ambient_intensity = { 0,0,0,0 };
-        indirect_diffuse_scale_indirect_specular_scale = { 0,0,0,0 };
-    }
-
-    inline void SetAmbientColorIntensity(const float3& color, float intensity)
-    {
-        ambient_color_ambient_intensity = float4(color.x, color.y, color.z, intensity);
-    }
-
-    inline void SetIndirectScale(float diffuse_scale, float specular_scale)
-    {
-        indirect_diffuse_scale_indirect_specular_scale = float4(diffuse_scale, specular_scale, 0, 0);
-    }
-#else
-    inline bool IsActive() { return (flags & SHADER_ENVIRONMENT_LIGHTING_FLAG_ACTIVE) != 0; }
     inline float3 GetAmbientColor() { return ambient_color_ambient_intensity.xyz; }
     inline float GetAmbientIntensity() { return ambient_color_ambient_intensity.w; }
-    inline float GetIndirectDiffuseScale() { return indirect_diffuse_scale_indirect_specular_scale.x; }
-    inline float GetIndirectSpecularScale() { return indirect_diffuse_scale_indirect_specular_scale.y; }
+    inline float GetIndirectDiffuseScale() { return indirect_diffuse_specular_scale.x; }
+    inline float GetIndirectSpecularScale() { return indirect_diffuse_specular_scale.y; }
 #endif
 };
 
@@ -456,16 +436,14 @@ struct alignas(16) ShaderDDGIVolume
 struct alignas(16) ShaderFrame
 {
     ShaderScene scene;
-    ShaderSky sky;
-    ShaderEnvironmentLighting environment_lighting;
+    ShaderEnvironment environment;
     ShaderDDGIVolume ddgi_volume;
 
 #ifdef __cplusplus
     inline void Init()
     {
         scene.Init();
-        sky.Init();
-        environment_lighting.Init();
+        environment.Init();
         ddgi_volume.Init();
     }
 #endif
@@ -740,10 +718,9 @@ static_assert(sizeof(ShaderTextureSlot) == 16, "ShaderTextureSlot layout mismatc
 static_assert(sizeof(ShaderGeometry) == 80, "ShaderGeometry layout mismatch");
 static_assert(sizeof(ShaderMaterial) == 272, "ShaderMaterial layout mismatch");
 static_assert(sizeof(ShaderScene) == 64, "ShaderScene layout mismatch");
-static_assert(sizeof(ShaderSky) == 112, "ShaderSky layout mismatch");
-static_assert(sizeof(ShaderEnvironmentLighting) == 48, "ShaderEnvironmentLighting layout mismatch");
+static_assert(sizeof(ShaderEnvironment) == 144, "ShaderEnvironment layout mismatch");
 static_assert(sizeof(ShaderDDGIVolume) == 112, "ShaderDDGIVolume layout mismatch");
-static_assert(sizeof(ShaderFrame) == 336, "ShaderFrame layout mismatch");
+static_assert(sizeof(ShaderFrame) == 320, "ShaderFrame layout mismatch");
 static_assert(sizeof(ShaderCamera) == 336, "ShaderCamera layout mismatch");
 static_assert(sizeof(ShaderLight) == 48, "ShaderLight layout mismatch");
 static_assert(sizeof(ShaderShadowCascade) == 96, "ShaderShadowCascade layout mismatch");

@@ -16,14 +16,14 @@ namespace won::ecs
 			Trigger = 1 << 2, // if true, this collider will only generate trigger events and won't cause physical collision response
         };
 
-        enum ShapeType
+        enum class ShapeType
         {
             Box = 0,
             Sphere,
         };
 
         uint32 flags = Dirty | Enabled;
-        ShapeType shape_type = Box;
+        ShapeType shape_type = ShapeType::Box;
         float3 offset = {};
         float3 half_extent = { 0.5f, 0.5f, 0.5f };
         float radius = 0.5f;

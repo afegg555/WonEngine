@@ -364,7 +364,7 @@ namespace won::physics
         XMFLOAT3 world_scale; XMStoreFloat3(&world_scale, world_scale_vec);
 
         JPH::Ref<JPH::Shape> shape;
-        if (collider.shape_type == won::ecs::Collider3DComponent::Sphere)
+        if (collider.shape_type == won::ecs::Collider3DComponent::ShapeType::Sphere)
         {
             float max_scale = (std::max)((std::max)(world_scale.x, world_scale.y), world_scale.z);
             float radius = (std::max)(0.001f, collider.radius * max_scale);

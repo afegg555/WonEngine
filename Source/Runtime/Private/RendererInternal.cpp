@@ -1335,8 +1335,7 @@ namespace won::rendering
         shader_frame.scene.bvh_node_count = static_cast<uint32>(render_data.shader_bvh_nodes.size());
         shader_frame.scene.bvh_instance_count = static_cast<uint32>(render_data.shader_bvh_instances.size());
         shader_frame.scene.instance_sort_buffer = shader_instance_sort_default_buffer_srv.descriptor_index;
-        shader_frame.sky = render_data.shader_sky;
-        shader_frame.environment_lighting = render_data.shader_environment_lighting;
+        shader_frame.environment = render_data.shader_environment;
         shader_frame.ddgi_volume = render_data.shader_ddgi_volume;
         shader_frame.ddgi_volume.irradiance_texture = ddgi_irradiance_texture_srv.descriptor_index;
         shader_frame.ddgi_volume.irradiance_texture_uav = ddgi_irradiance_texture_uav.descriptor_index;
@@ -1428,7 +1427,7 @@ namespace won::rendering
                 continue;
             }
 
-            if (light.type != ecs::LightComponent::Directional)
+            if (light.type != ecs::LightComponent::LightType::Directional)
             {
                 continue;
             }
@@ -1749,7 +1748,7 @@ namespace won::rendering
                 if (pass == RenderPassType::MainPass)
                 {
                     renderable_hash.storage.bits.shader_type = draw_wireframe ? SHADER_MATERIAL_TYPE_UNLIT : renderable.shader_type;
-                    renderable_hash.storage.bits.blend = 1;
+                    renderable_hash.storage.bits.blend_mode = static_cast<uint64>(renderable.blend_mode);
                     renderable_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
                 }
 
@@ -1833,47 +1832,36 @@ namespace won::rendering
 
         if (pass == RenderPassType::Sprite3DPass && (flags & DrawScene_3DSprite) != 0 && !render_data.sprite_3d_renderables.empty())
         {
-            GraphicsPipelineHash sprite_pipeline_hash = {};
-            sprite_pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::Sprite3DPass);
-            sprite_pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
-            sprite_pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
-            sprite_pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
-            sprite_pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
-            sprite_pipeline_hash.storage.bits.pass_mode = static_cast<uint64>(Sprite3DPassMode::Sprite);
-
-            GraphicsPipelineHash text_pipeline_hash = {};
-            text_pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::Sprite3DPass);
-            text_pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
-            text_pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
-            text_pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
-            text_pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
-            text_pipeline_hash.storage.bits.pass_mode = static_cast<uint64>(Sprite3DPassMode::Text);
-
-            GraphicsPipelineHash particle_pipeline_hash = sprite_pipeline_hash;
-            particle_pipeline_hash.storage.bits.pass_mode = static_cast<uint64>(Sprite3DPassMode::Particle);
-
-            std::shared_ptr<RHIPipeline> sprite_pipeline = shader_library.GetPipeline(sprite_pipeline_hash);
-            std::shared_ptr<RHIPipeline> text_pipeline = shader_library.GetPipeline(text_pipeline_hash);
-            std::shared_ptr<RHIPipeline> particle_pipeline = shader_library.GetPipeline(particle_pipeline_hash);
-            if (!sprite_pipeline || !text_pipeline || !particle_pipeline)
-            {
-                return false;
-            }
+            GraphicsPipelineHash base_sprite_hash = {};
+            base_sprite_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::Sprite3DPass);
+            base_sprite_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
+            base_sprite_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
+            base_sprite_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
+            base_sprite_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
 
             command_list.SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
-            Sprite3DPassMode active_pass_mode = Sprite3DPassMode::Sprite;
+            GraphicsPipelineHash active_hash = {};
             bool has_active_pipeline = false;
             for (uint32 idx : view.sorted_sprite_3d_indices)
             {
                 const Scene::RenderData::Sprite3DRenderable& renderable = render_data.sprite_3d_renderables[idx];
                 const Sprite3DPassMode pass_mode = renderable.IsText() ? Sprite3DPassMode::Text
                     : (renderable.IsParticle() ? Sprite3DPassMode::Particle : Sprite3DPassMode::Sprite);
-                if (!has_active_pipeline || active_pass_mode != pass_mode)
+
+                GraphicsPipelineHash renderable_hash = base_sprite_hash;
+                renderable_hash.storage.bits.pass_mode = static_cast<uint64>(pass_mode);
+                renderable_hash.storage.bits.blend_mode = pass_mode == Sprite3DPassMode::Text ? 1ull : static_cast<uint64>(renderable.blend_mode);
+
+                if (!has_active_pipeline || !(active_hash == renderable_hash))
                 {
-                    active_pass_mode = pass_mode;
+                    std::shared_ptr<RHIPipeline> pipeline = shader_library.GetPipeline(renderable_hash);
+                    if (!pipeline)
+                    {
+                        has_active_pipeline = false;
+                        continue;
+                    }
+                    active_hash = renderable_hash;
                     has_active_pipeline = true;
-                    RHIPipeline* pipeline = pass_mode == Sprite3DPassMode::Text ? text_pipeline.get()
-                        : (pass_mode == Sprite3DPassMode::Particle ? particle_pipeline.get() : sprite_pipeline.get());
                     command_list.SetGraphicsPipeline(*pipeline);
                     command_list.SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
                     command_list.SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_camera_binding);
@@ -2179,7 +2167,7 @@ namespace won::rendering
         }
     }
 
-    void RendererInternal::UpdateDDGIProbe(FrameContext& frame_context, const ShaderEnvironmentLighting& environment_lighting, const ShaderDDGIVolume& ddgi_volume, const RHISubresourceBinding& shader_frame_binding, const RHISubresourceBinding& shader_camera_binding, RHICommandList& command_list)
+    void RendererInternal::UpdateDDGIProbe(FrameContext& frame_context, const ShaderEnvironment& environment_lighting, const ShaderDDGIVolume& ddgi_volume, const RHISubresourceBinding& shader_frame_binding, const RHISubresourceBinding& shader_camera_binding, RHICommandList& command_list)
     {
         std::shared_ptr<RHIShader> current_ddgi_probe_update_shader = shader_library.GetShader(ShaderId::CSDDGIProbeUpdate);
         if (ddgi_probe_update_shader != current_ddgi_probe_update_shader)
@@ -2315,7 +2303,7 @@ namespace won::rendering
         {
             debug_state.bvh = {};
         }
-        debug_state.ddgi.gi_mode_ddgi = render_data.shader_environment_lighting.gi_mode == SHADER_ENVIRONMENT_GI_MODE_DDGI;
+        debug_state.ddgi.gi_mode_ddgi = render_data.shader_environment.gi_mode == SHADER_ENVIRONMENT_GI_MODE_DDGI;
         debug_state.ddgi.volume_active = (render_data.shader_ddgi_volume.flags & SHADER_DDGI_FLAG_ACTIVE) != 0;
         if (debug_state.ddgi.volume_active)
         {
@@ -2517,7 +2505,7 @@ namespace won::rendering
 
             {
                 auto cpu_range = profiler::ScopedRangeCPU("DDGI Probe Update");
-                UpdateDDGIProbe(frame_context, render_data.shader_environment_lighting, render_data.shader_ddgi_volume, shader_frame_binding, shader_camera_binding, *command_list);
+                UpdateDDGIProbe(frame_context, render_data.shader_environment, render_data.shader_ddgi_volume, shader_frame_binding, shader_camera_binding, *command_list);
             }
 
             command_list->TransitionResource(*scene_color_binding.resource, RHIResourceState::RenderTarget);
@@ -2528,7 +2516,7 @@ namespace won::rendering
             command_list->SetViewport(viewport);
             command_list->SetScissor(scissor);
 
-            if ((render_data.shader_sky.flags & SHADER_SKY_FLAG_ACTIVE) != 0)
+            if (render_data.shader_environment.sky_type != SHADER_SKY_TYPE_NONE)
             {
                 auto gpu_range = profiler::ScopedRangeGPU("Sky Pass", *command_list);
                 command_list->BeginEvent("Sky Pass");

@@ -185,7 +185,7 @@ namespace won::resource
         pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
         pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
         pipeline_hash.storage.bits.shader_type = SHADER_MATERIAL_TYPE_PBR;
-        pipeline_hash.storage.bits.blend = 1;
+        pipeline_hash.storage.bits.blend_mode = 1;
         pipeline_desc.raster.cull_mode = RHICullMode::Back;
         pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::Back);
         graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
@@ -271,19 +271,32 @@ namespace won::resource
         pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
         pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
         pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
-        pipeline_hash.storage.bits.pass_mode = static_cast<uint64>(Sprite3DPassMode::Sprite);
-        graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
 
+        const struct { RHIBlendMode mode; uint64 hash_bits; } sprite_blend_variants[] = {
+            { RHIBlendMode::Alpha, 1 },
+            { RHIBlendMode::Additive, 2 },
+            { RHIBlendMode::Premultiplied, 3 },
+        };
+
+        for (const auto& variant : sprite_blend_variants)
+        {
+            pipeline_desc.blend.mode = variant.mode;
+            pipeline_hash.storage.bits.blend_mode = variant.hash_bits;
+
+            pipeline_desc.vertex_shader = GetShader(ShaderId::VSSprite3D).get();
+            pipeline_desc.pixel_shader = GetShader(ShaderId::PSSprite).get();
+            pipeline_hash.storage.bits.pass_mode = static_cast<uint64>(Sprite3DPassMode::Sprite);
+            graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+
+            pipeline_hash.storage.bits.pass_mode = static_cast<uint64>(Sprite3DPassMode::Particle);
+            graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+        }
+
+        pipeline_desc.blend.mode = RHIBlendMode::Alpha;
         pipeline_desc.vertex_shader = GetShader(ShaderId::VSSprite3D).get();
         pipeline_desc.pixel_shader = GetShader(ShaderId::PSText3D).get();
+        pipeline_hash.storage.bits.blend_mode = 1;
         pipeline_hash.storage.bits.pass_mode = static_cast<uint64>(Sprite3DPassMode::Text);
-        graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
-
-        // Particle variant: same Sprite3D path but additive blending for glow accumulation.
-        pipeline_desc.vertex_shader = GetShader(ShaderId::VSSprite3D).get();
-        pipeline_desc.pixel_shader = GetShader(ShaderId::PSSprite).get();
-        pipeline_desc.blend.mode = RHIBlendMode::Additive;
-        pipeline_hash.storage.bits.pass_mode = static_cast<uint64>(Sprite3DPassMode::Particle);
         graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
 
         return true;

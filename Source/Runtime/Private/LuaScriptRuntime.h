@@ -70,6 +70,18 @@ namespace won::script
         static int LuaMaterialSetBaseColor(lua_State* state);
         static int LuaMaterialFork(lua_State* state);
 
+        static int LuaEnvironmentAdd(lua_State* state);
+        static int LuaEnvironmentHas(lua_State* state);
+        static int LuaEnvironmentSetActive(lua_State* state);
+        static int LuaEnvironmentSetSkyColors(lua_State* state);
+        static int LuaEnvironmentSetAmbient(lua_State* state);
+        static int LuaEnvironmentSetSunIntensity(lua_State* state);
+
+        static int LuaParticleEmitter3DAdd(lua_State* state);
+        static int LuaParticleEmitter3DHas(lua_State* state);
+        static int LuaParticleEmitter3DSetActive(lua_State* state);
+        static int LuaParticleEmitter3DSetSpawnRate(lua_State* state);
+
         static int LuaColliderHas(lua_State* state);
         static int LuaColliderAdd(lua_State* state);
         static int LuaColliderIsEnabled(lua_State* state);

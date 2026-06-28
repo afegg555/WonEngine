@@ -23,7 +23,7 @@ namespace won::resource
     {
         constexpr uint32 mesh_binary_version = 1;
         constexpr uint32 mesh_binary_magic = 0x48534D57; // WMSH
-        constexpr uint32 material_binary_version = 1;
+        constexpr uint32 material_binary_version = 2;
         constexpr uint32 dds_magic = 0x20534444; // DDS
         constexpr uint32 dds_fourcc_dx10 = 0x30315844; // DX10
         constexpr uint32 dds_resource_dimension_texture2d = 3;
@@ -596,8 +596,13 @@ namespace won::resource
         {
             archive.BeginItem();
             archive.BeginObject();
-            archive.Field("flags", slot.flags);
-            archive.Field("shader_type", slot.shader_type);
+            uint32 material_type_value = static_cast<uint32>(slot.material_type);
+            uint32 blend_mode_value = static_cast<uint32>(slot.blend_mode);
+            archive.Field("material_type", material_type_value);
+            archive.Field("blend_mode", blend_mode_value);
+            archive.Field("double_sided", slot.double_sided);
+            archive.Field("use_vertex_colors", slot.use_vertex_colors);
+            archive.Field("receive_shadow", slot.receive_shadow);
             archive.Field("base_color", slot.base_color);
             archive.Field("metallic", slot.metallic);
             archive.Field("roughness", slot.roughness);
@@ -663,8 +668,8 @@ namespace won::resource
             return nullptr;
         }
 
-        // Missing version (legacy files written before versioning) reads as 0 and is treated as the
-        // current format; only a newer-than-known version is rejected.
+        // Missing version reads as 0; versions below 2 use the legacy flags/shader_type slot layout.
+        // Only a newer-than-known version is rejected.
         uint32 version = 0;
         archive.Field("version", version);
         if (version > material_binary_version)
@@ -686,8 +691,30 @@ namespace won::resource
                 if (archive.BeginObject())
                 {
                     MaterialSlot slot = {};
-                    archive.Field("flags", slot.flags);
-                    archive.Field("shader_type", slot.shader_type);
+                    if (version < 2)
+                    {
+                        uint32 flags = 0;
+                        uint32 shader_type = static_cast<uint32>(MaterialType::PBR);
+                        archive.Field("flags", flags);
+                        archive.Field("shader_type", shader_type);
+                        slot.material_type = static_cast<MaterialType>(shader_type);
+                        slot.blend_mode = (flags & (1u << 1)) ? MaterialBlendMode::Alpha : MaterialBlendMode::Opaque;
+                        slot.double_sided = (flags & SHADER_MATERIAL_FLAG_DOUBLE_SIDED) != 0;
+                        slot.use_vertex_colors = (flags & SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS) != 0;
+                        slot.receive_shadow = (flags & SHADER_MATERIAL_FLAG_RECEIVE_SHADOW) != 0;
+                    }
+                    else
+                    {
+                        uint32 material_type_value = static_cast<uint32>(slot.material_type);
+                        uint32 blend_mode_value = static_cast<uint32>(slot.blend_mode);
+                        archive.Field("material_type", material_type_value);
+                        archive.Field("blend_mode", blend_mode_value);
+                        slot.material_type = static_cast<MaterialType>(material_type_value);
+                        slot.blend_mode = static_cast<MaterialBlendMode>(blend_mode_value);
+                        archive.Field("double_sided", slot.double_sided);
+                        archive.Field("use_vertex_colors", slot.use_vertex_colors);
+                        archive.Field("receive_shadow", slot.receive_shadow);
+                    }
                     archive.Field("base_color", slot.base_color);
                     archive.Field("metallic", slot.metallic);
                     archive.Field("roughness", slot.roughness);

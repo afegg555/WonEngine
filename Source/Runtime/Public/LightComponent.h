@@ -18,7 +18,7 @@ namespace won::ecs
 		};
 		uint32_t flags = Active | Dynamic | CastShadow;
 
-		enum LightType : uint32_t
+		enum class LightType : uint32_t
 		{
 			Directional,
 			Point,
@@ -26,7 +26,7 @@ namespace won::ecs
 
 			LIGHTTYPE_COUNT,
 		};
-		LightType type = Directional;
+		LightType type = LightType::Directional;
 
 		XMFLOAT3 color = XMFLOAT3(1, 1, 1);
 		// Brightness of light in. The units that this is defined in depend on the type of light.

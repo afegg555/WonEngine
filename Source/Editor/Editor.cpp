@@ -195,7 +195,6 @@ namespace won::editor
 			constexpr const char* enabled = "Enabled";
 			constexpr const char* script_enabled = "Script Enabled";
 			constexpr const char* double_sided = "Double Sided";
-			constexpr const char* transparent = "Transparent";
 			constexpr const char* use_vertex_colors = "Use Vertex Colors";
 			constexpr const char* receive_shadow = "Receive Shadow";
 			constexpr const char* duration_zero = "Duration: 0.000s";
@@ -205,9 +204,10 @@ namespace won::editor
 			constexpr const char* hierarchy_component = "HierarchyComponent";
 			constexpr const char* light_component = "LightComponent";
 			constexpr const char* camera_component = "CameraComponent";
-			constexpr const char* sky_component = "SkyComponent";
+			constexpr const char* environment_component = "EnvironmentComponent";
+			constexpr const char* sky_type = "Sky Type";
+			constexpr const char* procedural = "Procedural";
 			constexpr const char* fog_volume_component = "FogVolumeComponent";
-			constexpr const char* environment_lighting_component = "EnvironmentLightingComponent";
 			constexpr const char* ddgi_volume_component = "DDGIVolumeComponent";
 			constexpr const char* geometry_component = "GeometryComponent";
 			constexpr const char* collider_3d_component = "Collider3DComponent";
@@ -319,9 +319,14 @@ namespace won::editor
 			constexpr const char* save_material_failed = "Failed to save material: ";
 			constexpr const char* slot_prefix = "Slot ";
 			constexpr const char* selected_slot = "Selected Slot";
-			constexpr const char* shader_type = "Shader Type";
+			constexpr const char* shader_type = "Material Type";
 			constexpr const char* unlit = "Unlit";
 			constexpr const char* pbr = "PBR";
+			constexpr const char* blend_mode = "Blend Mode";
+			constexpr const char* opaque = "Opaque";
+			constexpr const char* alpha = "Alpha";
+			constexpr const char* additive = "Additive";
+			constexpr const char* premultiplied = "Premultiplied";
 			constexpr const char* base_color = "Base Color";
 			constexpr const char* metallic = "Metallic";
 			constexpr const char* roughness = "Roughness";
@@ -431,9 +436,8 @@ namespace won::editor
 			case reflection::TypeMeta<HierarchyComponent>::type_id:
 			case reflection::TypeMeta<CameraComponent>::type_id:
 			case reflection::TypeMeta<LightComponent>::type_id:
-			case reflection::TypeMeta<SkyComponent>::type_id:
+			case reflection::TypeMeta<EnvironmentComponent>::type_id:
 			case reflection::TypeMeta<FogVolumeComponent>::type_id:
-			case reflection::TypeMeta<EnvironmentLightingComponent>::type_id:
 			case reflection::TypeMeta<DDGIVolumeComponent>::type_id:
 			case reflection::TypeMeta<GeometryComponent>::type_id:
 			case reflection::TypeMeta<Collider3DComponent>::type_id:
@@ -1872,7 +1876,7 @@ namespace won::editor
 					const ecs::TransformComponent& transform = transform_array->GetData(entity);
 					const XMMATRIX world = transform.GetWorldTransform();
 					const uint32 material_slot = collider.IsTrigger() ? EditorPrimitiveCollider3DTrigger : EditorPrimitiveCollider3D;
-					if (collider.shape_type == ecs::Collider3DComponent::Sphere)
+					if (collider.shape_type == ecs::Collider3DComponent::ShapeType::Sphere)
 					{
 						const XMVECTOR center = XMVector3TransformCoord(XMLoadFloat3(&collider.offset), world);
 						const float scale_x = XMVectorGetX(XMVector3Length(world.r[0]));
@@ -3862,22 +3866,29 @@ namespace won::editor
 					ImGui::Separator();
 				}
 
-				SkyComponent* sky_comp = editor_viewport.view->scene->GetComponent<SkyComponent>(editor_viewport.picked_entity);
-				if (sky_comp)
+				EnvironmentComponent* environment_comp = editor_viewport.view->scene->GetComponent<EnvironmentComponent>(editor_viewport.picked_entity);
+				if (environment_comp)
 				{
-					ImGui::PushID("SkyComponent");
-					ImGui::Text(editor_text::sky_component);
-					bool remove_component = DrawComponentRemoveButton(editor_text::sky_component);
+					ImGui::PushID("EnvironmentComponent");
+					ImGui::Text(editor_text::environment_component);
+					bool remove_component = DrawComponentRemoveButton(editor_text::environment_component);
 
 					if (!remove_component)
 					{
-						bool is_active = sky_comp->IsActive();
+						bool is_active = environment_comp->IsActive();
 						if (ImGui::Checkbox(editor_text::active, &is_active))
 						{
-							sky_comp->SetActive(is_active);
+							environment_comp->SetActive(is_active);
 						}
 
-						float sun_direction[3] = { sky_comp->sun_direction.x, sky_comp->sun_direction.y, sky_comp->sun_direction.z };
+						int sky_type = static_cast<int>(environment_comp->sky_type);
+						const char* sky_type_items[] = { editor_text::none, editor_text::procedural };
+						if (ImGui::Combo(editor_text::sky_type, &sky_type, sky_type_items, IM_ARRAYSIZE(sky_type_items)))
+						{
+							environment_comp->sky_type = static_cast<EnvironmentComponent::SkyType>(sky_type);
+						}
+
+						float sun_direction[3] = { environment_comp->sun_direction.x, environment_comp->sun_direction.y, environment_comp->sun_direction.z };
 						if (ImGui::DragFloat3(editor_text::sun_direction, sun_direction, 0.01f, -1.0f, 1.0f))
 						{
 							float3 direction = { sun_direction[0], sun_direction[1], sun_direction[2] };
@@ -3885,7 +3896,7 @@ namespace won::editor
 							if (direction_length_sq > 0.0f)
 							{
 								const float inv_direction_length = 1.0f / std::sqrt(direction_length_sq);
-								sky_comp->sun_direction =
+								environment_comp->sun_direction =
 								{
 									direction.x * inv_direction_length,
 									direction.y * inv_direction_length,
@@ -3894,52 +3905,69 @@ namespace won::editor
 							}
 						}
 
-						float sun_color[3] = { sky_comp->sun_color.x, sky_comp->sun_color.y, sky_comp->sun_color.z };
+						float sun_color[3] = { environment_comp->sun_color.x, environment_comp->sun_color.y, environment_comp->sun_color.z };
 						if (ImGui::InputFloat3(editor_text::sun_color, sun_color))
 						{
-							sky_comp->sun_color = { sun_color[0], sun_color[1], sun_color[2] };
+							environment_comp->sun_color = { sun_color[0], sun_color[1], sun_color[2] };
 						}
 
-						ImGui::DragFloat(editor_text::sun_intensity, &sky_comp->sun_intensity, 0.1f, 0.0f, 100000.0f);
-						ImGui::DragFloat(editor_text::sun_angular_radius, &sky_comp->sun_angular_radius, 0.0001f, 0.0f, 1.0f);
-						ImGui::DragFloat(editor_text::sun_glow_intensity, &sky_comp->sun_glow_intensity, 0.01f, 0.0f, 1000.0f);
-						ImGui::DragFloat(editor_text::sun_glow_falloff, &sky_comp->sun_glow_falloff, 0.1f, 0.0f, 1000.0f);
+						ImGui::DragFloat(editor_text::sun_intensity, &environment_comp->sun_intensity, 0.1f, 0.0f, 100000.0f);
+						ImGui::DragFloat(editor_text::sun_angular_radius, &environment_comp->sun_angular_radius, 0.0001f, 0.0f, 1.0f);
+						ImGui::DragFloat(editor_text::sun_glow_intensity, &environment_comp->sun_glow_intensity, 0.01f, 0.0f, 1000.0f);
+						ImGui::DragFloat(editor_text::sun_glow_falloff, &environment_comp->sun_glow_falloff, 0.1f, 0.0f, 1000.0f);
 
-						float sky_horizon_color[3] = { sky_comp->sky_horizon_color.x, sky_comp->sky_horizon_color.y, sky_comp->sky_horizon_color.z };
+						float sky_horizon_color[3] = { environment_comp->sky_horizon_color.x, environment_comp->sky_horizon_color.y, environment_comp->sky_horizon_color.z };
 						if (ImGui::InputFloat3(editor_text::sky_horizon_color, sky_horizon_color))
 						{
-							sky_comp->sky_horizon_color = { sky_horizon_color[0], sky_horizon_color[1], sky_horizon_color[2] };
+							environment_comp->sky_horizon_color = { sky_horizon_color[0], sky_horizon_color[1], sky_horizon_color[2] };
 						}
 
-						float sky_zenith_color[3] = { sky_comp->sky_zenith_color.x, sky_comp->sky_zenith_color.y, sky_comp->sky_zenith_color.z };
+						float sky_zenith_color[3] = { environment_comp->sky_zenith_color.x, environment_comp->sky_zenith_color.y, environment_comp->sky_zenith_color.z };
 						if (ImGui::InputFloat3(editor_text::sky_zenith_color, sky_zenith_color))
 						{
-							sky_comp->sky_zenith_color = { sky_zenith_color[0], sky_zenith_color[1], sky_zenith_color[2] };
+							environment_comp->sky_zenith_color = { sky_zenith_color[0], sky_zenith_color[1], sky_zenith_color[2] };
 						}
 
-						ImGui::DragFloat(editor_text::sky_intensity, &sky_comp->sky_intensity, 0.01f, 0.0f, 1000.0f);
-						ImGui::DragFloat(editor_text::sky_horizon_falloff, &sky_comp->sky_horizon_falloff, 0.01f, 0.0f, 1000.0f);
+						ImGui::DragFloat(editor_text::sky_intensity, &environment_comp->sky_intensity, 0.01f, 0.0f, 1000.0f);
+						ImGui::DragFloat(editor_text::sky_horizon_falloff, &environment_comp->sky_horizon_falloff, 0.01f, 0.0f, 1000.0f);
 
-						float ground_horizon_color[3] = { sky_comp->ground_horizon_color.x, sky_comp->ground_horizon_color.y, sky_comp->ground_horizon_color.z };
+						float ground_horizon_color[3] = { environment_comp->ground_horizon_color.x, environment_comp->ground_horizon_color.y, environment_comp->ground_horizon_color.z };
 						if (ImGui::InputFloat3(editor_text::ground_horizon_color, ground_horizon_color))
 						{
-							sky_comp->ground_horizon_color = { ground_horizon_color[0], ground_horizon_color[1], ground_horizon_color[2] };
+							environment_comp->ground_horizon_color = { ground_horizon_color[0], ground_horizon_color[1], ground_horizon_color[2] };
 						}
 
-						float ground_color[3] = { sky_comp->ground_color.x, sky_comp->ground_color.y, sky_comp->ground_color.z };
+						float ground_color[3] = { environment_comp->ground_color.x, environment_comp->ground_color.y, environment_comp->ground_color.z };
 						if (ImGui::InputFloat3(editor_text::ground_color, ground_color))
 						{
-							sky_comp->ground_color = { ground_color[0], ground_color[1], ground_color[2] };
+							environment_comp->ground_color = { ground_color[0], ground_color[1], ground_color[2] };
 						}
 
-						ImGui::DragFloat(editor_text::ground_intensity, &sky_comp->ground_intensity, 0.01f, 0.0f, 1000.0f);
-						ImGui::DragFloat(editor_text::ground_falloff, &sky_comp->ground_falloff, 0.01f, 0.0f, 1000.0f);
+						ImGui::DragFloat(editor_text::ground_intensity, &environment_comp->ground_intensity, 0.01f, 0.0f, 1000.0f);
+						ImGui::DragFloat(editor_text::ground_falloff, &environment_comp->ground_falloff, 0.01f, 0.0f, 1000.0f);
+
+						int gi_mode = static_cast<int>(environment_comp->gi_mode);
+						const char* gi_mode_items[] = { editor_text::none, editor_text::ambient, editor_text::ddgi };
+						if (ImGui::Combo(editor_text::gi_mode, &gi_mode, gi_mode_items, IM_ARRAYSIZE(gi_mode_items)))
+						{
+							environment_comp->gi_mode = static_cast<EnvironmentComponent::GIMode>(gi_mode);
+						}
+
+						float ambient_color[3] = { environment_comp->ambient_color.x, environment_comp->ambient_color.y, environment_comp->ambient_color.z };
+						if (ImGui::InputFloat3(editor_text::ambient_color, ambient_color))
+						{
+							environment_comp->ambient_color = { ambient_color[0], ambient_color[1], ambient_color[2] };
+						}
+
+						ImGui::DragFloat(editor_text::ambient_intensity, &environment_comp->ambient_intensity, 0.01f, 0.0f, 1000.0f);
+						ImGui::DragFloat(editor_text::indirect_diffuse_scale, &environment_comp->indirect_diffuse_scale, 0.01f, 0.0f, 1000.0f);
+						ImGui::DragFloat(editor_text::indirect_specular_scale, &environment_comp->indirect_specular_scale, 0.01f, 0.0f, 1000.0f);
 					}
 					else
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
-							editor_viewport.view->scene->RemoveComponent<SkyComponent>(entity);
+							editor_viewport.view->scene->RemoveComponent<EnvironmentComponent>(entity);
 						});
 					}
 
@@ -3963,50 +3991,6 @@ namespace won::editor
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<FogVolumeComponent>(entity);
-						});
-					}
-
-					ImGui::PopID();
-					ImGui::Separator();
-				}
-
-				EnvironmentLightingComponent* environment_lighting_comp = editor_viewport.view->scene->GetComponent<EnvironmentLightingComponent>(editor_viewport.picked_entity);
-				if (environment_lighting_comp)
-				{
-					ImGui::PushID("EnvironmentLightingComponent");
-					ImGui::Text(editor_text::environment_lighting_component);
-					bool remove_component = DrawComponentRemoveButton(editor_text::environment_lighting_component);
-
-					if (!remove_component)
-					{
-						bool is_active = environment_lighting_comp->IsActive();
-						if (ImGui::Checkbox(editor_text::active, &is_active))
-						{
-							environment_lighting_comp->SetActive(is_active);
-						}
-
-						int gi_mode = static_cast<int>(environment_lighting_comp->gi_mode);
-						const char* gi_mode_items[] = { editor_text::none, editor_text::ambient, editor_text::ddgi };
-						if (ImGui::Combo(editor_text::gi_mode, &gi_mode, gi_mode_items, IM_ARRAYSIZE(gi_mode_items)))
-						{
-							environment_lighting_comp->gi_mode = static_cast<EnvironmentLightingComponent::GIMode>(gi_mode);
-						}
-
-						float ambient_color[3] = { environment_lighting_comp->ambient_color.x, environment_lighting_comp->ambient_color.y, environment_lighting_comp->ambient_color.z };
-						if (ImGui::InputFloat3(editor_text::ambient_color, ambient_color))
-						{
-							environment_lighting_comp->ambient_color = { ambient_color[0], ambient_color[1], ambient_color[2] };
-						}
-
-						ImGui::DragFloat(editor_text::ambient_intensity, &environment_lighting_comp->ambient_intensity, 0.01f, 0.0f, 1000.0f);
-						ImGui::DragFloat(editor_text::indirect_diffuse_scale, &environment_lighting_comp->indirect_diffuse_scale, 0.01f, 0.0f, 1000.0f);
-						ImGui::DragFloat(editor_text::indirect_specular_scale, &environment_lighting_comp->indirect_specular_scale, 0.01f, 0.0f, 1000.0f);
-					}
-					else
-					{
-						const ecs::Entity entity = editor_viewport.picked_entity;
-						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
-							editor_viewport.view->scene->RemoveComponent<EnvironmentLightingComponent>(entity);
 						});
 					}
 
@@ -4802,58 +4786,49 @@ namespace won::editor
 							}
 
 							resource::MaterialSlot& material_slot = material_comp->GetMaterialSlot(static_cast<uint32>(selected_material_slot));
-							material_comp->SetDirty();
-							const char* shader_type_items[] = { editor_text::unlit, editor_text::pbr };
-							int shader_type = static_cast<int>(material_slot.shader_type);
-							if (ImGui::Combo(editor_text::shader_type, &shader_type, shader_type_items, IM_ARRAYSIZE(shader_type_items)))
+							bool material_changed = false;
+							const char* material_type_items[] = { editor_text::unlit, editor_text::pbr };
+							int material_type = static_cast<int>(material_slot.material_type);
+							if (ImGui::Combo(editor_text::shader_type, &material_type, material_type_items, IM_ARRAYSIZE(material_type_items)))
 							{
-								material_slot.shader_type = static_cast<uint32>(shader_type);
+								material_slot.material_type = static_cast<resource::MaterialType>(material_type);
+								material_changed = true;
 							}
 
-							bool is_double_sided = (material_slot.flags & SHADER_MATERIAL_FLAG_DOUBLE_SIDED) != 0;
-							if (ImGui::Checkbox(editor_text::double_sided, &is_double_sided))
+							const char* blend_mode_items[] = { editor_text::opaque, editor_text::alpha, editor_text::additive, editor_text::premultiplied };
+							int blend_mode = static_cast<int>(material_slot.blend_mode);
+							if (ImGui::Combo(editor_text::blend_mode, &blend_mode, blend_mode_items, IM_ARRAYSIZE(blend_mode_items)))
 							{
-								if (is_double_sided) { material_slot.flags |= SHADER_MATERIAL_FLAG_DOUBLE_SIDED; } else { material_slot.flags &= ~SHADER_MATERIAL_FLAG_DOUBLE_SIDED; }
+								material_slot.blend_mode = static_cast<resource::MaterialBlendMode>(blend_mode);
+								material_changed = true;
 							}
 
-							bool is_transparent = (material_slot.flags & SHADER_MATERIAL_FLAG_TRANSPARENT) != 0;
-							if (ImGui::Checkbox(editor_text::transparent, &is_transparent))
-							{
-								if (is_transparent) { material_slot.flags |= SHADER_MATERIAL_FLAG_TRANSPARENT; } else { material_slot.flags &= ~SHADER_MATERIAL_FLAG_TRANSPARENT; }
-							}
-
-							bool use_vertex_colors = (material_slot.flags & SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS) != 0;
-							if (ImGui::Checkbox(editor_text::use_vertex_colors, &use_vertex_colors))
-							{
-								if (use_vertex_colors) { material_slot.flags |= SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS; } else { material_slot.flags &= ~SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS; }
-							}
-
-							bool receive_shadow = (material_slot.flags & SHADER_MATERIAL_FLAG_RECEIVE_SHADOW) != 0;
-							if (ImGui::Checkbox(editor_text::receive_shadow, &receive_shadow))
-							{
-								if (receive_shadow) { material_slot.flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW; } else { material_slot.flags &= ~SHADER_MATERIAL_FLAG_RECEIVE_SHADOW; }
-							}
+							material_changed |= ImGui::Checkbox(editor_text::double_sided, &material_slot.double_sided);
+							material_changed |= ImGui::Checkbox(editor_text::use_vertex_colors, &material_slot.use_vertex_colors);
+							material_changed |= ImGui::Checkbox(editor_text::receive_shadow, &material_slot.receive_shadow);
 
 							float base_color[4] = { material_slot.base_color.x, material_slot.base_color.y, material_slot.base_color.z, material_slot.base_color.w };
 							if (ImGui::ColorEdit4(editor_text::base_color, base_color))
 							{
 								material_slot.base_color = { base_color[0], base_color[1], base_color[2], base_color[3] };
+								material_changed = true;
 							}
 
-							ImGui::SliderFloat(editor_text::metallic, &material_slot.metallic, 0.0f, 1.0f);
-							ImGui::SliderFloat(editor_text::roughness, &material_slot.roughness, 0.0f, 1.0f);
-							ImGui::SliderFloat(editor_text::reflectance, &material_slot.reflectance, 0.0f, 1.0f);
-							ImGui::SliderFloat(editor_text::anisotropy, &material_slot.anisotropy, -1.0f, 1.0f);
+							material_changed |= ImGui::SliderFloat(editor_text::metallic, &material_slot.metallic, 0.0f, 1.0f);
+							material_changed |= ImGui::SliderFloat(editor_text::roughness, &material_slot.roughness, 0.0f, 1.0f);
+							material_changed |= ImGui::SliderFloat(editor_text::reflectance, &material_slot.reflectance, 0.0f, 1.0f);
+							material_changed |= ImGui::SliderFloat(editor_text::anisotropy, &material_slot.anisotropy, -1.0f, 1.0f);
 
 							float sheen_color[3] = { material_slot.sheen_color.x, material_slot.sheen_color.y, material_slot.sheen_color.z };
 							if (ImGui::ColorEdit3(editor_text::sheen_color, sheen_color))
 							{
 								material_slot.sheen_color = { sheen_color[0], sheen_color[1], sheen_color[2] };
+								material_changed = true;
 							}
 
-							ImGui::SliderFloat(editor_text::sheen_roughness, &material_slot.sheen_roughness, 0.0f, 1.0f);
-							ImGui::SliderFloat(editor_text::clearcoat, &material_slot.clearcoat, 0.0f, 1.0f);
-							ImGui::SliderFloat(editor_text::clearcoat_roughness, &material_slot.clearcoat_roughness, 0.0f, 1.0f);
+							material_changed |= ImGui::SliderFloat(editor_text::sheen_roughness, &material_slot.sheen_roughness, 0.0f, 1.0f);
+							material_changed |= ImGui::SliderFloat(editor_text::clearcoat, &material_slot.clearcoat, 0.0f, 1.0f);
+							material_changed |= ImGui::SliderFloat(editor_text::clearcoat_roughness, &material_slot.clearcoat_roughness, 0.0f, 1.0f);
 
 							static const char* texture_slot_names[] = {
 								editor_text::base_color_map,
@@ -4878,6 +4853,11 @@ namespace won::editor
 							{
 								const resource::MaterialSlot::TextureMap& texture = material_slot.textures[texture_slot];
 								ImGui::Text(editor_text::texture_status_format, texture_slot_names[texture_slot], texture.IsValid() ? editor_text::assigned : editor_text::none);
+							}
+
+							if (material_changed)
+							{
+								material_comp->SetDirty();
 							}
 						}
 					}
@@ -5729,14 +5709,14 @@ namespace won::editor
 			return;
 		}
 
-		ecs::Entity sky_entity = editor_viewport.view->scene->CreateEntity();
-		if (auto sky = editor_viewport.view->scene->AddComponent<ecs::SkyComponent>(sky_entity))
+		ecs::Entity environment_entity = editor_viewport.view->scene->CreateEntity();
+		if (auto environment = editor_viewport.view->scene->AddComponent<ecs::EnvironmentComponent>(environment_entity))
 		{
-			sky->SetActive(true);
+			environment->SetActive(true);
 		}
-		if (auto name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(sky_entity))
+		if (auto name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(environment_entity))
 		{
-			name->value = "Editor Sky";
+			name->value = "Editor Environment";
 		}
 
 		CreateEditorCamera();

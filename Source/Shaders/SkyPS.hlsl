@@ -8,7 +8,7 @@ struct VertexOutput
 
 float4 main(VertexOutput input) : SV_Target
 {
-    ShaderSky sky = GetSky();
+    ShaderEnvironment sky = GetEnvironment();
     ShaderCamera camera = GetCamera();
 
     float2 screen_uv = input.position.xy * camera.internal_resolution_rcp;
