@@ -11,7 +11,7 @@ float4 main(VertexOutput input) : SV_Target
     ShaderEnvironment sky = GetEnvironment();
     ShaderCamera camera = GetCamera();
 
-    float2 screen_uv = input.position.xy * camera.internal_resolution_rcp;
+    float2 screen_uv = (input.position.xy - float2(camera.viewport_offset)) * camera.internal_resolution_rcp;
     float2 ndc = float2(screen_uv.x * 2.0f - 1.0f, 1.0f - screen_uv.y * 2.0f);
     float4 far_clip = float4(ndc, 0.0f, 1.0f);
     float4 far_world = mul(camera.inv_view_projection, far_clip);
