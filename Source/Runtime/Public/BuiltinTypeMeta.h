@@ -294,6 +294,10 @@ namespace won::reflection
         WON_REFLECT_FIELD(seed, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
+    WON_REFLECT_STRUCT(won::ecs::DecalComponent, "DecalComponent")
+        WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
+    WON_REFLECT_STRUCT_END()
+
     WON_REFLECT_ENUM(won::resource::MaterialType, "MaterialType")
         WON_REFLECT_ENUM_VALUE("Unlit", won::resource::MaterialType::Unlit)
         WON_REFLECT_ENUM_VALUE("PBR", won::resource::MaterialType::PBR)

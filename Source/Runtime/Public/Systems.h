@@ -12,6 +12,7 @@
 #include "SpriteUpdateSystem.h"
 #include "TextUpdateSystem.h"
 #include "ParticleUpdateSystem.h"
+#include "DecalUpdateSystem.h"
 #include "ScriptUpdateSystem.h"
 #include "ScriptEventDispatchSystem.h"
 #include "AudioUpdateSystem.h"

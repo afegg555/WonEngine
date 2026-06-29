@@ -219,6 +219,25 @@ struct alignas(16) ShaderMaterial
 #endif
 };
 
+struct alignas(16) ShaderDecal
+{
+    float4x4 inv_world;
+
+    uint instance_index;
+    uint material_index;
+    uint2 decal_padding;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        inv_world = won::math::IDENTITY_MATRIX;
+        instance_index = 0;
+        material_index = 0;
+        decal_padding = { 0, 0 };
+    }
+#endif
+};
+
 struct alignas(16) ShaderScene
 {
     int instancebuffer;
@@ -470,7 +489,8 @@ struct alignas(16) ShaderCamera
     float4x4 inv_view_projection;
 
     float exposure;
-    float3 _camera_padding0;
+    float _camera_padding0;
+    uint2 viewport_offset;
 
 #ifdef __cplusplus
     inline void Init()
@@ -480,7 +500,8 @@ struct alignas(16) ShaderCamera
         view_projection = won::math::IDENTITY_MATRIX;
         inv_view_projection = won::math::IDENTITY_MATRIX;
         exposure = 1.0f;
-        _camera_padding0 = float3(0, 0, 0);
+        _camera_padding0 = 0.0f;
+        viewport_offset = { 0, 0 };
     }
 #endif
 };

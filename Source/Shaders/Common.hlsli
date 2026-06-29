@@ -89,7 +89,8 @@ inline int DescriptorIndex(in int descriptor_index)
         "SRV(t0, space = 204, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
         "SRV(t0, space = 205, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
         "SRV(t0, space = 206, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
-        "SRV(t0, space = 207, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE) " \
+        "SRV(t0, space = 207, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
+        "SRV(t0, space = 208, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE) " \
     "), " \
     "StaticSampler(s100, addressU = TEXTURE_ADDRESS_CLAMP, addressV = TEXTURE_ADDRESS_CLAMP, addressW = TEXTURE_ADDRESS_CLAMP, filter = FILTER_MIN_MAG_MIP_LINEAR)," \
 	"StaticSampler(s101, addressU = TEXTURE_ADDRESS_WRAP, addressV = TEXTURE_ADDRESS_WRAP, addressW = TEXTURE_ADDRESS_WRAP, filter = FILTER_MIN_MAG_MIP_LINEAR)," \
@@ -193,6 +194,7 @@ StructuredBuffer<ShaderShadowCascade> bindless_structured_shadow_cascade[] : reg
 StructuredBuffer<ShaderBVHNode> bindless_structured_bvh_node[] : register(t0, space205);
 StructuredBuffer<ShaderBVHPrimitive> bindless_structured_bvh_primitive[] : register(t0, space206);
 StructuredBuffer<ShaderBVHInstance> bindless_structured_bvh_instance[] : register(t0, space207);
+StructuredBuffer<ShaderDecal> bindless_structured_decal[] : register(t0, space208);
 
 // static samplers
 SamplerState sampler_linear_clamp : register(s100);

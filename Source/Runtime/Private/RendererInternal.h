@@ -35,6 +35,7 @@ namespace won::rendering
             DrawScene_Primitive = 1 << 2, // include line/point ..
             DrawScene_3DSprite = 1 << 3, // include sprite3d, font3d
             DrawScene_2DSprite = 1 << 4, // include sprite2d, font2d
+            DrawScene_Decal = 1 << 5, // include projected decals
         };
 
         // resource creation
@@ -63,6 +64,8 @@ namespace won::rendering
 
         std::shared_ptr<RHIResource> shader_particle_default_buffer;
         RHISubresourceHandle shader_particle_default_buffer_srv = {};
+        std::shared_ptr<RHIResource> shader_decal_default_buffer;
+        RHISubresourceHandle shader_decal_default_buffer_srv = {};
 
         std::shared_ptr<RHIResource> shader_instance_sort_default_buffer;
         RHISubresourceHandle shader_instance_sort_default_buffer_srv = {};
@@ -96,6 +99,7 @@ namespace won::rendering
 
         std::shared_ptr<RHIResource> depth_buffer;
         RHISubresourceHandle depth_buffer_dsv = {};
+        RHISubresourceHandle depth_buffer_srv = {};
 
         // Offscreen HDR color ping-pong buffers. The scene always renders into color_buffer[0];
         // the post chain ping-pongs between the two and the result is composited to the backbuffer.

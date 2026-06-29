@@ -1069,7 +1069,7 @@ namespace won::rendering
             pso_desc.BlendState.RenderTarget[0].DestBlend = desc.blend.mode == RHIBlendMode::Additive ? D3D12_BLEND_ONE : D3D12_BLEND_INV_SRC_ALPHA;
             pso_desc.BlendState.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
             pso_desc.BlendState.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
-            pso_desc.BlendState.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
+            pso_desc.BlendState.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
             pso_desc.BlendState.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
         }
         pso_desc.SampleMask = UINT_MAX;

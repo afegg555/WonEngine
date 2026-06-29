@@ -105,12 +105,12 @@ PixelInput main(VertexInput input)
 
 #ifdef OBJECTSHADER_USE_NORMAL
 	output.nor = local_normal;
-    output.nor = normalize(mul(normal_mat, output.nor));
+    output.nor = normalize(mul(output.nor, normal_mat)); // we use row-vector only here!!! to reduce transpose calculation
 #endif // OBJECTSHADER_USE_NORMAL
 
 #ifdef OBJECTSHADER_USE_TANGENT
 	output.tan = local_tangent;
-    output.tan.xyz = normalize(mul(normal_mat, output.tan.xyz));
+    output.tan.xyz = normalize(mul(output.tan.xyz, normal_mat)); // we use row-vector only here!!! to reduce transpose calculation
 #endif // OBJECTSHADER_USE_TANGENT
 	
     return output;

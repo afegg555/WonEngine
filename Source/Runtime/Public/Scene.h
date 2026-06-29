@@ -81,6 +81,7 @@ namespace won::ecs
             component_manager.RegisterComponent<LayerComponent>();
             component_manager.RegisterComponent<TerrainComponent>();
             component_manager.RegisterComponent<ParticleEmitter3DComponent>();
+            component_manager.RegisterComponent<DecalComponent>();
 
             if (desc.script_runtime)
             {
@@ -102,6 +103,7 @@ namespace won::ecs
             AddSystem(std::make_shared<SpriteUpdateSystem>());
             AddSystem(std::make_shared<TextUpdateSystem>());
             AddSystem(std::make_shared<ParticleUpdateSystem>());
+            AddSystem(std::make_shared<DecalUpdateSystem>());
             AddSystem(std::make_shared<AudioUpdateSystem>(desc.audio_mixer));
 
             physics_world = std::make_unique<won::physics::PhysicsWorld>(desc.physics);
@@ -1113,6 +1115,7 @@ namespace won::ecs
             // Per-frame CPU particle GPU data: interleaved [position, color] float4 pairs,
             // uploaded to a bindless buffer and indexed by particle Sprite3DRenderable.instance_index.
             Vector<float4> particle_instances;
+            Vector<ShaderDecal> shader_decals;
 
             Vector<ShaderLight> shader_lights; // all lights
             Vector<ShaderShadowCascade> shader_shadow_cascades; // lights with shadow map
@@ -1126,6 +1129,7 @@ namespace won::ecs
             void Clear()
             {
                 shader_instances.clear();
+                shader_decals.clear();
                 shader_geometries.clear();
                 shader_materials.clear();
                 shader_bone_matrices.clear();

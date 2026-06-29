@@ -299,6 +299,27 @@ namespace won::resource
         pipeline_hash.storage.bits.pass_mode = static_cast<uint64>(Sprite3DPassMode::Text);
         graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
 
+        pipeline_desc = {};
+        pipeline_desc.vertex_shader = GetShader(ShaderId::VSDecal).get();
+        pipeline_desc.pixel_shader = GetShader(ShaderId::PSDecal).get();
+        pipeline_desc.sample_count = sample_count;
+        pipeline_desc.depth_stencil_format = RHIFormat::Unknown;
+        pipeline_desc.depth_stencil.depth_test = false;
+        pipeline_desc.depth_stencil.depth_write = false;
+        pipeline_desc.blend.enable = true;
+        pipeline_desc.blend.mode = RHIBlendMode::Alpha;
+        pipeline_desc.raster.cull_mode = RHICullMode::None;
+        pipeline_desc.render_target_formats = { hdr_rtv_format };
+        pipeline_desc.topology = RHIPrimitiveTopology::TriangleList;
+        pipeline_hash = {};
+        pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::DecalPass);
+        pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
+        pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
+        pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
+        pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::Always);
+        pipeline_hash.storage.bits.blend_mode = 1;
+        graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+
         return true;
     }
 

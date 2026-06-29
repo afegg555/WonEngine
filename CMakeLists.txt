@@ -318,6 +318,7 @@ set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/LayerComponent.h
     Source/Runtime/Public/TerrainComponent.h
     Source/Runtime/Public/ParticleEmitter3DComponent.h
+    Source/Runtime/Public/DecalComponent.h
 )
 
 set(RUNTIME_AUDIO
@@ -345,6 +346,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Public/SpriteUpdateSystem.h
     Source/Runtime/Public/TextUpdateSystem.h
     Source/Runtime/Public/ParticleUpdateSystem.h
+    Source/Runtime/Public/DecalUpdateSystem.h
     Source/Runtime/Public/ScriptUpdateSystem.h
     Source/Runtime/Public/ScriptEventDispatchSystem.h
     Source/Runtime/Public/PhysicsUpdateSystem.h
@@ -359,6 +361,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Private/RenderableUpdateSystem.cpp
     Source/Runtime/Private/SpriteUpdateSystem.cpp
     Source/Runtime/Private/ParticleUpdateSystem.cpp
+    Source/Runtime/Private/DecalUpdateSystem.cpp
     Source/Runtime/Private/TextUpdateSystem.cpp
     Source/Runtime/Private/ScriptUpdateSystem.cpp
     Source/Runtime/Private/ScriptEventDispatchSystem.cpp
@@ -404,6 +407,7 @@ set(SHADERS_INTEROP
     Source/Shaders/ShaderInterop_Sprite.h
     Source/Shaders/ShaderInterop_Utility.h
     Source/Shaders/ShaderInterop_PostProcess.h
+    Source/Shaders/ShaderInterop_Decal.h
 )
 
 set(SHADERS_HLSL
@@ -426,6 +430,9 @@ set(SHADERS_HLSL
     Source/Shaders/SpriteCommon.hlsli
     Source/Shaders/Sprite2DVS.hlsl
     Source/Shaders/Sprite3DVS.hlsl
+    Source/Shaders/DecalCommon.hlsli
+    Source/Shaders/DecalVS.hlsl
+    Source/Shaders/DecalPS.hlsl
     Source/Shaders/ObjectPS.hlsli
     Source/Shaders/ObjectPS_unlit.hlsl
     Source/Shaders/ObjectPS_common.hlsl
