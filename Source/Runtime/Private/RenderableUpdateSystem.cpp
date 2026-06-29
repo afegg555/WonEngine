@@ -49,7 +49,11 @@ namespace won::ecs
             x_normal_mat.r[3] = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
             x_normal_mat = XMMatrixInverse(nullptr, x_normal_mat);
             x_normal_mat = XMMatrixTranspose(x_normal_mat);
-            XMStoreFloat3x3(&shader_instance.normal_transform, x_normal_mat);
+            XMFLOAT3X3 normal_mat_3x3;
+            XMStoreFloat3x3(&normal_mat_3x3, x_normal_mat);
+            shader_instance.normal_transform_row0 = { normal_mat_3x3._11, normal_mat_3x3._12, normal_mat_3x3._13 };
+            shader_instance.normal_transform_row1 = { normal_mat_3x3._21, normal_mat_3x3._22, normal_mat_3x3._23 };
+            shader_instance.normal_transform_row2 = { normal_mat_3x3._31, normal_mat_3x3._32, normal_mat_3x3._33 };
 
             Entity entity = transform_array->index_to_entity[args.job_index];
             if (animation_array && animation_array->HasData(entity))

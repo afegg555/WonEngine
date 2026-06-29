@@ -17,11 +17,11 @@ PixelInput main(VertexInput input)
 #endif // OBJECTSHADER_USE_TANGENT
 
     [branch]
-    if ((geometry.flags & SHADER_GEOMETRY_FLAG_SKINNED) != 0 && geometry.bone_indices_buffer_descriptor >= 0 && geometry.bone_weights_buffer_descriptor >= 0 && instance.bone_matrix_buffer_descriptor >= 0 && instance.bone_count > 0)
+    if ((geometry.flags & SHADER_GEOMETRY_FLAG_SKINNED) != 0 && geometry.bone_indices_buffer_descriptor >= 0 && geometry.bone_weights_buffer_descriptor >= 0 && GetScene().bone_matrix_buffer >= 0 && instance.bone_count > 0)
     {
         uint4 bone_indices = bindless_buffers_uint4[DescriptorIndex(geometry.bone_indices_buffer_descriptor)][input.GetVertexID()];
         float4 bone_weights = bindless_buffers_float4[DescriptorIndex(geometry.bone_weights_buffer_descriptor)][input.GetVertexID()];
-        StructuredBuffer<float4> bone_matrices = bindless_buffers_float4[DescriptorIndex(instance.bone_matrix_buffer_descriptor)];
+        StructuredBuffer<float4> bone_matrices = bindless_buffers_float4[DescriptorIndex(GetScene().bone_matrix_buffer)];
         float3 skinned_position = 0.0f;
         float applied_weight = 0.0f;
 
@@ -95,7 +95,7 @@ PixelInput main(VertexInput input)
     
 #endif // OBJECTSHADER_USE_COLOR
 
-    float3x3 normal_mat = instance.normal_transform;
+    float3x3 normal_mat = float3x3(instance.normal_transform_row0, instance.normal_transform_row1, instance.normal_transform_row2);
     
 #ifdef OBJECTSHADER_USE_UVSETS
 	output.uvsets = input.GetUVSets();

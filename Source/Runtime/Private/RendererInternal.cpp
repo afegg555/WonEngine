@@ -783,25 +783,13 @@ namespace won::rendering
                 frame_context.shader_instance_upload_buffer->SetName("Shader Instance Upload Buffer");
             }
 
-            Vector<ShaderInstance> patched_shader_instances = shader_instances;
-            if (shader_bone_matrix_default_buffer_srv.IsValid())
-            {
-                for (ShaderInstance& shader_instance : patched_shader_instances)
-                {
-                    if (shader_instance.bone_count > 0)
-                    {
-                        shader_instance.bone_matrix_buffer_descriptor = shader_bone_matrix_default_buffer_srv.descriptor_index;
-                    }
-                }
-            }
-
             void* mapped_data = frame_context.shader_instance_upload_buffer->GetMappedData();
             if (!mapped_data)
             {
                 backlog::Post("failed to access mapped instance upload buffer", backlog::LogLevel::Error);
                 return false;
             }
-            std::memcpy(mapped_data, patched_shader_instances.data(), required_instance_buffer_size);
+            std::memcpy(mapped_data, shader_instances.data(), required_instance_buffer_size);
 
             command_list.TransitionResource(*shader_instance_default_buffer, RHIResourceState::CopyDest);
             command_list.CopyBuffer(*shader_instance_default_buffer, 0, *frame_context.shader_instance_upload_buffer, 0, required_instance_buffer_size);
@@ -1335,6 +1323,7 @@ namespace won::rendering
         shader_frame.scene.bvh_node_count = static_cast<uint32>(render_data.shader_bvh_nodes.size());
         shader_frame.scene.bvh_instance_count = static_cast<uint32>(render_data.shader_bvh_instances.size());
         shader_frame.scene.instance_sort_buffer = shader_instance_sort_default_buffer_srv.descriptor_index;
+        shader_frame.scene.bone_matrix_buffer = shader_bone_matrix_default_buffer_srv.descriptor_index;
         shader_frame.environment = render_data.shader_environment;
         shader_frame.ddgi_volume = render_data.shader_ddgi_volume;
         shader_frame.ddgi_volume.irradiance_texture = ddgi_irradiance_texture_srv.descriptor_index;
