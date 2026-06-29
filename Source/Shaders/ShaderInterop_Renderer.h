@@ -219,6 +219,25 @@ struct alignas(16) ShaderMaterial
 #endif
 };
 
+struct alignas(16) ShaderDecal
+{
+    float4x4 inv_world;
+
+    uint instance_index;
+    uint material_index;
+    uint2 decal_padding;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        inv_world = won::math::IDENTITY_MATRIX;
+        instance_index = 0;
+        material_index = 0;
+        decal_padding = { 0, 0 };
+    }
+#endif
+};
+
 struct alignas(16) ShaderScene
 {
     int instancebuffer;
@@ -234,7 +253,7 @@ struct alignas(16) ShaderScene
     uint bvh_node_count;
     uint bvh_instance_count;
     int instance_sort_buffer;
-    uint padding;
+    int bone_matrix_buffer;
 
     uint4 lights; // supports indexing 128 lights
 #ifdef __cplusplus
@@ -252,6 +271,7 @@ struct alignas(16) ShaderScene
         bvh_node_count = 0;
         bvh_instance_count = 0;
         instance_sort_buffer = -1;
+        bone_matrix_buffer = -1;
 
         lights = { 0,0,0,0 };
     }
@@ -469,7 +489,8 @@ struct alignas(16) ShaderCamera
     float4x4 inv_view_projection;
 
     float exposure;
-    float3 _camera_padding0;
+    float _camera_padding0;
+    uint2 viewport_offset;
 
 #ifdef __cplusplus
     inline void Init()
@@ -479,7 +500,8 @@ struct alignas(16) ShaderCamera
         view_projection = won::math::IDENTITY_MATRIX;
         inv_view_projection = won::math::IDENTITY_MATRIX;
         exposure = 1.0f;
-        _camera_padding0 = float3(0, 0, 0);
+        _camera_padding0 = 0.0f;
+        viewport_offset = { 0, 0 };
     }
 #endif
 };
@@ -686,17 +708,20 @@ struct ObjectPushConstants
 struct alignas(16) ShaderInstance
 {
     float4x4 world_transform;
-    float3x3 normal_transform; // will be removed
-    int bone_matrix_buffer_descriptor;
+
+    float3 normal_transform_row0;
     uint bone_count;
+    float3 normal_transform_row1;
     uint bone_matrix_offset;
+    float3 normal_transform_row2;
+    uint instance_padding;
 
 #ifdef __cplusplus
     inline void Init()
     {
-        bone_matrix_buffer_descriptor = -1;
         bone_count = 0;
         bone_matrix_offset = 0;
+        instance_padding = 0;
     }
 #endif
 };

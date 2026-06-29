@@ -17,6 +17,7 @@ namespace won::resource
         PrimitivePass,
         Sprite2DPass,
         Sprite3DPass,
+        DecalPass,
         Count
     };
 

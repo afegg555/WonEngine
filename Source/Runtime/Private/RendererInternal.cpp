@@ -1,5 +1,6 @@
 #include "RendererInternal.h"
 #include "ShaderInterop_Sprite.h"
+#include "ShaderInterop_Decal.h"
 
 #include "Backlog.h"
 #include "Profiler.h"
@@ -546,7 +547,7 @@ namespace won::rendering
             depth_desc.sample_count = target_sample_count;
             depth_desc.format = RHIFormat::D32Float;
             depth_desc.usage = RHIResourceUsage::Default;
-            depth_desc.bind_flags = RHIBindFlags::DepthStencil;
+            depth_desc.bind_flags = RHIBindFlags::DepthStencil | RHIBindFlags::ShaderResource;
             depth_buffer = device->CreateTexture(depth_desc);
             if (!depth_buffer)
             {
@@ -556,12 +557,20 @@ namespace won::rendering
             depth_buffer->SetName("Scene Depth Buffer");
 
             depth_buffer_dsv = {};
+            depth_buffer_srv = {};
             RHISubresourceDesc depth_subresource_desc = {};
             depth_subresource_desc.type = RHISubresourceType::DepthStencil;
             depth_subresource_desc.format = depth_desc.format;
             if (!device->CreateSubresource(*depth_buffer, depth_subresource_desc, &depth_buffer_dsv))
             {
                 backlog::Post("failed to create depth buffer subresource", backlog::LogLevel::Error);
+                depth_buffer = nullptr;
+                return false;
+            }
+            depth_subresource_desc.type = RHISubresourceType::ShaderResource;
+            if (!device->CreateSubresource(*depth_buffer, depth_subresource_desc, &depth_buffer_srv))
+            {
+                backlog::Post("failed to create depth buffer SRV subresource", backlog::LogLevel::Error);
                 depth_buffer = nullptr;
                 return false;
             }
@@ -783,25 +792,13 @@ namespace won::rendering
                 frame_context.shader_instance_upload_buffer->SetName("Shader Instance Upload Buffer");
             }
 
-            Vector<ShaderInstance> patched_shader_instances = shader_instances;
-            if (shader_bone_matrix_default_buffer_srv.IsValid())
-            {
-                for (ShaderInstance& shader_instance : patched_shader_instances)
-                {
-                    if (shader_instance.bone_count > 0)
-                    {
-                        shader_instance.bone_matrix_buffer_descriptor = shader_bone_matrix_default_buffer_srv.descriptor_index;
-                    }
-                }
-            }
-
             void* mapped_data = frame_context.shader_instance_upload_buffer->GetMappedData();
             if (!mapped_data)
             {
                 backlog::Post("failed to access mapped instance upload buffer", backlog::LogLevel::Error);
                 return false;
             }
-            std::memcpy(mapped_data, patched_shader_instances.data(), required_instance_buffer_size);
+            std::memcpy(mapped_data, shader_instances.data(), required_instance_buffer_size);
 
             command_list.TransitionResource(*shader_instance_default_buffer, RHIResourceState::CopyDest);
             command_list.CopyBuffer(*shader_instance_default_buffer, 0, *frame_context.shader_instance_upload_buffer, 0, required_instance_buffer_size);
@@ -854,6 +851,56 @@ namespace won::rendering
             }
 
             if (!UpdateDefaultBuffer(frame_context, *shader_particle_default_buffer, render_data.particle_instances.data(), required_particle_buffer_size, RHIResourceState::ShaderRead, 0, command_list))
+            {
+                return false;
+            }
+        }
+
+        const Size required_decal_buffer_size = render_data.shader_decals.size() * sizeof(ShaderDecal);
+        if (required_decal_buffer_size == 0)
+        {
+            frame_context.RemoveResourceDeferred(shader_decal_default_buffer);
+            shader_decal_default_buffer = nullptr;
+            shader_decal_default_buffer_srv = {};
+        }
+        else
+        {
+            Size current_decal_buffer_size = 0;
+            if (shader_decal_default_buffer)
+            {
+                current_decal_buffer_size = shader_decal_default_buffer->GetDesc().buffer_desc.size;
+            }
+
+            if (!shader_decal_default_buffer || current_decal_buffer_size < required_decal_buffer_size)
+            {
+                frame_context.RemoveResourceDeferred(shader_decal_default_buffer);
+                RHIBufferDesc shader_decal_default_buffer_desc = {};
+                shader_decal_default_buffer_desc.size = required_decal_buffer_size;
+                shader_decal_default_buffer_desc.usage = RHIResourceUsage::Default;
+                shader_decal_default_buffer_desc.bind_flags = RHIBindFlags::ShaderResource;
+                shader_decal_default_buffer = device->CreateBuffer(shader_decal_default_buffer_desc);
+                if (!shader_decal_default_buffer)
+                {
+                    backlog::Post("failed to create shader decal default buffer", backlog::LogLevel::Error);
+                    return false;
+                }
+                shader_decal_default_buffer->SetName("Shader Decal Default Buffer");
+
+                shader_decal_default_buffer_srv = {};
+                RHISubresourceDesc shader_decal_default_subresource_desc = {};
+                shader_decal_default_subresource_desc.type = RHISubresourceType::ShaderResource;
+                shader_decal_default_subresource_desc.buffer_offset = 0;
+                shader_decal_default_subresource_desc.buffer_size = shader_decal_default_buffer->GetDesc().buffer_desc.size;
+                shader_decal_default_subresource_desc.buffer_stride = sizeof(ShaderDecal);
+                if (!device->CreateSubresource(*shader_decal_default_buffer, shader_decal_default_subresource_desc, &shader_decal_default_buffer_srv))
+                {
+                    backlog::Post("failed to create shader decal default subresource", backlog::LogLevel::Error);
+                    shader_decal_default_buffer = nullptr;
+                    return false;
+                }
+            }
+
+            if (!UpdateDefaultBuffer(frame_context, *shader_decal_default_buffer, render_data.shader_decals.data(), required_decal_buffer_size, RHIResourceState::ShaderRead, 0, command_list))
             {
                 return false;
             }
@@ -1335,6 +1382,7 @@ namespace won::rendering
         shader_frame.scene.bvh_node_count = static_cast<uint32>(render_data.shader_bvh_nodes.size());
         shader_frame.scene.bvh_instance_count = static_cast<uint32>(render_data.shader_bvh_instances.size());
         shader_frame.scene.instance_sort_buffer = shader_instance_sort_default_buffer_srv.descriptor_index;
+        shader_frame.scene.bone_matrix_buffer = shader_bone_matrix_default_buffer_srv.descriptor_index;
         shader_frame.environment = render_data.shader_environment;
         shader_frame.ddgi_volume = render_data.shader_ddgi_volume;
         shader_frame.ddgi_volume.irradiance_texture = ddgi_irradiance_texture_srv.descriptor_index;
@@ -1368,6 +1416,7 @@ namespace won::rendering
                     view.viewport.width > 0 ? 1.0f / static_cast<float>(view.viewport.width) : 0.0f,
                     view.viewport.height > 0 ? 1.0f / static_cast<float>(view.viewport.height) : 0.0f
                 };
+                shader_camera.viewport_offset = { static_cast<uint32>(view.viewport.x), static_cast<uint32>(view.viewport.y) };
                 shader_camera.view = camera_component->view;
                 shader_camera.projection = camera_component->projection;
                 shader_camera.view_projection = camera_component->view_projection;
@@ -1826,6 +1875,39 @@ namespace won::rendering
                     command_list.PushConstants(RHIShaderStage::Vertex, &renderable.push_constants, sizeof(ObjectPushConstants), 0);
                     command_list.DrawIndexed(renderable.index_count, 1, 0, 0, 0);
                     ++debug_state.draw_call_count;
+                }
+            }
+        }
+
+        if (pass == RenderPassType::DecalPass && (flags & DrawScene_Decal) != 0 && !render_data.shader_decals.empty()
+            && shader_decal_default_buffer_srv.IsValid() && depth_buffer_srv.IsValid())
+        {
+            GraphicsPipelineHash decal_pipeline_hash = {};
+            decal_pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::DecalPass);
+            decal_pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
+            decal_pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
+            decal_pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
+            decal_pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::Always);
+            decal_pipeline_hash.storage.bits.blend_mode = 1;
+            std::shared_ptr<RHIPipeline> decal_pipeline = shader_library.GetPipeline(decal_pipeline_hash);
+            if (decal_pipeline)
+            {
+                command_list.SetGraphicsPipeline(*decal_pipeline);
+                command_list.SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
+                command_list.SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_camera_binding);
+                command_list.SetConstantBuffer(RHIShaderStage::Pixel, 0, shader_frame_binding);
+                command_list.SetConstantBuffer(RHIShaderStage::Pixel, 1, shader_camera_binding);
+                command_list.SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
+
+                for (uint32 decal_index = 0; decal_index < static_cast<uint32>(render_data.shader_decals.size()); ++decal_index)
+                {
+                    DecalPushConstants decal_push = {};
+                    decal_push.Init();
+                    decal_push.decal_buffer = static_cast<uint32>(shader_decal_default_buffer_srv.descriptor_index);
+                    decal_push.decal_index = decal_index;
+                    decal_push.depth_descriptor = static_cast<uint32>(depth_buffer_srv.descriptor_index);
+                    command_list.PushConstants(RHIShaderStage::Vertex, &decal_push, sizeof(DecalPushConstants), 0);
+                    command_list.Draw(36, 1, 0, 0);
                 }
             }
         }
@@ -2617,6 +2699,7 @@ namespace won::rendering
                             view.viewport.width > 0 ? 1.0f / static_cast<float>(view.viewport.width) : 0.0f,
                             view.viewport.height > 0 ? 1.0f / static_cast<float>(view.viewport.height) : 0.0f
                         };
+                        shader_camera.viewport_offset = { static_cast<uint32>(view.viewport.x), static_cast<uint32>(view.viewport.y) };
                         shader_camera.view = camera_component->view;
                         shader_camera.projection = camera_component->projection;
                         shader_camera.view_projection = camera_component->view_projection;
@@ -2661,7 +2744,21 @@ namespace won::rendering
                 command_list->EndEvent();
             }
 
+            // decal pass: project decal volumes onto the scene depth, blending into the HDR color target.
+            if (!render_data.shader_decals.empty() && shader_decal_default_buffer_srv.IsValid() && depth_buffer_srv.IsValid())
+            {
+                auto gpu_range = profiler::ScopedRangeGPU("Decal Pass", *command_list);
+                command_list->BeginEvent("Decal Pass");
 
+                command_list->TransitionResource(*depth_buffer_binding.resource, RHIResourceState::ShaderRead);
+                command_list->SetRenderTargets(color_targets, nullptr);
+                command_list->SetViewport(viewport);
+                command_list->SetScissor(scissor);
+                DrawScene(frame_context, view, RenderPassType::DecalPass, DrawScene_Decal, *command_list);
+                command_list->TransitionResource(*depth_buffer_binding.resource, RHIResourceState::DepthWrite);
+
+                command_list->EndEvent();
+            }
 
             // Post chain + resolve
             {

@@ -23,6 +23,7 @@
 #include "LayerComponent.h"
 #include "TerrainComponent.h"
 #include "ParticleEmitter3DComponent.h"
+#include "DecalComponent.h"
 
 namespace won::ecs
 {
@@ -60,7 +61,8 @@ namespace won::ecs
         AudioListener,
         Layer,
         Terrain,
-        ParticleEmitter3D
+        ParticleEmitter3D,
+        Decal
     };
 
     constexpr ComponentMask ComponentMaskFromBit(SceneComponentBit bit)
@@ -92,4 +94,5 @@ namespace won::ecs
     inline constexpr ComponentMask layer_component_mask = ComponentMaskFromBit(SceneComponentBit::Layer);
     inline constexpr ComponentMask terrain_component_mask = ComponentMaskFromBit(SceneComponentBit::Terrain);
     inline constexpr ComponentMask particle_emitter_3d_component_mask = ComponentMaskFromBit(SceneComponentBit::ParticleEmitter3D);
+    inline constexpr ComponentMask decal_component_mask = ComponentMaskFromBit(SceneComponentBit::Decal);
 }
