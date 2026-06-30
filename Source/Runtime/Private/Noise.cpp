@@ -97,7 +97,7 @@ namespace won::noise
         const float nx0 = math::Lerp(n00, n10, u);
         const float nx1 = math::Lerp(n01, n11, u);
         // Scale 2D unit-gradient dot values toward the conventional [-1, 1] noise range.
-        return math::clamp(math::Lerp(nx0, nx1, v) * perlin_2d_gradient_scale, -1.0f, 1.0f);
+        return math::Clamp(math::Lerp(nx0, nx1, v) * perlin_2d_gradient_scale, -1.0f, 1.0f);
     }
 
     float FractalBrownianMotion2D(float x, float y, const FractalNoiseDesc& desc)
@@ -116,7 +116,7 @@ namespace won::noise
             frequency *= desc.lacunarity;
         }
 
-        return amplitude_sum > 0.0f ? math::clamp(value / amplitude_sum, -1.0f, 1.0f) : 0.0f;
+        return amplitude_sum > 0.0f ? math::Clamp(value / amplitude_sum, -1.0f, 1.0f) : 0.0f;
     }
 
     float Ridged2D(float x, float y, const FractalNoiseDesc& desc)
@@ -136,6 +136,6 @@ namespace won::noise
             frequency *= desc.lacunarity;
         }
 
-        return amplitude_sum > 0.0f ? math::saturate(value / amplitude_sum) : 0.0f;
+        return amplitude_sum > 0.0f ? math::Saturate(value / amplitude_sum) : 0.0f;
     }
 }

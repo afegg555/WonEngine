@@ -927,7 +927,7 @@ namespace won::editor
 		const XMVECTOR cam_rotation = XMQuaternionNormalize(XMLoadFloat4(&transform.rotation));
 		const XMVECTOR cam_forward = XMVector3Rotate(base_forward, cam_rotation);
 		const XMVECTOR cam_right = XMVector3Rotate(base_right, cam_rotation);
-		pitch = std::asin(math::clamp(XMVectorGetY(cam_forward), -1.0f, 1.0f));
+		pitch = std::asin(math::Clamp(XMVectorGetY(cam_forward), -1.0f, 1.0f));
 		const float cos_pitch = std::cos(pitch);
 		if (std::abs(cos_pitch) > 0.0001f)
 		{
@@ -952,7 +952,7 @@ namespace won::editor
 		}
 
 		float2 mouse_delta = { viewport_mouse_pos.x - prev_mouse_pos.x, viewport_mouse_pos.y - prev_mouse_pos.y };
-		if (math::float_equal(mouse_delta.x, 0.f) && math::float_equal(mouse_delta.y, 0.f))
+		if (math::FloatEqual(mouse_delta.x, 0.f) && math::FloatEqual(mouse_delta.y, 0.f))
 		{
 			return;
 		}
@@ -978,7 +978,7 @@ namespace won::editor
 		{
 			const float speed = active_interaction == InteractionMode::Orbit ? orbit_speed : rotate_speed;
 			yaw += dx * XM_2PI * speed;
-			pitch = math::clamp(pitch + dy * XM_2PI * speed, -pitch_limit, pitch_limit);
+			pitch = math::Clamp(pitch + dy * XM_2PI * speed, -pitch_limit, pitch_limit);
 
 			const float cos_pitch = std::cos(pitch);
 			const XMVECTOR cam_forward = XMVectorSet(std::sin(yaw) * cos_pitch, std::sin(pitch), std::cos(yaw) * cos_pitch, 0.0f);

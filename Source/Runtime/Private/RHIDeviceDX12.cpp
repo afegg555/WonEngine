@@ -53,7 +53,7 @@ namespace won::rendering
 
         Size AlignConstantBufferByteSize(Size size_in_bytes)
         {
-            return won::math::align(size_in_bytes, static_cast<Size>(256u));
+            return won::math::Align(size_in_bytes, static_cast<Size>(256u));
         }
 
         bool GetFormatBytesPerPixel(RHIFormat format, uint32& out_bytes_per_pixel)

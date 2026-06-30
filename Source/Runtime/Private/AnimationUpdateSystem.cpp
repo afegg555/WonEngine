@@ -113,22 +113,8 @@ namespace won::ecs
             const float duration_seconds = clip->duration / ticks_per_second;
             if (animation.playing)
             {
-                animation.time += delta_time * animation.speed;
-                if (duration_seconds > 0.0f)
-                {
-                    if (animation.loop)
-                    {
-                        animation.time = std::fmod(animation.time, duration_seconds);
-                        if (animation.time < 0.0f)
-                        {
-                            animation.time += duration_seconds;
-                        }
-                    }
-                    else
-                    {
-                        animation.time = std::clamp(animation.time, 0.0f, duration_seconds);
-                    }
-                }
+                const float advanced_time = animation.time + delta_time * animation.speed;
+                animation.time = animation.loop ? math::Wrap(advanced_time, duration_seconds) : math::Clamp(advanced_time, 0.0f, duration_seconds);
                 animation.bone_matrices_dirty = true;
             }
 
