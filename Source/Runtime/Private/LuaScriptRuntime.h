@@ -11,6 +11,11 @@ namespace won::game
     class GameData;
 }
 
+namespace won::ecs
+{
+    struct AnimationComponent;
+}
+
 namespace won::script
 {
     inline constexpr uint32 lua_script_builtin_function_count = static_cast<uint32>(ScriptCallType::OnTriggerExit3D) + 1u;
@@ -63,6 +68,10 @@ namespace won::script
         static int LuaTransformGetScale(lua_State* state);
         static int LuaTransformSetScale(lua_State* state);
         static int LuaTransformRotateEuler(lua_State* state);
+        static int LuaTransformGetForward(lua_State* state);
+        static int LuaTransformGetRotation(lua_State* state);
+        static int LuaTransformSetRotation(lua_State* state);
+        static int LuaTransformSetEuler(lua_State* state);
 
         static int LuaMaterialAdd(lua_State* state);
         static int LuaMaterialHas(lua_State* state);
@@ -81,6 +90,21 @@ namespace won::script
         static int LuaParticleEmitter3DHas(lua_State* state);
         static int LuaParticleEmitter3DSetActive(lua_State* state);
         static int LuaParticleEmitter3DSetSpawnRate(lua_State* state);
+
+        static int LuaAnimationHas(lua_State* state);
+        static int LuaAnimationAdd(lua_State* state);
+        static int LuaAnimationPlay(lua_State* state);
+        static int LuaAnimationPlayByName(lua_State* state);
+        static int LuaAnimationCrossfade(lua_State* state);
+        static int LuaAnimationSetSpeed(lua_State* state);
+        static int LuaAnimationSetLoop(lua_State* state);
+        static int LuaAnimationPause(lua_State* state);
+        static int LuaAnimationResume(lua_State* state);
+        static int LuaAnimationIsPlaying(lua_State* state);
+        static int LuaAnimationGetClipCount(lua_State* state);
+        static int LuaAnimationGetCurrentClip(lua_State* state);
+        static int LuaAnimationGetClipName(lua_State* state);
+        static ecs::AnimationComponent* GetSelfAnimation(LuaScriptRuntime* runtime);
 
         static int LuaColliderHas(lua_State* state);
         static int LuaColliderAdd(lua_State* state);
@@ -147,5 +171,6 @@ namespace won::script
         Vector<eventhandler::Handle> event_handles;
         game::GameData* game_data = nullptr;
         audio::AudioMixer* audio_mixer = nullptr;
+        String content_root;
     };
 }

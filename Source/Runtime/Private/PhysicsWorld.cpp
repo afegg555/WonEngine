@@ -418,6 +418,10 @@ namespace won::physics
             settings.mRestitution = rb->restitution;
             settings.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateInertia;
             settings.mMassPropertiesOverride.mMass = (std::max)(0.001f, rb->mass);
+            if ((rb->flags & won::ecs::Rigidbody3DComponent::LockRotation) != 0)
+            {
+                settings.mAllowedDOFs = JPH::EAllowedDOFs::TranslationX | JPH::EAllowedDOFs::TranslationY | JPH::EAllowedDOFs::TranslationZ | JPH::EAllowedDOFs::RotationY;
+            }
         }
 
         JPH::BodyInterface& body_interface = impl->physics_system->GetBodyInterface();

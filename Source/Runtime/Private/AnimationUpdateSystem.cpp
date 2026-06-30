@@ -1,5 +1,6 @@
 #include "AnimationUpdateSystem.h"
 
+#include "Animation.h"
 #include "JobSystem.h"
 #include "MathUtils.h"
 #include "Mesh.h"
@@ -7,7 +8,6 @@
 
 #include <algorithm>
 #include <atomic>
-#include <cmath>
 
 namespace won::ecs
 {
@@ -118,7 +118,6 @@ namespace won::ecs
                 animation.bone_matrices_dirty = true;
             }
 
-            const float sample_time = animation.time * ticks_per_second;
             resource::Skeleton& skeleton = *geometry.mesh->skeleton;
             const Size bone_count = skeleton.bones.size();
             if (bone_count == 0)
@@ -130,14 +129,52 @@ namespace won::ecs
 
             const uint32 current_bone_matrix_offset = animation.bone_matrix_offset;
 
-            Vector<const resource::AnimationChannel*> channels_by_bone;
-            channels_by_bone.resize(bone_count, nullptr);
-            for (const resource::AnimationChannel& channel : clip->channels)
+            float blend_weight = 1.0f;
+            const resource::AnimationClip* prev_clip = nullptr;
+            if (animation.blending)
             {
-                if (channel.bone_index < bone_count && channel.IsValid())
+                blend_weight = animation.blend_duration > 0.0f ? std::clamp(animation.blend_elapsed / animation.blend_duration, 0.0f, 1.0f) : 1.0f;
+                if (animation.prev_clip_index < animation.clips.size() && animation.clips[animation.prev_clip_index])
                 {
-                    channels_by_bone[channel.bone_index] = &channel;
+                    prev_clip = animation.clips[animation.prev_clip_index].get();
                 }
+                if (animation.playing)
+                {
+                    animation.blend_elapsed += delta_time;
+                    if (prev_clip && prev_clip->IsValid())
+                    {
+                        const float prev_ticks_per_second = prev_clip->ticks_per_second > 0.0f ? prev_clip->ticks_per_second : 1.0f;
+                        const float prev_duration_seconds = prev_clip->duration / prev_ticks_per_second;
+                        const float advanced_prev_time = animation.prev_time + delta_time * animation.speed;
+                        animation.prev_time = animation.loop ? math::Wrap(advanced_prev_time, prev_duration_seconds) : math::Clamp(advanced_prev_time, 0.0f, prev_duration_seconds);
+                    }
+                }
+                if (blend_weight >= 1.0f || !prev_clip || !prev_clip->IsValid())
+                {
+                    animation.blending = false;
+                    blend_weight = 1.0f;
+                    prev_clip = nullptr;
+                }
+            }
+
+            Vector<resource::BonePose> current_pose;
+            resource::SampleAnimationPose(*clip, animation.time * ticks_per_second, skeleton, current_pose);
+
+            const Vector<resource::BonePose>* final_pose = &current_pose;
+            Vector<resource::BonePose> blended_pose;
+            if (prev_clip)
+            {
+                const float prev_ticks_per_second = prev_clip->ticks_per_second > 0.0f ? prev_clip->ticks_per_second : 1.0f;
+                Vector<resource::BonePose> prev_pose;
+                resource::SampleAnimationPose(*prev_clip, animation.prev_time * prev_ticks_per_second, skeleton, prev_pose);
+                blended_pose.resize(bone_count);
+                for (Size bone_index = 0; bone_index < bone_count; ++bone_index)
+                {
+                    blended_pose[bone_index].position = math::Lerp(prev_pose[bone_index].position, current_pose[bone_index].position, blend_weight);
+                    blended_pose[bone_index].scale = math::Lerp(prev_pose[bone_index].scale, current_pose[bone_index].scale, blend_weight);
+                    blended_pose[bone_index].rotation = math::Slerp(prev_pose[bone_index].rotation, current_pose[bone_index].rotation, blend_weight);
+                }
+                final_pose = &blended_pose;
             }
 
             Vector<float4x4> local_matrices;
@@ -148,102 +185,8 @@ namespace won::ecs
 
             for (Size bone_index = 0; bone_index < bone_count; ++bone_index)
             {
-                const resource::Bone& bone = skeleton.bones[bone_index];
-                XMVECTOR bind_scale = XMVectorSet(1.0f, 1.0f, 1.0f, 0.0f);
-                XMVECTOR bind_rotation = XMQuaternionIdentity();
-                XMVECTOR bind_translation = XMVectorZero();
-                XMMatrixDecompose(&bind_scale, &bind_rotation, &bind_translation, XMLoadFloat4x4(&bone.bind_local_transform));
-
-                float3 position = {};
-                float4 rotation = {};
-                float3 scale = {};
-                XMStoreFloat3(&position, bind_translation);
-                XMStoreFloat4(&rotation, XMQuaternionNormalize(bind_rotation));
-                XMStoreFloat3(&scale, bind_scale);
-
-                const resource::AnimationChannel* channel = channels_by_bone[bone_index];
-                if (channel)
-                {
-                    if (!channel->positions.empty())
-                    {
-                        if (sample_time <= channel->positions.front().time || channel->positions.size() == 1)
-                        {
-                            position = channel->positions.front().value;
-                        }
-                        else if (sample_time >= channel->positions.back().time)
-                        {
-                            position = channel->positions.back().value;
-                        }
-                        else
-                        {
-                            for (Size key_index = 0; key_index + 1 < channel->positions.size(); ++key_index)
-                            {
-                                const auto& key0 = channel->positions[key_index];
-                                const auto& key1 = channel->positions[key_index + 1];
-                                if (sample_time >= key0.time && sample_time <= key1.time)
-                                {
-                                    const float t = (sample_time - key0.time) / (key1.time - key0.time);
-                                    position = math::Lerp(key0.value, key1.value, t);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-
-                    if (!channel->rotations.empty())
-                    {
-                        if (sample_time <= channel->rotations.front().time || channel->rotations.size() == 1)
-                        {
-                            rotation = channel->rotations.front().value;
-                        }
-                        else if (sample_time >= channel->rotations.back().time)
-                        {
-                            rotation = channel->rotations.back().value;
-                        }
-                        else
-                        {
-                            for (Size key_index = 0; key_index + 1 < channel->rotations.size(); ++key_index)
-                            {
-                                const auto& key0 = channel->rotations[key_index];
-                                const auto& key1 = channel->rotations[key_index + 1];
-                                if (sample_time >= key0.time && sample_time <= key1.time)
-                                {
-                                    const float t = (sample_time - key0.time) / (key1.time - key0.time);
-                                    rotation = math::Slerp(key0.value, key1.value, t);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-
-                    if (!channel->scales.empty())
-                    {
-                        if (sample_time <= channel->scales.front().time || channel->scales.size() == 1)
-                        {
-                            scale = channel->scales.front().value;
-                        }
-                        else if (sample_time >= channel->scales.back().time)
-                        {
-                            scale = channel->scales.back().value;
-                        }
-                        else
-                        {
-                            for (Size key_index = 0; key_index + 1 < channel->scales.size(); ++key_index)
-                            {
-                                const auto& key0 = channel->scales[key_index];
-                                const auto& key1 = channel->scales[key_index + 1];
-                                if (sample_time >= key0.time && sample_time <= key1.time)
-                                {
-                                    const float t = (sample_time - key0.time) / (key1.time - key0.time);
-                                    scale = math::Lerp(key0.value, key1.value, t);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                const XMMATRIX local_matrix = XMMatrixAffineTransformation(XMLoadFloat3(&scale), XMVectorZero(), XMLoadFloat4(&rotation), XMLoadFloat3(&position));
+                const resource::BonePose& pose = (*final_pose)[bone_index];
+                const XMMATRIX local_matrix = XMMatrixAffineTransformation(XMLoadFloat3(&pose.scale), XMVectorZero(), XMLoadFloat4(&pose.rotation), XMLoadFloat3(&pose.position));
                 XMStoreFloat4x4(&local_matrices[bone_index], local_matrix);
             }
 
@@ -272,6 +215,5 @@ namespace won::ecs
         });
 
         jobsystem::Wait(sub_ctx);
-
     }
 }
