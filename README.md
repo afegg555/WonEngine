@@ -14,7 +14,18 @@ WonEngine is a work-in-progress C++ rendering engine for experimenting with mode
   <img src="Docs/showcase_image1.png" width="900" alt="WonEngine Editor Showcase">
 </p>
 
-> Screenshots and videos will be added as the renderer and editor become more stable.
+### Playable sample — v0.1.0
+
+Third-person physics character in Sponza: input-driven movement, physics interaction (push the crate into the light to ignite the brazier), animation blending, particles, spatial audio, decals, DDGI, and a HUD/sprite clear flow — all driven by sample-local Lua scripts.
+
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/204d38e9-62ba-43cb-8d11-6752cc7273bd" width="900" controls muted>
+    Your browser does not support the video tag —
+    <a href="https://github.com/user-attachments/assets/204d38e9-62ba-43cb-8d11-6752cc7273bd">watch the showcase clip</a>.
+  </video>
+</p>
+
+> More screenshots and videos will be added as the renderer and editor become more stable.
 
 ## Getting Started
 
