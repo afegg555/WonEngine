@@ -97,6 +97,16 @@ Common editing flow:
 
 `Profiler` is disabled by default. Enable it only when measuring performance or resource usage because profiling can add overhead.
 
+### Runtime Logs (Packaged Builds)
+
+A packaged / standalone build writes a timestamped log file per run to:
+
+```
+%LOCALAPPDATA%\<ProjectName>\Logs\<YYYY-MM-DD_HH-MM-SS>.log
+```
+
+Each log opens with a `[Startup]` header — engine version, project name, startup scene, and content root — followed by subsystem init and scene-resource loading. Fatal conditions are tagged `[Error]`. When reporting a crash or startup failure, attach the most recent log from that folder.
+
 ## Current Editor Limits
 
 Some workflows are still prototype-level. `Contents Browser` exists as a panel but does not yet provide a complete asset workflow. Scene save/load, editor-driven asset import, and richer prefab or project workflows should be documented here once those systems are exposed in the editor.

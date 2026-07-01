@@ -18,6 +18,7 @@
 #include "ScriptRuntime.h"
 #include "StringUtils.h"
 #include "PhysicsWorld.h"
+#include "Version.h"
 
 namespace won
 {
@@ -39,6 +40,11 @@ namespace won
             io::CreateFolder(log_dir);
             backlog::SetLogFile(io::CombinePath(log_dir, utils::GetCurrentDateTime() + ".log"));
         }
+
+        backlog::Post("[Startup] WonEngine " + String(GetVersionString()));
+        backlog::Post("[Startup] Project: " + project_settings.project_name);
+        backlog::Post("[Startup] Startup scene: " + project_settings.startup_scene);
+        backlog::Post("[Startup] Content root: " + project::GetContentRoot(project_settings));
 
         reflection::RegisterBuiltinTypes();
 
