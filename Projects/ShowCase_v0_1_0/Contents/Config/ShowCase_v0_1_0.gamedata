@@ -1,0 +1,1 @@
+{"fields":[{"key":"complete","type":"bool","default":"false"},{"key":"crates_in","type":"int","default":"0"},{"key":"cam_yaw","type":"float","default":"0"}]}
