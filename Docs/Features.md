@@ -77,9 +77,11 @@ This document tracks user-facing and developer-facing features available in WonE
 - [x] Component-based scene model
 - [x] Custom scene systems
 - [x] Dependency-aware system scheduling
+- [x] Scene serialization (save / load)
 - [x] Transform component
 - [x] Hierarchy component
 - [x] Name component
+- [x] Layer component
 - [x] Geometry component
 - [x] Material component
 - [x] Camera component
@@ -88,19 +90,88 @@ This document tracks user-facing and developer-facing features available in WonE
 - [~] Fog volume component
 - [x] Environment lighting component
 - [x] DDGI volume component
-- [x] Transform update system
-- [x] Camera update system
-- [x] Geometry update system
-- [x] Material update system
-- [x] Light update system
-- [x] Environment update system
-- [x] Renderable update system
-- [ ] Scene serialization
+- [x] Rigidbody component
+- [x] Collider component
+- [x] Audio source component
+- [x] Audio listener component
+- [x] Animation component
+- [x] Particle emitter component
+- [~] Decal component
+- [x] Sprite 2D / 3D component
+- [x] Text 2D / 3D component
+- [x] Script component
+- [~] Terrain component
+- [x] Core update systems (transform, camera, geometry, material, light, environment, renderable, sprite, text)
 - [ ] Scene TLAS for ray tracing
-- [ ] Collision system
-- [ ] Physics integration
-- [ ] Force / interaction system
 - [ ] Environment probes
+
+---
+
+# Physics
+
+- [x] Jolt Physics integration
+- [x] Rigidbody bodies (static / kinematic / dynamic)
+- [x] Collider shapes (box, sphere)
+- [x] Collision and trigger events
+- [x] Collision layer masks
+- [x] Locked-rotation / upright bodies (allowed DOFs)
+- [x] Physics update system
+- [ ] Joints / constraints
+- [ ] Physics shape queries / raycast for gameplay
+
+---
+
+# Audio
+
+- [x] XAudio2 driver
+- [x] Audio source (2D and spatial 3D)
+- [x] Looping and one-shot playback
+- [x] Audio listener with distance attenuation
+- [x] WAV loading (PCM / IEEE float)
+- [x] Audio update system
+- [ ] Compressed audio (mp3 / ogg)
+
+---
+
+# Animation
+
+- [x] Skeletal animation import
+- [x] Clip playback
+- [x] Cross-fade blending between clips
+- [x] Per-bone pose sampling and skinning matrices
+- [x] Animation update system
+- [ ] Blend trees
+- [ ] Animation events / notifies
+
+---
+
+# Effects
+
+- [x] CPU sprite particle emitter
+- [x] Particle update system
+- [~] Projected decals
+- [x] Decal update system
+- [~] Terrain (grid / heightmap)
+- [~] Weather hook (sky / fog / rain)
+
+---
+
+# Scripting (Lua)
+
+- [x] Lua script runtime with per-entity script instances
+- [x] Lifecycle callbacks (OnCreate / OnUpdate / OnDestroy)
+- [x] Physics trigger callbacks (OnTriggerEnter / Stay / Exit 3D)
+- [x] Entity API (create / destroy / find by name / get-set name)
+- [x] Transform API (position / rotation / scale / forward)
+- [x] Rigidbody API (linear / angular velocity)
+- [x] Audio source API (play / play_oneshot / stop)
+- [x] Animation API (play by name / crossfade / speed / pause / resume)
+- [x] Material API (base color / fork)
+- [x] Particle emitter API (active / spawn rate)
+- [x] Input API (actions, axes, gamepad)
+- [x] Persistent game data (schema-typed float / int / bool / string)
+- [x] Event publish / subscribe
+- [ ] Script hot reload
 
 ---
 
@@ -173,7 +244,7 @@ This document tracks user-facing and developer-facing features available in WonE
 
 ## Geometry And Visibility
 
-- [ ] Instancing
+- [x] Instance-data batching
 - [ ] Meshlet pipeline
 - [ ] Virtualized geometry research
 - [ ] Voxelizer
@@ -181,9 +252,9 @@ This document tracks user-facing and developer-facing features available in WonE
 ## Image Quality
 
 - [x] GPU texture mip generation
+- [x] Anti-aliasing (FXAA)
 - [ ] Tone mapping
 - [ ] Bloom
-- [ ] Anti-aliasing
 - [ ] Ambient occlusion
 - [ ] FSR
 - [ ] DLSS
@@ -197,17 +268,13 @@ This document tracks user-facing and developer-facing features available in WonE
 
 ## Scene Rendering Features
 
-- [ ] Decals
 - [ ] Impostors
 - [ ] Trail rendering
 - [ ] Lens flare
-- [ ] Particle rendering
-- [ ] Terrain
 - [ ] Water
 - [ ] Wetmap
 - [ ] Water ripple
 - [ ] Clouds
-- [ ] Weather
 - [ ] Vehicle rendering support
 
 ---
@@ -225,12 +292,12 @@ This document tracks user-facing and developer-facing features available in WonE
 - [x] glTF import
 - [x] Imported material parameters
 - [x] Imported material textures
+- [x] Animation import
+- [x] Skeletal mesh / skinning
+- [x] DDS texture support
+- [x] Block compression support (BC1 / BC3)
+- [~] Material asset files (`.wonmat`)
 - [ ] Editor asset browser workflow
-- [ ] DDS texture support
-- [ ] Animation import
-- [ ] Skeletal mesh / skinning
-- [ ] Material asset files
-- [ ] Block compression support
 
 ---
 
@@ -240,6 +307,7 @@ This document tracks user-facing and developer-facing features available in WonE
 - [x] Runtime shader loading
 - [x] Runtime shader reload
 - [x] Offline shader compiler
+- [x] Cooked shader binaries + manifest in packaged builds (runtime loads precompiled shaders)
 - [x] Shared C++ / HLSL shader definitions
 - [x] Object shaders
 - [x] Sky shader
@@ -247,8 +315,9 @@ This document tracks user-facing and developer-facing features available in WonE
 - [~] DDGI compute shader
 - [~] GPU BVH compute shaders
 - [x] Texture mip generation compute shader
+- [x] Shader metadata dump command
+- [ ] Shader dump (embed compiled shaders into the executable)
 - [ ] Shader permutation system
-- [ ] Shader dump tool
 
 ---
 
@@ -268,8 +337,9 @@ This document tracks user-facing and developer-facing features available in WonE
 # Tools And Build
 
 - [x] ShaderOfflineCompiler
-- [ ] Asset processing tools
-- [ ] Texture compression tools
+- [x] Asset importer / cook tool (mesh + texture)
+- [x] Texture block-compression (BC) on import
+- [x] Package tool and packaged-build smoke test
 
 ---
 
@@ -284,15 +354,9 @@ This document tracks user-facing and developer-facing features available in WonE
 
 # Planned Engine Systems
 
-- [ ] Animation
-- [ ] Physics
-- [ ] Audio
 - [ ] Video
 - [ ] Networking
-- [ ] Scripting
-- [ ] UI system
-- [ ] Particle system
-- [ ] Terrain system
+- [ ] UI system (Canvas)
 - [ ] Water system
 - [ ] Vehicle system
 
