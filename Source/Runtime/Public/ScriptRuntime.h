@@ -34,6 +34,7 @@ namespace won::script
         ScriptBackend backend = ScriptBackend::Lua;
         game::GameData* game_data = nullptr;
         audio::AudioMixer* audio_mixer = nullptr;
+        String content_root;
     };
 
     struct ScriptInstanceHandle

@@ -8,16 +8,16 @@ namespace won::math
 	inline constexpr float sqrt_2 = 1.41421356237309504880f;
 
 	template<typename T>
-	constexpr T align(T value, T alignment)
+	constexpr T Align(T value, T alignment)
 	{
 		return ((value + alignment - T(1)) / alignment) * alignment;
 	}
 
 	template <typename T>
-	constexpr T sqr(T x) { return x * x; }
+	constexpr T Sqr(T x) { return x * x; }
 
 	template <typename T>
-	constexpr T clamp(T x, T a, T b)
+	constexpr T Clamp(T x, T a, T b)
 	{
 		return x < a ? a : (x > b ? b : x);
 	}
@@ -28,19 +28,27 @@ namespace won::math
 		return x * (1 - a) + y * a;
 	}
 
-	template <typename T>
-	constexpr T inverse_lerp(T value1, T value2, T pos)
-	{
-		return value2 == value1 ? T(0) : ((pos - value1) / (value2 - value1));
-	}
-
-	inline bool float_equal(float f1, float f2) {
+	inline bool FloatEqual(float f1, float f2) {
 		return (std::abs(f1 - f2) <= std::numeric_limits<float>::epsilon() * (std::max)(std::abs(f1), std::abs(f2)));
 	}
 
-	constexpr float saturate(float x)
+	constexpr float Saturate(float x)
 	{
-		return clamp(x, 0.f, 1.f);
+		return Clamp(x, 0.f, 1.f);
+	}
+
+	inline float Wrap(float value, float range)
+	{
+		if (range <= 0.f)
+		{
+			return 0.f;
+		}
+		value = std::fmod(value, range);
+		if (value < 0.f)
+		{
+			value += range;
+		}
+		return value;
 	}
 
 	inline float LengthSquared(const float2& v)
@@ -146,7 +154,7 @@ namespace won::math
 		XMVECTOR T = XMVector3Dot(Point - A, AB) / XMVector3Dot(AB, AB);
 		return A + XMVectorSaturate(T) * AB;
 	}
-	constexpr float3 getVectorHalfWayPoint(const float3& a, const float3& b)
+	constexpr float3 GetVectorHalfWayPoint(const float3& a, const float3& b)
 	{
 		return float3((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f, (a.z + b.z) * 0.5f);
 	}
@@ -156,7 +164,7 @@ namespace won::math
 	}
 	constexpr float InverseLerp(float value1, float value2, float pos)
 	{
-		return inverse_lerp(value1, value2, pos);
+		return value2 == value1 ? 0.0f : ((pos - value1) / (value2 - value1));
 	}
 	constexpr float2 InverseLerp(const float2& value1, const float2& value2, const float2& pos)
 	{
@@ -347,9 +355,9 @@ namespace won::math
 	inline XMVECTOR GetQuadraticBezierPos(const XMVECTOR& a, const XMVECTOR& b, const XMVECTOR& c, float t)
 	{
 		// XMVECTOR optimized version
-		const float param0 = sqr(1 - t);
+		const float param0 = Sqr(1 - t);
 		const float param1 = 2 * (1 - t) * t;
-		const float param2 = sqr(t);
+		const float param2 = Sqr(t);
 		const XMVECTOR param = XMVectorSet(param0, param1, param2, 1);
 		const XMMATRIX M = XMMATRIX(a, b, c, XMVectorSet(0, 0, 0, 1));
 		return XMVector3TransformNormal(param, M);
@@ -389,7 +397,7 @@ namespace won::math
 		// Consider the line extending the segment, parameterized as v + t (w - v).
 		// We find projection of point p onto the line. 
 		// It falls where t = [(p-v) . (w-v)] / |w-v|^2
-		// We clamp t from [0,1] to handle points outside the segment vw.
+		// We Clamp t from [0,1] to handle points outside the segment vw.
 		const float t = (std::max)(0.0f, (std::min)(1.0f, XMVectorGetX(XMVector3Dot(point - segmentA, segmentB - segmentA)) / l2));
 		const XMVECTOR projection = segmentA + t * (segmentB - segmentA);  // Projection falls on the segment
 		return Distance(point, projection);
@@ -449,53 +457,53 @@ namespace won::math
 		return XMLoadFloat3(&ret);
 	}
 
-	inline uint pack_half2(float x, float y)
+	inline uint PackHalf2(float x, float y)
 	{
 		return (uint)XMConvertFloatToHalf(x) | ((uint)XMConvertFloatToHalf(y) << 16u);
 	}
-	inline uint pack_half2(const float2& value)
+	inline uint PackHalf2(const float2& value)
 	{
-		return pack_half2(value.x, value.y);
+		return PackHalf2(value.x, value.y);
 	}
-	inline uint2 pack_half3(float x, float y, float z)
+	inline uint2 PackHalf3(float x, float y, float z)
 	{
 		return uint2(
 			(uint)XMConvertFloatToHalf(x) | ((uint)XMConvertFloatToHalf(y) << 16u),
 			(uint)XMConvertFloatToHalf(z)
 		);
 	}
-	inline uint2 pack_half3(const float3& value)
+	inline uint2 PackHalf3(const float3& value)
 	{
-		return pack_half3(value.x, value.y, value.z);
+		return PackHalf3(value.x, value.y, value.z);
 	}
-	inline uint2 pack_half4(float x, float y, float z, float w)
+	inline uint2 PackHalf4(float x, float y, float z, float w)
 	{
 		return uint2(
 			(uint)XMConvertFloatToHalf(x) | ((uint)XMConvertFloatToHalf(y) << 16u),
 			(uint)XMConvertFloatToHalf(z) | ((uint)XMConvertFloatToHalf(w) << 16u)
 		);
 	}
-	inline uint2 pack_half4(const float4& value)
+	inline uint2 PackHalf4(const float4& value)
 	{
-		return pack_half4(value.x, value.y, value.z, value.w);
+		return PackHalf4(value.x, value.y, value.z, value.w);
 	}
 
 
-	constexpr uint pack_unorm16x2(float x, float y)
+	constexpr uint PackUnorm16x2(float x, float y)
 	{
-		return uint(saturate(x) * 65535.0f) | (uint(saturate(y) * 65535.0f) << 16u);
+		return uint(Saturate(x) * 65535.0f) | (uint(Saturate(y) * 65535.0f) << 16u);
 	}
-	constexpr uint pack_unorm16x2(float2 value)
+	constexpr uint PackUnorm16x2(float2 value)
 	{
-		return pack_unorm16x2(value.x, value.y);
+		return PackUnorm16x2(value.x, value.y);
 	}
-	constexpr uint2 pack_unorm16x4(float x, float y, float z, float w)
+	constexpr uint2 PackUnorm16x4(float x, float y, float z, float w)
 	{
-		return uint2(pack_unorm16x2(x, y), pack_unorm16x2(z, w));
+		return uint2(PackUnorm16x2(x, y), PackUnorm16x2(z, w));
 	}
-	constexpr uint2 pack_unorm16x4(float4 value)
+	constexpr uint2 PackUnorm16x4(float4 value)
 	{
-		return pack_unorm16x4(value.x, value.y, value.z, value.w);
+		return PackUnorm16x4(value.x, value.y, value.z, value.w);
 	}
 
 

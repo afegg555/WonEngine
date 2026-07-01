@@ -48,6 +48,11 @@ namespace won::ecs
 
             XMStoreFloat4(&rotation, quat);
         }
+        void SetRotationEuler(float pitch, float yaw, float roll)
+        {
+            SetDirty();
+            XMStoreFloat4(&rotation, XMQuaternionNormalize(XMQuaternionRotationRollPitchYaw(pitch, yaw, roll)));
+        }
         void Scale(const float3& value)
         {
             SetDirty();

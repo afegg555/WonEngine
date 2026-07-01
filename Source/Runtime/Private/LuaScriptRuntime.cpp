@@ -4,6 +4,7 @@
 #include "EventHandler.h"
 #include "GameData.h"
 #include "Input.h"
+#include "ProjectSettings.h"
 #include "Scene.h"
 #include "SceneComponents.h"
 #include "Sound.h"
@@ -108,6 +109,7 @@ namespace won::script
     {
         game_data = desc.game_data;
         audio_mixer = desc.audio_mixer;
+        content_root = desc.content_root;
     }
 
     bool LuaScriptRuntime::Initialize()
@@ -408,6 +410,112 @@ namespace won::script
         lua_pushnumber(state, transform->position.y);
         lua_pushnumber(state, transform->position.z);
         return 3;
+    }
+
+    int LuaScriptRuntime::LuaTransformGetForward(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        ecs::TransformComponent* transform = runtime->current_context.scene->GetComponent<ecs::TransformComponent>(entity);
+        if (!transform)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        const float4& q = transform->rotation;
+        lua_pushnumber(state, 2.0f * (q.x * q.z + q.w * q.y));
+        lua_pushnumber(state, 2.0f * (q.y * q.z - q.w * q.x));
+        lua_pushnumber(state, 1.0f - 2.0f * (q.x * q.x + q.y * q.y));
+        return 3;
+    }
+
+    int LuaScriptRuntime::LuaTransformGetRotation(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        ecs::TransformComponent* transform = runtime->current_context.scene->GetComponent<ecs::TransformComponent>(entity);
+        if (!transform)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        lua_pushnumber(state, transform->rotation.x);
+        lua_pushnumber(state, transform->rotation.y);
+        lua_pushnumber(state, transform->rotation.z);
+        lua_pushnumber(state, transform->rotation.w);
+        return 4;
+    }
+
+    int LuaScriptRuntime::LuaTransformSetRotation(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const int arg_count = lua_gettop(state);
+        const bool has_entity_arg = arg_count >= 5 && lua_isinteger(state, 1);
+        const ecs::Entity entity = has_entity_arg ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        const int value_index = has_entity_arg ? 2 : 1;
+        ecs::TransformComponent* transform = runtime->current_context.scene->GetComponent<ecs::TransformComponent>(entity);
+        if (!transform)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        transform->rotation = float4(
+            static_cast<float>(luaL_checknumber(state, value_index)),
+            static_cast<float>(luaL_checknumber(state, value_index + 1)),
+            static_cast<float>(luaL_checknumber(state, value_index + 2)),
+            static_cast<float>(luaL_checknumber(state, value_index + 3)));
+        transform->SetDirty();
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaTransformSetEuler(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const int arg_count = lua_gettop(state);
+        const bool has_entity_arg = arg_count >= 4 && lua_isinteger(state, 1);
+        const ecs::Entity entity = has_entity_arg ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        const int value_index = has_entity_arg ? 2 : 1;
+        ecs::TransformComponent* transform = runtime->current_context.scene->GetComponent<ecs::TransformComponent>(entity);
+        if (!transform)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        transform->SetRotationEuler(
+            static_cast<float>(luaL_checknumber(state, value_index)),
+            static_cast<float>(luaL_checknumber(state, value_index + 1)),
+            static_cast<float>(luaL_checknumber(state, value_index + 2)));
+        lua_pushboolean(state, true);
+        return 1;
     }
 
     int LuaScriptRuntime::LuaTransformSetPosition(lua_State* state)
@@ -1173,6 +1281,214 @@ namespace won::script
         return 1;
     }
 
+    static void StartAnimationClip(ecs::AnimationComponent& animation, uint32 clip_index, float blend_duration)
+    {
+        if (clip_index >= animation.clips.size() || clip_index == animation.current_clip_index)
+        {
+            return;
+        }
+        if (blend_duration > 0.0f)
+        {
+            animation.prev_clip_index = animation.current_clip_index;
+            animation.prev_time = animation.time;
+            animation.blend_duration = blend_duration;
+            animation.blend_elapsed = 0.0f;
+            animation.blending = true;
+        }
+        else
+        {
+            animation.blending = false;
+        }
+        animation.current_clip_index = clip_index;
+        animation.time = 0.0f;
+        animation.playing = true;
+    }
+
+    ecs::AnimationComponent* LuaScriptRuntime::GetSelfAnimation(LuaScriptRuntime* runtime)
+    {
+        if (!runtime || !runtime->current_context.scene)
+        {
+            return nullptr;
+        }
+        return runtime->current_context.scene->GetComponent<ecs::AnimationComponent>(runtime->current_context.entity);
+    }
+
+    int LuaScriptRuntime::LuaAnimationHas(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        lua_pushboolean(state, runtime->current_context.scene->GetComponent<ecs::AnimationComponent>(entity) != nullptr);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAnimationAdd(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        lua_pushboolean(state, runtime->current_context.scene->AddComponent<ecs::AnimationComponent>(entity) != nullptr);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAnimationPlay(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        ecs::AnimationComponent* animation = GetSelfAnimation(runtime);
+        if (!animation)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+        const uint32 clip_index = static_cast<uint32>(luaL_checkinteger(state, 1));
+        const float blend = lua_gettop(state) >= 2 ? static_cast<float>(luaL_checknumber(state, 2)) : 0.0f;
+        StartAnimationClip(*animation, clip_index, blend);
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAnimationPlayByName(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        ecs::AnimationComponent* animation = GetSelfAnimation(runtime);
+        if (!animation)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+        const char* name = luaL_checkstring(state, 1);
+        const float blend = lua_gettop(state) >= 2 ? static_cast<float>(luaL_checknumber(state, 2)) : 0.0f;
+        for (Size i = 0; i < animation->clips.size(); ++i)
+        {
+            if (animation->clips[i] && animation->clips[i]->name == name)
+            {
+                StartAnimationClip(*animation, static_cast<uint32>(i), blend);
+                lua_pushboolean(state, true);
+                return 1;
+            }
+        }
+        lua_pushboolean(state, false);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAnimationCrossfade(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        ecs::AnimationComponent* animation = GetSelfAnimation(runtime);
+        if (!animation)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+        const uint32 clip_index = static_cast<uint32>(luaL_checkinteger(state, 1));
+        const float duration = static_cast<float>(luaL_checknumber(state, 2));
+        StartAnimationClip(*animation, clip_index, duration);
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAnimationSetSpeed(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        ecs::AnimationComponent* animation = GetSelfAnimation(runtime);
+        if (!animation)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+        animation->speed = static_cast<float>(luaL_checknumber(state, 1));
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAnimationSetLoop(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        ecs::AnimationComponent* animation = GetSelfAnimation(runtime);
+        if (!animation)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+        animation->loop = lua_toboolean(state, 1) != 0;
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAnimationPause(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        ecs::AnimationComponent* animation = GetSelfAnimation(runtime);
+        if (!animation)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+        animation->playing = false;
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAnimationResume(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        ecs::AnimationComponent* animation = GetSelfAnimation(runtime);
+        if (!animation)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+        animation->playing = true;
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAnimationIsPlaying(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        ecs::AnimationComponent* animation = GetSelfAnimation(runtime);
+        lua_pushboolean(state, animation && animation->playing);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAnimationGetClipCount(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        ecs::AnimationComponent* animation = GetSelfAnimation(runtime);
+        lua_pushinteger(state, animation ? static_cast<lua_Integer>(animation->clips.size()) : 0);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAnimationGetCurrentClip(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        ecs::AnimationComponent* animation = GetSelfAnimation(runtime);
+        lua_pushinteger(state, animation ? static_cast<lua_Integer>(animation->current_clip_index) : -1);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAnimationGetClipName(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        ecs::AnimationComponent* animation = GetSelfAnimation(runtime);
+        const uint32 clip_index = static_cast<uint32>(luaL_checkinteger(state, 1));
+        if (!animation || clip_index >= animation->clips.size() || !animation->clips[clip_index])
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+        lua_pushstring(state, animation->clips[clip_index]->name.c_str());
+        return 1;
+    }
+
     int LuaScriptRuntime::LuaColliderHas(lua_State* state)
     {
         LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
@@ -1569,10 +1885,11 @@ namespace won::script
         const char* path = luaL_checkstring(state, 1);
         const float volume = static_cast<float>(luaL_optnumber(state, 2, 1.0));
 
-        auto sound = resource::LoadSoundFile(path);
+        const String resolved_path = project::ResolveProjectContentPath(runtime->content_root, path);
+        auto sound = resource::LoadSoundFile(resolved_path);
         if (!sound || !sound->IsValid())
         {
-            won::backlog::Post(String("[Audio] play_oneshot: sound not found: ") + path, won::backlog::LogLevel::Warning);
+            won::backlog::Post(String("[Audio] play_oneshot: sound not found: ") + resolved_path, won::backlog::LogLevel::Warning);
             lua_pushinteger(state, static_cast<lua_Integer>(audio::invalid_voice_handle));
             return 1;
         }
@@ -1721,6 +2038,18 @@ namespace won::script
         lua_pushlightuserdata(lua_state, this);
         lua_pushcclosure(lua_state, LuaTransformRotateEuler, 1);
         lua_setfield(lua_state, -2, "rotate_euler");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaTransformGetForward, 1);
+        lua_setfield(lua_state, -2, "get_forward");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaTransformGetRotation, 1);
+        lua_setfield(lua_state, -2, "get_rotation");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaTransformSetRotation, 1);
+        lua_setfield(lua_state, -2, "set_rotation");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaTransformSetEuler, 1);
+        lua_setfield(lua_state, -2, "set_euler");
         lua_setfield(lua_state, -2, "transform");
 
         lua_newtable(lua_state);
@@ -1776,6 +2105,48 @@ namespace won::script
         lua_pushcclosure(lua_state, LuaParticleEmitter3DSetSpawnRate, 1);
         lua_setfield(lua_state, -2, "set_spawn_rate");
         lua_setfield(lua_state, -2, "particle_emitter_3d");
+
+        lua_newtable(lua_state);
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAnimationHas, 1);
+        lua_setfield(lua_state, -2, "has");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAnimationAdd, 1);
+        lua_setfield(lua_state, -2, "add");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAnimationPlay, 1);
+        lua_setfield(lua_state, -2, "play");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAnimationPlayByName, 1);
+        lua_setfield(lua_state, -2, "play_by_name");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAnimationCrossfade, 1);
+        lua_setfield(lua_state, -2, "crossfade");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAnimationSetSpeed, 1);
+        lua_setfield(lua_state, -2, "set_speed");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAnimationSetLoop, 1);
+        lua_setfield(lua_state, -2, "set_loop");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAnimationPause, 1);
+        lua_setfield(lua_state, -2, "pause");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAnimationResume, 1);
+        lua_setfield(lua_state, -2, "resume");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAnimationIsPlaying, 1);
+        lua_setfield(lua_state, -2, "is_playing");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAnimationGetClipCount, 1);
+        lua_setfield(lua_state, -2, "get_clip_count");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAnimationGetCurrentClip, 1);
+        lua_setfield(lua_state, -2, "get_current_clip");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAnimationGetClipName, 1);
+        lua_setfield(lua_state, -2, "get_clip_name");
+        lua_setfield(lua_state, -2, "animation");
 
         lua_newtable(lua_state);
         lua_pushcfunction(lua_state, LuaInputIsKeyDown);

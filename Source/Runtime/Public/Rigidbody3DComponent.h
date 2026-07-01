@@ -17,6 +17,7 @@ namespace won::ecs
             Empty = 0,
             Dirty = 1 << 0,
             Enabled = 1 << 1,
+            LockRotation = 1 << 2, // dynamic body may only rotate around world Y (upright character)
         };
 
         uint32 flags = Dirty | Enabled;

@@ -76,11 +76,11 @@ namespace won::ecs
                 const resource::MaterialSlot& material_slot = material->slots[i];
                 ShaderMaterial& shader_material = render_data.shader_materials[material->material_offset + i];
                 shader_material.Init();
-                shader_material.base_color = pack_half4(material_slot.base_color);
-                shader_material.emissive_color_metallic = pack_half4(0.f, 0.f, 0.f, material_slot.metallic);
-                shader_material.roughness_reflectance_refraction_padding = pack_half4(material_slot.roughness, material_slot.reflectance, 0.f, 0.f);
-                shader_material.anisotropy_sheenroughness_clearcoat_clearcoatroughness = pack_half4(material_slot.anisotropy, material_slot.sheen_roughness, material_slot.clearcoat, material_slot.clearcoat_roughness);
-                shader_material.sheencolor_padding = pack_half4(material_slot.sheen_color.x, material_slot.sheen_color.y, material_slot.sheen_color.z, 0.f);
+                shader_material.base_color = PackHalf4(material_slot.base_color);
+                shader_material.emissive_color_metallic = PackHalf4(0.f, 0.f, 0.f, material_slot.metallic);
+                shader_material.roughness_reflectance_refraction_padding = PackHalf4(material_slot.roughness, material_slot.reflectance, 0.f, 0.f);
+                shader_material.anisotropy_sheenroughness_clearcoat_clearcoatroughness = PackHalf4(material_slot.anisotropy, material_slot.sheen_roughness, material_slot.clearcoat, material_slot.clearcoat_roughness);
+                shader_material.sheencolor_padding = PackHalf4(material_slot.sheen_color.x, material_slot.sheen_color.y, material_slot.sheen_color.z, 0.f);
                 uint32 gpu_flags = SHADER_MATERIAL_FLAG_NONE;
                 if (material_slot.double_sided) { gpu_flags |= SHADER_MATERIAL_FLAG_DOUBLE_SIDED; }
                 if (material_slot.use_vertex_colors) { gpu_flags |= SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS; }

@@ -41,7 +41,7 @@ namespace won::rendering::utils
                 return;
             }
 
-            current_offset = math::align(current_offset, alignment);
+            current_offset = math::Align(current_offset, alignment);
             out_offset = current_offset;
             std::memcpy(packed_data.data() + out_offset, source.data(), data_size);
             current_offset += data_size;
@@ -847,14 +847,14 @@ namespace won::rendering::utils
         const Size bone_weights_size = has_skinning_stream ? mesh.bone_weights.size() * sizeof(float4) : 0;
         const Size indices_size = mesh.indices.size() * sizeof(uint32);
         Size total_size = 0;
-        total_size = math::align(total_size, static_cast<Size>(sizeof(float3))) + positions_size;
-        total_size = math::align(total_size, static_cast<Size>(sizeof(float4))) + colors_size;
-        total_size = math::align(total_size, static_cast<Size>(sizeof(float3))) + normals_size;
-        total_size = math::align(total_size, static_cast<Size>(sizeof(float4))) + tangents_size;
-        total_size = math::align(total_size, static_cast<Size>(sizeof(float2))) + texcoords_size;
-        total_size = math::align(total_size, static_cast<Size>(sizeof(uint4))) + bone_indices_size;
-        total_size = math::align(total_size, static_cast<Size>(sizeof(float4))) + bone_weights_size;
-        total_size = math::align(total_size, static_cast<Size>(sizeof(uint32))) + indices_size;
+        total_size = math::Align(total_size, static_cast<Size>(sizeof(float3))) + positions_size;
+        total_size = math::Align(total_size, static_cast<Size>(sizeof(float4))) + colors_size;
+        total_size = math::Align(total_size, static_cast<Size>(sizeof(float3))) + normals_size;
+        total_size = math::Align(total_size, static_cast<Size>(sizeof(float4))) + tangents_size;
+        total_size = math::Align(total_size, static_cast<Size>(sizeof(float2))) + texcoords_size;
+        total_size = math::Align(total_size, static_cast<Size>(sizeof(uint4))) + bone_indices_size;
+        total_size = math::Align(total_size, static_cast<Size>(sizeof(float4))) + bone_weights_size;
+        total_size = math::Align(total_size, static_cast<Size>(sizeof(uint32))) + indices_size;
         if (total_size == 0)
         {
             return false;

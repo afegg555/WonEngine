@@ -103,6 +103,7 @@ namespace won
         script::ScriptRuntimeDesc script_desc = {};
         script_desc.game_data = &game_data;
         script_desc.audio_mixer = audio_mixer.get();
+        script_desc.content_root = project::GetContentRoot(project_settings);
         script_runtime = script::CreateScriptRuntime(script_desc);
         if (script_runtime && !script_runtime->Initialize())
         {

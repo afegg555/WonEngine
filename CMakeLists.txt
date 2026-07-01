@@ -183,6 +183,7 @@ set(RUNTIME_RHI_DX12
 
 set(RUNTIME_RESOURCE
     Source/Runtime/Public/Animation.h
+    Source/Runtime/Private/Animation.cpp
     Source/Runtime/Public/Resource.h
     Source/Runtime/Public/ResourceExtension.h
     Source/Runtime/Public/ResourceAsset.h

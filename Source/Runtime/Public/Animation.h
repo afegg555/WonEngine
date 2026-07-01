@@ -58,4 +58,16 @@ namespace won::resource
             return duration > 0.0f && !channels.empty();
         }
     };
+
+	struct BonePose
+    {
+        // local transform of a bone at a specific time, we can't use float4x4 directly
+        // because we need to store position, rotation and scale separately for interpolation
+
+        float3 position = { 0.0f, 0.0f, 0.0f };
+        float4 rotation = { 0.0f, 0.0f, 0.0f, 1.0f };
+        float3 scale = { 1.0f, 1.0f, 1.0f };
+    };
+
+	void SampleAnimationPose(const AnimationClip& clip, float sample_time, const Skeleton& skeleton, Vector<BonePose>& out_pose); // not exported, only used internally
 }

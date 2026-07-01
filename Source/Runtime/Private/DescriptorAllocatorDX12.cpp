@@ -24,7 +24,7 @@ namespace won::rendering
 
         UINT AlignConstantBufferSize(UINT size)
         {
-            return won::math::align(size, static_cast<UINT>(256u));
+            return won::math::Align(size, static_cast<UINT>(256u));
         }
     }
 

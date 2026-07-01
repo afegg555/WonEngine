@@ -41,7 +41,7 @@ namespace won::ecs
             const float ridge = (noise::Ridged2D(sample_x, sample_z, desc) * 2.0f - 1.0f) * ridge_strength;
             float height = (base + ridge) / (1.0f + ridge_strength);
 
-            const float island_falloff = math::saturate(terrain.island_falloff);
+            const float island_falloff = math::Saturate(terrain.island_falloff);
             if (island_falloff > 0.0f)
             {
                 const float nx = terrain.world_size_x > 0.0f ? (x / (terrain.world_size_x * 0.5f)) : 0.0f;
@@ -52,7 +52,7 @@ namespace won::ecs
                 height = math::Lerp(height, island_height, island_falloff);
             }
 
-            return math::clamp(height, -1.0f, 1.0f);
+            return math::Clamp(height, -1.0f, 1.0f);
         }
     }
 

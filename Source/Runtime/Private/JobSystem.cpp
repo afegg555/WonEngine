@@ -39,7 +39,7 @@ namespace won::jobsystem
                 void* raw = alloca(sharedmemory_size + alignment);
 #endif
                 args.sharedmemory = reinterpret_cast<void*>(
-                    won::math::align(reinterpret_cast<uint64>(raw), static_cast<uint64>(alignment)));
+                    won::math::Align(reinterpret_cast<uint64>(raw), static_cast<uint64>(alignment)));
             }
             else
             {
@@ -202,7 +202,7 @@ namespace won::jobsystem
             return;
         }
 
-        max_thread_count = won::math::clamp(max_thread_count, 1u, static_cast<uint32>(arraysize(PriorityResources::mod_lut)));
+        max_thread_count = won::math::Clamp(max_thread_count, 1u, static_cast<uint32>(arraysize(PriorityResources::mod_lut)));
 
         won::utils::Timer timer;
 
@@ -231,7 +231,7 @@ namespace won::jobsystem
                 break;
             }
 
-            res.num_threads = won::math::clamp(res.num_threads, 1u, max_thread_count);
+            res.num_threads = won::math::Clamp(res.num_threads, 1u, max_thread_count);
             res.job_queue_per_thread.reset(new JobQueue[res.num_threads]);
             res.threads.reserve(res.num_threads);
 

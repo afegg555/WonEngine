@@ -223,7 +223,7 @@ namespace won::rendering
                 if (!frame_upload_buffer)
                 {
                     RHIBufferDesc frame_upload_buffer_desc = {};
-                    frame_upload_buffer_desc.size = math::align((Size)1024 * 20, alignment);
+                    frame_upload_buffer_desc.size = math::Align((Size)1024 * 20, alignment);
                     frame_upload_buffer_desc.usage = RHIResourceUsage::Upload;
                     frame_upload_buffer_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::VertexBuffer | RHIBindFlags::IndexBuffer;
                     frame_upload_buffer = device.CreateBuffer(frame_upload_buffer_desc);
@@ -239,13 +239,13 @@ namespace won::rendering
                 }
 
                 Size buffer_size = frame_upload_buffer->GetDesc().buffer_desc.size;
-                aligned_offset = math::align(frame_upload_offset, alignment);
+                aligned_offset = math::Align(frame_upload_offset, alignment);
                 Size required_size = aligned_offset + size;
 
                 if (buffer_size < required_size)
                 {
                     RHIBufferDesc new_desc = frame_upload_buffer->GetDesc().buffer_desc;
-                    new_desc.size = math::align(required_size * 2, alignment);
+                    new_desc.size = math::Align(required_size * 2, alignment);
                     RemoveResourceDeferred(frame_upload_buffer);
                     frame_upload_buffer = device.CreateBuffer(new_desc);
                     if (frame_upload_buffer)

@@ -13,6 +13,12 @@ namespace won::ecs
         bool loop = true;
         bool playing = true;
 
+        uint32 prev_clip_index = 0;
+        float prev_time = 0.0f;
+        float blend_duration = 0.0f;
+        float blend_elapsed = 0.0f;
+        bool blending = false;
+
         Vector<float4x4> bone_matrices;
         uint32 bone_matrix_offset = 0;
         bool bone_matrices_dirty = true;
