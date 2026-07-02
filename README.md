@@ -72,6 +72,8 @@ Linux and console-oriented platforms are planned but not currently supported.
 
 - [Documentation](Docs/Documentation.md)
 - [Features](Docs/Features.md)
+- [Release Notes](Docs/ReleaseNotes.md)
+- [Versioning](Docs/Versioning.md)
 
 ## Engine Architecture
 
