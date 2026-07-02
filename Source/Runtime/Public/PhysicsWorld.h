@@ -54,7 +54,7 @@ namespace won::physics
         void Step(float delta_time);
         void Clear();
 
-        void AddBody(won::ecs::Entity entity, const won::ecs::TransformComponent& transform, won::ecs::Collider3DComponent& collider, won::ecs::Rigidbody3DComponent* rb);
+        void AddBody(won::ecs::Entity entity, const won::ecs::TransformComponent& transform, won::ecs::Collider3DComponent& collider, won::ecs::Rigidbody3DComponent* rb, uint32_t collision_layer = 0);
         void RemoveBody(won::ecs::Entity entity);
         bool HasBody(won::ecs::Entity entity) const;
 
@@ -65,6 +65,8 @@ namespace won::physics
         void GetBodyTransform(won::ecs::Entity entity, float3& out_position, float4& out_rotation) const;
         void GetBodyVelocity(won::ecs::Entity entity, float3& out_linear, float3& out_angular) const;
 
+        void SetBodyCollisionLayer(won::ecs::Entity entity, uint32_t collision_layer);
+
         const Vector<Collider3DTriggerEvent>& GetTriggerEvents() const;
 
     private:
@@ -73,4 +75,8 @@ namespace won::physics
 
     WONENGINE_API void Initialize();
     WONENGINE_API void Shutdown();
+
+    WONENGINE_API void ResetCollisionMatrix();
+    WONENGINE_API void SetLayerCollision(uint32_t layer_a, uint32_t layer_b, bool enabled);
+    WONENGINE_API bool GetLayerCollision(uint32_t layer_a, uint32_t layer_b);
 }

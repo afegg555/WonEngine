@@ -78,7 +78,8 @@ namespace won::ecs
             component_manager.RegisterComponent<Rigidbody3DComponent>();
             component_manager.RegisterComponent<AudioSourceComponent>();
             component_manager.RegisterComponent<AudioListenerComponent>();
-            component_manager.RegisterComponent<LayerComponent>();
+            component_manager.RegisterComponent<VisibilityLayerComponent>();
+            component_manager.RegisterComponent<CollisionLayerComponent>();
             component_manager.RegisterComponent<TerrainComponent>();
             component_manager.RegisterComponent<ParticleEmitter3DComponent>();
             component_manager.RegisterComponent<DecalComponent>();
@@ -702,7 +703,7 @@ namespace won::ecs
                     }
 
                     const Entity entity = scene_bvh_entities[primitive.user_data];
-                    const LayerComponent* layer = GetComponent<LayerComponent>(entity);
+                    const VisibilityLayerComponent* layer = GetComponent<VisibilityLayerComponent>(entity);
                     if ((layer_mask & (layer ? layer->layer_mask : 0xFFFFFFFF)) == 0)
                     {
                         return false;
@@ -864,7 +865,7 @@ namespace won::ecs
                     continue;
                 }
                 const Entity collider_entity = collider_3d_array->index_to_entity[i];
-                const LayerComponent* layer = GetComponent<LayerComponent>(collider_entity);
+                const VisibilityLayerComponent* layer = GetComponent<VisibilityLayerComponent>(collider_entity);
                 if ((layer_mask & (layer ? layer->layer_mask : 0xFFFFFFFF)) == 0)
                 {
                     continue;

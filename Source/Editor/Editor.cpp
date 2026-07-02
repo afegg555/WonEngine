@@ -4186,6 +4186,18 @@ namespace won::editor
 							collider_3d_comp->radius = (std::max)(0.0f, collider_3d_comp->radius);
 							collider_3d_comp->SetDirty();
 						}
+
+						if (ImGui::InputFloat(editor_text::friction, &collider_3d_comp->friction))
+						{
+							collider_3d_comp->friction = (std::max)(0.0f, collider_3d_comp->friction);
+							collider_3d_comp->SetDirty();
+						}
+
+						if (ImGui::InputFloat(editor_text::restitution, &collider_3d_comp->restitution))
+						{
+							collider_3d_comp->restitution = (std::max)(0.0f, (std::min)(1.0f, collider_3d_comp->restitution));
+							collider_3d_comp->SetDirty();
+						}
 					}
 					else
 					{
@@ -4225,18 +4237,6 @@ namespace won::editor
 						if (ImGui::InputFloat(editor_text::mass, &rigidbody_3d_comp->mass))
 						{
 							rigidbody_3d_comp->mass = (std::max)(0.001f, rigidbody_3d_comp->mass);
-							rigidbody_3d_comp->SetDirty();
-						}
-
-						if (ImGui::InputFloat(editor_text::friction, &rigidbody_3d_comp->friction))
-						{
-							rigidbody_3d_comp->friction = (std::max)(0.0f, rigidbody_3d_comp->friction);
-							rigidbody_3d_comp->SetDirty();
-						}
-
-						if (ImGui::InputFloat(editor_text::restitution, &rigidbody_3d_comp->restitution))
-						{
-							rigidbody_3d_comp->restitution = (std::max)(0.0f, (std::min)(1.0f, rigidbody_3d_comp->restitution));
 							rigidbody_3d_comp->SetDirty();
 						}
 

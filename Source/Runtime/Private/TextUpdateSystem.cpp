@@ -31,7 +31,7 @@ namespace won::ecs
         const auto text_3d_array = scene.GetComponentArray<Text3DComponent>().get();
         const auto transform_array = scene.GetComponentArray<TransformComponent>().get();
         const auto material_array = scene.GetComponentArray<MaterialComponent>().get();
-        const auto layer_array = scene.GetComponentArray<LayerComponent>().get();
+        const auto layer_array = scene.GetComponentArray<VisibilityLayerComponent>().get();
         if (!material_array)
         {
             return;

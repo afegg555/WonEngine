@@ -23,8 +23,6 @@ namespace won::ecs
         uint32 flags = Dirty | Enabled;
         MotionType motion_type = MotionType::Dynamic;
         float mass = 1.0f;
-        float friction = 0.2f;
-        float restitution = 0.0f;
         float gravity_factor = 1.0f;
 
         float3 linear_velocity = {};
