@@ -114,10 +114,7 @@ namespace won::ecs
                     renderable.shader_type = static_cast<uint32>(material_slot.material_type);
                     renderable.blend_mode = material_slot.blend_mode;
                     renderable.flags = Scene::RenderData::Renderable::None;
-                    if (layer_array && layer_array->HasData(entity))
-                    {
-                        renderable.layer_mask = layer_array->GetData(entity).layer_mask;
-                    }
+                    renderable.layer_mask = (layer_array && layer_array->HasData(entity)) ? layer_array->GetData(entity).layer_mask : 0xFFFFFFFF;
                     if (geometry_comp.IsCastShadow())
                     {
                         renderable.flags |= Scene::RenderData::Renderable::CastShadow;
