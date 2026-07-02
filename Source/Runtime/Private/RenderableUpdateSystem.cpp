@@ -25,7 +25,7 @@ namespace won::ecs
         const auto material_array = scene.GetComponentArray<MaterialComponent>().get();
         const auto transform_array = scene.GetComponentArray<TransformComponent>().get();
         const auto animation_array = scene.GetComponentArray<AnimationComponent>().get();
-        const auto layer_array = scene.GetComponentArray<LayerComponent>().get();
+        const auto layer_array = scene.GetComponentArray<VisibilityLayerComponent>().get();
 
         render_data.shader_instances.resize(transform_array->GetSize());
 

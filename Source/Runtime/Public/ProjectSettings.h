@@ -51,6 +51,7 @@ namespace won::project
         uint32 physics_max_contact_constraints = physics::default_max_contact_constraints;
         float  physics_hz                      = physics::default_physics_hz;
         int    physics_max_steps_per_frame     = physics::default_max_steps_per_frame;
+        String physics_collision_disabled_pairs;
     };
 
     inline physics::PhysicsWorldDesc GetPhysicsDesc(const ProjectSettings& settings)
@@ -62,6 +63,28 @@ namespace won::project
         desc.max_contact_constraints = settings.physics_max_contact_constraints;
         desc.physics_hz = settings.physics_hz;
         desc.max_steps_per_frame = settings.physics_max_steps_per_frame;
+
+        physics::ResetCollisionMatrix();
+        const String& disabled_pairs = settings.physics_collision_disabled_pairs;
+        Size pair_start = 0;
+        while (pair_start < disabled_pairs.size())
+        {
+            const Size comma = disabled_pairs.find(',', pair_start);
+            const String token = comma == String::npos ? disabled_pairs.substr(pair_start) : disabled_pairs.substr(pair_start, comma - pair_start);
+            const Size dash = token.find('-');
+            if (dash != String::npos)
+            {
+                const int layer_a = std::atoi(token.substr(0, dash).c_str());
+                const int layer_b = std::atoi(token.substr(dash + 1).c_str());
+                physics::SetLayerCollision(static_cast<uint32_t>(layer_a), static_cast<uint32_t>(layer_b), false);
+            }
+            if (comma == String::npos)
+            {
+                break;
+            }
+            pair_start = comma + 1;
+        }
+
         return desc;
     }
 
@@ -254,6 +277,8 @@ namespace won::project
             settings.physics_hz = float_value;
         if (configuration.GetInt("physics_max_steps_per_frame", int_value))
             settings.physics_max_steps_per_frame = int_value;
+        if (const char* string_value = configuration.GetString("physics_collision_disabled_pairs"))
+            settings.physics_collision_disabled_pairs = string_value;
 
         out_settings = settings;
         return settings.version == project_settings_version;
@@ -312,6 +337,7 @@ namespace won::project
         configuration.SetInt("physics_max_contact_constraints", static_cast<int>(settings.physics_max_contact_constraints));
         configuration.SetFloat("physics_hz",                   settings.physics_hz);
         configuration.SetInt("physics_max_steps_per_frame",    settings.physics_max_steps_per_frame);
+        configuration.SetString("physics_collision_disabled_pairs", settings.physics_collision_disabled_pairs.c_str());
 
         return configuration.SaveToFile(path.c_str());
     }

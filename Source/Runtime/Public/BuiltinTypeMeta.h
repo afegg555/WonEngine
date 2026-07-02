@@ -231,14 +231,14 @@ namespace won::reflection
         WON_REFLECT_FIELD(offset, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(half_extent, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(radius, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(friction, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(restitution, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::Rigidbody3DComponent, "Rigidbody3DComponent")
         WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(motion_type, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(mass, won::FieldFlagEditable | won::FieldFlagSerializable)
-        WON_REFLECT_FIELD(friction, won::FieldFlagEditable | won::FieldFlagSerializable)
-        WON_REFLECT_FIELD(restitution, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(gravity_factor, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(linear_velocity, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(angular_velocity, won::FieldFlagEditable | won::FieldFlagSerializable)
@@ -257,8 +257,12 @@ namespace won::reflection
         WON_REFLECT_FIELD(enabled, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
-    WON_REFLECT_STRUCT(won::ecs::LayerComponent, "LayerComponent")
+    WON_REFLECT_STRUCT(won::ecs::VisibilityLayerComponent, "VisibilityLayerComponent")
         WON_REFLECT_FIELD(layer_mask, won::FieldFlagEditable | won::FieldFlagSerializable)
+    WON_REFLECT_STRUCT_END()
+
+    WON_REFLECT_STRUCT(won::ecs::CollisionLayerComponent, "CollisionLayerComponent")
+        WON_REFLECT_FIELD(layer, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::TerrainComponent, "TerrainComponent")

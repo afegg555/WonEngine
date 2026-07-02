@@ -27,6 +27,8 @@ namespace won::ecs
         float3 offset = {};
         float3 half_extent = { 0.5f, 0.5f, 0.5f };
         float radius = 0.5f;
+        float friction = 0.2f;
+        float restitution = 0.0f;
         math::AABB world_bounds = { XMFLOAT3(FLT_MAX, FLT_MAX, FLT_MAX), XMFLOAT3(-FLT_MAX, -FLT_MAX, -FLT_MAX) };
         math::Sphere world_sphere = {};
 

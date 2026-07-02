@@ -12,6 +12,7 @@ namespace won::ecs
         auto collider_array = scene.GetComponentArray<Collider3DComponent>().get();
         auto transform_array = scene.GetComponentArray<TransformComponent>().get();
         auto rigidbody_array = scene.GetComponentArray<Rigidbody3DComponent>().get();
+        auto collision_layer_array = scene.GetComponentArray<CollisionLayerComponent>().get();
         auto hierarchy_array = scene.GetComponentArray<HierarchyComponent>().get();
 
         physics::PhysicsWorld* physics_world = scene.GetPhysicsWorld();
@@ -28,18 +29,20 @@ namespace won::ecs
             TransformComponent& transform = transform_array->GetData(entity);
             Collider3DComponent& collider = collider_array->data[args.job_index];
             Rigidbody3DComponent* rb = (rigidbody_array && rigidbody_array->HasData(entity)) ? &rigidbody_array->GetData(entity) : nullptr;
+            const uint32_t collision_layer = (collision_layer_array && collision_layer_array->HasData(entity)) ? collision_layer_array->GetData(entity).layer : 0;
 
             if (!physics_world->HasBody(entity))
             {
-                physics_world->AddBody(entity, transform, collider, rb);
+                physics_world->AddBody(entity, transform, collider, rb, collision_layer);
             }
             else if (collider.IsDirty() || (rb && rb->IsDirty()))
             {
                 physics_world->RemoveBody(entity);
-                physics_world->AddBody(entity, transform, collider, rb);
+                physics_world->AddBody(entity, transform, collider, rb, collision_layer);
             }
             else
             {
+				physics_world->SetBodyCollisionLayer(entity, collision_layer);
 				physics_world->SyncTransformToPhysics(entity, transform, collider); // sync kinematic / static body transform
             }
         });

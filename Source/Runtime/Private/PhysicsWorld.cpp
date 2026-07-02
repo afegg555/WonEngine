@@ -23,6 +23,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <array>
 
 using namespace DirectX;
 
@@ -57,6 +58,48 @@ namespace won::physics
         }
         JPH::UnregisterTypes();
         is_initialized = false;
+    }
+
+    namespace
+    {
+        std::array<uint32_t, 32> collision_matrix = {
+            0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu,
+            0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu,
+            0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu,
+            0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu
+        };
+    }
+
+    void ResetCollisionMatrix()
+    {
+        collision_matrix.fill(0xFFFFFFFFu);
+    }
+
+    void SetLayerCollision(uint32_t layer_a, uint32_t layer_b, bool enabled)
+    {
+        if (layer_a >= 32 || layer_b >= 32)
+        {
+            return;
+        }
+        if (enabled)
+        {
+            collision_matrix[layer_a] |= (1u << layer_b);
+            collision_matrix[layer_b] |= (1u << layer_a);
+        }
+        else
+        {
+            collision_matrix[layer_a] &= ~(1u << layer_b);
+            collision_matrix[layer_b] &= ~(1u << layer_a);
+        }
+    }
+
+    bool GetLayerCollision(uint32_t layer_a, uint32_t layer_b)
+    {
+        if (layer_a >= 32 || layer_b >= 32)
+        {
+            return false;
+        }
+        return (collision_matrix[layer_a] & (1u << layer_b)) != 0;
     }
 
     namespace Detail
@@ -189,6 +232,17 @@ namespace won::physics
                 {
                     active_pairs.erase(it);
                 }
+            }
+
+            JPH::ValidateResult OnContactValidate(const JPH::Body& inBody1, const JPH::Body& inBody2, JPH::RVec3Arg inBaseOffset, const JPH::CollideShapeResult& inCollisionResult) override
+            {
+                const uint32_t layer1 = static_cast<uint32_t>(inBody1.GetUserData());
+                const uint32_t layer2 = static_cast<uint32_t>(inBody2.GetUserData());
+                if (!won::physics::GetLayerCollision(layer1, layer2))
+                {
+                    return JPH::ValidateResult::RejectAllContactsForThisBodyPair;
+                }
+                return JPH::ValidateResult::AcceptAllContactsForThisBodyPair;
             }
         };
     }
@@ -356,7 +410,7 @@ namespace won::physics
         impl->active_trigger_pairs = std::move(current_pairs);
     }
 
-    void PhysicsWorld::AddBody(won::ecs::Entity entity, const won::ecs::TransformComponent& transform, won::ecs::Collider3DComponent& collider, won::ecs::Rigidbody3DComponent* rb)
+    void PhysicsWorld::AddBody(won::ecs::Entity entity, const won::ecs::TransformComponent& transform, won::ecs::Collider3DComponent& collider, won::ecs::Rigidbody3DComponent* rb, uint32_t collision_layer)
     {
         XMMATRIX world = transform.GetWorldTransform();
         XMVECTOR world_scale_vec, world_rot_vec, world_pos_vec;
@@ -411,11 +465,13 @@ namespace won::physics
             object_layer
         );
 
+        settings.mFriction = collider.friction;
+        settings.mRestitution = collider.restitution;
+        settings.mUserData = static_cast<JPH::uint64>(collision_layer);
+
         if (rb)
         {
             settings.mGravityFactor = rb->gravity_factor;
-            settings.mFriction = rb->friction;
-            settings.mRestitution = rb->restitution;
             settings.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateInertia;
             settings.mMassPropertiesOverride.mMass = (std::max)(0.001f, rb->mass);
             if ((rb->flags & won::ecs::Rigidbody3DComponent::LockRotation) != 0)
@@ -557,6 +613,19 @@ namespace won::physics
         JPH::Vec3 ang = impl->physics_system->GetBodyInterface().GetAngularVelocity(body_id);
         out_linear = { lin.GetX(), lin.GetY(), lin.GetZ() };
         out_angular = { ang.GetX(), ang.GetY(), ang.GetZ() };
+    }
+
+    void PhysicsWorld::SetBodyCollisionLayer(won::ecs::Entity entity, uint32_t collision_layer)
+    {
+        JPH::BodyID body_id;
+        {
+            std::shared_lock lock(impl->bodies_mutex);
+            auto it = impl->entity_to_body.find(entity);
+            if (it == impl->entity_to_body.end())
+                return;
+            body_id = it->second;
+        }
+        impl->physics_system->GetBodyInterface().SetUserData(body_id, static_cast<JPH::uint64>(collision_layer));
     }
 
     const Vector<Collider3DTriggerEvent>& PhysicsWorld::GetTriggerEvents() const

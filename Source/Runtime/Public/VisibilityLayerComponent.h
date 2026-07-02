@@ -3,7 +3,7 @@
 
 namespace won::ecs
 {
-    struct LayerComponent
+    struct VisibilityLayerComponent
     {
         uint32 layer_mask = 0xFFFFFFFF;
     };
