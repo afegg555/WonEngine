@@ -67,6 +67,10 @@ namespace won::physics
 
         void SetBodyCollisionLayer(won::ecs::Entity entity, uint32_t collision_layer);
 
+        void AddForce(won::ecs::Entity entity, const float3& force);
+        void AddImpulse(won::ecs::Entity entity, const float3& impulse);
+        void AddTorque(won::ecs::Entity entity, const float3& torque);
+
         const Vector<Collider3DTriggerEvent>& GetTriggerEvents() const;
 
     private:
