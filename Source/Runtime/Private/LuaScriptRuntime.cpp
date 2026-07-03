@@ -1741,6 +1741,162 @@ namespace won::script
         return 1;
     }
 
+    int LuaScriptRuntime::LuaPhysicsAddForce(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const int arg_count = lua_gettop(state);
+        const bool has_entity_arg = arg_count >= 4 && lua_isinteger(state, 1);
+        const ecs::Entity entity = has_entity_arg ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        const int value_index = has_entity_arg ? 2 : 1;
+        physics::PhysicsWorld* physics_world = runtime->current_context.scene->GetPhysicsWorld();
+        if (!physics_world)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const float3 force = {
+            static_cast<float>(luaL_checknumber(state, value_index)),
+            static_cast<float>(luaL_checknumber(state, value_index + 1)),
+            static_cast<float>(luaL_checknumber(state, value_index + 2))
+        };
+        physics_world->AddForce(entity, force);
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaPhysicsAddImpulse(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const int arg_count = lua_gettop(state);
+        const bool has_entity_arg = arg_count >= 4 && lua_isinteger(state, 1);
+        const ecs::Entity entity = has_entity_arg ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        const int value_index = has_entity_arg ? 2 : 1;
+        physics::PhysicsWorld* physics_world = runtime->current_context.scene->GetPhysicsWorld();
+        if (!physics_world)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const float3 impulse = {
+            static_cast<float>(luaL_checknumber(state, value_index)),
+            static_cast<float>(luaL_checknumber(state, value_index + 1)),
+            static_cast<float>(luaL_checknumber(state, value_index + 2))
+        };
+        physics_world->AddImpulse(entity, impulse);
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaPhysicsAddTorque(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const int arg_count = lua_gettop(state);
+        const bool has_entity_arg = arg_count >= 4 && lua_isinteger(state, 1);
+        const ecs::Entity entity = has_entity_arg ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        const int value_index = has_entity_arg ? 2 : 1;
+        physics::PhysicsWorld* physics_world = runtime->current_context.scene->GetPhysicsWorld();
+        if (!physics_world)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const float3 torque = {
+            static_cast<float>(luaL_checknumber(state, value_index)),
+            static_cast<float>(luaL_checknumber(state, value_index + 1)),
+            static_cast<float>(luaL_checknumber(state, value_index + 2))
+        };
+        physics_world->AddTorque(entity, torque);
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaPhysicsRaycast(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        math::Ray ray;
+        ray.origin = {
+            static_cast<float>(luaL_checknumber(state, 1)),
+            static_cast<float>(luaL_checknumber(state, 2)),
+            static_cast<float>(luaL_checknumber(state, 3))
+        };
+        ray.direction = {
+            static_cast<float>(luaL_checknumber(state, 4)),
+            static_cast<float>(luaL_checknumber(state, 5)),
+            static_cast<float>(luaL_checknumber(state, 6))
+        };
+        const float max_distance = lua_gettop(state) >= 7 ? static_cast<float>(luaL_checknumber(state, 7)) : 1000.0f;
+
+        ecs::RayCastHit hit;
+        if (!runtime->current_context.scene->RayCastCollider3D(ray, hit, max_distance))
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        lua_newtable(state);
+        lua_pushinteger(state, static_cast<lua_Integer>(hit.entity));
+        lua_setfield(state, -2, "entity");
+        lua_pushnumber(state, hit.distance);
+        lua_setfield(state, -2, "distance");
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaPhysicsOverlapSphere(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        math::Sphere sphere;
+        sphere.center = {
+            static_cast<float>(luaL_checknumber(state, 1)),
+            static_cast<float>(luaL_checknumber(state, 2)),
+            static_cast<float>(luaL_checknumber(state, 3))
+        };
+        sphere.radius = static_cast<float>(luaL_checknumber(state, 4));
+
+        Vector<ecs::OverlapHit> hits;
+        runtime->current_context.scene->OverlapCollider3D(sphere, hits);
+
+        lua_newtable(state);
+        for (Size i = 0; i < hits.size(); ++i)
+        {
+            lua_pushinteger(state, static_cast<lua_Integer>(hits[i].entity));
+            lua_rawseti(state, -2, static_cast<lua_Integer>(i + 1));
+        }
+        return 1;
+    }
+
     int LuaScriptRuntime::LuaAudioSourceHas(lua_State* state)
     {
         LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
@@ -2214,6 +2370,24 @@ namespace won::script
         lua_pushcclosure(lua_state, LuaRigidbodySetAngularVelocity, 1);
         lua_setfield(lua_state, -2, "set_angular_velocity");
         lua_setfield(lua_state, -2, "rigidbody");
+
+        lua_newtable(lua_state);
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaPhysicsAddForce, 1);
+        lua_setfield(lua_state, -2, "add_force");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaPhysicsAddImpulse, 1);
+        lua_setfield(lua_state, -2, "add_impulse");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaPhysicsAddTorque, 1);
+        lua_setfield(lua_state, -2, "add_torque");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaPhysicsRaycast, 1);
+        lua_setfield(lua_state, -2, "raycast");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaPhysicsOverlapSphere, 1);
+        lua_setfield(lua_state, -2, "overlap_sphere");
+        lua_setfield(lua_state, -2, "physics");
 
         lua_newtable(lua_state);
         lua_pushlightuserdata(lua_state, this);

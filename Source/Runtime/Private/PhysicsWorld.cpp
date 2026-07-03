@@ -628,6 +628,45 @@ namespace won::physics
         impl->physics_system->GetBodyInterface().SetUserData(body_id, static_cast<JPH::uint64>(collision_layer));
     }
 
+    void PhysicsWorld::AddForce(won::ecs::Entity entity, const float3& force)
+    {
+        JPH::BodyID body_id;
+        {
+            std::shared_lock lock(impl->bodies_mutex);
+            auto it = impl->entity_to_body.find(entity);
+            if (it == impl->entity_to_body.end())
+                return;
+            body_id = it->second;
+        }
+        impl->physics_system->GetBodyInterface().AddForce(body_id, JPH::Vec3(force.x, force.y, force.z));
+    }
+
+    void PhysicsWorld::AddImpulse(won::ecs::Entity entity, const float3& impulse)
+    {
+        JPH::BodyID body_id;
+        {
+            std::shared_lock lock(impl->bodies_mutex);
+            auto it = impl->entity_to_body.find(entity);
+            if (it == impl->entity_to_body.end())
+                return;
+            body_id = it->second;
+        }
+        impl->physics_system->GetBodyInterface().AddImpulse(body_id, JPH::Vec3(impulse.x, impulse.y, impulse.z));
+    }
+
+    void PhysicsWorld::AddTorque(won::ecs::Entity entity, const float3& torque)
+    {
+        JPH::BodyID body_id;
+        {
+            std::shared_lock lock(impl->bodies_mutex);
+            auto it = impl->entity_to_body.find(entity);
+            if (it == impl->entity_to_body.end())
+                return;
+            body_id = it->second;
+        }
+        impl->physics_system->GetBodyInterface().AddTorque(body_id, JPH::Vec3(torque.x, torque.y, torque.z));
+    }
+
     const Vector<Collider3DTriggerEvent>& PhysicsWorld::GetTriggerEvents() const
     {
         return impl->trigger_events;

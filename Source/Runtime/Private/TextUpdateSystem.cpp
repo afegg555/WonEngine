@@ -282,10 +282,7 @@ namespace won::ecs
                     {
                         renderable.flags |= Scene::RenderData::Sprite3DRenderable::Billboard;
                     }
-                    if (layer_array && layer_array->HasData(entity))
-                    {
-                        renderable.layer_mask = layer_array->GetData(entity).layer_mask;
-                    }
+                    renderable.layer_mask = (layer_array && layer_array->HasData(entity)) ? layer_array->GetData(entity).layer_mask : 0xFFFFFFFF;
                     bucket.sprite_3d_renderables.push_back(renderable);
                 }
             }

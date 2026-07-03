@@ -120,6 +120,12 @@ namespace won::script
         static int LuaRigidbodyGetAngularVelocity(lua_State* state);
         static int LuaRigidbodySetAngularVelocity(lua_State* state);
 
+        static int LuaPhysicsAddForce(lua_State* state);
+        static int LuaPhysicsAddImpulse(lua_State* state);
+        static int LuaPhysicsAddTorque(lua_State* state);
+        static int LuaPhysicsRaycast(lua_State* state);
+        static int LuaPhysicsOverlapSphere(lua_State* state);
+
         static int LuaAudioSourceHas(lua_State* state);
         static int LuaAudioSourceAdd(lua_State* state);
         static int LuaAudioSourcePlay(lua_State* state);
