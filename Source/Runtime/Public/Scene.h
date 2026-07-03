@@ -67,6 +67,8 @@ namespace won::ecs
             component_manager.RegisterComponent<Sprite3DComponent>();
             component_manager.RegisterComponent<Text2DComponent>();
             component_manager.RegisterComponent<Text3DComponent>();
+            component_manager.RegisterComponent<Canvas2DComponent>();
+            component_manager.RegisterComponent<RectTransform2DComponent>();
             component_manager.RegisterComponent<CameraComponent>();
             component_manager.RegisterComponent<LightComponent>();
             component_manager.RegisterComponent<EnvironmentComponent>();
@@ -1090,6 +1092,7 @@ namespace won::ecs
                 float2 position = { 0.0f, 0.0f };
                 float2 size = { 1.0f, 1.0f };
                 float2 pivot = { 0.5f, 0.5f };
+                float2 reference_resolution = { 0.0f, 0.0f };
                 float4 uv_rect = { 0.0f, 0.0f, 1.0f, 1.0f };
                 int32  layer = 0;
                 uint32 flags = None;

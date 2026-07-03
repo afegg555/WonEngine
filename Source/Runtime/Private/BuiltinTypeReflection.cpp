@@ -37,6 +37,8 @@ namespace won::reflection
         RegisterType(TypeMeta<resource::MaterialType>::Get());
         RegisterType(TypeMeta<resource::MaterialBlendMode>::Get());
         RegisterType(TypeMeta<ecs::Collider3DComponent::ShapeType>::Get());
+        RegisterType(TypeMeta<ecs::UIScaleMode>::Get());
+        RegisterType(TypeMeta<ecs::Canvas2DComponent::RenderMode>::Get());
         RegisterType(TypeMeta<ecs::Rigidbody3DComponent::MotionType>::Get());
 
         RegisterType(TypeMeta<ecs::NameComponent>::Get());
@@ -49,6 +51,8 @@ namespace won::reflection
         RegisterType(TypeMeta<ecs::DDGIVolumeComponent>::Get());
         RegisterType(TypeMeta<ecs::GeometryComponent>::Get());
         RegisterType(TypeMeta<ecs::Sprite2DComponent>::Get());
+        RegisterType(TypeMeta<ecs::Canvas2DComponent>::Get());
+        RegisterType(TypeMeta<ecs::RectTransform2DComponent>::Get());
         RegisterType(TypeMeta<ecs::Sprite3DComponent>::Get());
         RegisterType(TypeMeta<ecs::Text2DComponent>::Get());
         RegisterType(TypeMeta<ecs::Text3DComponent>::Get());

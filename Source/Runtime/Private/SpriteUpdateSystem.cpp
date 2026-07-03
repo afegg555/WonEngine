@@ -23,6 +23,7 @@ namespace won::ecs
         const auto transform_array = scene.GetComponentArray<TransformComponent>().get();
         const auto material_array = scene.GetComponentArray<MaterialComponent>().get();
         const auto layer_array = scene.GetComponentArray<VisibilityLayerComponent>().get();
+        const auto rect_transform_array = scene.GetComponentArray<RectTransform2DComponent>().get();
 
         render_data.sprite_2d_renderables.clear();
         render_data.sprite_3d_renderables.clear();
@@ -53,12 +54,19 @@ namespace won::ecs
                     return;
                 }
 
+                if (!rect_transform_array || !rect_transform_array->HasData(entity))
+                {
+                    return;
+                }
+                const RectTransform2DComponent& rect = rect_transform_array->GetData(entity);
+
                 Scene::RenderData::Sprite2DRenderable renderable = {};
                 renderable.material_index = material.material->material_offset;
-                renderable.anchor = sprite.anchor;
-                renderable.position = sprite.position;
-                renderable.size = sprite.size;
-                renderable.pivot = sprite.pivot;
+                renderable.anchor = { 0.0f, 0.0f };
+                renderable.position = rect.resolved_position;
+                renderable.size = rect.resolved_size;
+                renderable.pivot = { 0.0f, 0.0f };
+                renderable.reference_resolution = rect.reference_resolution;
                 renderable.uv_rect = sprite.uv_rect;
                 renderable.layer = sprite.layer;
                 bucket.sprite_2d_renderables.push_back(renderable);

@@ -4387,34 +4387,6 @@ namespace won::editor
 
 					if (!remove_component)
 					{
-						float anchor[2] = { sprite_2d_comp->anchor.x, sprite_2d_comp->anchor.y };
-						if (ImGui::InputFloat2(editor_text::anchor, anchor))
-						{
-							sprite_2d_comp->anchor = { anchor[0], anchor[1] };
-							sprite_2d_comp->SetDirty();
-						}
-
-						float position[2] = { sprite_2d_comp->position.x, sprite_2d_comp->position.y };
-						if (ImGui::InputFloat2(editor_text::position, position))
-						{
-							sprite_2d_comp->position = { position[0], position[1] };
-							sprite_2d_comp->SetDirty();
-						}
-
-						float size[2] = { sprite_2d_comp->size.x, sprite_2d_comp->size.y };
-						if (ImGui::InputFloat2(editor_text::size, size))
-						{
-							sprite_2d_comp->size = { size[0], size[1] };
-							sprite_2d_comp->SetDirty();
-						}
-
-						float pivot[2] = { sprite_2d_comp->pivot.x, sprite_2d_comp->pivot.y };
-						if (ImGui::InputFloat2(editor_text::pivot, pivot))
-						{
-							sprite_2d_comp->pivot = { pivot[0], pivot[1] };
-							sprite_2d_comp->SetDirty();
-						}
-
 						float uv_rect[4] = { sprite_2d_comp->uv_rect.x, sprite_2d_comp->uv_rect.y, sprite_2d_comp->uv_rect.z, sprite_2d_comp->uv_rect.w };
 						if (ImGui::InputFloat4(editor_text::uv_rect, uv_rect))
 						{
@@ -4458,31 +4430,10 @@ namespace won::editor
 							text_2d_comp->SetDirty();
 						}
 
-						float anchor[2] = { text_2d_comp->anchor.x, text_2d_comp->anchor.y };
-						if (ImGui::InputFloat2(editor_text::anchor, anchor))
-						{
-							text_2d_comp->anchor = { anchor[0], anchor[1] };
-							text_2d_comp->SetDirty();
-						}
-
-						float position[2] = { text_2d_comp->position.x, text_2d_comp->position.y };
-						if (ImGui::InputFloat2(editor_text::position, position))
-						{
-							text_2d_comp->position = { position[0], position[1] };
-							text_2d_comp->SetDirty();
-						}
-
 						int pixel_height = static_cast<int>(text_2d_comp->pixel_height);
 						if (ImGui::InputInt(editor_text::pixel_height, &pixel_height))
 						{
 							text_2d_comp->pixel_height = static_cast<uint32>((std::max)(1, pixel_height));
-							text_2d_comp->SetDirty();
-						}
-
-						float pivot[2] = { text_2d_comp->pivot.x, text_2d_comp->pivot.y };
-						if (ImGui::InputFloat2(editor_text::pivot, pivot))
-						{
-							text_2d_comp->pivot = { pivot[0], pivot[1] };
 							text_2d_comp->SetDirty();
 						}
 

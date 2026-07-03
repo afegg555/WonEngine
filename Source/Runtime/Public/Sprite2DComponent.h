@@ -13,11 +13,6 @@ namespace won::ecs
         };
 
         uint32 flags = Dirty;
-
-        float2 anchor = { 0.0f, 0.0f }; // [0..1]
-        float2 position = { 0.0f, 0.0f }; // pixel unit
-        float2 size = { 100.0f, 100.0f }; // pixel unit
-        float2 pivot = { 0.5f, 0.5f };
         float4 uv_rect = { 0.0f, 0.0f, 1.0f, 1.0f };
         int32 layer = 0;
 

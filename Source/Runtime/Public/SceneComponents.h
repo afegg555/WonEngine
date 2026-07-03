@@ -25,6 +25,8 @@
 #include "TerrainComponent.h"
 #include "ParticleEmitter3DComponent.h"
 #include "DecalComponent.h"
+#include "Canvas2DComponent.h"
+#include "RectTransform2DComponent.h"
 
 namespace won::ecs
 {

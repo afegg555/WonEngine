@@ -17,10 +17,7 @@ namespace won::ecs
         std::shared_ptr<resource::Font> font;
         String font_asset_path;
         String text;
-        float2 anchor = { 0.0f, 0.0f }; // [0..1]
-        float2 position = { 0.0f, 0.0f };  // pixel unit
         uint32 pixel_height = 32; // pixel unit
-        float2 pivot = { 0.5f, 0.5f };
         int32 layer = 0;
 
         void SetDirty(bool value = true) { if (value) { flags |= Dirty; } else { flags &= ~Dirty; } }

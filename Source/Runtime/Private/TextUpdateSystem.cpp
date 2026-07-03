@@ -32,6 +32,7 @@ namespace won::ecs
         const auto transform_array = scene.GetComponentArray<TransformComponent>().get();
         const auto material_array = scene.GetComponentArray<MaterialComponent>().get();
         const auto layer_array = scene.GetComponentArray<VisibilityLayerComponent>().get();
+        const auto rect_transform_array = scene.GetComponentArray<RectTransform2DComponent>().get();
         if (!material_array)
         {
             return;
@@ -113,6 +114,16 @@ namespace won::ecs
                 return;
             }
 
+            if (!rect_transform_array || !rect_transform_array->HasData(entity))
+            {
+                return;
+            }
+            const RectTransform2DComponent& rect = rect_transform_array->GetData(entity);
+            const float2 text_anchor_point = {
+                rect.resolved_position.x + rect.pivot.x * rect.resolved_size.x,
+                rect.resolved_position.y + rect.pivot.y * rect.resolved_size.y
+            };
+
             const float font_metric_height = static_cast<float>(text.font->ascent - text.font->descent);
             const float font_metric_scale = font_metric_height > 0.0f ? static_cast<float>(text.pixel_height) / font_metric_height : 1.0f;
             const float line_advance = static_cast<float>(text.font->ascent - text.font->descent + text.font->line_gap) * font_metric_scale;
@@ -131,7 +142,7 @@ namespace won::ecs
                 visible_max_y = (std::max)(visible_max_y, glyph_top_y + glyph->size.y);
             }
             const float text_visible_height = visible_max_y > visible_min_y ? visible_max_y - visible_min_y : 0.0f;
-            const float pivot_y_offset = text_visible_height > 0.0f ? -(visible_min_y + text_visible_height * text.pivot.y) : 0.0f;
+            const float pivot_y_offset = text_visible_height > 0.0f ? -(visible_min_y + text_visible_height * rect.pivot.y) : 0.0f;
             for (const GlyphLayout& layout : glyph_layouts)
             {
                 const resource::Font::Glyph* glyph = layout.glyph;
@@ -140,7 +151,7 @@ namespace won::ecs
                     continue;
                 }
 
-                const float line_x = -line_widths[layout.line_index] * text.pivot.x;
+                const float line_x = -line_widths[layout.line_index] * rect.pivot.x;
                 const float glyph_visual_x = line_x + layout.pen_x + glyph->offset.x;
                 const float baseline_y = pivot_y_offset + line_advance * static_cast<float>(layout.line_index);
                 const float glyph_top_y = baseline_y + glyph->offset.y;
@@ -148,10 +159,11 @@ namespace won::ecs
                 renderable.flags |= Scene::RenderData::Sprite2DRenderable::Text;
                 renderable.material_index = material_array->GetData(entity).material->material_offset;
                 renderable.font = text.font;
-                renderable.anchor = text.anchor;
-                renderable.position = { text.position.x + glyph_visual_x, text.position.y + glyph_top_y };
+                renderable.anchor = { 0.0f, 0.0f };
+                renderable.position = { text_anchor_point.x + glyph_visual_x, text_anchor_point.y + glyph_top_y };
                 renderable.size = glyph->size;
                 renderable.pivot = { 0.0f, 0.0f };
+                renderable.reference_resolution = rect.reference_resolution;
                 renderable.uv_rect = { glyph->uv_min.x, glyph->uv_min.y, glyph->uv_max.x, glyph->uv_max.y };
                 renderable.layer = text.layer;
                 bucket.sprite_2d_renderables.push_back(renderable);
