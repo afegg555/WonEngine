@@ -236,6 +236,7 @@ namespace won
         if (window)
         {
             window->Show();
+            window->BringToForeground();
         }
     }
 

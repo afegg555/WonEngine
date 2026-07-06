@@ -13,6 +13,7 @@ namespace won::platform
         void* GetNativeHandle() const override;
         void Show() override;
         void Hide() override;
+        void BringToForeground() override;
         void SetTitle(const char* title) override;
         void Resize(int width, int height) override;
         void SetPosition(int x, int y) override;
