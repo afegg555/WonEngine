@@ -6,6 +6,7 @@
 #include "Input.h"
 #include "ProjectSettings.h"
 #include "Scene.h"
+#include "View.h"
 #include "SceneComponents.h"
 #include "Sound.h"
 
@@ -1899,6 +1900,119 @@ namespace won::script
         return 1;
     }
 
+    int LuaScriptRuntime::LuaInputMousePosition(lua_State* state)
+    {
+        const io::MouseState& mouse = io::GetMouseState();
+        lua_pushnumber(state, mouse.position.x);
+        lua_pushnumber(state, mouse.position.y);
+        return 2;
+    }
+
+    int LuaScriptRuntime::LuaInputMouseDelta(lua_State* state)
+    {
+        const io::MouseState& mouse = io::GetMouseState();
+        lua_pushnumber(state, mouse.delta_position.x);
+        lua_pushnumber(state, mouse.delta_position.y);
+        return 2;
+    }
+
+    int LuaScriptRuntime::LuaInputMouseWheel(lua_State* state)
+    {
+        lua_pushnumber(state, io::GetMouseState().delta_wheel);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaInputMouseButton(lua_State* state)
+    {
+        const int button = static_cast<int>(luaL_checkinteger(state, 1));
+        const io::MouseState& mouse = io::GetMouseState();
+        bool pressed = false;
+        if (button == 0)
+        {
+            pressed = mouse.left_button_press;
+        }
+        else if (button == 1)
+        {
+            pressed = mouse.right_button_press;
+        }
+        else if (button == 2)
+        {
+            pressed = mouse.middle_button_press;
+        }
+        lua_pushboolean(state, pressed);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaCameraScreenToRay(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->view_resolver)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        const float2 point = { static_cast<float>(luaL_checknumber(state, 1)), static_cast<float>(luaL_checknumber(state, 2)) };
+        rendering::View* view = runtime->view_resolver(point);
+        if (!view)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        math::Ray ray = {};
+        if (!view->ScreenToRay(point, ray))
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        lua_newtable(state);
+        lua_newtable(state);
+        lua_pushnumber(state, ray.origin.x); lua_setfield(state, -2, "x");
+        lua_pushnumber(state, ray.origin.y); lua_setfield(state, -2, "y");
+        lua_pushnumber(state, ray.origin.z); lua_setfield(state, -2, "z");
+        lua_setfield(state, -2, "origin");
+        lua_newtable(state);
+        lua_pushnumber(state, ray.direction.x); lua_setfield(state, -2, "x");
+        lua_pushnumber(state, ray.direction.y); lua_setfield(state, -2, "y");
+        lua_pushnumber(state, ray.direction.z); lua_setfield(state, -2, "z");
+        lua_setfield(state, -2, "direction");
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaCameraPick(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->view_resolver)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        const float2 point = { static_cast<float>(luaL_checknumber(state, 1)), static_cast<float>(luaL_checknumber(state, 2)) };
+        rendering::View* view = runtime->view_resolver(point);
+        if (!view)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        ecs::RayCastHit hit;
+        if (!view->RayCast(point, hit))
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        lua_newtable(state);
+        lua_pushinteger(state, static_cast<lua_Integer>(hit.entity));
+        lua_setfield(state, -2, "entity");
+        lua_pushnumber(state, hit.distance);
+        lua_setfield(state, -2, "distance");
+        return 1;
+    }
+
     int LuaScriptRuntime::LuaAudioSourceHas(lua_State* state)
     {
         LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
@@ -2323,7 +2437,24 @@ namespace won::script
         lua_setfield(lua_state, -2, "get_gamepad_axis");
         lua_pushcfunction(lua_state, LuaInputIsGamepadConnected);
         lua_setfield(lua_state, -2, "is_gamepad_connected");
+        lua_pushcfunction(lua_state, LuaInputMousePosition);
+        lua_setfield(lua_state, -2, "mouse_position");
+        lua_pushcfunction(lua_state, LuaInputMouseDelta);
+        lua_setfield(lua_state, -2, "mouse_delta");
+        lua_pushcfunction(lua_state, LuaInputMouseWheel);
+        lua_setfield(lua_state, -2, "mouse_wheel");
+        lua_pushcfunction(lua_state, LuaInputMouseButton);
+        lua_setfield(lua_state, -2, "mouse_button");
         lua_setfield(lua_state, -2, "input");
+
+        lua_newtable(lua_state);
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaCameraScreenToRay, 1);
+        lua_setfield(lua_state, -2, "screen_to_ray");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaCameraPick, 1);
+        lua_setfield(lua_state, -2, "pick");
+        lua_setfield(lua_state, -2, "camera");
 
         lua_newtable(lua_state);
         lua_pushlightuserdata(lua_state, this);

@@ -116,6 +116,23 @@ namespace won
             script_runtime.reset();
         }
 
+        if (script_runtime)
+        {
+            script_runtime->SetViewResolver([this](float2 point) -> rendering::View*
+            {
+                for (Size i = views.size(); i-- > 0; )
+                {
+                    const rendering::Rect& vp = views[i]->viewport;
+                    if (point.x >= vp.x && point.x < vp.x + vp.width &&
+                        point.y >= vp.y && point.y < vp.y + vp.height)
+                    {
+                        return views[i].get();
+                    }
+                }
+                return nullptr;
+            });
+        }
+
         if (!project_settings.input_action_map.empty())
         {
             const String content_root = project::GetContentRoot(project_settings);

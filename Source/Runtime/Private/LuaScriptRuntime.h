@@ -49,7 +49,11 @@ namespace won::script
 
         bool Call(ScriptInstanceHandle handle, const ScriptCallDesc& desc, String& out_error) override;
 
+        void SetViewResolver(std::function<rendering::View*(float2)> resolver) override { view_resolver = resolver; }
+
     private:
+        std::function<rendering::View*(float2)> view_resolver;
+
         static int LuaLogInfo(lua_State* state);
         static int LuaLogWarn(lua_State* state);
         static int LuaLogError(lua_State* state);
@@ -125,6 +129,13 @@ namespace won::script
         static int LuaPhysicsAddTorque(lua_State* state);
         static int LuaPhysicsRaycast(lua_State* state);
         static int LuaPhysicsOverlapSphere(lua_State* state);
+
+        static int LuaInputMousePosition(lua_State* state);
+        static int LuaInputMouseDelta(lua_State* state);
+        static int LuaInputMouseWheel(lua_State* state);
+        static int LuaInputMouseButton(lua_State* state);
+        static int LuaCameraScreenToRay(lua_State* state);
+        static int LuaCameraPick(lua_State* state);
 
         static int LuaAudioSourceHas(lua_State* state);
         static int LuaAudioSourceAdd(lua_State* state);

@@ -109,9 +109,9 @@ namespace won::rendering
         }
     }
 
-    bool View::RayCast(float2 screen_position, ecs::RayCastHit& out_hit, bool use_local_bvh, uint32 layer_mask) const
+    bool View::ScreenToRay(float2 screen_position, math::Ray& out_ray) const
     {
-        out_hit = {};
+        out_ray = {};
         if (!scene || viewport.width <= 0 || viewport.height <= 0)
         {
             return false;
@@ -141,16 +141,26 @@ namespace won::rendering
         const XMVECTOR near_position = XMVector3TransformCoord(XMVectorSet(ndc_x, ndc_y, 1.0f, 1.0f), inv_view_projection);
         const XMVECTOR far_position = XMVector3TransformCoord(XMVectorSet(ndc_x, ndc_y, 0.0f, 1.0f), inv_view_projection);
 
-        math::Ray ray = {};
         if (camera->IsOrtho())
         {
-            XMStoreFloat3(&ray.origin, near_position);
-            XMStoreFloat3(&ray.direction, XMVector3Normalize(far_position - near_position));
+            XMStoreFloat3(&out_ray.origin, near_position);
+            XMStoreFloat3(&out_ray.direction, XMVector3Normalize(far_position - near_position));
         }
         else
         {
-            ray.origin = camera->eye;
-            XMStoreFloat3(&ray.direction, XMVector3Normalize(far_position - XMLoadFloat3(&camera->eye)));
+            out_ray.origin = camera->eye;
+            XMStoreFloat3(&out_ray.direction, XMVector3Normalize(far_position - XMLoadFloat3(&camera->eye)));
+        }
+        return true;
+    }
+
+    bool View::RayCast(float2 screen_position, ecs::RayCastHit& out_hit, bool use_local_bvh, uint32 layer_mask) const
+    {
+        out_hit = {};
+        math::Ray ray = {};
+        if (!ScreenToRay(screen_position, ray))
+        {
+            return false;
         }
 
         ecs::RayCastBVHHit bvh_hit = {};
