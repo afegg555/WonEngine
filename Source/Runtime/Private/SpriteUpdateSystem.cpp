@@ -69,6 +69,7 @@ namespace won::ecs
                 renderable.reference_resolution = rect.reference_resolution;
                 renderable.uv_rect = sprite.uv_rect;
                 renderable.layer = sprite.layer;
+                renderable.layer_mask = rect.layer_mask;
                 bucket.sprite_2d_renderables.push_back(renderable);
                 sprite.SetDirty(false);
             });

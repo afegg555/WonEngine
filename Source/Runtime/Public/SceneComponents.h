@@ -27,6 +27,7 @@
 #include "DecalComponent.h"
 #include "Canvas2DComponent.h"
 #include "RectTransform2DComponent.h"
+#include "ButtonComponent.h"
 
 namespace won::ecs
 {
@@ -65,7 +66,11 @@ namespace won::ecs
         Layer,
         Terrain,
         ParticleEmitter3D,
-        Decal
+        Decal,
+        Button,
+        Canvas2D,
+        RectTransform2D,
+        CollisionLayer
     };
 
     constexpr ComponentMask ComponentMaskFromBit(SceneComponentBit bit)
@@ -98,4 +103,8 @@ namespace won::ecs
     inline constexpr ComponentMask terrain_component_mask = ComponentMaskFromBit(SceneComponentBit::Terrain);
     inline constexpr ComponentMask particle_emitter_3d_component_mask = ComponentMaskFromBit(SceneComponentBit::ParticleEmitter3D);
     inline constexpr ComponentMask decal_component_mask = ComponentMaskFromBit(SceneComponentBit::Decal);
+    inline constexpr ComponentMask button_component_mask = ComponentMaskFromBit(SceneComponentBit::Button);
+    inline constexpr ComponentMask canvas_2d_component_mask = ComponentMaskFromBit(SceneComponentBit::Canvas2D);
+    inline constexpr ComponentMask rect_transform_2d_component_mask = ComponentMaskFromBit(SceneComponentBit::RectTransform2D);
+    inline constexpr ComponentMask collision_layer_component_mask = ComponentMaskFromBit(SceneComponentBit::CollisionLayer);
 }

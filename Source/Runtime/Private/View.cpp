@@ -1,5 +1,6 @@
 #include "View.h"
 #include "CameraComponent.h"
+#include "Input.h"
 #include "MathUtils.h"
 #include "JobSystem.h"
 #include "Primitives.h"
@@ -8,12 +9,99 @@
 
 namespace won::rendering
 {
-    void View::Update(float dt)
+    bool View::HasPointerFocus() const
     {
-        if (scene)
+        const float2 p = io::GetMouseState().position;
+        return p.x >= viewport.x && p.x < viewport.x + viewport.width &&
+               p.y >= viewport.y && p.y < viewport.y + viewport.height;
+    }
+
+    ecs::Entity View::HitTestUI(float2 pointer) const
+    {
+        const float2 vp = { static_cast<float>(viewport.width), static_cast<float>(viewport.height) };
+        const float2 local = { pointer.x - viewport.x, pointer.y - viewport.y };
+        auto buttons = scene->GetComponentArray<ecs::ButtonComponent>().get();
+        auto rects = scene->GetComponentArray<ecs::RectTransform2DComponent>().get();
+        auto sprites = scene->GetComponentArray<ecs::Sprite2DComponent>().get();
+        auto texts = scene->GetComponentArray<ecs::Text2DComponent>().get();
+        auto materials = scene->GetComponentArray<ecs::MaterialComponent>().get();
+        if (!buttons || !rects)
         {
-            scene->Update(dt);
-            BuildSortedIndices();
+            return ecs::INVALID_ENTITY;
+        }
+
+        ecs::Entity best = ecs::INVALID_ENTITY;
+        int32 best_layer = 0;
+        // TODO: needs job system parallelization if the number of buttons is large
+		for (Size i = 0; i < buttons->GetSize(); ++i)
+        {
+            if (!buttons->data[i].enabled)
+            {
+                continue;
+            }
+            const ecs::Entity e = buttons->index_to_entity[i];
+            if (!rects->HasData(e))
+            {
+                continue;
+            }
+            const ecs::RectTransform2DComponent& rect = rects->GetData(e);
+            if ((rect.layer_mask & ui_layer_mask) == 0)
+            {
+                continue;
+            }
+
+            const bool has_sprite = sprites && sprites->HasData(e);
+            const bool has_text = texts && texts->HasData(e);
+            if (!has_sprite && !has_text)
+            {
+                continue;
+            }
+            if (!materials || !materials->HasData(e) || materials->GetData(e).GetMaterialSlotCount() == 0)
+            {
+                continue;
+            }
+
+            const float2 scale = (rect.reference_resolution.x > 0.0f && rect.reference_resolution.y > 0.0f)
+                ? float2{ vp.x / rect.reference_resolution.x, vp.y / rect.reference_resolution.y }
+                : float2{ 1.0f, 1.0f };
+            const float2 mn = { rect.resolved_position.x * scale.x, rect.resolved_position.y * scale.y };
+            const float2 sz = { rect.resolved_size.x * scale.x, rect.resolved_size.y * scale.y };
+            if (local.x < mn.x || local.x > mn.x + sz.x || local.y < mn.y || local.y > mn.y + sz.y)
+            {
+                continue;
+            }
+
+            const int32 layer = has_sprite ? sprites->GetData(e).layer : texts->GetData(e).layer;
+            if (best == ecs::INVALID_ENTITY || layer >= best_layer)
+            {
+                best = e;
+                best_layer = layer;
+            }
+        }
+        return best;
+    }
+
+    void View::UpdateUIInteraction()
+    {
+        if (!scene || !HasPointerFocus())
+        {
+            ui_hovered = ecs::INVALID_ENTITY;
+            ui_press_target = ecs::INVALID_ENTITY;
+            return;
+        }
+        const float2 pointer = io::GetMouseState().position;
+        ui_hovered = HitTestUI(pointer);
+        if (io::IsPressed(io::MOUSE_BUTTON_LEFT))
+        {
+            ui_press_target = ui_hovered;
+        }
+        if (io::IsReleased(io::MOUSE_BUTTON_LEFT))
+        {
+            if (ui_hovered != ecs::INVALID_ENTITY && ui_hovered == ui_press_target)
+            {
+                scene->QueueUIClick(ui_hovered);
+            }
+            ui_press_target = ecs::INVALID_ENTITY;
         }
     }
 
@@ -161,27 +249,28 @@ namespace won::rendering
         jobsystem::Execute(ctx, [&](jobsystem::JobArgs)
         {
             const auto& renderables = render_data.sprite_2d_renderables;
-            if (!options.enable_viewport_culling)
+            const float vp_w = static_cast<float>(viewport.width);
+            const float vp_h = static_cast<float>(viewport.height);
+            sorted_sprite_2d_indices.clear();
+            for (uint32 i = 0; i < static_cast<uint32>(renderables.size()); ++i)
             {
-                sorted_sprite_2d_indices.resize(renderables.size());
-                std::iota(sorted_sprite_2d_indices.begin(), sorted_sprite_2d_indices.end(), 0u);
-            }
-            else
-            {
-                const float vp_w = static_cast<float>(viewport.width);
-                const float vp_h = static_cast<float>(viewport.height);
-                sorted_sprite_2d_indices.clear();
-                for (uint32 i = 0; i < static_cast<uint32>(renderables.size()); ++i)
+                const auto& r = renderables[i];
+                if ((r.layer_mask & ui_layer_mask) == 0)
                 {
-                    const auto& r = renderables[i];
+                    continue;
+                }
+                if (options.enable_viewport_culling)
+                {
                     const float px = r.anchor.x * vp_w + r.position.x;
                     const float py = r.anchor.y * vp_h + r.position.y;
                     const float l = px - r.pivot.x * r.size.x;
                     const float t = py - r.pivot.y * r.size.y;
                     if (l > vp_w || l + r.size.x < 0.0f || t > vp_h || t + r.size.y < 0.0f)
+                    {
                         continue;
-                    sorted_sprite_2d_indices.push_back(i);
+                    }
                 }
+                sorted_sprite_2d_indices.push_back(i);
             }
             std::stable_sort(sorted_sprite_2d_indices.begin(), sorted_sprite_2d_indices.end(),
                 [&](uint32 a, uint32 b)

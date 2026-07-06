@@ -23,5 +23,6 @@ namespace won::ecs
         UIScaleMode scale_mode = UIScaleMode::ScaleWithScreenSize;
         float2 reference_resolution = { 1920.0f, 1080.0f };
         int32 sort_order = 0;
+        uint32 layer_mask = 0xFFFFFFFF;
     };
 }

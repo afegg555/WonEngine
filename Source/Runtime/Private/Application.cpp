@@ -342,13 +342,15 @@ namespace won
                 continue;
             }
 
-            if (scene->GetUpdateIndex() == update_index)
+            view.UpdateUIInteraction();
+
+            if (scene->GetUpdateIndex() != update_index)
             {
-                continue;
+                scene->Update(dt);
+                scene->SetUpdateIndex(update_index);
             }
 
-            view.Update(dt);
-            scene->SetUpdateIndex(update_index);
+            view.BuildSortedIndices();
         }
         profiler::EndRange(range);
     }

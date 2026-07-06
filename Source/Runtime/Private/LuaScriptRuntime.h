@@ -18,7 +18,7 @@ namespace won::ecs
 
 namespace won::script
 {
-    inline constexpr uint32 lua_script_builtin_function_count = static_cast<uint32>(ScriptCallType::OnTriggerExit3D) + 1u;
+    inline constexpr uint32 lua_script_builtin_function_count = static_cast<uint32>(ScriptCallType::OnClick) + 1u;
 
     struct LuaScriptModule
     {

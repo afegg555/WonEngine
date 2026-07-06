@@ -203,6 +203,7 @@ namespace won::reflection
         WON_REFLECT_FIELD(scale_mode, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(reference_resolution, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(sort_order, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(layer_mask, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::RectTransform2DComponent, "RectTransform2DComponent")
@@ -210,6 +211,10 @@ namespace won::reflection
         WON_REFLECT_FIELD(position, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(size, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(pivot, won::FieldFlagEditable | won::FieldFlagSerializable)
+    WON_REFLECT_STRUCT_END()
+
+    WON_REFLECT_STRUCT(won::ecs::ButtonComponent, "ButtonComponent")
+        WON_REFLECT_FIELD(enabled, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::Sprite3DComponent, "Sprite3DComponent")

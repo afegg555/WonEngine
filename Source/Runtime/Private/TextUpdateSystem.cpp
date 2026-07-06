@@ -166,6 +166,7 @@ namespace won::ecs
                 renderable.reference_resolution = rect.reference_resolution;
                 renderable.uv_rect = { glyph->uv_min.x, glyph->uv_min.y, glyph->uv_max.x, glyph->uv_max.y };
                 renderable.layer = text.layer;
+                renderable.layer_mask = rect.layer_mask;
                 bucket.sprite_2d_renderables.push_back(renderable);
             }
 

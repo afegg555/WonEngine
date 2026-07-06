@@ -22,6 +22,7 @@ namespace won::ecs
         float2 resolved_position = { 0.0f, 0.0f };
         float2 resolved_size = { 100.0f, 100.0f };
         float2 reference_resolution = { 0.0f, 0.0f };
+        uint32 layer_mask = 0xFFFFFFFF;
 
         void SetDirty(bool value = true) { if (value) { flags |= Dirty; } else { flags &= ~Dirty; } }
         bool IsDirty() const { return (flags & Dirty) != 0; }

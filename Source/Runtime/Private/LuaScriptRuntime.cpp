@@ -54,6 +54,8 @@ namespace won::script
                 return "OnTriggerStay3D";
             case ScriptCallType::OnTriggerExit3D:
                 return "OnTriggerExit3D";
+            case ScriptCallType::OnClick:
+                return "OnClick";
             default:
                 return "";
             }

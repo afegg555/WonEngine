@@ -53,6 +53,7 @@ namespace won::reflection
         RegisterType(TypeMeta<ecs::Sprite2DComponent>::Get());
         RegisterType(TypeMeta<ecs::Canvas2DComponent>::Get());
         RegisterType(TypeMeta<ecs::RectTransform2DComponent>::Get());
+        RegisterType(TypeMeta<ecs::ButtonComponent>::Get());
         RegisterType(TypeMeta<ecs::Sprite3DComponent>::Get());
         RegisterType(TypeMeta<ecs::Text2DComponent>::Get());
         RegisterType(TypeMeta<ecs::Text3DComponent>::Get());

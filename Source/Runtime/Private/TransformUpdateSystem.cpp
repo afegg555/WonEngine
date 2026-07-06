@@ -98,18 +98,21 @@ namespace won::ecs
                 float2 parent_position = { 0.0f, 0.0f };
                 float2 parent_size = { 1920.0f, 1080.0f };
                 float2 reference = { 0.0f, 0.0f };
+                uint32 layer_mask = 0xFFFFFFFF;
                 if (parent_id != INVALID_ENTITY && rect_array->HasData(parent_id))
                 {
                     const RectTransform2DComponent& parent_rect = rect_array->GetData(parent_id);
                     parent_position = parent_rect.resolved_position;
                     parent_size = parent_rect.resolved_size;
                     reference = parent_rect.reference_resolution;
+                    layer_mask = parent_rect.layer_mask;
                 }
                 else if (parent_id != INVALID_ENTITY && canvas_array && canvas_array->HasData(parent_id))
                 {
                     const Canvas2DComponent& canvas = canvas_array->GetData(parent_id);
                     parent_size = canvas.reference_resolution;
                     reference = (canvas.scale_mode == UIScaleMode::ScaleWithScreenSize) ? canvas.reference_resolution : float2{ 0.0f, 0.0f };
+                    layer_mask = canvas.layer_mask;
                 }
 
                 const float2 pivot_point = {
@@ -119,6 +122,7 @@ namespace won::ecs
                 rect.resolved_position = { pivot_point.x - rect.pivot.x * rect.size.x, pivot_point.y - rect.pivot.y * rect.size.y };
                 rect.resolved_size = rect.size;
                 rect.reference_resolution = reference;
+                rect.layer_mask = layer_mask;
                 rect.SetDirty(false);
             }
         }
