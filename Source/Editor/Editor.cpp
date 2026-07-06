@@ -303,6 +303,8 @@ namespace won::editor
 			constexpr const char* layer = "Layer";
 			constexpr const char* anchor_presets = "Anchor Presets";
 			constexpr const char* font_format = "Font: %s";
+			constexpr const char* font = "Font";
+			constexpr const char* material_asset = "Material Asset";
 			constexpr const char* pixel_height = "Pixel Height";
 			constexpr const char* height = "Height";
 			constexpr const char* clips_format = "Clips: %d";
@@ -1182,13 +1184,13 @@ namespace won::editor
 		//main_viewport_pos = { 0, 0 };
 		//main_viewport_size = { static_cast<float>(editor_viewport.view->viewport.width), static_cast<float>(editor_viewport.view->viewport.height) };
 		UpdateEntityList();
-		if (defer_main_window_show)
-		{
-			ShowMainWindow();
-		}
 		if (splash)
 		{
 			splash->Close();
+		}
+		if (defer_main_window_show)
+		{
+			ShowMainWindow();
 		}
 	}
 
@@ -1270,11 +1272,14 @@ namespace won::editor
 				continue;
 			}
 
+			FinishBackgroundTask(task->bg_task_id, task->failed.load());
+
 			if (!task->failed.load())
 			{
 				if (CommitAssetImportResult(*task))
 				{
 					entity_list_dirty = true;
+					RebuildContentBrowser();
 				}
 				else
 				{
@@ -1562,7 +1567,7 @@ namespace won::editor
 
 	}
 
-	uint64 EditorApplication::StartAssetImport(const String& path)
+	uint64 EditorApplication::StartAssetImport(const String& path, bool add_to_scene)
 	{
 		const String tool_path = io::CombinePath(io::GetExecutableDirectory(), "AssetImporterTool.exe");
 		if (path.empty() || !io::IsFile(tool_path))
@@ -1575,6 +1580,8 @@ namespace won::editor
 		auto task = std::make_shared<EditorAssetImporter::ImportTask>();
 		task->path = path;
 		task->id = ++import_task_counter;
+		task->add_to_scene = add_to_scene;
+		task->bg_task_id = AddBackgroundTask("Importing " + io::GetFilename(path));
 		task->context.priority = jobsystem::Priority::Streaming;
 		asset_importer.tasks.push_back(task);
 
@@ -1611,8 +1618,112 @@ namespace won::editor
 		return task->id;
 	}
 
+	uint64 EditorApplication::AddBackgroundTask(const String& name)
+	{
+		BackgroundTask t;
+		t.id = background_tasks.next_id++;
+		t.name = name;
+		t.state = BackgroundTask::State::Running;
+		background_tasks.tasks.push_back(t);
+		return t.id;
+	}
+
+	void EditorApplication::FinishBackgroundTask(uint64 id, bool failed)
+	{
+		for (BackgroundTask& t : background_tasks.tasks)
+		{
+			if (t.id == id)
+			{
+				t.state = failed ? BackgroundTask::State::Failed : BackgroundTask::State::Done;
+				t.finished_time = ImGui::GetTime();
+				return;
+			}
+		}
+	}
+
+	void EditorApplication::DrawBackgroundTaskStatus()
+	{
+		const double now = ImGui::GetTime();
+		background_tasks.tasks.erase(std::remove_if(background_tasks.tasks.begin(), background_tasks.tasks.end(),
+			[now](const BackgroundTask& t)
+			{
+				if (t.state == BackgroundTask::State::Done) return (now - t.finished_time) > 3.0;
+				if (t.state == BackgroundTask::State::Failed) return (now - t.finished_time) > 10.0;
+				return false;
+			}), background_tasks.tasks.end());
+
+		if (background_tasks.tasks.empty())
+		{
+			return;
+		}
+
+		const float pad = 12.0f;
+		float anchor_x = 0.0f;
+		float anchor_y = 0.0f;
+		if (editor_viewport.view && editor_viewport.view->viewport.width > 0 && editor_viewport.view->viewport.height > 0)
+		{
+			const rendering::Rect& vp = editor_viewport.view->viewport;
+			anchor_x = static_cast<float>(vp.x + vp.width) - pad;
+			anchor_y = static_cast<float>(vp.y + vp.height) - pad;
+		}
+		else
+		{
+			const ImGuiViewport* main_vp = ImGui::GetMainViewport();
+			anchor_x = main_vp->WorkPos.x + main_vp->WorkSize.x - pad;
+			anchor_y = main_vp->WorkPos.y + main_vp->WorkSize.y - pad;
+		}
+
+		ImGui::SetNextWindowPos(ImVec2(anchor_x, anchor_y), ImGuiCond_Always, ImVec2(1.0f, 1.0f));
+		ImGui::SetNextWindowBgAlpha(0.85f);
+		const ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_AlwaysAutoResize;
+		if (ImGui::Begin("##background_tasks", nullptr, flags))
+		{
+			for (const BackgroundTask& t : background_tasks.tasks)
+			{
+				if (t.state == BackgroundTask::State::Running)
+				{
+					const float sz = ImGui::GetTextLineHeight();
+					const ImVec2 cursor = ImGui::GetCursorScreenPos();
+					const ImVec2 center = ImVec2(cursor.x + sz * 0.5f, cursor.y + sz * 0.5f);
+					const float radius = sz * 0.35f;
+					ImDrawList* draw_list = ImGui::GetWindowDrawList();
+					const float start_angle = static_cast<float>(now) * 6.0f;
+					const int segment_count = 16;
+					draw_list->PathClear();
+					for (int i = 0; i <= segment_count * 3 / 4; ++i)
+					{
+						const float a = start_angle + (static_cast<float>(i) / static_cast<float>(segment_count)) * 6.2831853f;
+						draw_list->PathLineTo(ImVec2(center.x + cosf(a) * radius, center.y + sinf(a) * radius));
+					}
+					draw_list->PathStroke(ImGui::GetColorU32(ImGuiCol_Text), false, 2.0f);
+					ImGui::Dummy(ImVec2(sz, sz));
+					ImGui::SameLine();
+					ImGui::TextUnformatted(t.name.c_str());
+					if (t.progress >= 0.0f)
+					{
+						ImGui::SameLine();
+						ImGui::ProgressBar(t.progress, ImVec2(120.0f, 0.0f));
+					}
+				}
+				else if (t.state == BackgroundTask::State::Done)
+				{
+					ImGui::TextColored(ImVec4(0.40f, 0.85f, 0.40f, 1.0f), "done: %s", t.name.c_str());
+				}
+				else
+				{
+					ImGui::TextColored(ImVec4(0.90f, 0.35f, 0.35f, 1.0f), "failed: %s", t.name.c_str());
+				}
+			}
+		}
+		ImGui::End();
+	}
+
 	bool EditorApplication::CommitAssetImportResult(EditorAssetImporter::ImportTask& task)
 	{
+		if (!task.add_to_scene)
+		{
+			return true;
+		}
 		if (!editor_viewport.view || !editor_viewport.view->scene || !device)
 		{
 			return false;
@@ -2106,6 +2217,21 @@ namespace won::editor
 		camera->SetAspectRatio(static_cast<float>(width) / static_cast<float>(height));
 	}
 
+	enum class AssetImportKind
+	{
+		None,
+		Image,
+		Mesh,
+	};
+
+	static AssetImportKind GetAssetImportKind(const String& extension)
+	{
+		const String ext = won::utils::ToLower(extension);
+		if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "tga" || ext == "bmp") return AssetImportKind::Image;
+		if (ext == "fbx" || ext == "obj" || ext == "gltf" || ext == "glb" || ext == "stl") return AssetImportKind::Mesh;
+		return AssetImportKind::None;
+	}
+
 	void EditorApplication::RebuildContentBrowser()
 	{
 		content_browser.assets.clear();
@@ -2117,7 +2243,7 @@ namespace won::editor
 		{
 			const String ext = won::utils::ToLower(extension);
 			if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "tga" || ext == "bmp" || ext == resource::texture_binary_extension) return ContentAssetType::Texture;
-			if (ext == "mat") return ContentAssetType::Material;
+			if (ext == resource::material_binary_extension) return ContentAssetType::Material;
 			if (ext == "fbx" || ext == "obj" || ext == "gltf" || ext == "glb" || ext == "stl" || ext == resource::mesh_binary_extension) return ContentAssetType::Mesh;
 			if (ext == resource::scene_file_extension) return ContentAssetType::Scene;
 			if (ext == "hlsl" || ext == "hlsli") return ContentAssetType::Shader;
@@ -2268,7 +2394,9 @@ namespace won::editor
 
 		ImGui::PushID(asset.virtual_path.c_str());
 		ImGui::BeginGroup();
-		const bool can_import_asset = asset.type == ContentAssetType::Mesh;
+		const AssetImportKind import_kind = GetAssetImportKind(io::GetExtension(asset.disk_path));
+		const bool can_import_asset = import_kind != AssetImportKind::None;
+		const bool can_import_to_scene = import_kind == AssetImportKind::Mesh;
 		const bool can_load_scene = asset.type == ContentAssetType::Scene;
 		ImGui::Button(type_icon(asset.type), ImVec2(tile_size, tile_size));
 		if (ImGui::BeginDragDropSource())
@@ -2290,6 +2418,7 @@ namespace won::editor
 			content_browser.pending_import_virtual_path = asset.virtual_path;
 			content_browser.pending_import_disk_path = asset.disk_path;
 			content_browser.pending_import_type = asset.type;
+			content_browser.pending_import_add_to_scene = can_import_to_scene;
 			content_browser.open_import_confirm = true;
 		}
 		else if (can_load_scene && ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
@@ -2298,12 +2427,22 @@ namespace won::editor
 		}
 		if (ImGui::BeginPopupContextItem("ContentAssetContext"))
 		{
-			if (ImGui::MenuItem(editor_text::import_to_scene, nullptr, false, can_import_asset))
+			if (ImGui::MenuItem(editor_text::import, nullptr, false, can_import_asset))
 			{
 				content_browser.pending_import_name = asset.name;
 				content_browser.pending_import_virtual_path = asset.virtual_path;
 				content_browser.pending_import_disk_path = asset.disk_path;
 				content_browser.pending_import_type = asset.type;
+				content_browser.pending_import_add_to_scene = false;
+				content_browser.open_import_confirm = true;
+			}
+			if (ImGui::MenuItem(editor_text::import_to_scene, nullptr, false, can_import_to_scene))
+			{
+				content_browser.pending_import_name = asset.name;
+				content_browser.pending_import_virtual_path = asset.virtual_path;
+				content_browser.pending_import_disk_path = asset.disk_path;
+				content_browser.pending_import_type = asset.type;
+				content_browser.pending_import_add_to_scene = true;
 				content_browser.open_import_confirm = true;
 			}
 			if (ImGui::MenuItem(editor_text::load_scene, nullptr, false, can_load_scene))
@@ -2539,14 +2678,14 @@ namespace won::editor
 			ImGui::TextUnformatted(editor_text::import_content_asset_message);
 			ImGui::TextUnformatted(content_browser.pending_import_name.c_str());
 			ImGui::TextDisabled("%s", content_browser.pending_import_virtual_path.c_str());
-			const bool can_import = content_browser.pending_import_type == ContentAssetType::Mesh && !content_browser.pending_import_disk_path.empty();
+			const bool can_import = !content_browser.pending_import_disk_path.empty() && GetAssetImportKind(io::GetExtension(content_browser.pending_import_disk_path)) != AssetImportKind::None;
 			if (!can_import)
 			{
 				ImGui::BeginDisabled();
 			}
 			if (ImGui::Button(editor_text::import))
 			{
-				StartAssetImport(content_browser.pending_import_disk_path);
+				StartAssetImport(content_browser.pending_import_disk_path, content_browser.pending_import_add_to_scene);
 				content_browser.pending_import_name.clear();
 				content_browser.pending_import_virtual_path.clear();
 				content_browser.pending_import_disk_path.clear();
@@ -4518,7 +4657,44 @@ namespace won::editor
 
 					if (!remove_component)
 					{
-						ImGui::Text(editor_text::font_format, text_2d_comp->font && text_2d_comp->font->IsValid() ? editor_text::assigned : editor_text::none);
+						{
+							String asset_label = text_2d_comp->font_asset_path.empty() ? String(editor_text::none_placeholder) : text_2d_comp->font_asset_path;
+							ImGui::TextUnformatted(editor_text::font);
+							ImGui::SetNextItemWidth(-1.0f);
+							if (ImGui::BeginCombo("##font", asset_label.c_str()))
+							{
+								if (ImGui::Selectable(editor_text::none_placeholder, text_2d_comp->font_asset_path.empty()))
+								{
+									text_2d_comp->font_asset_path.clear();
+									text_2d_comp->font = nullptr;
+									text_2d_comp->SetDirty();
+								}
+								for (const ContentBrowserAsset& asset : content_browser.assets)
+								{
+									if (asset.type != ContentAssetType::Font)
+									{
+										continue;
+									}
+									const String asset_rel = io::GetRelativePath(contents_root_dir, asset.disk_path);
+									if (asset_rel.empty())
+									{
+										continue;
+									}
+									const bool asset_selected = asset_rel == text_2d_comp->font_asset_path;
+									if (ImGui::Selectable(asset.virtual_path.c_str(), asset_selected))
+									{
+										text_2d_comp->font_asset_path = asset_rel;
+										text_2d_comp->font = resource::LoadFontFile(asset.disk_path);
+										text_2d_comp->SetDirty();
+									}
+									if (asset_selected)
+									{
+										ImGui::SetItemDefaultFocus();
+									}
+								}
+							ImGui::EndCombo();
+							}
+						}
 
 						char text_buf[4096] = {};
 						strncpy_s(text_buf, text_2d_comp->text.c_str(), sizeof(text_buf) - 1);
@@ -4765,6 +4941,44 @@ namespace won::editor
 							selected_material_slot = 0;
 						}
 
+						{
+							String asset_label = material_comp->material_asset_path.empty() ? String(editor_text::none_placeholder) : material_comp->material_asset_path;
+							ImGui::TextUnformatted(editor_text::material_asset);
+							ImGui::SetNextItemWidth(-1.0f);
+							if (ImGui::BeginCombo("##material_asset", asset_label.c_str()))
+							{
+								if (ImGui::Selectable(editor_text::none_placeholder, material_comp->material_asset_path.empty()))
+								{
+									material_comp->SetMaterial(nullptr);
+									material_comp->SetMaterialAssetPath(String());
+									material_comp->SetDirty();
+								}
+								for (const ContentBrowserAsset& asset : content_browser.assets)
+								{
+									if (asset.type != ContentAssetType::Material)
+									{
+										continue;
+									}
+									const String asset_rel = io::GetRelativePath(contents_root_dir, asset.disk_path);
+									if (asset_rel.empty())
+									{
+										continue;
+									}
+									const bool asset_selected = asset_rel == material_comp->material_asset_path;
+									if (ImGui::Selectable(asset.virtual_path.c_str(), asset_selected))
+									{
+										material_comp->SetMaterial(resource::LoadMaterialBinary(asset.disk_path));
+										material_comp->SetMaterialAssetPath(asset_rel);
+										material_comp->SetDirty();
+									}
+									if (asset_selected)
+									{
+										ImGui::SetItemDefaultFocus();
+									}
+								}
+							ImGui::EndCombo();
+							}
+						}
 						int material_slot_count = static_cast<int>(material_comp->GetMaterialSlotCount());
 						ImGui::Text(editor_text::material_slots_format, material_slot_count);
 
@@ -4900,8 +5114,55 @@ namespace won::editor
 							ImGui::SeparatorText(editor_text::textures);
 							for (uint32 texture_slot = 0; texture_slot < static_cast<uint32>(TEXTURESLOT_COUNT); ++texture_slot)
 							{
-								const resource::MaterialSlot::TextureMap& texture = material_slot.textures[texture_slot];
-								ImGui::Text(editor_text::texture_status_format, texture_slot_names[texture_slot], texture.IsValid() ? editor_text::assigned : editor_text::none);
+								resource::MaterialSlot::TextureMap& texture = material_slot.textures[texture_slot];
+								ImGui::PushID(static_cast<int>(texture_slot));
+								String texture_label = texture.texture_asset_path.empty() ? String(editor_text::none_placeholder) : texture.texture_asset_path;
+								ImGui::TextUnformatted(texture_slot_names[texture_slot]);
+								ImGui::SetNextItemWidth(-1.0f);
+								if (ImGui::BeginCombo("##texture", texture_label.c_str()))
+								{
+									if (ImGui::Selectable(editor_text::none_placeholder, texture.texture_asset_path.empty()))
+									{
+										texture.texture_asset_path.clear();
+										texture.texture = nullptr;
+										texture.res_handle = {};
+										material_changed = true;
+									}
+									for (const ContentBrowserAsset& asset : content_browser.assets)
+									{
+										if (asset.type != ContentAssetType::Texture)
+										{
+											continue;
+										}
+										if (won::utils::ToLower(io::GetExtension(asset.disk_path)) != resource::texture_binary_extension)
+										{
+											continue;
+										}
+										const String texture_rel = io::GetRelativePath(contents_root_dir, asset.disk_path);
+										if (texture_rel.empty())
+										{
+											continue;
+										}
+										const bool texture_selected = texture_rel == texture.texture_asset_path;
+										if (ImGui::Selectable(asset.virtual_path.c_str(), texture_selected))
+										{
+											auto image = resource::LoadTextureBinary(asset.disk_path);
+											if (image && image->IsValid() && rendering::utils::CreateRenderData(*device, *image, image->format, false))
+											{
+												texture.texture_asset_path = texture_rel;
+												texture.texture = image->render_data.texture;
+												texture.res_handle = image->render_data.srv;
+												material_changed = true;
+											}
+										}
+										if (texture_selected)
+										{
+											ImGui::SetItemDefaultFocus();
+										}
+									}
+									ImGui::EndCombo();
+								}
+								ImGui::PopID();
 							}
 
 							if (material_changed)
@@ -5456,6 +5717,8 @@ namespace won::editor
 			ImGui::SetWindowFocus(editor_text::contents_browser_window);
 			focus_contents_browser_on_startup = false;
 		}
+
+		DrawBackgroundTaskStatus();
 
 		// Rendering
 		ImGui::Render();
