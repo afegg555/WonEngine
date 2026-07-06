@@ -204,6 +204,7 @@ namespace won::reflection
         WON_REFLECT_FIELD(reference_resolution, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(sort_order, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(layer_mask, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(match, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::RectTransform2DComponent, "RectTransform2DComponent")

@@ -1097,6 +1097,7 @@ namespace won::ecs
                 float4 uv_rect = { 0.0f, 0.0f, 1.0f, 1.0f };
                 int32  layer = 0;
                 uint32 layer_mask = 0xFFFFFFFF;
+                float  match = 0.5f;
                 uint32 flags = None;
                 std::shared_ptr<resource::Font> font;
 

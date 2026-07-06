@@ -2038,7 +2038,8 @@ namespace won::rendering
                 float2 ui_scale = { 1.0f, 1.0f };
                 if (renderable.reference_resolution.x > 0.0f && renderable.reference_resolution.y > 0.0f)
                 {
-                    ui_scale = { viewport_size.x / renderable.reference_resolution.x, viewport_size.y / renderable.reference_resolution.y };
+                    const float s = std::pow(viewport_size.x / renderable.reference_resolution.x, 1.0f - renderable.match) * std::pow(viewport_size.y / renderable.reference_resolution.y, renderable.match);
+                    ui_scale = { s, s };
                 }
                 const float2 scaled_size = { renderable.size.x * ui_scale.x, renderable.size.y * ui_scale.y };
                 const float2 scaled_position = { renderable.position.x * ui_scale.x, renderable.position.y * ui_scale.y };

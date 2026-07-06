@@ -225,6 +225,8 @@ namespace won::editor
 			constexpr const char* text_2d_component = "Text2DComponent";
 			constexpr const char* sprite_3d_component = "Sprite3DComponent";
 			constexpr const char* text_3d_component = "Text3DComponent";
+			constexpr const char* rect_transform_2d_component = "RectTransform2DComponent";
+			constexpr const char* button_component = "ButtonComponent";
 			constexpr const char* animation_component = "AnimationComponent";
 			constexpr const char* material_component = "MaterialComponent";
 			constexpr const char* script_component = "ScriptComponent";
@@ -299,6 +301,7 @@ namespace won::editor
 			constexpr const char* pivot = "Pivot";
 			constexpr const char* uv_rect = "UV Rect";
 			constexpr const char* layer = "Layer";
+			constexpr const char* anchor_presets = "Anchor Presets";
 			constexpr const char* font_format = "Font: %s";
 			constexpr const char* pixel_height = "Pixel Height";
 			constexpr const char* height = "Height";
@@ -445,6 +448,8 @@ namespace won::editor
 			case reflection::TypeMeta<Sprite2DComponent>::type_id:
 			case reflection::TypeMeta<Sprite3DComponent>::type_id:
 			case reflection::TypeMeta<Text2DComponent>::type_id:
+			case reflection::TypeMeta<RectTransform2DComponent>::type_id:
+			case reflection::TypeMeta<ButtonComponent>::type_id:
 			case reflection::TypeMeta<Text3DComponent>::type_id:
 			case reflection::TypeMeta<AnimationComponent>::type_id:
 			case reflection::TypeMeta<MaterialComponent>::type_id:
@@ -4371,6 +4376,99 @@ namespace won::editor
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent<AudioListenerComponent>(entity);
+						});
+					}
+
+					ImGui::PopID();
+					ImGui::Separator();
+				}
+
+					RectTransform2DComponent* rect_2d_comp = editor_viewport.view->scene->GetComponent<RectTransform2DComponent>(editor_viewport.picked_entity);
+					if (rect_2d_comp)
+					{
+					ImGui::PushID("RectTransform2DComponent");
+					ImGui::Text(editor_text::rect_transform_2d_component);
+					bool remove_component = DrawComponentRemoveButton(editor_text::rect_transform_2d_component);
+
+					if (!remove_component)
+					{
+						float anchor[2] = { rect_2d_comp->anchor.x, rect_2d_comp->anchor.y };
+						if (ImGui::InputFloat2(editor_text::anchor, anchor))
+						{
+							rect_2d_comp->anchor = { anchor[0], anchor[1] };
+							rect_2d_comp->SetDirty();
+						}
+
+						float position[2] = { rect_2d_comp->position.x, rect_2d_comp->position.y };
+						if (ImGui::InputFloat2(editor_text::position, position))
+						{
+							rect_2d_comp->position = { position[0], position[1] };
+							rect_2d_comp->SetDirty();
+						}
+
+						float size[2] = { rect_2d_comp->size.x, rect_2d_comp->size.y };
+						if (ImGui::InputFloat2(editor_text::size, size))
+						{
+							rect_2d_comp->size = { size[0], size[1] };
+							rect_2d_comp->SetDirty();
+						}
+
+						float pivot[2] = { rect_2d_comp->pivot.x, rect_2d_comp->pivot.y };
+						if (ImGui::InputFloat2(editor_text::pivot, pivot))
+						{
+							rect_2d_comp->pivot = { pivot[0], pivot[1] };
+							rect_2d_comp->SetDirty();
+						}
+
+						ImGui::Text(editor_text::anchor_presets);
+						const struct { const char* label; float x; float y; } anchor_preset_grid[9] = {
+							{ "TL", 0.0f, 0.0f }, { "TC", 0.5f, 0.0f }, { "TR", 1.0f, 0.0f },
+							{ "ML", 0.0f, 0.5f }, { "MC", 0.5f, 0.5f }, { "MR", 1.0f, 0.5f },
+							{ "BL", 0.0f, 1.0f }, { "BC", 0.5f, 1.0f }, { "BR", 1.0f, 1.0f },
+						};
+						for (int preset_index = 0; preset_index < 9; ++preset_index)
+						{
+							if (preset_index % 3 != 0)
+							{
+								ImGui::SameLine();
+							}
+							if (ImGui::Button(anchor_preset_grid[preset_index].label, ImVec2(34.0f, 0.0f)))
+							{
+								rect_2d_comp->anchor = { anchor_preset_grid[preset_index].x, anchor_preset_grid[preset_index].y };
+								rect_2d_comp->pivot = { anchor_preset_grid[preset_index].x, anchor_preset_grid[preset_index].y };
+								rect_2d_comp->position = { 0.0f, 0.0f };
+								rect_2d_comp->SetDirty();
+							}
+						}
+					}
+					else
+					{
+						const ecs::Entity entity = editor_viewport.picked_entity;
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
+							editor_viewport.view->scene->RemoveComponent<RectTransform2DComponent>(entity);
+						});
+					}
+
+					ImGui::PopID();
+					ImGui::Separator();
+				}
+
+				ButtonComponent* button_comp = editor_viewport.view->scene->GetComponent<ButtonComponent>(editor_viewport.picked_entity);
+				if (button_comp)
+				{
+					ImGui::PushID("ButtonComponent");
+					ImGui::Text(editor_text::button_component);
+					bool remove_component = DrawComponentRemoveButton(editor_text::button_component);
+
+					if (!remove_component)
+					{
+						ImGui::Checkbox(editor_text::enabled, &button_comp->enabled);
+					}
+					else
+					{
+						const ecs::Entity entity = editor_viewport.picked_entity;
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
+							editor_viewport.view->scene->RemoveComponent<ButtonComponent>(entity);
 						});
 					}
 

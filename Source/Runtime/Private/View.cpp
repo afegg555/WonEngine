@@ -5,6 +5,7 @@
 #include "JobSystem.h"
 #include "Primitives.h"
 
+#include <cmath>
 #include <numeric>
 
 namespace won::rendering
@@ -61,9 +62,12 @@ namespace won::rendering
                 continue;
             }
 
-            const float2 scale = (rect.reference_resolution.x > 0.0f && rect.reference_resolution.y > 0.0f)
-                ? float2{ vp.x / rect.reference_resolution.x, vp.y / rect.reference_resolution.y }
-                : float2{ 1.0f, 1.0f };
+            float2 scale = { 1.0f, 1.0f };
+            if (rect.reference_resolution.x > 0.0f && rect.reference_resolution.y > 0.0f)
+            {
+                const float s = std::pow(vp.x / rect.reference_resolution.x, 1.0f - rect.match) * std::pow(vp.y / rect.reference_resolution.y, rect.match);
+                scale = { s, s };
+            }
             const float2 mn = { rect.resolved_position.x * scale.x, rect.resolved_position.y * scale.y };
             const float2 sz = { rect.resolved_size.x * scale.x, rect.resolved_size.y * scale.y };
             if (local.x < mn.x || local.x > mn.x + sz.x || local.y < mn.y || local.y > mn.y + sz.y)
@@ -261,11 +265,18 @@ namespace won::rendering
                 }
                 if (options.enable_viewport_culling)
                 {
-                    const float px = r.anchor.x * vp_w + r.position.x;
-                    const float py = r.anchor.y * vp_h + r.position.y;
-                    const float l = px - r.pivot.x * r.size.x;
-                    const float t = py - r.pivot.y * r.size.y;
-                    if (l > vp_w || l + r.size.x < 0.0f || t > vp_h || t + r.size.y < 0.0f)
+                    float s = 1.0f;
+                    if (r.reference_resolution.x > 0.0f && r.reference_resolution.y > 0.0f)
+                    {
+                        s = std::pow(vp_w / r.reference_resolution.x, 1.0f - r.match) * std::pow(vp_h / r.reference_resolution.y, r.match);
+                    }
+                    const float sw = r.size.x * s;
+                    const float sh = r.size.y * s;
+                    const float px = r.anchor.x * vp_w + r.position.x * s;
+                    const float py = r.anchor.y * vp_h + r.position.y * s;
+                    const float l = px - r.pivot.x * sw;
+                    const float t = py - r.pivot.y * sh;
+                    if (l > vp_w || l + sw < 0.0f || t > vp_h || t + sh < 0.0f)
                     {
                         continue;
                     }
