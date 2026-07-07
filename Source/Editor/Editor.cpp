@@ -2394,11 +2394,22 @@ namespace won::editor
 
 		ImGui::PushID(asset.virtual_path.c_str());
 		ImGui::BeginGroup();
-		const AssetImportKind import_kind = GetAssetImportKind(io::GetExtension(asset.disk_path));
+		const String asset_ext = won::utils::ToLower(io::GetExtension(asset.disk_path));
+		const AssetImportKind import_kind = GetAssetImportKind(asset_ext);
+		const bool is_imported_binary = asset_ext == resource::texture_binary_extension || asset_ext == resource::mesh_binary_extension || asset_ext == resource::material_binary_extension;
 		const bool can_import_asset = import_kind != AssetImportKind::None;
 		const bool can_import_to_scene = import_kind == AssetImportKind::Mesh;
 		const bool can_load_scene = asset.type == ContentAssetType::Scene;
 		ImGui::Button(type_icon(asset.type), ImVec2(tile_size, tile_size));
+		if (import_kind != AssetImportKind::None || is_imported_binary)
+		{
+			const ImVec2 icon_min = ImGui::GetItemRectMin();
+			const ImVec2 icon_max = ImGui::GetItemRectMax();
+			const float dot_radius = 5.0f;
+			const ImVec2 dot_center = ImVec2(icon_max.x - dot_radius - 3.0f, icon_min.y + dot_radius + 3.0f);
+			const ImU32 dot_color = (import_kind != AssetImportKind::None) ? IM_COL32(242, 166, 64, 255) : IM_COL32(115, 204, 140, 255);
+			ImGui::GetWindowDrawList()->AddCircleFilled(dot_center, dot_radius, dot_color);
+		}
 		if (ImGui::BeginDragDropSource())
 		{
 			ImGui::SetDragDropPayload("CONTENT_ASSET_PATH", asset.disk_path.c_str(), asset.disk_path.size() + 1);
@@ -2408,7 +2419,18 @@ namespace won::editor
 
 		ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + tile_size);
 		ImGui::TextWrapped("%s", asset.name.c_str());
-		ImGui::TextDisabled("%s", type_name(asset.type));
+		if (import_kind != AssetImportKind::None)
+		{
+			ImGui::TextColored(ImVec4(0.95f, 0.65f, 0.25f, 1.0f), "%s (source)", type_name(asset.type));
+		}
+		else if (is_imported_binary)
+		{
+			ImGui::TextColored(ImVec4(0.45f, 0.80f, 0.55f, 1.0f), "%s (imported)", type_name(asset.type));
+		}
+		else
+		{
+			ImGui::TextDisabled("%s", type_name(asset.type));
+		}
 		ImGui::PopTextWrapPos();
 		ImGui::EndGroup();
 
