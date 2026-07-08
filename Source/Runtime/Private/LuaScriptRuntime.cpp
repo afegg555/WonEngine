@@ -825,6 +825,16 @@ namespace won::script
         return 1;
     }
 
+    int LuaScriptRuntime::LuaSceneLoad(lua_State* state)
+    {
+        const char* path = luaL_checkstring(state, 1);
+        won::function::Value payload;
+        payload.type = won::ValueType::String;
+        payload.string_value = path;
+        eventhandler::PostEvent(eventhandler::EVENT_SCENE_LOAD, payload);
+        return 0;
+    }
+
     int LuaScriptRuntime::LuaEventSubscribe(lua_State* state)
     {
         LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
@@ -2460,6 +2470,8 @@ namespace won::script
         lua_pushlightuserdata(lua_state, this);
         lua_pushcclosure(lua_state, LuaSceneFindByName, 1);
         lua_setfield(lua_state, -2, "find_by_name");
+        lua_pushcfunction(lua_state, LuaSceneLoad);
+        lua_setfield(lua_state, -2, "load");
         lua_setfield(lua_state, -2, "scene");
 
         lua_newtable(lua_state);

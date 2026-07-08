@@ -160,6 +160,7 @@ namespace won::script
         static int LuaInputIsGamepadConnected(lua_State* state);
 
         static int LuaSceneFindByName(lua_State* state);
+        static int LuaSceneLoad(lua_State* state);
 
         static int LuaEventSubscribe(lua_State* state);
         static int LuaEventPost(lua_State* state);
