@@ -303,6 +303,7 @@ set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/Canvas2DComponent.h
     Source/Runtime/Public/RectTransform2DComponent.h
     Source/Runtime/Public/ButtonComponent.h
+    Source/Runtime/Public/LayoutComponent.h
     Source/Runtime/Public/Sprite3DComponent.h
     Source/Runtime/Public/Text2DComponent.h
     Source/Runtime/Public/Text3DComponent.h

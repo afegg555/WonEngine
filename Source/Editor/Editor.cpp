@@ -239,6 +239,12 @@ namespace won::editor
 			constexpr const char* rotation_xyz = "Rotation XYZ";
 			constexpr const char* scale = "Scale";
 			constexpr const char* type = "Type";
+			constexpr const char* layout_component = "LayoutComponent";
+			constexpr const char* padding_min = "Padding Min";
+			constexpr const char* padding_max = "Padding Max";
+			constexpr const char* spacing = "Spacing";
+			constexpr const char* cross_align = "Cross Align";
+			constexpr const char* reverse = "Reverse";
 			constexpr const char* color = "Color";
 			constexpr const char* directional = "Directional";
 			constexpr const char* point = "Point";
@@ -452,6 +458,7 @@ namespace won::editor
 			case reflection::TypeMeta<Text2DComponent>::type_id:
 			case reflection::TypeMeta<RectTransform2DComponent>::type_id:
 			case reflection::TypeMeta<ButtonComponent>::type_id:
+			case reflection::TypeMeta<LayoutComponent>::type_id:
 			case reflection::TypeMeta<Text3DComponent>::type_id:
 			case reflection::TypeMeta<AnimationComponent>::type_id:
 			case reflection::TypeMeta<MaterialComponent>::type_id:
@@ -509,7 +516,7 @@ namespace won::editor
 					const won::TypeDesc* companion_desc = reflection::FindType(companion_id);
 					if (companion_desc)
 					{
-						AddComponentWithCompanions(scene, entity, companion_desc);
+						AddComponentWithCompanions(scene, entity, companion_desc); // recursively add companions
 					}
 				}
 			}
@@ -518,6 +525,19 @@ namespace won::editor
 		}
 
 		bool DrawComponentRemoveButton(const char* component_name, bool can_remove = true);
+
+		bool DrawComponentCollapsingHeader(const char* label)
+		{
+			const float4& header = theme::component_header_color;
+			const float4& header_hovered = theme::component_header_hovered_color;
+			const float4& header_active = theme::component_header_active_color;
+			ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(header.x, header.y, header.z, header.w));
+			ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(header_hovered.x, header_hovered.y, header_hovered.z, header_hovered.w));
+			ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(header_active.x, header_active.y, header_active.z, header_active.w));
+			const bool open = ImGui::CollapsingHeader(label, ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_AllowOverlap);
+			ImGui::PopStyleColor(3);
+			return open;
+		}
 
 		bool DrawReflectedField(const won::FieldDesc& field, uint8* component_data, uint32 component_size)
 		{
@@ -607,9 +627,9 @@ namespace won::editor
 
 			const char* component_name = GetTypeDisplayName(type_desc);
 			ImGui::PushID(type_desc->name ? type_desc->name : component_name);
-			ImGui::TextUnformatted(component_name);
+			const bool component_open = DrawComponentCollapsingHeader(component_name);
 			const bool remove_component = DrawComponentRemoveButton(component_name);
-			if (!remove_component && type_desc->fields && type_desc->field_count > 0)
+			if (!remove_component && component_open && type_desc->fields && type_desc->field_count > 0)
 			{
 				uint8* component_data = static_cast<uint8*>(component);
 				for (uint32 field_index = 0; field_index < type_desc->field_count; ++field_index)
@@ -3850,10 +3870,10 @@ namespace won::editor
 				if (name_comp)
 				{
 					ImGui::PushID("NameComponent");
-					ImGui::Text(editor_text::name_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::name_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::name_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						char name_buf[256];
 						std::snprintf(name_buf, sizeof(name_buf), "%s", name_comp->value.c_str());
@@ -3863,7 +3883,7 @@ namespace won::editor
 							name_comp->value = name_buf;
 						}
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -3879,11 +3899,11 @@ namespace won::editor
 				if (transform_comp)
 				{
 					ImGui::PushID("TransformComponent");
-					ImGui::Text(editor_text::transform_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::transform_component);
 					const bool can_remove_transform = editor_viewport.picked_entity != editor_viewport.view->camera_entity;
 					bool remove_component = DrawComponentRemoveButton(editor_text::transform_component, can_remove_transform);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						float position[3] = { transform_comp->position.x, transform_comp->position.y, transform_comp->position.z };
 						if (ImGui::InputFloat3(editor_text::position, position))
@@ -3907,7 +3927,7 @@ namespace won::editor
 							transform_comp->SetDirty();
 						}
 					}
-					else if (can_remove_transform)
+					else if (remove_component && can_remove_transform)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -3924,10 +3944,10 @@ namespace won::editor
 				if (hierarchy_comp)
 				{
 					ImGui::PushID("HierarchyComponent");
-					ImGui::Text(editor_text::hierarchy_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::hierarchy_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::hierarchy_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						uint64 parent_id = hierarchy_comp->parent_id;
 						if (ImGui::InputScalar(editor_text::parent, ImGuiDataType_U64, &parent_id))
@@ -3935,7 +3955,7 @@ namespace won::editor
 							hierarchy_comp->parent_id = parent_id;
 						}
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -3951,10 +3971,10 @@ namespace won::editor
 				if (light_comp)
 				{
 					ImGui::PushID("LightComponent");
-					ImGui::Text(editor_text::light_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::light_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::light_component);
 					
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						// TODO: enum is hard coded
 						int light_type = static_cast<int>(light_comp->type);
@@ -4008,7 +4028,7 @@ namespace won::editor
 							light_comp->SetCastShadow(is_cast_shadow);
 						}
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -4024,11 +4044,11 @@ namespace won::editor
 				if (camera_comp)
 				{
 					ImGui::PushID("CameraComponent");
-					ImGui::Text(editor_text::camera_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::camera_component);
 					const bool can_remove_camera = editor_viewport.picked_entity != editor_viewport.view->camera_entity;
 					bool remove_component = DrawComponentRemoveButton(editor_text::camera_component, can_remove_camera);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						bool is_ortho = camera_comp->IsOrtho();
 						if (ImGui::Checkbox(editor_text::orthographic, &is_ortho))
@@ -4070,7 +4090,7 @@ namespace won::editor
 						ImGui::DragFloat(editor_text::shutter_speed, &camera_comp->shutter_speed, 0.001f, 0.0001f, 100.0f);
 						ImGui::DragFloat(editor_text::sensitivity, &camera_comp->sensitivity, 1.0f, 1.0f, 102400.0f);
 					}
-					else if (can_remove_camera)
+					else if (remove_component && can_remove_camera)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -4089,10 +4109,10 @@ namespace won::editor
 				if (environment_comp)
 				{
 					ImGui::PushID("EnvironmentComponent");
-					ImGui::Text(editor_text::environment_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::environment_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::environment_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						bool is_active = environment_comp->IsActive();
 						if (ImGui::Checkbox(editor_text::active, &is_active))
@@ -4182,7 +4202,7 @@ namespace won::editor
 						ImGui::DragFloat(editor_text::indirect_diffuse_scale, &environment_comp->indirect_diffuse_scale, 0.01f, 0.0f, 1000.0f);
 						ImGui::DragFloat(editor_text::indirect_specular_scale, &environment_comp->indirect_specular_scale, 0.01f, 0.0f, 1000.0f);
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -4198,14 +4218,14 @@ namespace won::editor
 				if (fog_volume_comp)
 				{
 					ImGui::PushID("FogVolumeComponent");
-					ImGui::Text(editor_text::fog_volume_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::fog_volume_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::fog_volume_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -4221,10 +4241,10 @@ namespace won::editor
 				if (ddgi_volume_comp)
 				{
 					ImGui::PushID("DDGIVolumeComponent");
-					ImGui::Text(editor_text::ddgi_volume_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::ddgi_volume_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::ddgi_volume_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						bool is_active = ddgi_volume_comp->IsActive();
 						if (ImGui::Checkbox(editor_text::active, &is_active))
@@ -4285,7 +4305,7 @@ namespace won::editor
 							editor_viewport.view->scene->BuildGPUBVH();
 						}
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -4301,10 +4321,10 @@ namespace won::editor
 				if (geometry_comp)
 				{
 					ImGui::PushID("GeometryComponent");
-					ImGui::Text(editor_text::geometry_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::geometry_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::geometry_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						ImGui::Text(editor_text::mesh_format, geometry_comp->mesh ? editor_text::assigned : editor_text::none);
 
@@ -4314,7 +4334,7 @@ namespace won::editor
 							geometry_comp->SetCastShadow(cast_shadow);
 						}
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -4357,10 +4377,10 @@ namespace won::editor
 				if (collider_3d_comp)
 				{
 					ImGui::PushID("Collider3DComponent");
-					ImGui::Text(editor_text::collider_3d_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::collider_3d_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::collider_3d_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						int shape_type = static_cast<int>(collider_3d_comp->shape_type);
 						const char* shape_type_items[] = { editor_text::box, editor_text::sphere };
@@ -4418,7 +4438,7 @@ namespace won::editor
 							collider_3d_comp->SetDirty();
 						}
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -4434,10 +4454,10 @@ namespace won::editor
 				if (rigidbody_3d_comp)
 				{
 					ImGui::PushID("Rigidbody3DComponent");
-					ImGui::Text(editor_text::rigidbody_3d_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::rigidbody_3d_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::rigidbody_3d_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						int motion_type = static_cast<int>(rigidbody_3d_comp->motion_type);
 						const char* motion_type_items[] = { editor_text::static_str, editor_text::kinematic, editor_text::dynamic };
@@ -4478,7 +4498,7 @@ namespace won::editor
 							rigidbody_3d_comp->SetDirty();
 						}
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -4494,10 +4514,10 @@ namespace won::editor
 				if (audio_source_comp)
 				{
 					ImGui::PushID("AudioSourceComponent");
-					ImGui::Text(editor_text::audio_source_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::audio_source_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::audio_source_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						bool enabled = audio_source_comp->IsEnabled();
 						if (ImGui::Checkbox(editor_text::enabled, &enabled))
@@ -4562,7 +4582,7 @@ namespace won::editor
 							audio_source_comp->SetPlaying(is_playing);
 						}
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -4578,14 +4598,14 @@ namespace won::editor
 				if (audio_listener_comp)
 				{
 					ImGui::PushID("AudioListenerComponent");
-					ImGui::Text(editor_text::audio_listener_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::audio_listener_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::audio_listener_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						ImGui::Checkbox(editor_text::enabled, &audio_listener_comp->enabled);
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -4601,10 +4621,10 @@ namespace won::editor
 					if (rect_2d_comp)
 					{
 					ImGui::PushID("RectTransform2DComponent");
-					ImGui::Text(editor_text::rect_transform_2d_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::rect_transform_2d_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::rect_transform_2d_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						float anchor[2] = { rect_2d_comp->anchor.x, rect_2d_comp->anchor.y };
 						if (ImGui::InputFloat2(editor_text::anchor, anchor))
@@ -4655,7 +4675,7 @@ namespace won::editor
 							}
 						}
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -4671,14 +4691,14 @@ namespace won::editor
 				if (button_comp)
 				{
 					ImGui::PushID("ButtonComponent");
-					ImGui::Text(editor_text::button_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::button_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::button_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						ImGui::Checkbox(editor_text::enabled, &button_comp->enabled);
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -4690,14 +4710,65 @@ namespace won::editor
 					ImGui::Separator();
 				}
 
+				LayoutComponent* layout_comp = editor_viewport.view->scene->GetComponent<LayoutComponent>(editor_viewport.picked_entity);
+				if (layout_comp)
+				{
+					ImGui::PushID("LayoutComponent");
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::layout_component);
+					bool remove_component = DrawComponentRemoveButton(editor_text::layout_component);
+
+					if (!remove_component && component_open)
+					{
+						const char* layout_type_items[] = { "Horizontal", "Vertical" };
+						int layout_type = static_cast<int>(layout_comp->type);
+						if (ImGui::Combo(editor_text::type, &layout_type, layout_type_items, IM_ARRAYSIZE(layout_type_items)))
+						{
+							layout_comp->type = static_cast<uint32>(layout_type);
+						}
+
+						float padding_min[2] = { layout_comp->padding_min.x, layout_comp->padding_min.y };
+						if (ImGui::InputFloat2(editor_text::padding_min, padding_min))
+						{
+							layout_comp->padding_min = { padding_min[0], padding_min[1] };
+						}
+
+						float padding_max[2] = { layout_comp->padding_max.x, layout_comp->padding_max.y };
+						if (ImGui::InputFloat2(editor_text::padding_max, padding_max))
+						{
+							layout_comp->padding_max = { padding_max[0], padding_max[1] };
+						}
+
+						ImGui::InputFloat(editor_text::spacing, &layout_comp->spacing);
+
+						const char* cross_align_items[] = { "Start", "Center", "End", "Stretch" };
+						int cross_align = static_cast<int>(layout_comp->cross_align);
+						if (ImGui::Combo(editor_text::cross_align, &cross_align, cross_align_items, IM_ARRAYSIZE(cross_align_items)))
+						{
+							layout_comp->cross_align = static_cast<uint32>(cross_align);
+						}
+
+						ImGui::Checkbox(editor_text::reverse, &layout_comp->reverse);
+					}
+					else if (remove_component)
+					{
+						const ecs::Entity entity = editor_viewport.picked_entity;
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
+							editor_viewport.view->scene->RemoveComponent<LayoutComponent>(entity);
+						});
+					}
+
+					ImGui::PopID();
+					ImGui::Separator();
+				}
+
 				Sprite2DComponent* sprite_2d_comp = editor_viewport.view->scene->GetComponent<Sprite2DComponent>(editor_viewport.picked_entity);
 				if (sprite_2d_comp)
 				{
 					ImGui::PushID("Sprite2DComponent");
-					ImGui::Text(editor_text::sprite_2d_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::sprite_2d_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::sprite_2d_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						float uv_rect[4] = { sprite_2d_comp->uv_rect.x, sprite_2d_comp->uv_rect.y, sprite_2d_comp->uv_rect.z, sprite_2d_comp->uv_rect.w };
 						if (ImGui::InputFloat4(editor_text::uv_rect, uv_rect))
@@ -4711,7 +4782,7 @@ namespace won::editor
 							sprite_2d_comp->SetDirty();
 						}
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -4727,10 +4798,10 @@ namespace won::editor
 				if (text_2d_comp)
 				{
 					ImGui::PushID("Text2DComponent");
-					ImGui::Text(editor_text::text_2d_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::text_2d_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::text_2d_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						{
 							String asset_label = text_2d_comp->font_asset_path.empty() ? String(editor_text::none_placeholder) : text_2d_comp->font_asset_path;
@@ -4791,7 +4862,7 @@ namespace won::editor
 							text_2d_comp->SetDirty();
 						}
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -4807,10 +4878,10 @@ namespace won::editor
 				if (sprite_3d_comp)
 				{
 					ImGui::PushID("Sprite3DComponent");
-					ImGui::Text(editor_text::sprite_3d_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::sprite_3d_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::sprite_3d_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						float size[2] = { sprite_3d_comp->size.x, sprite_3d_comp->size.y };
 						if (ImGui::InputFloat2(editor_text::size, size))
@@ -4839,7 +4910,7 @@ namespace won::editor
 							sprite_3d_comp->SetBillboard(billboard);
 						}
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -4855,10 +4926,10 @@ namespace won::editor
 				if (text_3d_comp)
 				{
 					ImGui::PushID("Text3DComponent");
-					ImGui::Text(editor_text::text_3d_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::text_3d_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::text_3d_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						ImGui::Text(editor_text::font_format, text_3d_comp->font && text_3d_comp->font->IsValid() ? editor_text::assigned : editor_text::none);
 
@@ -4896,7 +4967,7 @@ namespace won::editor
 							text_3d_comp->SetBillboard(billboard);
 						}
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -4912,10 +4983,10 @@ namespace won::editor
 				if (animation_comp)
 				{
 					ImGui::PushID("AnimationComponent");
-					ImGui::Text(editor_text::animation_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::animation_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::animation_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						const int clip_count = static_cast<int>(animation_comp->clips.size());
 						ImGui::Text(editor_text::clips_format, clip_count);
@@ -4987,7 +5058,7 @@ namespace won::editor
 						ImGui::Text(editor_text::bone_matrices_format, static_cast<int>(animation_comp->bone_matrices.size()));
 						ImGui::Text(editor_text::bone_matrix_offset_format, animation_comp->bone_matrix_offset);
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -5003,10 +5074,10 @@ namespace won::editor
 				if (material_comp)
 				{
 					ImGui::PushID("MaterialComponent");
-					ImGui::Text(editor_text::material_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::material_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::material_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						static Entity selected_material_entity = INVALID_ENTITY;
 						static int selected_material_slot = 0;
@@ -5246,7 +5317,7 @@ namespace won::editor
 							}
 						}
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -5285,7 +5356,7 @@ namespace won::editor
 				if (script_comp)
 				{
 					ImGui::PushID("ScriptComponent");
-					ImGui::Text(editor_text::script_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::script_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::script_component);
 					auto reload_script = [this](ecs::Entity entity, ScriptSlot& script_slot)
 						{
@@ -5328,7 +5399,7 @@ namespace won::editor
 							}
 						};
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						bool enabled = script_comp->enabled;
 						if (ImGui::Checkbox(editor_text::enabled, &enabled))
@@ -5562,7 +5633,7 @@ namespace won::editor
 							script_comp->scripts.push_back({});
 						}
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {

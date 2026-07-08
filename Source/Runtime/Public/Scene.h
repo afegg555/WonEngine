@@ -70,6 +70,7 @@ namespace won::ecs
             component_manager.RegisterComponent<Canvas2DComponent>();
             component_manager.RegisterComponent<RectTransform2DComponent>();
             component_manager.RegisterComponent<ButtonComponent>();
+            component_manager.RegisterComponent<LayoutComponent>();
             component_manager.RegisterComponent<CameraComponent>();
             component_manager.RegisterComponent<LightComponent>();
             component_manager.RegisterComponent<EnvironmentComponent>();

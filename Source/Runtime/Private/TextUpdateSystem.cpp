@@ -33,6 +33,7 @@ namespace won::ecs
         const auto material_array = scene.GetComponentArray<MaterialComponent>().get();
         const auto layer_array = scene.GetComponentArray<VisibilityLayerComponent>().get();
         const auto rect_transform_array = scene.GetComponentArray<RectTransform2DComponent>().get();
+        const auto hierarchy_array = scene.GetComponentArray<HierarchyComponent>().get();
         if (!material_array)
         {
             return;
@@ -115,6 +116,10 @@ namespace won::ecs
             }
 
             if (!rect_transform_array || !rect_transform_array->HasData(entity))
+            {
+                return;
+            }
+            if (!hierarchy_array || !hierarchy_array->HasData(entity))
             {
                 return;
             }

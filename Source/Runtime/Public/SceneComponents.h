@@ -28,6 +28,7 @@
 #include "Canvas2DComponent.h"
 #include "RectTransform2DComponent.h"
 #include "ButtonComponent.h"
+#include "LayoutComponent.h"
 
 namespace won::ecs
 {
@@ -70,7 +71,8 @@ namespace won::ecs
         Button,
         Canvas2D,
         RectTransform2D,
-        CollisionLayer
+        CollisionLayer,
+        Layout
     };
 
     constexpr ComponentMask ComponentMaskFromBit(SceneComponentBit bit)
@@ -107,4 +109,5 @@ namespace won::ecs
     inline constexpr ComponentMask canvas_2d_component_mask = ComponentMaskFromBit(SceneComponentBit::Canvas2D);
     inline constexpr ComponentMask rect_transform_2d_component_mask = ComponentMaskFromBit(SceneComponentBit::RectTransform2D);
     inline constexpr ComponentMask collision_layer_component_mask = ComponentMaskFromBit(SceneComponentBit::CollisionLayer);
+    inline constexpr ComponentMask layout_component_mask = ComponentMaskFromBit(SceneComponentBit::Layout);
 }

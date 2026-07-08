@@ -218,6 +218,15 @@ namespace won::reflection
         WON_REFLECT_FIELD(enabled, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
+    WON_REFLECT_STRUCT(won::ecs::LayoutComponent, "LayoutComponent")
+        WON_REFLECT_FIELD(type, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(padding_min, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(padding_max, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(spacing, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(cross_align, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(reverse, won::FieldFlagEditable | won::FieldFlagSerializable)
+    WON_REFLECT_STRUCT_END()
+
     WON_REFLECT_STRUCT(won::ecs::Sprite3DComponent, "Sprite3DComponent")
         WON_REFLECT_FIELD(size, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(pivot, won::FieldFlagEditable | won::FieldFlagSerializable)
