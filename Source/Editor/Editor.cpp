@@ -3657,8 +3657,6 @@ namespace won::editor
 			if (ImGui::Button("+"))
 			{
 				ecs::Entity entity = editor_viewport.view->scene->CreateEntity();
-				auto transform = editor_viewport.view->scene->AddComponent<TransformComponent>(entity);
-				auto name = editor_viewport.view->scene->AddComponent<NameComponent>(entity);
 				UpdateEntityList();
 				editor_viewport.picked_entity = entity;
 
