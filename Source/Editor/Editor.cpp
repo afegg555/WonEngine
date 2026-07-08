@@ -464,6 +464,59 @@ namespace won::editor
 			}
 		}
 
+		const won::UnorderedMap<won::TypeId, won::Vector<won::TypeId>>& GetComponentCompanionTable()
+		{
+			static const won::UnorderedMap<won::TypeId, won::Vector<won::TypeId>> table = {
+				{ reflection::TypeMeta<RectTransform2DComponent>::type_id, { reflection::TypeMeta<HierarchyComponent>::type_id } },
+				{ reflection::TypeMeta<Sprite2DComponent>::type_id, { reflection::TypeMeta<RectTransform2DComponent>::type_id, reflection::TypeMeta<MaterialComponent>::type_id } },
+				{ reflection::TypeMeta<Text2DComponent>::type_id, { reflection::TypeMeta<RectTransform2DComponent>::type_id, reflection::TypeMeta<MaterialComponent>::type_id } },
+				{ reflection::TypeMeta<ButtonComponent>::type_id, { reflection::TypeMeta<RectTransform2DComponent>::type_id } },
+				{ reflection::TypeMeta<LayoutComponent>::type_id, { reflection::TypeMeta<RectTransform2DComponent>::type_id } },
+				{ reflection::TypeMeta<Sprite3DComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id, reflection::TypeMeta<MaterialComponent>::type_id } },
+				{ reflection::TypeMeta<Text3DComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id, reflection::TypeMeta<MaterialComponent>::type_id } },
+				{ reflection::TypeMeta<GeometryComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id, reflection::TypeMeta<MaterialComponent>::type_id } },
+				{ reflection::TypeMeta<Rigidbody3DComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id, reflection::TypeMeta<Collider3DComponent>::type_id } },
+				{ reflection::TypeMeta<Collider3DComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id } },
+				{ reflection::TypeMeta<LightComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id } },
+				{ reflection::TypeMeta<CameraComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id } },
+				{ reflection::TypeMeta<AudioSourceComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id } },
+				{ reflection::TypeMeta<DecalComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id, reflection::TypeMeta<MaterialComponent>::type_id } },
+				{ reflection::TypeMeta<ParticleEmitter3DComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id, reflection::TypeMeta<MaterialComponent>::type_id } },
+				{ reflection::TypeMeta<AnimationComponent>::type_id, { reflection::TypeMeta<GeometryComponent>::type_id } },
+			};
+			return table;
+		}
+
+		void* AddComponentWithCompanions(ecs::Scene* scene, ecs::Entity entity, const won::TypeDesc* type_desc)
+		{
+			if (!scene || !type_desc || scene->HasComponent(entity, type_desc->type_id))
+			{
+				return nullptr;
+			}
+
+			void* component = scene->AddComponent(entity, type_desc);
+
+			const won::UnorderedMap<won::TypeId, won::Vector<won::TypeId>>& table = GetComponentCompanionTable();
+			auto it = table.find(type_desc->type_id);
+			if (it != table.end())
+			{
+				for (won::TypeId companion_id : it->second)
+				{
+					if (scene->HasComponent(entity, companion_id))
+					{
+						continue;
+					}
+					const won::TypeDesc* companion_desc = reflection::FindType(companion_id);
+					if (companion_desc)
+					{
+						AddComponentWithCompanions(scene, entity, companion_desc);
+					}
+				}
+			}
+
+			return component;
+		}
+
 		bool DrawComponentRemoveButton(const char* component_name, bool can_remove = true);
 
 		bool DrawReflectedField(const won::FieldDesc& field, uint8* component_data, uint32 component_size)
@@ -5635,7 +5688,7 @@ namespace won::editor
 
 						if (ImGui::MenuItem(GetTypeDisplayName(type_desc)))
 						{
-							void* component = editor_viewport.view->scene->AddComponent(editor_viewport.picked_entity, type_desc);
+							void* component = AddComponentWithCompanions(editor_viewport.view->scene, editor_viewport.picked_entity, type_desc);
 							if (component && type_desc->type_id == reflection::TypeMeta<NameComponent>::type_id)
 							{
 								static_cast<NameComponent*>(component)->value = "Entity " + std::to_string(editor_viewport.picked_entity);
