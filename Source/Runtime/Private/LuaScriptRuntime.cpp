@@ -1502,6 +1502,69 @@ namespace won::script
         return 1;
     }
 
+    int LuaScriptRuntime::LuaAnimationGetClipDuration(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        ecs::AnimationComponent* animation = GetSelfAnimation(runtime);
+        const char* name = luaL_checkstring(state, 1);
+        if (animation)
+        {
+            for (Size i = 0; i < animation->clips.size(); ++i)
+            {
+                const std::shared_ptr<resource::AnimationClip>& clip = animation->clips[i];
+                if (clip && clip->name == name)
+                {
+                    const float ticks_per_second = clip->ticks_per_second > 0.0f ? clip->ticks_per_second : 1.0f;
+                    lua_pushnumber(state, clip->duration / ticks_per_second);
+                    return 1;
+                }
+            }
+        }
+        lua_pushnil(state);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAnimationGetNormalizedTime(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        ecs::AnimationComponent* animation = GetSelfAnimation(runtime);
+        if (!animation || animation->current_clip_index >= animation->clips.size() || !animation->clips[animation->current_clip_index])
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+        const std::shared_ptr<resource::AnimationClip>& clip = animation->clips[animation->current_clip_index];
+        const float ticks_per_second = clip->ticks_per_second > 0.0f ? clip->ticks_per_second : 1.0f;
+        const float duration_seconds = clip->duration / ticks_per_second;
+        float normalized = duration_seconds > 0.0f ? animation->time / duration_seconds : 0.0f;
+        if (normalized < 0.0f)
+        {
+            normalized = 0.0f;
+        }
+        else if (normalized > 1.0f)
+        {
+            normalized = 1.0f;
+        }
+        lua_pushnumber(state, normalized);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAnimationIsCurrentFinished(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        ecs::AnimationComponent* animation = GetSelfAnimation(runtime);
+        if (!animation || animation->loop || animation->current_clip_index >= animation->clips.size() || !animation->clips[animation->current_clip_index])
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+        const std::shared_ptr<resource::AnimationClip>& clip = animation->clips[animation->current_clip_index];
+        const float ticks_per_second = clip->ticks_per_second > 0.0f ? clip->ticks_per_second : 1.0f;
+        const float duration_seconds = clip->duration / ticks_per_second;
+        lua_pushboolean(state, duration_seconds > 0.0f && animation->time >= duration_seconds - 1e-4f);
+        return 1;
+    }
+
     int LuaScriptRuntime::LuaColliderHas(lua_State* state)
     {
         LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
@@ -2428,6 +2491,15 @@ namespace won::script
         lua_pushlightuserdata(lua_state, this);
         lua_pushcclosure(lua_state, LuaAnimationGetClipName, 1);
         lua_setfield(lua_state, -2, "get_clip_name");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAnimationGetClipDuration, 1);
+        lua_setfield(lua_state, -2, "get_clip_duration");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAnimationGetNormalizedTime, 1);
+        lua_setfield(lua_state, -2, "get_normalized_time");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAnimationIsCurrentFinished, 1);
+        lua_setfield(lua_state, -2, "is_current_finished");
         lua_setfield(lua_state, -2, "animation");
 
         lua_newtable(lua_state);

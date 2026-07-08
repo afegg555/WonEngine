@@ -108,6 +108,9 @@ namespace won::script
         static int LuaAnimationGetClipCount(lua_State* state);
         static int LuaAnimationGetCurrentClip(lua_State* state);
         static int LuaAnimationGetClipName(lua_State* state);
+        static int LuaAnimationGetClipDuration(lua_State* state);
+        static int LuaAnimationGetNormalizedTime(lua_State* state);
+        static int LuaAnimationIsCurrentFinished(lua_State* state);
         static ecs::AnimationComponent* GetSelfAnimation(LuaScriptRuntime* runtime);
 
         static int LuaColliderHas(lua_State* state);
