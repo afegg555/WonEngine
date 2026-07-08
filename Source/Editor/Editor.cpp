@@ -311,6 +311,7 @@ namespace won::editor
 			constexpr const char* font_format = "Font: %s";
 			constexpr const char* font = "Font";
 			constexpr const char* material_asset = "Material Asset";
+			constexpr const char* mesh_asset = "Mesh Asset";
 			constexpr const char* pixel_height = "Pixel Height";
 			constexpr const char* height = "Height";
 			constexpr const char* clips_format = "Clips: %d";
@@ -4326,7 +4327,71 @@ namespace won::editor
 
 					if (!remove_component && component_open)
 					{
-						ImGui::Text(editor_text::mesh_format, geometry_comp->mesh ? editor_text::assigned : editor_text::none);
+						String mesh_label = geometry_comp->mesh_asset_path.empty() ? String(editor_text::none_placeholder) : geometry_comp->mesh_asset_path;
+						ImGui::TextUnformatted(editor_text::mesh_asset);
+						ImGui::SetNextItemWidth(-1.0f);
+						if (ImGui::BeginCombo("##mesh_asset", mesh_label.c_str()))
+						{
+							for (const ContentBrowserAsset& asset : content_browser.assets)
+							{
+								if (asset.type != ContentAssetType::Mesh)
+								{
+									continue;
+								}
+								if (won::utils::ToLower(io::GetExtension(asset.disk_path)) != resource::mesh_binary_extension)
+								{
+									continue;
+								}
+								const String mesh_rel = io::GetRelativePath(contents_root_dir, asset.disk_path);
+								if (mesh_rel.empty())
+								{
+									continue;
+								}
+								const bool mesh_selected = mesh_rel == geometry_comp->mesh_asset_path;
+								if (ImGui::Selectable(asset.virtual_path.c_str(), mesh_selected))
+								{
+									auto loaded_mesh = resource::LoadMeshBinary(asset.disk_path);
+									if (loaded_mesh && loaded_mesh->IsValid())
+									{
+										const ecs::Entity mesh_entity = editor_viewport.picked_entity;
+										eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, mesh_entity, loaded_mesh, mesh_rel](const won::function::Value&) {
+											GeometryComponent* geom = editor_viewport.view->scene->GetComponent<GeometryComponent>(mesh_entity);
+											if (!geom || !device || !rendering::utils::CreateRenderData(*device, *loaded_mesh))
+											{
+												return;
+											}
+											if (geom->mesh && geom->mesh != loaded_mesh)
+											{
+												EditorViewport::DeferredResRemoval deferred_res_removal = {};
+												deferred_res_removal.frames_left = 8;
+												deferred_res_removal.meshes.push_back(geom->mesh);
+												if (geom->mesh->render_data.buffer)
+												{
+													deferred_res_removal.resources.push_back(geom->mesh->render_data.buffer);
+												}
+												if (geom->mesh->gpu_bvh.node_buffer)
+												{
+													deferred_res_removal.resources.push_back(geom->mesh->gpu_bvh.node_buffer);
+												}
+												if (geom->mesh->gpu_bvh.primitive_buffer)
+												{
+													deferred_res_removal.resources.push_back(geom->mesh->gpu_bvh.primitive_buffer);
+												}
+												editor_viewport.deferred_res_removals.push_back(std::move(deferred_res_removal));
+											}
+											geom->mesh_asset_path = mesh_rel;
+											geom->SetMesh(loaded_mesh);
+											editor_viewport.view->scene->SetBVHDirty();
+										});
+									}
+								}
+								if (mesh_selected)
+								{
+									ImGui::SetItemDefaultFocus();
+								}
+							}
+							ImGui::EndCombo();
+						}
 
 						bool cast_shadow = geometry_comp->IsCastShadow();
 						if (ImGui::Checkbox(editor_text::cast_shadow, &cast_shadow))
