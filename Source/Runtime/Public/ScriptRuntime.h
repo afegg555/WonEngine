@@ -4,7 +4,9 @@
 #include "FunctionTypes.h"
 #include "RuntimeExport.h"
 #include "Types.h"
+#include "MathTypes.h"
 
+#include <functional>
 #include <memory>
 
 namespace won::ecs
@@ -20,6 +22,11 @@ namespace won::game
 namespace won::audio
 {
     class AudioMixer;
+}
+
+namespace won::rendering
+{
+    class View;
 }
 
 namespace won::script
@@ -67,6 +74,7 @@ namespace won::script
         OnTriggerEnter3D,
         OnTriggerStay3D,
         OnTriggerExit3D,
+        OnClick,
 
 		// user-defined
         Custom,
@@ -93,6 +101,8 @@ namespace won::script
         virtual bool ReloadScript(const String& script_path, String& out_error) = 0;
 
         virtual bool Call(ScriptInstanceHandle handle, const ScriptCallDesc& desc, String& out_error) = 0;
+
+        virtual void SetViewResolver(std::function<rendering::View*(float2)> resolver) {}
     };
 
     WONENGINE_API std::shared_ptr<ScriptRuntime> CreateScriptRuntime(const ScriptRuntimeDesc& desc);

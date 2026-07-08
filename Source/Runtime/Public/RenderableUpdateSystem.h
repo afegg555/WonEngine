@@ -12,7 +12,7 @@ namespace won::ecs
     class WONENGINE_API RenderableUpdateSystem final : public System
     {
     public:
-        ComponentMask GetReadOnlyMask() const override { return transform_component_mask | geometry_component_mask | material_component_mask | animation_component_mask; }
+        ComponentMask GetReadOnlyMask() const override { return transform_component_mask | geometry_component_mask | material_component_mask | animation_component_mask | layer_component_mask; }
         ComponentMask GetWriteMask() const override { return none_component_mask; }
         void Update(Scene& scene, float delta_time) override;
     };

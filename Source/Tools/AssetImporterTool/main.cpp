@@ -496,10 +496,11 @@ struct COMInitializer
                     TextureData texture_data = {};
                     texture_data.material_index = material_index;
                     texture_data.texture_slot = texture_slot;
-                    if (tex_paths[texture_slot][0] == '*')
+                    std::pair<const aiTexture*, int> embedded = aiscene->GetEmbeddedTextureAndIndex(tex_paths[texture_slot].c_str());
+                    if (embedded.first)
                     {
                         texture_data.source_type = texture_source_embedded;
-                        texture_data.source = tex_paths[texture_slot];
+                        texture_data.source = "*" + std::to_string(embedded.second);
                     }
                     else
                     {

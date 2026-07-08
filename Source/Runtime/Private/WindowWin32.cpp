@@ -138,6 +138,20 @@ namespace won::platform
         }
     }
 
+    void WindowWin32::BringToForeground()
+    {
+        if (!hwnd)
+        {
+            return;
+        }
+        ShowWindow(hwnd, SW_SHOW);
+        SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+        SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+        BringWindowToTop(hwnd);
+        SetForegroundWindow(hwnd);
+        SetFocus(hwnd);
+    }
+
     void WindowWin32::SetTitle(const char* title)
     {
         if (hwnd)

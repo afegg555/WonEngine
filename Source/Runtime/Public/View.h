@@ -37,16 +37,23 @@ namespace won::rendering
         ViewOptions options = {};
         Rect viewport = {};
         Rect scissor = {};
+        uint32 ui_layer_mask = 0xFFFFFFFF;
 
         Vector<uint32> sorted_opaque_indices;       // batch-key order
         Vector<uint32> sorted_transparent_indices;  // back-to-front
         Vector<uint32> sorted_sprite_3d_indices;    // back-to-front
         Vector<uint32> sorted_sprite_2d_indices;    // by layer
 
-        void Update(float dt);
+        void UpdateUIInteraction();
+        void BuildSortedIndices();
         bool RayCast(float2 screen_position, ecs::RayCastHit& out_hit, bool use_local_bvh = true, uint32 layer_mask = 0xFFFFFFFF) const;
+        bool ScreenToRay(float2 screen_position, math::Ray& out_ray) const;
 
     private:
-        void BuildSortedIndices();
+        ecs::Entity HitTestUI(float2 pointer) const;
+        bool HasPointerFocus() const;
+
+        ecs::Entity ui_hovered = ecs::INVALID_ENTITY;
+        ecs::Entity ui_press_target = ecs::INVALID_ENTITY;
     };
 }

@@ -95,6 +95,15 @@ namespace won::reflection
         WON_REFLECT_ENUM_VALUE("Sphere", won::ecs::Collider3DComponent::ShapeType::Sphere)
     WON_REFLECT_ENUM_END()
 
+    WON_REFLECT_ENUM(won::ecs::UIScaleMode, "UIScaleMode")
+        WON_REFLECT_ENUM_VALUE("ConstantPixelSize", won::ecs::UIScaleMode::ConstantPixelSize)
+        WON_REFLECT_ENUM_VALUE("ScaleWithScreenSize", won::ecs::UIScaleMode::ScaleWithScreenSize)
+    WON_REFLECT_ENUM_END()
+
+    WON_REFLECT_ENUM(won::ecs::Canvas2DComponent::RenderMode, "Canvas2DRenderMode")
+        WON_REFLECT_ENUM_VALUE("ScreenOverlay", won::ecs::Canvas2DComponent::RenderMode::ScreenOverlay)
+    WON_REFLECT_ENUM_END()
+
     WON_REFLECT_ENUM(won::ecs::Rigidbody3DComponent::MotionType, "Rigidbody3DMotionType")
         WON_REFLECT_ENUM_VALUE("Static", won::ecs::Rigidbody3DComponent::MotionType::Static)
         WON_REFLECT_ENUM_VALUE("Kinematic", won::ecs::Rigidbody3DComponent::MotionType::Kinematic)
@@ -185,12 +194,37 @@ namespace won::reflection
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::Sprite2DComponent, "Sprite2DComponent")
+        WON_REFLECT_FIELD(uv_rect, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(layer, won::FieldFlagEditable | won::FieldFlagSerializable)
+    WON_REFLECT_STRUCT_END()
+
+    WON_REFLECT_STRUCT(won::ecs::Canvas2DComponent, "Canvas2DComponent")
+        WON_REFLECT_FIELD(render_mode, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(scale_mode, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(reference_resolution, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(sort_order, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(layer_mask, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(match, won::FieldFlagEditable | won::FieldFlagSerializable)
+    WON_REFLECT_STRUCT_END()
+
+    WON_REFLECT_STRUCT(won::ecs::RectTransform2DComponent, "RectTransform2DComponent")
         WON_REFLECT_FIELD(anchor, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(position, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(size, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(pivot, won::FieldFlagEditable | won::FieldFlagSerializable)
-        WON_REFLECT_FIELD(uv_rect, won::FieldFlagEditable | won::FieldFlagSerializable)
-        WON_REFLECT_FIELD(layer, won::FieldFlagEditable | won::FieldFlagSerializable)
+    WON_REFLECT_STRUCT_END()
+
+    WON_REFLECT_STRUCT(won::ecs::ButtonComponent, "ButtonComponent")
+        WON_REFLECT_FIELD(enabled, won::FieldFlagEditable | won::FieldFlagSerializable)
+    WON_REFLECT_STRUCT_END()
+
+    WON_REFLECT_STRUCT(won::ecs::LayoutComponent, "LayoutComponent")
+        WON_REFLECT_FIELD(type, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(padding_min, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(padding_max, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(spacing, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(cross_align, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(reverse, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::Sprite3DComponent, "Sprite3DComponent")
@@ -202,10 +236,7 @@ namespace won::reflection
     WON_REFLECT_STRUCT(won::ecs::Text2DComponent, "Text2DComponent")
         WON_REFLECT_FIELD(font_asset_path, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(text, won::FieldFlagEditable | won::FieldFlagSerializable)
-        WON_REFLECT_FIELD(anchor, won::FieldFlagEditable | won::FieldFlagSerializable)
-        WON_REFLECT_FIELD(position, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(pixel_height, won::FieldFlagEditable | won::FieldFlagSerializable)
-        WON_REFLECT_FIELD(pivot, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(layer, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 

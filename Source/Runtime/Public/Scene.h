@@ -67,6 +67,10 @@ namespace won::ecs
             component_manager.RegisterComponent<Sprite3DComponent>();
             component_manager.RegisterComponent<Text2DComponent>();
             component_manager.RegisterComponent<Text3DComponent>();
+            component_manager.RegisterComponent<Canvas2DComponent>();
+            component_manager.RegisterComponent<RectTransform2DComponent>();
+            component_manager.RegisterComponent<ButtonComponent>();
+            component_manager.RegisterComponent<LayoutComponent>();
             component_manager.RegisterComponent<CameraComponent>();
             component_manager.RegisterComponent<LightComponent>();
             component_manager.RegisterComponent<EnvironmentComponent>();
@@ -1090,8 +1094,11 @@ namespace won::ecs
                 float2 position = { 0.0f, 0.0f };
                 float2 size = { 1.0f, 1.0f };
                 float2 pivot = { 0.5f, 0.5f };
+                float2 reference_resolution = { 0.0f, 0.0f };
                 float4 uv_rect = { 0.0f, 0.0f, 1.0f, 1.0f };
                 int32  layer = 0;
+                uint32 layer_mask = 0xFFFFFFFF;
+                float  match = 0.5f;
                 uint32 flags = None;
                 std::shared_ptr<resource::Font> font;
 
@@ -1176,6 +1183,21 @@ namespace won::ecs
             return physics_world.get();
         }
 
+        void QueueUIClick(Entity entity)
+        {
+            ui_click_queue.push_back(entity);
+        }
+
+        const Vector<Entity>& GetUIClickEvents() const
+        {
+            return ui_click_queue;
+        }
+
+        void ClearUIClickEvents()
+        {
+            ui_click_queue.clear();
+        }
+
         const math::bvh::BVH& GetSceneBVH() const
         {
             return scene_bvh;
@@ -1207,5 +1229,6 @@ namespace won::ecs
         bool gpu_bvh_dirty = true;
         bool system_schedule_dirty = true;
         std::unique_ptr<won::physics::PhysicsWorld> physics_world;
+        Vector<Entity> ui_click_queue;
     };
 }

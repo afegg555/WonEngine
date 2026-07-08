@@ -557,10 +557,6 @@ namespace won::physics
 
         JPH::BodyInterface& body_interface = impl->physics_system->GetBodyInterface();
 
-        JPH::EMotionType motion_type = body_interface.GetMotionType(body_id);
-        if (motion_type != JPH::EMotionType::Static && motion_type != JPH::EMotionType::Kinematic)
-            return;
-
         XMMATRIX world = transform.GetWorldTransform();
         XMVECTOR world_scale_vec, world_rot_vec, world_pos_vec;
         XMMatrixDecompose(&world_scale_vec, &world_rot_vec, &world_pos_vec, world);

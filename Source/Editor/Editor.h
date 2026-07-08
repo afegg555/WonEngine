@@ -42,9 +42,27 @@ namespace won::editor
 				std::atomic_bool failed{ false };
 				jobsystem::Context context;
 				uint64 id = 0;
+				bool add_to_scene = false;
+				uint64 bg_task_id = 0;
 			};
 
 			std::vector<std::shared_ptr<ImportTask>> tasks;
+		};
+
+		struct BackgroundTask
+		{
+			enum class State { Running, Done, Failed };
+			uint64 id = 0;
+			String name;
+			State state = State::Running;
+			float progress = -1.0f; // -1 = indeterminate
+			double finished_time = 0.0;
+		};
+
+		struct BackgroundTaskState
+		{
+			std::vector<BackgroundTask> tasks;
+			uint64 next_id = 1;
 		};
 
 		void LoadPlugins();
@@ -64,8 +82,11 @@ namespace won::editor
 		void RebindSceneResources();
 		void UpdateEntityList();
 		void UpdateDebugPrimitiveMesh();
-		uint64 StartAssetImport(const String& path);
+		uint64 StartAssetImport(const String& path, bool add_to_scene);
 		bool CommitAssetImportResult(EditorAssetImporter::ImportTask& task);
+		uint64 AddBackgroundTask(const String& name);
+		void FinishBackgroundTask(uint64 id, bool failed);
+		void DrawBackgroundTaskStatus();
 		void LoadEditorSettings();
 		void SaveEditorSettings();
 
@@ -106,6 +127,7 @@ namespace won::editor
 			String pending_import_virtual_path;
 			String pending_import_disk_path;
 			ContentAssetType pending_import_type = ContentAssetType::Unknown;
+			bool pending_import_add_to_scene = false;
 		};
 
 		void RebuildContentBrowser();
@@ -211,6 +233,7 @@ namespace won::editor
 		GameDataEditorState game_data_editor = {};
 		EditorViewport editor_viewport;
 		EditorAssetImporter asset_importer;
+		BackgroundTaskState background_tasks;
 		ContentBrowserState content_browser = {};
 		EditorSettings editor_settings;
 		std::unique_ptr<io::DirectoryWatcher> contents_watcher;

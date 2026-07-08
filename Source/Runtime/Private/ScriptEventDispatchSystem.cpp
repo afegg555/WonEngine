@@ -15,12 +15,12 @@ namespace won::ecs
     {
         eventhandler::Dispatch();
 
-        const auto& events = scene.GetPhysicsWorld()->GetTriggerEvents();
-        if (!script_runtime || events.empty())
+        if (!script_runtime)
         {
             return;
         }
 
+        const auto& events = scene.GetPhysicsWorld()->GetTriggerEvents();
         for (const physics::Collider3DTriggerEvent& event : events)
         {
             ScriptComponent* script_component = scene.GetComponent<ScriptComponent>(event.self);
@@ -72,5 +72,37 @@ namespace won::ecs
                 script_runtime->Call(script_slot.instance, call_desc, call_error);
             }
         }
+
+        for (const Entity clicked : scene.GetUIClickEvents())
+        {
+            ScriptComponent* script_component = scene.GetComponent<ScriptComponent>(clicked);
+            if (!script_component || !script_component->enabled)
+            {
+                continue;
+            }
+
+            script::ScriptCallContext context = {};
+            context.scene = &scene;
+            context.entity = clicked;
+
+            for (const ScriptSlot& script_slot : script_component->scripts)
+            {
+                if (!script_slot.enabled || script_slot.script_path.empty())
+                {
+                    continue;
+                }
+                if (!script_slot.initialized || !script_slot.instance.IsValid())
+                {
+                    continue;
+                }
+
+                script::ScriptCallDesc call_desc = {};
+                call_desc.context = context;
+                call_desc.type = script::ScriptCallType::OnClick;
+                String call_error;
+                script_runtime->Call(script_slot.instance, call_desc, call_error);
+            }
+        }
+        scene.ClearUIClickEvents();
     }
 }

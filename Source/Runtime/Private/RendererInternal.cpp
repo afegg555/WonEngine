@@ -2035,6 +2035,14 @@ namespace won::rendering
             for (uint32 idx : view.sorted_sprite_2d_indices)
             {
                 const Scene::RenderData::Sprite2DRenderable& renderable = render_data.sprite_2d_renderables[idx];
+                float2 ui_scale = { 1.0f, 1.0f };
+                if (renderable.reference_resolution.x > 0.0f && renderable.reference_resolution.y > 0.0f)
+                {
+                    const float s = std::pow(viewport_size.x / renderable.reference_resolution.x, 1.0f - renderable.match) * std::pow(viewport_size.y / renderable.reference_resolution.y, renderable.match);
+                    ui_scale = { s, s };
+                }
+                const float2 scaled_size = { renderable.size.x * ui_scale.x, renderable.size.y * ui_scale.y };
+                const float2 scaled_position = { renderable.position.x * ui_scale.x, renderable.position.y * ui_scale.y };
                 if (!has_active_pipeline || active_is_text_2d != renderable.IsText())
                 {
                     active_is_text_2d = renderable.IsText();
@@ -2050,9 +2058,9 @@ namespace won::rendering
                 {
                     SpritePushConstants push_constants = {};
                     push_constants.Init();
-                    push_constants.size_pivot = { renderable.size.x, renderable.size.y, renderable.pivot.x, renderable.pivot.y };
+                    push_constants.size_pivot = { scaled_size.x, scaled_size.y, renderable.pivot.x, renderable.pivot.y };
                     push_constants.uv_rect = renderable.uv_rect;
-                    push_constants.instance_index = pack_sprite_2d_position(renderable.anchor, renderable.position);
+                    push_constants.instance_index = pack_sprite_2d_position(renderable.anchor, scaled_position);
                     push_constants.material_index = renderable.material_index;
                     command_list.PushConstants(RHIShaderStage::Vertex, &push_constants, sizeof(SpritePushConstants), 0);
                     command_list.Draw(6, 1, 0, 0);
@@ -2070,9 +2078,9 @@ namespace won::rendering
                     }
                     SpritePushConstants push_constants = {};
                     push_constants.Init();
-                    push_constants.size_pivot = { renderable.size.x, renderable.size.y, renderable.pivot.x, renderable.pivot.y };
+                    push_constants.size_pivot = { scaled_size.x, scaled_size.y, renderable.pivot.x, renderable.pivot.y };
                     push_constants.uv_rect = renderable.uv_rect;
-                    push_constants.instance_index = pack_sprite_2d_position(renderable.anchor, renderable.position);
+                    push_constants.instance_index = pack_sprite_2d_position(renderable.anchor, scaled_position);
                     push_constants.material_index = renderable.material_index;
                     push_constants.SetResourceIndex(static_cast<uint32>(renderable.font->render_data.atlas_srv.descriptor_index));
                     command_list.PushConstants(RHIShaderStage::Vertex, &push_constants, sizeof(SpritePushConstants), 0);

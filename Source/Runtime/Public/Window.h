@@ -33,6 +33,7 @@ namespace won::platform
         virtual void* GetNativeHandle() const = 0;
         virtual void Show() = 0;
         virtual void Hide() = 0;
+        virtual void BringToForeground() = 0;
         virtual void SetTitle(const char* title) = 0;
         virtual void Resize(int width, int height) = 0;
         virtual void SetPosition(int x, int y) = 0;

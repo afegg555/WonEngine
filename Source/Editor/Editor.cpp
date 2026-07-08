@@ -225,6 +225,8 @@ namespace won::editor
 			constexpr const char* text_2d_component = "Text2DComponent";
 			constexpr const char* sprite_3d_component = "Sprite3DComponent";
 			constexpr const char* text_3d_component = "Text3DComponent";
+			constexpr const char* rect_transform_2d_component = "RectTransform2DComponent";
+			constexpr const char* button_component = "ButtonComponent";
 			constexpr const char* animation_component = "AnimationComponent";
 			constexpr const char* material_component = "MaterialComponent";
 			constexpr const char* script_component = "ScriptComponent";
@@ -237,6 +239,12 @@ namespace won::editor
 			constexpr const char* rotation_xyz = "Rotation XYZ";
 			constexpr const char* scale = "Scale";
 			constexpr const char* type = "Type";
+			constexpr const char* layout_component = "LayoutComponent";
+			constexpr const char* padding_min = "Padding Min";
+			constexpr const char* padding_max = "Padding Max";
+			constexpr const char* spacing = "Spacing";
+			constexpr const char* cross_align = "Cross Align";
+			constexpr const char* reverse = "Reverse";
 			constexpr const char* color = "Color";
 			constexpr const char* directional = "Directional";
 			constexpr const char* point = "Point";
@@ -299,7 +307,11 @@ namespace won::editor
 			constexpr const char* pivot = "Pivot";
 			constexpr const char* uv_rect = "UV Rect";
 			constexpr const char* layer = "Layer";
+			constexpr const char* anchor_presets = "Anchor Presets";
 			constexpr const char* font_format = "Font: %s";
+			constexpr const char* font = "Font";
+			constexpr const char* material_asset = "Material Asset";
+			constexpr const char* mesh_asset = "Mesh Asset";
 			constexpr const char* pixel_height = "Pixel Height";
 			constexpr const char* height = "Height";
 			constexpr const char* clips_format = "Clips: %d";
@@ -445,6 +457,9 @@ namespace won::editor
 			case reflection::TypeMeta<Sprite2DComponent>::type_id:
 			case reflection::TypeMeta<Sprite3DComponent>::type_id:
 			case reflection::TypeMeta<Text2DComponent>::type_id:
+			case reflection::TypeMeta<RectTransform2DComponent>::type_id:
+			case reflection::TypeMeta<ButtonComponent>::type_id:
+			case reflection::TypeMeta<LayoutComponent>::type_id:
 			case reflection::TypeMeta<Text3DComponent>::type_id:
 			case reflection::TypeMeta<AnimationComponent>::type_id:
 			case reflection::TypeMeta<MaterialComponent>::type_id:
@@ -457,7 +472,73 @@ namespace won::editor
 			}
 		}
 
+		const won::UnorderedMap<won::TypeId, won::Vector<won::TypeId>>& GetComponentCompanionTable()
+		{
+			static const won::UnorderedMap<won::TypeId, won::Vector<won::TypeId>> table = {
+				{ reflection::TypeMeta<RectTransform2DComponent>::type_id, { reflection::TypeMeta<HierarchyComponent>::type_id } },
+				{ reflection::TypeMeta<Sprite2DComponent>::type_id, { reflection::TypeMeta<RectTransform2DComponent>::type_id, reflection::TypeMeta<MaterialComponent>::type_id } },
+				{ reflection::TypeMeta<Text2DComponent>::type_id, { reflection::TypeMeta<RectTransform2DComponent>::type_id, reflection::TypeMeta<MaterialComponent>::type_id } },
+				{ reflection::TypeMeta<ButtonComponent>::type_id, { reflection::TypeMeta<RectTransform2DComponent>::type_id } },
+				{ reflection::TypeMeta<LayoutComponent>::type_id, { reflection::TypeMeta<RectTransform2DComponent>::type_id } },
+				{ reflection::TypeMeta<Sprite3DComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id, reflection::TypeMeta<MaterialComponent>::type_id } },
+				{ reflection::TypeMeta<Text3DComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id, reflection::TypeMeta<MaterialComponent>::type_id } },
+				{ reflection::TypeMeta<GeometryComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id, reflection::TypeMeta<MaterialComponent>::type_id } },
+				{ reflection::TypeMeta<Rigidbody3DComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id, reflection::TypeMeta<Collider3DComponent>::type_id } },
+				{ reflection::TypeMeta<Collider3DComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id } },
+				{ reflection::TypeMeta<LightComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id } },
+				{ reflection::TypeMeta<CameraComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id } },
+				{ reflection::TypeMeta<AudioSourceComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id } },
+				{ reflection::TypeMeta<DecalComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id, reflection::TypeMeta<MaterialComponent>::type_id } },
+				{ reflection::TypeMeta<ParticleEmitter3DComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id, reflection::TypeMeta<MaterialComponent>::type_id } },
+				{ reflection::TypeMeta<AnimationComponent>::type_id, { reflection::TypeMeta<GeometryComponent>::type_id } },
+			};
+			return table;
+		}
+
+		void* AddComponentWithCompanions(ecs::Scene* scene, ecs::Entity entity, const won::TypeDesc* type_desc)
+		{
+			if (!scene || !type_desc || scene->HasComponent(entity, type_desc->type_id))
+			{
+				return nullptr;
+			}
+
+			void* component = scene->AddComponent(entity, type_desc);
+
+			const won::UnorderedMap<won::TypeId, won::Vector<won::TypeId>>& table = GetComponentCompanionTable();
+			auto it = table.find(type_desc->type_id);
+			if (it != table.end())
+			{
+				for (won::TypeId companion_id : it->second)
+				{
+					if (scene->HasComponent(entity, companion_id))
+					{
+						continue;
+					}
+					const won::TypeDesc* companion_desc = reflection::FindType(companion_id);
+					if (companion_desc)
+					{
+						AddComponentWithCompanions(scene, entity, companion_desc); // recursively add companions
+					}
+				}
+			}
+
+			return component;
+		}
+
 		bool DrawComponentRemoveButton(const char* component_name, bool can_remove = true);
+
+		bool DrawComponentCollapsingHeader(const char* label)
+		{
+			const float4& header = theme::component_header_color;
+			const float4& header_hovered = theme::component_header_hovered_color;
+			const float4& header_active = theme::component_header_active_color;
+			ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(header.x, header.y, header.z, header.w));
+			ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(header_hovered.x, header_hovered.y, header_hovered.z, header_hovered.w));
+			ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(header_active.x, header_active.y, header_active.z, header_active.w));
+			const bool open = ImGui::CollapsingHeader(label, ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_AllowOverlap);
+			ImGui::PopStyleColor(3);
+			return open;
+		}
 
 		bool DrawReflectedField(const won::FieldDesc& field, uint8* component_data, uint32 component_size)
 		{
@@ -547,9 +628,9 @@ namespace won::editor
 
 			const char* component_name = GetTypeDisplayName(type_desc);
 			ImGui::PushID(type_desc->name ? type_desc->name : component_name);
-			ImGui::TextUnformatted(component_name);
+			const bool component_open = DrawComponentCollapsingHeader(component_name);
 			const bool remove_component = DrawComponentRemoveButton(component_name);
-			if (!remove_component && type_desc->fields && type_desc->field_count > 0)
+			if (!remove_component && component_open && type_desc->fields && type_desc->field_count > 0)
 			{
 				uint8* component_data = static_cast<uint8*>(component);
 				for (uint32 field_index = 0; field_index < type_desc->field_count; ++field_index)
@@ -1177,13 +1258,13 @@ namespace won::editor
 		//main_viewport_pos = { 0, 0 };
 		//main_viewport_size = { static_cast<float>(editor_viewport.view->viewport.width), static_cast<float>(editor_viewport.view->viewport.height) };
 		UpdateEntityList();
-		if (defer_main_window_show)
-		{
-			ShowMainWindow();
-		}
 		if (splash)
 		{
 			splash->Close();
+		}
+		if (defer_main_window_show)
+		{
+			ShowMainWindow();
 		}
 	}
 
@@ -1265,11 +1346,14 @@ namespace won::editor
 				continue;
 			}
 
+			FinishBackgroundTask(task->bg_task_id, task->failed.load());
+
 			if (!task->failed.load())
 			{
 				if (CommitAssetImportResult(*task))
 				{
 					entity_list_dirty = true;
+					RebuildContentBrowser();
 				}
 				else
 				{
@@ -1557,7 +1641,7 @@ namespace won::editor
 
 	}
 
-	uint64 EditorApplication::StartAssetImport(const String& path)
+	uint64 EditorApplication::StartAssetImport(const String& path, bool add_to_scene)
 	{
 		const String tool_path = io::CombinePath(io::GetExecutableDirectory(), "AssetImporterTool.exe");
 		if (path.empty() || !io::IsFile(tool_path))
@@ -1570,6 +1654,8 @@ namespace won::editor
 		auto task = std::make_shared<EditorAssetImporter::ImportTask>();
 		task->path = path;
 		task->id = ++import_task_counter;
+		task->add_to_scene = add_to_scene;
+		task->bg_task_id = AddBackgroundTask("Importing " + io::GetFilename(path));
 		task->context.priority = jobsystem::Priority::Streaming;
 		asset_importer.tasks.push_back(task);
 
@@ -1606,8 +1692,112 @@ namespace won::editor
 		return task->id;
 	}
 
+	uint64 EditorApplication::AddBackgroundTask(const String& name)
+	{
+		BackgroundTask t;
+		t.id = background_tasks.next_id++;
+		t.name = name;
+		t.state = BackgroundTask::State::Running;
+		background_tasks.tasks.push_back(t);
+		return t.id;
+	}
+
+	void EditorApplication::FinishBackgroundTask(uint64 id, bool failed)
+	{
+		for (BackgroundTask& t : background_tasks.tasks)
+		{
+			if (t.id == id)
+			{
+				t.state = failed ? BackgroundTask::State::Failed : BackgroundTask::State::Done;
+				t.finished_time = ImGui::GetTime();
+				return;
+			}
+		}
+	}
+
+	void EditorApplication::DrawBackgroundTaskStatus()
+	{
+		const double now = ImGui::GetTime();
+		background_tasks.tasks.erase(std::remove_if(background_tasks.tasks.begin(), background_tasks.tasks.end(),
+			[now](const BackgroundTask& t)
+			{
+				if (t.state == BackgroundTask::State::Done) return (now - t.finished_time) > 3.0;
+				if (t.state == BackgroundTask::State::Failed) return (now - t.finished_time) > 10.0;
+				return false;
+			}), background_tasks.tasks.end());
+
+		if (background_tasks.tasks.empty())
+		{
+			return;
+		}
+
+		const float pad = 12.0f;
+		float anchor_x = 0.0f;
+		float anchor_y = 0.0f;
+		if (editor_viewport.view && editor_viewport.view->viewport.width > 0 && editor_viewport.view->viewport.height > 0)
+		{
+			const rendering::Rect& vp = editor_viewport.view->viewport;
+			anchor_x = static_cast<float>(vp.x + vp.width) - pad;
+			anchor_y = static_cast<float>(vp.y + vp.height) - pad;
+		}
+		else
+		{
+			const ImGuiViewport* main_vp = ImGui::GetMainViewport();
+			anchor_x = main_vp->WorkPos.x + main_vp->WorkSize.x - pad;
+			anchor_y = main_vp->WorkPos.y + main_vp->WorkSize.y - pad;
+		}
+
+		ImGui::SetNextWindowPos(ImVec2(anchor_x, anchor_y), ImGuiCond_Always, ImVec2(1.0f, 1.0f));
+		ImGui::SetNextWindowBgAlpha(0.85f);
+		const ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_AlwaysAutoResize;
+		if (ImGui::Begin("##background_tasks", nullptr, flags))
+		{
+			for (const BackgroundTask& t : background_tasks.tasks)
+			{
+				if (t.state == BackgroundTask::State::Running)
+				{
+					const float sz = ImGui::GetTextLineHeight();
+					const ImVec2 cursor = ImGui::GetCursorScreenPos();
+					const ImVec2 center = ImVec2(cursor.x + sz * 0.5f, cursor.y + sz * 0.5f);
+					const float radius = sz * 0.35f;
+					ImDrawList* draw_list = ImGui::GetWindowDrawList();
+					const float start_angle = static_cast<float>(now) * 6.0f;
+					const int segment_count = 16;
+					draw_list->PathClear();
+					for (int i = 0; i <= segment_count * 3 / 4; ++i)
+					{
+						const float a = start_angle + (static_cast<float>(i) / static_cast<float>(segment_count)) * 6.2831853f;
+						draw_list->PathLineTo(ImVec2(center.x + cosf(a) * radius, center.y + sinf(a) * radius));
+					}
+					draw_list->PathStroke(ImGui::GetColorU32(ImGuiCol_Text), false, 2.0f);
+					ImGui::Dummy(ImVec2(sz, sz));
+					ImGui::SameLine();
+					ImGui::TextUnformatted(t.name.c_str());
+					if (t.progress >= 0.0f)
+					{
+						ImGui::SameLine();
+						ImGui::ProgressBar(t.progress, ImVec2(120.0f, 0.0f));
+					}
+				}
+				else if (t.state == BackgroundTask::State::Done)
+				{
+					ImGui::TextColored(ImVec4(0.40f, 0.85f, 0.40f, 1.0f), "done: %s", t.name.c_str());
+				}
+				else
+				{
+					ImGui::TextColored(ImVec4(0.90f, 0.35f, 0.35f, 1.0f), "failed: %s", t.name.c_str());
+				}
+			}
+		}
+		ImGui::End();
+	}
+
 	bool EditorApplication::CommitAssetImportResult(EditorAssetImporter::ImportTask& task)
 	{
+		if (!task.add_to_scene)
+		{
+			return true;
+		}
 		if (!editor_viewport.view || !editor_viewport.view->scene || !device)
 		{
 			return false;
@@ -2101,6 +2291,21 @@ namespace won::editor
 		camera->SetAspectRatio(static_cast<float>(width) / static_cast<float>(height));
 	}
 
+	enum class AssetImportKind
+	{
+		None,
+		Image,
+		Mesh,
+	};
+
+	static AssetImportKind GetAssetImportKind(const String& extension)
+	{
+		const String ext = won::utils::ToLower(extension);
+		if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "tga" || ext == "bmp") return AssetImportKind::Image;
+		if (ext == "fbx" || ext == "obj" || ext == "gltf" || ext == "glb" || ext == "stl") return AssetImportKind::Mesh;
+		return AssetImportKind::None;
+	}
+
 	void EditorApplication::RebuildContentBrowser()
 	{
 		content_browser.assets.clear();
@@ -2112,7 +2317,7 @@ namespace won::editor
 		{
 			const String ext = won::utils::ToLower(extension);
 			if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "tga" || ext == "bmp" || ext == resource::texture_binary_extension) return ContentAssetType::Texture;
-			if (ext == "mat") return ContentAssetType::Material;
+			if (ext == resource::material_binary_extension) return ContentAssetType::Material;
 			if (ext == "fbx" || ext == "obj" || ext == "gltf" || ext == "glb" || ext == "stl" || ext == resource::mesh_binary_extension) return ContentAssetType::Mesh;
 			if (ext == resource::scene_file_extension) return ContentAssetType::Scene;
 			if (ext == "hlsl" || ext == "hlsli") return ContentAssetType::Shader;
@@ -2263,9 +2468,22 @@ namespace won::editor
 
 		ImGui::PushID(asset.virtual_path.c_str());
 		ImGui::BeginGroup();
-		const bool can_import_asset = asset.type == ContentAssetType::Mesh;
+		const String asset_ext = won::utils::ToLower(io::GetExtension(asset.disk_path));
+		const AssetImportKind import_kind = GetAssetImportKind(asset_ext);
+		const bool is_imported_binary = asset_ext == resource::texture_binary_extension || asset_ext == resource::mesh_binary_extension || asset_ext == resource::material_binary_extension;
+		const bool can_import_asset = import_kind != AssetImportKind::None;
+		const bool can_import_to_scene = import_kind == AssetImportKind::Mesh;
 		const bool can_load_scene = asset.type == ContentAssetType::Scene;
 		ImGui::Button(type_icon(asset.type), ImVec2(tile_size, tile_size));
+		if (import_kind != AssetImportKind::None || is_imported_binary)
+		{
+			const ImVec2 icon_min = ImGui::GetItemRectMin();
+			const ImVec2 icon_max = ImGui::GetItemRectMax();
+			const float dot_radius = 5.0f;
+			const ImVec2 dot_center = ImVec2(icon_max.x - dot_radius - 3.0f, icon_min.y + dot_radius + 3.0f);
+			const ImU32 dot_color = (import_kind != AssetImportKind::None) ? IM_COL32(242, 166, 64, 255) : IM_COL32(115, 204, 140, 255);
+			ImGui::GetWindowDrawList()->AddCircleFilled(dot_center, dot_radius, dot_color);
+		}
 		if (ImGui::BeginDragDropSource())
 		{
 			ImGui::SetDragDropPayload("CONTENT_ASSET_PATH", asset.disk_path.c_str(), asset.disk_path.size() + 1);
@@ -2275,7 +2493,18 @@ namespace won::editor
 
 		ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + tile_size);
 		ImGui::TextWrapped("%s", asset.name.c_str());
-		ImGui::TextDisabled("%s", type_name(asset.type));
+		if (import_kind != AssetImportKind::None)
+		{
+			ImGui::TextColored(ImVec4(0.95f, 0.65f, 0.25f, 1.0f), "%s (source)", type_name(asset.type));
+		}
+		else if (is_imported_binary)
+		{
+			ImGui::TextColored(ImVec4(0.45f, 0.80f, 0.55f, 1.0f), "%s (imported)", type_name(asset.type));
+		}
+		else
+		{
+			ImGui::TextDisabled("%s", type_name(asset.type));
+		}
 		ImGui::PopTextWrapPos();
 		ImGui::EndGroup();
 
@@ -2285,6 +2514,7 @@ namespace won::editor
 			content_browser.pending_import_virtual_path = asset.virtual_path;
 			content_browser.pending_import_disk_path = asset.disk_path;
 			content_browser.pending_import_type = asset.type;
+			content_browser.pending_import_add_to_scene = can_import_to_scene;
 			content_browser.open_import_confirm = true;
 		}
 		else if (can_load_scene && ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
@@ -2293,12 +2523,22 @@ namespace won::editor
 		}
 		if (ImGui::BeginPopupContextItem("ContentAssetContext"))
 		{
-			if (ImGui::MenuItem(editor_text::import_to_scene, nullptr, false, can_import_asset))
+			if (ImGui::MenuItem(editor_text::import, nullptr, false, can_import_asset))
 			{
 				content_browser.pending_import_name = asset.name;
 				content_browser.pending_import_virtual_path = asset.virtual_path;
 				content_browser.pending_import_disk_path = asset.disk_path;
 				content_browser.pending_import_type = asset.type;
+				content_browser.pending_import_add_to_scene = false;
+				content_browser.open_import_confirm = true;
+			}
+			if (ImGui::MenuItem(editor_text::import_to_scene, nullptr, false, can_import_to_scene))
+			{
+				content_browser.pending_import_name = asset.name;
+				content_browser.pending_import_virtual_path = asset.virtual_path;
+				content_browser.pending_import_disk_path = asset.disk_path;
+				content_browser.pending_import_type = asset.type;
+				content_browser.pending_import_add_to_scene = true;
 				content_browser.open_import_confirm = true;
 			}
 			if (ImGui::MenuItem(editor_text::load_scene, nullptr, false, can_load_scene))
@@ -2534,14 +2774,14 @@ namespace won::editor
 			ImGui::TextUnformatted(editor_text::import_content_asset_message);
 			ImGui::TextUnformatted(content_browser.pending_import_name.c_str());
 			ImGui::TextDisabled("%s", content_browser.pending_import_virtual_path.c_str());
-			const bool can_import = content_browser.pending_import_type == ContentAssetType::Mesh && !content_browser.pending_import_disk_path.empty();
+			const bool can_import = !content_browser.pending_import_disk_path.empty() && GetAssetImportKind(io::GetExtension(content_browser.pending_import_disk_path)) != AssetImportKind::None;
 			if (!can_import)
 			{
 				ImGui::BeginDisabled();
 			}
 			if (ImGui::Button(editor_text::import))
 			{
-				StartAssetImport(content_browser.pending_import_disk_path);
+				StartAssetImport(content_browser.pending_import_disk_path, content_browser.pending_import_add_to_scene);
 				content_browser.pending_import_name.clear();
 				content_browser.pending_import_virtual_path.clear();
 				content_browser.pending_import_disk_path.clear();
@@ -3417,8 +3657,6 @@ namespace won::editor
 			if (ImGui::Button("+"))
 			{
 				ecs::Entity entity = editor_viewport.view->scene->CreateEntity();
-				auto transform = editor_viewport.view->scene->AddComponent<TransformComponent>(entity);
-				auto name = editor_viewport.view->scene->AddComponent<NameComponent>(entity);
 				UpdateEntityList();
 				editor_viewport.picked_entity = entity;
 
@@ -3631,10 +3869,10 @@ namespace won::editor
 				if (name_comp)
 				{
 					ImGui::PushID("NameComponent");
-					ImGui::Text(editor_text::name_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::name_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::name_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						char name_buf[256];
 						std::snprintf(name_buf, sizeof(name_buf), "%s", name_comp->value.c_str());
@@ -3644,7 +3882,7 @@ namespace won::editor
 							name_comp->value = name_buf;
 						}
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -3660,11 +3898,11 @@ namespace won::editor
 				if (transform_comp)
 				{
 					ImGui::PushID("TransformComponent");
-					ImGui::Text(editor_text::transform_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::transform_component);
 					const bool can_remove_transform = editor_viewport.picked_entity != editor_viewport.view->camera_entity;
 					bool remove_component = DrawComponentRemoveButton(editor_text::transform_component, can_remove_transform);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						float position[3] = { transform_comp->position.x, transform_comp->position.y, transform_comp->position.z };
 						if (ImGui::InputFloat3(editor_text::position, position))
@@ -3688,7 +3926,7 @@ namespace won::editor
 							transform_comp->SetDirty();
 						}
 					}
-					else if (can_remove_transform)
+					else if (remove_component && can_remove_transform)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -3705,10 +3943,10 @@ namespace won::editor
 				if (hierarchy_comp)
 				{
 					ImGui::PushID("HierarchyComponent");
-					ImGui::Text(editor_text::hierarchy_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::hierarchy_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::hierarchy_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						uint64 parent_id = hierarchy_comp->parent_id;
 						if (ImGui::InputScalar(editor_text::parent, ImGuiDataType_U64, &parent_id))
@@ -3716,7 +3954,7 @@ namespace won::editor
 							hierarchy_comp->parent_id = parent_id;
 						}
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -3732,10 +3970,10 @@ namespace won::editor
 				if (light_comp)
 				{
 					ImGui::PushID("LightComponent");
-					ImGui::Text(editor_text::light_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::light_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::light_component);
 					
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						// TODO: enum is hard coded
 						int light_type = static_cast<int>(light_comp->type);
@@ -3789,7 +4027,7 @@ namespace won::editor
 							light_comp->SetCastShadow(is_cast_shadow);
 						}
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -3805,11 +4043,11 @@ namespace won::editor
 				if (camera_comp)
 				{
 					ImGui::PushID("CameraComponent");
-					ImGui::Text(editor_text::camera_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::camera_component);
 					const bool can_remove_camera = editor_viewport.picked_entity != editor_viewport.view->camera_entity;
 					bool remove_component = DrawComponentRemoveButton(editor_text::camera_component, can_remove_camera);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						bool is_ortho = camera_comp->IsOrtho();
 						if (ImGui::Checkbox(editor_text::orthographic, &is_ortho))
@@ -3851,7 +4089,7 @@ namespace won::editor
 						ImGui::DragFloat(editor_text::shutter_speed, &camera_comp->shutter_speed, 0.001f, 0.0001f, 100.0f);
 						ImGui::DragFloat(editor_text::sensitivity, &camera_comp->sensitivity, 1.0f, 1.0f, 102400.0f);
 					}
-					else if (can_remove_camera)
+					else if (remove_component && can_remove_camera)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -3870,10 +4108,10 @@ namespace won::editor
 				if (environment_comp)
 				{
 					ImGui::PushID("EnvironmentComponent");
-					ImGui::Text(editor_text::environment_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::environment_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::environment_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						bool is_active = environment_comp->IsActive();
 						if (ImGui::Checkbox(editor_text::active, &is_active))
@@ -3963,7 +4201,7 @@ namespace won::editor
 						ImGui::DragFloat(editor_text::indirect_diffuse_scale, &environment_comp->indirect_diffuse_scale, 0.01f, 0.0f, 1000.0f);
 						ImGui::DragFloat(editor_text::indirect_specular_scale, &environment_comp->indirect_specular_scale, 0.01f, 0.0f, 1000.0f);
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -3979,14 +4217,14 @@ namespace won::editor
 				if (fog_volume_comp)
 				{
 					ImGui::PushID("FogVolumeComponent");
-					ImGui::Text(editor_text::fog_volume_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::fog_volume_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::fog_volume_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -4002,10 +4240,10 @@ namespace won::editor
 				if (ddgi_volume_comp)
 				{
 					ImGui::PushID("DDGIVolumeComponent");
-					ImGui::Text(editor_text::ddgi_volume_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::ddgi_volume_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::ddgi_volume_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						bool is_active = ddgi_volume_comp->IsActive();
 						if (ImGui::Checkbox(editor_text::active, &is_active))
@@ -4066,7 +4304,7 @@ namespace won::editor
 							editor_viewport.view->scene->BuildGPUBVH();
 						}
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -4082,12 +4320,76 @@ namespace won::editor
 				if (geometry_comp)
 				{
 					ImGui::PushID("GeometryComponent");
-					ImGui::Text(editor_text::geometry_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::geometry_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::geometry_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
-						ImGui::Text(editor_text::mesh_format, geometry_comp->mesh ? editor_text::assigned : editor_text::none);
+						String mesh_label = geometry_comp->mesh_asset_path.empty() ? String(editor_text::none_placeholder) : geometry_comp->mesh_asset_path;
+						ImGui::TextUnformatted(editor_text::mesh_asset);
+						ImGui::SetNextItemWidth(-1.0f);
+						if (ImGui::BeginCombo("##mesh_asset", mesh_label.c_str()))
+						{
+							for (const ContentBrowserAsset& asset : content_browser.assets)
+							{
+								if (asset.type != ContentAssetType::Mesh)
+								{
+									continue;
+								}
+								if (won::utils::ToLower(io::GetExtension(asset.disk_path)) != resource::mesh_binary_extension)
+								{
+									continue;
+								}
+								const String mesh_rel = io::GetRelativePath(contents_root_dir, asset.disk_path);
+								if (mesh_rel.empty())
+								{
+									continue;
+								}
+								const bool mesh_selected = mesh_rel == geometry_comp->mesh_asset_path;
+								if (ImGui::Selectable(asset.virtual_path.c_str(), mesh_selected))
+								{
+									auto loaded_mesh = resource::LoadMeshBinary(asset.disk_path);
+									if (loaded_mesh && loaded_mesh->IsValid())
+									{
+										const ecs::Entity mesh_entity = editor_viewport.picked_entity;
+										eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, mesh_entity, loaded_mesh, mesh_rel](const won::function::Value&) {
+											GeometryComponent* geom = editor_viewport.view->scene->GetComponent<GeometryComponent>(mesh_entity);
+											if (!geom || !device || !rendering::utils::CreateRenderData(*device, *loaded_mesh))
+											{
+												return;
+											}
+											if (geom->mesh && geom->mesh != loaded_mesh)
+											{
+												EditorViewport::DeferredResRemoval deferred_res_removal = {};
+												deferred_res_removal.frames_left = 8;
+												deferred_res_removal.meshes.push_back(geom->mesh);
+												if (geom->mesh->render_data.buffer)
+												{
+													deferred_res_removal.resources.push_back(geom->mesh->render_data.buffer);
+												}
+												if (geom->mesh->gpu_bvh.node_buffer)
+												{
+													deferred_res_removal.resources.push_back(geom->mesh->gpu_bvh.node_buffer);
+												}
+												if (geom->mesh->gpu_bvh.primitive_buffer)
+												{
+													deferred_res_removal.resources.push_back(geom->mesh->gpu_bvh.primitive_buffer);
+												}
+												editor_viewport.deferred_res_removals.push_back(std::move(deferred_res_removal));
+											}
+											geom->mesh_asset_path = mesh_rel;
+											geom->SetMesh(loaded_mesh);
+											editor_viewport.view->scene->SetBVHDirty();
+										});
+									}
+								}
+								if (mesh_selected)
+								{
+									ImGui::SetItemDefaultFocus();
+								}
+							}
+							ImGui::EndCombo();
+						}
 
 						bool cast_shadow = geometry_comp->IsCastShadow();
 						if (ImGui::Checkbox(editor_text::cast_shadow, &cast_shadow))
@@ -4095,7 +4397,7 @@ namespace won::editor
 							geometry_comp->SetCastShadow(cast_shadow);
 						}
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -4138,10 +4440,10 @@ namespace won::editor
 				if (collider_3d_comp)
 				{
 					ImGui::PushID("Collider3DComponent");
-					ImGui::Text(editor_text::collider_3d_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::collider_3d_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::collider_3d_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						int shape_type = static_cast<int>(collider_3d_comp->shape_type);
 						const char* shape_type_items[] = { editor_text::box, editor_text::sphere };
@@ -4199,7 +4501,7 @@ namespace won::editor
 							collider_3d_comp->SetDirty();
 						}
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -4215,10 +4517,10 @@ namespace won::editor
 				if (rigidbody_3d_comp)
 				{
 					ImGui::PushID("Rigidbody3DComponent");
-					ImGui::Text(editor_text::rigidbody_3d_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::rigidbody_3d_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::rigidbody_3d_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						int motion_type = static_cast<int>(rigidbody_3d_comp->motion_type);
 						const char* motion_type_items[] = { editor_text::static_str, editor_text::kinematic, editor_text::dynamic };
@@ -4259,7 +4561,7 @@ namespace won::editor
 							rigidbody_3d_comp->SetDirty();
 						}
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -4275,10 +4577,10 @@ namespace won::editor
 				if (audio_source_comp)
 				{
 					ImGui::PushID("AudioSourceComponent");
-					ImGui::Text(editor_text::audio_source_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::audio_source_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::audio_source_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						bool enabled = audio_source_comp->IsEnabled();
 						if (ImGui::Checkbox(editor_text::enabled, &enabled))
@@ -4343,7 +4645,7 @@ namespace won::editor
 							audio_source_comp->SetPlaying(is_playing);
 						}
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -4359,14 +4661,14 @@ namespace won::editor
 				if (audio_listener_comp)
 				{
 					ImGui::PushID("AudioListenerComponent");
-					ImGui::Text(editor_text::audio_listener_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::audio_listener_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::audio_listener_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						ImGui::Checkbox(editor_text::enabled, &audio_listener_comp->enabled);
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -4378,43 +4680,159 @@ namespace won::editor
 					ImGui::Separator();
 				}
 
+					RectTransform2DComponent* rect_2d_comp = editor_viewport.view->scene->GetComponent<RectTransform2DComponent>(editor_viewport.picked_entity);
+					if (rect_2d_comp)
+					{
+					ImGui::PushID("RectTransform2DComponent");
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::rect_transform_2d_component);
+					bool remove_component = DrawComponentRemoveButton(editor_text::rect_transform_2d_component);
+
+					if (!remove_component && component_open)
+					{
+						float anchor[2] = { rect_2d_comp->anchor.x, rect_2d_comp->anchor.y };
+						if (ImGui::InputFloat2(editor_text::anchor, anchor))
+						{
+							rect_2d_comp->anchor = { anchor[0], anchor[1] };
+							rect_2d_comp->SetDirty();
+						}
+
+						float position[2] = { rect_2d_comp->position.x, rect_2d_comp->position.y };
+						if (ImGui::InputFloat2(editor_text::position, position))
+						{
+							rect_2d_comp->position = { position[0], position[1] };
+							rect_2d_comp->SetDirty();
+						}
+
+						float size[2] = { rect_2d_comp->size.x, rect_2d_comp->size.y };
+						if (ImGui::InputFloat2(editor_text::size, size))
+						{
+							rect_2d_comp->size = { size[0], size[1] };
+							rect_2d_comp->SetDirty();
+						}
+
+						float pivot[2] = { rect_2d_comp->pivot.x, rect_2d_comp->pivot.y };
+						if (ImGui::InputFloat2(editor_text::pivot, pivot))
+						{
+							rect_2d_comp->pivot = { pivot[0], pivot[1] };
+							rect_2d_comp->SetDirty();
+						}
+
+						ImGui::Text(editor_text::anchor_presets);
+						const struct { const char* label; float x; float y; } anchor_preset_grid[9] = {
+							{ "TL", 0.0f, 0.0f }, { "TC", 0.5f, 0.0f }, { "TR", 1.0f, 0.0f },
+							{ "ML", 0.0f, 0.5f }, { "MC", 0.5f, 0.5f }, { "MR", 1.0f, 0.5f },
+							{ "BL", 0.0f, 1.0f }, { "BC", 0.5f, 1.0f }, { "BR", 1.0f, 1.0f },
+						};
+						for (int preset_index = 0; preset_index < 9; ++preset_index)
+						{
+							if (preset_index % 3 != 0)
+							{
+								ImGui::SameLine();
+							}
+							if (ImGui::Button(anchor_preset_grid[preset_index].label, ImVec2(34.0f, 0.0f)))
+							{
+								rect_2d_comp->anchor = { anchor_preset_grid[preset_index].x, anchor_preset_grid[preset_index].y };
+								rect_2d_comp->pivot = { anchor_preset_grid[preset_index].x, anchor_preset_grid[preset_index].y };
+								rect_2d_comp->position = { 0.0f, 0.0f };
+								rect_2d_comp->SetDirty();
+							}
+						}
+					}
+					else if (remove_component)
+					{
+						const ecs::Entity entity = editor_viewport.picked_entity;
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
+							editor_viewport.view->scene->RemoveComponent<RectTransform2DComponent>(entity);
+						});
+					}
+
+					ImGui::PopID();
+					ImGui::Separator();
+				}
+
+				ButtonComponent* button_comp = editor_viewport.view->scene->GetComponent<ButtonComponent>(editor_viewport.picked_entity);
+				if (button_comp)
+				{
+					ImGui::PushID("ButtonComponent");
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::button_component);
+					bool remove_component = DrawComponentRemoveButton(editor_text::button_component);
+
+					if (!remove_component && component_open)
+					{
+						ImGui::Checkbox(editor_text::enabled, &button_comp->enabled);
+					}
+					else if (remove_component)
+					{
+						const ecs::Entity entity = editor_viewport.picked_entity;
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
+							editor_viewport.view->scene->RemoveComponent<ButtonComponent>(entity);
+						});
+					}
+
+					ImGui::PopID();
+					ImGui::Separator();
+				}
+
+				LayoutComponent* layout_comp = editor_viewport.view->scene->GetComponent<LayoutComponent>(editor_viewport.picked_entity);
+				if (layout_comp)
+				{
+					ImGui::PushID("LayoutComponent");
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::layout_component);
+					bool remove_component = DrawComponentRemoveButton(editor_text::layout_component);
+
+					if (!remove_component && component_open)
+					{
+						const char* layout_type_items[] = { "Horizontal", "Vertical" };
+						int layout_type = static_cast<int>(layout_comp->type);
+						if (ImGui::Combo(editor_text::type, &layout_type, layout_type_items, IM_ARRAYSIZE(layout_type_items)))
+						{
+							layout_comp->type = static_cast<uint32>(layout_type);
+						}
+
+						float padding_min[2] = { layout_comp->padding_min.x, layout_comp->padding_min.y };
+						if (ImGui::InputFloat2(editor_text::padding_min, padding_min))
+						{
+							layout_comp->padding_min = { padding_min[0], padding_min[1] };
+						}
+
+						float padding_max[2] = { layout_comp->padding_max.x, layout_comp->padding_max.y };
+						if (ImGui::InputFloat2(editor_text::padding_max, padding_max))
+						{
+							layout_comp->padding_max = { padding_max[0], padding_max[1] };
+						}
+
+						ImGui::InputFloat(editor_text::spacing, &layout_comp->spacing);
+
+						const char* cross_align_items[] = { "Start", "Center", "End", "Stretch" };
+						int cross_align = static_cast<int>(layout_comp->cross_align);
+						if (ImGui::Combo(editor_text::cross_align, &cross_align, cross_align_items, IM_ARRAYSIZE(cross_align_items)))
+						{
+							layout_comp->cross_align = static_cast<uint32>(cross_align);
+						}
+
+						ImGui::Checkbox(editor_text::reverse, &layout_comp->reverse);
+					}
+					else if (remove_component)
+					{
+						const ecs::Entity entity = editor_viewport.picked_entity;
+						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
+							editor_viewport.view->scene->RemoveComponent<LayoutComponent>(entity);
+						});
+					}
+
+					ImGui::PopID();
+					ImGui::Separator();
+				}
+
 				Sprite2DComponent* sprite_2d_comp = editor_viewport.view->scene->GetComponent<Sprite2DComponent>(editor_viewport.picked_entity);
 				if (sprite_2d_comp)
 				{
 					ImGui::PushID("Sprite2DComponent");
-					ImGui::Text(editor_text::sprite_2d_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::sprite_2d_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::sprite_2d_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
-						float anchor[2] = { sprite_2d_comp->anchor.x, sprite_2d_comp->anchor.y };
-						if (ImGui::InputFloat2(editor_text::anchor, anchor))
-						{
-							sprite_2d_comp->anchor = { anchor[0], anchor[1] };
-							sprite_2d_comp->SetDirty();
-						}
-
-						float position[2] = { sprite_2d_comp->position.x, sprite_2d_comp->position.y };
-						if (ImGui::InputFloat2(editor_text::position, position))
-						{
-							sprite_2d_comp->position = { position[0], position[1] };
-							sprite_2d_comp->SetDirty();
-						}
-
-						float size[2] = { sprite_2d_comp->size.x, sprite_2d_comp->size.y };
-						if (ImGui::InputFloat2(editor_text::size, size))
-						{
-							sprite_2d_comp->size = { size[0], size[1] };
-							sprite_2d_comp->SetDirty();
-						}
-
-						float pivot[2] = { sprite_2d_comp->pivot.x, sprite_2d_comp->pivot.y };
-						if (ImGui::InputFloat2(editor_text::pivot, pivot))
-						{
-							sprite_2d_comp->pivot = { pivot[0], pivot[1] };
-							sprite_2d_comp->SetDirty();
-						}
-
 						float uv_rect[4] = { sprite_2d_comp->uv_rect.x, sprite_2d_comp->uv_rect.y, sprite_2d_comp->uv_rect.z, sprite_2d_comp->uv_rect.w };
 						if (ImGui::InputFloat4(editor_text::uv_rect, uv_rect))
 						{
@@ -4427,7 +4845,7 @@ namespace won::editor
 							sprite_2d_comp->SetDirty();
 						}
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -4443,32 +4861,55 @@ namespace won::editor
 				if (text_2d_comp)
 				{
 					ImGui::PushID("Text2DComponent");
-					ImGui::Text(editor_text::text_2d_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::text_2d_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::text_2d_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
-						ImGui::Text(editor_text::font_format, text_2d_comp->font && text_2d_comp->font->IsValid() ? editor_text::assigned : editor_text::none);
+						{
+							String asset_label = text_2d_comp->font_asset_path.empty() ? String(editor_text::none_placeholder) : text_2d_comp->font_asset_path;
+							ImGui::TextUnformatted(editor_text::font);
+							ImGui::SetNextItemWidth(-1.0f);
+							if (ImGui::BeginCombo("##font", asset_label.c_str()))
+							{
+								if (ImGui::Selectable(editor_text::none_placeholder, text_2d_comp->font_asset_path.empty()))
+								{
+									text_2d_comp->font_asset_path.clear();
+									text_2d_comp->font = nullptr;
+									text_2d_comp->SetDirty();
+								}
+								for (const ContentBrowserAsset& asset : content_browser.assets)
+								{
+									if (asset.type != ContentAssetType::Font)
+									{
+										continue;
+									}
+									const String asset_rel = io::GetRelativePath(contents_root_dir, asset.disk_path);
+									if (asset_rel.empty())
+									{
+										continue;
+									}
+									const bool asset_selected = asset_rel == text_2d_comp->font_asset_path;
+									if (ImGui::Selectable(asset.virtual_path.c_str(), asset_selected))
+									{
+										text_2d_comp->font_asset_path = asset_rel;
+										text_2d_comp->font = resource::LoadFontFile(asset.disk_path);
+										text_2d_comp->SetDirty();
+									}
+									if (asset_selected)
+									{
+										ImGui::SetItemDefaultFocus();
+									}
+								}
+							ImGui::EndCombo();
+							}
+						}
 
 						char text_buf[4096] = {};
 						strncpy_s(text_buf, text_2d_comp->text.c_str(), sizeof(text_buf) - 1);
 						if (ImGui::InputTextMultiline(editor_text::text, text_buf, sizeof(text_buf), ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 4.0f)))
 						{
 							text_2d_comp->text = text_buf;
-							text_2d_comp->SetDirty();
-						}
-
-						float anchor[2] = { text_2d_comp->anchor.x, text_2d_comp->anchor.y };
-						if (ImGui::InputFloat2(editor_text::anchor, anchor))
-						{
-							text_2d_comp->anchor = { anchor[0], anchor[1] };
-							text_2d_comp->SetDirty();
-						}
-
-						float position[2] = { text_2d_comp->position.x, text_2d_comp->position.y };
-						if (ImGui::InputFloat2(editor_text::position, position))
-						{
-							text_2d_comp->position = { position[0], position[1] };
 							text_2d_comp->SetDirty();
 						}
 
@@ -4479,19 +4920,12 @@ namespace won::editor
 							text_2d_comp->SetDirty();
 						}
 
-						float pivot[2] = { text_2d_comp->pivot.x, text_2d_comp->pivot.y };
-						if (ImGui::InputFloat2(editor_text::pivot, pivot))
-						{
-							text_2d_comp->pivot = { pivot[0], pivot[1] };
-							text_2d_comp->SetDirty();
-						}
-
 						if (ImGui::InputInt(editor_text::layer, &text_2d_comp->layer))
 						{
 							text_2d_comp->SetDirty();
 						}
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -4507,10 +4941,10 @@ namespace won::editor
 				if (sprite_3d_comp)
 				{
 					ImGui::PushID("Sprite3DComponent");
-					ImGui::Text(editor_text::sprite_3d_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::sprite_3d_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::sprite_3d_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						float size[2] = { sprite_3d_comp->size.x, sprite_3d_comp->size.y };
 						if (ImGui::InputFloat2(editor_text::size, size))
@@ -4539,7 +4973,7 @@ namespace won::editor
 							sprite_3d_comp->SetBillboard(billboard);
 						}
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -4555,10 +4989,10 @@ namespace won::editor
 				if (text_3d_comp)
 				{
 					ImGui::PushID("Text3DComponent");
-					ImGui::Text(editor_text::text_3d_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::text_3d_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::text_3d_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						ImGui::Text(editor_text::font_format, text_3d_comp->font && text_3d_comp->font->IsValid() ? editor_text::assigned : editor_text::none);
 
@@ -4596,7 +5030,7 @@ namespace won::editor
 							text_3d_comp->SetBillboard(billboard);
 						}
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -4612,10 +5046,10 @@ namespace won::editor
 				if (animation_comp)
 				{
 					ImGui::PushID("AnimationComponent");
-					ImGui::Text(editor_text::animation_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::animation_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::animation_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						const int clip_count = static_cast<int>(animation_comp->clips.size());
 						ImGui::Text(editor_text::clips_format, clip_count);
@@ -4687,7 +5121,7 @@ namespace won::editor
 						ImGui::Text(editor_text::bone_matrices_format, static_cast<int>(animation_comp->bone_matrices.size()));
 						ImGui::Text(editor_text::bone_matrix_offset_format, animation_comp->bone_matrix_offset);
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -4703,10 +5137,10 @@ namespace won::editor
 				if (material_comp)
 				{
 					ImGui::PushID("MaterialComponent");
-					ImGui::Text(editor_text::material_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::material_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::material_component);
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						static Entity selected_material_entity = INVALID_ENTITY;
 						static int selected_material_slot = 0;
@@ -4716,6 +5150,44 @@ namespace won::editor
 							selected_material_slot = 0;
 						}
 
+						{
+							String asset_label = material_comp->material_asset_path.empty() ? String(editor_text::none_placeholder) : material_comp->material_asset_path;
+							ImGui::TextUnformatted(editor_text::material_asset);
+							ImGui::SetNextItemWidth(-1.0f);
+							if (ImGui::BeginCombo("##material_asset", asset_label.c_str()))
+							{
+								if (ImGui::Selectable(editor_text::none_placeholder, material_comp->material_asset_path.empty()))
+								{
+									material_comp->SetMaterial(nullptr);
+									material_comp->SetMaterialAssetPath(String());
+									material_comp->SetDirty();
+								}
+								for (const ContentBrowserAsset& asset : content_browser.assets)
+								{
+									if (asset.type != ContentAssetType::Material)
+									{
+										continue;
+									}
+									const String asset_rel = io::GetRelativePath(contents_root_dir, asset.disk_path);
+									if (asset_rel.empty())
+									{
+										continue;
+									}
+									const bool asset_selected = asset_rel == material_comp->material_asset_path;
+									if (ImGui::Selectable(asset.virtual_path.c_str(), asset_selected))
+									{
+										material_comp->SetMaterial(resource::LoadMaterialBinary(asset.disk_path));
+										material_comp->SetMaterialAssetPath(asset_rel);
+										material_comp->SetDirty();
+									}
+									if (asset_selected)
+									{
+										ImGui::SetItemDefaultFocus();
+									}
+								}
+							ImGui::EndCombo();
+							}
+						}
 						int material_slot_count = static_cast<int>(material_comp->GetMaterialSlotCount());
 						ImGui::Text(editor_text::material_slots_format, material_slot_count);
 
@@ -4851,8 +5323,55 @@ namespace won::editor
 							ImGui::SeparatorText(editor_text::textures);
 							for (uint32 texture_slot = 0; texture_slot < static_cast<uint32>(TEXTURESLOT_COUNT); ++texture_slot)
 							{
-								const resource::MaterialSlot::TextureMap& texture = material_slot.textures[texture_slot];
-								ImGui::Text(editor_text::texture_status_format, texture_slot_names[texture_slot], texture.IsValid() ? editor_text::assigned : editor_text::none);
+								resource::MaterialSlot::TextureMap& texture = material_slot.textures[texture_slot];
+								ImGui::PushID(static_cast<int>(texture_slot));
+								String texture_label = texture.texture_asset_path.empty() ? String(editor_text::none_placeholder) : texture.texture_asset_path;
+								ImGui::TextUnformatted(texture_slot_names[texture_slot]);
+								ImGui::SetNextItemWidth(-1.0f);
+								if (ImGui::BeginCombo("##texture", texture_label.c_str()))
+								{
+									if (ImGui::Selectable(editor_text::none_placeholder, texture.texture_asset_path.empty()))
+									{
+										texture.texture_asset_path.clear();
+										texture.texture = nullptr;
+										texture.res_handle = {};
+										material_changed = true;
+									}
+									for (const ContentBrowserAsset& asset : content_browser.assets)
+									{
+										if (asset.type != ContentAssetType::Texture)
+										{
+											continue;
+										}
+										if (won::utils::ToLower(io::GetExtension(asset.disk_path)) != resource::texture_binary_extension)
+										{
+											continue;
+										}
+										const String texture_rel = io::GetRelativePath(contents_root_dir, asset.disk_path);
+										if (texture_rel.empty())
+										{
+											continue;
+										}
+										const bool texture_selected = texture_rel == texture.texture_asset_path;
+										if (ImGui::Selectable(asset.virtual_path.c_str(), texture_selected))
+										{
+											auto image = resource::LoadTextureBinary(asset.disk_path);
+											if (image && image->IsValid() && rendering::utils::CreateRenderData(*device, *image, image->format, false))
+											{
+												texture.texture_asset_path = texture_rel;
+												texture.texture = image->render_data.texture;
+												texture.res_handle = image->render_data.srv;
+												material_changed = true;
+											}
+										}
+										if (texture_selected)
+										{
+											ImGui::SetItemDefaultFocus();
+										}
+									}
+									ImGui::EndCombo();
+								}
+								ImGui::PopID();
 							}
 
 							if (material_changed)
@@ -4861,7 +5380,7 @@ namespace won::editor
 							}
 						}
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -4900,7 +5419,7 @@ namespace won::editor
 				if (script_comp)
 				{
 					ImGui::PushID("ScriptComponent");
-					ImGui::Text(editor_text::script_component);
+					const bool component_open = DrawComponentCollapsingHeader(editor_text::script_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::script_component);
 					auto reload_script = [this](ecs::Entity entity, ScriptSlot& script_slot)
 						{
@@ -4943,7 +5462,7 @@ namespace won::editor
 							}
 						};
 
-					if (!remove_component)
+					if (!remove_component && component_open)
 					{
 						bool enabled = script_comp->enabled;
 						if (ImGui::Checkbox(editor_text::enabled, &enabled))
@@ -5177,7 +5696,7 @@ namespace won::editor
 							script_comp->scripts.push_back({});
 						}
 					}
-					else
+					else if (remove_component)
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity](const won::function::Value&) {
@@ -5303,7 +5822,7 @@ namespace won::editor
 
 						if (ImGui::MenuItem(GetTypeDisplayName(type_desc)))
 						{
-							void* component = editor_viewport.view->scene->AddComponent(editor_viewport.picked_entity, type_desc);
+							void* component = AddComponentWithCompanions(editor_viewport.view->scene, editor_viewport.picked_entity, type_desc);
 							if (component && type_desc->type_id == reflection::TypeMeta<NameComponent>::type_id)
 							{
 								static_cast<NameComponent*>(component)->value = "Entity " + std::to_string(editor_viewport.picked_entity);
@@ -5407,6 +5926,8 @@ namespace won::editor
 			ImGui::SetWindowFocus(editor_text::contents_browser_window);
 			focus_contents_browser_on_startup = false;
 		}
+
+		DrawBackgroundTaskStatus();
 
 		// Rendering
 		ImGui::Render();
