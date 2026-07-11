@@ -1,4 +1,5 @@
 #pragma once
+#include "Image.h"
 #include "MathTypes.h"
 #include "Resource.h"
 #include "RHIResource.h"
@@ -47,12 +48,11 @@ namespace won::resource
         struct TextureMap
         {
             String texture_asset_path = "";
-            std::shared_ptr<rendering::RHIResource> texture = nullptr;
-            rendering::RHISubresourceHandle res_handle;
+            std::shared_ptr<Image> image = nullptr;
 
             bool IsValid() const
             {
-                return texture != nullptr && res_handle.IsValid();
+                return image != nullptr && image->render_data.IsValid();
             }
         };
         TextureMap textures[TEXTURESLOT_COUNT];

@@ -1842,8 +1842,7 @@ namespace won::editor
 				}
 				if (rendering::utils::CreateRenderData(*device, *image, image->format, false))
 				{
-					texture_map.texture = image->render_data.texture;
-					texture_map.res_handle = image->render_data.srv;
+					texture_map.image = image;
 				}
 			}
 		}
@@ -3834,9 +3833,9 @@ namespace won::editor
 							{
 								for (uint32 texture_slot = 0; texture_slot < TEXTURESLOT_COUNT; ++texture_slot)
 								{
-									if (material_slot.textures[texture_slot].texture)
+									if (material_slot.textures[texture_slot].image && material_slot.textures[texture_slot].image->render_data.texture)
 									{
-										deferred_res_removal.resources.push_back(material_slot.textures[texture_slot].texture);
+										deferred_res_removal.resources.push_back(material_slot.textures[texture_slot].image->render_data.texture);
 									}
 								}
 							}
@@ -5333,8 +5332,7 @@ namespace won::editor
 									if (ImGui::Selectable(editor_text::none_placeholder, texture.texture_asset_path.empty()))
 									{
 										texture.texture_asset_path.clear();
-										texture.texture = nullptr;
-										texture.res_handle = {};
+										texture.image = nullptr;
 										material_changed = true;
 									}
 									for (const ContentBrowserAsset& asset : content_browser.assets)
@@ -5359,8 +5357,7 @@ namespace won::editor
 											if (image && image->IsValid() && rendering::utils::CreateRenderData(*device, *image, image->format, false))
 											{
 												texture.texture_asset_path = texture_rel;
-												texture.texture = image->render_data.texture;
-												texture.res_handle = image->render_data.srv;
+												texture.image = image;
 												material_changed = true;
 											}
 										}
@@ -5394,9 +5391,9 @@ namespace won::editor
 								{
 									for (uint32 texture_slot = 0; texture_slot < TEXTURESLOT_COUNT; ++texture_slot)
 									{
-										if (material_slot.textures[texture_slot].texture)
+										if (material_slot.textures[texture_slot].image && material_slot.textures[texture_slot].image->render_data.texture)
 										{
-											deferred_res_removal.resources.push_back(material_slot.textures[texture_slot].texture);
+											deferred_res_removal.resources.push_back(material_slot.textures[texture_slot].image->render_data.texture);
 										}
 									}
 								}

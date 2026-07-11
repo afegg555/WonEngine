@@ -32,6 +32,16 @@ namespace won::rendering::utils
         Vector<std::weak_ptr<resource::Mesh>> pending_gpu_bvh_build;
         std::mutex pending_gpu_bvh_build_mutex;
 
+        struct PendingImageUpload
+        {
+            std::weak_ptr<resource::Image> image;
+            RHIFormat format;
+        };
+        Vector<std::weak_ptr<resource::Mesh>> pending_mesh_upload;
+        Vector<std::weak_ptr<resource::Font>> pending_font_upload;
+        Vector<PendingImageUpload> pending_image_upload;
+        std::mutex pending_resource_upload_mutex;
+
         template<typename T>
         void PackBufferSubresource(const Vector<T>& source, Vector<uint8>& packed_data, Size& out_offset, Size data_size, Size alignment, Size& current_offset)
         {
@@ -589,6 +599,93 @@ namespace won::rendering::utils
         succeeded &= FlushEnqueuedGPUBVHBuild(device, renderer, command_list, scratch_resources);
         succeeded &= FlushEnqueuedTextureMipGeneration(device, renderer, command_list);
         command_list.End();
+        return succeeded;
+    }
+
+    void EnqueueResourceUpload(const std::shared_ptr<resource::Mesh>& mesh)
+    {
+        if (!mesh || mesh->render_data.IsValid())
+        {
+            return;
+        }
+        std::lock_guard<std::mutex> lock(pending_resource_upload_mutex);
+        for (const std::weak_ptr<resource::Mesh>& pending : pending_mesh_upload)
+        {
+            if (pending.lock().get() == mesh.get())
+            {
+                return;
+            }
+        }
+        pending_mesh_upload.push_back(mesh);
+    }
+
+    void EnqueueResourceUpload(const std::shared_ptr<resource::Font>& font)
+    {
+        if (!font)
+        {
+            return;
+        }
+        std::lock_guard<std::mutex> lock(pending_resource_upload_mutex);
+        for (const std::weak_ptr<resource::Font>& pending : pending_font_upload)
+        {
+            if (pending.lock().get() == font.get())
+            {
+                return;
+            }
+        }
+        pending_font_upload.push_back(font);
+    }
+
+    void EnqueueResourceUpload(const std::shared_ptr<resource::Image>& image, RHIFormat format)
+    {
+        if (!image || image->render_data.IsValid())
+        {
+            return;
+        }
+        std::lock_guard<std::mutex> lock(pending_resource_upload_mutex);
+        for (const PendingImageUpload& pending : pending_image_upload)
+        {
+            if (pending.image.lock().get() == image.get())
+            {
+                return;
+            }
+        }
+        pending_image_upload.push_back({ image, format });
+    }
+
+    bool FlushEnqueuedResourceUploads(RHIDevice& device)
+    {
+        Vector<std::weak_ptr<resource::Mesh>> meshes;
+        Vector<std::weak_ptr<resource::Font>> fonts;
+        Vector<PendingImageUpload> images;
+        {
+            std::lock_guard<std::mutex> lock(pending_resource_upload_mutex);
+            meshes.swap(pending_mesh_upload);
+            fonts.swap(pending_font_upload);
+            images.swap(pending_image_upload);
+        }
+        bool succeeded = true;
+        for (const std::weak_ptr<resource::Mesh>& weak : meshes)
+        {
+            if (std::shared_ptr<resource::Mesh> mesh = weak.lock())
+            {
+                succeeded &= CreateRenderData(device, *mesh);
+            }
+        }
+        for (const std::weak_ptr<resource::Font>& weak : fonts)
+        {
+            if (std::shared_ptr<resource::Font> font = weak.lock())
+            {
+                succeeded &= CreateRenderData(device, *font);
+            }
+        }
+        for (const PendingImageUpload& pending : images)
+        {
+            if (std::shared_ptr<resource::Image> image = pending.image.lock())
+            {
+                succeeded &= CreateRenderData(device, *image, pending.format, true);
+            }
+        }
         return succeeded;
     }
 

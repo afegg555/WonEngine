@@ -91,7 +91,7 @@ namespace won::ecs
                 {
                     if (material_slot.textures[texture_slot].IsValid())
                     {
-                        shader_material.textures[texture_slot].texture_descriptor = material_slot.textures[texture_slot].res_handle.descriptor_index;
+                        shader_material.textures[texture_slot].texture_descriptor = material_slot.textures[texture_slot].image->render_data.srv.descriptor_index;
                     }
                 }
             }

@@ -7,6 +7,7 @@
 #include "JsonArchive.h"
 #include "Renderer.h"
 #include "ResourceAsset.h"
+#include "RenderingUtils.h"
 #include "SceneSerializer.h"
 #include "Window.h"
 #include "JobSystem.h"

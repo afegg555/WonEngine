@@ -3,6 +3,7 @@
 #include "FileSystem.h"
 #include "JsonArchive.h"
 #include "ProjectSettings.h"
+#include "RenderingUtils.h"
 #include "ResourceAsset.h"
 #include "Scene.h"
 #include "SceneSerializer.h"
@@ -100,7 +101,8 @@ int main(int argc, char** argv)
         }
         if (won::rendering::RHIDevice* device = app.GetDevice())
         {
-            won::resource::LoadSceneResources(game_scene, *device, content_root);
+            won::resource::LoadSceneResources(game_scene, content_root);
+            won::rendering::utils::FlushEnqueuedResourceUploads(*device);
         }
 
         const float window_width = (std::max)(1.0f, static_cast<float>(app_desc.project_settings.window_width));
