@@ -260,6 +260,7 @@ set(RUNTIME_SERIALIZATION
     Source/Runtime/Public/ArchiveMode.h
     Source/Runtime/Public/JsonArchive.h
     Source/Runtime/Public/SceneSerializer.h
+    Source/Runtime/Public/PrefabSpawnRequest.h
     Source/Runtime/Private/JsonArchive.cpp
     Source/Runtime/Private/SceneSerializer.cpp
 )

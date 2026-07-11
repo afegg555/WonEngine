@@ -236,6 +236,7 @@ int main(int argc, char** argv)
         const char* packaged_content_extensions[] =
         {
             won::resource::scene_file_extension,
+            won::resource::prefab_file_extension,
             won::resource::mesh_binary_extension,
             won::resource::material_binary_extension,
             won::resource::texture_binary_extension,
@@ -245,14 +246,31 @@ int main(int argc, char** argv)
             won::resource::sound_file_extension
         };
 
+        const char* source_asset_extensions[] =
+        {
+            "fbx", "obj", "gltf", "glb", "stl",
+            "png", "jpg", "jpeg", "tga", "bmp"
+        };
+
         // Some referenced assets are themselves JSON containers that reference further assets:
         // a scene references meshes/textures/materials (and other scenes for transitions),
         // and a material binary (.wonmat) references its textures. Scan them transitively.
         auto is_scannable = [](const won::String& ext)
         {
             return ext == won::resource::scene_file_extension
+                || ext == won::resource::prefab_file_extension
                 || ext == won::resource::material_binary_extension;
         };
+
+        won::Vector<won::io::DirectoryEntry> prefab_entries;
+        if (won::io::EnumerateDirectoryRecursive(content_source, &prefab_entries))
+        {
+            for (const won::io::DirectoryEntry& entry : prefab_entries)
+            {
+                if (entry.is_file && won::io::GetExtension(entry.path) == won::resource::prefab_file_extension)
+                    scenes_to_package.push_back(won::io::GetRelativePath(content_source, entry.path));
+            }
+        }
 
         won::Vector<won::String> work_queue = scenes_to_package;
         won::UnorderedSet<won::String> visited;
@@ -290,7 +308,19 @@ int main(int argc, char** argv)
                     if (ext == packaged_ext) { should_copy = true; break; }
                 }
                 if (should_copy)
+                {
                     work_queue.push_back(value);
+                    continue;
+                }
+                for (const char* source_ext : source_asset_extensions)
+                {
+                    if (ext == source_ext)
+                    {
+                        std::cout << "Warning: '" << current << "' references source asset '" << value
+                            << "'; the package needs the imported binary. Reference the imported asset instead.\n";
+                        break;
+                    }
+                }
             }
         }
     }

@@ -184,47 +184,214 @@ namespace won
             eventhandler::EVENT_SCENE_LOAD,
             [this](const won::function::Value& payload)
             {
-                if (payload.type != won::ValueType::String || !payload.string_value)
-                    return;
-                const String path = won::io::CombinePath(
-                    won::project::GetContentRoot(project_settings), payload.string_value);
-                backlog::Post("[SceneTransition] requested: " + path, backlog::LogLevel::Default);
-                eventhandler::SubscribeOnce(
-                    eventhandler::EVENT_THREAD_SAFE_POINT,
-                    [this, path](const won::function::Value&)
-                    {
-                        backlog::Post("[SceneTransition] loading: " + path, backlog::LogLevel::Default);
-						// currently we only support one scene at a time, so we will load the scene into the first view
-                        for (const std::unique_ptr<rendering::View>& view_ptr : views)
-                        {
-                            if (!view_ptr || !view_ptr->scene)
-                                continue;
-                            WaitIdle();
-                            serialize::JsonArchive archive(serialize::ArchiveMode::Read);
-                            if (archive.LoadFromFile(path))
-                            {
-                                view_ptr->scene->ClearEntities();
-                                serialize::Serialize(archive, *view_ptr->scene);
-                                resource::LoadSceneResources(*view_ptr->scene, *device, project::GetContentRoot(project_settings));
-                                backlog::Post("[SceneTransition] complete: " + path, backlog::LogLevel::Default);
-                            }
-                            else
-                            {
-                                backlog::Post("[SceneTransition] failed to load archive: " + path, backlog::LogLevel::Error);
-                            }
-                            view_ptr->camera_entity = ecs::INVALID_ENTITY;
-                            for (ecs::Entity e : view_ptr->scene->GetEntities())
-                            {
-                                if (view_ptr->scene->GetComponent<ecs::CameraComponent>(e))
-                                {
-                                    view_ptr->camera_entity = e;
-                                    break;
-                                }
-                            }
-                            break;
-                        }
-                    });
+                if (payload.type == won::ValueType::String && payload.string_value)
+                {
+                    ScheduleSceneLoad(payload.string_value);
+                }
             });
+
+        prefab_spawn_handle = eventhandler::Subscribe(
+            eventhandler::EVENT_PREFAB_SPAWN,
+            [this](const won::function::Value&) { SchedulePrefabFlush(); });
+
+        prefab_preload_handle = eventhandler::Subscribe(
+            eventhandler::EVENT_PREFAB_PRELOAD,
+            [this](const won::function::Value& payload)
+            {
+                if (payload.type == won::ValueType::String && payload.string_value)
+                {
+                    SchedulePrefabPreload(payload.string_value);
+                }
+            });
+    }
+
+    void Application::ScheduleSceneLoad(const String& scene_path)
+    {
+        const String path = io::CombinePath(project::GetContentRoot(project_settings), scene_path);
+        backlog::Post("[SceneTransition] requested: " + path, backlog::LogLevel::Default);
+        eventhandler::SubscribeOnce(
+            eventhandler::EVENT_THREAD_SAFE_POINT,
+            [this, path](const won::function::Value&) { LoadScene(path); });
+    }
+
+    void Application::LoadScene(const String& path)
+    {
+        backlog::Post("[SceneTransition] loading: " + path, backlog::LogLevel::Default);
+        // currently we only support one scene at a time, so we will load the scene into the first view
+        for (const std::unique_ptr<rendering::View>& view_ptr : views)
+        {
+            if (!view_ptr || !view_ptr->scene)
+            {
+                continue;
+            }
+
+            WaitIdle();
+            serialize::JsonArchive archive(serialize::ArchiveMode::Read);
+            if (archive.LoadFromFile(path))
+            {
+                view_ptr->scene->ClearEntities();
+                serialize::LoadScene(archive, *view_ptr->scene);
+                resource::LoadSceneResources(*view_ptr->scene, project::GetContentRoot(project_settings));
+                rendering::utils::FlushEnqueuedResourceUploads(*device);
+                backlog::Post("[SceneTransition] complete: " + path, backlog::LogLevel::Default);
+            }
+            else
+            {
+                backlog::Post("[SceneTransition] failed to load archive: " + path, backlog::LogLevel::Error);
+            }
+
+            view_ptr->camera_entity = ecs::INVALID_ENTITY;
+            for (ecs::Entity e : view_ptr->scene->GetEntities())
+            {
+                if (view_ptr->scene->GetComponent<ecs::CameraComponent>(e))
+                {
+                    view_ptr->camera_entity = e;
+                    break;
+                }
+            }
+            break;
+        }
+    }
+
+    void Application::SchedulePrefabFlush()
+    {
+        if (prefab_flush_scheduled)
+        {
+            return;
+        }
+        prefab_flush_scheduled = true;
+        eventhandler::SubscribeOnce(
+            eventhandler::EVENT_THREAD_SAFE_POINT,
+            [this](const won::function::Value&) { FlushPrefabSpawns(); });
+    }
+
+    void Application::FlushPrefabSpawns()
+    {
+        prefab_flush_scheduled = false;
+        for (const std::unique_ptr<rendering::View>& view_ptr : views)
+        {
+            if (view_ptr && view_ptr->scene && !view_ptr->scene->GetPrefabSpawnQueue().empty())
+            {
+                SpawnQueuedPrefabs(*view_ptr->scene);
+            }
+        }
+    }
+
+    void Application::SpawnQueuedPrefabs(ecs::Scene& scene)
+    {
+        const String content_root = project::GetContentRoot(project_settings);
+        const Vector<ecs::PrefabSpawnRequest> requests = scene.GetPrefabSpawnQueue();
+        scene.ClearPrefabSpawnQueue();
+
+        for (const ecs::PrefabSpawnRequest& request : requests)
+        {
+            const Vector<ecs::Entity>& entities = scene.GetEntities();
+            if (std::find(entities.begin(), entities.end(), request.reserved_root) == entities.end())
+            {
+                continue;
+            }
+
+            serialize::JsonArchive archive(serialize::ArchiveMode::Read);
+            if (!archive.LoadFromFile(io::CombinePath(content_root, request.path)))
+            {
+                continue;
+            }
+            Vector<ecs::Entity> new_entities;
+            const ecs::Entity root = serialize::LoadSceneAdditive(archive, scene, request.reserved_root, new_entities);
+            if (root == ecs::INVALID_ENTITY)
+            {
+                continue;
+            }
+
+            resource::LoadEntityResources(scene, content_root, new_entities);
+
+            if (request.parent != ecs::INVALID_ENTITY)
+            {
+                ecs::HierarchyComponent* hierarchy = scene.GetComponent<ecs::HierarchyComponent>(root);
+                if (!hierarchy)
+                {
+                    hierarchy = scene.AddComponent<ecs::HierarchyComponent>(root);
+                }
+                if (hierarchy)
+                {
+                    hierarchy->parent_id = request.parent;
+                }
+                scene.SetHierarchyTopologyDirty(true);
+            }
+
+            if (ecs::TransformComponent* transform = scene.GetComponent<ecs::TransformComponent>(root))
+            {
+                transform->position = request.position;
+                if (request.yaw != 0.0f)
+                {
+                    transform->rotation = math::QuaternionFromYaw(request.yaw);
+                }
+                transform->SetDirty();
+            }
+
+            scene.SetBVHDirty();
+        }
+    }
+
+    void Application::SchedulePrefabPreload(const String& prefab_path)
+    {
+        eventhandler::SubscribeOnce(
+            eventhandler::EVENT_THREAD_SAFE_POINT,
+            [this, prefab_path](const won::function::Value&) { PreloadPrefab(prefab_path); });
+    }
+
+    void Application::PreloadPrefab(const String& prefab_path)
+    {
+        if (!device || prefab_resource_cache.find(prefab_path) != prefab_resource_cache.end())
+        {
+            return;
+        }
+
+        ecs::Scene* scene = nullptr;
+        for (const std::unique_ptr<rendering::View>& view_ptr : views)
+        {
+            if (view_ptr && view_ptr->scene)
+            {
+                scene = view_ptr->scene;
+                break;
+            }
+        }
+        if (!scene)
+        {
+            return;
+        }
+
+        const String content_root = project::GetContentRoot(project_settings);
+        serialize::JsonArchive archive(serialize::ArchiveMode::Read);
+        if (!archive.LoadFromFile(io::CombinePath(content_root, prefab_path)))
+        {
+            return;
+        }
+        Vector<ecs::Entity> temp_entities;
+        const ecs::Entity root = serialize::LoadSceneAdditive(archive, *scene, ecs::INVALID_ENTITY, temp_entities);
+        if (root == ecs::INVALID_ENTITY)
+        {
+            return;
+        }
+
+        resource::LoadEntityResources(*scene, content_root, temp_entities);
+        rendering::utils::FlushEnqueuedResourceUploads(*device);
+
+        Vector<std::shared_ptr<void>> resource_refs;
+        for (ecs::Entity entity : temp_entities)
+        {
+            if (ecs::GeometryComponent* geometry = scene->GetComponent<ecs::GeometryComponent>(entity); geometry && geometry->mesh)
+            {
+                resource_refs.push_back(geometry->mesh);
+            }
+            if (ecs::MaterialComponent* material = scene->GetComponent<ecs::MaterialComponent>(entity); material && material->material)
+            {
+                resource_refs.push_back(material->material);
+            }
+        }
+
+        scene->DestroyEntity(root);
+        prefab_resource_cache[prefab_path] = std::move(resource_refs);
     }
 
     bool Application::IsRunning() const

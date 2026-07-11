@@ -83,7 +83,7 @@ int main(int argc, char** argv)
             const won::String normalized_startup_scene_path = won::project::ResolveProjectContentPath(content_root, startup_scene_path);
             if (archive.LoadFromFile(normalized_startup_scene_path))
             {
-                won::serialize::Serialize(archive, game_scene);
+                won::serialize::LoadScene(archive, game_scene);
                 if (archive.HasError())
                 {
                     wonlog_warning("Startup scene load warning: %s (%s)", normalized_startup_scene_path.c_str(), archive.GetError().c_str());

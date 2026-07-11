@@ -4,6 +4,7 @@ namespace won::resource
 {
     inline constexpr const char* asset_metadata_extension = "wonmeta";
     inline constexpr const char* scene_file_extension = "wonscene";
+    inline constexpr const char* prefab_file_extension = "wonprefab";
     inline constexpr const char* mesh_binary_extension = "wonmesh";
     inline constexpr const char* texture_binary_extension = "wontex";
     inline constexpr const char* lua_script_file_extension = "lua";

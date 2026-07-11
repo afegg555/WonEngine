@@ -77,6 +77,7 @@ namespace won::editor
 		bool LoadProject(const String& path);
 		bool SaveProject();
 		bool SaveScene(const String& path);
+		bool SavePrefab(const String& path, ecs::Entity root);
 		void LoadScene(const String& path);
 		void DrawProjectSettingsWindow(bool* open);
 		void RebindSceneResources();
