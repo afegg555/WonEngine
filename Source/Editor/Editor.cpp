@@ -149,6 +149,7 @@ namespace won::editor
 			constexpr const char* profiler_starting = "Profiler starting...";
 			constexpr const char* profiler_warning = "Profiler Turned On! Performance may be reduced!";
 			constexpr const char* import_to_scene = "Import to Scene";
+			constexpr const char* add_to_scene = "Add to Scene";
 			constexpr const char* copy_disk_path = "Copy Disk Path";
 			constexpr const char* copy_virtual_path = "Copy Virtual Path";
 			constexpr const char* refresh = "Refresh";
@@ -164,6 +165,7 @@ namespace won::editor
 			constexpr const char* asset_shader = "Shader";
 			constexpr const char* asset_font = "Font";
 			constexpr const char* asset_script = "Script";
+			constexpr const char* asset_prefab = "Prefab";
 			constexpr const char* asset = "Asset";
 			constexpr const char* all_types = "All Types";
 			constexpr const char* contents = "Contents";
@@ -361,6 +363,8 @@ namespace won::editor
 			constexpr const char* create_project_failed = "Create project failed: ";
 			constexpr const char* save_scene_failed = "Save scene failed: ";
 			constexpr const char* save_prefab_failed = "Save prefab failed: ";
+			constexpr const char* load_prefab_failed = "Load prefab failed: ";
+			constexpr const char* prefab_added = "Prefab added: ";
 			constexpr const char* scene_saved = "Scene saved: ";
 			constexpr const char* load_scene_failed = "Load scene failed: ";
 			constexpr const char* load_scene_warning = "Load scene warning: ";
@@ -1130,6 +1134,7 @@ namespace won::editor
 		ApplicationDesc initialize_desc = desc;
 		initialize_desc.defer_window_show = defer_main_window_show;
 		Application::Initialize(initialize_desc);
+		ApplyProjectSettings(loaded_project_settings);
 		if (splash)
 		{
 			splash->SetStatus(editor_text::splash_loading_editor_settings);
@@ -1157,7 +1162,9 @@ namespace won::editor
 		scene_desc.script_runtime = script_runtime.get();
 		scene_desc.physics = project::GetPhysicsDesc(project_settings);
 		scene_desc.audio_mixer = audio_mixer.get();
+		scene_desc.enable_simulation = false;
 		ecs::Scene& editor_scene = GetSceneManager()->CreateScene(scene_desc);
+		edit_scene = &editor_scene;
 		rendering::View editor_view = {};
 		editor_view.scene = &editor_scene;
 		editor_view.options.resize_policy = rendering::ViewResizePolicy::Manual;
@@ -1315,6 +1322,19 @@ namespace won::editor
 
 	void EditorApplication::Update(float dt)
 	{
+		if (request_play)
+		{
+			request_play = false;
+			EnterPlay();
+		}
+		if (request_stop)
+		{
+			request_stop = false;
+			ExitPlay();
+		}
+
+		io::SetMouseCaptured(is_playing && !editor_viewport.input_enabled);
+
 		editor_viewport.renderer_debug_state = renderer ? renderer->GetDebugState() : rendering::RendererDebugState{};
 
 		for (auto it = editor_viewport.deferred_res_removals.begin(); it != editor_viewport.deferred_res_removals.end();)
@@ -1467,7 +1487,10 @@ namespace won::editor
 			debug_options.wireframe_enable = editor_viewport.debug_settings.use_wireframe;
 			renderer->SetDebugOptions(debug_options);
 		}
-		UpdateDebugPrimitiveMesh();
+		if (!is_playing)
+		{
+			UpdateDebugPrimitiveMesh();
+		}
 
 		if (won::io::IsPressed(io::Button('R')))
 		{
@@ -1476,36 +1499,36 @@ namespace won::editor
 
 		auto camera = editor_viewport.view->scene->GetComponent<ecs::CameraComponent>(editor_viewport.view->camera_entity);
 		auto transform = editor_viewport.view->scene->GetComponent<ecs::TransformComponent>(editor_viewport.view->camera_entity);
-		if (!camera || !transform)
+		if (!is_playing && camera && transform)
 		{
-			return;
+			float2 mouse_pos = io::GetMouseState().position;
+			float2 main_viewport_pos = { (float)editor_viewport.view->viewport.x, (float)editor_viewport.view->viewport.y};
+			float2 main_viewport_size = { (float)editor_viewport.view->viewport.width, (float)editor_viewport.view->viewport.height};
+			float2 viewport_mouse_pos = { mouse_pos.x - main_viewport_pos.x, mouse_pos.y - main_viewport_pos.y };
+			const bool can_control_viewport =
+				editor_viewport.input_enabled &&
+				0 <= viewport_mouse_pos.x && viewport_mouse_pos.x <= main_viewport_size.x &&
+				0 <= viewport_mouse_pos.y && viewport_mouse_pos.y <= main_viewport_size.y;
+
+			if (can_control_viewport && io::IsPressed(io::Button::MOUSE_BUTTON_LEFT))
+			{
+				ecs::RayCastHit hit = {};
+				if (editor_viewport.view->RayCast(mouse_pos, hit, true))
+				{
+					editor_viewport.picked_entity = hit.entity;
+				}
+				else
+				{
+					editor_viewport.picked_entity = ecs::INVALID_ENTITY;
+				}
+			}
+
+			editor_viewport.camera_controller.Update(*camera, *transform, dt, viewport_mouse_pos, main_viewport_size, can_control_viewport);
 		}
 
-		float2 mouse_pos = io::GetMouseState().position;
-		float2 main_viewport_pos = { (float)editor_viewport.view->viewport.x, (float)editor_viewport.view->viewport.y};
-		float2 main_viewport_size = { (float)editor_viewport.view->viewport.width, (float)editor_viewport.view->viewport.height};
-		float2 viewport_mouse_pos = { mouse_pos.x - main_viewport_pos.x, mouse_pos.y - main_viewport_pos.y };
-		const bool can_control_viewport =
-			editor_viewport.input_enabled &&
-			0 <= viewport_mouse_pos.x && viewport_mouse_pos.x <= main_viewport_size.x &&
-			0 <= viewport_mouse_pos.y && viewport_mouse_pos.y <= main_viewport_size.y;
-
-		if (can_control_viewport && io::IsPressed(io::Button::MOUSE_BUTTON_LEFT))
-		{
-			ecs::RayCastHit hit = {};
-			if (editor_viewport.view->RayCast(mouse_pos, hit, true))
-			{
-				editor_viewport.picked_entity = hit.entity;
-			}
-			else
-			{
-				editor_viewport.picked_entity = ecs::INVALID_ENTITY;
-			}
-		}
-
-		editor_viewport.camera_controller.Update(*camera, *transform, dt, viewport_mouse_pos, main_viewport_size, can_control_viewport);
+		simulation_paused = is_playing && is_paused && !request_step;
+		request_step = false;
 		Application::Update(dt);
-
 	}
 
 	void EditorApplication::LoadPlugins()
@@ -1532,7 +1555,7 @@ namespace won::editor
 			}
 			if (editor_plugin_info.plugin)
 			{
-				RegisterPluginExtensions(editor_plugin_info.plugin);
+				RegisterPluginExtensions(editor_plugin_info.plugin, *edit_scene);
 				editor_plugin_info.registered = true;
 			}
 
@@ -1540,7 +1563,7 @@ namespace won::editor
 		}
 	}
 
-	void EditorApplication::RegisterPluginExtensions(const std::shared_ptr<plugin::Plugin>& plugin)
+	void EditorApplication::RegisterPluginExtensions(const std::shared_ptr<plugin::Plugin>& plugin, ecs::Scene& scene)
 	{
 		if (!plugin)
 		{
@@ -1568,7 +1591,7 @@ namespace won::editor
 					continue;
 				}
 
-				editor_viewport.view->scene->RegisterComponent(desc);
+				scene.RegisterComponent(desc);
 				continue;
 			}
 
@@ -1585,7 +1608,7 @@ namespace won::editor
 					continue;
 				}
 
-				editor_viewport.view->scene->AddSystem(std::make_shared<PluginSystemAdapter>(plugin, desc));
+				scene.AddSystem(std::make_shared<PluginSystemAdapter>(plugin, desc));
 			}
 		}
 	}
@@ -1620,7 +1643,7 @@ namespace won::editor
 			}
 			else if (!plugin_info.registered)
 			{
-				RegisterPluginExtensions(plugin_info.plugin);
+				RegisterPluginExtensions(plugin_info.plugin, *edit_scene);
 				plugin_info.registered = true;
 			}
 		}
@@ -2322,6 +2345,7 @@ namespace won::editor
 			if (ext == resource::material_binary_extension) return ContentAssetType::Material;
 			if (ext == "fbx" || ext == "obj" || ext == "gltf" || ext == "glb" || ext == "stl" || ext == resource::mesh_binary_extension) return ContentAssetType::Mesh;
 			if (ext == resource::scene_file_extension) return ContentAssetType::Scene;
+			if (ext == resource::prefab_file_extension) return ContentAssetType::Prefab;
 			if (ext == "hlsl" || ext == "hlsli") return ContentAssetType::Shader;
 			if (ext == "ttf" || ext == "otf") return ContentAssetType::Font;
 			if (ext == "lua") return ContentAssetType::Script;
@@ -2446,6 +2470,7 @@ namespace won::editor
 			case ContentAssetType::Material: return editor_text::asset_material;
 			case ContentAssetType::Mesh: return editor_text::asset_mesh;
 			case ContentAssetType::Scene: return editor_text::asset_scene;
+			case ContentAssetType::Prefab: return editor_text::asset_prefab;
 			case ContentAssetType::Shader: return editor_text::asset_shader;
 			case ContentAssetType::Font: return editor_text::asset_font;
 			case ContentAssetType::Script: return editor_text::asset_script;
@@ -2461,6 +2486,7 @@ namespace won::editor
 			case ContentAssetType::Material: return ICON_MD_PALETTE;
 			case ContentAssetType::Mesh: return ICON_MD_VIEW_IN_AR;
 			case ContentAssetType::Scene: return ICON_MD_DATA_OBJECT;
+			case ContentAssetType::Prefab: return ICON_MD_WIDGETS;
 			case ContentAssetType::Shader: return ICON_MD_CODE;
 			case ContentAssetType::Font: return ICON_MD_FONT_DOWNLOAD;
 			case ContentAssetType::Script: return ICON_MD_DESCRIPTION;
@@ -2476,6 +2502,7 @@ namespace won::editor
 		const bool can_import_asset = import_kind != AssetImportKind::None;
 		const bool can_import_to_scene = import_kind == AssetImportKind::Mesh;
 		const bool can_load_scene = asset.type == ContentAssetType::Scene;
+		const bool can_instantiate_prefab = asset.type == ContentAssetType::Prefab;
 		ImGui::Button(type_icon(asset.type), ImVec2(tile_size, tile_size));
 		if (import_kind != AssetImportKind::None || is_imported_binary)
 		{
@@ -2523,6 +2550,10 @@ namespace won::editor
 		{
 			LoadScene(asset.disk_path);
 		}
+		else if (can_instantiate_prefab && ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+		{
+			InstantiatePrefab(asset.disk_path);
+		}
 		if (ImGui::BeginPopupContextItem("ContentAssetContext"))
 		{
 			if (ImGui::MenuItem(editor_text::import, nullptr, false, can_import_asset))
@@ -2546,6 +2577,10 @@ namespace won::editor
 			if (ImGui::MenuItem(editor_text::load_scene, nullptr, false, can_load_scene))
 			{
 				LoadScene(asset.disk_path);
+			}
+			if (ImGui::MenuItem(editor_text::add_to_scene, nullptr, false, can_instantiate_prefab))
+			{
+				InstantiatePrefab(asset.disk_path);
 			}
 			ImGui::Separator();
 			if (ImGui::MenuItem(editor_text::copy_disk_path))
@@ -2584,6 +2619,7 @@ namespace won::editor
 			case ContentAssetType::Material: return editor_text::asset_material;
 			case ContentAssetType::Mesh: return editor_text::asset_mesh;
 			case ContentAssetType::Scene: return editor_text::asset_scene;
+			case ContentAssetType::Prefab: return editor_text::asset_prefab;
 			case ContentAssetType::Shader: return editor_text::asset_shader;
 			case ContentAssetType::Font: return editor_text::asset_font;
 			case ContentAssetType::Script: return editor_text::asset_script;
@@ -2638,7 +2674,7 @@ namespace won::editor
 		ImGui::SetNextItemWidth(150.0f);
 		if (ImGui::BeginCombo("##content_type_filter", type_name(content_browser.type_filter)))
 		{
-			const ContentAssetType filters[] = { ContentAssetType::All, ContentAssetType::Texture, ContentAssetType::Material, ContentAssetType::Mesh, ContentAssetType::Scene, ContentAssetType::Shader, ContentAssetType::Font, ContentAssetType::Script, ContentAssetType::Unknown };
+			const ContentAssetType filters[] = { ContentAssetType::All, ContentAssetType::Texture, ContentAssetType::Material, ContentAssetType::Mesh, ContentAssetType::Scene, ContentAssetType::Prefab, ContentAssetType::Shader, ContentAssetType::Font, ContentAssetType::Script, ContentAssetType::Unknown };
 			for (ContentAssetType filter : filters)
 			{
 				if (ImGui::Selectable(type_name(filter), content_browser.type_filter == filter))
@@ -2967,7 +3003,7 @@ namespace won::editor
 		{
 			if (ImGui::BeginMenu(editor_text::file_menu))
 			{
-				if (ImGui::MenuItem(editor_text::new_project))
+				if (ImGui::MenuItem(editor_text::new_project, nullptr, false, !is_playing))
 				{
 					save_as_then_load = false;
 					save_as_then_new_scene = false;
@@ -2978,7 +3014,7 @@ namespace won::editor
 					save_current_then_new_project = true;
 					open_save_current_scene = true;
 				}
-				if (ImGui::MenuItem(editor_text::load_project))
+				if (ImGui::MenuItem(editor_text::load_project, nullptr, false, !is_playing))
 				{
 					save_as_then_load = false;
 					save_as_then_new_scene = false;
@@ -2999,7 +3035,7 @@ namespace won::editor
 				}
 					ImGui::TextDisabled("%s", loaded_project_settings.settings_path.empty() ? editor_text::no_project : loaded_project_settings.settings_path.c_str());
 				ImGui::Separator();
-				if (ImGui::MenuItem(editor_text::new_scene))
+				if (ImGui::MenuItem(editor_text::new_scene, nullptr, false, !is_playing))
 				{
 					save_as_then_load = false;
 					save_as_then_new_scene = false;
@@ -3010,7 +3046,7 @@ namespace won::editor
 					save_current_then_new_project = false;
 					open_save_current_scene = true;
 				}
-				if (ImGui::MenuItem(editor_text::load_scene))
+				if (ImGui::MenuItem(editor_text::load_scene, nullptr, false, !is_playing))
 				{
 					save_as_then_load = false;
 					save_as_then_new_scene = false;
@@ -3021,7 +3057,7 @@ namespace won::editor
 					save_current_then_new_project = false;
 					open_save_current_scene = true;
 				}
-				if (ImGui::MenuItem(editor_text::save_scene))
+				if (ImGui::MenuItem(editor_text::save_scene, nullptr, false, !is_playing))
 				{
 					if (current_scene_path.empty())
 					{
@@ -3036,7 +3072,7 @@ namespace won::editor
 						SaveScene(current_scene_path);
 					}
 				}
-				if (ImGui::MenuItem(editor_text::save_scene_as))
+				if (ImGui::MenuItem(editor_text::save_scene_as, nullptr, false, !is_playing))
 				{
 					save_as_then_load = false;
 					save_as_then_new_scene = false;
@@ -3050,7 +3086,7 @@ namespace won::editor
 			if (ImGui::BeginMenu(editor_text::build_menu))
 			{
 				const bool can_package_project = !loaded_project_settings.settings_path.empty();
-				if (ImGui::MenuItem(editor_text::package_project, nullptr, false, can_package_project))
+				if (ImGui::MenuItem(editor_text::package_project, nullptr, false, !is_playing && can_package_project))
 				{
 					const bool scene_saved = current_scene_path.empty() || SaveScene(current_scene_path);
 					if (scene_saved)
@@ -3457,12 +3493,72 @@ namespace won::editor
 					viewport_title.resize(viewport_title.size() - extension.size() - 1);
 				}
 			}
+			ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.52f, 0.52f, 0.49f, 1.0f));
+			ImGui::TextUnformatted(ICON_MD_DATA_OBJECT);
+			ImGui::SameLine(0.0f, 6.0f);
 			ImGui::TextUnformatted(viewport_title.c_str());
-			ImGui::SameLine();
-			if (ImGui::Button(editor_text::options))
+			ImGui::PopStyleColor();
+
 			{
-				ImGui::OpenPopup(editor_text::options_popup);
-				//ImGui::SetNextWindowSizeConstraints(ImVec2(240, 160), ImVec2(600, 500));
+				const ImGuiStyle& style = ImGui::GetStyle();
+				auto button_width = [&style](const char* label) { return ImGui::CalcTextSize(label).x + style.FramePadding.x * 2.0f; };
+
+				if (!is_playing)
+				{
+					const char* play_label = ICON_MD_PLAY_ARROW " Play";
+					ImGui::SameLine();
+					ImGui::SetCursorPosX((ImGui::GetWindowWidth() - button_width(play_label)) * 0.5f);
+					ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.13f, 0.24f, 0.13f, 1.0f));
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.18f, 0.32f, 0.18f, 1.0f));
+					ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.18f, 0.32f, 0.18f, 1.0f));
+					ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.53f, 0.80f, 0.47f, 1.0f));
+					if (ImGui::Button(play_label))
+					{
+						request_play = true;
+					}
+					ImGui::PopStyleColor(4);
+				}
+				else
+				{
+					const char* pause_label = is_paused ? ICON_MD_PLAY_ARROW " Resume" : ICON_MD_PAUSE " Pause";
+					const char* step_label = ICON_MD_SKIP_NEXT " Step";
+					const char* stop_label = ICON_MD_STOP " Stop";
+					const float group_width = button_width(pause_label) + button_width(step_label) + button_width(stop_label) + style.ItemSpacing.x * 2.0f;
+					ImGui::SameLine();
+					ImGui::SetCursorPosX((ImGui::GetWindowWidth() - group_width) * 0.5f);
+
+					if (ImGui::Button(pause_label))
+					{
+						is_paused = !is_paused;
+					}
+					ImGui::SameLine();
+					ImGui::BeginDisabled(!is_paused);
+					if (ImGui::Button(step_label))
+					{
+						request_step = true;
+					}
+					ImGui::EndDisabled();
+					ImGui::SameLine();
+					ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.36f, 0.16f, 0.16f, 1.0f));
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.46f, 0.20f, 0.20f, 1.0f));
+					ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.46f, 0.20f, 0.20f, 1.0f));
+					ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.90f, 0.58f, 0.58f, 1.0f));
+					if (ImGui::Button(stop_label))
+					{
+						request_stop = true;
+					}
+					ImGui::PopStyleColor(4);
+				}
+			}
+
+			{
+				const float options_width = ImGui::CalcTextSize(ICON_MD_SETTINGS).x + ImGui::GetStyle().FramePadding.x * 2.0f;
+				ImGui::SameLine();
+				ImGui::SetCursorPosX(ImGui::GetWindowWidth() - options_width - ImGui::GetStyle().WindowPadding.x);
+				if (ImGui::Button(ICON_MD_SETTINGS))
+				{
+					ImGui::OpenPopup(editor_text::options_popup);
+				}
 			}
 
 			ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(500, 500));
@@ -6337,6 +6433,11 @@ namespace won::editor
 			return false;
 		}
 
+		if (is_playing)
+		{
+			ExitPlay();
+		}
+
 		project::ProjectSettings project_settings_to_load = {};
 		const String settings_path = io::NormalizePath(path);
 		if (!io::IsFile(settings_path) || !project::LoadSettings(settings_path, project_settings_to_load))
@@ -6358,6 +6459,7 @@ namespace won::editor
 
 		WaitIdle();
 		loaded_project_settings = project_settings_to_load;
+		ApplyProjectSettings(loaded_project_settings);
 		contents_root_dir = project::GetContentRoot(loaded_project_settings);
 		contents_root_dir = io::NormalizePath(contents_root_dir);
 		if (!contents_root_dir.empty() && contents_root_dir.back() != '/')
@@ -6369,8 +6471,10 @@ namespace won::editor
 		scene_desc.script_runtime = script_runtime.get();
 		scene_desc.physics = project::GetPhysicsDesc(loaded_project_settings);
 		scene_desc.audio_mixer = audio_mixer.get();
+		scene_desc.enable_simulation = false;
 		ecs::Scene* old_scene = editor_viewport.view ? editor_viewport.view->scene : nullptr;
 		ecs::Scene& new_scene = GetSceneManager()->CreateScene(scene_desc);
+		edit_scene = &new_scene;
 		if (editor_viewport.view)
 		{
 			editor_viewport.view->scene = &new_scene;
@@ -6783,7 +6887,7 @@ namespace won::editor
 
 	bool EditorApplication::SaveScene(const String& path)
 	{
-		if (path.empty() || !editor_viewport.view || !editor_viewport.view->scene)
+		if (is_playing || path.empty() || !editor_viewport.view || !editor_viewport.view->scene)
 		{
 			return false;
 		}
@@ -7048,6 +7152,126 @@ namespace won::editor
 		backlog::Post(editor_text::scene_loaded + path);
 	}
 
+	void EditorApplication::InstantiatePrefab(const String& path)
+	{
+		if (path.empty() || !editor_viewport.view || !editor_viewport.view->scene)
+		{
+			return;
+		}
+
+		won::serialize::JsonArchive archive(won::serialize::ArchiveMode::Read);
+		if (!archive.LoadFromFile(path))
+		{
+			backlog::Post(editor_text::load_prefab_failed + path, backlog::LogLevel::Warning);
+			return;
+		}
+
+		Vector<ecs::Entity> new_entities;
+		const ecs::Entity root = won::serialize::LoadSceneAdditive(archive, *editor_viewport.view->scene, ecs::INVALID_ENTITY, new_entities);
+		if (root == ecs::INVALID_ENTITY)
+		{
+			backlog::Post(editor_text::load_prefab_failed + path, backlog::LogLevel::Warning);
+			return;
+		}
+
+		RebindSceneResources();
+		editor_viewport.picked_entity = root;
+		UpdateEntityList();
+		backlog::Post(editor_text::prefab_added + path);
+	}
+
+	void EditorApplication::EnterPlay()
+	{
+		if (is_playing || !edit_scene || !editor_viewport.view)
+		{
+			return;
+		}
+
+		Vector<ecs::Entity> excluded_entities;
+		if (editor_viewport.view->camera_entity != ecs::INVALID_ENTITY)
+		{
+			excluded_entities.push_back(editor_viewport.view->camera_entity);
+		}
+		if (editor_viewport.debug_primitive_entity != ecs::INVALID_ENTITY)
+		{
+			excluded_entities.push_back(editor_viewport.debug_primitive_entity);
+		}
+
+		won::serialize::JsonArchive write_archive(won::serialize::ArchiveMode::Write);
+		won::serialize::SaveSceneDesc save_desc = {};
+		save_desc.excluded_entities = &excluded_entities;
+		won::serialize::SaveScene(write_archive, *edit_scene, save_desc);
+		String scene_data;
+		if (!write_archive.SaveToString(scene_data))
+		{
+			return;
+		}
+
+		ecs::SceneDesc play_desc = {};
+		play_desc.script_runtime = script_runtime.get();
+		play_desc.physics = project::GetPhysicsDesc(loaded_project_settings);
+		play_desc.audio_mixer = audio_mixer.get();
+		play_desc.enable_simulation = true;
+		play_scene = &GetSceneManager()->CreateScene(play_desc);
+
+		for (const EditorPluginInfo& plugin_info : plugins)
+		{
+			if (plugin_info.plugin)
+			{
+				RegisterPluginExtensions(plugin_info.plugin, *play_scene);
+			}
+		}
+
+		won::serialize::JsonArchive read_archive(won::serialize::ArchiveMode::Read);
+		read_archive.LoadFromString(scene_data);
+		won::serialize::LoadScene(read_archive, *play_scene);
+		resource::LoadSceneResources(*play_scene, contents_root_dir);
+		if (device)
+		{
+			rendering::utils::FlushEnqueuedResourceUploads(*device);
+		}
+
+		edit_camera_entity = editor_viewport.view->camera_entity;
+		editor_viewport.view->scene = play_scene;
+		editor_viewport.view->camera_entity = ecs::INVALID_ENTITY;
+		for (ecs::Entity entity : play_scene->GetEntities())
+		{
+			if (play_scene->GetComponent<ecs::CameraComponent>(entity))
+			{
+				editor_viewport.view->camera_entity = entity;
+				break;
+			}
+		}
+
+		editor_viewport.picked_entity = ecs::INVALID_ENTITY;
+		is_paused = false;
+		is_playing = true;
+		UpdateEntityList();
+		backlog::Post("[PlayMode] entered, play scene entities: " + std::to_string(play_scene->GetEntities().size()));
+	}
+
+	void EditorApplication::ExitPlay()
+	{
+		if (!is_playing)
+		{
+			return;
+		}
+
+		WaitIdle();
+		if (editor_viewport.view)
+		{
+			editor_viewport.view->scene = edit_scene;
+			editor_viewport.view->camera_entity = edit_camera_entity;
+		}
+		GetSceneManager()->DestroyScene(play_scene);
+		play_scene = nullptr;
+		editor_viewport.picked_entity = ecs::INVALID_ENTITY;
+		is_paused = false;
+		is_playing = false;
+		UpdateEntityList();
+		backlog::Post("[PlayMode] exited, edit scene entities: " + std::to_string(edit_scene ? edit_scene->GetEntities().size() : 0));
+	}
+
 	void EditorApplication::UpdateEntityList()
 	{
 		static std::mutex entity_list_mutex;
@@ -7059,7 +7283,7 @@ namespace won::editor
 		sorted_entities.reserve(entities.size());
 		for (ecs::Entity entity : entities)
 		{
-			if (entity == editor_viewport.view->camera_entity || entity == editor_viewport.debug_primitive_entity)
+			if (!is_playing && (entity == editor_viewport.view->camera_entity || entity == editor_viewport.debug_primitive_entity))
 			{
 				continue;
 			}

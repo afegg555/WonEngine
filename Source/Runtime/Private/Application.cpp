@@ -31,6 +31,59 @@ namespace won
         return std::to_string(h) + "." + resource::game_data_schema_extension;
     }
 
+    void Application::ApplyProjectSettings(const project::ProjectSettings& settings)
+    {
+        const String content_root = project::GetContentRoot(settings);
+
+        if (!settings.input_action_map.empty())
+        {
+            const String input_action_map_path = project::ResolveProjectContentPath(content_root, settings.input_action_map);
+            if (io::LoadActionMap(input_action_map_path))
+            {
+                backlog::Post("[Input] action map loaded: " + input_action_map_path);
+            }
+            else if (!io::IsFile(input_action_map_path))
+            {
+                backlog::Post("[Input] action map not found, skipping: " + input_action_map_path, backlog::LogLevel::Warning);
+            }
+            else
+            {
+                backlog::Post("[Input] failed to parse action map: " + input_action_map_path, backlog::LogLevel::Error);
+            }
+        }
+        else
+        {
+            io::ClearActionMap();
+        }
+
+        if (!settings.game_data_schema.empty())
+        {
+            const String schema_path = project::ResolveProjectContentPath(content_root, settings.game_data_schema);
+            const String save_file = DeriveGameDataSaveFile(settings.game_data_schema);
+            if (game_data.LoadSchema(schema_path.c_str()))
+            {
+                backlog::Post("[GameData] schema loaded: " + schema_path);
+            }
+            else
+            {
+                backlog::Post("[GameData] failed to load schema: " + schema_path, backlog::LogLevel::Error);
+            }
+            if (game_data.Load(settings.project_name.c_str(), save_file.c_str()))
+            {
+                backlog::Post("[GameData] save loaded: " + save_file);
+            }
+            else
+            {
+                backlog::Post("[GameData] no save found, using defaults: " + save_file, backlog::LogLevel::Default);
+            }
+        }
+
+        if (scene_manager)
+        {
+            scene_manager->SetProjectSettings(&settings);
+        }
+    }
+
     void Application::Initialize(const ApplicationDesc& desc)
     {
         project_settings = desc.project_settings;
@@ -134,67 +187,16 @@ namespace won
             });
         }
 
-        if (!project_settings.input_action_map.empty())
-        {
-            const String content_root = project::GetContentRoot(project_settings);
-            const String input_action_map_path = project::ResolveProjectContentPath(content_root, project_settings.input_action_map);
-            if (io::LoadActionMap(input_action_map_path))
-            {
-                backlog::Post("[Input] action map loaded: " + input_action_map_path);
-            }
-            else if (!io::IsFile(input_action_map_path))
-            {
-                // Missing action maps are optional because raw input remains available.
-                backlog::Post("[Input] action map not found, skipping: " + input_action_map_path, backlog::LogLevel::Warning);
-            }
-            else
-            {
-                backlog::Post("[Input] failed to parse action map: " + input_action_map_path, backlog::LogLevel::Error);
-            }
-        }
-
-        if (!project_settings.game_data_schema.empty())
-        {
-            const String content_root = project::GetContentRoot(project_settings);
-            const String schema_path = project::ResolveProjectContentPath(content_root, project_settings.game_data_schema);
-            const String save_file = DeriveGameDataSaveFile(project_settings.game_data_schema);
-            if (game_data.LoadSchema(schema_path.c_str()))
-            {
-                backlog::Post("[GameData] schema loaded: " + schema_path);
-            }
-            else
-            {
-                backlog::Post("[GameData] failed to load schema: " + schema_path, backlog::LogLevel::Error);
-            }
-            if (game_data.Load(project_settings.project_name.c_str(), save_file.c_str()))
-            {
-                backlog::Post("[GameData] save loaded: " + save_file);
-            }
-            else
-            {
-                backlog::Post("[GameData] no save found, using defaults: " + save_file, backlog::LogLevel::Default);
-            }
-        }
-
-        scene_manager = std::make_unique<SceneManager>();
+        scene_manager = std::make_unique<SceneManager>(&project_settings);
+        ApplyProjectSettings(project_settings);
 
         frame_timer.Reset();
         is_first_frame = true;
         is_running = true;
 
-        scene_load_handle = eventhandler::Subscribe(
-            eventhandler::EVENT_SCENE_LOAD,
-            [this](const won::function::Value& payload)
-            {
-                if (payload.type == won::ValueType::String && payload.string_value)
-                {
-                    ScheduleSceneLoad(payload.string_value);
-                }
-            });
-
-        prefab_spawn_handle = eventhandler::Subscribe(
-            eventhandler::EVENT_PREFAB_SPAWN,
-            [this](const won::function::Value&) { SchedulePrefabFlush(); });
+        safe_point_handle = eventhandler::Subscribe(
+            eventhandler::EVENT_THREAD_SAFE_POINT,
+            [this](const won::function::Value&) { ProcessSceneLifecycle(); });
 
         prefab_preload_handle = eventhandler::Subscribe(
             eventhandler::EVENT_PREFAB_PRELOAD,
@@ -202,198 +204,62 @@ namespace won
             {
                 if (payload.type == won::ValueType::String && payload.string_value)
                 {
-                    SchedulePrefabPreload(payload.string_value);
+                    pending_preloads.push_back(payload.string_value);
                 }
             });
     }
 
-    void Application::ScheduleSceneLoad(const String& scene_path)
+    void Application::ProcessSceneLifecycle()
     {
-        const String path = io::CombinePath(project::GetContentRoot(project_settings), scene_path);
-        backlog::Post("[SceneTransition] requested: " + path, backlog::LogLevel::Default);
-        eventhandler::SubscribeOnce(
-            eventhandler::EVENT_THREAD_SAFE_POINT,
-            [this, path](const won::function::Value&) { LoadScene(path); });
-    }
-
-    void Application::LoadScene(const String& path)
-    {
-        backlog::Post("[SceneTransition] loading: " + path, backlog::LogLevel::Default);
-        // currently we only support one scene at a time, so we will load the scene into the first view
-        for (const std::unique_ptr<rendering::View>& view_ptr : views)
+        bool scene_loaded = false;
+        for (const std::unique_ptr<ecs::Scene>& scene : scene_manager->GetScenes())
         {
-            if (!view_ptr || !view_ptr->scene)
+            if (!scene || !scene->HasPendingSceneLoad())
             {
                 continue;
             }
 
-            WaitIdle();
-            serialize::JsonArchive archive(serialize::ArchiveMode::Read);
-            if (archive.LoadFromFile(path))
+            if (!scene_loaded)
             {
-                view_ptr->scene->ClearEntities();
-                serialize::LoadScene(archive, *view_ptr->scene);
-                resource::LoadSceneResources(*view_ptr->scene, project::GetContentRoot(project_settings));
-                rendering::utils::FlushEnqueuedResourceUploads(*device);
-                backlog::Post("[SceneTransition] complete: " + path, backlog::LogLevel::Default);
+                WaitIdle();
+                scene_loaded = true;
             }
-            else
-            {
-                backlog::Post("[SceneTransition] failed to load archive: " + path, backlog::LogLevel::Error);
-            }
+            
+            scene_manager->ReloadScene(*scene, scene->TakePendingSceneLoad());
 
-            view_ptr->camera_entity = ecs::INVALID_ENTITY;
-            for (ecs::Entity e : view_ptr->scene->GetEntities())
+            for (const std::unique_ptr<rendering::View>& view_ptr : views)
             {
-                if (view_ptr->scene->GetComponent<ecs::CameraComponent>(e))
+                if (!view_ptr || view_ptr->scene != scene.get())
                 {
-                    view_ptr->camera_entity = e;
-                    break;
+                    continue;
+                }
+                view_ptr->camera_entity = ecs::INVALID_ENTITY;
+                for (ecs::Entity e : scene->GetEntities())
+                {
+                    if (scene->GetComponent<ecs::CameraComponent>(e))
+                    {
+                        view_ptr->camera_entity = e;
+                        break;
+                    }
                 }
             }
-            break;
         }
-    }
-
-    void Application::SchedulePrefabFlush()
-    {
-        if (prefab_flush_scheduled)
+        if (scene_loaded)
         {
-            return;
+            rendering::utils::FlushEnqueuedResourceUploads(*device);
         }
-        prefab_flush_scheduled = true;
-        eventhandler::SubscribeOnce(
-            eventhandler::EVENT_THREAD_SAFE_POINT,
-            [this](const won::function::Value&) { FlushPrefabSpawns(); });
-    }
 
-    void Application::FlushPrefabSpawns()
-    {
-        prefab_flush_scheduled = false;
-        for (const std::unique_ptr<rendering::View>& view_ptr : views)
+        scene_manager->FlushPrefabSpawns();
+
+        if (!pending_preloads.empty())
         {
-            if (view_ptr && view_ptr->scene && !view_ptr->scene->GetPrefabSpawnQueue().empty())
+            for (const String& path : pending_preloads)
             {
-                SpawnQueuedPrefabs(*view_ptr->scene);
+                scene_manager->PreloadPrefab(path);
             }
+            pending_preloads.clear();
+            rendering::utils::FlushEnqueuedResourceUploads(*device);
         }
-    }
-
-    void Application::SpawnQueuedPrefabs(ecs::Scene& scene)
-    {
-        const String content_root = project::GetContentRoot(project_settings);
-        const Vector<ecs::PrefabSpawnRequest> requests = scene.GetPrefabSpawnQueue();
-        scene.ClearPrefabSpawnQueue();
-
-        for (const ecs::PrefabSpawnRequest& request : requests)
-        {
-            const Vector<ecs::Entity>& entities = scene.GetEntities();
-            if (std::find(entities.begin(), entities.end(), request.reserved_root) == entities.end())
-            {
-                continue;
-            }
-
-            serialize::JsonArchive archive(serialize::ArchiveMode::Read);
-            if (!archive.LoadFromFile(io::CombinePath(content_root, request.path)))
-            {
-                continue;
-            }
-            Vector<ecs::Entity> new_entities;
-            const ecs::Entity root = serialize::LoadSceneAdditive(archive, scene, request.reserved_root, new_entities);
-            if (root == ecs::INVALID_ENTITY)
-            {
-                continue;
-            }
-
-            resource::LoadEntityResources(scene, content_root, new_entities);
-
-            if (request.parent != ecs::INVALID_ENTITY)
-            {
-                ecs::HierarchyComponent* hierarchy = scene.GetComponent<ecs::HierarchyComponent>(root);
-                if (!hierarchy)
-                {
-                    hierarchy = scene.AddComponent<ecs::HierarchyComponent>(root);
-                }
-                if (hierarchy)
-                {
-                    hierarchy->parent_id = request.parent;
-                }
-                scene.SetHierarchyTopologyDirty(true);
-            }
-
-            if (ecs::TransformComponent* transform = scene.GetComponent<ecs::TransformComponent>(root))
-            {
-                transform->position = request.position;
-                if (request.yaw != 0.0f)
-                {
-                    transform->rotation = math::QuaternionFromYaw(request.yaw);
-                }
-                transform->SetDirty();
-            }
-
-            scene.SetBVHDirty();
-        }
-    }
-
-    void Application::SchedulePrefabPreload(const String& prefab_path)
-    {
-        eventhandler::SubscribeOnce(
-            eventhandler::EVENT_THREAD_SAFE_POINT,
-            [this, prefab_path](const won::function::Value&) { PreloadPrefab(prefab_path); });
-    }
-
-    void Application::PreloadPrefab(const String& prefab_path)
-    {
-        if (!device || prefab_resource_cache.find(prefab_path) != prefab_resource_cache.end())
-        {
-            return;
-        }
-
-        ecs::Scene* scene = nullptr;
-        for (const std::unique_ptr<rendering::View>& view_ptr : views)
-        {
-            if (view_ptr && view_ptr->scene)
-            {
-                scene = view_ptr->scene;
-                break;
-            }
-        }
-        if (!scene)
-        {
-            return;
-        }
-
-        const String content_root = project::GetContentRoot(project_settings);
-        serialize::JsonArchive archive(serialize::ArchiveMode::Read);
-        if (!archive.LoadFromFile(io::CombinePath(content_root, prefab_path)))
-        {
-            return;
-        }
-        Vector<ecs::Entity> temp_entities;
-        const ecs::Entity root = serialize::LoadSceneAdditive(archive, *scene, ecs::INVALID_ENTITY, temp_entities);
-        if (root == ecs::INVALID_ENTITY)
-        {
-            return;
-        }
-
-        resource::LoadEntityResources(*scene, content_root, temp_entities);
-        rendering::utils::FlushEnqueuedResourceUploads(*device);
-
-        Vector<std::shared_ptr<void>> resource_refs;
-        for (ecs::Entity entity : temp_entities)
-        {
-            if (ecs::GeometryComponent* geometry = scene->GetComponent<ecs::GeometryComponent>(entity); geometry && geometry->mesh)
-            {
-                resource_refs.push_back(geometry->mesh);
-            }
-            if (ecs::MaterialComponent* material = scene->GetComponent<ecs::MaterialComponent>(entity); material && material->material)
-            {
-                resource_refs.push_back(material->material);
-            }
-        }
-
-        scene->DestroyEntity(root);
-        prefab_resource_cache[prefab_path] = std::move(resource_refs);
     }
 
     bool Application::IsRunning() const
@@ -533,7 +399,7 @@ namespace won
 
             view.UpdateUIInteraction();
 
-            if (scene->GetUpdateIndex() != update_index)
+            if (!simulation_paused && scene->GetUpdateIndex() != update_index)
             {
                 scene->Update(dt);
                 scene->SetUpdateIndex(update_index);

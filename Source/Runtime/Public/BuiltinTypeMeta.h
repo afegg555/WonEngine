@@ -194,6 +194,7 @@ namespace won::reflection
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::Sprite2DComponent, "Sprite2DComponent")
+        WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(uv_rect, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(layer, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
@@ -228,6 +229,7 @@ namespace won::reflection
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::Sprite3DComponent, "Sprite3DComponent")
+        WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(size, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(pivot, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(uv_rect, won::FieldFlagEditable | won::FieldFlagSerializable)

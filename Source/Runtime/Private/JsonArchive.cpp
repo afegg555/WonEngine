@@ -149,6 +149,40 @@ namespace won::serialize
         return io::WriteAllBytes(path, reinterpret_cast<const uint8*>(content.data()), content.size());
     }
 
+    bool JsonArchive::LoadFromString(const String& data)
+    {
+        if (!IsReadMode())
+        {
+            impl->SetError("JsonArchive is not in read mode.");
+            return false;
+        }
+
+        try
+        {
+            impl->root = nlohmann::json::parse(data.begin(), data.end());
+        }
+        catch (const nlohmann::json::exception&)
+        {
+            impl->SetError("Failed to parse json string.");
+            return false;
+        }
+
+        impl->stack.clear();
+        return true;
+    }
+
+    bool JsonArchive::SaveToString(String& out_data) const
+    {
+        if (!IsWriteMode())
+        {
+            impl->SetError("JsonArchive is not in write mode.");
+            return false;
+        }
+
+        out_data = impl->desc.pretty ? impl->root.dump(4) : impl->root.dump();
+        return true;
+    }
+
     bool JsonArchive::HasError() const
     {
         return !impl->error.empty();

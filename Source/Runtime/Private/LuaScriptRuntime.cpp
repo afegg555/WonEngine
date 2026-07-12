@@ -827,12 +827,83 @@ namespace won::script
 
     int LuaScriptRuntime::LuaSceneLoad(lua_State* state)
     {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
         const char* path = luaL_checkstring(state, 1);
-        won::function::Value payload;
-        payload.type = won::ValueType::String;
-        payload.string_value = path;
-        eventhandler::PostEvent(eventhandler::EVENT_SCENE_LOAD, payload);
+        if (runtime && runtime->current_context.scene)
+        {
+            runtime->current_context.scene->QueueSceneLoad(path);
+        }
         return 0;
+    }
+
+    int LuaScriptRuntime::LuaText2DSetString(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+        const bool has_entity_arg = lua_gettop(state) >= 2 && lua_isinteger(state, 1);
+        const ecs::Entity entity = has_entity_arg ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        const char* text = luaL_checkstring(state, has_entity_arg ? 2 : 1);
+        ecs::Text2DComponent* component = runtime->current_context.scene->GetComponent<ecs::Text2DComponent>(entity);
+        if (component)
+        {
+            component->text = text;
+            component->SetDirty();
+        }
+        lua_pushboolean(state, component != nullptr);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaText2DGetString(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : (runtime ? runtime->current_context.entity : ecs::INVALID_ENTITY);
+        ecs::Text2DComponent* component = (runtime && runtime->current_context.scene) ? runtime->current_context.scene->GetComponent<ecs::Text2DComponent>(entity) : nullptr;
+        if (!component)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+        lua_pushstring(state, component->text.c_str());
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaText3DSetString(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+        const bool has_entity_arg = lua_gettop(state) >= 2 && lua_isinteger(state, 1);
+        const ecs::Entity entity = has_entity_arg ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        const char* text = luaL_checkstring(state, has_entity_arg ? 2 : 1);
+        ecs::Text3DComponent* component = runtime->current_context.scene->GetComponent<ecs::Text3DComponent>(entity);
+        if (component)
+        {
+            component->text = text;
+            component->SetDirty();
+        }
+        lua_pushboolean(state, component != nullptr);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaText3DGetString(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : (runtime ? runtime->current_context.entity : ecs::INVALID_ENTITY);
+        ecs::Text3DComponent* component = (runtime && runtime->current_context.scene) ? runtime->current_context.scene->GetComponent<ecs::Text3DComponent>(entity) : nullptr;
+        if (!component)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+        lua_pushstring(state, component->text.c_str());
+        return 1;
     }
 
     int LuaScriptRuntime::LuaEventSubscribe(lua_State* state)
@@ -1022,12 +1093,6 @@ namespace won::script
         return 1;
     }
 
-    static void RequestPrefabSpawn(ecs::Scene& scene, const ecs::PrefabSpawnRequest& request)
-    {
-        scene.QueuePrefabSpawn(request);
-        eventhandler::PostEvent(eventhandler::EVENT_PREFAB_SPAWN);
-    }
-
     int LuaScriptRuntime::LuaEntitySpawnPrefab(lua_State* state)
     {
         LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
@@ -1049,7 +1114,7 @@ namespace won::script
         request.position = { x, y, z };
         request.yaw = yaw;
         request.reserved_root = root;
-        RequestPrefabSpawn(*runtime->current_context.scene, request);
+        runtime->current_context.scene->QueuePrefabSpawn(request);
 
         lua_pushinteger(state, static_cast<lua_Integer>(root));
         return 1;
@@ -1076,7 +1141,7 @@ namespace won::script
         request.position = { x, y, z };
         request.parent = parent;
         request.reserved_root = root;
-        RequestPrefabSpawn(*runtime->current_context.scene, request);
+        runtime->current_context.scene->QueuePrefabSpawn(request);
 
         lua_pushinteger(state, static_cast<lua_Integer>(root));
         return 1;
@@ -2620,9 +2685,28 @@ namespace won::script
         lua_pushlightuserdata(lua_state, this);
         lua_pushcclosure(lua_state, LuaSceneFindByName, 1);
         lua_setfield(lua_state, -2, "find_by_name");
-        lua_pushcfunction(lua_state, LuaSceneLoad);
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaSceneLoad, 1);
         lua_setfield(lua_state, -2, "load");
         lua_setfield(lua_state, -2, "scene");
+
+        lua_newtable(lua_state);
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaText2DSetString, 1);
+        lua_setfield(lua_state, -2, "set_string");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaText2DGetString, 1);
+        lua_setfield(lua_state, -2, "get_string");
+        lua_setfield(lua_state, -2, "text2d");
+
+        lua_newtable(lua_state);
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaText3DSetString, 1);
+        lua_setfield(lua_state, -2, "set_string");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaText3DGetString, 1);
+        lua_setfield(lua_state, -2, "get_string");
+        lua_setfield(lua_state, -2, "text3d");
 
         lua_newtable(lua_state);
         lua_pushlightuserdata(lua_state, this);

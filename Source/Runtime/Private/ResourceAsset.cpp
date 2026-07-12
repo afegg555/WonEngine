@@ -858,10 +858,11 @@ namespace won::resource
     void LoadSceneResources(ecs::Scene& scene, const String& content_root)
     {
         jobsystem::Context ctx;
+        jobsystem::Context mesh_ctx;
 
         if (auto geometry_array = scene.GetComponentArray<ecs::GeometryComponent>())
         {
-            jobsystem::Dispatch(ctx, static_cast<uint32>(geometry_array->GetSize()), 1, [geometry_array, &content_root](jobsystem::JobArgs args)
+            jobsystem::Dispatch(mesh_ctx, static_cast<uint32>(geometry_array->GetSize()), 1, [geometry_array, &content_root](jobsystem::JobArgs args)
             {
                 LoadMeshResource(geometry_array->data[args.job_index], content_root);
             });
@@ -890,10 +891,9 @@ namespace won::resource
                         if (!material_slot.textures[slot].texture_asset_path.empty())
                             texture_jobs.push_back({ &material_slot.textures[slot], slot });
             }
-            jobsystem::Dispatch(ctx, static_cast<uint32>(texture_jobs.size()), 1, [jobs = std::move(texture_jobs), &content_root](jobsystem::JobArgs args)
-            {
-                LoadTextureMap(*jobs[args.job_index].map, jobs[args.job_index].slot, content_root);
-            });
+            // Keep sequential until WON-147 (parallel Dispatch loses texture visibility).
+            for (const TextureJob& texture_job : texture_jobs)
+                LoadTextureMap(*texture_job.map, texture_job.slot, content_root);
         }
 
         if (auto text2d_array = scene.GetComponentArray<ecs::Text2DComponent>())
@@ -919,6 +919,7 @@ namespace won::resource
         }
 
         jobsystem::Wait(ctx);
+        jobsystem::Wait(mesh_ctx);
 
         if (auto script_array = scene.GetComponentArray<ecs::ScriptComponent>())
         {
