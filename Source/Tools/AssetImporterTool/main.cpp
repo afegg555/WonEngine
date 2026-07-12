@@ -830,6 +830,30 @@ struct COMInitializer
 
             const String mesh_binary_path     = String(generated_asset_directory) + "/" + asset_id + "." + resource::mesh_binary_extension;
             const String mesh_binary_full_path = io::CombinePath(content_root, mesh_binary_path);
+
+            // Reimport preserves engine-authored animation events (matched by clip name; source formats carry none).
+            if (io::Exists(mesh_binary_full_path))
+            {
+                if (std::shared_ptr<resource::Mesh> existing_mesh = resource::LoadMeshBinary(mesh_binary_full_path))
+                {
+                    for (std::shared_ptr<resource::AnimationClip>& clip : data.mesh->animation_clips)
+                    {
+                        if (!clip || !clip->events.empty())
+                        {
+                            continue;
+                        }
+                        for (const std::shared_ptr<resource::AnimationClip>& existing_clip : existing_mesh->animation_clips)
+                        {
+                            if (existing_clip && existing_clip->name == clip->name && !existing_clip->events.empty())
+                            {
+                                clip->events = existing_clip->events;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
             if (!resource::SaveMeshBinary(mesh_binary_full_path, *data.mesh))
             {
                 out_error = "Failed to save mesh binary.";

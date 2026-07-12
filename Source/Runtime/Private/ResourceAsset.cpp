@@ -21,7 +21,7 @@ namespace won::resource
 {
     namespace
     {
-        constexpr uint32 mesh_binary_version = 1;
+        constexpr uint32 mesh_binary_version = 2;
         constexpr uint32 mesh_binary_magic = 0x48534D57; // WMSH
         constexpr uint32 material_binary_version = 2;
         constexpr uint32 dds_magic = 0x20534444; // DDS
@@ -215,7 +215,7 @@ namespace won::resource
             serialize::Serialize(archive, keyframes);
         }
 
-        void SerializeAnimationClips(serialize::BinaryArchive& archive, Vector<std::shared_ptr<AnimationClip>>& clips)
+        void SerializeAnimationClips(serialize::BinaryArchive& archive, Vector<std::shared_ptr<AnimationClip>>& clips, uint32 version)
         {
             Size clip_count = archive.IsWriteMode() ? clips.size() : 0;
             serialize::Serialize(archive, clip_count);
@@ -248,6 +248,21 @@ namespace won::resource
                     SerializeKeyframes(archive, channel.positions);
                     SerializeKeyframes(archive, channel.rotations);
                     SerializeKeyframes(archive, channel.scales);
+                }
+
+                if (version >= 2)
+                {
+                    Size event_count = archive.IsWriteMode() ? clip.events.size() : 0;
+                    serialize::Serialize(archive, event_count);
+                    if (archive.IsReadMode())
+                    {
+                        clip.events.resize(event_count);
+                    }
+                    for (AnimationEventMarker& clip_event : clip.events)
+                    {
+                        serialize::Serialize(archive, clip_event.time_seconds);
+                        serialize::Serialize(archive, clip_event.name);
+                    }
                 }
             }
         }
@@ -371,7 +386,7 @@ namespace won::resource
         serialize::Serialize(archive, copy.indices);
         SerializeSubmeshes(archive, copy.submeshes);
         SerializeSkeleton(archive, copy.skeleton);
-        SerializeAnimationClips(archive, copy.animation_clips);
+        SerializeAnimationClips(archive, copy.animation_clips, version);
         return true;
     }
 
@@ -401,7 +416,7 @@ namespace won::resource
         uint32 version = 0;
         serialize::Serialize(archive, magic);
         serialize::Serialize(archive, version);
-        if (magic != mesh_binary_magic || version != mesh_binary_version)
+        if (magic != mesh_binary_magic || version < 1 || version > mesh_binary_version)
         {
             return nullptr;
         }
@@ -417,7 +432,7 @@ namespace won::resource
         serialize::Serialize(archive, mesh->indices);
         SerializeSubmeshes(archive, mesh->submeshes);
         SerializeSkeleton(archive, mesh->skeleton);
-        SerializeAnimationClips(archive, mesh->animation_clips);
+        SerializeAnimationClips(archive, mesh->animation_clips, version);
         if (!mesh->IsValid())
         {
             return nullptr;
@@ -855,6 +870,21 @@ namespace won::resource
             script_slot.script_path = project::ResolveProjectContentPath(content_root, script_slot.script_path);
     }
 
+    static void BindAnimationClips(ecs::Scene& scene, ecs::Entity entity)
+    {
+        ecs::AnimationComponent* animation = scene.GetComponent<ecs::AnimationComponent>(entity);
+        if (!animation || !animation->clips.empty())
+        {
+            return;
+        }
+        ecs::GeometryComponent* geometry = scene.GetComponent<ecs::GeometryComponent>(entity);
+        if (geometry && geometry->mesh && geometry->mesh->skeleton && geometry->mesh->skeleton->IsValid() && !geometry->mesh->animation_clips.empty())
+        {
+            animation->clips = geometry->mesh->animation_clips;
+            animation->event_scan_time = animation->time;
+        }
+    }
+
     void LoadSceneResources(ecs::Scene& scene, const String& content_root)
     {
         jobsystem::Context ctx;
@@ -921,6 +951,14 @@ namespace won::resource
         jobsystem::Wait(ctx);
         jobsystem::Wait(mesh_ctx);
 
+        if (auto animation_array = scene.GetComponentArray<ecs::AnimationComponent>())
+        {
+            for (Size i = 0; i < animation_array->GetSize(); ++i)
+            {
+                BindAnimationClips(scene, animation_array->index_to_entity[i]);
+            }
+        }
+
         if (auto script_array = scene.GetComponentArray<ecs::ScriptComponent>())
         {
             for (Size i = 0; i < script_array->GetSize(); ++i)
@@ -935,6 +973,8 @@ namespace won::resource
         {
             if (ecs::GeometryComponent* geometry = scene.GetComponent<ecs::GeometryComponent>(entity))
                 LoadMeshResource(*geometry, content_root);
+
+            BindAnimationClips(scene, entity);
 
             if (ecs::MaterialComponent* material_comp = scene.GetComponent<ecs::MaterialComponent>(entity))
             {

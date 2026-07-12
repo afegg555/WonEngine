@@ -22,5 +22,7 @@ namespace won::ecs
         Vector<float4x4> bone_matrices;
         uint32 bone_matrix_offset = 0;
         bool bone_matrices_dirty = true;
+
+        float event_scan_time = 0.0f;
     };
 }

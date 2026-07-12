@@ -108,10 +108,7 @@ namespace won::ecs
             AddSystem(std::make_shared<LightUpdateSystem>());
             AddSystem(std::make_shared<GeometryUpdateSystem>());
             AddSystem(std::make_shared<MaterialUpdateSystem>());
-            if (desc.enable_simulation)
-            {
-                AddSystem(std::make_shared<AnimationUpdateSystem>());
-            }
+            AddSystem(std::make_shared<AnimationUpdateSystem>(desc.enable_simulation));
             AddSystem(std::make_shared<RenderableUpdateSystem>());
             AddSystem(std::make_shared<SpriteUpdateSystem>());
             AddSystem(std::make_shared<TextUpdateSystem>());
@@ -196,6 +193,7 @@ namespace won::ecs
             physics_world->Clear();
             prefab_spawn_queue.clear();
             pending_scene_load.clear();
+            animation_event_queue.clear();
             has_pending_scene_load = false;
             next_entity = INVALID_ENTITY + 1;
             SetBVHDirty();
@@ -1223,6 +1221,21 @@ namespace won::ecs
             ui_click_queue.clear();
         }
 
+        void QueueAnimationEvent(Entity entity, const String& name)
+        {
+            animation_event_queue.push_back({ entity, name });
+        }
+
+        const Vector<std::pair<Entity, String>>& GetAnimationEvents() const
+        {
+            return animation_event_queue;
+        }
+
+        void ClearAnimationEvents()
+        {
+            animation_event_queue.clear();
+        }
+
         void QueuePrefabSpawn(const PrefabSpawnRequest& request)
         {
             prefab_spawn_queue.push_back(request);
@@ -1287,6 +1300,7 @@ namespace won::ecs
         bool system_schedule_dirty = true;
         std::unique_ptr<won::physics::PhysicsWorld> physics_world;
         Vector<Entity> ui_click_queue;
+        Vector<std::pair<Entity, String>> animation_event_queue;
         Vector<PrefabSpawnRequest> prefab_spawn_queue;
         String pending_scene_load;
         bool has_pending_scene_load = false;

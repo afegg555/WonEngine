@@ -57,6 +57,8 @@ namespace won::script
                 return "OnTriggerExit3D";
             case ScriptCallType::OnClick:
                 return "OnClick";
+            case ScriptCallType::OnAnimationEvent:
+                return "OnAnimationEvent";
             default:
                 return "";
             }
@@ -1449,6 +1451,7 @@ namespace won::script
         }
         animation.current_clip_index = clip_index;
         animation.time = 0.0f;
+        animation.event_scan_time = 0.0f;
         animation.playing = true;
     }
 
@@ -1595,6 +1598,32 @@ namespace won::script
             return 1;
         }
         animation->playing = true;
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAnimationAddClipEvent(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        ecs::AnimationComponent* animation = GetSelfAnimation(runtime);
+        const uint32 clip_index = static_cast<uint32>(luaL_checkinteger(state, 1));
+        const float time_seconds = static_cast<float>(luaL_checknumber(state, 2));
+        const char* name = luaL_checkstring(state, 3);
+        if (!animation || clip_index >= animation->clips.size() || !animation->clips[clip_index])
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+        resource::AnimationClip& clip = *animation->clips[clip_index];
+        for (const resource::AnimationEventMarker& existing : clip.events)
+        {
+            if (existing.time_seconds == time_seconds && existing.name == name)
+            {
+                lua_pushboolean(state, true); // shared clip: skip duplicate
+                return 1;
+            }
+        }
+        clip.events.push_back({ time_seconds, name });
         lua_pushboolean(state, true);
         return 1;
     }
@@ -2643,6 +2672,9 @@ namespace won::script
         lua_pushlightuserdata(lua_state, this);
         lua_pushcclosure(lua_state, LuaAnimationIsCurrentFinished, 1);
         lua_setfield(lua_state, -2, "is_current_finished");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAnimationAddClipEvent, 1);
+        lua_setfield(lua_state, -2, "add_clip_event");
         lua_setfield(lua_state, -2, "animation");
 
         lua_newtable(lua_state);

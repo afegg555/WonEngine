@@ -18,7 +18,7 @@ namespace won::ecs
 
 namespace won::script
 {
-    inline constexpr uint32 lua_script_builtin_function_count = static_cast<uint32>(ScriptCallType::OnClick) + 1u;
+    inline constexpr uint32 lua_script_builtin_function_count = static_cast<uint32>(ScriptCallType::OnAnimationEvent) + 1u;
 
     struct LuaScriptModule
     {
@@ -113,6 +113,7 @@ namespace won::script
         static int LuaAnimationPause(lua_State* state);
         static int LuaAnimationResume(lua_State* state);
         static int LuaAnimationIsPlaying(lua_State* state);
+        static int LuaAnimationAddClipEvent(lua_State* state);
         static int LuaAnimationGetClipCount(lua_State* state);
         static int LuaAnimationGetCurrentClip(lua_State* state);
         static int LuaAnimationGetClipName(lua_State* state);

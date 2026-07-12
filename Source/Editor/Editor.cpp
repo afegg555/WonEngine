@@ -233,6 +233,14 @@ namespace won::editor
 			constexpr const char* rect_transform_2d_component = "RectTransform2DComponent";
 			constexpr const char* button_component = "ButtonComponent";
 			constexpr const char* animation_component = "AnimationComponent";
+			constexpr const char* animation_events = "Animation Events";
+			constexpr const char* animation_event_add = "Add Event";
+			constexpr const char* animation_event_save = "Save Events";
+			constexpr const char* animation_event_remove = "-";
+			constexpr const char* animation_event_default_name = "event";
+			constexpr const char* animation_events_saved = "Animation events saved: ";
+			constexpr const char* animation_events_save_failed = "Failed to save animation events.";
+			constexpr const char* animation_events_no_mesh = "No mesh asset to save animation events.";
 			constexpr const char* material_component = "MaterialComponent";
 			constexpr const char* script_component = "ScriptComponent";
 			constexpr const char* script = "Script";
@@ -5234,6 +5242,104 @@ namespace won::editor
 							{
 								ImGui::TextDisabled(editor_text::duration_zero);
 							}
+
+							if (current_clip)
+							{
+								ImGui::Separator();
+								ImGui::Text(editor_text::animation_events);
+
+								ImDrawList* event_draw_list = ImGui::GetWindowDrawList();
+								const ImVec2 timeline_min = ImGui::GetCursorScreenPos();
+								const float timeline_width = ImGui::GetContentRegionAvail().x;
+								const float timeline_height = 24.0f;
+								ImGui::InvisibleButton("##animation_event_timeline", ImVec2(timeline_width, timeline_height));
+								const ImVec2 timeline_max = ImVec2(timeline_min.x + timeline_width, timeline_min.y + timeline_height);
+								event_draw_list->AddRectFilled(timeline_min, timeline_max, IM_COL32(40, 40, 40, 255), 3.0f);
+								event_draw_list->AddRect(timeline_min, timeline_max, IM_COL32(90, 90, 90, 255), 3.0f);
+
+								const float event_track_duration = duration_seconds > 0.0f ? duration_seconds : 1.0f;
+								const float playhead_ratio = std::clamp(animation_comp->time / event_track_duration, 0.0f, 1.0f);
+								const float playhead_x = timeline_min.x + playhead_ratio * timeline_width;
+								event_draw_list->AddLine(ImVec2(playhead_x, timeline_min.y), ImVec2(playhead_x, timeline_max.y), IM_COL32(255, 220, 60, 255), 2.0f);
+
+								for (const resource::AnimationEventMarker& marker : current_clip->events)
+								{
+									const float marker_ratio = std::clamp(marker.time_seconds / event_track_duration, 0.0f, 1.0f);
+									const float marker_x = timeline_min.x + marker_ratio * timeline_width;
+									event_draw_list->AddLine(ImVec2(marker_x, timeline_min.y), ImVec2(marker_x, timeline_max.y), IM_COL32(80, 180, 255, 255), 2.0f);
+									event_draw_list->AddTriangleFilled(ImVec2(marker_x - 4.0f, timeline_min.y), ImVec2(marker_x + 4.0f, timeline_min.y), ImVec2(marker_x, timeline_min.y + 7.0f), IM_COL32(80, 180, 255, 255));
+								}
+
+								if (ImGui::Button(editor_text::animation_event_add))
+								{
+									resource::AnimationEventMarker new_marker = {};
+									new_marker.time_seconds = std::clamp(animation_comp->time, 0.0f, duration_seconds);
+									new_marker.name = editor_text::animation_event_default_name;
+									current_clip->events.push_back(new_marker);
+								}
+								ImGui::SameLine();
+								if (ImGui::Button(editor_text::animation_event_save))
+								{
+									GeometryComponent* event_geometry = editor_viewport.view->scene->GetComponent<GeometryComponent>(editor_viewport.picked_entity);
+									if (event_geometry && event_geometry->mesh && !event_geometry->mesh_asset_path.empty())
+									{
+										const String event_disk_path = project::ResolveProjectContentPath(contents_root_dir, event_geometry->mesh_asset_path);
+										String event_binary_path;
+										resource::AssetMeta event_asset_meta = {};
+										if (won::utils::ToLower(io::GetExtension(event_disk_path)) == resource::mesh_binary_extension)
+										{
+											event_binary_path = event_disk_path;
+										}
+										else if (resource::LoadAssetMeta(resource::GetAssetMetaPath(event_disk_path), event_asset_meta))
+										{
+											event_binary_path = project::ResolveProjectContentPath(contents_root_dir, event_asset_meta.binary_path);
+										}
+										if (!event_binary_path.empty() && resource::SaveMeshBinary(event_binary_path, *event_geometry->mesh))
+										{
+											backlog::Post(String(editor_text::animation_events_saved) + event_binary_path, backlog::LogLevel::Default);
+										}
+										else
+										{
+											backlog::Post(editor_text::animation_events_save_failed, backlog::LogLevel::Warning);
+										}
+									}
+									else
+									{
+										backlog::Post(editor_text::animation_events_no_mesh, backlog::LogLevel::Warning);
+									}
+								}
+
+								int marker_index_to_remove = -1;
+								for (int marker_index = 0; marker_index < static_cast<int>(current_clip->events.size()); ++marker_index)
+								{
+									resource::AnimationEventMarker& marker = current_clip->events[marker_index];
+									ImGui::PushID(marker_index);
+									ImGui::SetNextItemWidth(90.0f);
+									float marker_time = marker.time_seconds;
+									if (ImGui::DragFloat("##animation_event_time", &marker_time, 0.01f, 0.0f, duration_seconds, "%.3f"))
+									{
+										marker.time_seconds = std::clamp(marker_time, 0.0f, duration_seconds);
+									}
+									ImGui::SameLine();
+									char marker_name_buffer[128] = {};
+									std::snprintf(marker_name_buffer, sizeof(marker_name_buffer), "%s", marker.name.c_str());
+									ImGui::SetNextItemWidth(150.0f);
+									if (ImGui::InputText("##animation_event_name", marker_name_buffer, sizeof(marker_name_buffer)))
+									{
+										marker.name = marker_name_buffer;
+									}
+									ImGui::SameLine();
+									if (ImGui::Button(editor_text::animation_event_remove))
+									{
+										marker_index_to_remove = marker_index;
+									}
+									ImGui::PopID();
+								}
+								if (marker_index_to_remove >= 0)
+								{
+									current_clip->events.erase(current_clip->events.begin() + marker_index_to_remove);
+								}
+							}
 						}
 						else
 						{
@@ -7005,6 +7111,17 @@ namespace won::editor
 				if (mesh && mesh->IsValid() && rendering::utils::CreateRenderData(*device, *mesh))
 				{
 					geometry.SetMesh(mesh);
+					if (mesh->skeleton && mesh->skeleton->IsValid() && !mesh->animation_clips.empty())
+					{
+						const ecs::Entity entity = geometry_array->index_to_entity[i];
+						if (ecs::AnimationComponent* animation = scene.GetComponent<ecs::AnimationComponent>(entity))
+						{
+							if (animation->clips.empty())
+							{
+								animation->clips = mesh->animation_clips;
+							}
+						}
+					}
 				}
 			}
 		}

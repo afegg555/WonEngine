@@ -39,6 +39,7 @@ namespace won::ecs
             if (geometry.mesh && animation.clips.empty() && !geometry.mesh->animation_clips.empty())
             {
                 animation.clips = geometry.mesh->animation_clips;
+                animation.event_scan_time = animation.time;
             }
             if (!geometry.mesh || !geometry.mesh->skeleton || !geometry.mesh->skeleton->IsValid() || animation.clips.empty())
             {
@@ -74,6 +75,13 @@ namespace won::ecs
 
         render_data.shader_bone_matrices.resize(static_cast<Size>(final_bone_count) * 4);
 
+        struct AnimationEventBucket
+        {
+            Vector<std::pair<Entity, String>> events;
+        };
+        const bool should_dispatch_events = dispatch_events;
+        Vector<AnimationEventBucket> event_buckets(should_dispatch_events ? jobsystem::DispatchGroupCount((uint32)animation_array->GetSize(), jobsystem::groupsize_heavy) : 0);
+
         jobsystem::Dispatch(sub_ctx, (uint32)animation_array->GetSize(), jobsystem::groupsize_heavy, [&](jobsystem::JobArgs args) {
             const Entity entity = animation_array->index_to_entity[args.job_index];
             AnimationComponent& animation = animation_array->data[args.job_index];
@@ -88,6 +96,7 @@ namespace won::ecs
             if (geometry.mesh && animation.clips.empty() && !geometry.mesh->animation_clips.empty())
             {
                 animation.clips = geometry.mesh->animation_clips;
+                animation.event_scan_time = animation.time;
             }
             if (!geometry.mesh || !geometry.mesh->skeleton || !geometry.mesh->skeleton->IsValid() || animation.clips.empty())
             {
@@ -114,8 +123,45 @@ namespace won::ecs
             if (animation.playing)
             {
                 const float advanced_time = animation.time + delta_time * animation.speed;
-                animation.time = animation.loop ? math::Wrap(advanced_time, duration_seconds) : math::Clamp(advanced_time, 0.0f, duration_seconds);
+                const float new_time = animation.loop ? math::Wrap(advanced_time, duration_seconds) : math::Clamp(advanced_time, 0.0f, duration_seconds);
+
+                if (should_dispatch_events && animation.speed > 0.0f && !clip->events.empty())
+                {
+                    Vector<std::pair<Entity, String>>& event_bucket = event_buckets[args.group_id].events;
+                    const float scan_from = animation.event_scan_time;
+                    auto emit_events = [&](float lo, float hi, bool inclusive_lo)
+                    {
+                        for (const resource::AnimationEventMarker& marker : clip->events)
+                        {
+                            const bool lo_ok = inclusive_lo ? (marker.time_seconds >= lo) : (marker.time_seconds > lo);
+                            if (lo_ok && marker.time_seconds <= hi)
+                            {
+                                event_bucket.emplace_back(entity, marker.name);
+                            }
+                        }
+                    };
+                    if (new_time < scan_from)
+                    {
+                        emit_events(scan_from, duration_seconds, false);
+                        emit_events(0.0f, new_time, true);
+                    }
+                    else if (scan_from <= 0.0f)
+                    {
+                        emit_events(0.0f, new_time, true);
+                    }
+                    else
+                    {
+                        emit_events(scan_from, new_time, false);
+                    }
+                }
+
+                animation.time = new_time;
+                animation.event_scan_time = new_time;
                 animation.bone_matrices_dirty = true;
+            }
+            else
+            {
+                animation.event_scan_time = animation.time;
             }
 
             resource::Skeleton& skeleton = *geometry.mesh->skeleton;
@@ -215,5 +261,13 @@ namespace won::ecs
         });
 
         jobsystem::Wait(sub_ctx);
+
+        for (AnimationEventBucket& event_bucket : event_buckets)
+        {
+            for (std::pair<Entity, String>& animation_event : event_bucket.events)
+            {
+                scene.QueueAnimationEvent(animation_event.first, animation_event.second);
+            }
+        }
     }
 }
