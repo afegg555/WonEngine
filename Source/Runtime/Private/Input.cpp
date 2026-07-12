@@ -57,6 +57,7 @@ namespace won::io
         static KeyboardState previous_keyboard;
         static MouseState mouse;
         static MouseState previous_mouse;
+        static bool mouse_captured = false;
         static GamepadState gamepads[max_gamepad_count];
         static GamepadState previous_gamepads[max_gamepad_count];
         static Vector<InputEvent> input_events;
@@ -332,6 +333,10 @@ namespace won::io
                 const uint32 button_index = static_cast<uint32>(event.button);
                 if (button_index > static_cast<uint32>(BUTTON_NONE) && button_index < static_cast<uint32>(BUTTON_COUNT))
                 {
+                    if (mouse_captured && event.pressed && (event.button == MOUSE_BUTTON_LEFT || event.button == MOUSE_BUTTON_RIGHT || event.button == MOUSE_BUTTON_MIDDLE))
+                    {
+                        continue;
+                    }
                     if (event.button == MOUSE_BUTTON_LEFT)
                     {
                         mouse.left_button_press = event.pressed;
@@ -615,6 +620,11 @@ namespace won::io
             state.pressed = state.down && !entry.second.previous_down;
             state.released = !state.down && entry.second.previous_down;
         }
+    }
+
+    void SetMouseCaptured(bool captured)
+    {
+        mouse_captured = captured;
     }
 
     bool LoadActionMap(const String& path)

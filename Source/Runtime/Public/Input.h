@@ -173,6 +173,7 @@ namespace won::io
 	WONENGINE_API void Reset();
 	WONENGINE_API bool LoadActionMap(const String& path);
 	WONENGINE_API void ClearActionMap();
+	WONENGINE_API void SetMouseCaptured(bool captured);
 	WONENGINE_API bool IsDown(Button button);
 	WONENGINE_API bool IsPressed(Button button);
 	WONENGINE_API bool IsReleased(Button button);
