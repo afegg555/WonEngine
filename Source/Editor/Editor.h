@@ -66,7 +66,7 @@ namespace won::editor
 		};
 
 		void LoadPlugins();
-		void RegisterPluginExtensions(const std::shared_ptr<plugin::Plugin>& plugin);
+		void RegisterPluginExtensions(const std::shared_ptr<plugin::Plugin>& plugin, ecs::Scene& scene);
 		void SetPluginEnabled(Size plugin_index, bool enabled);
 		void InitImGui();
 		void InitEditorGrid();
@@ -79,6 +79,8 @@ namespace won::editor
 		bool SaveScene(const String& path);
 		bool SavePrefab(const String& path, ecs::Entity root);
 		void LoadScene(const String& path);
+		void EnterPlay();
+		void ExitPlay();
 		void DrawProjectSettingsWindow(bool* open);
 		void RebindSceneResources();
 		void UpdateEntityList();
@@ -229,6 +231,14 @@ namespace won::editor
 
 		project::ProjectSettings loaded_project_settings;
 		String current_scene_path;
+		bool is_playing = false;
+		bool is_paused = false;
+		bool request_play = false;
+		bool request_stop = false;
+		bool request_step = false;
+		ecs::Scene* edit_scene = nullptr;
+		ecs::Scene* play_scene = nullptr;
+		ecs::Entity edit_camera_entity = ecs::INVALID_ENTITY;
 		bool show_project_settings_window = false;
 		GameDataEditorState game_data_editor = {};
 		EditorViewport editor_viewport;

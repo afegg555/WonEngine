@@ -32,6 +32,7 @@ namespace won::ecs
         script::ScriptRuntime* script_runtime = nullptr; // Non-owning.
         won::physics::PhysicsWorldDesc physics;
         won::audio::AudioMixer* audio_mixer = nullptr; // Non-owning. Owned by Application.
+        bool enable_simulation = true;
     };
 
     struct RayCastHit
@@ -89,13 +90,16 @@ namespace won::ecs
             component_manager.RegisterComponent<ParticleEmitter3DComponent>();
             component_manager.RegisterComponent<DecalComponent>();
 
-            if (desc.script_runtime)
+            if (desc.script_runtime && desc.enable_simulation)
             {
                 AddSystem(std::make_shared<ScriptUpdateSystem>(desc.script_runtime));
             }
             AddSystem(std::make_shared<TransformUpdateSystem>());
-            AddSystem(std::make_shared<PhysicsUpdateSystem>());
-            if (desc.script_runtime)
+            if (desc.enable_simulation)
+            {
+                AddSystem(std::make_shared<PhysicsUpdateSystem>());
+            }
+            if (desc.script_runtime && desc.enable_simulation)
             {
                 AddSystem(std::make_shared<ScriptEventDispatchSystem>(desc.script_runtime));
             }
@@ -104,13 +108,22 @@ namespace won::ecs
             AddSystem(std::make_shared<LightUpdateSystem>());
             AddSystem(std::make_shared<GeometryUpdateSystem>());
             AddSystem(std::make_shared<MaterialUpdateSystem>());
-            AddSystem(std::make_shared<AnimationUpdateSystem>());
+            if (desc.enable_simulation)
+            {
+                AddSystem(std::make_shared<AnimationUpdateSystem>());
+            }
             AddSystem(std::make_shared<RenderableUpdateSystem>());
             AddSystem(std::make_shared<SpriteUpdateSystem>());
             AddSystem(std::make_shared<TextUpdateSystem>());
-            AddSystem(std::make_shared<ParticleUpdateSystem>());
+            if (desc.enable_simulation)
+            {
+                AddSystem(std::make_shared<ParticleUpdateSystem>());
+            }
             AddSystem(std::make_shared<DecalUpdateSystem>());
-            AddSystem(std::make_shared<AudioUpdateSystem>(desc.audio_mixer));
+            if (desc.enable_simulation)
+            {
+                AddSystem(std::make_shared<AudioUpdateSystem>(desc.audio_mixer));
+            }
 
             physics_world = std::make_unique<won::physics::PhysicsWorld>(desc.physics);
         }
@@ -182,6 +195,8 @@ namespace won::ecs
             scene_bvh_entities.clear();
             physics_world->Clear();
             prefab_spawn_queue.clear();
+            pending_scene_load.clear();
+            has_pending_scene_load = false;
             next_entity = INVALID_ENTITY + 1;
             SetBVHDirty();
         }
@@ -1215,6 +1230,23 @@ namespace won::ecs
             prefab_spawn_queue.clear();
         }
 
+        void QueueSceneLoad(const String& path)
+        {
+            pending_scene_load = path;
+            has_pending_scene_load = true;
+        }
+
+        bool HasPendingSceneLoad() const
+        {
+            return has_pending_scene_load;
+        }
+
+        String TakePendingSceneLoad()
+        {
+            has_pending_scene_load = false;
+            return std::move(pending_scene_load);
+        }
+
         const math::bvh::BVH& GetSceneBVH() const
         {
             return scene_bvh;
@@ -1248,5 +1280,7 @@ namespace won::ecs
         std::unique_ptr<won::physics::PhysicsWorld> physics_world;
         Vector<Entity> ui_click_queue;
         Vector<PrefabSpawnRequest> prefab_spawn_queue;
+        String pending_scene_load;
+        bool has_pending_scene_load = false;
     };
 }

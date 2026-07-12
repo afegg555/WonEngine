@@ -2209,6 +2209,8 @@ namespace won::rendering
         const uint32 frame_slot = current_frame_slot;
         FrameContext& frame_context = GetFrameContext();
 
+        enqueued_work_recorded = false;
+
         // wait for fence here
         frame_context.BeginFrame();
 
@@ -2524,6 +2526,7 @@ namespace won::rendering
         {
             enqueued_work_scratch_resources.clear();
             enqueued_work_succeeded = true;
+            enqueued_work_recorded = true;
             jobsystem::Execute(GetRenderingWorkContext(), [this](jobsystem::JobArgs args) {
                 enqueued_work_command_allocator->Reset();
                 enqueued_work_command_list->Begin(*enqueued_work_command_allocator);
@@ -3012,7 +3015,7 @@ namespace won::rendering
         ++frame_count;
         current_frame_slot = (current_frame_slot + 1) % static_cast<uint32>(frame_contexts.size());
 
-        if (enqueued_work_fence_value == 0)
+        if (enqueued_work_fence_value == 0 && enqueued_work_recorded)
         {
             enqueued_work_fence_value = graphics_context->Submit(*enqueued_work_command_list, enqueued_work_fence.get());
             if (!enqueued_work_succeeded)

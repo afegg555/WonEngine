@@ -827,11 +827,12 @@ namespace won::script
 
     int LuaScriptRuntime::LuaSceneLoad(lua_State* state)
     {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
         const char* path = luaL_checkstring(state, 1);
-        won::function::Value payload;
-        payload.type = won::ValueType::String;
-        payload.string_value = path;
-        eventhandler::PostEvent(eventhandler::EVENT_SCENE_LOAD, payload);
+        if (runtime && runtime->current_context.scene)
+        {
+            runtime->current_context.scene->QueueSceneLoad(path);
+        }
         return 0;
     }
 
@@ -1022,12 +1023,6 @@ namespace won::script
         return 1;
     }
 
-    static void RequestPrefabSpawn(ecs::Scene& scene, const ecs::PrefabSpawnRequest& request)
-    {
-        scene.QueuePrefabSpawn(request);
-        eventhandler::PostEvent(eventhandler::EVENT_PREFAB_SPAWN);
-    }
-
     int LuaScriptRuntime::LuaEntitySpawnPrefab(lua_State* state)
     {
         LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
@@ -1049,7 +1044,7 @@ namespace won::script
         request.position = { x, y, z };
         request.yaw = yaw;
         request.reserved_root = root;
-        RequestPrefabSpawn(*runtime->current_context.scene, request);
+        runtime->current_context.scene->QueuePrefabSpawn(request);
 
         lua_pushinteger(state, static_cast<lua_Integer>(root));
         return 1;
@@ -1076,7 +1071,7 @@ namespace won::script
         request.position = { x, y, z };
         request.parent = parent;
         request.reserved_root = root;
-        RequestPrefabSpawn(*runtime->current_context.scene, request);
+        runtime->current_context.scene->QueuePrefabSpawn(request);
 
         lua_pushinteger(state, static_cast<lua_Integer>(root));
         return 1;
@@ -2620,7 +2615,8 @@ namespace won::script
         lua_pushlightuserdata(lua_state, this);
         lua_pushcclosure(lua_state, LuaSceneFindByName, 1);
         lua_setfield(lua_state, -2, "find_by_name");
-        lua_pushcfunction(lua_state, LuaSceneLoad);
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaSceneLoad, 1);
         lua_setfield(lua_state, -2, "load");
         lua_setfield(lua_state, -2, "scene");
 
