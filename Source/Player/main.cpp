@@ -3,6 +3,7 @@
 #include "FileSystem.h"
 #include "JsonArchive.h"
 #include "ProjectSettings.h"
+#include "RenderingUtils.h"
 #include "ResourceAsset.h"
 #include "Scene.h"
 #include "SceneSerializer.h"
@@ -73,7 +74,7 @@ int main(int argc, char** argv)
         scene_desc.script_runtime = app.GetScriptRuntime();
         scene_desc.physics = won::project::GetPhysicsDesc(app_desc.project_settings);
         scene_desc.audio_mixer = app.GetAudioMixer();
-        won::ecs::Scene game_scene(scene_desc);
+        won::ecs::Scene& game_scene = app.GetSceneManager()->CreateScene(scene_desc);
 
         won::String startup_scene_path = app_desc.project_settings.startup_scene;
         if (!startup_scene_path.empty())
@@ -82,7 +83,7 @@ int main(int argc, char** argv)
             const won::String normalized_startup_scene_path = won::project::ResolveProjectContentPath(content_root, startup_scene_path);
             if (archive.LoadFromFile(normalized_startup_scene_path))
             {
-                won::serialize::Serialize(archive, game_scene);
+                won::serialize::LoadScene(archive, game_scene);
                 if (archive.HasError())
                 {
                     wonlog_warning("Startup scene load warning: %s (%s)", normalized_startup_scene_path.c_str(), archive.GetError().c_str());
@@ -100,7 +101,8 @@ int main(int argc, char** argv)
         }
         if (won::rendering::RHIDevice* device = app.GetDevice())
         {
-            won::resource::LoadSceneResources(game_scene, *device, content_root);
+            won::resource::LoadSceneResources(game_scene, content_root);
+            won::rendering::utils::FlushEnqueuedResourceUploads(*device);
         }
 
         const float window_width = (std::max)(1.0f, static_cast<float>(app_desc.project_settings.window_width));

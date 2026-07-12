@@ -3,6 +3,7 @@
 #include "Entity.h"
 #include "System.h"
 #include "SceneComponents.h"
+#include "PrefabSpawnRequest.h"
 #include "BuiltinTypeMeta.h"
 #include "Systems.h"
 #include "PhysicsWorld.h"
@@ -180,6 +181,7 @@ namespace won::ecs
             scene_bvh.Clear();
             scene_bvh_entities.clear();
             physics_world->Clear();
+            prefab_spawn_queue.clear();
             next_entity = INVALID_ENTITY + 1;
             SetBVHDirty();
         }
@@ -1198,6 +1200,21 @@ namespace won::ecs
             ui_click_queue.clear();
         }
 
+        void QueuePrefabSpawn(const PrefabSpawnRequest& request)
+        {
+            prefab_spawn_queue.push_back(request);
+        }
+
+        const Vector<PrefabSpawnRequest>& GetPrefabSpawnQueue() const
+        {
+            return prefab_spawn_queue;
+        }
+
+        void ClearPrefabSpawnQueue()
+        {
+            prefab_spawn_queue.clear();
+        }
+
         const math::bvh::BVH& GetSceneBVH() const
         {
             return scene_bvh;
@@ -1230,5 +1247,6 @@ namespace won::ecs
         bool system_schedule_dirty = true;
         std::unique_ptr<won::physics::PhysicsWorld> physics_world;
         Vector<Entity> ui_click_queue;
+        Vector<PrefabSpawnRequest> prefab_spawn_queue;
     };
 }

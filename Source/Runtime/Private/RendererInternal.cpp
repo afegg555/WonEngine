@@ -2217,6 +2217,8 @@ namespace won::rendering
 
         device->BeginFrame(frame_slot);
 
+        utils::FlushEnqueuedResourceUploads(*device);
+
         CreateRenderTargetResources(frame_context);
 
         RHISubresourceBinding back_buffer_binding = {};

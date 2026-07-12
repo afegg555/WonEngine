@@ -59,6 +59,9 @@ namespace won::script
         static int LuaLogError(lua_State* state);
 
         static int LuaEntityCreate(lua_State* state);
+        static int LuaEntitySpawnPrefab(lua_State* state);
+        static int LuaEntitySpawnPrefabChild(lua_State* state);
+        static int LuaEntityPreloadPrefab(lua_State* state);
         static int LuaEntityIsValid(lua_State* state);
         static int LuaEntityDestroy(lua_State* state);
         static int LuaEntityGetName(lua_State* state);
@@ -108,6 +111,9 @@ namespace won::script
         static int LuaAnimationGetClipCount(lua_State* state);
         static int LuaAnimationGetCurrentClip(lua_State* state);
         static int LuaAnimationGetClipName(lua_State* state);
+        static int LuaAnimationGetClipDuration(lua_State* state);
+        static int LuaAnimationGetNormalizedTime(lua_State* state);
+        static int LuaAnimationIsCurrentFinished(lua_State* state);
         static ecs::AnimationComponent* GetSelfAnimation(LuaScriptRuntime* runtime);
 
         static int LuaColliderHas(lua_State* state);
@@ -160,6 +166,7 @@ namespace won::script
         static int LuaInputIsGamepadConnected(lua_State* state);
 
         static int LuaSceneFindByName(lua_State* state);
+        static int LuaSceneLoad(lua_State* state);
 
         static int LuaEventSubscribe(lua_State* state);
         static int LuaEventPost(lua_State* state);

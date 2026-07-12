@@ -4,6 +4,7 @@
 #include "Scene.h"
 
 #include <algorithm>
+#include <cassert>
 #include <cstdlib>
 #include <cstring>
 #include <iomanip>
@@ -254,7 +255,7 @@ namespace won::serialize
             }
         }
 
-        void WriteScene(JsonArchive& archive, const ecs::Scene& scene, const SceneSerializeDesc& desc)
+        void WriteEntities(JsonArchive& archive, const ecs::Scene& scene, const SaveSceneDesc& desc, const Vector<ecs::Entity>* ordered_entities = nullptr)
         {
             archive.BeginObject(); 
             uint32 version = scene_format_version;
@@ -280,16 +281,26 @@ namespace won::serialize
             UnorderedMap<String, uint32> material_resource_indices;
 
             UnorderedMap<ecs::Entity, uint64> entity_to_index;
-            const Vector<ecs::Entity>& entities = scene.GetEntities();
             uint64 entity_count = 0;
-            for (ecs::Entity entity : entities)
+            if (ordered_entities)
             {
-                if (excluded_entity_map.find(entity) != excluded_entity_map.end())
+                for (ecs::Entity entity : *ordered_entities)
                 {
-                    continue;
+                    entity_to_index[entity] = entity_count;
+                    ++entity_count;
                 }
-                entity_to_index[entity] = entity_count;
-                ++entity_count;
+            }
+            else
+            {
+                for (ecs::Entity entity : scene.GetEntities())
+                {
+                    if (excluded_entity_map.find(entity) != excluded_entity_map.end())
+                    {
+                        continue;
+                    }
+                    entity_to_index[entity] = entity_count;
+                    ++entity_count;
+                }
             }
             archive.Field("entity_count", entity_count);
 
@@ -606,7 +617,7 @@ namespace won::serialize
             archive.EndObject();
         }
 
-        void ReadScene(JsonArchive& archive, ecs::Scene& scene)
+        void ReadEntities(JsonArchive& archive, ecs::Scene& scene, ecs::Entity preallocated_root, Vector<ecs::Entity>& entities)
         {
             if (!archive.BeginObject())
             {
@@ -677,15 +688,20 @@ namespace won::serialize
                 }
                 archive.EndObject();
             }
-            scene.ClearEntities();
-
-            Vector<ecs::Entity> entities;
             uint64 entity_count = 0;
             archive.Field("entity_count", entity_count);
+            entities.clear();
             entities.reserve(static_cast<Size>(entity_count));
             for (uint64 i = 0; i < entity_count; ++i)
             {
-                entities.push_back(scene.CreateEntity());
+                if (i == 0 && preallocated_root != ecs::INVALID_ENTITY)
+                {
+                    entities.push_back(preallocated_root);
+                }
+                else
+                {
+                    entities.push_back(scene.CreateEntity());
+                }
             }
 
             if (archive.BeginObject("components"))
@@ -949,7 +965,7 @@ namespace won::serialize
                 archive.EndObject();
             }
 
-            for (ecs::Entity entity : scene.GetEntities())
+            for (ecs::Entity entity : entities)
             {
                 if (ecs::TransformComponent* transform = scene.GetComponent<ecs::TransformComponent>(entity))
                 {
@@ -981,28 +997,62 @@ namespace won::serialize
                     collider->SetDirty();
                 }
             }
+            scene.SetHierarchyTopologyDirty(true);
             scene.SetBVHDirty();
             archive.EndObject();
         }
+
     }
 
-    void Serialize(JsonArchive& archive, ecs::Scene& scene, const SceneSerializeDesc& desc)
+    void LoadScene(JsonArchive& archive, ecs::Scene& scene)
     {
-        if (archive.IsReadMode())
-        {
-            ReadScene(archive, scene);
-        }
-        else
-        {
-            WriteScene(archive, scene, desc);
-        }
+        assert(archive.IsReadMode());
+        scene.ClearEntities();
+        Vector<ecs::Entity> entities;
+        ReadEntities(archive, scene, ecs::INVALID_ENTITY, entities);
     }
 
-    void Serialize(JsonArchive& archive, const ecs::Scene& scene, const SceneSerializeDesc& desc)
+    void SaveScene(JsonArchive& archive, const ecs::Scene& scene, const SaveSceneDesc& desc)
     {
-        if (archive.IsWriteMode())
+        assert(archive.IsWriteMode());
+        WriteEntities(archive, scene, desc);
+    }
+
+    ecs::Entity LoadSceneAdditive(JsonArchive& archive, ecs::Scene& scene, ecs::Entity preallocated_root, Vector<ecs::Entity>& out_new_entities)
+    {
+        assert(archive.IsReadMode());
+        out_new_entities.clear();
+        ReadEntities(archive, scene, preallocated_root, out_new_entities);
+        return out_new_entities.empty() ? ecs::INVALID_ENTITY : out_new_entities[0];
+    }
+
+    bool SavePrefab(JsonArchive& archive, ecs::Scene& scene, ecs::Entity root)
+    {
+        assert(archive.IsWriteMode());
+        if (root == ecs::INVALID_ENTITY)
         {
-            WriteScene(archive, scene, desc);
+            return false;
         }
+
+        Vector<ecs::Entity> subtree;
+        subtree.push_back(root);
+        auto hierarchy_array = scene.GetComponentArray<ecs::HierarchyComponent>();
+        if (hierarchy_array)
+        {
+            for (Size head = 0; head < subtree.size(); ++head)
+            {
+                const ecs::Entity parent = subtree[head];
+                for (Size i = 0; i < hierarchy_array->GetSize(); ++i)
+                {
+                    if (hierarchy_array->data[i].parent_id == parent)
+                    {
+                        subtree.push_back(hierarchy_array->index_to_entity[i]);
+                    }
+                }
+            }
+        }
+
+        WriteEntities(archive, scene, SaveSceneDesc{}, &subtree);
+        return !archive.HasError();
     }
 }

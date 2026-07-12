@@ -260,6 +260,7 @@ set(RUNTIME_SERIALIZATION
     Source/Runtime/Public/ArchiveMode.h
     Source/Runtime/Public/JsonArchive.h
     Source/Runtime/Public/SceneSerializer.h
+    Source/Runtime/Public/PrefabSpawnRequest.h
     Source/Runtime/Private/JsonArchive.cpp
     Source/Runtime/Private/SceneSerializer.cpp
 )
@@ -392,7 +393,9 @@ set(RUNTIME_PLATFORM_WINDOWS
 
 set(RUNTIME_APPLICATION
     Source/Runtime/Public/Application.h
+    Source/Runtime/Public/SceneManager.h
     Source/Runtime/Private/Application.cpp
+    Source/Runtime/Private/SceneManager.cpp
 )
 
 set(RUNTIME_ALLOCATOR

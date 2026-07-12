@@ -3,6 +3,7 @@
 #include "GameData.h"
 #include "Types.h"
 #include "Renderer.h"
+#include "SceneManager.h"
 #include "Timer.h"
 #include "Window.h"
 #include "View.h"
@@ -16,6 +17,8 @@
 
 #pragma warning(push)
 #pragma warning(disable: 4251)
+
+namespace won::ecs { class Scene; }
 
 namespace won
 {
@@ -43,6 +46,7 @@ namespace won
         script::ScriptRuntime* GetScriptRuntime();
         won::audio::AudioMixer* GetAudioMixer();
         game::GameData* GetGameData();
+        SceneManager* GetSceneManager();
         void ShowMainWindow();
         void WaitIdle();
         void ClearViews();
@@ -56,6 +60,16 @@ namespace won
         rendering::View& GetView(uint32 view_index = 0);
         const rendering::View& GetView(uint32 view_index = 0) const;
         void ProcessWindowResize();
+
+		// belows are internal methods for scene and prefab management
+		// currently, only the application knows about the rhidevice... may be changed in the future.
+        void ScheduleSceneLoad(const String& scene_path);
+        void LoadScene(const String& path);
+        void SchedulePrefabFlush();
+        void FlushPrefabSpawns();
+        void SpawnQueuedPrefabs(ecs::Scene& scene);
+        void SchedulePrefabPreload(const String& prefab_path);
+        void PreloadPrefab(const String& prefab_path);
 
         bool is_running = false;
         std::shared_ptr<rendering::RHIDevice> device;
@@ -73,6 +87,11 @@ namespace won
         uint64 update_index = 0;
         bool is_first_frame = true;
         eventhandler::Handle scene_load_handle;
+        eventhandler::Handle prefab_spawn_handle;
+        eventhandler::Handle prefab_preload_handle;
+        bool prefab_flush_scheduled = false;
+        UnorderedMap<String, Vector<std::shared_ptr<void>>> prefab_resource_cache;
+        std::unique_ptr<SceneManager> scene_manager;
     };
 }
 

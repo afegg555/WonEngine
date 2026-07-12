@@ -825,6 +825,16 @@ namespace won::script
         return 1;
     }
 
+    int LuaScriptRuntime::LuaSceneLoad(lua_State* state)
+    {
+        const char* path = luaL_checkstring(state, 1);
+        won::function::Value payload;
+        payload.type = won::ValueType::String;
+        payload.string_value = path;
+        eventhandler::PostEvent(eventhandler::EVENT_SCENE_LOAD, payload);
+        return 0;
+    }
+
     int LuaScriptRuntime::LuaEventSubscribe(lua_State* state)
     {
         LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
@@ -1010,6 +1020,76 @@ namespace won::script
         const ecs::Entity entity = runtime->current_context.scene->CreateEntity();
         lua_pushinteger(state, static_cast<lua_Integer>(entity));
         return 1;
+    }
+
+    static void RequestPrefabSpawn(ecs::Scene& scene, const ecs::PrefabSpawnRequest& request)
+    {
+        scene.QueuePrefabSpawn(request);
+        eventhandler::PostEvent(eventhandler::EVENT_PREFAB_SPAWN);
+    }
+
+    int LuaScriptRuntime::LuaEntitySpawnPrefab(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        const char* path = luaL_checkstring(state, 1);
+        const float x = static_cast<float>(luaL_checknumber(state, 2));
+        const float y = static_cast<float>(luaL_checknumber(state, 3));
+        const float z = static_cast<float>(luaL_checknumber(state, 4));
+        const float yaw = lua_gettop(state) >= 5 ? static_cast<float>(luaL_checknumber(state, 5)) : 0.0f;
+
+        const ecs::Entity root = runtime->current_context.scene->CreateEntity();
+        ecs::PrefabSpawnRequest request;
+        request.path = path;
+        request.position = { x, y, z };
+        request.yaw = yaw;
+        request.reserved_root = root;
+        RequestPrefabSpawn(*runtime->current_context.scene, request);
+
+        lua_pushinteger(state, static_cast<lua_Integer>(root));
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaEntitySpawnPrefabChild(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        const ecs::Entity parent = static_cast<ecs::Entity>(luaL_checkinteger(state, 1));
+        const char* path = luaL_checkstring(state, 2);
+        const float x = static_cast<float>(luaL_checknumber(state, 3));
+        const float y = static_cast<float>(luaL_checknumber(state, 4));
+        const float z = static_cast<float>(luaL_checknumber(state, 5));
+
+        const ecs::Entity root = runtime->current_context.scene->CreateEntity();
+        ecs::PrefabSpawnRequest request;
+        request.path = path;
+        request.position = { x, y, z };
+        request.parent = parent;
+        request.reserved_root = root;
+        RequestPrefabSpawn(*runtime->current_context.scene, request);
+
+        lua_pushinteger(state, static_cast<lua_Integer>(root));
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaEntityPreloadPrefab(lua_State* state)
+    {
+        const char* path = luaL_checkstring(state, 1);
+        won::function::Value payload;
+        payload.type = won::ValueType::String;
+        payload.string_value = path;
+        eventhandler::PostEvent(eventhandler::EVENT_PREFAB_PRELOAD, payload);
+        return 0;
     }
 
     int LuaScriptRuntime::LuaTransformAdd(lua_State* state)
@@ -1489,6 +1569,69 @@ namespace won::script
             return 1;
         }
         lua_pushstring(state, animation->clips[clip_index]->name.c_str());
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAnimationGetClipDuration(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        ecs::AnimationComponent* animation = GetSelfAnimation(runtime);
+        const char* name = luaL_checkstring(state, 1);
+        if (animation)
+        {
+            for (Size i = 0; i < animation->clips.size(); ++i)
+            {
+                const std::shared_ptr<resource::AnimationClip>& clip = animation->clips[i];
+                if (clip && clip->name == name)
+                {
+                    const float ticks_per_second = clip->ticks_per_second > 0.0f ? clip->ticks_per_second : 1.0f;
+                    lua_pushnumber(state, clip->duration / ticks_per_second);
+                    return 1;
+                }
+            }
+        }
+        lua_pushnil(state);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAnimationGetNormalizedTime(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        ecs::AnimationComponent* animation = GetSelfAnimation(runtime);
+        if (!animation || animation->current_clip_index >= animation->clips.size() || !animation->clips[animation->current_clip_index])
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+        const std::shared_ptr<resource::AnimationClip>& clip = animation->clips[animation->current_clip_index];
+        const float ticks_per_second = clip->ticks_per_second > 0.0f ? clip->ticks_per_second : 1.0f;
+        const float duration_seconds = clip->duration / ticks_per_second;
+        float normalized = duration_seconds > 0.0f ? animation->time / duration_seconds : 0.0f;
+        if (normalized < 0.0f)
+        {
+            normalized = 0.0f;
+        }
+        else if (normalized > 1.0f)
+        {
+            normalized = 1.0f;
+        }
+        lua_pushnumber(state, normalized);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAnimationIsCurrentFinished(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        ecs::AnimationComponent* animation = GetSelfAnimation(runtime);
+        if (!animation || animation->loop || animation->current_clip_index >= animation->clips.size() || !animation->clips[animation->current_clip_index])
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+        const std::shared_ptr<resource::AnimationClip>& clip = animation->clips[animation->current_clip_index];
+        const float ticks_per_second = clip->ticks_per_second > 0.0f ? clip->ticks_per_second : 1.0f;
+        const float duration_seconds = clip->duration / ticks_per_second;
+        lua_pushboolean(state, duration_seconds > 0.0f && animation->time >= duration_seconds - 1e-4f);
         return 1;
     }
 
@@ -2272,6 +2415,14 @@ namespace won::script
         lua_pushcclosure(lua_state, LuaEntityCreate, 1);
         lua_setfield(lua_state, -2, "create");
         lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaEntitySpawnPrefab, 1);
+        lua_setfield(lua_state, -2, "spawn_prefab");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaEntitySpawnPrefabChild, 1);
+        lua_setfield(lua_state, -2, "spawn_prefab_child");
+        lua_pushcfunction(lua_state, LuaEntityPreloadPrefab);
+        lua_setfield(lua_state, -2, "preload_prefab");
+        lua_pushlightuserdata(lua_state, this);
         lua_pushcclosure(lua_state, LuaEntityIsValid, 1);
         lua_setfield(lua_state, -2, "is_valid");
         lua_pushlightuserdata(lua_state, this);
@@ -2418,6 +2569,15 @@ namespace won::script
         lua_pushlightuserdata(lua_state, this);
         lua_pushcclosure(lua_state, LuaAnimationGetClipName, 1);
         lua_setfield(lua_state, -2, "get_clip_name");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAnimationGetClipDuration, 1);
+        lua_setfield(lua_state, -2, "get_clip_duration");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAnimationGetNormalizedTime, 1);
+        lua_setfield(lua_state, -2, "get_normalized_time");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAnimationIsCurrentFinished, 1);
+        lua_setfield(lua_state, -2, "is_current_finished");
         lua_setfield(lua_state, -2, "animation");
 
         lua_newtable(lua_state);
@@ -2460,6 +2620,8 @@ namespace won::script
         lua_pushlightuserdata(lua_state, this);
         lua_pushcclosure(lua_state, LuaSceneFindByName, 1);
         lua_setfield(lua_state, -2, "find_by_name");
+        lua_pushcfunction(lua_state, LuaSceneLoad);
+        lua_setfield(lua_state, -2, "load");
         lua_setfield(lua_state, -2, "scene");
 
         lua_newtable(lua_state);

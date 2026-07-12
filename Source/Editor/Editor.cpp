@@ -63,6 +63,7 @@ namespace won::editor
 		constexpr const char* generated_asset_directory = "Generated";
 		constexpr const char* scene_directory_name = "Scenes";
 		constexpr const char* default_scene_file_name = "NewScene";
+		constexpr const char* default_prefab_file_name = "NewPrefab";
 
 		namespace editor_text
 		{
@@ -96,6 +97,8 @@ namespace won::editor
 			constexpr const char* path = "Path";
 			constexpr const char* won_project_file = "Won Project";
 			constexpr const char* won_scene_file = "Won Scene";
+			constexpr const char* won_prefab_file = "Won Prefab";
+			constexpr const char* save_as_prefab = "Save as Prefab...";
 			constexpr const char* value = "Value";
 			constexpr const char* save = "Save";
 			constexpr const char* save_as = "Save As";
@@ -357,6 +360,7 @@ namespace won::editor
 			constexpr const char* load_project_failed = "Load project failed: ";
 			constexpr const char* create_project_failed = "Create project failed: ";
 			constexpr const char* save_scene_failed = "Save scene failed: ";
+			constexpr const char* save_prefab_failed = "Save prefab failed: ";
 			constexpr const char* scene_saved = "Scene saved: ";
 			constexpr const char* load_scene_failed = "Load scene failed: ";
 			constexpr const char* load_scene_warning = "Load scene warning: ";
@@ -1153,9 +1157,9 @@ namespace won::editor
 		scene_desc.script_runtime = script_runtime.get();
 		scene_desc.physics = project::GetPhysicsDesc(project_settings);
 		scene_desc.audio_mixer = audio_mixer.get();
-		loaded_scene = ecs::Scene(scene_desc);
+		ecs::Scene& editor_scene = GetSceneManager()->CreateScene(scene_desc);
 		rendering::View editor_view = {};
-		editor_view.scene = &loaded_scene;
+		editor_view.scene = &editor_scene;
 		editor_view.options.resize_policy = rendering::ViewResizePolicy::Manual;
 		editor_view.options.update_camera_aspect = false;
 		editor_view.viewport.width = project_settings.window_width;
@@ -1303,7 +1307,6 @@ namespace won::editor
 			editor_viewport.view->scene = nullptr;
 			editor_viewport.view->camera_entity = ecs::INVALID_ENTITY;
 		}
-		loaded_scene = {};
 		editor_viewport.view = nullptr;
 		plugins.clear();
 
@@ -1565,7 +1568,7 @@ namespace won::editor
 					continue;
 				}
 
-				loaded_scene.RegisterComponent(desc);
+				editor_viewport.view->scene->RegisterComponent(desc);
 				continue;
 			}
 
@@ -1582,7 +1585,7 @@ namespace won::editor
 					continue;
 				}
 
-				loaded_scene.AddSystem(std::make_shared<PluginSystemAdapter>(plugin, desc));
+				editor_viewport.view->scene->AddSystem(std::make_shared<PluginSystemAdapter>(plugin, desc));
 			}
 		}
 	}
@@ -1842,8 +1845,7 @@ namespace won::editor
 				}
 				if (rendering::utils::CreateRenderData(*device, *image, image->format, false))
 				{
-					texture_map.texture = image->render_data.texture;
-					texture_map.res_handle = image->render_data.srv;
+					texture_map.image = image;
 				}
 			}
 		}
@@ -3636,6 +3638,7 @@ namespace won::editor
 			static ImVec2 delete_entity_popup_pos = {};
 			ecs::Entity delete_entity = INVALID_ENTITY;
 			bool open_delete_entity_confirm = false;
+			ecs::Entity save_prefab_entity = INVALID_ENTITY;
 
 			Size running_import_count = 0;
 			for (const std::shared_ptr<EditorAssetImporter::ImportTask>& task : asset_importer.tasks)
@@ -3701,6 +3704,11 @@ namespace won::editor
 							selected_index = i;
 							editor_viewport.picked_entity = id;
 
+							if (ImGui::MenuItem(editor_text::save_as_prefab))
+							{
+								save_prefab_entity = id;
+							}
+
 							if (ImGui::MenuItem(editor_text::delete_entity, nullptr, false, id != editor_viewport.view->camera_entity))
 							{
 								pending_delete_entity = id;
@@ -3723,6 +3731,24 @@ namespace won::editor
 			}
 
 			ImGui::EndChild();
+
+			if (save_prefab_entity != INVALID_ENTITY)
+			{
+				io::FileDialogDesc desc = {};
+				desc.owner_window = window ? window->GetNativeHandle() : nullptr;
+				desc.title = editor_text::save_as_prefab;
+				desc.initial_directory = contents_root_dir;
+				desc.default_file_name = String(default_prefab_file_name) + "." + resource::prefab_file_extension;
+				desc.default_extension = resource::prefab_file_extension;
+				desc.filter_name = editor_text::won_prefab_file;
+				desc.filter_pattern = String("*.") + resource::prefab_file_extension;
+
+				String path;
+				if (io::SaveFileDialog(path, desc))
+				{
+					SavePrefab(path, save_prefab_entity);
+				}
+			}
 
 			if (open_delete_entity_confirm)
 			{
@@ -3834,9 +3860,9 @@ namespace won::editor
 							{
 								for (uint32 texture_slot = 0; texture_slot < TEXTURESLOT_COUNT; ++texture_slot)
 								{
-									if (material_slot.textures[texture_slot].texture)
+									if (material_slot.textures[texture_slot].image && material_slot.textures[texture_slot].image->render_data.texture)
 									{
-										deferred_res_removal.resources.push_back(material_slot.textures[texture_slot].texture);
+										deferred_res_removal.resources.push_back(material_slot.textures[texture_slot].image->render_data.texture);
 									}
 								}
 							}
@@ -5333,8 +5359,7 @@ namespace won::editor
 									if (ImGui::Selectable(editor_text::none_placeholder, texture.texture_asset_path.empty()))
 									{
 										texture.texture_asset_path.clear();
-										texture.texture = nullptr;
-										texture.res_handle = {};
+										texture.image = nullptr;
 										material_changed = true;
 									}
 									for (const ContentBrowserAsset& asset : content_browser.assets)
@@ -5359,8 +5384,7 @@ namespace won::editor
 											if (image && image->IsValid() && rendering::utils::CreateRenderData(*device, *image, image->format, false))
 											{
 												texture.texture_asset_path = texture_rel;
-												texture.texture = image->render_data.texture;
-												texture.res_handle = image->render_data.srv;
+												texture.image = image;
 												material_changed = true;
 											}
 										}
@@ -5394,9 +5418,9 @@ namespace won::editor
 								{
 									for (uint32 texture_slot = 0; texture_slot < TEXTURESLOT_COUNT; ++texture_slot)
 									{
-										if (material_slot.textures[texture_slot].texture)
+										if (material_slot.textures[texture_slot].image && material_slot.textures[texture_slot].image->render_data.texture)
 										{
-											deferred_res_removal.resources.push_back(material_slot.textures[texture_slot].texture);
+											deferred_res_removal.resources.push_back(material_slot.textures[texture_slot].image->render_data.texture);
 										}
 									}
 								}
@@ -6345,12 +6369,14 @@ namespace won::editor
 		scene_desc.script_runtime = script_runtime.get();
 		scene_desc.physics = project::GetPhysicsDesc(loaded_project_settings);
 		scene_desc.audio_mixer = audio_mixer.get();
-		loaded_scene = ecs::Scene(scene_desc);
+		ecs::Scene* old_scene = editor_viewport.view ? editor_viewport.view->scene : nullptr;
+		ecs::Scene& new_scene = GetSceneManager()->CreateScene(scene_desc);
 		if (editor_viewport.view)
 		{
-			editor_viewport.view->scene = &loaded_scene;
+			editor_viewport.view->scene = &new_scene;
 			editor_viewport.view->camera_entity = ecs::INVALID_ENTITY;
 		}
+		GetSceneManager()->DestroyScene(old_scene);
 		current_scene_path.clear();
 		editor_viewport.picked_entity = ecs::INVALID_ENTITY;
 		editor_viewport.debug_primitive_entity = ecs::INVALID_ENTITY;
@@ -6773,9 +6799,9 @@ namespace won::editor
 		}
 
 		won::serialize::JsonArchive archive(won::serialize::ArchiveMode::Write);
-		won::serialize::SceneSerializeDesc desc = {};
+		won::serialize::SaveSceneDesc desc = {};
 		desc.excluded_entities = &excluded_entities;
-		won::serialize::Serialize(archive, *editor_viewport.view->scene, desc);
+		won::serialize::SaveScene(archive, *editor_viewport.view->scene, desc);
 		if (archive.HasError())
 		{
 			backlog::Post(editor_text::save_scene_failed + archive.GetError(), backlog::LogLevel::Warning);
@@ -6808,6 +6834,36 @@ namespace won::editor
 		}
 		RebuildContentBrowser();
 		backlog::Post(editor_text::scene_saved + path);
+		return true;
+	}
+
+	bool EditorApplication::SavePrefab(const String& path, ecs::Entity root)
+	{
+		if (path.empty() || root == ecs::INVALID_ENTITY || !editor_viewport.view || !editor_viewport.view->scene)
+		{
+			return false;
+		}
+
+		won::serialize::JsonArchive archive(won::serialize::ArchiveMode::Write);
+		if (!won::serialize::SavePrefab(archive, *editor_viewport.view->scene, root) || archive.HasError())
+		{
+			backlog::Post(editor_text::save_prefab_failed + archive.GetError(), backlog::LogLevel::Warning);
+			return false;
+		}
+
+		String directory = io::GetDirectoryFromPath(path);
+		if (!directory.empty() && !io::CreateDirectories(directory))
+		{
+			backlog::Post(editor_text::save_prefab_failed + directory, backlog::LogLevel::Warning);
+			return false;
+		}
+		if (!archive.SaveToFile(path))
+		{
+			backlog::Post(editor_text::save_prefab_failed + path, backlog::LogLevel::Warning);
+			return false;
+		}
+
+		RebuildContentBrowser();
 		return true;
 	}
 
@@ -6896,8 +6952,7 @@ namespace won::editor
 						const RHIFormat texture_format = color_texture ? RHIFormat::R8G8B8A8UnormSrgb : RHIFormat::R8G8B8A8Unorm;
 						if (image && image->IsValid() && rendering::utils::CreateRenderData(*device, *image, texture_format, true))
 						{
-							texture_map.texture = image->render_data.texture;
-							texture_map.res_handle = image->render_data.srv;
+							texture_map.image = image;
 						}
 					}
 				}
@@ -6974,7 +7029,7 @@ namespace won::editor
 			return;
 		}
 
-		won::serialize::Serialize(archive, *editor_viewport.view->scene);
+		won::serialize::LoadScene(archive, *editor_viewport.view->scene);
 		if (archive.HasError())
 		{
 			backlog::Post(editor_text::load_scene_warning + archive.GetError(), backlog::LogLevel::Warning);

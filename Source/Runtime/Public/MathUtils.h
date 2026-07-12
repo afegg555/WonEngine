@@ -219,6 +219,12 @@ namespace won::math
 		XMStoreFloat4(&retVal, result);
 		return retVal;
 	}
+	inline float4 QuaternionFromYaw(float yaw)
+	{
+		float4 result;
+		XMStoreFloat4(&result, XMQuaternionRotationRollPitchYaw(0.0f, yaw, 0.0f));
+		return result;
+	}
 	constexpr float2 Max(const float2& a, const float2& b) {
 		return float2((std::max)(a.x, b.x), (std::max)(a.y, b.y));
 	}
