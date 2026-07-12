@@ -592,6 +592,10 @@ set(ASSET_IMPORTER_TOOL_SOURCES
     Source/Tools/AssetImporterTool/main.cpp
 )
 
+set(SYSTEM_PHASE_VISUALIZER_TOOL_SOURCES
+    Source/Tools/SystemPhaseVisualizerTool/main.cpp
+)
+
 set(PLUGIN_PRINT_LOG_SAMPLE
     Source/Plugins/PrintLogSample/PrintLogSample.cpp
     Source/Plugins/PrintLogSample/plugin.json
@@ -628,6 +632,10 @@ add_executable(PackageTool
 
 add_executable(AssetImporterTool
     ${ASSET_IMPORTER_TOOL_SOURCES}
+)
+
+add_executable(SystemPhaseVisualizerTool
+    ${SYSTEM_PHASE_VISUALIZER_TOOL_SOURCES}
 )
 
 add_library(PrintLogSample SHARED
@@ -672,6 +680,7 @@ target_link_libraries(HelloTriangle PRIVATE Runtime)
 target_link_libraries(Player PRIVATE Runtime)
 target_link_libraries(ShaderOfflineCompiler PRIVATE Runtime)
 target_link_libraries(PackageTool PRIVATE Runtime)
+target_link_libraries(SystemPhaseVisualizerTool PRIVATE Runtime)
 
 add_dependencies(Editor PackageTool ShaderOfflineCompiler AssetImporterTool)
 target_include_directories(PrintLogSample PRIVATE
@@ -720,6 +729,10 @@ set_target_properties(PackageTool PROPERTIES
 )
 
 set_target_properties(AssetImporterTool PROPERTIES
+    FOLDER "Tools"
+)
+
+set_target_properties(SystemPhaseVisualizerTool PROPERTIES
     FOLDER "Tools"
 )
 

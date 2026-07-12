@@ -357,7 +357,7 @@ namespace won::ecs
             }
         }
 
-        void Update(float delta_time)
+        void BuildSystemSchedule()
         {
             if (system_schedule_dirty)
             {
@@ -468,6 +468,14 @@ namespace won::ecs
                 }
                 system_schedule_dirty = false;
             }
+        }
+
+        const Vector<std::shared_ptr<System>>& GetSystems() const { return systems; }
+        const Vector<Vector<uint32>>& GetSystemExecutionBatches() const { return system_execution_batches; }
+
+        void Update(float delta_time)
+        {
+            BuildSystemSchedule();
 
             for (const Vector<uint32>& batch : system_execution_batches)
             {
