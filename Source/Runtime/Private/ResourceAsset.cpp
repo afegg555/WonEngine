@@ -858,10 +858,11 @@ namespace won::resource
     void LoadSceneResources(ecs::Scene& scene, const String& content_root)
     {
         jobsystem::Context ctx;
+        jobsystem::Context mesh_ctx;
 
         if (auto geometry_array = scene.GetComponentArray<ecs::GeometryComponent>())
         {
-            jobsystem::Dispatch(ctx, static_cast<uint32>(geometry_array->GetSize()), 1, [geometry_array, &content_root](jobsystem::JobArgs args)
+            jobsystem::Dispatch(mesh_ctx, static_cast<uint32>(geometry_array->GetSize()), 1, [geometry_array, &content_root](jobsystem::JobArgs args)
             {
                 LoadMeshResource(geometry_array->data[args.job_index], content_root);
             });
@@ -919,6 +920,7 @@ namespace won::resource
         }
 
         jobsystem::Wait(ctx);
+        jobsystem::Wait(mesh_ctx);
 
         if (auto script_array = scene.GetComponentArray<ecs::ScriptComponent>())
         {
