@@ -27,6 +27,9 @@ namespace won::serialize
         bool LoadFromFile(const String& path);
         bool SaveToFile(const String& path) const;
 
+        bool LoadFromString(const String& data);
+        bool SaveToString(String& out_data) const;
+
         bool HasError() const;
         const String& GetError() const;
 
