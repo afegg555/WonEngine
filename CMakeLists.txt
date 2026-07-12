@@ -393,7 +393,9 @@ set(RUNTIME_PLATFORM_WINDOWS
 
 set(RUNTIME_APPLICATION
     Source/Runtime/Public/Application.h
+    Source/Runtime/Public/SceneManager.h
     Source/Runtime/Private/Application.cpp
+    Source/Runtime/Private/SceneManager.cpp
 )
 
 set(RUNTIME_ALLOCATOR

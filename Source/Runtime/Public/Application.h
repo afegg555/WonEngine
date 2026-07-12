@@ -3,6 +3,7 @@
 #include "GameData.h"
 #include "Types.h"
 #include "Renderer.h"
+#include "SceneManager.h"
 #include "Timer.h"
 #include "Window.h"
 #include "View.h"
@@ -45,6 +46,7 @@ namespace won
         script::ScriptRuntime* GetScriptRuntime();
         won::audio::AudioMixer* GetAudioMixer();
         game::GameData* GetGameData();
+        SceneManager* GetSceneManager();
         void ShowMainWindow();
         void WaitIdle();
         void ClearViews();
@@ -89,6 +91,7 @@ namespace won
         eventhandler::Handle prefab_preload_handle;
         bool prefab_flush_scheduled = false;
         UnorderedMap<String, Vector<std::shared_ptr<void>>> prefab_resource_cache;
+        std::unique_ptr<SceneManager> scene_manager;
     };
 }
 

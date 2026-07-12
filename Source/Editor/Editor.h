@@ -228,7 +228,6 @@ namespace won::editor
 		};
 
 		project::ProjectSettings loaded_project_settings;
-		ecs::Scene loaded_scene;
 		String current_scene_path;
 		bool show_project_settings_window = false;
 		GameDataEditorState game_data_editor = {};

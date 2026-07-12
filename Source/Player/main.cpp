@@ -74,7 +74,7 @@ int main(int argc, char** argv)
         scene_desc.script_runtime = app.GetScriptRuntime();
         scene_desc.physics = won::project::GetPhysicsDesc(app_desc.project_settings);
         scene_desc.audio_mixer = app.GetAudioMixer();
-        won::ecs::Scene game_scene(scene_desc);
+        won::ecs::Scene& game_scene = app.GetSceneManager()->CreateScene(scene_desc);
 
         won::String startup_scene_path = app_desc.project_settings.startup_scene;
         if (!startup_scene_path.empty())

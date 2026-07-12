@@ -176,6 +176,8 @@ namespace won
             }
         }
 
+        scene_manager = std::make_unique<SceneManager>();
+
         frame_timer.Reset();
         is_first_frame = true;
         is_running = true;
@@ -471,6 +473,7 @@ namespace won
 
         is_running = false;
         views.clear();
+        scene_manager.reset();
 
         if (audio_driver)
         {
@@ -572,6 +575,11 @@ namespace won
     rendering::RHIDevice* Application::GetDevice()
     {
         return device.get();
+    }
+
+    SceneManager* Application::GetSceneManager()
+    {
+        return scene_manager.get();
     }
 
     script::ScriptRuntime* Application::GetScriptRuntime()

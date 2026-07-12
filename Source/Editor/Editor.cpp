@@ -1157,9 +1157,9 @@ namespace won::editor
 		scene_desc.script_runtime = script_runtime.get();
 		scene_desc.physics = project::GetPhysicsDesc(project_settings);
 		scene_desc.audio_mixer = audio_mixer.get();
-		loaded_scene = ecs::Scene(scene_desc);
+		ecs::Scene& editor_scene = GetSceneManager()->CreateScene(scene_desc);
 		rendering::View editor_view = {};
-		editor_view.scene = &loaded_scene;
+		editor_view.scene = &editor_scene;
 		editor_view.options.resize_policy = rendering::ViewResizePolicy::Manual;
 		editor_view.options.update_camera_aspect = false;
 		editor_view.viewport.width = project_settings.window_width;
@@ -1307,7 +1307,6 @@ namespace won::editor
 			editor_viewport.view->scene = nullptr;
 			editor_viewport.view->camera_entity = ecs::INVALID_ENTITY;
 		}
-		loaded_scene = {};
 		editor_viewport.view = nullptr;
 		plugins.clear();
 
@@ -1569,7 +1568,7 @@ namespace won::editor
 					continue;
 				}
 
-				loaded_scene.RegisterComponent(desc);
+				editor_viewport.view->scene->RegisterComponent(desc);
 				continue;
 			}
 
@@ -1586,7 +1585,7 @@ namespace won::editor
 					continue;
 				}
 
-				loaded_scene.AddSystem(std::make_shared<PluginSystemAdapter>(plugin, desc));
+				editor_viewport.view->scene->AddSystem(std::make_shared<PluginSystemAdapter>(plugin, desc));
 			}
 		}
 	}
@@ -6370,12 +6369,14 @@ namespace won::editor
 		scene_desc.script_runtime = script_runtime.get();
 		scene_desc.physics = project::GetPhysicsDesc(loaded_project_settings);
 		scene_desc.audio_mixer = audio_mixer.get();
-		loaded_scene = ecs::Scene(scene_desc);
+		ecs::Scene* old_scene = editor_viewport.view ? editor_viewport.view->scene : nullptr;
+		ecs::Scene& new_scene = GetSceneManager()->CreateScene(scene_desc);
 		if (editor_viewport.view)
 		{
-			editor_viewport.view->scene = &loaded_scene;
+			editor_viewport.view->scene = &new_scene;
 			editor_viewport.view->camera_entity = ecs::INVALID_ENTITY;
 		}
+		GetSceneManager()->DestroyScene(old_scene);
 		current_scene_path.clear();
 		editor_viewport.picked_entity = ecs::INVALID_ENTITY;
 		editor_viewport.debug_primitive_entity = ecs::INVALID_ENTITY;
