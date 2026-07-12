@@ -149,6 +149,7 @@ namespace won::editor
 			constexpr const char* profiler_starting = "Profiler starting...";
 			constexpr const char* profiler_warning = "Profiler Turned On! Performance may be reduced!";
 			constexpr const char* import_to_scene = "Import to Scene";
+			constexpr const char* add_to_scene = "Add to Scene";
 			constexpr const char* copy_disk_path = "Copy Disk Path";
 			constexpr const char* copy_virtual_path = "Copy Virtual Path";
 			constexpr const char* refresh = "Refresh";
@@ -164,6 +165,7 @@ namespace won::editor
 			constexpr const char* asset_shader = "Shader";
 			constexpr const char* asset_font = "Font";
 			constexpr const char* asset_script = "Script";
+			constexpr const char* asset_prefab = "Prefab";
 			constexpr const char* asset = "Asset";
 			constexpr const char* all_types = "All Types";
 			constexpr const char* contents = "Contents";
@@ -361,6 +363,8 @@ namespace won::editor
 			constexpr const char* create_project_failed = "Create project failed: ";
 			constexpr const char* save_scene_failed = "Save scene failed: ";
 			constexpr const char* save_prefab_failed = "Save prefab failed: ";
+			constexpr const char* load_prefab_failed = "Load prefab failed: ";
+			constexpr const char* prefab_added = "Prefab added: ";
 			constexpr const char* scene_saved = "Scene saved: ";
 			constexpr const char* load_scene_failed = "Load scene failed: ";
 			constexpr const char* load_scene_warning = "Load scene warning: ";
@@ -1483,7 +1487,10 @@ namespace won::editor
 			debug_options.wireframe_enable = editor_viewport.debug_settings.use_wireframe;
 			renderer->SetDebugOptions(debug_options);
 		}
-		UpdateDebugPrimitiveMesh();
+		if (!is_playing)
+		{
+			UpdateDebugPrimitiveMesh();
+		}
 
 		if (won::io::IsPressed(io::Button('R')))
 		{
@@ -2338,6 +2345,7 @@ namespace won::editor
 			if (ext == resource::material_binary_extension) return ContentAssetType::Material;
 			if (ext == "fbx" || ext == "obj" || ext == "gltf" || ext == "glb" || ext == "stl" || ext == resource::mesh_binary_extension) return ContentAssetType::Mesh;
 			if (ext == resource::scene_file_extension) return ContentAssetType::Scene;
+			if (ext == resource::prefab_file_extension) return ContentAssetType::Prefab;
 			if (ext == "hlsl" || ext == "hlsli") return ContentAssetType::Shader;
 			if (ext == "ttf" || ext == "otf") return ContentAssetType::Font;
 			if (ext == "lua") return ContentAssetType::Script;
@@ -2462,6 +2470,7 @@ namespace won::editor
 			case ContentAssetType::Material: return editor_text::asset_material;
 			case ContentAssetType::Mesh: return editor_text::asset_mesh;
 			case ContentAssetType::Scene: return editor_text::asset_scene;
+			case ContentAssetType::Prefab: return editor_text::asset_prefab;
 			case ContentAssetType::Shader: return editor_text::asset_shader;
 			case ContentAssetType::Font: return editor_text::asset_font;
 			case ContentAssetType::Script: return editor_text::asset_script;
@@ -2477,6 +2486,7 @@ namespace won::editor
 			case ContentAssetType::Material: return ICON_MD_PALETTE;
 			case ContentAssetType::Mesh: return ICON_MD_VIEW_IN_AR;
 			case ContentAssetType::Scene: return ICON_MD_DATA_OBJECT;
+			case ContentAssetType::Prefab: return ICON_MD_WIDGETS;
 			case ContentAssetType::Shader: return ICON_MD_CODE;
 			case ContentAssetType::Font: return ICON_MD_FONT_DOWNLOAD;
 			case ContentAssetType::Script: return ICON_MD_DESCRIPTION;
@@ -2492,6 +2502,7 @@ namespace won::editor
 		const bool can_import_asset = import_kind != AssetImportKind::None;
 		const bool can_import_to_scene = import_kind == AssetImportKind::Mesh;
 		const bool can_load_scene = asset.type == ContentAssetType::Scene;
+		const bool can_instantiate_prefab = asset.type == ContentAssetType::Prefab;
 		ImGui::Button(type_icon(asset.type), ImVec2(tile_size, tile_size));
 		if (import_kind != AssetImportKind::None || is_imported_binary)
 		{
@@ -2539,6 +2550,10 @@ namespace won::editor
 		{
 			LoadScene(asset.disk_path);
 		}
+		else if (can_instantiate_prefab && ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+		{
+			InstantiatePrefab(asset.disk_path);
+		}
 		if (ImGui::BeginPopupContextItem("ContentAssetContext"))
 		{
 			if (ImGui::MenuItem(editor_text::import, nullptr, false, can_import_asset))
@@ -2562,6 +2577,10 @@ namespace won::editor
 			if (ImGui::MenuItem(editor_text::load_scene, nullptr, false, can_load_scene))
 			{
 				LoadScene(asset.disk_path);
+			}
+			if (ImGui::MenuItem(editor_text::add_to_scene, nullptr, false, can_instantiate_prefab))
+			{
+				InstantiatePrefab(asset.disk_path);
 			}
 			ImGui::Separator();
 			if (ImGui::MenuItem(editor_text::copy_disk_path))
@@ -2600,6 +2619,7 @@ namespace won::editor
 			case ContentAssetType::Material: return editor_text::asset_material;
 			case ContentAssetType::Mesh: return editor_text::asset_mesh;
 			case ContentAssetType::Scene: return editor_text::asset_scene;
+			case ContentAssetType::Prefab: return editor_text::asset_prefab;
 			case ContentAssetType::Shader: return editor_text::asset_shader;
 			case ContentAssetType::Font: return editor_text::asset_font;
 			case ContentAssetType::Script: return editor_text::asset_script;
@@ -2654,7 +2674,7 @@ namespace won::editor
 		ImGui::SetNextItemWidth(150.0f);
 		if (ImGui::BeginCombo("##content_type_filter", type_name(content_browser.type_filter)))
 		{
-			const ContentAssetType filters[] = { ContentAssetType::All, ContentAssetType::Texture, ContentAssetType::Material, ContentAssetType::Mesh, ContentAssetType::Scene, ContentAssetType::Shader, ContentAssetType::Font, ContentAssetType::Script, ContentAssetType::Unknown };
+			const ContentAssetType filters[] = { ContentAssetType::All, ContentAssetType::Texture, ContentAssetType::Material, ContentAssetType::Mesh, ContentAssetType::Scene, ContentAssetType::Prefab, ContentAssetType::Shader, ContentAssetType::Font, ContentAssetType::Script, ContentAssetType::Unknown };
 			for (ContentAssetType filter : filters)
 			{
 				if (ImGui::Selectable(type_name(filter), content_browser.type_filter == filter))
@@ -7130,6 +7150,34 @@ namespace won::editor
 		CreateEditorCamera();
 		UpdateEntityList();
 		backlog::Post(editor_text::scene_loaded + path);
+	}
+
+	void EditorApplication::InstantiatePrefab(const String& path)
+	{
+		if (path.empty() || !editor_viewport.view || !editor_viewport.view->scene)
+		{
+			return;
+		}
+
+		won::serialize::JsonArchive archive(won::serialize::ArchiveMode::Read);
+		if (!archive.LoadFromFile(path))
+		{
+			backlog::Post(editor_text::load_prefab_failed + path, backlog::LogLevel::Warning);
+			return;
+		}
+
+		Vector<ecs::Entity> new_entities;
+		const ecs::Entity root = won::serialize::LoadSceneAdditive(archive, *editor_viewport.view->scene, ecs::INVALID_ENTITY, new_entities);
+		if (root == ecs::INVALID_ENTITY)
+		{
+			backlog::Post(editor_text::load_prefab_failed + path, backlog::LogLevel::Warning);
+			return;
+		}
+
+		RebindSceneResources();
+		editor_viewport.picked_entity = root;
+		UpdateEntityList();
+		backlog::Post(editor_text::prefab_added + path);
 	}
 
 	void EditorApplication::EnterPlay()

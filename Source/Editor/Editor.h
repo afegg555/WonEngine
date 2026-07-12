@@ -79,6 +79,7 @@ namespace won::editor
 		bool SaveScene(const String& path);
 		bool SavePrefab(const String& path, ecs::Entity root);
 		void LoadScene(const String& path);
+		void InstantiatePrefab(const String& path);
 		void EnterPlay();
 		void ExitPlay();
 		void DrawProjectSettingsWindow(bool* open);
@@ -101,6 +102,7 @@ namespace won::editor
 			Material,
 			Mesh,
 			Scene,
+			Prefab,
 			Shader,
 			Font,
 			Script,
