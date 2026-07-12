@@ -86,6 +86,11 @@ namespace won::script
         static int LuaMaterialSetBaseColor(lua_State* state);
         static int LuaMaterialFork(lua_State* state);
 
+        static int LuaText2DSetString(lua_State* state);
+        static int LuaText2DGetString(lua_State* state);
+        static int LuaText3DSetString(lua_State* state);
+        static int LuaText3DGetString(lua_State* state);
+
         static int LuaEnvironmentAdd(lua_State* state);
         static int LuaEnvironmentHas(lua_State* state);
         static int LuaEnvironmentSetActive(lua_State* state);
