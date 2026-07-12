@@ -4,6 +4,7 @@
 #include "ResourceExtension.h"
 #include "BuiltinTypeReflection.h"
 #include "CameraComponent.h"
+#include "BuiltinFont.h"
 #include "JsonArchive.h"
 #include "Renderer.h"
 #include "ResourceAsset.h"
@@ -139,6 +140,11 @@ namespace won
         }
         renderer_desc.vsync_enabled = project_settings.vsync_enabled;
         renderer = rendering::CreateRenderer(renderer_desc);
+
+        if (device)
+        {
+			builtinfont::BuildAtlas(*device); // used for console rendering and debug text rendering
+        }
 
         audio_mixer = std::make_unique<won::audio::AudioMixer>(desc.audio.sample_rate, desc.audio.channel_count);
         audio_driver = won::audio::CreateAudioDriver();
@@ -347,6 +353,8 @@ namespace won
             audio_driver.reset();
         }
         audio_mixer.reset();
+
+        builtinfont::Shutdown();
 
         if (renderer)
         {

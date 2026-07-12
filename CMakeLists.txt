@@ -217,6 +217,8 @@ set(RUNTIME_RENDERING
     Source/Runtime/Public/View.h
     Source/Runtime/Public/ViewOptionEnums.h
     Source/Runtime/Private/View.cpp
+    Source/Runtime/Private/BuiltinFont.h
+    Source/Runtime/Private/BuiltinFont.cpp
 )
 
 set(RUNTIME_RENDERING_INTERNAL
