@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-option(WONENGINE_BUILD_SHARED_RUNTIME "Build Runtime as a shared library" OFF)
+option(WONENGINE_BUILD_SHARED_RUNTIME "Build Runtime as a shared library" OFF) # currently not supported
 
 if(WIN32)
     set(OS_NAME "Windows")
@@ -293,6 +293,7 @@ set(RUNTIME_ECS
     Source/Runtime/Public/Entity.h
     Source/Runtime/Public/ComponentManager.h
     Source/Runtime/Public/Scene.h
+    Source/Runtime/Private/Scene.cpp
     Source/Runtime/Public/System.h
     Source/Runtime/Public/PhysicsWorld.h
     Source/Runtime/Private/PhysicsWorld.cpp
