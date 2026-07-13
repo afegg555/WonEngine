@@ -22,39 +22,6 @@ struct PixelInput
     half4 color : COLOR;
 };
 
-float2 GetQuadPosition(uint vertex_id)
-{
-    // Sprite faces +Z. Vertex order is TL, TR, BL, BL, TR, BR.
-    static const float2 positions[6] =
-    {
-        float2(1.0f, 1.0f),
-        float2(0.0f, 1.0f),
-        float2(1.0f, 0.0f),
-
-        float2(1.0f, 0.0f),
-        float2(0.0f, 1.0f),
-        float2(0.0f, 0.0f),
-    };
-
-    return positions[vertex_id % 6];
-}
-
-float2 GetQuadUV(uint vertex_id)
-{
-    static const float2 uvs[6] =
-    {
-        float2(0.0f, 0.0f),
-        float2(1.0f, 0.0f),
-        float2(0.0f, 1.0f),
-
-        float2(0.0f, 1.0f),
-        float2(1.0f, 0.0f),
-        float2(1.0f, 1.0f),
-    };
-
-    return uvs[vertex_id % 6];
-}
-
 // Place a sprite-quad corner (local 2D offset) on a camera-facing billboard centered at 'center'.
 float3 BillboardCorner(float3 center, float2 local_offset, ShaderCamera camera)
 {

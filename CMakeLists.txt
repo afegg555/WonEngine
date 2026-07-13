@@ -219,6 +219,8 @@ set(RUNTIME_RENDERING
     Source/Runtime/Private/View.cpp
     Source/Runtime/Private/BuiltinFont.h
     Source/Runtime/Private/BuiltinFont.cpp
+    Source/Runtime/Private/DebugText.h
+    Source/Runtime/Private/DebugText.cpp
 )
 
 set(RUNTIME_RENDERING_INTERNAL
@@ -419,6 +421,7 @@ set(SHADERS_INTEROP
     Source/Shaders/ShaderInterop_Utility.h
     Source/Shaders/ShaderInterop_PostProcess.h
     Source/Shaders/ShaderInterop_Decal.h
+    Source/Shaders/ShaderInterop_DebugText.h
 )
 
 set(SHADERS_HLSL
@@ -428,6 +431,8 @@ set(SHADERS_HLSL
     Source/Shaders/FXAACS.hlsl
     Source/Shaders/TonemapCS.hlsl
     Source/Shaders/CompositePS.hlsl
+    Source/Shaders/DebugTextVS.hlsl
+    Source/Shaders/DebugTextPS.hlsl
     Source/Shaders/ShadingCommon.hlsli
     Source/Shaders/BRDFCommon.hlsli
     Source/Shaders/FogCommon.hlsli
