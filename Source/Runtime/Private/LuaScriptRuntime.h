@@ -14,6 +14,7 @@ namespace won::game
 namespace won::ecs
 {
     struct AnimationComponent;
+    struct AnimationStateMachineComponent;
 }
 
 namespace won::script
@@ -120,7 +121,18 @@ namespace won::script
         static int LuaAnimationGetClipDuration(lua_State* state);
         static int LuaAnimationGetNormalizedTime(lua_State* state);
         static int LuaAnimationIsCurrentFinished(lua_State* state);
+        static int LuaAnimationSetBool(lua_State* state);
+        static int LuaAnimationSetFloat(lua_State* state);
+        static int LuaAnimationSetTrigger(lua_State* state);
+        static int LuaAnimationGetState(lua_State* state);
+        static int LuaAnimationSMAddParameter(lua_State* state);
+        static int LuaAnimationSMAddState(lua_State* state);
+        static int LuaAnimationSMAddTransition(lua_State* state);
+        static int LuaAnimationSMAddCondition(lua_State* state);
+        static int LuaAnimationSMSetExitTime(lua_State* state);
+        static int LuaAnimationSMSetDefaultState(lua_State* state);
         static ecs::AnimationComponent* GetSelfAnimation(LuaScriptRuntime* runtime);
+        static ecs::AnimationStateMachineComponent* GetSelfStateMachine(LuaScriptRuntime* runtime, bool create);
 
         static int LuaColliderHas(lua_State* state);
         static int LuaColliderAdd(lua_State* state);

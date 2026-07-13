@@ -1464,6 +1464,265 @@ namespace won::script
         return runtime->current_context.scene->GetComponent<ecs::AnimationComponent>(runtime->current_context.entity);
     }
 
+    ecs::AnimationStateMachineComponent* LuaScriptRuntime::GetSelfStateMachine(LuaScriptRuntime* runtime, bool create)
+    {
+        if (!runtime || !runtime->current_context.scene)
+        {
+            return nullptr;
+        }
+        ecs::Scene* scene = runtime->current_context.scene;
+        const ecs::Entity entity = runtime->current_context.entity;
+        ecs::AnimationStateMachineComponent* state_machine = scene->GetComponent<ecs::AnimationStateMachineComponent>(entity);
+        if (!state_machine && create)
+        {
+            state_machine = scene->AddComponent<ecs::AnimationStateMachineComponent>(entity);
+        }
+        return state_machine;
+    }
+
+    int LuaScriptRuntime::LuaAnimationSetBool(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        const char* name = luaL_checkstring(state, 1);
+        const bool value = lua_toboolean(state, 2) != 0;
+        ecs::AnimationStateMachineComponent* state_machine = GetSelfStateMachine(runtime, false);
+        if (!state_machine)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+        for (ecs::AnimationParameter& parameter : state_machine->parameters)
+        {
+            if (parameter.name == name)
+            {
+                parameter.value = value ? 1.0f : 0.0f;
+                lua_pushboolean(state, true);
+                return 1;
+            }
+        }
+        lua_pushboolean(state, false);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAnimationSetFloat(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        const char* name = luaL_checkstring(state, 1);
+        const float value = static_cast<float>(luaL_checknumber(state, 2));
+        ecs::AnimationStateMachineComponent* state_machine = GetSelfStateMachine(runtime, false);
+        if (!state_machine)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+        for (ecs::AnimationParameter& parameter : state_machine->parameters)
+        {
+            if (parameter.name == name)
+            {
+                parameter.value = value;
+                lua_pushboolean(state, true);
+                return 1;
+            }
+        }
+        lua_pushboolean(state, false);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAnimationSetTrigger(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        const char* name = luaL_checkstring(state, 1);
+        ecs::AnimationStateMachineComponent* state_machine = GetSelfStateMachine(runtime, false);
+        if (!state_machine)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+        for (ecs::AnimationParameter& parameter : state_machine->parameters)
+        {
+            if (parameter.name == name)
+            {
+                parameter.value = 1.0f;
+                lua_pushboolean(state, true);
+                return 1;
+            }
+        }
+        lua_pushboolean(state, false);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAnimationGetState(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        ecs::AnimationStateMachineComponent* state_machine = GetSelfStateMachine(runtime, false);
+        if (!state_machine || state_machine->current_state < 0 || state_machine->current_state >= static_cast<int32>(state_machine->states.size()))
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+        lua_pushstring(state, state_machine->states[state_machine->current_state].name.c_str());
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAnimationSMAddParameter(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        const char* name = luaL_checkstring(state, 1);
+        const char* type_name = luaL_checkstring(state, 2);
+        ecs::AnimationStateMachineComponent* state_machine = GetSelfStateMachine(runtime, true);
+        if (!state_machine)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+        ecs::AnimationParameter parameter = {};
+        parameter.name = name;
+        if (std::strcmp(type_name, "bool") == 0)
+        {
+            parameter.type = ecs::AnimationParameter::Type::Bool;
+        }
+        else if (std::strcmp(type_name, "trigger") == 0)
+        {
+            parameter.type = ecs::AnimationParameter::Type::Trigger;
+        }
+        else
+        {
+            parameter.type = ecs::AnimationParameter::Type::Float;
+        }
+        state_machine->parameters.push_back(parameter);
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAnimationSMAddState(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        const char* name = luaL_checkstring(state, 1);
+        const char* clip = luaL_checkstring(state, 2);
+        const bool loop = lua_gettop(state) >= 3 ? (lua_toboolean(state, 3) != 0) : true;
+        const float speed = lua_gettop(state) >= 4 ? static_cast<float>(luaL_checknumber(state, 4)) : 1.0f;
+        ecs::AnimationStateMachineComponent* state_machine = GetSelfStateMachine(runtime, true);
+        if (!state_machine)
+        {
+            lua_pushinteger(state, -1);
+            return 1;
+        }
+        ecs::AnimationState animation_state = {};
+        animation_state.name = name;
+        animation_state.clip = clip;
+        animation_state.loop = loop;
+        animation_state.speed = speed;
+        state_machine->states.push_back(animation_state);
+        lua_pushinteger(state, static_cast<lua_Integer>(state_machine->states.size() - 1));
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAnimationSMAddTransition(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        const int32 from_state = static_cast<int32>(luaL_checkinteger(state, 1));
+        const int32 to_state = static_cast<int32>(luaL_checkinteger(state, 2));
+        const float blend_duration = lua_gettop(state) >= 3 ? static_cast<float>(luaL_checknumber(state, 3)) : 0.2f;
+        ecs::AnimationStateMachineComponent* state_machine = GetSelfStateMachine(runtime, true);
+        if (!state_machine)
+        {
+            lua_pushinteger(state, -1);
+            return 1;
+        }
+        ecs::AnimationTransition transition = {};
+        transition.from_state = from_state;
+        transition.to_state = to_state;
+        transition.blend_duration = blend_duration;
+        state_machine->transitions.push_back(transition);
+        lua_pushinteger(state, static_cast<lua_Integer>(state_machine->transitions.size() - 1));
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAnimationSMAddCondition(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        const uint32 transition_index = static_cast<uint32>(luaL_checkinteger(state, 1));
+        const char* parameter_name = luaL_checkstring(state, 2);
+        const char* op_name = luaL_checkstring(state, 3);
+        const float threshold = lua_gettop(state) >= 4 ? static_cast<float>(luaL_checknumber(state, 4)) : 0.0f;
+        ecs::AnimationStateMachineComponent* state_machine = GetSelfStateMachine(runtime, true);
+        if (!state_machine || transition_index >= state_machine->transitions.size())
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+        ecs::TransitionCondition condition = {};
+        condition.parameter = parameter_name;
+        condition.threshold = threshold;
+        if (std::strcmp(op_name, "greater") == 0)
+        {
+            condition.op = ecs::TransitionCondition::Op::Greater;
+        }
+        else if (std::strcmp(op_name, "less") == 0)
+        {
+            condition.op = ecs::TransitionCondition::Op::Less;
+        }
+        else if (std::strcmp(op_name, "equal") == 0)
+        {
+            condition.op = ecs::TransitionCondition::Op::Equal;
+        }
+        else if (std::strcmp(op_name, "notequal") == 0)
+        {
+            condition.op = ecs::TransitionCondition::Op::NotEqual;
+        }
+        else if (std::strcmp(op_name, "true") == 0)
+        {
+            condition.op = ecs::TransitionCondition::Op::IsTrue;
+        }
+        else if (std::strcmp(op_name, "false") == 0)
+        {
+            condition.op = ecs::TransitionCondition::Op::IsFalse;
+        }
+        else if (std::strcmp(op_name, "trigger") == 0)
+        {
+            condition.op = ecs::TransitionCondition::Op::TriggerSet;
+        }
+        else
+        {
+            condition.op = ecs::TransitionCondition::Op::Greater;
+        }
+        state_machine->transitions[transition_index].conditions.push_back(condition);
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAnimationSMSetExitTime(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        const uint32 transition_index = static_cast<uint32>(luaL_checkinteger(state, 1));
+        const float exit_time = static_cast<float>(luaL_checknumber(state, 2));
+        ecs::AnimationStateMachineComponent* state_machine = GetSelfStateMachine(runtime, true);
+        if (!state_machine || transition_index >= state_machine->transitions.size())
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+        state_machine->transitions[transition_index].has_exit_time = true;
+        state_machine->transitions[transition_index].exit_time = exit_time;
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAnimationSMSetDefaultState(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        const int32 state_index = static_cast<int32>(luaL_checkinteger(state, 1));
+        ecs::AnimationStateMachineComponent* state_machine = GetSelfStateMachine(runtime, true);
+        if (!state_machine)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+        state_machine->default_state = state_index;
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
     int LuaScriptRuntime::LuaAnimationHas(lua_State* state)
     {
         LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
@@ -1678,8 +1937,7 @@ namespace won::script
                 const std::shared_ptr<resource::AnimationClip>& clip = animation->clips[i];
                 if (clip && clip->name == name)
                 {
-                    const float ticks_per_second = clip->ticks_per_second > 0.0f ? clip->ticks_per_second : 1.0f;
-                    lua_pushnumber(state, clip->duration / ticks_per_second);
+                    lua_pushnumber(state, clip->DurationSeconds());
                     return 1;
                 }
             }
@@ -1698,8 +1956,7 @@ namespace won::script
             return 1;
         }
         const std::shared_ptr<resource::AnimationClip>& clip = animation->clips[animation->current_clip_index];
-        const float ticks_per_second = clip->ticks_per_second > 0.0f ? clip->ticks_per_second : 1.0f;
-        const float duration_seconds = clip->duration / ticks_per_second;
+        const float duration_seconds = clip->DurationSeconds();
         float normalized = duration_seconds > 0.0f ? animation->time / duration_seconds : 0.0f;
         if (normalized < 0.0f)
         {
@@ -1723,8 +1980,7 @@ namespace won::script
             return 1;
         }
         const std::shared_ptr<resource::AnimationClip>& clip = animation->clips[animation->current_clip_index];
-        const float ticks_per_second = clip->ticks_per_second > 0.0f ? clip->ticks_per_second : 1.0f;
-        const float duration_seconds = clip->duration / ticks_per_second;
+        const float duration_seconds = clip->DurationSeconds();
         lua_pushboolean(state, duration_seconds > 0.0f && animation->time >= duration_seconds - 1e-4f);
         return 1;
     }
@@ -2675,6 +2931,36 @@ namespace won::script
         lua_pushlightuserdata(lua_state, this);
         lua_pushcclosure(lua_state, LuaAnimationAddClipEvent, 1);
         lua_setfield(lua_state, -2, "add_clip_event");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAnimationSetBool, 1);
+        lua_setfield(lua_state, -2, "set_bool");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAnimationSetFloat, 1);
+        lua_setfield(lua_state, -2, "set_float");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAnimationSetTrigger, 1);
+        lua_setfield(lua_state, -2, "set_trigger");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAnimationGetState, 1);
+        lua_setfield(lua_state, -2, "get_state");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAnimationSMAddParameter, 1);
+        lua_setfield(lua_state, -2, "sm_add_parameter");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAnimationSMAddState, 1);
+        lua_setfield(lua_state, -2, "sm_add_state");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAnimationSMAddTransition, 1);
+        lua_setfield(lua_state, -2, "sm_add_transition");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAnimationSMAddCondition, 1);
+        lua_setfield(lua_state, -2, "sm_add_condition");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAnimationSMSetExitTime, 1);
+        lua_setfield(lua_state, -2, "sm_set_exit_time");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAnimationSMSetDefaultState, 1);
+        lua_setfield(lua_state, -2, "sm_set_default_state");
         lua_setfield(lua_state, -2, "animation");
 
         lua_newtable(lua_state);

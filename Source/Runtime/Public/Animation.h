@@ -60,6 +60,11 @@ namespace won::resource
         Vector<AnimationChannel> channels;
         Vector<AnimationEventMarker> events;
 
+        float DurationSeconds() const
+        {
+            return duration / (ticks_per_second > 0.0f ? ticks_per_second : 1.0f);
+        }
+
         bool IsValid() const override
         {
             return duration > 0.0f && !channels.empty();

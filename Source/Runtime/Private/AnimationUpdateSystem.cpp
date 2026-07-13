@@ -119,7 +119,7 @@ namespace won::ecs
             }
 
             const float ticks_per_second = clip->ticks_per_second > 0.0f ? clip->ticks_per_second : 1.0f;
-            const float duration_seconds = clip->duration / ticks_per_second;
+            const float duration_seconds = clip->DurationSeconds();
             if (animation.playing)
             {
                 const float advanced_time = animation.time + delta_time * animation.speed;
@@ -190,7 +190,7 @@ namespace won::ecs
                     if (prev_clip && prev_clip->IsValid())
                     {
                         const float prev_ticks_per_second = prev_clip->ticks_per_second > 0.0f ? prev_clip->ticks_per_second : 1.0f;
-                        const float prev_duration_seconds = prev_clip->duration / prev_ticks_per_second;
+                        const float prev_duration_seconds = prev_clip->DurationSeconds();
                         const float advanced_prev_time = animation.prev_time + delta_time * animation.speed;
                         animation.prev_time = animation.loop ? math::Wrap(advanced_prev_time, prev_duration_seconds) : math::Clamp(advanced_prev_time, 0.0f, prev_duration_seconds);
                     }

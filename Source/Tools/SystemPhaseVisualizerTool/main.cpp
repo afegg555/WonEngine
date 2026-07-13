@@ -53,6 +53,7 @@ namespace
         { rect_transform_2d_component_mask, "RectTransform2D" },
         { collision_layer_component_mask, "CollisionLayer" },
         { layout_component_mask, "Layout" },
+        { animation_state_machine_component_mask, "AnimationStateMachine" },
     };
 
     std::string MaskToString(ComponentMask m)

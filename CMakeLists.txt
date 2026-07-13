@@ -321,6 +321,7 @@ set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/FogVolumeComponent.h
     Source/Runtime/Public/DDGIVolumeComponent.h
     Source/Runtime/Public/AnimationComponent.h
+    Source/Runtime/Public/AnimationStateMachineComponent.h
     Source/Runtime/Public/ScriptComponent.h
     Source/Runtime/Public/Collider3DComponent.h
     Source/Runtime/Public/Rigidbody3DComponent.h
@@ -353,6 +354,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Public/LightUpdateSystem.h
     Source/Runtime/Public/MaterialUpdateSystem.h
     Source/Runtime/Public/AnimationUpdateSystem.h
+    Source/Runtime/Public/AnimationStateMachineSystem.h
     Source/Runtime/Public/TransformUpdateSystem.h
     Source/Runtime/Public/RenderableUpdateSystem.h
     Source/Runtime/Public/SpriteUpdateSystem.h
@@ -369,6 +371,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Private/LightUpdateSystem.cpp
     Source/Runtime/Private/MaterialUpdateSystem.cpp
     Source/Runtime/Private/AnimationUpdateSystem.cpp
+    Source/Runtime/Private/AnimationStateMachineSystem.cpp
     Source/Runtime/Private/TransformUpdateSystem.cpp
     Source/Runtime/Private/RenderableUpdateSystem.cpp
     Source/Runtime/Private/SpriteUpdateSystem.cpp
