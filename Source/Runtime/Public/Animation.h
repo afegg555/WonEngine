@@ -46,12 +46,24 @@ namespace won::resource
         }
     };
 
+    struct AnimationEventMarker
+    {
+        float time_seconds = 0.0f;
+        String name;
+    };
+
     struct AnimationClip : public Resource
     {
         String name;
         float duration = 0.0f;
         float ticks_per_second = 1.0f;
         Vector<AnimationChannel> channels;
+        Vector<AnimationEventMarker> events;
+
+        float DurationSeconds() const
+        {
+            return duration / (ticks_per_second > 0.0f ? ticks_per_second : 1.0f);
+        }
 
         bool IsValid() const override
         {

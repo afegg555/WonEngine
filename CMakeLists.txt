@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-option(WONENGINE_BUILD_SHARED_RUNTIME "Build Runtime as a shared library" OFF)
+option(WONENGINE_BUILD_SHARED_RUNTIME "Build Runtime as a shared library" OFF) # currently not supported
 
 if(WIN32)
     set(OS_NAME "Windows")
@@ -217,6 +217,10 @@ set(RUNTIME_RENDERING
     Source/Runtime/Public/View.h
     Source/Runtime/Public/ViewOptionEnums.h
     Source/Runtime/Private/View.cpp
+    Source/Runtime/Private/BuiltinFont.h
+    Source/Runtime/Private/BuiltinFont.cpp
+    Source/Runtime/Private/DebugText.h
+    Source/Runtime/Private/DebugText.cpp
 )
 
 set(RUNTIME_RENDERING_INTERNAL
@@ -289,6 +293,7 @@ set(RUNTIME_ECS
     Source/Runtime/Public/Entity.h
     Source/Runtime/Public/ComponentManager.h
     Source/Runtime/Public/Scene.h
+    Source/Runtime/Private/Scene.cpp
     Source/Runtime/Public/System.h
     Source/Runtime/Public/PhysicsWorld.h
     Source/Runtime/Private/PhysicsWorld.cpp
@@ -316,6 +321,7 @@ set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/FogVolumeComponent.h
     Source/Runtime/Public/DDGIVolumeComponent.h
     Source/Runtime/Public/AnimationComponent.h
+    Source/Runtime/Public/AnimationStateMachineComponent.h
     Source/Runtime/Public/ScriptComponent.h
     Source/Runtime/Public/Collider3DComponent.h
     Source/Runtime/Public/Rigidbody3DComponent.h
@@ -348,6 +354,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Public/LightUpdateSystem.h
     Source/Runtime/Public/MaterialUpdateSystem.h
     Source/Runtime/Public/AnimationUpdateSystem.h
+    Source/Runtime/Public/AnimationStateMachineSystem.h
     Source/Runtime/Public/TransformUpdateSystem.h
     Source/Runtime/Public/RenderableUpdateSystem.h
     Source/Runtime/Public/SpriteUpdateSystem.h
@@ -364,6 +371,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Private/LightUpdateSystem.cpp
     Source/Runtime/Private/MaterialUpdateSystem.cpp
     Source/Runtime/Private/AnimationUpdateSystem.cpp
+    Source/Runtime/Private/AnimationStateMachineSystem.cpp
     Source/Runtime/Private/TransformUpdateSystem.cpp
     Source/Runtime/Private/RenderableUpdateSystem.cpp
     Source/Runtime/Private/SpriteUpdateSystem.cpp
@@ -417,6 +425,7 @@ set(SHADERS_INTEROP
     Source/Shaders/ShaderInterop_Utility.h
     Source/Shaders/ShaderInterop_PostProcess.h
     Source/Shaders/ShaderInterop_Decal.h
+    Source/Shaders/ShaderInterop_DebugText.h
 )
 
 set(SHADERS_HLSL
@@ -426,6 +435,8 @@ set(SHADERS_HLSL
     Source/Shaders/FXAACS.hlsl
     Source/Shaders/TonemapCS.hlsl
     Source/Shaders/CompositePS.hlsl
+    Source/Shaders/DebugTextVS.hlsl
+    Source/Shaders/DebugTextPS.hlsl
     Source/Shaders/ShadingCommon.hlsli
     Source/Shaders/BRDFCommon.hlsli
     Source/Shaders/FogCommon.hlsli
@@ -592,6 +603,10 @@ set(ASSET_IMPORTER_TOOL_SOURCES
     Source/Tools/AssetImporterTool/main.cpp
 )
 
+set(SYSTEM_PHASE_VISUALIZER_TOOL_SOURCES
+    Source/Tools/SystemPhaseVisualizerTool/main.cpp
+)
+
 set(PLUGIN_PRINT_LOG_SAMPLE
     Source/Plugins/PrintLogSample/PrintLogSample.cpp
     Source/Plugins/PrintLogSample/plugin.json
@@ -628,6 +643,10 @@ add_executable(PackageTool
 
 add_executable(AssetImporterTool
     ${ASSET_IMPORTER_TOOL_SOURCES}
+)
+
+add_executable(SystemPhaseVisualizerTool
+    ${SYSTEM_PHASE_VISUALIZER_TOOL_SOURCES}
 )
 
 add_library(PrintLogSample SHARED
@@ -672,6 +691,7 @@ target_link_libraries(HelloTriangle PRIVATE Runtime)
 target_link_libraries(Player PRIVATE Runtime)
 target_link_libraries(ShaderOfflineCompiler PRIVATE Runtime)
 target_link_libraries(PackageTool PRIVATE Runtime)
+target_link_libraries(SystemPhaseVisualizerTool PRIVATE Runtime)
 
 add_dependencies(Editor PackageTool ShaderOfflineCompiler AssetImporterTool)
 target_include_directories(PrintLogSample PRIVATE
@@ -720,6 +740,10 @@ set_target_properties(PackageTool PROPERTIES
 )
 
 set_target_properties(AssetImporterTool PROPERTIES
+    FOLDER "Tools"
+)
+
+set_target_properties(SystemPhaseVisualizerTool PROPERTIES
     FOLDER "Tools"
 )
 

@@ -8,6 +8,7 @@
 #include "GeometryUpdateSystem.h"
 #include "MaterialUpdateSystem.h"
 #include "AnimationUpdateSystem.h"
+#include "AnimationStateMachineSystem.h"
 #include "RenderableUpdateSystem.h"
 #include "SpriteUpdateSystem.h"
 #include "TextUpdateSystem.h"

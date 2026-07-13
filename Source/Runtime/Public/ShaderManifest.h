@@ -14,6 +14,7 @@ namespace won::resource
         VSSprite2D,
         VSSprite3D,
         VSDecal,
+        VSDebugText,
 
         PSSky,
         PSObjectCommon,
@@ -23,6 +24,7 @@ namespace won::resource
         PSText3D,
         PSComposite,
         PSDecal,
+        PSDebugText,
 
         CSFXAA,
         CSTonemap,
@@ -51,6 +53,7 @@ namespace won::resource
         case ShaderId::VSSprite2D: return "VSSprite2D";
         case ShaderId::VSSprite3D: return "VSSprite3D";
         case ShaderId::VSDecal: return "VSDecal";
+        case ShaderId::VSDebugText: return "VSDebugText";
         case ShaderId::PSSky: return "PSSky";
         case ShaderId::PSObjectCommon: return "PSObjectCommon";
         case ShaderId::PSObjectUnlit: return "PSObjectUnlit";
@@ -59,6 +62,7 @@ namespace won::resource
         case ShaderId::PSText3D: return "PSText3D";
         case ShaderId::PSComposite: return "PSComposite";
         case ShaderId::PSDecal: return "PSDecal";
+        case ShaderId::PSDebugText: return "PSDebugText";
         case ShaderId::CSFXAA: return "CSFXAA";
         case ShaderId::CSTonemap: return "CSTonemap";
         case ShaderId::CSDDGIProbeUpdate: return "CSDDGIProbeUpdate";

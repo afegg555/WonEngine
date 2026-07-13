@@ -75,6 +75,7 @@ namespace won::script
         OnTriggerStay3D,
         OnTriggerExit3D,
         OnClick,
+        OnAnimationEvent,
 
 		// user-defined
         Custom,

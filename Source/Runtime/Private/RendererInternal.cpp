@@ -1,6 +1,10 @@
 #include "RendererInternal.h"
 #include "ShaderInterop_Sprite.h"
 #include "ShaderInterop_Decal.h"
+#include "ShaderInterop_DebugText.h"
+
+#include "BuiltinFont.h"
+#include "DebugText.h"
 
 #include "Backlog.h"
 #include "Profiler.h"
@@ -2093,6 +2097,112 @@ namespace won::rendering
         return true;
     }
 
+    void RendererInternal::DrawDebugText(const RHISubresourceBinding& back_buffer_binding, RHICommandList& command_list)
+    {
+        const Vector<debugtext::Item>& items = debugtext::GetItems();
+        if (items.empty() || !builtinfont::IsReady())
+        {
+            debugtext::Clear();
+            return;
+        }
+
+        if (!debug_text_pipeline)
+        {
+            std::shared_ptr<RHIShader> vs = shader_library.GetShader(ShaderId::VSDebugText);
+            std::shared_ptr<RHIShader> ps = shader_library.GetShader(ShaderId::PSDebugText);
+            if (!vs || !ps)
+            {
+                debugtext::Clear();
+                return;
+            }
+            RHIGraphicsPipelineDesc desc = {};
+            desc.vertex_shader = vs.get();
+            desc.pixel_shader = ps.get();
+            desc.blend.enable = true;
+            desc.blend.mode = RHIBlendMode::Alpha;
+            desc.depth_stencil.depth_test = false;
+            desc.depth_stencil.depth_write = false;
+            desc.raster.cull_mode = RHICullMode::None;
+            desc.topology = RHIPrimitiveTopology::TriangleList;
+            desc.render_target_formats = { back_buffer_binding.resource->GetDesc().texture_desc.format };
+            debug_text_pipeline = device->CreateGraphicsPipeline(desc);
+            if (!debug_text_pipeline)
+            {
+                debugtext::Clear();
+                return;
+            }
+            debug_text_pipeline->SetName("Debug Text Pipeline");
+            debug_text_vs = vs;
+            debug_text_ps = ps;
+        }
+
+        const float bb_width = static_cast<float>(back_buffer_binding.resource->GetDesc().texture_desc.width);
+        const float bb_height = static_cast<float>(back_buffer_binding.resource->GetDesc().texture_desc.height);
+        if (bb_width <= 0.0f || bb_height <= 0.0f)
+        {
+            debugtext::Clear();
+            return;
+        }
+
+        RHIViewport viewport = {};
+        viewport.x = 0.0f;
+        viewport.y = 0.0f;
+        viewport.width = bb_width;
+        viewport.height = bb_height;
+        viewport.min_depth = 0.0f;
+        viewport.max_depth = 1.0f;
+
+        RHIRect scissor = {};
+        scissor.x = 0;
+        scissor.y = 0;
+        scissor.width = back_buffer_binding.resource->GetDesc().texture_desc.width;
+        scissor.height = back_buffer_binding.resource->GetDesc().texture_desc.height;
+
+        command_list.SetRenderTargets({ back_buffer_binding }, nullptr);
+        command_list.SetViewport(viewport);
+        command_list.SetScissor(scissor);
+        command_list.SetGraphicsPipeline(*debug_text_pipeline);
+        command_list.SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
+
+        const uint32 atlas_index = static_cast<uint32>(builtinfont::GetAtlasSRV().descriptor_index);
+        const float cell_u = static_cast<float>(builtinfont::glyph_width) / static_cast<float>(builtinfont::atlas_width);
+        const float cell_v = static_cast<float>(builtinfont::glyph_height) / static_cast<float>(builtinfont::atlas_height);
+
+        for (const debugtext::Item& item : items)
+        {
+            const float glyph_w = static_cast<float>(builtinfont::glyph_width) * item.scale;
+            const float glyph_h = static_cast<float>(builtinfont::glyph_height) * item.scale;
+            float pen_x = item.x;
+            float pen_y = item.y;
+            for (unsigned char ch : item.text)
+            {
+                if (ch == '\n')
+                {
+                    pen_x = item.x;
+                    pen_y += glyph_h;
+                    continue;
+                }
+
+                const int col = ch % builtinfont::atlas_cols;
+                const int row = ch / builtinfont::atlas_cols;
+
+                DebugTextPushConstants push = {};
+                push.Init();
+                push.rect = { pen_x / bb_width, pen_y / bb_height, glyph_w / bb_width, glyph_h / bb_height };
+                push.uv_rect = { col * cell_u, row * cell_v, (col + 1) * cell_u, (row + 1) * cell_v };
+                push.color = item.color;
+                push.atlas_index = atlas_index;
+                command_list.PushConstants(RHIShaderStage::Vertex, &push, sizeof(push), 0);
+                command_list.Draw(6, 1, 0, 0);
+                ++debug_state.draw_call_count;
+
+                pen_x += glyph_w;
+            }
+        }
+
+        debugtext::Clear();
+    }
+
     void RendererInternal::Initialize(const RendererDesc& desc)
     {
         device = desc.device;
@@ -2976,6 +3086,14 @@ namespace won::rendering
                     auto cpu_range = profiler::ScopedRangeCPU("Draw Sprite2D Pass");
                     DrawScene(frame_context, view, RenderPassType::Sprite2DPass, DrawScene_2DSprite, *command_list);
                 }
+                command_list->EndEvent();
+            }
+
+            // debug text / overlay pass: immediate screen-space text (console, perf overlay, debug)
+            {
+                auto gpu_range = profiler::ScopedRangeGPU("DebugText Pass", *command_list);
+                command_list->BeginEvent("DebugText Pass");
+                DrawDebugText(back_buffer_binding, *command_list);
                 command_list->EndEvent();
             }
         });

@@ -15,6 +15,7 @@
 #include "FogVolumeComponent.h"
 #include "DDGIVolumeComponent.h"
 #include "AnimationComponent.h"
+#include "AnimationStateMachineComponent.h"
 #include "ScriptComponent.h"
 #include "Collider3DComponent.h"
 #include "Rigidbody3DComponent.h"
@@ -43,7 +44,6 @@ namespace won::ecs
 
     enum class SceneComponentBit : uint32
     {
-        None = 0,
         Transform,
         Hierarchy,
         Name,
@@ -72,7 +72,8 @@ namespace won::ecs
         Canvas2D,
         RectTransform2D,
         CollisionLayer,
-        Layout
+        Layout,
+        AnimationStateMachine
     };
 
     constexpr ComponentMask ComponentMaskFromBit(SceneComponentBit bit)
@@ -80,7 +81,7 @@ namespace won::ecs
         return static_cast<ComponentMask>(1ull << static_cast<uint32>(bit));
     }
 
-    inline constexpr ComponentMask none_component_mask = ComponentMaskFromBit(SceneComponentBit::None);
+    inline constexpr ComponentMask none_component_mask = 0;
     inline constexpr ComponentMask transform_component_mask = ComponentMaskFromBit(SceneComponentBit::Transform);
     inline constexpr ComponentMask hierarchy_component_mask = ComponentMaskFromBit(SceneComponentBit::Hierarchy);
     inline constexpr ComponentMask name_component_mask = ComponentMaskFromBit(SceneComponentBit::Name);
@@ -110,4 +111,5 @@ namespace won::ecs
     inline constexpr ComponentMask rect_transform_2d_component_mask = ComponentMaskFromBit(SceneComponentBit::RectTransform2D);
     inline constexpr ComponentMask collision_layer_component_mask = ComponentMaskFromBit(SceneComponentBit::CollisionLayer);
     inline constexpr ComponentMask layout_component_mask = ComponentMaskFromBit(SceneComponentBit::Layout);
+    inline constexpr ComponentMask animation_state_machine_component_mask = ComponentMaskFromBit(SceneComponentBit::AnimationStateMachine);
 }

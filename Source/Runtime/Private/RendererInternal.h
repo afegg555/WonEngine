@@ -49,6 +49,7 @@ namespace won::rendering
         bool UpdateFrameConstants(FrameContext& frame_context, const View& view, const ecs::Scene::RenderData& render_data, RHICommandList& command_list);
         bool DrawScene(const FrameContext& frame_context, const View& view, resource::RenderPassType pass, uint32 flags, RHICommandList& command_list);
         void UpdateDDGIProbe(FrameContext& frame_context, const ShaderEnvironment& environment_lighting, const ShaderDDGIVolume& ddgi_volume, const RHISubresourceBinding& shader_frame_binding, const RHISubresourceBinding& shader_camera_binding, RHICommandList& command_list);
+        void DrawDebugText(const RHISubresourceBinding& back_buffer_binding, RHICommandList& command_list);
 
         // etc
         bool BuildShadowCascades(const View& view);
@@ -115,6 +116,10 @@ namespace won::rendering
 
         std::shared_ptr<RHIPipeline> composite_pipeline;
         std::shared_ptr<RHIShader> composite_shader;
+
+        std::shared_ptr<RHIPipeline> debug_text_pipeline;
+        std::shared_ptr<RHIShader> debug_text_vs;
+        std::shared_ptr<RHIShader> debug_text_ps;
 
         std::shared_ptr<RHIResource> shadow_map_atlas;
         RHISubresourceHandle shadow_map_atlas_dsv = {};

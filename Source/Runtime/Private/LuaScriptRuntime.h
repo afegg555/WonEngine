@@ -14,11 +14,12 @@ namespace won::game
 namespace won::ecs
 {
     struct AnimationComponent;
+    struct AnimationStateMachineComponent;
 }
 
 namespace won::script
 {
-    inline constexpr uint32 lua_script_builtin_function_count = static_cast<uint32>(ScriptCallType::OnClick) + 1u;
+    inline constexpr uint32 lua_script_builtin_function_count = static_cast<uint32>(ScriptCallType::OnAnimationEvent) + 1u;
 
     struct LuaScriptModule
     {
@@ -113,13 +114,25 @@ namespace won::script
         static int LuaAnimationPause(lua_State* state);
         static int LuaAnimationResume(lua_State* state);
         static int LuaAnimationIsPlaying(lua_State* state);
+        static int LuaAnimationAddClipEvent(lua_State* state);
         static int LuaAnimationGetClipCount(lua_State* state);
         static int LuaAnimationGetCurrentClip(lua_State* state);
         static int LuaAnimationGetClipName(lua_State* state);
         static int LuaAnimationGetClipDuration(lua_State* state);
         static int LuaAnimationGetNormalizedTime(lua_State* state);
         static int LuaAnimationIsCurrentFinished(lua_State* state);
+        static int LuaAnimationSetBool(lua_State* state);
+        static int LuaAnimationSetFloat(lua_State* state);
+        static int LuaAnimationSetTrigger(lua_State* state);
+        static int LuaAnimationGetState(lua_State* state);
+        static int LuaAnimationSMAddParameter(lua_State* state);
+        static int LuaAnimationSMAddState(lua_State* state);
+        static int LuaAnimationSMAddTransition(lua_State* state);
+        static int LuaAnimationSMAddCondition(lua_State* state);
+        static int LuaAnimationSMSetExitTime(lua_State* state);
+        static int LuaAnimationSMSetDefaultState(lua_State* state);
         static ecs::AnimationComponent* GetSelfAnimation(LuaScriptRuntime* runtime);
+        static ecs::AnimationStateMachineComponent* GetSelfStateMachine(LuaScriptRuntime* runtime, bool create);
 
         static int LuaColliderHas(lua_State* state);
         static int LuaColliderAdd(lua_State* state);

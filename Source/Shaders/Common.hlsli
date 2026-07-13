@@ -120,6 +120,15 @@ inline half4 UnpackHalf4(in uint2 value)
     return retVal;
 }
 
+// Unpack an 8-bit-per-channel color packed as 0xRRGGBBAA (R in the most significant byte).
+inline float4 UnpackRGBA8(in uint value)
+{
+    return float4((value >> 24u) & 0xffu,
+                  (value >> 16u) & 0xffu,
+                  (value >> 8u) & 0xffu,
+                  value & 0xffu) / 255.0f;
+}
+
 inline float RadicalInverseVdC(uint bits)
 {
     // invert all bits and normalize by 2^32 (result in range[0,1))
@@ -143,6 +152,39 @@ inline float3 SampleSphere(float2 xi)
     float radius = sqrt(saturate(1.0f - z * z));
     float phi = 2.0f * PI * xi.y;
     return float3(cos(phi) * radius, sin(phi) * radius, z);
+}
+
+float2 GetQuadPosition(uint vertex_id)
+{
+    // Sprite faces +Z. Vertex order is TL, TR, BL, BL, TR, BR.
+    static const float2 positions[6] =
+    {
+        float2(1.0f, 1.0f),
+        float2(0.0f, 1.0f),
+        float2(1.0f, 0.0f),
+
+        float2(1.0f, 0.0f),
+        float2(0.0f, 1.0f),
+        float2(0.0f, 0.0f),
+    };
+
+    return positions[vertex_id % 6];
+}
+
+float2 GetQuadUV(uint vertex_id)
+{
+    static const float2 uvs[6] =
+    {
+        float2(0.0f, 0.0f),
+        float2(1.0f, 0.0f),
+        float2(0.0f, 1.0f),
+
+        float2(0.0f, 1.0f),
+        float2(1.0f, 0.0f),
+        float2(1.0f, 1.0f),
+    };
+
+    return uvs[vertex_id % 6];
 }
 
 SamplerState bindless_samplers[] : register(s0, space1);
