@@ -104,6 +104,7 @@ namespace won::ecs
             params.spatial_3d = source.Is3D();
             params.min_distance = source.min_distance;
             params.max_distance = source.max_distance;
+            params.submix = source.submix;
             if (transform_array->HasData(entity))
             {
                 const XMMATRIX world = transform_array->GetData(entity).GetWorldTransform();

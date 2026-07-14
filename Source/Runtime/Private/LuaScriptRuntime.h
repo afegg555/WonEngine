@@ -168,6 +168,10 @@ namespace won::script
         static int LuaAudioSourceIsPlaying(lua_State* state);
         static int LuaAudioSourceSetVolume(lua_State* state);
         static int LuaAudioPlayOneShot(lua_State* state);
+        static int LuaAudioSetMasterVolume(lua_State* state);
+        static int LuaAudioGetMasterVolume(lua_State* state);
+        static int LuaAudioSetSubmixVolume(lua_State* state);
+        static int LuaAudioGetSubmixVolume(lua_State* state);
 
         static int LuaAudioListenerHas(lua_State* state);
         static int LuaAudioListenerAdd(lua_State* state);

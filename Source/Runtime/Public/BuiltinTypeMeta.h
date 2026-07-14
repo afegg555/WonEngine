@@ -335,6 +335,7 @@ namespace won::reflection
         WON_REFLECT_FIELD(pitch, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(min_distance, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(max_distance, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(submix, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::AudioListenerComponent, "AudioListenerComponent")
