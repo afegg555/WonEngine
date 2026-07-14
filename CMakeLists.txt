@@ -129,7 +129,6 @@ set(RUNTIME_UTILS
     Source/Runtime/Private/Backlog.cpp
     Source/Runtime/Private/Profiler.cpp
     Source/Runtime/Public/StringUtils.h
-    Source/Runtime/Private/StringUtils.cpp
 )
 
 set(RUNTIME_IO
