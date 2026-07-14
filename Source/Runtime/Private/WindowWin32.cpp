@@ -460,6 +460,14 @@ namespace won::platform
             }
             break;
         }
+        case WM_CHAR:
+        {
+            io::InputEvent event = {};
+            event.type = io::InputEventType::Character;
+            event.character = static_cast<uint32>(wparam);
+            io::PushInputEvent(event);
+            break;
+        }
         case WM_MOUSEMOVE:
         {
             io::InputEvent event = {};

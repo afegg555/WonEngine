@@ -61,6 +61,8 @@ namespace won::io
         static GamepadState gamepads[max_gamepad_count];
         static GamepadState previous_gamepads[max_gamepad_count];
         static Vector<InputEvent> input_events;
+        static String text_input;
+        static bool input_suppressed = false;
         static bool mouse_position_initialized = false;
         static bool double_click = false;
         static double double_click_interval = 0.5;
@@ -98,6 +100,8 @@ namespace won::io
             previous_gamepads[gamepad_index] = {};
         }
         input_events.clear();
+        text_input.clear();
+        input_suppressed = false;
         mouse_position_initialized = false;
         double_click = false;
         doubleclick_prevpos = float2(0, 0);
@@ -125,6 +129,8 @@ namespace won::io
         mouse.delta_position = float2(0, 0);
         mouse.delta_wheel = 0.0f;
         double_click = false;
+        text_input.clear();
+        input_suppressed = false;
 
 #if defined(_WIN32)
 		// handle XInput gamepad input
@@ -324,6 +330,15 @@ namespace won::io
                     entry.second.state.released = false;
                     entry.second.state.value = 0.0f;
                     entry.second.state.axis = float2(0, 0);
+                }
+                continue;
+            }
+
+            if (event.type == InputEventType::Character)
+            {
+                if (event.character < 0x80)
+                {
+                    text_input += static_cast<char>(event.character);
                 }
                 continue;
             }
@@ -898,7 +913,7 @@ namespace won::io
     bool IsDown(Button button)
     {
         const uint32 button_index = static_cast<uint32>(button);
-        if (!input_active || button_index <= static_cast<uint32>(BUTTON_NONE) || button_index >= static_cast<uint32>(BUTTON_COUNT))
+        if (!input_active || input_suppressed || button_index <= static_cast<uint32>(BUTTON_NONE) || button_index >= static_cast<uint32>(BUTTON_COUNT))
         {
             return false;
         }
@@ -945,7 +960,7 @@ namespace won::io
     bool IsPressed(Button button)
     {
         const uint32 button_index = static_cast<uint32>(button);
-        if (!input_active || button_index <= static_cast<uint32>(BUTTON_NONE) || button_index >= static_cast<uint32>(BUTTON_COUNT))
+        if (!input_active || input_suppressed || button_index <= static_cast<uint32>(BUTTON_NONE) || button_index >= static_cast<uint32>(BUTTON_COUNT))
         {
             return false;
         }
@@ -1139,6 +1154,10 @@ namespace won::io
 
     const InputActionState* GetActionState(StringView action_name)
     {
+        if (input_suppressed)
+        {
+            return nullptr;
+        }
         auto it = action_states.find(String(action_name));
         return it == action_states.end() ? nullptr : &it->second.state;
     }
@@ -1171,6 +1190,21 @@ namespace won::io
     {
         const InputActionState* state = GetActionState(action_name);
         return state ? state->axis : float2(0, 0);
+    }
+
+    const String& GetTextInput()
+    {
+        return text_input;
+    }
+
+    void SetInputSuppressed(bool suppressed)
+    {
+        input_suppressed = suppressed;
+    }
+
+    bool IsInputSuppressed()
+    {
+        return input_suppressed;
     }
 
     const KeyboardState& GetKeyboardState()

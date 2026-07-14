@@ -95,7 +95,8 @@ namespace won::io
 		MouseMove,
 		MouseWheel,
 		GamepadAxis,
-		FocusLost
+		FocusLost,
+		Character
 	};
 
 	// gamepad axes
@@ -121,6 +122,7 @@ namespace won::io
 		float2 delta = float2(0, 0);
 		float value = 0.0f;
 		bool pressed = false;
+		uint32 character = 0;
 	};
 
 	struct KeyboardState
@@ -190,4 +192,11 @@ namespace won::io
 	WONENGINE_API const KeyboardState& GetKeyboardState();
 	WONENGINE_API const MouseState& GetMouseState();
 	WONENGINE_API const GamepadState* GetGamepadState(uint32 device_index = 0);
+
+	// Characters typed this frame (from platform text input), valid until the next Update.
+	WONENGINE_API const String& GetTextInput();
+	// While suppressed, game-facing queries (IsDown/IsPressed/IsReleased and action states) report neutral,
+	// so an overlay that captures input can stop the game from also receiving it. Reset each Update.
+	WONENGINE_API void SetInputSuppressed(bool suppressed);
+	WONENGINE_API bool IsInputSuppressed();
 }
