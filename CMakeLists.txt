@@ -241,6 +241,8 @@ set(RUNTIME_CONSOLE
     Source/Runtime/Private/Console.cpp
     Source/Runtime/Public/ConsoleOverlay.h
     Source/Runtime/Private/ConsoleOverlay.cpp
+    Source/Runtime/Public/PerformanceOverlay.h
+    Source/Runtime/Private/PerformanceOverlay.cpp
 )
 
 set(RUNTIME_PLUGIN

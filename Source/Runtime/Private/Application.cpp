@@ -402,6 +402,7 @@ namespace won
         {
             console_overlay.Update();
         }
+        performance_overlay.Update(dt, device.get());
         ++update_index;
 
         for (const std::unique_ptr<rendering::View>& view_ptr : views)
@@ -526,14 +527,17 @@ namespace won
     {
         if (renderer)
         {
-            if (developer_console_enabled)
+            rendering::RHISubresourceBinding back_buffer_binding = {};
+            if (renderer->GetCurrentBackBufferBinding(back_buffer_binding) && back_buffer_binding.resource)
             {
-                rendering::RHISubresourceBinding back_buffer_binding = {};
-                if (renderer->GetCurrentBackBufferBinding(back_buffer_binding) && back_buffer_binding.resource)
+                const rendering::RHITextureDesc& desc = back_buffer_binding.resource->GetDesc().texture_desc;
+                const float viewport_width = static_cast<float>(desc.width);
+                const float viewport_height = static_cast<float>(desc.height);
+                if (developer_console_enabled)
                 {
-                    const rendering::RHITextureDesc& desc = back_buffer_binding.resource->GetDesc().texture_desc;
-                    console_overlay.Draw(static_cast<float>(desc.width), static_cast<float>(desc.height));
+                    console_overlay.Draw(viewport_width, viewport_height);
                 }
+                performance_overlay.Draw(viewport_width, viewport_height);
             }
             renderer->RenderDebugText();
         }
