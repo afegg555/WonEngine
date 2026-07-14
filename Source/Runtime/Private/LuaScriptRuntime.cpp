@@ -2667,6 +2667,60 @@ namespace won::script
         return 1;
     }
 
+    int LuaScriptRuntime::LuaAudioSetMasterVolume(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        const float volume = static_cast<float>(luaL_checknumber(state, 1));
+        if (!runtime || !runtime->audio_mixer)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+        runtime->audio_mixer->SetMasterVolume(volume);
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAudioGetMasterVolume(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->audio_mixer)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+        lua_pushnumber(state, runtime->audio_mixer->GetMasterVolume());
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAudioSetSubmixVolume(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        const char* name = luaL_checkstring(state, 1);
+        const float volume = static_cast<float>(luaL_checknumber(state, 2));
+        if (!runtime || !runtime->audio_mixer)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+        runtime->audio_mixer->SetSubmixVolume(name, volume);
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAudioGetSubmixVolume(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        const char* name = luaL_checkstring(state, 1);
+        if (!runtime || !runtime->audio_mixer)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+        lua_pushnumber(state, runtime->audio_mixer->GetSubmixVolume(name));
+        return 1;
+    }
+
     int LuaScriptRuntime::LuaAudioListenerHas(lua_State* state)
     {
         LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
@@ -3124,6 +3178,21 @@ namespace won::script
         lua_pushcclosure(lua_state, LuaAudioListenerSetEnabled, 1);
         lua_setfield(lua_state, -2, "set_enabled");
         lua_setfield(lua_state, -2, "audio_listener");
+
+        lua_newtable(lua_state);
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAudioSetMasterVolume, 1);
+        lua_setfield(lua_state, -2, "set_master_volume");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAudioGetMasterVolume, 1);
+        lua_setfield(lua_state, -2, "get_master_volume");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAudioSetSubmixVolume, 1);
+        lua_setfield(lua_state, -2, "set_submix_volume");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAudioGetSubmixVolume, 1);
+        lua_setfield(lua_state, -2, "get_submix_volume");
+        lua_setfield(lua_state, -2, "audio");
 
         lua_newtable(lua_state);
         lua_pushlightuserdata(lua_state, this);

@@ -113,6 +113,31 @@ namespace won::audio
         listener_state = state;
     }
 
+    void AudioMixer::SetMasterVolume(float volume)
+    {
+        std::lock_guard<std::mutex> lock(mixer_mutex);
+        master_volume = volume;
+    }
+
+    float AudioMixer::GetMasterVolume() const
+    {
+        std::lock_guard<std::mutex> lock(mixer_mutex);
+        return master_volume;
+    }
+
+    void AudioMixer::SetSubmixVolume(const String& name, float volume)
+    {
+        std::lock_guard<std::mutex> lock(mixer_mutex);
+        submix_volumes[name] = volume;
+    }
+
+    float AudioMixer::GetSubmixVolume(const String& name) const
+    {
+        std::lock_guard<std::mutex> lock(mixer_mutex);
+        const auto it = submix_volumes.find(name);
+        return it != submix_volumes.end() ? it->second : 1.0f;
+    }
+
     void AudioMixer::MixFrames(float* output, uint32 frame_count)
     {
         std::memset(output, 0, frame_count * channel_count * sizeof(float));
@@ -154,7 +179,16 @@ namespace won::audio
                 }
             }
 
-            const float volume = (std::max)(0.0f, slot.params.volume) * attenuation;
+            float submix_gain = 1.0f;
+            if (!slot.params.submix.empty())
+            {
+                const auto submix_it = submix_volumes.find(slot.params.submix);
+                if (submix_it != submix_volumes.end())
+                {
+                    submix_gain = submix_it->second;
+                }
+            }
+            const float volume = (std::max)(0.0f, slot.params.volume) * attenuation * master_volume * submix_gain;
             const float left_gain = (1.0f - panning) * 0.5f * volume;
             const float right_gain = (1.0f + panning) * 0.5f * volume;
 

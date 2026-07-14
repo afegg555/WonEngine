@@ -20,6 +20,7 @@ namespace won::audio
         bool loop = false;
         float min_distance = 1.0f;
         float max_distance = 20.0f;
+        String submix = "";
     };
 
     struct ListenerState
@@ -43,6 +44,10 @@ namespace won::audio
         bool IsPlaying(VoiceHandle handle) const;
 
         void SetListener(const ListenerState& state);
+        void SetMasterVolume(float volume);
+        float GetMasterVolume() const;
+        void SetSubmixVolume(const String& name, float volume);
+        float GetSubmixVolume(const String& name) const;
         void MixFrames(float* output, uint32 frame_count);
 
         static void StaticMixCallback(float* output, uint32 frames, void* userdata);
@@ -65,5 +70,8 @@ namespace won::audio
         uint32 next_voice_handle = 1;
 
         ListenerState listener_state;
+
+        float master_volume = 1.0f;
+        UnorderedMap<String, float> submix_volumes;
     };
 }

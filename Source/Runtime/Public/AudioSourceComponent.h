@@ -21,9 +21,10 @@ namespace won::ecs
         uint32 flags = Dirty | Enabled | PlayOnStart;
         String sound_asset_path = "";
         float volume = 1.0f;
-        float pitch = 1.0f;
+		float pitch = 1.0f; // 1.0 = normal pitch, 2.0 = one octave up, 0.5 = one octave down
         float min_distance = 1.0f;
         float max_distance = 20.0f;
+        String submix = "";
 
         std::shared_ptr<won::resource::Sound> sound;
 
