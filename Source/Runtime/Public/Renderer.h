@@ -27,7 +27,6 @@ namespace won::rendering
     {
         bool ddgi_debug_enable = false;
         bool bvh_debug_enable = false;
-        bool wireframe_enable = false;
     };
 
     struct RendererDebugDDGIState
@@ -112,6 +111,7 @@ namespace won::rendering
         virtual void BeginFrame(platform::Window& window) = 0;
         virtual void OnResize(platform::Window& window, uint32 width, uint32 height) = 0;
         virtual void Render(const View& view) = 0;
+        virtual void RenderDebugText() = 0;
         virtual void EndFrame() = 0;
         virtual void WaitIdle() = 0;
         virtual void Shutdown() = 0;

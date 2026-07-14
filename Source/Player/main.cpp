@@ -18,6 +18,10 @@ int main(int argc, char** argv)
     // GetExecutableDirectory()
 
     won::ApplicationDesc app_desc = {};
+    for (int i = 0; i < argc; ++i)
+    {
+        app_desc.command_line_args.emplace_back(argv[i]);
+    }
     won::String project_settings_path;
     if (argc > 1)
     {

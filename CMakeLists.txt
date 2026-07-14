@@ -236,6 +236,13 @@ set(RUNTIME_CONFIGURATION
     Source/Runtime/Public/ProjectSettings.h
 )
 
+set(RUNTIME_CONSOLE
+    Source/Runtime/Public/Console.h
+    Source/Runtime/Private/Console.cpp
+    Source/Runtime/Public/ConsoleOverlay.h
+    Source/Runtime/Private/ConsoleOverlay.cpp
+)
+
 set(RUNTIME_PLUGIN
     Source/Runtime/Public/Plugin.h
     Source/Runtime/Private/Plugin.cpp
@@ -500,6 +507,7 @@ add_library(Runtime ${WONENGINE_RUNTIME_LIBRARY_TYPE}
     ${RUNTIME_RENDERING}
     ${RUNTIME_RENDERING_INTERNAL}
     ${RUNTIME_CONFIGURATION}
+    ${RUNTIME_CONSOLE}
     ${RUNTIME_PLUGIN}
     ${RUNTIME_SCRIPT}
     ${RUNTIME_SCRIPT_LUA}
@@ -533,6 +541,7 @@ source_group("Rendering" FILES ${RUNTIME_RENDERING})
 source_group("Application" FILES ${RUNTIME_APPLICATION})
 source_group("Rendering/Internal" FILES ${RUNTIME_RENDERING_INTERNAL})
 source_group("Configuration" FILES ${RUNTIME_CONFIGURATION})
+source_group("Console" FILES ${RUNTIME_CONSOLE})
 source_group("Plugin" FILES ${RUNTIME_PLUGIN})
 source_group("Plugin/Include" FILES ${PLUGIN_PUBLIC})
 source_group("Script" FILES ${RUNTIME_SCRIPT})

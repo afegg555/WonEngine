@@ -12,6 +12,7 @@
 #include "ProjectSettings.h"
 #include "AudioDriver.h"
 #include "AudioMixer.h"
+#include "ConsoleOverlay.h"
 
 #include <memory>
 
@@ -29,6 +30,7 @@ namespace won
         uint32 jobsystem_thread_count = ~0u;
         bool defer_window_show = false;
         won::audio::AudioDriverDesc audio;
+        Vector<String> command_line_args;
     };
 
     class WONENGINE_API Application
@@ -84,6 +86,8 @@ namespace won
         eventhandler::Handle prefab_preload_handle;
         Vector<String> pending_preloads;
         std::unique_ptr<SceneManager> scene_manager;
+        console::ConsoleOverlay console_overlay;
+        bool developer_console_enabled = false;
     };
 }
 

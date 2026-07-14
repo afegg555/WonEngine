@@ -4,6 +4,7 @@
 
 namespace won::game
 {
+    // Game-authored save data validated against a declared field schema (typed keys + defaults), persisted per application.
     class WONENGINE_API GameData
     {
     public:

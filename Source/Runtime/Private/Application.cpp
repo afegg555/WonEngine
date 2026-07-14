@@ -5,6 +5,7 @@
 #include "BuiltinTypeReflection.h"
 #include "CameraComponent.h"
 #include "BuiltinFont.h"
+#include "Console.h"
 #include "JsonArchive.h"
 #include "Renderer.h"
 #include "ResourceAsset.h"
@@ -101,6 +102,9 @@ namespace won
         backlog::Post("[Startup] Startup scene: " + project_settings.startup_scene);
         backlog::Post("[Startup] Content root: " + project::GetContentRoot(project_settings));
 
+        console::LoadConfig(project_settings.project_name);
+        console::ApplyCommandLine(desc.command_line_args);
+
         reflection::RegisterBuiltinTypes();
 
         jobsystem::Initialize(desc.jobsystem_thread_count);
@@ -120,6 +124,8 @@ namespace won
             is_running = false;
             return;
         }
+
+        developer_console_enabled = project_settings.developer_console_enabled;
 
         rendering::RHIDeviceDesc device_desc;
         device_desc.backend = project_settings.backend_type;
@@ -325,6 +331,8 @@ namespace won
     
     void Application::Shutdown()
     {
+        console::SaveConfig(project_settings.project_name);
+
         if (!project_settings.game_data_schema.empty() && !project_settings.project_name.empty())
         {
             const String save_file = DeriveGameDataSaveFile(project_settings.game_data_schema);
@@ -388,6 +396,11 @@ namespace won
         else
         {
             io::Reset();
+        }
+
+        if (developer_console_enabled)
+        {
+            console_overlay.Update();
         }
         ++update_index;
 
@@ -511,7 +524,19 @@ namespace won
 
     void Application::RenderUI()
     {
-        return;
+        if (renderer)
+        {
+            if (developer_console_enabled)
+            {
+                rendering::RHISubresourceBinding back_buffer_binding = {};
+                if (renderer->GetCurrentBackBufferBinding(back_buffer_binding) && back_buffer_binding.resource)
+                {
+                    const rendering::RHITextureDesc& desc = back_buffer_binding.resource->GetDesc().texture_desc;
+                    console_overlay.Draw(static_cast<float>(desc.width), static_cast<float>(desc.height));
+                }
+            }
+            renderer->RenderDebugText();
+        }
     }
 
     void Application::OnWindowResized(int width, int height)

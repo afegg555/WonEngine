@@ -155,6 +155,30 @@ namespace won::utils
         return input.size() >= prefix.size() && input.compare(0, prefix.size(), prefix) == 0;
     }
 
+    inline Vector<String> Tokenize(StringView input)
+    {
+        Vector<String> tokens;
+        Size i = 0;
+        while (i < input.size())
+        {
+            while (i < input.size() && std::isspace(static_cast<unsigned char>(input[i])))
+            {
+                ++i;
+            }
+            if (i >= input.size())
+            {
+                break;
+            }
+            const Size start = i;
+            while (i < input.size() && !std::isspace(static_cast<unsigned char>(input[i])))
+            {
+                ++i;
+            }
+            tokens.emplace_back(input.substr(start, i - start));
+        }
+        return tokens;
+    }
+
     inline uint64 Hash(StringView input)
     {
         return StableHash(input.data(), input.size());

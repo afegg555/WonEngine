@@ -12,7 +12,10 @@ struct PixelInput
 float4 main(PixelInput input) : SV_Target0
 {
     float4 color = UnpackRGBA8(debugtextpush.color);
-    const float coverage = bindless_textures[DescriptorIndex((int)debugtextpush.atlas_index)].Sample(sampler_point_clamp, input.uv).r;
-    color.a *= coverage;
+    if (debugtextpush.atlas_index != 0xffffffffu)
+    {
+        const float coverage = bindless_textures[DescriptorIndex((int)debugtextpush.atlas_index)].Sample(sampler_point_clamp, input.uv).r;
+        color.a *= coverage;
+    }
     return color;
 }

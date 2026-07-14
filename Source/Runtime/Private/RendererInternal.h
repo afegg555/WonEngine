@@ -14,6 +14,7 @@ namespace won::rendering
         void BeginFrame(platform::Window& window) override;
         void OnResize(platform::Window& window, uint32 width, uint32 height) override;
         void Render(const View& view) override;
+        void RenderDebugText() override;
         void EndFrame() override;
         void WaitIdle() override;
         void Shutdown() override;

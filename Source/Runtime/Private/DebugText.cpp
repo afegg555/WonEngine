@@ -24,6 +24,18 @@ namespace won::debugtext
         items.push_back(std::move(item));
     }
 
+    void DrawScreenRect(float x, float y, float width, float height, uint32 color)
+    {
+        Item item;
+        item.x = x;
+        item.y = y;
+        item.width = width;
+        item.height = height;
+        item.color = color;
+        item.is_rect = true;
+        items.push_back(std::move(item));
+    }
+
     const Vector<Item>& GetItems()
     {
         return items;

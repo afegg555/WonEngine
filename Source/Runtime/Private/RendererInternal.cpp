@@ -4,6 +4,7 @@
 #include "ShaderInterop_DebugText.h"
 
 #include "BuiltinFont.h"
+#include "Console.h"
 #include "DebugText.h"
 
 #include "Backlog.h"
@@ -1667,12 +1668,14 @@ namespace won::rendering
         return true;
     }
 
+    static won::console::ConsoleVariable r_wireframe("r.wireframe", false, "render the main pass in wireframe", won::console::ConsoleVariableFlagNone);
+
     bool RendererInternal::DrawScene(const FrameContext& frame_context, const View& view, RenderPassType pass, uint32 flags, RHICommandList& command_list)
     {
         const Scene::RenderData& render_data = view.scene->GetRenderData();
 
         RHICompareOp depth_compare = RHICompareOp::GreaterEqual;
-        const bool draw_wireframe = pass == RenderPassType::MainPass && debug_options.wireframe_enable;
+        const bool draw_wireframe = pass == RenderPassType::MainPass && r_wireframe.GetBool();
         const bool draw_primitives = pass == RenderPassType::PrimitivePass && (flags & DrawScene_Primitive) != 0;
         if (pass == RenderPassType::MainPass)
         {
@@ -2158,6 +2161,7 @@ namespace won::rendering
         scissor.width = back_buffer_binding.resource->GetDesc().texture_desc.width;
         scissor.height = back_buffer_binding.resource->GetDesc().texture_desc.height;
 
+        command_list.TransitionResource(*back_buffer_binding.resource, RHIResourceState::RenderTarget);
         command_list.SetRenderTargets({ back_buffer_binding }, nullptr);
         command_list.SetViewport(viewport);
         command_list.SetScissor(scissor);
@@ -2170,6 +2174,19 @@ namespace won::rendering
 
         for (const debugtext::Item& item : items)
         {
+            if (item.is_rect)
+            {
+                DebugTextPushConstants push = {};
+                push.Init();
+                push.rect = { item.x / bb_width, item.y / bb_height, item.width / bb_width, item.height / bb_height };
+                push.color = item.color;
+                push.atlas_index = 0xffffffffu;
+                command_list.PushConstants(RHIShaderStage::Vertex, &push, sizeof(push), 0);
+                command_list.Draw(6, 1, 0, 0);
+                ++debug_state.draw_call_count;
+                continue;
+            }
+
             const float glyph_w = static_cast<float>(builtinfont::glyph_width) * item.scale;
             const float glyph_h = static_cast<float>(builtinfont::glyph_height) * item.scale;
             float pen_x = item.x;
@@ -3088,14 +3105,36 @@ namespace won::rendering
                 }
                 command_list->EndEvent();
             }
+        });
+    }
 
-            // debug text / overlay pass: immediate screen-space text (console, perf overlay, debug)
+    void RendererInternal::RenderDebugText()
+    {
+        if (debugtext::GetItems().empty())
+        {
+            return;
+        }
+
+        RHICommandList* command_list = GetFrameContext().BeginCommandList(*device);
+        if (!command_list)
+        {
+            debugtext::Clear();
+            return;
+        }
+
+        jobsystem::Execute(GetRenderingWorkContext(), [this, command_list](jobsystem::JobArgs args)
+        {
+            RHISubresourceBinding back_buffer_binding = {};
+            if (!GetCurrentBackBufferBinding(back_buffer_binding))
             {
-                auto gpu_range = profiler::ScopedRangeGPU("DebugText Pass", *command_list);
-                command_list->BeginEvent("DebugText Pass");
-                DrawDebugText(back_buffer_binding, *command_list);
-                command_list->EndEvent();
+                debugtext::Clear();
+                return;
             }
+
+            auto gpu_range = profiler::ScopedRangeGPU("DebugText Pass", *command_list);
+            command_list->BeginEvent("DebugText Pass");
+            DrawDebugText(back_buffer_binding, *command_list);
+            command_list->EndEvent();
         });
     }
 
