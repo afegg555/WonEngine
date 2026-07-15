@@ -1082,7 +1082,8 @@ namespace won::rendering::utils
         texture_desc.height = static_cast<uint32>(image.height);
         texture_desc.depth = 1;
         texture_desc.mip_levels = mip_levels;
-        texture_desc.array_layers = 1;
+        texture_desc.array_layers = image.is_cube ? 6u : 1u;
+        texture_desc.is_cube = image.is_cube;
         texture_desc.sample_count = 1;
         texture_desc.format = texture_format;
         texture_desc.usage = RHIResourceUsage::Default;
@@ -1103,7 +1104,7 @@ namespace won::rendering::utils
         RHISubresourceDesc texture_srv_desc = {};
         texture_srv_desc.type = RHISubresourceType::ShaderResource;
         texture_srv_desc.first_slice = 0;
-        texture_srv_desc.slice_count = 1;
+        texture_srv_desc.slice_count = image.is_cube ? 6u : 1u;
         texture_srv_desc.first_mip = 0;
         texture_srv_desc.mip_count = texture_desc.mip_levels;
         if (!device.CreateSubresource(*new_render_data.texture, texture_srv_desc, &new_render_data.srv))

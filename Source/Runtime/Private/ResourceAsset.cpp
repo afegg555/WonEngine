@@ -34,8 +34,13 @@ namespace won::resource
         constexpr uint32 dds_caps_texture = 0x00001000;
         constexpr uint32 dds_caps_complex = 0x00000008;
         constexpr uint32 dds_caps_mipmap = 0x00400000;
+        constexpr uint32 dds_pixel_format_flags_rgb = 0x00000040;
+        constexpr uint32 dds_caps2_cubemap = 0x00000200;
+        constexpr uint32 dds_misc_flag_texturecube = 0x00000004;
+        constexpr uint32 dds_fourcc_a16b16g16r16f = 113; // legacy D3DFMT_A16B16G16R16F (RGBA16F)
         // DDS DX10 headers store DXGI_FORMAT numeric values, but resource code must not include platform headers.
         constexpr uint32 dds_dxgi_format_unknown = 0;
+        constexpr uint32 dds_dxgi_format_r16g16b16a16_float = 10;
         constexpr uint32 dds_dxgi_format_r8g8b8a8_unorm = 28;
         constexpr uint32 dds_dxgi_format_r8g8b8a8_unorm_srgb = 29;
         constexpr uint32 dds_dxgi_format_bc1_unorm = 71;
@@ -102,6 +107,7 @@ namespace won::resource
         {
             switch (format)
             {
+            case dds_dxgi_format_r16g16b16a16_float: return rendering::RHIFormat::R16G16B16A16Float;
             case dds_dxgi_format_r8g8b8a8_unorm: return rendering::RHIFormat::R8G8B8A8Unorm;
             case dds_dxgi_format_r8g8b8a8_unorm_srgb: return rendering::RHIFormat::R8G8B8A8UnormSrgb;
             case dds_dxgi_format_b8g8r8a8_unorm: return rendering::RHIFormat::B8G8R8A8Unorm;
@@ -532,10 +538,8 @@ namespace won::resource
         {
             return nullptr;
         }
-
         const std::streamoff file_size = stream.tellg();
-        const Size header_size = sizeof(uint32) + sizeof(DDSHeader) + sizeof(DDSHeaderDXT10);
-        if (file_size < static_cast<std::streamoff>(header_size))
+        if (file_size < static_cast<std::streamoff>(sizeof(uint32) + sizeof(DDSHeader)))
         {
             return nullptr;
         }
@@ -543,26 +547,60 @@ namespace won::resource
 
         uint32 magic = 0;
         DDSHeader header = {};
-        DDSHeaderDXT10 header_dxt10 = {};
         stream.read(reinterpret_cast<char*>(&magic), sizeof(magic));
         stream.read(reinterpret_cast<char*>(&header), sizeof(header));
-        stream.read(reinterpret_cast<char*>(&header_dxt10), sizeof(header_dxt10));
-        if (!stream || magic != dds_magic || header.size != sizeof(DDSHeader) || header.pixel_format.size != sizeof(DDSPixelFormat) || header.pixel_format.four_cc != dds_fourcc_dx10)
-        {
-            return nullptr;
-        }
-        if (header_dxt10.resource_dimension != dds_resource_dimension_texture2d || header_dxt10.array_size != 1)
+        if (!stream || magic != dds_magic || header.size != sizeof(DDSHeader) || header.pixel_format.size != sizeof(DDSPixelFormat))
         {
             return nullptr;
         }
 
-        const rendering::RHIFormat format = RHIFormatFromDXGIFormat(header_dxt10.dxgi_format);
+        const bool has_dx10 = (header.pixel_format.flags & dds_pixel_format_flags_fourcc) != 0 && header.pixel_format.four_cc == dds_fourcc_dx10;
+        rendering::RHIFormat format = rendering::RHIFormat::Unknown;
+        bool is_cube = false;
+        Size header_bytes = sizeof(uint32) + sizeof(DDSHeader);
+
+        if (has_dx10)
+        {
+            DDSHeaderDXT10 header_dxt10 = {};
+            stream.read(reinterpret_cast<char*>(&header_dxt10), sizeof(header_dxt10));
+            if (!stream)
+            {
+                return nullptr;
+            }
+            header_bytes += sizeof(DDSHeaderDXT10);
+            format = RHIFormatFromDXGIFormat(header_dxt10.dxgi_format);
+            is_cube = (header_dxt10.misc_flag & dds_misc_flag_texturecube) != 0;
+        }
+        else
+        {
+            // Legacy header: FourCC extended formats, or uncompressed RGBA/BGRA by channel masks; cube flagged in caps2.
+            if ((header.pixel_format.flags & dds_pixel_format_flags_fourcc) != 0 && header.pixel_format.four_cc == dds_fourcc_a16b16g16r16f)
+            {
+                format = rendering::RHIFormat::R16G16B16A16Float;
+            }
+            else if ((header.pixel_format.flags & dds_pixel_format_flags_rgb) != 0 && header.pixel_format.rgb_bit_count == 32)
+            {
+                const uint32 r = header.pixel_format.r_bit_mask;
+                const uint32 g = header.pixel_format.g_bit_mask;
+                const uint32 b = header.pixel_format.b_bit_mask;
+                if (r == 0x00ff0000 && g == 0x0000ff00 && b == 0x000000ff)
+                {
+                    format = rendering::RHIFormat::B8G8R8A8Unorm;
+                }
+                else if (r == 0x000000ff && g == 0x0000ff00 && b == 0x00ff0000)
+                {
+                    format = rendering::RHIFormat::R8G8B8A8Unorm;
+                }
+            }
+            is_cube = (header.caps2 & dds_caps2_cubemap) != 0;
+        }
+
         if (format == rendering::RHIFormat::Unknown)
         {
             return nullptr;
         }
 
-        const Size payload_size = static_cast<Size>(file_size) - header_size;
+        const Size payload_size = static_cast<Size>(file_size) - header_bytes;
         if (payload_size == 0)
         {
             return nullptr;
@@ -573,8 +611,10 @@ namespace won::resource
         image->height = static_cast<int32>(header.height);
         image->channels = 4;
         image->mip_levels = header.mip_map_count > 0 ? header.mip_map_count : 1;
+        image->is_cube = is_cube;
         image->format = format;
         image->pixels.resize(payload_size);
+        stream.seekg(static_cast<std::streamoff>(header_bytes));
         stream.read(reinterpret_cast<char*>(image->pixels.data()), static_cast<std::streamsize>(image->pixels.size()));
         if (!stream || !image->IsValid())
         {
@@ -853,6 +893,23 @@ namespace won::resource
         }
     }
 
+    static void LoadReflectionProbeResource(ecs::ReflectionProbeComponent& probe, const String& content_root)
+    {
+        if (probe.cubemap_asset_path.empty())
+            return;
+        const String path = project::ResolveProjectContentPath(content_root, probe.cubemap_asset_path);
+        std::shared_ptr<Image> image = LoadTextureBinary(path);
+        if (image && image->IsValid())
+        {
+            probe.cubemap = image;
+            rendering::utils::EnqueueResourceUpload(image, image->format);
+        }
+        else
+        {
+            backlog::Post("[LoadResources] cubemap load failed: " + path, backlog::LogLevel::Warning);
+        }
+    }
+
     static void LoadSoundResource(ecs::AudioSourceComponent& source, const String& content_root)
     {
         if (source.sound_asset_path.empty())
@@ -945,6 +1002,13 @@ namespace won::resource
             jobsystem::Dispatch(ctx, static_cast<uint32>(audio_array->GetSize()), 1, [audio_array, &content_root](jobsystem::JobArgs args)
             {
                 LoadSoundResource(audio_array->data[args.job_index], content_root);
+            });
+        }
+        if (auto reflection_probe_array = scene.GetComponentArray<ecs::ReflectionProbeComponent>())
+        {
+            jobsystem::Dispatch(ctx, static_cast<uint32>(reflection_probe_array->GetSize()), 1, [reflection_probe_array, &content_root](jobsystem::JobArgs args)
+            {
+                LoadReflectionProbeResource(reflection_probe_array->data[args.job_index], content_root);
             });
         }
 
