@@ -4,6 +4,7 @@
 #ifndef UNLIT
 #include "ShadingCommon.hlsli"
 #include "DDGICommon.hlsli"
+#include "SkyCommon.hlsli"
 #endif
 
 float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
@@ -141,16 +142,46 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
             {
                 ambient = SampleDDGI(ddgi_volume, sample_position, surface.N);
                 ambient *= environment_lighting.GetIndirectDiffuseScale();
-                //return float4(ambient, 1.f);
             }
 
         }
     }
+    float3 indirect_specular = float3(0.0, 0.0, 0.0);
+    ShaderReflectionProbe reflection_probe = GetReflectionProbe();
+    if (reflection_probe.IsActive())
+    {
+        float distance_to_probe = distance(surface.P, reflection_probe.position);
+        float probe_attenuation = reflection_probe.influence_radius > 0.0
+            ? saturate(1.0 - distance_to_probe / reflection_probe.influence_radius)
+            : 1.0;
+        if (probe_attenuation > 0.0)
+        {
+            float3 reflection_direction = reflect(-surface.V, surface.N);
+            float3 reflection_radiance;
+            float roughness_fade;
+            if (reflection_probe.HasCubemap())
+            {
+                float perceptual_roughness = sqrt(surface.roughness);
+                float lod = perceptual_roughness * max(reflection_probe.cubemap_mip_count - 1.0, 0.0);
+                reflection_radiance = bindless_cubemaps[DescriptorIndex(reflection_probe.cubemap_texture)].SampleLevel(sampler_linear_clamp, reflection_direction, lod).rgb;
+                roughness_fade = 1.0; // prefiltered mip already accounts for roughness blur
+            }
+            else
+            {
+                reflection_radiance = EvaluateProceduralSky(environment_lighting, reflection_direction);
+                roughness_fade = 1.0 - surface.roughness; // placeholder: crude roughness attenuation
+            }
+            indirect_specular = reflection_radiance * surface.f0 * (reflection_probe.intensity * probe_attenuation * roughness_fade);
+            indirect_specular *= environment_lighting.GetIndirectSpecularScale();
+        }
+    }
+
     Lighting lighting;
     ambient *= GetCamera().exposure;
-    lighting.Create(0, 0, ambient, 0);
+    indirect_specular *= GetCamera().exposure;
+    lighting.Create(0, 0, ambient, indirect_specular);
     
-    ForwardLighting(surface, lighting);
+    ForwardLighting(surface, lighting); // note: overflow can results in INF, but we will clamp
     
     half3 diffuse = (lighting.direct.diffuse + lighting.indirect.diffuse) * Fd_Lambert(); // apply fd here for efficiency
     half3 specular = lighting.direct.specular + lighting.indirect.specular;
@@ -160,6 +191,7 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
 
 #endif // UNLIT
  
+    final_color.rgb = saturateMediump(final_color.rgb);
     return final_color;
 }
 #endif // OBJECT_PS

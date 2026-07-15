@@ -126,10 +126,12 @@ namespace won::ecs
                 }
 
                 render_data.shader_reflection_probe.flags = SHADER_REFLECTION_PROBE_FLAG_ACTIVE;
-                render_data.shader_reflection_probe.intensity = probe.intensity;
+                render_data.shader_reflection_probe.intensity = probe.intensity_multiplier;
                 render_data.shader_reflection_probe.influence_radius = probe.influence_radius;
                 render_data.shader_reflection_probe.position = probe_position;
-                render_data.shader_reflection_probe.cubemap_texture = -1;
+                const bool has_cubemap = probe.cubemap && probe.cubemap->render_data.IsValid();
+                render_data.shader_reflection_probe.cubemap_texture = has_cubemap ? probe.cubemap->render_data.srv.descriptor_index : -1;
+                render_data.shader_reflection_probe.cubemap_mip_count = has_cubemap ? static_cast<float>(probe.cubemap->mip_levels) : 0.0f;
                 break;
             }
         }

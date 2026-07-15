@@ -467,7 +467,7 @@ struct alignas(16) ShaderReflectionProbe
     int cubemap_texture;
 
     float3 position;
-    float _reflection_probe_padding0;
+    float cubemap_mip_count;
 
 #ifdef __cplusplus
     inline void Init()
@@ -477,7 +477,7 @@ struct alignas(16) ShaderReflectionProbe
         influence_radius = 0.0f;
         cubemap_texture = -1;
         position = { 0.0f, 0.0f, 0.0f };
-        _reflection_probe_padding0 = 0.0f;
+        cubemap_mip_count = 0.0f;
     }
 #else
     inline bool IsActive() { return (flags & SHADER_REFLECTION_PROBE_FLAG_ACTIVE) != 0; }
