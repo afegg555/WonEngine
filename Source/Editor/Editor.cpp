@@ -2704,10 +2704,7 @@ namespace won::editor
 			}
 			if (ImGui::MenuItem(editor_text::show_in_explorer))
 			{
-				String native_path = asset.disk_path;
-				std::replace(native_path.begin(), native_path.end(), '/', '\\');
-				const String explorer_arguments = "/select,\"" + native_path + "\"";
-				ShellExecuteA(static_cast<HWND>(window ? window->GetNativeHandle() : nullptr), "open", "explorer.exe", explorer_arguments.c_str(), nullptr, SW_SHOWNORMAL);
+				io::ShowInFileManager(asset.disk_path);
 			}
 			ImGui::EndPopup();
 		}
@@ -3227,8 +3224,8 @@ namespace won::editor
 						else
 						{
 							const String arguments = "\"" + loaded_project_settings.settings_path + "\" Release";
-							HINSTANCE result = ShellExecuteA(static_cast<HWND>(window ? window->GetNativeHandle() : nullptr), "open", package_tool_path.c_str(), arguments.c_str(), io::GetExecutableDirectory().c_str(), SW_SHOWNORMAL);
-							backlog::Post(reinterpret_cast<INT_PTR>(result) > 32 ? editor_text::package_project_started + loaded_project_settings.settings_path : editor_text::package_project_failed, reinterpret_cast<INT_PTR>(result) > 32 ? backlog::LogLevel::Default : backlog::LogLevel::Warning);
+							const bool launched = io::LaunchProcess(package_tool_path, arguments, io::GetExecutableDirectory());
+							backlog::Post(launched ? editor_text::package_project_started + loaded_project_settings.settings_path : editor_text::package_project_failed, launched ? backlog::LogLevel::Default : backlog::LogLevel::Warning);
 						}
 					}
 				}

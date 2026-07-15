@@ -68,6 +68,11 @@ namespace won::io
     WONENGINE_API bool OpenFileDialog(String& out_path, const FileDialogDesc& desc);
     WONENGINE_API bool SaveFileDialog(String& out_path, const FileDialogDesc& desc);
 
+    // Reveal a file or folder in the OS file manager (selecting it when possible).
+    WONENGINE_API bool ShowInFileManager(const String& path);
+    // Launch an executable with arguments in a working directory (detached).
+    WONENGINE_API bool LaunchProcess(const String& executable, const String& arguments, const String& working_directory);
+
     // %APPDATA%\<app_name>\ - save data and settings (AppData/Roaming in Windows)
     WONENGINE_API String GetSaveDirectory(const String& app_name);
     // %LOCALAPPDATA%\<app_name>\ - caches and other recreatable data (AppData/Local in Windows)
