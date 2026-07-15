@@ -18,7 +18,7 @@ namespace won::ecs
 		float influence_radius = 20.0f; // in world units, the radius of influence for this reflection probe
         float intensity_multiplier = 1.0f;
 
-        // Runtime-only: the loaded prefiltered cubemap (not serialized).
+		// These values are updated by EnvironmentUpdateSystem.
         std::shared_ptr<resource::Image> cubemap;
 
         constexpr void SetActive(bool value = true)

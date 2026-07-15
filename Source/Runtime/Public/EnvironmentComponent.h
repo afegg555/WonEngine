@@ -18,7 +18,7 @@ namespace won::ecs
 			// TODO: cubemap skybox, physical sky, etc.
         };
 
-        enum class GIMode : uint32
+        enum class DiffuseGIMode : uint32
         {
             None,
             Ambient,
@@ -27,7 +27,7 @@ namespace won::ecs
 
         uint32 flags = Active;
         SkyType sky_type = SkyType::Procedural;
-        GIMode gi_mode = GIMode::Ambient;
+        DiffuseGIMode diffuse_gi_mode = DiffuseGIMode::Ambient;
 
         // Sky / atmosphere
         float3 sun_direction = { 0.58f, 0.38f, 0.71f };

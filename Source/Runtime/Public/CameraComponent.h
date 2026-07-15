@@ -29,7 +29,7 @@ namespace won::ecs
         float3 corners_np[4]; // top-left, top-right, bottom-left, bottom-right
         float3 corners_fp[4];
         math::Frustum frustum;
-		float exposure_multiplier = 0.0f; // pre-exposure multiplier (radiance scale, = 1/(1.2*2^EV100)), updated by CameraUpdateSystem (manual) or the renderer (auto). Not serialized.
+		float exposure_multiplier = 0.0f;
 
 
         float near_plane = 0.1f;

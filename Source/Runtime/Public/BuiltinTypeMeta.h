@@ -79,10 +79,10 @@ namespace won::reflection
         WON_REFLECT_ENUM_VALUE("Spot", won::ecs::LightComponent::LightType::Spot)
     WON_REFLECT_ENUM_END()
 
-    WON_REFLECT_ENUM(won::ecs::EnvironmentComponent::GIMode, "GIMode")
-        WON_REFLECT_ENUM_VALUE("None", won::ecs::EnvironmentComponent::GIMode::None)
-        WON_REFLECT_ENUM_VALUE("Ambient", won::ecs::EnvironmentComponent::GIMode::Ambient)
-        WON_REFLECT_ENUM_VALUE("DDGI", won::ecs::EnvironmentComponent::GIMode::DDGI)
+    WON_REFLECT_ENUM(won::ecs::EnvironmentComponent::DiffuseGIMode, "DiffuseGIMode")
+        WON_REFLECT_ENUM_VALUE("None", won::ecs::EnvironmentComponent::DiffuseGIMode::None)
+        WON_REFLECT_ENUM_VALUE("Ambient", won::ecs::EnvironmentComponent::DiffuseGIMode::Ambient)
+        WON_REFLECT_ENUM_VALUE("DDGI", won::ecs::EnvironmentComponent::DiffuseGIMode::DDGI)
     WON_REFLECT_ENUM_END()
 
     WON_REFLECT_ENUM(won::ecs::EnvironmentComponent::SkyType, "SkyType")
@@ -157,7 +157,7 @@ namespace won::reflection
     WON_REFLECT_STRUCT(won::ecs::EnvironmentComponent, "EnvironmentComponent")
         WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(sky_type, won::FieldFlagEditable | won::FieldFlagSerializable)
-        WON_REFLECT_FIELD(gi_mode, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(diffuse_gi_mode, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(sun_direction, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(sun_intensity, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(sun_color, won::FieldFlagEditable | won::FieldFlagSerializable)

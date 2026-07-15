@@ -2416,7 +2416,7 @@ namespace won::rendering
         const uint32 probes_per_frame = ddgi_history_valid ? (std::min)(ddgi_volume.probes_per_frame, ddgi_volume.total_probe_count) : ddgi_volume.total_probe_count;
         const uint32 probe_update_dispatch_width = (std::min)(probes_per_frame, 65535u);
 
-        if (environment_lighting.gi_mode != SHADER_ENVIRONMENT_GI_MODE_DDGI ||
+        if (environment_lighting.diffuse_gi_mode != SHADER_DIFFUSE_GI_MODE_DDGI ||
             (ddgi_volume.flags & SHADER_DDGI_FLAG_ACTIVE) == 0 ||
             ddgi_volume.probe_counts.x == 0 ||
             ddgi_volume.probe_counts.y == 0 ||
@@ -2526,7 +2526,7 @@ namespace won::rendering
         {
             debug_state.bvh = {};
         }
-        debug_state.ddgi.gi_mode_ddgi = render_data.shader_environment.gi_mode == SHADER_ENVIRONMENT_GI_MODE_DDGI;
+        debug_state.ddgi.gi_mode_ddgi = render_data.shader_environment.diffuse_gi_mode == SHADER_DIFFUSE_GI_MODE_DDGI;
         debug_state.ddgi.volume_active = (render_data.shader_ddgi_volume.flags & SHADER_DDGI_FLAG_ACTIVE) != 0;
         if (debug_state.ddgi.volume_active)
         {

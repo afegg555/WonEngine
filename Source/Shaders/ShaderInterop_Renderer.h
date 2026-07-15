@@ -69,11 +69,11 @@ enum SHADER_DDGI_FLAGS
     SHADER_DDGI_FLAG_ACTIVE = 1 << 0,
 };
 
-enum SHADER_ENVIRONMENT_GI_MODE
+enum SHADER_DIFFUSE_GI_MODE
 {
-    SHADER_ENVIRONMENT_GI_MODE_NONE,
-    SHADER_ENVIRONMENT_GI_MODE_AMBIENT,
-    SHADER_ENVIRONMENT_GI_MODE_DDGI,
+    SHADER_DIFFUSE_GI_MODE_NONE,
+    SHADER_DIFFUSE_GI_MODE_AMBIENT,
+    SHADER_DIFFUSE_GI_MODE_DDGI,
 };
 
 enum TEXTURESLOT
@@ -295,8 +295,8 @@ struct alignas(16) ShaderEnvironment
     float4 ambient_color_ambient_intensity;
 
     float2 indirect_diffuse_specular_scale;
-    uint gi_mode;                   // SHADER_ENVIRONMENT_GI_MODE_*; NONE means no ambient/GI
     uint _padding;
+    uint diffuse_gi_mode;
 
 #ifdef __cplusplus
     inline void Init()
@@ -314,8 +314,8 @@ struct alignas(16) ShaderEnvironment
 
         ambient_color_ambient_intensity = { 0,0,0,0 };
         indirect_diffuse_specular_scale = { 0,0 };
-        gi_mode = SHADER_ENVIRONMENT_GI_MODE_NONE;
         _padding = 0;
+        diffuse_gi_mode = SHADER_DIFFUSE_GI_MODE_NONE;
     }
 
     inline void SetSunDirection(const float3& value)
@@ -365,7 +365,7 @@ struct alignas(16) ShaderEnvironment
 
 #else
     inline uint GetSkyType() { return sky_type; }
-    inline uint GetGIMode() { return gi_mode; }
+    inline uint GetDiffuseGIMode() { return diffuse_gi_mode; }
     inline float3 GetSunDirection() { return normalize(sun_direction); }
     inline float3 GetSunColor() { return sun_color_sun_intensity.xyz; }
     inline float GetSunIntensity() { return sun_color_sun_intensity.w; }

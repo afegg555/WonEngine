@@ -128,11 +128,11 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
     
     float3 ambient = float3(0.0, 0.0, 0.0);
     ShaderEnvironment environment_lighting = GetEnvironment();
-    if (environment_lighting.GetGIMode() == SHADER_ENVIRONMENT_GI_MODE_AMBIENT)
+    if (environment_lighting.GetDiffuseGIMode() == SHADER_DIFFUSE_GI_MODE_AMBIENT)
     {
         ambient = environment_lighting.GetAmbientColor() * environment_lighting.GetAmbientIntensity();
     }
-    else if (environment_lighting.GetGIMode() == SHADER_ENVIRONMENT_GI_MODE_DDGI)
+    else if (environment_lighting.GetDiffuseGIMode() == SHADER_DIFFUSE_GI_MODE_DDGI)
     {
         ShaderDDGIVolume ddgi_volume = GetDDGIVolume();
         if (ddgi_volume.IsActive() && ddgi_volume.HasIrradianceTexture())

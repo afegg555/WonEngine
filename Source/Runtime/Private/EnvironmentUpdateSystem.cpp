@@ -38,7 +38,7 @@ namespace won::ecs
                     render_data.shader_environment.SetGroundColorFalloff(environment.ground_color, environment.ground_falloff);
                 }
 
-                render_data.shader_environment.gi_mode = static_cast<uint32>(environment.gi_mode);
+                render_data.shader_environment.diffuse_gi_mode = static_cast<uint32>(environment.diffuse_gi_mode);
                 render_data.shader_environment.SetAmbientColorIntensity(environment.ambient_color, environment.ambient_intensity);
                 render_data.shader_environment.SetIndirectScale(environment.indirect_diffuse_scale, environment.indirect_specular_scale);
                 break;

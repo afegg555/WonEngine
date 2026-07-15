@@ -429,7 +429,7 @@ namespace won::ecs
 
     bool Scene::BuildGPUBVH()
     {
-        const bool ddgi_trace_required = render_data.shader_environment.gi_mode == SHADER_ENVIRONMENT_GI_MODE_DDGI &&
+        const bool ddgi_trace_required = render_data.shader_environment.diffuse_gi_mode == SHADER_DIFFUSE_GI_MODE_DDGI &&
             (render_data.shader_ddgi_volume.flags & SHADER_DDGI_FLAG_ACTIVE) != 0 &&
             render_data.shader_ddgi_volume.total_probe_count > 0;
         if (!ddgi_trace_required)

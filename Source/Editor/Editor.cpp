@@ -305,7 +305,7 @@ namespace won::editor
 			constexpr const char* ground_horizon_color = "Ground Horizon Color";
 			constexpr const char* ground_falloff = "Ground Falloff";
 			constexpr const char* ground_color = "Ground Color";
-			constexpr const char* gi_mode = "GI Mode";
+			constexpr const char* gi_mode = "Diffuse GI Mode";
 			constexpr const char* ambient = "Ambient";
 			constexpr const char* ddgi = "DDGI";
 			constexpr const char* ambient_color = "Ambient Color";
@@ -4458,11 +4458,11 @@ namespace won::editor
 						ImGui::DragFloat(editor_text::ground_intensity, &environment_comp->ground_intensity, 0.01f, 0.0f, 1000.0f);
 						ImGui::DragFloat(editor_text::ground_falloff, &environment_comp->ground_falloff, 0.01f, 0.0f, 1000.0f);
 
-						int gi_mode = static_cast<int>(environment_comp->gi_mode);
 						const char* gi_mode_items[] = { editor_text::none, editor_text::ambient, editor_text::ddgi };
+						int gi_mode = static_cast<int>(environment_comp->diffuse_gi_mode);
 						if (ImGui::Combo(editor_text::gi_mode, &gi_mode, gi_mode_items, IM_ARRAYSIZE(gi_mode_items)))
 						{
-							environment_comp->gi_mode = static_cast<EnvironmentComponent::GIMode>(gi_mode);
+							environment_comp->diffuse_gi_mode = static_cast<EnvironmentComponent::DiffuseGIMode>(gi_mode);
 						}
 
 						float ambient_color[3] = { environment_comp->ambient_color.x, environment_comp->ambient_color.y, environment_comp->ambient_color.z };
