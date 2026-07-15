@@ -26,6 +26,7 @@ namespace won::ecs
         component_manager.RegisterComponent<EnvironmentComponent>();
         component_manager.RegisterComponent<FogVolumeComponent>();
         component_manager.RegisterComponent<DDGIVolumeComponent>();
+        component_manager.RegisterComponent<ReflectionProbeComponent>();
         component_manager.RegisterComponent<AnimationComponent>();
         component_manager.RegisterComponent<AnimationStateMachineComponent>();
         component_manager.RegisterComponent<ScriptComponent>();

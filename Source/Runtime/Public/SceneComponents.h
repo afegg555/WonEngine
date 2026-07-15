@@ -14,6 +14,7 @@
 #include "EnvironmentComponent.h"
 #include "FogVolumeComponent.h"
 #include "DDGIVolumeComponent.h"
+#include "ReflectionProbeComponent.h"
 #include "AnimationComponent.h"
 #include "AnimationStateMachineComponent.h"
 #include "ScriptComponent.h"
@@ -73,7 +74,8 @@ namespace won::ecs
         RectTransform2D,
         CollisionLayer,
         Layout,
-        AnimationStateMachine
+        AnimationStateMachine,
+        ReflectionProbe
     };
 
     constexpr ComponentMask ComponentMaskFromBit(SceneComponentBit bit)
@@ -95,6 +97,7 @@ namespace won::ecs
     inline constexpr ComponentMask environment_component_mask = ComponentMaskFromBit(SceneComponentBit::Environment);
     inline constexpr ComponentMask fog_volume_component_mask = ComponentMaskFromBit(SceneComponentBit::FogVolume);
     inline constexpr ComponentMask ddgi_volume_component_mask = ComponentMaskFromBit(SceneComponentBit::DDGIVolume);
+    inline constexpr ComponentMask reflection_probe_component_mask = ComponentMaskFromBit(SceneComponentBit::ReflectionProbe);
     inline constexpr ComponentMask animation_component_mask = ComponentMaskFromBit(SceneComponentBit::Animation);
     inline constexpr ComponentMask text_2d_component_mask = ComponentMaskFromBit(SceneComponentBit::Text2D);
     inline constexpr ComponentMask script_component_mask = ComponentMaskFromBit(SceneComponentBit::Script);

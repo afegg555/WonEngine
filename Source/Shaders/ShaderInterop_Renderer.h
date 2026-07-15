@@ -453,11 +453,44 @@ struct alignas(16) ShaderDDGIVolume
 #endif
 };
 
+enum SHADER_REFLECTION_PROBE_FLAGS
+{
+    SHADER_REFLECTION_PROBE_FLAG_NONE = 0,
+    SHADER_REFLECTION_PROBE_FLAG_ACTIVE = 1 << 0,
+};
+
+struct alignas(16) ShaderReflectionProbe
+{
+    uint flags;
+    float intensity;
+    float influence_radius;
+    int cubemap_texture;
+
+    float3 position;
+    float _reflection_probe_padding0;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        flags = SHADER_REFLECTION_PROBE_FLAG_NONE;
+        intensity = 1.0f;
+        influence_radius = 0.0f;
+        cubemap_texture = -1;
+        position = { 0.0f, 0.0f, 0.0f };
+        _reflection_probe_padding0 = 0.0f;
+    }
+#else
+    inline bool IsActive() { return (flags & SHADER_REFLECTION_PROBE_FLAG_ACTIVE) != 0; }
+    inline bool HasCubemap() { return cubemap_texture >= 0; }
+#endif
+};
+
 struct alignas(16) ShaderFrame
 {
     ShaderScene scene;
     ShaderEnvironment environment;
     ShaderDDGIVolume ddgi_volume;
+    ShaderReflectionProbe reflection_probe;
 
 #ifdef __cplusplus
     inline void Init()
@@ -465,6 +498,7 @@ struct alignas(16) ShaderFrame
         scene.Init();
         environment.Init();
         ddgi_volume.Init();
+        reflection_probe.Init();
     }
 #endif
 };
@@ -745,7 +779,8 @@ static_assert(sizeof(ShaderMaterial) == 272, "ShaderMaterial layout mismatch");
 static_assert(sizeof(ShaderScene) == 64, "ShaderScene layout mismatch");
 static_assert(sizeof(ShaderEnvironment) == 144, "ShaderEnvironment layout mismatch");
 static_assert(sizeof(ShaderDDGIVolume) == 112, "ShaderDDGIVolume layout mismatch");
-static_assert(sizeof(ShaderFrame) == 320, "ShaderFrame layout mismatch");
+static_assert(sizeof(ShaderReflectionProbe) == 32, "ShaderReflectionProbe layout mismatch");
+static_assert(sizeof(ShaderFrame) == 352, "ShaderFrame layout mismatch");
 static_assert(sizeof(ShaderCamera) == 336, "ShaderCamera layout mismatch");
 static_assert(sizeof(ShaderLight) == 48, "ShaderLight layout mismatch");
 static_assert(sizeof(ShaderShadowCascade) == 96, "ShaderShadowCascade layout mismatch");

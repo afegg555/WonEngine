@@ -188,6 +188,13 @@ namespace won::reflection
         WON_REFLECT_FIELD(max_distance, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
+    WON_REFLECT_STRUCT(won::ecs::ReflectionProbeComponent, "ReflectionProbeComponent")
+        WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(cubemap_asset_path, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(influence_radius, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(intensity, won::FieldFlagEditable | won::FieldFlagSerializable)
+    WON_REFLECT_STRUCT_END()
+
     WON_REFLECT_STRUCT(won::ecs::GeometryComponent, "GeometryComponent")
         WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(mesh_asset_path, won::FieldFlagEditable | won::FieldFlagSerializable)

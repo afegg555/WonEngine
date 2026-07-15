@@ -1389,6 +1389,7 @@ namespace won::rendering
         shader_frame.scene.instance_sort_buffer = shader_instance_sort_default_buffer_srv.descriptor_index;
         shader_frame.scene.bone_matrix_buffer = shader_bone_matrix_default_buffer_srv.descriptor_index;
         shader_frame.environment = render_data.shader_environment;
+        shader_frame.reflection_probe = render_data.shader_reflection_probe;
         shader_frame.ddgi_volume = render_data.shader_ddgi_volume;
         shader_frame.ddgi_volume.irradiance_texture = ddgi_irradiance_texture_srv.descriptor_index;
         shader_frame.ddgi_volume.irradiance_texture_uav = ddgi_irradiance_texture_uav.descriptor_index;

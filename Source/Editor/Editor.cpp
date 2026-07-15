@@ -504,6 +504,7 @@ namespace won::editor
 				{ reflection::TypeMeta<Collider3DComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id } },
 				{ reflection::TypeMeta<LightComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id } },
 				{ reflection::TypeMeta<CameraComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id } },
+				{ reflection::TypeMeta<ReflectionProbeComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id } },
 				{ reflection::TypeMeta<AudioSourceComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id } },
 				{ reflection::TypeMeta<DecalComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id, reflection::TypeMeta<MaterialComponent>::type_id } },
 				{ reflection::TypeMeta<ParticleEmitter3DComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id, reflection::TypeMeta<MaterialComponent>::type_id } },

@@ -12,6 +12,7 @@ namespace won::ecs
         auto& render_data = scene.GetRenderData();
         render_data.shader_environment.Init();
         render_data.shader_ddgi_volume.Init();
+        render_data.shader_reflection_probe.Init();
         render_data.ddgi_volume_entity = INVALID_ENTITY;
 
         auto environment_array = scene.GetComponentArray<EnvironmentComponent>().get();
@@ -103,6 +104,33 @@ namespace won::ecs
                     selected_volume_center.y - probe_span.y * 0.5f,
                     selected_volume_center.z - probe_span.z * 0.5f
                 };
+            }
+        }
+
+        auto reflection_probe_array = scene.GetComponentArray<ReflectionProbeComponent>().get();
+        if (reflection_probe_array)
+        {
+            for (Size i = 0; i < reflection_probe_array->GetSize(); ++i)
+            {
+                const ReflectionProbeComponent& probe = reflection_probe_array->data[i];
+                if (!probe.IsActive())
+                {
+                    continue;
+                }
+
+                float3 probe_position = { 0.0f, 0.0f, 0.0f };
+                const Entity entity = reflection_probe_array->index_to_entity[i];
+                if (transform_array && transform_array->HasData(entity))
+                {
+                    probe_position = math::GetPosition(transform_array->GetData(entity).world_transform);
+                }
+
+                render_data.shader_reflection_probe.flags = SHADER_REFLECTION_PROBE_FLAG_ACTIVE;
+                render_data.shader_reflection_probe.intensity = probe.intensity;
+                render_data.shader_reflection_probe.influence_radius = probe.influence_radius;
+                render_data.shader_reflection_probe.position = probe_position;
+                render_data.shader_reflection_probe.cubemap_texture = -1;
+                break;
             }
         }
     }

@@ -269,6 +269,11 @@ inline ShaderDDGIVolume GetDDGIVolume()
     return g_frame.ddgi_volume;
 }
 
+inline ShaderReflectionProbe GetReflectionProbe()
+{
+    return g_frame.reflection_probe;
+}
+
 inline ShaderCamera GetCamera()
 {
     return g_camera;

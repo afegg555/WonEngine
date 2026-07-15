@@ -312,6 +312,7 @@ namespace won::ecs
 
             ShaderEnvironment shader_environment;
             ShaderDDGIVolume shader_ddgi_volume;
+            ShaderReflectionProbe shader_reflection_probe;
 
             Vector<ShaderInstance> shader_instances;
             Vector<ShaderGeometry> shader_geometries;
