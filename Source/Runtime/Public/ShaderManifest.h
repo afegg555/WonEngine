@@ -28,6 +28,8 @@ namespace won::resource
 
         CSFXAA,
         CSTonemap,
+        CSLuminanceReduce,
+        CSLuminanceResolve,
         CSDDGIProbeUpdate,
         CSTextureMipGen,
         CSGPUBVHBuildGeneratePrimitives,
@@ -65,6 +67,8 @@ namespace won::resource
         case ShaderId::PSDebugText: return "PSDebugText";
         case ShaderId::CSFXAA: return "CSFXAA";
         case ShaderId::CSTonemap: return "CSTonemap";
+        case ShaderId::CSLuminanceReduce: return "CSLuminanceReduce";
+        case ShaderId::CSLuminanceResolve: return "CSLuminanceResolve";
         case ShaderId::CSDDGIProbeUpdate: return "CSDDGIProbeUpdate";
         case ShaderId::CSTextureMipGen: return "CSTextureMipGen";
         case ShaderId::CSGPUBVHBuildGeneratePrimitives: return "CSGPUBVHBuildGeneratePrimitives";

@@ -22,6 +22,7 @@ float4 main(VertexOutput input) : SV_Target
     float3 color = EvaluateProceduralSky(sky, ray_direction);
 
     color *= camera.exposure;
-    
+    color = saturateMediump(color);
+
     return float4(color, 1.0f);
 }

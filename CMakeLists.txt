@@ -443,6 +443,8 @@ set(SHADERS_HLSL
     Source/Shaders/SkyPS.hlsl
     Source/Shaders/FXAACS.hlsl
     Source/Shaders/TonemapCS.hlsl
+    Source/Shaders/LuminanceReduceCS.hlsl
+    Source/Shaders/LuminanceResolveCS.hlsl
     Source/Shaders/CompositePS.hlsl
     Source/Shaders/DebugTextVS.hlsl
     Source/Shaders/DebugTextPS.hlsl

@@ -1,4 +1,5 @@
 #pragma once
+#include <cmath>
 #include "Types.h"
 #include "MathUtils.h"
 #include "Primitives.h"
@@ -27,6 +28,8 @@ namespace won::ecs
         float3 corners_np[4]; // top-left, top-right, bottom-left, bottom-right
         float3 corners_fp[4];
         math::Frustum frustum;
+		float exposure_multiplier = 0.0f; // pre-exposure multiplier (radiance scale, = 1/(1.2*2^EV100)), updated by CameraUpdateSystem (manual) or the renderer (auto). Not serialized.
+
 
         float near_plane = 0.1f;
         float far_plane = 1000.f;
@@ -41,6 +44,14 @@ namespace won::ecs
         float aperture = 4.0; // f-number e.g. 16 for small aperture, 1.4 for wide aperture ...
         float shutter_speed = 1 / 125.f; // in seconds
         float sensitivity = 100; // ISO
+
+        static constexpr float auto_exposure_target = 0.18f; // metering target: 18% middle-gray key (internal)
+
+        bool auto_exposure = false;
+        float exposure_compensation = 0.0f; // EV, applied in both manual and auto ("+1 = one stop brighter")
+        float auto_exposure_min_ev = -6.0f; // EV100, darkest scene the auto exposure resolves to
+        float auto_exposure_max_ev = 16.0f; // EV100, brightest scene the auto exposure resolves to
+        float auto_exposure_speed = 2.0f;
 
         uint32 culling_mask = 0xFFFFFFFF;
 
@@ -58,5 +69,9 @@ namespace won::ecs
         constexpr void SetApertureSize(float value) { aperture = value; }
         constexpr void SetShutterSpeed(float value) { shutter_speed = value; }
         constexpr void SetSensitivity(float value) { sensitivity = value; }
+
+        constexpr float GetPhysicalExposure() const { return (shutter_speed * sensitivity) / (1.2f * aperture * aperture * 100.0f); }
+
+        static float ExposureFromEV100(float ev100) { return 1.0f / (1.2f * std::exp2(ev100)); }
     };
 }
