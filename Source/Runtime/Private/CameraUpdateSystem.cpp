@@ -69,7 +69,7 @@ namespace won::ecs
             XMStoreFloat4x4(&camera.inv_view_projection, inv_view_projection);
             camera.frustum.FromVPMatrix(camera.view_projection);
 
-            if (!camera.auto_exposure || camera.exposure_multiplier <= 0.0f)
+            if (!camera.IsAutoExposure() || camera.exposure_multiplier <= 0.0f)
             {
                 camera.exposure_multiplier = camera.GetPhysicalExposure();
             }

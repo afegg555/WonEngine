@@ -1428,7 +1428,7 @@ namespace won::rendering
                 shader_camera.view_projection = camera_component->view_projection;
                 shader_camera.inv_view_projection = camera_component->inv_view_projection;
 				shader_camera.exposure = camera_component->exposure_multiplier * std::exp2(camera_component->exposure_compensation);
-                auto_exposure_active = camera_component->auto_exposure;
+                auto_exposure_active = camera_component->IsAutoExposure();
             }
         }
 

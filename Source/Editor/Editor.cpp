@@ -285,6 +285,12 @@ namespace won::editor
 			constexpr const char* aperture = "Aperture";
 			constexpr const char* shutter_speed = "Shutter Speed";
 			constexpr const char* sensitivity = "Sensitivity";
+			constexpr const char* auto_exposure = "Auto Exposure";
+			constexpr const char* exposure_multiplier_format = "Exposure Multiplier: %.6f";
+			constexpr const char* exposure_compensation = "Exposure Compensation (EV)";
+			constexpr const char* auto_exposure_min_ev = "Min EV100";
+			constexpr const char* auto_exposure_max_ev = "Max EV100";
+			constexpr const char* auto_exposure_speed = "Adaptation Speed";
 			constexpr const char* sun_direction = "Sun Direction";
 			constexpr const char* sun_color = "Sun Color";
 			constexpr const char* sun_intensity = "Sun Intensity";
@@ -4335,9 +4341,27 @@ namespace won::editor
 						}
 
 						ImGui::Text(editor_text::aspect_ratio_format, camera_comp->aspect_ratio);
+
+						bool auto_exposure = camera_comp->IsAutoExposure();
+						if (ImGui::Checkbox(editor_text::auto_exposure, &auto_exposure))
+						{
+							camera_comp->SetAutoExposure(auto_exposure);
+						}
+
+						ImGui::Text(editor_text::exposure_multiplier_format, camera_comp->exposure_multiplier);
+						ImGui::DragFloat(editor_text::exposure_compensation, &camera_comp->exposure_compensation, 0.01f, -16.0f, 16.0f);
+
+						ImGui::BeginDisabled(!auto_exposure);
+						ImGui::DragFloat(editor_text::auto_exposure_min_ev, &camera_comp->auto_exposure_min_ev, 0.1f, -16.0f, 32.0f);
+						ImGui::DragFloat(editor_text::auto_exposure_max_ev, &camera_comp->auto_exposure_max_ev, 0.1f, -16.0f, 32.0f);
+						ImGui::DragFloat(editor_text::auto_exposure_speed, &camera_comp->auto_exposure_speed, 0.05f, 0.0f, 100.0f);
+						ImGui::EndDisabled();
+
+						ImGui::BeginDisabled(auto_exposure);
 						ImGui::DragFloat(editor_text::aperture, &camera_comp->aperture, 0.01f, 0.0f, 128.0f);
 						ImGui::DragFloat(editor_text::shutter_speed, &camera_comp->shutter_speed, 0.001f, 0.0001f, 100.0f);
 						ImGui::DragFloat(editor_text::sensitivity, &camera_comp->sensitivity, 1.0f, 1.0f, 102400.0f);
+						ImGui::EndDisabled();
 					}
 					else if (remove_component && can_remove_camera)
 					{

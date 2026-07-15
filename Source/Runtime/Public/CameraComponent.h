@@ -14,6 +14,7 @@ namespace won::ecs
             Empty = 0,
             Dirty = 1 << 0,
             IsOrthographic = 1 << 1,
+            AutoExposure = 1 << 2,
         };
 
         uint32 flags = Empty;
@@ -47,7 +48,6 @@ namespace won::ecs
 
         static constexpr float auto_exposure_target = 0.18f; // metering target: 18% middle-gray key (internal)
 
-        bool auto_exposure = false;
         float exposure_compensation = 0.0f; // EV, applied in both manual and auto ("+1 = one stop brighter")
         float auto_exposure_min_ev = -6.0f; // EV100, darkest scene the auto exposure resolves to
         float auto_exposure_max_ev = 16.0f; // EV100, brightest scene the auto exposure resolves to
@@ -60,6 +60,9 @@ namespace won::ecs
 
         constexpr void SetOrtho(bool value = true) { if (value) { flags |= IsOrthographic; } else { flags &= ~IsOrthographic; } SetDirty(); }
         constexpr bool IsOrtho() const { return flags & IsOrthographic; }
+
+        constexpr void SetAutoExposure(bool value = true) { if (value) { flags |= AutoExposure; } else { flags &= ~AutoExposure; } }
+        constexpr bool IsAutoExposure() const { return flags & AutoExposure; }
 
         constexpr void SetNearFar(float near_value, float far_value) { near_plane = near_value; far_plane = far_value; SetDirty(); }
         constexpr void SetAspectRatio(float value) { aspect_ratio = value; SetDirty(); }

@@ -125,6 +125,7 @@ namespace won::reflection
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::CameraComponent, "CameraComponent")
+        WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(near_plane, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(far_plane, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(aspect_ratio, won::FieldFlagNone)
@@ -134,7 +135,6 @@ namespace won::reflection
         WON_REFLECT_FIELD(shutter_speed, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(sensitivity, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(exposure_compensation, won::FieldFlagEditable | won::FieldFlagSerializable)
-        WON_REFLECT_FIELD(auto_exposure, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(auto_exposure_speed, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(auto_exposure_min_ev, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(auto_exposure_max_ev, won::FieldFlagEditable | won::FieldFlagSerializable)
