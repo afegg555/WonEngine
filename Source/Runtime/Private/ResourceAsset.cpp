@@ -402,6 +402,11 @@ namespace won::resource
         {
             return nullptr;
         }
+        if (utils::ToLower(io::GetExtension(path)) != mesh_binary_extension)
+        {
+            backlog::Post("[LoadResources] mesh load rejected, expected ." + String(mesh_binary_extension) + ": " + path, backlog::LogLevel::Warning);
+            return nullptr;
+        }
 
         const String key = io::GetAbsolutePath(path);
 
@@ -516,6 +521,11 @@ namespace won::resource
     {
         if (path.empty() || !io::Exists(path))
         {
+            return nullptr;
+        }
+        if (utils::ToLower(io::GetExtension(path)) != texture_binary_extension)
+        {
+            backlog::Post("[LoadResources] texture load rejected, expected ." + String(texture_binary_extension) + ": " + path, backlog::LogLevel::Warning);
             return nullptr;
         }
 
@@ -893,11 +903,20 @@ namespace won::resource
         }
     }
 
+    static String ResolveTextureBinaryPath(const String& content_root, const String& asset_path)
+    {
+        const String full_path = project::ResolveProjectContentPath(content_root, asset_path);
+        AssetMeta meta = {};
+        if (LoadAssetMeta(GetAssetMetaPath(full_path), meta) && !meta.binary_path.empty())
+            return project::ResolveProjectContentPath(content_root, meta.binary_path);
+        return full_path;
+    }
+
     static void LoadReflectionProbeResource(ecs::ReflectionProbeComponent& probe, const String& content_root)
     {
         if (probe.cubemap_asset_path.empty())
             return;
-        const String path = project::ResolveProjectContentPath(content_root, probe.cubemap_asset_path);
+        const String path = ResolveTextureBinaryPath(content_root, probe.cubemap_asset_path);
         std::shared_ptr<Image> image = LoadTextureBinary(path);
         if (image && image->IsValid())
         {
@@ -916,7 +935,7 @@ namespace won::resource
         {
             if (asset_path.empty())
                 return;
-            const String path = project::ResolveProjectContentPath(content_root, asset_path);
+            const String path = ResolveTextureBinaryPath(content_root, asset_path);
             std::shared_ptr<Image> image = LoadTextureBinary(path);
             if (image && image->IsValid())
             {
