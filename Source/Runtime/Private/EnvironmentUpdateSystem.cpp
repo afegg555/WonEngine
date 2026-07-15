@@ -39,8 +39,17 @@ namespace won::ecs
                 }
 
                 render_data.shader_environment.diffuse_gi_mode = static_cast<uint32>(environment.diffuse_gi_mode);
+                render_data.shader_environment.reflection_mode = static_cast<uint32>(environment.reflection_mode);
                 render_data.shader_environment.SetAmbientColorIntensity(environment.ambient_color, environment.ambient_intensity);
                 render_data.shader_environment.SetIndirectScale(environment.indirect_diffuse_scale, environment.indirect_specular_scale);
+
+                const bool has_sky_cube = environment.sky_cubemap && environment.sky_cubemap->render_data.IsValid();
+                const bool has_irradiance_cube = environment.irradiance_cubemap && environment.irradiance_cubemap->render_data.IsValid();
+                const bool has_specular_cube = environment.specular_cubemap && environment.specular_cubemap->render_data.IsValid();
+                render_data.shader_environment.sky_cubemap = has_sky_cube ? environment.sky_cubemap->render_data.srv.descriptor_index : -1;
+                render_data.shader_environment.irradiance_cubemap = has_irradiance_cube ? environment.irradiance_cubemap->render_data.srv.descriptor_index : -1;
+                render_data.shader_environment.specular_cubemap = has_specular_cube ? environment.specular_cubemap->render_data.srv.descriptor_index : -1;
+                render_data.shader_environment.specular_mip_count = has_specular_cube ? static_cast<float>(environment.specular_cubemap->mip_levels) : 0.0f;
                 break;
             }
         }

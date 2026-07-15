@@ -910,6 +910,29 @@ namespace won::resource
         }
     }
 
+    static void LoadEnvironmentResource(ecs::EnvironmentComponent& environment, const String& content_root)
+    {
+        auto load_cube = [&content_root](const String& asset_path, std::shared_ptr<Image>& out_cube)
+        {
+            if (asset_path.empty())
+                return;
+            const String path = project::ResolveProjectContentPath(content_root, asset_path);
+            std::shared_ptr<Image> image = LoadTextureBinary(path);
+            if (image && image->IsValid())
+            {
+                out_cube = image;
+                rendering::utils::EnqueueResourceUpload(image, image->format);
+            }
+            else
+            {
+                backlog::Post("[LoadResources] environment cubemap load failed: " + path, backlog::LogLevel::Warning);
+            }
+        };
+        load_cube(environment.sky_cubemap_asset_path, environment.sky_cubemap);
+        load_cube(environment.irradiance_cubemap_asset_path, environment.irradiance_cubemap);
+        load_cube(environment.specular_cubemap_asset_path, environment.specular_cubemap);
+    }
+
     static void LoadSoundResource(ecs::AudioSourceComponent& source, const String& content_root)
     {
         if (source.sound_asset_path.empty())
@@ -1009,6 +1032,13 @@ namespace won::resource
             jobsystem::Dispatch(ctx, static_cast<uint32>(reflection_probe_array->GetSize()), 1, [reflection_probe_array, &content_root](jobsystem::JobArgs args)
             {
                 LoadReflectionProbeResource(reflection_probe_array->data[args.job_index], content_root);
+            });
+        }
+        if (auto environment_array = scene.GetComponentArray<ecs::EnvironmentComponent>())
+        {
+            jobsystem::Dispatch(ctx, static_cast<uint32>(environment_array->GetSize()), 1, [environment_array, &content_root](jobsystem::JobArgs args)
+            {
+                LoadEnvironmentResource(environment_array->data[args.job_index], content_root);
             });
         }
 

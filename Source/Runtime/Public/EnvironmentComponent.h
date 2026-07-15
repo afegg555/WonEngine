@@ -1,4 +1,5 @@
 #pragma once
+#include "Image.h"
 #include "Types.h"
 
 namespace won::ecs
@@ -15,7 +16,7 @@ namespace won::ecs
         {
             None,
             Procedural,
-			// TODO: cubemap skybox, physical sky, etc.
+            Cubemap,
         };
 
         enum class DiffuseGIMode : uint32
@@ -23,11 +24,19 @@ namespace won::ecs
             None,
             Ambient,
             DDGI,
+			Cubemap, // from irradiance cubemap, use irradiance_cubemap_asset_path
+        };
+
+        enum class ReflectionMode : uint32
+        {
+            None,
+			Cubemap, // from prefiltered cubemap, use specular_cubemap_asset_path(global) or ReflectionProbeComponent(local)
         };
 
         uint32 flags = Active;
         SkyType sky_type = SkyType::Procedural;
         DiffuseGIMode diffuse_gi_mode = DiffuseGIMode::Ambient;
+        ReflectionMode reflection_mode = ReflectionMode::Cubemap;
 
         // Sky / atmosphere
         float3 sun_direction = { 0.58f, 0.38f, 0.71f };
@@ -57,6 +66,15 @@ namespace won::ecs
 
         float indirect_diffuse_scale = 1.0f;
         float indirect_specular_scale = 1.0f;
+
+        String sky_cubemap_asset_path;
+        String irradiance_cubemap_asset_path;
+        String specular_cubemap_asset_path;
+
+		// These values are updated by EnvironmentUpdateSystem.
+        std::shared_ptr<resource::Image> sky_cubemap;
+        std::shared_ptr<resource::Image> irradiance_cubemap;
+        std::shared_ptr<resource::Image> specular_cubemap;
 
         constexpr void SetActive(bool value = true)
         {

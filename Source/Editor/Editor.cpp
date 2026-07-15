@@ -308,6 +308,8 @@ namespace won::editor
 			constexpr const char* gi_mode = "Diffuse GI Mode";
 			constexpr const char* ambient = "Ambient";
 			constexpr const char* ddgi = "DDGI";
+			constexpr const char* reflection_mode = "Reflection Mode";
+			constexpr const char* cubemap = "Cubemap";
 			constexpr const char* ambient_color = "Ambient Color";
 			constexpr const char* ambient_intensity = "Ambient Intensity";
 			constexpr const char* indirect_diffuse_scale = "Indirect Diffuse Scale";
@@ -4458,14 +4460,21 @@ namespace won::editor
 						ImGui::DragFloat(editor_text::ground_intensity, &environment_comp->ground_intensity, 0.01f, 0.0f, 1000.0f);
 						ImGui::DragFloat(editor_text::ground_falloff, &environment_comp->ground_falloff, 0.01f, 0.0f, 1000.0f);
 
-						const char* gi_mode_items[] = { editor_text::none, editor_text::ambient, editor_text::ddgi };
 						int gi_mode = static_cast<int>(environment_comp->diffuse_gi_mode);
+						const char* gi_mode_items[] = { editor_text::none, editor_text::ambient, editor_text::ddgi, editor_text::cubemap };
 						if (ImGui::Combo(editor_text::gi_mode, &gi_mode, gi_mode_items, IM_ARRAYSIZE(gi_mode_items)))
 						{
 							environment_comp->diffuse_gi_mode = static_cast<EnvironmentComponent::DiffuseGIMode>(gi_mode);
 						}
 
-						float ambient_color[3] = { environment_comp->ambient_color.x, environment_comp->ambient_color.y, environment_comp->ambient_color.z };
+						int reflection_mode = static_cast<int>(environment_comp->reflection_mode);
+							const char* reflection_mode_items[] = { editor_text::none, editor_text::cubemap };
+							if (ImGui::Combo(editor_text::reflection_mode, &reflection_mode, reflection_mode_items, IM_ARRAYSIZE(reflection_mode_items)))
+							{
+								environment_comp->reflection_mode = static_cast<EnvironmentComponent::ReflectionMode>(reflection_mode);
+							}
+
+							float ambient_color[3] = { environment_comp->ambient_color.x, environment_comp->ambient_color.y, environment_comp->ambient_color.z };
 						if (ImGui::InputFloat3(editor_text::ambient_color, ambient_color))
 						{
 							environment_comp->ambient_color = { ambient_color[0], ambient_color[1], ambient_color[2] };

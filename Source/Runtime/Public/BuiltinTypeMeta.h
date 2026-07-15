@@ -83,11 +83,18 @@ namespace won::reflection
         WON_REFLECT_ENUM_VALUE("None", won::ecs::EnvironmentComponent::DiffuseGIMode::None)
         WON_REFLECT_ENUM_VALUE("Ambient", won::ecs::EnvironmentComponent::DiffuseGIMode::Ambient)
         WON_REFLECT_ENUM_VALUE("DDGI", won::ecs::EnvironmentComponent::DiffuseGIMode::DDGI)
+        WON_REFLECT_ENUM_VALUE("Cubemap", won::ecs::EnvironmentComponent::DiffuseGIMode::Cubemap)
+    WON_REFLECT_ENUM_END()
+
+    WON_REFLECT_ENUM(won::ecs::EnvironmentComponent::ReflectionMode, "ReflectionMode")
+        WON_REFLECT_ENUM_VALUE("None", won::ecs::EnvironmentComponent::ReflectionMode::None)
+        WON_REFLECT_ENUM_VALUE("Cubemap", won::ecs::EnvironmentComponent::ReflectionMode::Cubemap)
     WON_REFLECT_ENUM_END()
 
     WON_REFLECT_ENUM(won::ecs::EnvironmentComponent::SkyType, "SkyType")
         WON_REFLECT_ENUM_VALUE("None", won::ecs::EnvironmentComponent::SkyType::None)
         WON_REFLECT_ENUM_VALUE("Procedural", won::ecs::EnvironmentComponent::SkyType::Procedural)
+        WON_REFLECT_ENUM_VALUE("Cubemap", won::ecs::EnvironmentComponent::SkyType::Cubemap)
     WON_REFLECT_ENUM_END()
 
     WON_REFLECT_ENUM(won::ecs::Collider3DComponent::ShapeType, "Collider3DShapeType")
@@ -158,6 +165,7 @@ namespace won::reflection
         WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(sky_type, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(diffuse_gi_mode, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(reflection_mode, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(sun_direction, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(sun_intensity, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(sun_color, won::FieldFlagEditable | won::FieldFlagSerializable)
@@ -176,6 +184,9 @@ namespace won::reflection
         WON_REFLECT_FIELD(ambient_intensity, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(indirect_diffuse_scale, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(indirect_specular_scale, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(sky_cubemap_asset_path, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(irradiance_cubemap_asset_path, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(specular_cubemap_asset_path, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::FogVolumeComponent, "FogVolumeComponent")
