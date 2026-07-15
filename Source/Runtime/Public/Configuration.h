@@ -4,6 +4,7 @@
 
 namespace won::config
 {
+    // Engine/app settings as free-form string key-value pairs, sourced from config files and the command line.
     class WONENGINE_API Configuration
     {
     public:

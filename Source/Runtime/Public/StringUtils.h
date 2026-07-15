@@ -1,17 +1,200 @@
 #pragma once
 
-#include "RuntimeExport.h"
+#include "StableHash.h"
 #include "Types.h"
 
+#include <algorithm>
+#include <cctype>
+#include <ctime>
 #include <string>
 
 namespace won::utils
 {
-    WONENGINE_API WString DecodeUtf8(StringView input);
-    WONENGINE_API String EncodeUtf8(WStringView input);
-    WONENGINE_API String ToUpper(StringView input);
-    WONENGINE_API String ToLower(StringView input);
-    WONENGINE_API bool StartsWith(StringView input, StringView prefix);
-    WONENGINE_API uint64 Hash(StringView input);
-    WONENGINE_API String GetCurrentDateTime(StringView format = "%Y-%m-%d_%H-%M-%S");
+    inline WString DecodeUtf8(StringView input)
+    {
+        WString wstr;
+        Size i = 0;
+        while (i < input.size())
+        {
+            uint32 codepoint = 0;
+            unsigned char c = input[i];
+
+            if (c < 0x80)
+            {
+                codepoint = c;
+                i += 1;
+            }
+            else if ((c & 0xE0) == 0xC0)
+            {
+                if (i + 1 >= input.size())
+                    break;
+                codepoint = ((c & 0x1F) << 6) | (input[i + 1] & 0x3F);
+                i += 2;
+            }
+            else if ((c & 0xF0) == 0xE0)
+            {
+                if (i + 2 >= input.size())
+                    break;
+                codepoint = ((c & 0x0F) << 12) | ((input[i + 1] & 0x3F) << 6) | (input[i + 2] & 0x3F);
+                i += 3;
+            }
+            else if ((c & 0xF8) == 0xF0)
+            {
+                if (i + 3 >= input.size())
+                    break;
+                codepoint = ((c & 0x07) << 18) | ((input[i + 1] & 0x3F) << 12) | ((input[i + 2] & 0x3F) << 6) | (input[i + 3] & 0x3F);
+                i += 4;
+            }
+            else
+            {
+                ++i;
+                continue;
+            }
+
+            if constexpr (sizeof(wchar_t) >= 4)
+            {
+                wstr += static_cast<wchar_t>(codepoint);
+            }
+            else
+            {
+                if (codepoint <= 0xFFFF)
+                {
+                    wstr += static_cast<wchar_t>(codepoint);
+                }
+                else
+                {
+                    codepoint -= 0x10000;
+                    wstr += static_cast<wchar_t>((codepoint >> 10) + 0xD800);
+                    wstr += static_cast<wchar_t>((codepoint & 0x3FF) + 0xDC00);
+                }
+            }
+        }
+        return wstr;
+    }
+
+    inline String EncodeUtf8(WStringView input)
+    {
+        String str;
+        for (Size i = 0; i < input.size(); ++i)
+        {
+            uint32 codepoint = 0;
+            wchar_t wc = input[i];
+
+            if constexpr (sizeof(wchar_t) >= 4)
+            {
+                codepoint = static_cast<uint32>(wc);
+            }
+            else
+            {
+                if (wc >= 0xD800 && wc <= 0xDBFF)
+                {
+                    if (i + 1 < input.size())
+                    {
+                        wchar_t wc_low = input[i + 1];
+                        if (wc_low >= 0xDC00 && wc_low <= 0xDFFF)
+                        {
+                            codepoint = ((static_cast<uint32>(wc - 0xD800) << 10) | (static_cast<uint32>(wc_low - 0xDC00))) + 0x10000;
+                            ++i;
+                        }
+                    }
+                }
+                else
+                {
+                    codepoint = static_cast<uint32>(wc);
+                }
+            }
+
+            if (codepoint <= 0x7F)
+            {
+                str += static_cast<char>(codepoint);
+            }
+            else if (codepoint <= 0x7FF)
+            {
+                str += static_cast<char>(0xC0 | ((codepoint >> 6) & 0x1F));
+                str += static_cast<char>(0x80 | (codepoint & 0x3F));
+            }
+            else if (codepoint <= 0xFFFF)
+            {
+                str += static_cast<char>(0xE0 | ((codepoint >> 12) & 0x0F));
+                str += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
+                str += static_cast<char>(0x80 | (codepoint & 0x3F));
+            }
+            else if (codepoint <= 0x10FFFF)
+            {
+                str += static_cast<char>(0xF0 | ((codepoint >> 18) & 0x07));
+                str += static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F));
+                str += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
+                str += static_cast<char>(0x80 | (codepoint & 0x3F));
+            }
+        }
+        return str;
+    }
+
+    inline String ToUpper(StringView input)
+    {
+        String output(input);
+        std::transform(output.begin(), output.end(), output.begin(), [](unsigned char ch)
+        {
+            return static_cast<char>(std::toupper(ch));
+        });
+        return output;
+    }
+
+    inline String ToLower(StringView input)
+    {
+        String output(input);
+        std::transform(output.begin(), output.end(), output.begin(), [](unsigned char ch)
+        {
+            return static_cast<char>(std::tolower(ch));
+        });
+        return output;
+    }
+
+    inline bool StartsWith(StringView input, StringView prefix)
+    {
+        return input.size() >= prefix.size() && input.compare(0, prefix.size(), prefix) == 0;
+    }
+
+    inline Vector<String> Tokenize(StringView input)
+    {
+        Vector<String> tokens;
+        Size i = 0;
+        while (i < input.size())
+        {
+            while (i < input.size() && std::isspace(static_cast<unsigned char>(input[i])))
+            {
+                ++i;
+            }
+            if (i >= input.size())
+            {
+                break;
+            }
+            const Size start = i;
+            while (i < input.size() && !std::isspace(static_cast<unsigned char>(input[i])))
+            {
+                ++i;
+            }
+            tokens.emplace_back(input.substr(start, i - start));
+        }
+        return tokens;
+    }
+
+    inline uint64 Hash(StringView input)
+    {
+        return StableHash(input.data(), input.size());
+    }
+
+    inline String GetCurrentDateTime(StringView format = "%Y-%m-%d_%H-%M-%S")
+    {
+        std::time_t t = std::time(nullptr);
+        std::tm tm = {};
+#if defined(_WIN32)
+        localtime_s(&tm, &t);
+#else
+        localtime_r(&t, &tm);
+#endif
+        char buf[64];
+        std::strftime(buf, sizeof(buf), format.data(), &tm);
+        return buf;
+    }
 }

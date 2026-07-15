@@ -10,6 +10,10 @@ using namespace won::editor;
 int main(int argc, char** argv)
 {
 	ApplicationDesc app_desc = {};
+	for (int i = 0; i < argc; ++i)
+	{
+		app_desc.command_line_args.emplace_back(argv[i]);
+	}
 	const char* default_editor_splash_image = "Images/editor_splash_screen.png";
 	const String editor_project_settings_path = io::CombinePath(io::GetExecutableDirectory(), "Editor.wonproj");
 	app_desc.project_settings.settings_path = io::NormalizePath(editor_project_settings_path);
@@ -33,6 +37,7 @@ int main(int argc, char** argv)
 	{
 		app_desc.project_settings.splash_image = default_editor_splash_image;
 	}
+	//app_desc.project_settings.developer_console_enabled = false;
 
 	String project_settings_path;
 	if (argc > 1 && argv && argv[1] && argv[1][0] != '\0')

@@ -159,7 +159,6 @@ namespace won::editor
 			bool show_bvh_debug = false;
 			bool show_cpu_bvh_nodes = true;
 			bool show_gpu_bvh_nodes = true;
-			bool use_wireframe = false;
 			bool show_renderer_stats = false;
 			int ddgi_max_probe_draw_count = 4096;
 		};

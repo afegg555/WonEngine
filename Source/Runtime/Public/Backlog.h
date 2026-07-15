@@ -24,6 +24,7 @@ namespace won::backlog
     WONENGINE_API bool IsEnabled();
 
     WONENGINE_API String GetText();
+    WONENGINE_API Vector<String> GetRecentLines(Size count);
     WONENGINE_API void Clear();
     WONENGINE_API void Post(const char* input, LogLevel level = LogLevel::Default);
     WONENGINE_API void Post(const String& input, LogLevel level = LogLevel::Default);

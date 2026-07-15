@@ -13,6 +13,7 @@
 #include "TerrainGenerator.h"
 #include "StringUtils.h"
 #include "Backlog.h"
+#include "Console.h"
 #include "Profiler.h"
 #include "SceneComponents.h"
 #include "JobSystem.h"
@@ -1492,7 +1493,6 @@ namespace won::editor
 			rendering::RendererDebugOptions debug_options = {};
 			debug_options.ddgi_debug_enable = editor_viewport.debug_settings.show_ddgi_overlay;
 			debug_options.bvh_debug_enable = editor_viewport.debug_settings.show_bvh_debug;
-			debug_options.wireframe_enable = editor_viewport.debug_settings.use_wireframe;
 			renderer->SetDebugOptions(debug_options);
 		}
 		if (!is_playing)
@@ -2274,7 +2274,10 @@ namespace won::editor
 		content_browser.tile_size = (std::max)(48.0f, (std::min)(128.0f, editor_settings.content_tile_size));
 		editor_viewport.debug_settings.show_grid = editor_settings.viewport_show_grid;
 		editor_viewport.debug_settings.show_colliders = editor_settings.viewport_show_colliders;
-		editor_viewport.debug_settings.use_wireframe = editor_settings.viewport_use_wireframe;
+		if (won::console::ConsoleVariable* wireframe_cvar = won::console::Find("r.wireframe"))
+		{
+			wireframe_cvar->SetFromString(editor_settings.viewport_use_wireframe ? "1" : "0");
+		}
 		editor_viewport.debug_settings.show_bvh_debug = editor_settings.viewport_show_bvh_debug;
 		editor_viewport.debug_settings.show_cpu_bvh_nodes = editor_settings.viewport_show_cpu_bvh_nodes;
 		editor_viewport.debug_settings.show_gpu_bvh_nodes = editor_settings.viewport_show_gpu_bvh_nodes;
@@ -2294,7 +2297,10 @@ namespace won::editor
 		editor_settings.content_tile_size = content_browser.tile_size;
 		editor_settings.viewport_show_grid = editor_viewport.debug_settings.show_grid;
 		editor_settings.viewport_show_colliders = editor_viewport.debug_settings.show_colliders;
-		editor_settings.viewport_use_wireframe = editor_viewport.debug_settings.use_wireframe;
+		if (won::console::ConsoleVariable* wireframe_cvar = won::console::Find("r.wireframe"))
+		{
+			editor_settings.viewport_use_wireframe = wireframe_cvar->GetBool();
+		}
 		editor_settings.viewport_show_bvh_debug = editor_viewport.debug_settings.show_bvh_debug;
 		editor_settings.viewport_show_cpu_bvh_nodes = editor_viewport.debug_settings.show_cpu_bvh_nodes;
 		editor_settings.viewport_show_gpu_bvh_nodes = editor_viewport.debug_settings.show_gpu_bvh_nodes;
@@ -3572,7 +3578,12 @@ namespace won::editor
 			ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(500, 500));
 			if (ImGui::BeginPopup(editor_text::options_popup))
 			{
-				ImGui::Checkbox(editor_text::wireframe, &editor_viewport.debug_settings.use_wireframe);
+				won::console::ConsoleVariable* wireframe_cvar = won::console::Find("r.wireframe");
+				bool wireframe_on = wireframe_cvar && wireframe_cvar->GetBool();
+				if (ImGui::Checkbox(editor_text::wireframe, &wireframe_on) && wireframe_cvar)
+				{
+					wireframe_cvar->SetFromString(wireframe_on ? "1" : "0");
+				}
 
 				if (window)
 				{
@@ -6075,28 +6086,21 @@ namespace won::editor
 
 		if (ImGui::Begin(editor_text::log_window, nullptr, ImGuiWindowFlags_NoScrollbar))
 		{
-			static std::string lastlog = "";
+			const std::string log = won::backlog::GetText();
 
 			//ImGui::SameLine();
 			ImGui::SetCursorPos(ImGui::GetCursorPos() + ImVec2(0, -3));
 			if (ImGui::Button(editor_text::copy_to_clipboard, ImVec2(DEFAULTBUTTONWIDTH, 0)))
-				ImGui::SetClipboardText(lastlog.c_str());
+				ImGui::SetClipboardText(log.c_str());
 			ImGui::SameLine();
 			ImGui::SetCursorPos(ImGui::GetCursorPos() + ImVec2(0, -3));
 			if (ImGui::Button(editor_text::clear, ImVec2(DEFAULTBUTTONWIDTH, 0)))
-				lastlog.clear();
+				won::backlog::Clear();
 
 			ImGui::SetCursorPos(ImGui::GetCursorPos() + ImVec2(0, 3));
 
-			std::string log = won::backlog::GetText();
-			if (log.size() > 0)
-			{
-				lastlog += log;
-				won::backlog::Clear();
-			}
-
 			ImGui::BeginChild("##log", ImVec2(0.0f, 0.0f), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
-			ImGui::Text("%s", lastlog.c_str());
+			ImGui::Text("%s", log.c_str());
 
 			if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
 				ImGui::SetScrollHereY(1.0f);
@@ -6340,6 +6344,8 @@ namespace won::editor
 			//	command_list->SetScissor(scissor);
 			//}
 		});
+
+		Application::RenderUI();
 	}
 
 	void EditorApplication::InitImGui()

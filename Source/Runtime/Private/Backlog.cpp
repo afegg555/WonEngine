@@ -76,6 +76,24 @@ namespace won::backlog
         return internal_state.GetText();
     }
 
+    Vector<String> GetRecentLines(Size count)
+    {
+        std::scoped_lock lock(internal_state.entries_lock);
+        Vector<String> lines;
+        const std::deque<LogEntry>& entries = internal_state.entries;
+        const Size start = entries.size() > count ? entries.size() - count : 0;
+        for (Size i = start; i < entries.size(); ++i)
+        {
+            String text = entries[i].text;
+            while (!text.empty() && (text.back() == '\n' || text.back() == '\r'))
+            {
+                text.pop_back();
+            }
+            lines.push_back(text);
+        }
+        return lines;
+    }
+
     void Clear()
     {
         std::scoped_lock lock(internal_state.entries_lock);
