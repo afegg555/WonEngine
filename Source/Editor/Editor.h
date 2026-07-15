@@ -116,6 +116,10 @@ namespace won::editor
 			String virtual_path;
 			String disk_path;
 			ContentAssetType type = ContentAssetType::Unknown;
+			String reimport_source_path; // resolved source to reimport from (imported binaries)
+			bool needs_reimport = false; // source changed since last import
+			bool has_broken_reference = false;
+			String broken_reason;
 		};
 
 		struct ContentBrowserState

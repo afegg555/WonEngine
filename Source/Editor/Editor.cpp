@@ -153,6 +153,12 @@ namespace won::editor
 			constexpr const char* add_to_scene = "Add to Scene";
 			constexpr const char* copy_disk_path = "Copy Disk Path";
 			constexpr const char* copy_virtual_path = "Copy Virtual Path";
+			constexpr const char* reimport = "Reimport";
+			constexpr const char* show_in_explorer = "Show in Explorer";
+			constexpr const char* asset_binary_missing = "Imported binary missing (needs import)";
+			constexpr const char* asset_source_missing = "Source file missing";
+			constexpr const char* asset_texture_missing = "Missing texture: ";
+			constexpr const char* asset_needs_reimport = "Source changed since last import";
 			constexpr const char* refresh = "Refresh";
 			constexpr const char* folder = "Folder";
 			constexpr const char* folder_empty = "Folder is empty.";
@@ -2374,6 +2380,16 @@ namespace won::editor
 			return;
 		}
 
+		auto resolve_content_path = [this](const String& path) -> String
+		{
+			if (path.empty())
+			{
+				return String();
+			}
+			return io::NormalizePath(io::IsAbsolutePath(path) ? path : io::CombinePath(contents_root_dir, path));
+		};
+		UnorderedMap<String, resource::AssetMeta> meta_by_binary; // binary_path -> meta
+
 		for (const io::DirectoryEntry& entry : entries)
 		{
 			String relative = io::GetRelativePath(contents_root_dir, entry.path);
@@ -2395,6 +2411,11 @@ namespace won::editor
 			String extension = io::GetExtension(entry.path);
 			if (won::utils::ToLower(extension) == resource::asset_metadata_extension)
 			{
+				resource::AssetMeta meta = {};
+				if (resource::LoadAssetMeta(entry.path, meta) && !meta.binary_path.empty())
+				{
+					meta_by_binary[resolve_content_path(meta.binary_path)] = meta;
+				}
 				continue;
 			}
 
@@ -2409,6 +2430,59 @@ namespace won::editor
 			asset.type = guess_type(extension);
 			asset.id = won::utils::Hash(asset.virtual_path);
 			content_browser.assets.push_back(asset);
+		}
+
+		for (ContentBrowserAsset& asset : content_browser.assets)
+		{
+			const String extension = won::utils::ToLower(io::GetExtension(asset.disk_path));
+			if (GetAssetImportKind(extension) != AssetImportKind::None)
+			{
+				resource::AssetMeta meta = {};
+				if (resource::LoadAssetMeta(resource::GetAssetMetaPath(asset.disk_path), meta) && !meta.binary_path.empty())
+				{
+					if (!io::Exists(resolve_content_path(meta.binary_path)))
+					{
+						asset.has_broken_reference = true;
+						asset.broken_reason = editor_text::asset_binary_missing;
+					}
+					uint64 source_timestamp = 0;
+					if (io::GetLastTimestamp(asset.disk_path, &source_timestamp) && source_timestamp > meta.source_timestamp)
+					{
+						asset.needs_reimport = true;
+					}
+				}
+			}
+			else if (extension == resource::mesh_binary_extension || extension == resource::texture_binary_extension || extension == resource::material_binary_extension)
+			{
+				auto found = meta_by_binary.find(io::NormalizePath(asset.disk_path));
+				if (found != meta_by_binary.end())
+				{
+					asset.reimport_source_path = resolve_content_path(found->second.source_asset_path);
+					if (!asset.reimport_source_path.empty() && !io::Exists(asset.reimport_source_path))
+					{
+						asset.has_broken_reference = true;
+						asset.broken_reason = editor_text::asset_source_missing;
+					}
+				}
+				if (extension == resource::material_binary_extension)
+				{
+					if (std::shared_ptr<resource::Material> material = resource::LoadMaterialBinary(asset.disk_path))
+					{
+						for (const resource::MaterialSlot& slot : material->slots)
+						{
+							for (int texture_index = 0; texture_index < TEXTURESLOT_COUNT; ++texture_index)
+							{
+								const String& texture_path = slot.textures[texture_index].texture_asset_path;
+								if (!texture_path.empty() && !io::Exists(resolve_content_path(texture_path)))
+								{
+									asset.has_broken_reference = true;
+									asset.broken_reason = String(editor_text::asset_texture_missing) + io::GetFilename(texture_path);
+								}
+							}
+						}
+					}
+				}
+			}
 		}
 
 		std::sort(content_browser.folders.begin(), content_browser.folders.end());
@@ -2509,6 +2583,9 @@ namespace won::editor
 			}
 		};
 
+		auto to_u32 = [](const float4& color) { return ImGui::ColorConvertFloat4ToU32(ImVec4(color.x, color.y, color.z, color.w)); };
+		auto to_vec4 = [](const float4& color) { return ImVec4(color.x, color.y, color.z, color.w); };
+
 		ImGui::PushID(asset.virtual_path.c_str());
 		ImGui::BeginGroup();
 		const String asset_ext = won::utils::ToLower(io::GetExtension(asset.disk_path));
@@ -2525,8 +2602,16 @@ namespace won::editor
 			const ImVec2 icon_max = ImGui::GetItemRectMax();
 			const float dot_radius = 5.0f;
 			const ImVec2 dot_center = ImVec2(icon_max.x - dot_radius - 3.0f, icon_min.y + dot_radius + 3.0f);
-			const ImU32 dot_color = (import_kind != AssetImportKind::None) ? IM_COL32(242, 166, 64, 255) : IM_COL32(115, 204, 140, 255);
+			const ImU32 dot_color = to_u32((import_kind != AssetImportKind::None) ? theme::asset_source_color : theme::asset_imported_color);
 			ImGui::GetWindowDrawList()->AddCircleFilled(dot_center, dot_radius, dot_color);
+		}
+		if (asset.has_broken_reference || asset.needs_reimport)
+		{
+			const ImVec2 broken_icon_min = ImGui::GetItemRectMin();
+			const float broken_dot_radius = 5.0f;
+			const ImVec2 broken_dot_center = ImVec2(broken_icon_min.x + broken_dot_radius + 3.0f, broken_icon_min.y + broken_dot_radius + 3.0f);
+			const ImU32 broken_dot_color = to_u32(asset.has_broken_reference ? theme::asset_broken_color : theme::asset_needs_reimport_color);
+			ImGui::GetWindowDrawList()->AddCircleFilled(broken_dot_center, broken_dot_radius, broken_dot_color);
 		}
 		if (ImGui::BeginDragDropSource())
 		{
@@ -2539,11 +2624,11 @@ namespace won::editor
 		ImGui::TextWrapped("%s", asset.name.c_str());
 		if (import_kind != AssetImportKind::None)
 		{
-			ImGui::TextColored(ImVec4(0.95f, 0.65f, 0.25f, 1.0f), "%s (source)", type_name(asset.type));
+			ImGui::TextColored(to_vec4(theme::asset_source_color), "%s (source)", type_name(asset.type));
 		}
 		else if (is_imported_binary)
 		{
-			ImGui::TextColored(ImVec4(0.45f, 0.80f, 0.55f, 1.0f), "%s (imported)", type_name(asset.type));
+			ImGui::TextColored(to_vec4(theme::asset_imported_color), "%s (imported)", type_name(asset.type));
 		}
 		else
 		{
@@ -2606,6 +2691,24 @@ namespace won::editor
 			{
 				ImGui::SetClipboardText(asset.virtual_path.c_str());
 			}
+			ImGui::Separator();
+			const bool can_reimport = !asset.reimport_source_path.empty() && io::Exists(asset.reimport_source_path);
+			if (ImGui::MenuItem(editor_text::reimport, nullptr, false, can_reimport))
+			{
+				content_browser.pending_import_name = asset.name;
+				content_browser.pending_import_virtual_path = asset.virtual_path;
+				content_browser.pending_import_disk_path = asset.reimport_source_path;
+				content_browser.pending_import_type = asset.type;
+				content_browser.pending_import_add_to_scene = false;
+				content_browser.open_import_confirm = true;
+			}
+			if (ImGui::MenuItem(editor_text::show_in_explorer))
+			{
+				String native_path = asset.disk_path;
+				std::replace(native_path.begin(), native_path.end(), '/', '\\');
+				const String explorer_arguments = "/select,\"" + native_path + "\"";
+				ShellExecuteA(static_cast<HWND>(window ? window->GetNativeHandle() : nullptr), "open", "explorer.exe", explorer_arguments.c_str(), nullptr, SW_SHOWNORMAL);
+			}
 			ImGui::EndPopup();
 		}
 		if (ImGui::IsItemHovered())
@@ -2613,6 +2716,14 @@ namespace won::editor
 			ImGui::BeginTooltip();
 			ImGui::TextUnformatted(asset.virtual_path.c_str());
 			ImGui::TextDisabled("%s", asset.disk_path.c_str());
+			if (asset.has_broken_reference)
+			{
+				ImGui::TextColored(to_vec4(theme::asset_broken_color), "%s", asset.broken_reason.c_str());
+			}
+			else if (asset.needs_reimport)
+			{
+				ImGui::TextColored(to_vec4(theme::asset_needs_reimport_color), "%s", editor_text::asset_needs_reimport);
+			}
 			ImGui::EndTooltip();
 		}
 		ImGui::PopID();
