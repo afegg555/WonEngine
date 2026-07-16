@@ -146,32 +146,54 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
 
         }
     }
-    float3 indirect_specular = float3(0.0, 0.0, 0.0);
-    ShaderReflectionProbe reflection_probe = GetReflectionProbe();
-    if (reflection_probe.IsActive())
+    else if (environment_lighting.GetDiffuseGIMode() == SHADER_DIFFUSE_GI_MODE_CUBEMAP)
     {
-        float distance_to_probe = distance(surface.P, reflection_probe.position);
-        float probe_attenuation = reflection_probe.influence_radius > 0.0
-            ? saturate(1.0 - distance_to_probe / reflection_probe.influence_radius)
-            : 1.0;
-        if (probe_attenuation > 0.0)
+        if (environment_lighting.HasIrradianceCubemap())
         {
-            float3 reflection_direction = reflect(-surface.V, surface.N);
-            float3 reflection_radiance;
-            float roughness_fade;
-            if (reflection_probe.HasCubemap())
+            ambient = bindless_cubemaps[DescriptorIndex(environment_lighting.irradiance_cubemap)].SampleLevel(sampler_linear_clamp, surface.N, 0).rgb;
+            ambient *= environment_lighting.GetIndirectDiffuseScale();
+        }
+    }
+    float3 indirect_specular = float3(0.0, 0.0, 0.0);
+    if (environment_lighting.GetReflectionMode() == SHADER_REFLECTION_MODE_CUBEMAP)
+    {
+        float3 reflection_direction = reflect(-surface.V, surface.N);
+        float perceptual_roughness = sqrt(surface.roughness);
+        float nov = saturate(dot(surface.N, surface.V));
+
+        float3 reflection_radiance = float3(0.0, 0.0, 0.0);
+        bool has_reflection = false;
+        if (environment_lighting.HasSpecularCubemap())
+        {
+            float lod = perceptual_roughness * max(environment_lighting.specular_mip_count - 1.0, 0.0);
+            reflection_radiance = bindless_cubemaps[DescriptorIndex(environment_lighting.specular_cubemap)].SampleLevel(sampler_linear_clamp, reflection_direction, lod).rgb;
+            has_reflection = true;
+        }
+        else if (environment_lighting.GetSkyType() == SHADER_SKY_TYPE_PROCEDURAL)
+        {
+            reflection_radiance = EvaluateProceduralSky(environment_lighting, reflection_direction) * (1.0 - surface.roughness);
+            has_reflection = true;
+        }
+
+        ShaderReflectionProbe reflection_probe = GetReflectionProbe();
+        if (reflection_probe.IsActive() && reflection_probe.HasCubemap())
+        {
+            float distance_to_probe = distance(surface.P, reflection_probe.position);
+            float probe_attenuation = reflection_probe.influence_radius > 0.0
+                ? saturate(1.0 - distance_to_probe / reflection_probe.influence_radius)
+                : 1.0;
+            if (probe_attenuation > 0.0)
             {
-                float perceptual_roughness = sqrt(surface.roughness);
                 float lod = perceptual_roughness * max(reflection_probe.cubemap_mip_count - 1.0, 0.0);
-                reflection_radiance = bindless_cubemaps[DescriptorIndex(reflection_probe.cubemap_texture)].SampleLevel(sampler_linear_clamp, reflection_direction, lod).rgb;
-                roughness_fade = 1.0; // prefiltered mip already accounts for roughness blur
+                float3 probe_radiance = bindless_cubemaps[DescriptorIndex(reflection_probe.cubemap_texture)].SampleLevel(sampler_linear_clamp, reflection_direction, lod).rgb * reflection_probe.intensity;
+                reflection_radiance = lerp(reflection_radiance, probe_radiance, probe_attenuation);
+                has_reflection = true;
             }
-            else
-            {
-                reflection_radiance = EvaluateProceduralSky(environment_lighting, reflection_direction);
-                roughness_fade = 1.0 - surface.roughness; // placeholder: crude roughness attenuation
-            }
-            indirect_specular = reflection_radiance * surface.f0 * (reflection_probe.intensity * probe_attenuation * roughness_fade);
+        }
+
+        if (has_reflection)
+        {
+            indirect_specular = reflection_radiance * EnvBRDF(environment_lighting.brdf_lut, surface.f0, perceptual_roughness, nov);
             indirect_specular *= environment_lighting.GetIndirectSpecularScale();
         }
     }

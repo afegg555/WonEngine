@@ -190,9 +190,11 @@ namespace won::reflection
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::FogVolumeComponent, "FogVolumeComponent")
+        WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::DDGIVolumeComponent, "DDGIVolumeComponent")
+        WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(probe_counts, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(probe_spacing, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(volume_offset, won::FieldFlagEditable | won::FieldFlagSerializable)
@@ -232,6 +234,7 @@ namespace won::reflection
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::RectTransform2DComponent, "RectTransform2DComponent")
+        WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(anchor, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(position, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(size, won::FieldFlagEditable | won::FieldFlagSerializable)
@@ -259,6 +262,7 @@ namespace won::reflection
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::Text2DComponent, "Text2DComponent")
+        WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(font_asset_path, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(text, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(pixel_height, won::FieldFlagEditable | won::FieldFlagSerializable)
@@ -266,6 +270,7 @@ namespace won::reflection
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::Text3DComponent, "Text3DComponent")
+        WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(font_asset_path, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(text, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(pixel_height, won::FieldFlagEditable | won::FieldFlagSerializable)
@@ -445,6 +450,7 @@ namespace won::reflection
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::MaterialComponent, "MaterialComponent")
+        WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(material_asset_path, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 

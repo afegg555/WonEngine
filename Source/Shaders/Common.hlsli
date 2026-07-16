@@ -147,7 +147,7 @@ inline float RadicalInverseVdC(uint bits)
 
 inline float2 Hammersley(uint index, uint count)
 {
-    // result in range[0,1)
+    // uniformly distributed in [0, 1]^2
     return float2((float(index) + 0.5f) / max(float(count), 1.0f), RadicalInverseVdC(index));
 }
 

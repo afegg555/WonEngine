@@ -30,6 +30,7 @@ namespace won::resource
         CSTonemap,
         CSLuminanceReduce,
         CSLuminanceResolve,
+        CSBRDFIntegration,
         CSDDGIProbeUpdate,
         CSTextureMipGen,
         CSGPUBVHBuildGeneratePrimitives,
@@ -69,6 +70,7 @@ namespace won::resource
         case ShaderId::CSTonemap: return "CSTonemap";
         case ShaderId::CSLuminanceReduce: return "CSLuminanceReduce";
         case ShaderId::CSLuminanceResolve: return "CSLuminanceResolve";
+        case ShaderId::CSBRDFIntegration: return "CSBRDFIntegration";
         case ShaderId::CSDDGIProbeUpdate: return "CSDDGIProbeUpdate";
         case ShaderId::CSTextureMipGen: return "CSTextureMipGen";
         case ShaderId::CSGPUBVHBuildGeneratePrimitives: return "CSGPUBVHBuildGeneratePrimitives";

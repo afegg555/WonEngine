@@ -107,4 +107,26 @@ static_assert(sizeof(LuminanceReducePushConstants) == 24, "LuminanceReducePushCo
 PUSHCONSTANT(luminancereducepush, LuminanceReducePushConstants);
 #endif
 
+static const uint brdf_lut_resolution = 256;
+
+struct BRDFIntegrationPushConstants
+{
+    uint output_descriptor;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        output_descriptor = 0;
+    }
+#endif
+};
+
+#ifdef __cplusplus
+static_assert(sizeof(BRDFIntegrationPushConstants) == 4, "BRDFIntegrationPushConstants layout mismatch");
+#endif
+
+#ifdef WON_BRDF_INTEGRATION_PUSHCONSTANT
+PUSHCONSTANT(brdfintegrationpush, BRDFIntegrationPushConstants);
+#endif
+
 #endif // WON_SHADERINTEROP_POSTPROCESS_H

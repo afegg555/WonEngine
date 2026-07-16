@@ -19,7 +19,15 @@ float4 main(VertexOutput input) : SV_Target
     far_world.xyz /= max(far_world.w, 0.000001f);
 
     float3 ray_direction = normalize(far_world.xyz - camera.position);
-    float3 color = EvaluateProceduralSky(sky, ray_direction);
+    float3 color;
+    if (sky.GetSkyType() == SHADER_SKY_TYPE_CUBEMAP && sky.HasSkyCubemap())
+    {
+        color = bindless_cubemaps[DescriptorIndex(sky.sky_cubemap)].SampleLevel(sampler_linear_clamp, ray_direction, 0).rgb;
+    }
+    else
+    {
+        color = EvaluateProceduralSky(sky, ray_direction);
+    }
 
     color *= camera.exposure;
     color = saturateMediump(color);

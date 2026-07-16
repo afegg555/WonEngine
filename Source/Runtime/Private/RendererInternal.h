@@ -127,6 +127,13 @@ namespace won::rendering
         std::shared_ptr<RHIResource> luminance_readback_buffer;
         bool auto_exposure_active = false;
 
+        std::shared_ptr<RHIPipeline> brdf_integration_pipeline;
+        std::shared_ptr<RHIShader> brdf_integration_shader;
+        std::shared_ptr<RHIResource> brdf_lut;
+        RHISubresourceHandle brdf_lut_srv = {};
+        RHISubresourceHandle brdf_lut_uav = {};
+        bool brdf_lut_valid = false;
+
         std::shared_ptr<RHIPipeline> composite_pipeline;
         std::shared_ptr<RHIShader> composite_shader;
 

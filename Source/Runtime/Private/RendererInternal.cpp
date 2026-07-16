@@ -8,6 +8,7 @@
 #include "DebugText.h"
 
 #include "Backlog.h"
+#include "Timer.h"
 #include "Profiler.h"
 #include "RenderingUtils.h"
 #include "Scene.h"
@@ -1389,6 +1390,7 @@ namespace won::rendering
         shader_frame.scene.instance_sort_buffer = shader_instance_sort_default_buffer_srv.descriptor_index;
         shader_frame.scene.bone_matrix_buffer = shader_bone_matrix_default_buffer_srv.descriptor_index;
         shader_frame.environment = render_data.shader_environment;
+        shader_frame.environment.brdf_lut = brdf_lut_valid ? static_cast<int>(brdf_lut_srv.descriptor_index) : -1;
         shader_frame.reflection_probe = render_data.shader_reflection_probe;
         shader_frame.ddgi_volume = render_data.shader_ddgi_volume;
         shader_frame.ddgi_volume.irradiance_texture = ddgi_irradiance_texture_srv.descriptor_index;
@@ -2679,6 +2681,81 @@ namespace won::rendering
                 if (!UpdateSceneGPUData(frame_context, render_data, view, *command_list))
                 {
                     return;
+                }
+            }
+
+            if (!brdf_lut)
+            {
+                RHITextureDesc brdf_lut_desc = {};
+                brdf_lut_desc.width = brdf_lut_resolution;
+                brdf_lut_desc.height = brdf_lut_resolution;
+                brdf_lut_desc.depth = 1;
+                brdf_lut_desc.mip_levels = 1;
+                brdf_lut_desc.array_layers = 1;
+                brdf_lut_desc.sample_count = 1;
+                brdf_lut_desc.format = RHIFormat::R16G16B16A16Float;
+                brdf_lut_desc.usage = RHIResourceUsage::Default;
+                brdf_lut_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
+                brdf_lut = device->CreateTexture(brdf_lut_desc);
+                if (brdf_lut)
+                {
+                    brdf_lut->SetName("BRDF LUT");
+
+                    RHISubresourceDesc brdf_lut_srv_desc = {};
+                    brdf_lut_srv_desc.type = RHISubresourceType::ShaderResource;
+                    brdf_lut_srv_desc.format = brdf_lut_desc.format;
+                    brdf_lut_srv_desc.first_mip = 0;
+                    brdf_lut_srv_desc.mip_count = 1;
+                    brdf_lut_srv_desc.first_slice = 0;
+                    brdf_lut_srv_desc.slice_count = 1;
+                    device->CreateSubresource(*brdf_lut, brdf_lut_srv_desc, &brdf_lut_srv);
+
+                    RHISubresourceDesc brdf_lut_uav_desc = {};
+                    brdf_lut_uav_desc.type = RHISubresourceType::UnorderedAccess;
+                    brdf_lut_uav_desc.format = brdf_lut_desc.format;
+                    brdf_lut_uav_desc.first_mip = 0;
+                    brdf_lut_uav_desc.mip_count = 1;
+                    brdf_lut_uav_desc.first_slice = 0;
+                    brdf_lut_uav_desc.slice_count = 1;
+                    device->CreateSubresource(*brdf_lut, brdf_lut_uav_desc, &brdf_lut_uav);
+                }
+            }
+            if (brdf_lut && !brdf_lut_valid)
+            {
+                won::utils::Timer brdf_setup_timer;
+                std::shared_ptr<RHIShader> current_brdf_shader = shader_library.GetShader(ShaderId::CSBRDFIntegration);
+                if (brdf_integration_shader != current_brdf_shader)
+                {
+                    brdf_integration_pipeline = nullptr;
+                    brdf_integration_shader = current_brdf_shader;
+                }
+                if (!brdf_integration_pipeline && brdf_integration_shader)
+                {
+                    RHIComputePipelineDesc brdf_pipeline_desc = {};
+                    brdf_pipeline_desc.compute_shader = brdf_integration_shader.get();
+                    brdf_integration_pipeline = device->CreateComputePipeline(brdf_pipeline_desc);
+                    if (brdf_integration_pipeline)
+                    {
+                        brdf_integration_pipeline->SetName("BRDF Integration Pipeline");
+                    }
+                }
+                if (brdf_integration_pipeline)
+                {
+                    auto gpu_range = profiler::ScopedRangeGPU("BRDF Integration", *command_list);
+                    command_list->BeginEvent("BRDF Integration");
+                    command_list->TransitionResource(*brdf_lut, RHIResourceState::ShaderWrite);
+                    command_list->SetComputePipeline(*brdf_integration_pipeline);
+                    BRDFIntegrationPushConstants brdf_push = {};
+                    brdf_push.Init();
+                    brdf_push.output_descriptor = static_cast<uint32>(brdf_lut_uav.descriptor_index);
+                    command_list->PushConstants(RHIShaderStage::Compute, &brdf_push, sizeof(brdf_push), 0);
+                    const uint32 brdf_group_count = (brdf_lut_resolution + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D;
+                    command_list->Dispatch(brdf_group_count, brdf_group_count, 1u);
+                    command_list->UAVBarrier(*brdf_lut);
+                    command_list->TransitionResource(*brdf_lut, RHIResourceState::ShaderRead);
+                    command_list->EndEvent();
+                    brdf_lut_valid = true;
+                    wonlog("[Startup] brdf lut bake dispatched (%ux%u, cpu setup %.1f ms; gpu time in profiler overlay)", brdf_lut_resolution, brdf_lut_resolution, brdf_setup_timer.ElapsedMilliSeconds());
                 }
             }
 

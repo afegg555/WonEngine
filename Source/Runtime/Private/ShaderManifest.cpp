@@ -26,6 +26,7 @@ namespace won::resource
             { ShaderId::CSTonemap, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TonemapCS.hlsl", "main" } },
             { ShaderId::CSLuminanceReduce, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "LuminanceReduceCS.hlsl", "main" } },
             { ShaderId::CSLuminanceResolve, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "LuminanceResolveCS.hlsl", "main" } },
+            { ShaderId::CSBRDFIntegration, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "BRDFIntegrationCS.hlsl", "main" } },
             { ShaderId::CSDDGIProbeUpdate, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "DDGIProbeUpdateCS.hlsl", "main" } },
             { ShaderId::CSTextureMipGen, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TextureMipGenCS.hlsl", "main" } },
             { ShaderId::CSGPUBVHBuildGeneratePrimitives, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "GPUBVHGeneratePrimitivesCS.hlsl", "main" } },

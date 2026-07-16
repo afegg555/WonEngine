@@ -445,6 +445,7 @@ set(SHADERS_HLSL
     Source/Shaders/TonemapCS.hlsl
     Source/Shaders/LuminanceReduceCS.hlsl
     Source/Shaders/LuminanceResolveCS.hlsl
+    Source/Shaders/BRDFIntegrationCS.hlsl
     Source/Shaders/CompositePS.hlsl
     Source/Shaders/DebugTextVS.hlsl
     Source/Shaders/DebugTextPS.hlsl
