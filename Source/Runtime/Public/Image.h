@@ -27,6 +27,7 @@ namespace won::resource
         int32 height = 0;
         int32 channels = 0;
         uint32 mip_levels = 1;
+        bool is_cube = false;
         rendering::RHIFormat format = rendering::RHIFormat::Unknown;
         Vector<uint8> pixels;
         RenderData render_data = {};

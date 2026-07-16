@@ -328,6 +328,7 @@ set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/EnvironmentComponent.h
     Source/Runtime/Public/FogVolumeComponent.h
     Source/Runtime/Public/DDGIVolumeComponent.h
+    Source/Runtime/Public/ReflectionProbeComponent.h
     Source/Runtime/Public/AnimationComponent.h
     Source/Runtime/Public/AnimationStateMachineComponent.h
     Source/Runtime/Public/ScriptComponent.h
@@ -442,6 +443,9 @@ set(SHADERS_HLSL
     Source/Shaders/SkyPS.hlsl
     Source/Shaders/FXAACS.hlsl
     Source/Shaders/TonemapCS.hlsl
+    Source/Shaders/LuminanceReduceCS.hlsl
+    Source/Shaders/LuminanceResolveCS.hlsl
+    Source/Shaders/BRDFIntegrationCS.hlsl
     Source/Shaders/CompositePS.hlsl
     Source/Shaders/DebugTextVS.hlsl
     Source/Shaders/DebugTextPS.hlsl
@@ -450,6 +454,7 @@ set(SHADERS_HLSL
     Source/Shaders/FogCommon.hlsli
     Source/Shaders/RayTraceCommon.hlsli
     Source/Shaders/DDGICommon.hlsli
+    Source/Shaders/SkyCommon.hlsli
     Source/Shaders/ObjectCommon.hlsli
     Source/Shaders/ObjectVS.hlsli
     Source/Shaders/ObjectVS_simple.hlsl

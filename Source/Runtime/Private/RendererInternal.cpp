@@ -8,6 +8,7 @@
 #include "DebugText.h"
 
 #include "Backlog.h"
+#include "Timer.h"
 #include "Profiler.h"
 #include "RenderingUtils.h"
 #include "Scene.h"
@@ -1389,6 +1390,8 @@ namespace won::rendering
         shader_frame.scene.instance_sort_buffer = shader_instance_sort_default_buffer_srv.descriptor_index;
         shader_frame.scene.bone_matrix_buffer = shader_bone_matrix_default_buffer_srv.descriptor_index;
         shader_frame.environment = render_data.shader_environment;
+        shader_frame.environment.brdf_lut = brdf_lut_valid ? static_cast<int>(brdf_lut_srv.descriptor_index) : -1;
+        shader_frame.reflection_probe = render_data.shader_reflection_probe;
         shader_frame.ddgi_volume = render_data.shader_ddgi_volume;
         shader_frame.ddgi_volume.irradiance_texture = ddgi_irradiance_texture_srv.descriptor_index;
         shader_frame.ddgi_volume.irradiance_texture_uav = ddgi_irradiance_texture_uav.descriptor_index;
@@ -1426,7 +1429,8 @@ namespace won::rendering
                 shader_camera.projection = camera_component->projection;
                 shader_camera.view_projection = camera_component->view_projection;
                 shader_camera.inv_view_projection = camera_component->inv_view_projection;
-				shader_camera.exposure = (camera_component->shutter_speed * camera_component->sensitivity) / (1.2f * camera_component->aperture * camera_component->aperture * 100.0f); // inverse of maximum luminance, based on f-number and shutter speed
+				shader_camera.exposure = camera_component->exposure_multiplier * std::exp2(camera_component->exposure_compensation);
+                auto_exposure_active = camera_component->IsAutoExposure();
             }
         }
 
@@ -2414,7 +2418,7 @@ namespace won::rendering
         const uint32 probes_per_frame = ddgi_history_valid ? (std::min)(ddgi_volume.probes_per_frame, ddgi_volume.total_probe_count) : ddgi_volume.total_probe_count;
         const uint32 probe_update_dispatch_width = (std::min)(probes_per_frame, 65535u);
 
-        if (environment_lighting.gi_mode != SHADER_ENVIRONMENT_GI_MODE_DDGI ||
+        if (environment_lighting.diffuse_gi_mode != SHADER_DIFFUSE_GI_MODE_DDGI ||
             (ddgi_volume.flags & SHADER_DDGI_FLAG_ACTIVE) == 0 ||
             ddgi_volume.probe_counts.x == 0 ||
             ddgi_volume.probe_counts.y == 0 ||
@@ -2524,7 +2528,7 @@ namespace won::rendering
         {
             debug_state.bvh = {};
         }
-        debug_state.ddgi.gi_mode_ddgi = render_data.shader_environment.gi_mode == SHADER_ENVIRONMENT_GI_MODE_DDGI;
+        debug_state.ddgi.gi_mode_ddgi = render_data.shader_environment.diffuse_gi_mode == SHADER_DIFFUSE_GI_MODE_DDGI;
         debug_state.ddgi.volume_active = (render_data.shader_ddgi_volume.flags & SHADER_DDGI_FLAG_ACTIVE) != 0;
         if (debug_state.ddgi.volume_active)
         {
@@ -2677,6 +2681,81 @@ namespace won::rendering
                 if (!UpdateSceneGPUData(frame_context, render_data, view, *command_list))
                 {
                     return;
+                }
+            }
+
+            if (!brdf_lut)
+            {
+                RHITextureDesc brdf_lut_desc = {};
+                brdf_lut_desc.width = brdf_lut_resolution;
+                brdf_lut_desc.height = brdf_lut_resolution;
+                brdf_lut_desc.depth = 1;
+                brdf_lut_desc.mip_levels = 1;
+                brdf_lut_desc.array_layers = 1;
+                brdf_lut_desc.sample_count = 1;
+                brdf_lut_desc.format = RHIFormat::R16G16B16A16Float;
+                brdf_lut_desc.usage = RHIResourceUsage::Default;
+                brdf_lut_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
+                brdf_lut = device->CreateTexture(brdf_lut_desc);
+                if (brdf_lut)
+                {
+                    brdf_lut->SetName("BRDF LUT");
+
+                    RHISubresourceDesc brdf_lut_srv_desc = {};
+                    brdf_lut_srv_desc.type = RHISubresourceType::ShaderResource;
+                    brdf_lut_srv_desc.format = brdf_lut_desc.format;
+                    brdf_lut_srv_desc.first_mip = 0;
+                    brdf_lut_srv_desc.mip_count = 1;
+                    brdf_lut_srv_desc.first_slice = 0;
+                    brdf_lut_srv_desc.slice_count = 1;
+                    device->CreateSubresource(*brdf_lut, brdf_lut_srv_desc, &brdf_lut_srv);
+
+                    RHISubresourceDesc brdf_lut_uav_desc = {};
+                    brdf_lut_uav_desc.type = RHISubresourceType::UnorderedAccess;
+                    brdf_lut_uav_desc.format = brdf_lut_desc.format;
+                    brdf_lut_uav_desc.first_mip = 0;
+                    brdf_lut_uav_desc.mip_count = 1;
+                    brdf_lut_uav_desc.first_slice = 0;
+                    brdf_lut_uav_desc.slice_count = 1;
+                    device->CreateSubresource(*brdf_lut, brdf_lut_uav_desc, &brdf_lut_uav);
+                }
+            }
+            if (brdf_lut && !brdf_lut_valid)
+            {
+                won::utils::Timer brdf_setup_timer;
+                std::shared_ptr<RHIShader> current_brdf_shader = shader_library.GetShader(ShaderId::CSBRDFIntegration);
+                if (brdf_integration_shader != current_brdf_shader)
+                {
+                    brdf_integration_pipeline = nullptr;
+                    brdf_integration_shader = current_brdf_shader;
+                }
+                if (!brdf_integration_pipeline && brdf_integration_shader)
+                {
+                    RHIComputePipelineDesc brdf_pipeline_desc = {};
+                    brdf_pipeline_desc.compute_shader = brdf_integration_shader.get();
+                    brdf_integration_pipeline = device->CreateComputePipeline(brdf_pipeline_desc);
+                    if (brdf_integration_pipeline)
+                    {
+                        brdf_integration_pipeline->SetName("BRDF Integration Pipeline");
+                    }
+                }
+                if (brdf_integration_pipeline)
+                {
+                    auto gpu_range = profiler::ScopedRangeGPU("BRDF Integration", *command_list);
+                    command_list->BeginEvent("BRDF Integration");
+                    command_list->TransitionResource(*brdf_lut, RHIResourceState::ShaderWrite);
+                    command_list->SetComputePipeline(*brdf_integration_pipeline);
+                    BRDFIntegrationPushConstants brdf_push = {};
+                    brdf_push.Init();
+                    brdf_push.output_descriptor = static_cast<uint32>(brdf_lut_uav.descriptor_index);
+                    command_list->PushConstants(RHIShaderStage::Compute, &brdf_push, sizeof(brdf_push), 0);
+                    const uint32 brdf_group_count = (brdf_lut_resolution + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D;
+                    command_list->Dispatch(brdf_group_count, brdf_group_count, 1u);
+                    command_list->UAVBarrier(*brdf_lut);
+                    command_list->TransitionResource(*brdf_lut, RHIResourceState::ShaderRead);
+                    command_list->EndEvent();
+                    brdf_lut_valid = true;
+                    wonlog("[Startup] brdf lut bake dispatched (%ux%u, cpu setup %.1f ms; gpu time in profiler overlay)", brdf_lut_resolution, brdf_lut_resolution, brdf_setup_timer.ElapsedMilliSeconds());
                 }
             }
 
@@ -2844,7 +2923,7 @@ namespace won::rendering
                         shader_camera.projection = camera_component->projection;
                         shader_camera.view_projection = camera_component->view_projection;
                         shader_camera.inv_view_projection = camera_component->inv_view_projection;
-                        shader_camera.exposure = (camera_component->shutter_speed * camera_component->sensitivity) / (1.2f * camera_component->aperture * camera_component->aperture * 100.0f);
+                        shader_camera.exposure = camera_component->exposure_multiplier * std::exp2(camera_component->exposure_compensation);
                     }
                 }
 
@@ -2926,6 +3005,93 @@ namespace won::rendering
                     }
                 }
 
+                if (auto_exposure_active && !luminance_partial_buffer)
+                {
+                    RHIBufferDesc luminance_partial_desc = {};
+                    luminance_partial_desc.size = sizeof(float) * luminance_reduce_group_count;
+                    luminance_partial_desc.usage = RHIResourceUsage::Default;
+                    luminance_partial_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
+                    luminance_partial_buffer = device->CreateBuffer(luminance_partial_desc);
+                    if (luminance_partial_buffer)
+                    {
+                        luminance_partial_buffer->SetName("Auto-Exposure Luminance Partials");
+                        RHISubresourceDesc luminance_partial_uav_desc = {};
+                        luminance_partial_uav_desc.type = RHISubresourceType::UnorderedAccess;
+                        luminance_partial_uav_desc.buffer_offset = 0;
+                        luminance_partial_uav_desc.buffer_size = sizeof(float) * luminance_reduce_group_count;
+                        luminance_partial_uav_desc.buffer_stride = sizeof(float);
+                        device->CreateSubresource(*luminance_partial_buffer, luminance_partial_uav_desc, &luminance_partial_buffer_uav);
+
+                        RHISubresourceDesc luminance_partial_srv_desc = {};
+                        luminance_partial_srv_desc.type = RHISubresourceType::ShaderResource;
+                        luminance_partial_srv_desc.buffer_offset = 0;
+                        luminance_partial_srv_desc.buffer_size = sizeof(float) * luminance_reduce_group_count;
+                        luminance_partial_srv_desc.buffer_stride = sizeof(float);
+                        device->CreateSubresource(*luminance_partial_buffer, luminance_partial_srv_desc, &luminance_partial_buffer_srv);
+                    }
+                }
+                if (auto_exposure_active && !luminance_buffer)
+                {
+                    RHIBufferDesc luminance_buffer_desc = {};
+                    luminance_buffer_desc.size = sizeof(float);
+                    luminance_buffer_desc.usage = RHIResourceUsage::Default;
+                    luminance_buffer_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
+                    luminance_buffer = device->CreateBuffer(luminance_buffer_desc);
+                    if (luminance_buffer)
+                    {
+                        luminance_buffer->SetName("Auto-Exposure Luminance Buffer");
+                        RHISubresourceDesc luminance_uav_desc = {};
+                        luminance_uav_desc.type = RHISubresourceType::UnorderedAccess;
+                        luminance_uav_desc.buffer_offset = 0;
+                        luminance_uav_desc.buffer_size = sizeof(float);
+                        luminance_uav_desc.buffer_stride = sizeof(float);
+                        device->CreateSubresource(*luminance_buffer, luminance_uav_desc, &luminance_buffer_uav);
+                    }
+                }
+                if (auto_exposure_active && !luminance_readback_buffer)
+                {
+                    RHIBufferDesc luminance_readback_desc = {};
+                    luminance_readback_desc.size = sizeof(float);
+                    luminance_readback_desc.usage = RHIResourceUsage::Readback;
+                    luminance_readback_buffer = device->CreateBuffer(luminance_readback_desc);
+                    if (luminance_readback_buffer)
+                    {
+                        luminance_readback_buffer->SetName("Auto-Exposure Luminance Readback");
+                    }
+                }
+                std::shared_ptr<RHIShader> current_luminance_shader = auto_exposure_active ? shader_library.GetShader(ShaderId::CSLuminanceReduce) : nullptr;
+                if (auto_exposure_active && luminance_reduce_shader != current_luminance_shader)
+                {
+                    luminance_reduce_pipeline = nullptr;
+                    luminance_reduce_shader = current_luminance_shader;
+                }
+                if (auto_exposure_active && !luminance_reduce_pipeline && luminance_reduce_shader)
+                {
+                    RHIComputePipelineDesc luminance_pipeline_desc = {};
+                    luminance_pipeline_desc.compute_shader = luminance_reduce_shader.get();
+                    luminance_reduce_pipeline = device->CreateComputePipeline(luminance_pipeline_desc);
+                    if (luminance_reduce_pipeline)
+                    {
+                        luminance_reduce_pipeline->SetName("Luminance Reduce Pipeline");
+                    }
+                }
+                std::shared_ptr<RHIShader> current_luminance_resolve_shader = auto_exposure_active ? shader_library.GetShader(ShaderId::CSLuminanceResolve) : nullptr;
+                if (auto_exposure_active && luminance_resolve_shader != current_luminance_resolve_shader)
+                {
+                    luminance_resolve_pipeline = nullptr;
+                    luminance_resolve_shader = current_luminance_resolve_shader;
+                }
+                if (auto_exposure_active && !luminance_resolve_pipeline && luminance_resolve_shader)
+                {
+                    RHIComputePipelineDesc luminance_resolve_pipeline_desc = {};
+                    luminance_resolve_pipeline_desc.compute_shader = luminance_resolve_shader.get();
+                    luminance_resolve_pipeline = device->CreateComputePipeline(luminance_resolve_pipeline_desc);
+                    if (luminance_resolve_pipeline)
+                    {
+                        luminance_resolve_pipeline->SetName("Luminance Resolve Pipeline");
+                    }
+                }
+
                 const bool use_fxaa = view.options.aa_mode == AntiAliasingMode::FXAA;
                 if (use_fxaa)
                 {
@@ -2974,6 +3140,62 @@ namespace won::rendering
 
                 // Ping-pong index of the buffer holding the current color (no member mutation).
                 uint32 src = 0;
+
+                if (auto_exposure_active && luminance_reduce_pipeline && luminance_resolve_pipeline && luminance_partial_buffer && luminance_buffer && luminance_readback_buffer)
+                {
+                    command_list->BeginEvent("Luminance Reduce");
+                    command_list->TransitionResource(*color_buffer[src], RHIResourceState::ShaderRead);
+                    command_list->TransitionResource(*luminance_partial_buffer, RHIResourceState::ShaderWrite);
+                    command_list->SetComputePipeline(*luminance_reduce_pipeline);
+                    LuminanceReducePushConstants reduce_push = {};
+                    reduce_push.Init();
+                    reduce_push.input_descriptor = static_cast<uint32>(color_buffer_srv[src].descriptor_index);
+                    reduce_push.output_descriptor = static_cast<uint32>(luminance_partial_buffer_uav.descriptor_index);
+                    reduce_push.viewport_size = uint2(static_cast<uint32>(view.viewport.width), static_cast<uint32>(view.viewport.height));
+                    reduce_push.viewport_offset = uint2(static_cast<uint32>(view.viewport.x), static_cast<uint32>(view.viewport.y));
+                    command_list->PushConstants(RHIShaderStage::Compute, &reduce_push, sizeof(reduce_push), 0);
+					command_list->Dispatch(luminance_reduce_group_count, 1u, 1u); // reduce to luminance_reduce_group_count groups of 1D data
+                    command_list->UAVBarrier(*luminance_partial_buffer);
+                    command_list->TransitionResource(*luminance_partial_buffer, RHIResourceState::ShaderRead);
+                    command_list->EndEvent();
+
+                    command_list->BeginEvent("Luminance Resolve");
+                    command_list->TransitionResource(*luminance_buffer, RHIResourceState::ShaderWrite);
+                    command_list->SetComputePipeline(*luminance_resolve_pipeline);
+                    LuminanceReducePushConstants resolve_push = {};
+                    resolve_push.Init();
+                    resolve_push.input_descriptor = static_cast<uint32>(luminance_partial_buffer_srv.descriptor_index);
+                    resolve_push.output_descriptor = static_cast<uint32>(luminance_buffer_uav.descriptor_index);
+                    command_list->PushConstants(RHIShaderStage::Compute, &resolve_push, sizeof(resolve_push), 0);
+                    command_list->Dispatch(1u, 1u, 1u);
+                    command_list->UAVBarrier(*luminance_buffer);
+                    command_list->TransitionResource(*luminance_buffer, RHIResourceState::CopySource);
+                    command_list->CopyBuffer(*luminance_readback_buffer, 0, *luminance_buffer, 0, sizeof(float));
+                    command_list->EndEvent();
+
+                    ecs::CameraComponent* camera = view.scene->GetComponent<ecs::CameraComponent>(view.camera_entity);
+                    if (camera)
+                    {
+                        const float* mapped_luminance = static_cast<const float*>(luminance_readback_buffer->GetMappedData());
+                        if (mapped_luminance)
+                        {
+                            const float measured = (std::max)(1e-4f, mapped_luminance[0]);
+
+                            // measured(y) = scene luminance(k) * current_exposure(x)
+                            // if we want to make measured as 0.18(middle gray)
+                            // (left) y * (0.18 / y) = 0.18
+							// (right) k * x * (0.18 / y)
+
+							// target_exposure(x') = x * (0.18 / y)
+							float target = camera->exposure_multiplier * (ecs::CameraComponent::auto_exposure_target / measured);
+                            const float exposure_low = ecs::CameraComponent::ExposureFromEV100(camera->auto_exposure_max_ev);
+                            const float exposure_high = ecs::CameraComponent::ExposureFromEV100(camera->auto_exposure_min_ev);
+                            target = (std::min)((std::max)(target, exposure_low), exposure_high);
+                            const float lerp_factor = (std::min)(1.0f, (std::max)(0.0f, camera->auto_exposure_speed * 0.02f));
+                            camera->exposure_multiplier += (target - camera->exposure_multiplier) * lerp_factor;
+                        }
+                    }
+                }
 
                 if (tonemap_pipeline)
                 {

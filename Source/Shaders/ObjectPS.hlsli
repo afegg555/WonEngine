@@ -4,6 +4,7 @@
 #ifndef UNLIT
 #include "ShadingCommon.hlsli"
 #include "DDGICommon.hlsli"
+#include "SkyCommon.hlsli"
 #endif
 
 float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
@@ -127,11 +128,11 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
     
     float3 ambient = float3(0.0, 0.0, 0.0);
     ShaderEnvironment environment_lighting = GetEnvironment();
-    if (environment_lighting.GetGIMode() == SHADER_ENVIRONMENT_GI_MODE_AMBIENT)
+    if (environment_lighting.GetDiffuseGIMode() == SHADER_DIFFUSE_GI_MODE_AMBIENT)
     {
         ambient = environment_lighting.GetAmbientColor() * environment_lighting.GetAmbientIntensity();
     }
-    else if (environment_lighting.GetGIMode() == SHADER_ENVIRONMENT_GI_MODE_DDGI)
+    else if (environment_lighting.GetDiffuseGIMode() == SHADER_DIFFUSE_GI_MODE_DDGI)
     {
         ShaderDDGIVolume ddgi_volume = GetDDGIVolume();
         if (ddgi_volume.IsActive() && ddgi_volume.HasIrradianceTexture())
@@ -141,16 +142,67 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
             {
                 ambient = SampleDDGI(ddgi_volume, sample_position, surface.N);
                 ambient *= environment_lighting.GetIndirectDiffuseScale();
-                //return float4(ambient, 1.f);
             }
 
         }
     }
+    else if (environment_lighting.GetDiffuseGIMode() == SHADER_DIFFUSE_GI_MODE_CUBEMAP)
+    {
+        if (environment_lighting.HasIrradianceCubemap())
+        {
+            ambient = bindless_cubemaps[DescriptorIndex(environment_lighting.irradiance_cubemap)].SampleLevel(sampler_linear_clamp, surface.N, 0).rgb;
+            ambient *= environment_lighting.GetIndirectDiffuseScale();
+        }
+    }
+    float3 indirect_specular = float3(0.0, 0.0, 0.0);
+    if (environment_lighting.GetReflectionMode() == SHADER_REFLECTION_MODE_CUBEMAP)
+    {
+        float3 reflection_direction = reflect(-surface.V, surface.N);
+        float perceptual_roughness = sqrt(surface.roughness);
+
+        float3 reflection_radiance = float3(0.0, 0.0, 0.0);
+        bool has_reflection = false;
+        if (environment_lighting.HasSpecularCubemap())
+        {
+            float lod = perceptual_roughness * max(environment_lighting.specular_mip_count - 1.0, 0.0);
+            reflection_radiance = bindless_cubemaps[DescriptorIndex(environment_lighting.specular_cubemap)].SampleLevel(sampler_linear_clamp, reflection_direction, lod).rgb;
+            has_reflection = true;
+        }
+        else if (environment_lighting.GetSkyType() == SHADER_SKY_TYPE_PROCEDURAL)
+        {
+            reflection_radiance = EvaluateProceduralSky(environment_lighting, reflection_direction) * (1.0 - surface.roughness);
+            has_reflection = true;
+        }
+
+        ShaderReflectionProbe reflection_probe = GetReflectionProbe();
+        if (reflection_probe.IsActive() && reflection_probe.HasCubemap())
+        {
+            float distance_to_probe = distance(surface.P, reflection_probe.position);
+            float probe_attenuation = reflection_probe.influence_radius > 0.0
+                ? saturate(1.0 - distance_to_probe / reflection_probe.influence_radius)
+                : 1.0;
+            if (probe_attenuation > 0.0)
+            {
+                float lod = perceptual_roughness * max(reflection_probe.cubemap_mip_count - 1.0, 0.0);
+                float3 probe_radiance = bindless_cubemaps[DescriptorIndex(reflection_probe.cubemap_texture)].SampleLevel(sampler_linear_clamp, reflection_direction, lod).rgb * reflection_probe.intensity;
+                reflection_radiance = lerp(reflection_radiance, probe_radiance, probe_attenuation);
+                has_reflection = true;
+            }
+        }
+
+        if (has_reflection)
+        {
+            indirect_specular = reflection_radiance * EnvBRDF(environment_lighting.brdf_lut, surface.f0, perceptual_roughness, surface.NoV);
+            indirect_specular *= environment_lighting.GetIndirectSpecularScale();
+        }
+    }
+
     Lighting lighting;
     ambient *= GetCamera().exposure;
-    lighting.Create(0, 0, ambient, 0);
+    indirect_specular *= GetCamera().exposure;
+    lighting.Create(0, 0, ambient, indirect_specular);
     
-    ForwardLighting(surface, lighting);
+    ForwardLighting(surface, lighting); // note: overflow can results in INF, but we will clamp
     
     half3 diffuse = (lighting.direct.diffuse + lighting.indirect.diffuse) * Fd_Lambert(); // apply fd here for efficiency
     half3 specular = lighting.direct.specular + lighting.indirect.specular;
@@ -160,6 +212,7 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
 
 #endif // UNLIT
  
+    final_color.rgb = saturateMediump(final_color.rgb);
     return final_color;
 }
 #endif // OBJECT_PS

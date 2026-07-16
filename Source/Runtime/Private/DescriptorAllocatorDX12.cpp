@@ -706,7 +706,16 @@ namespace won::rendering
         }
         else if (native_desc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE2D)
         {
-            if (native_desc.DepthOrArraySize > 1)
+            if (resource_desc.type == RHIResourceType::TextureCube)
+            {
+                srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
+                srv_desc.TextureCube.MostDetailedMip = desc.first_mip;
+                srv_desc.TextureCube.MipLevels = desc.mip_count;
+                srv_desc.TextureCube.ResourceMinLODClamp = 0.0f;
+
+
+            }
+            else if (native_desc.DepthOrArraySize > 1)
             {
                 srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
                 srv_desc.Texture2DArray.MostDetailedMip = desc.first_mip;

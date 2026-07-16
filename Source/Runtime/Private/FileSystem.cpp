@@ -1,6 +1,7 @@
 #include "FileSystem.h"
 #include "Platform.h"
 
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -10,6 +11,7 @@
 #if defined(_WIN32)
 #include <shlobj.h>
 #include <shobjidl.h>
+#include <shellapi.h>
 #endif
 
 namespace won::io
@@ -704,6 +706,37 @@ namespace won::io
         return !result_path.empty();
         });
 #else
+        return false;
+#endif
+    }
+
+    bool ShowInFileManager(const String& path)
+    {
+#if defined(_WIN32)
+        String native_path = path;
+        std::replace(native_path.begin(), native_path.end(), '/', '\\');
+        const String arguments = "/select,\"" + native_path + "\"";
+        HINSTANCE result = ShellExecuteA(nullptr, "open", "explorer.exe", arguments.c_str(), nullptr, SW_SHOWNORMAL);
+        return reinterpret_cast<INT_PTR>(result) > 32;
+#else
+        (void)path;
+        return false;
+#endif
+    }
+
+    bool LaunchProcess(const String& executable, const String& arguments, const String& working_directory)
+    {
+#if defined(_WIN32)
+        String executable_native = executable;
+        std::replace(executable_native.begin(), executable_native.end(), '/', '\\');
+        String working_native = working_directory;
+        std::replace(working_native.begin(), working_native.end(), '/', '\\');
+        HINSTANCE result = ShellExecuteA(nullptr, "open", executable_native.c_str(), arguments.c_str(), working_native.empty() ? nullptr : working_native.c_str(), SW_SHOWNORMAL);
+        return reinterpret_cast<INT_PTR>(result) > 32;
+#else
+        (void)executable;
+        (void)arguments;
+        (void)working_directory;
         return false;
 #endif
     }

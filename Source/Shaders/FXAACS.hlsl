@@ -8,9 +8,11 @@
 #define FXAA_REDUCE_MUL (1.0 / 8.0)
 #define FXAA_REDUCE_MIN (1.0 / 128.0)
 
+// Intentionally separate from Common.hlsli's Luminance(): FXAA runs on LDR/perceptual color
+// and needs a cheap edge-detection luma, so it uses Rec.601 weights (0.299/0.587/0.114) rather
+// than the linear Rec.709 relative luminance used for photometric work (exposure/tonemap).
 float FXAALuma(float3 rgb)
 {
-    // rgb(vec3) to luma(float) conversion
     // human perceives green as brighter than red, and red as brighter than blue
     return dot(rgb, float3(0.299, 0.587, 0.114));
 }

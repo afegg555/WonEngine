@@ -38,6 +38,7 @@ enum SHADER_SKY_TYPE
 {
     SHADER_SKY_TYPE_NONE = 0,        // no sky dome (e.g. indoor); the sky pass is skipped
     SHADER_SKY_TYPE_PROCEDURAL = 1,
+    SHADER_SKY_TYPE_CUBEMAP = 2,
 };
 
 enum SHADER_MATERIAL_TYPE
@@ -69,11 +70,18 @@ enum SHADER_DDGI_FLAGS
     SHADER_DDGI_FLAG_ACTIVE = 1 << 0,
 };
 
-enum SHADER_ENVIRONMENT_GI_MODE
+enum SHADER_DIFFUSE_GI_MODE
 {
-    SHADER_ENVIRONMENT_GI_MODE_NONE,
-    SHADER_ENVIRONMENT_GI_MODE_AMBIENT,
-    SHADER_ENVIRONMENT_GI_MODE_DDGI,
+    SHADER_DIFFUSE_GI_MODE_NONE,
+    SHADER_DIFFUSE_GI_MODE_AMBIENT,
+    SHADER_DIFFUSE_GI_MODE_DDGI,
+    SHADER_DIFFUSE_GI_MODE_CUBEMAP,
+};
+
+enum SHADER_REFLECTION_MODE
+{
+    SHADER_REFLECTION_MODE_NONE,
+    SHADER_REFLECTION_MODE_CUBEMAP,
 };
 
 enum TEXTURESLOT
@@ -295,8 +303,18 @@ struct alignas(16) ShaderEnvironment
     float4 ambient_color_ambient_intensity;
 
     float2 indirect_diffuse_specular_scale;
-    uint gi_mode;                   // SHADER_ENVIRONMENT_GI_MODE_*; NONE means no ambient/GI
-    uint _padding;
+    uint diffuse_gi_mode;
+    uint reflection_mode;
+
+    int sky_cubemap;
+    int irradiance_cubemap;
+    int specular_cubemap;
+    float specular_mip_count;
+
+    int brdf_lut;
+    uint _padding0;
+    uint _padding1;
+    uint _padding2;
 
 #ifdef __cplusplus
     inline void Init()
@@ -314,8 +332,16 @@ struct alignas(16) ShaderEnvironment
 
         ambient_color_ambient_intensity = { 0,0,0,0 };
         indirect_diffuse_specular_scale = { 0,0 };
-        gi_mode = SHADER_ENVIRONMENT_GI_MODE_NONE;
-        _padding = 0;
+        diffuse_gi_mode = SHADER_DIFFUSE_GI_MODE_NONE;
+        reflection_mode = SHADER_REFLECTION_MODE_NONE;
+        sky_cubemap = -1;
+        irradiance_cubemap = -1;
+        specular_cubemap = -1;
+        specular_mip_count = 0.0f;
+        brdf_lut = -1;
+        _padding0 = 0;
+        _padding1 = 0;
+        _padding2 = 0;
     }
 
     inline void SetSunDirection(const float3& value)
@@ -365,7 +391,12 @@ struct alignas(16) ShaderEnvironment
 
 #else
     inline uint GetSkyType() { return sky_type; }
-    inline uint GetGIMode() { return gi_mode; }
+    inline uint GetDiffuseGIMode() { return diffuse_gi_mode; }
+    inline uint GetReflectionMode() { return reflection_mode; }
+    inline bool HasSkyCubemap() { return sky_cubemap >= 0; }
+    inline bool HasIrradianceCubemap() { return irradiance_cubemap >= 0; }
+    inline bool HasSpecularCubemap() { return specular_cubemap >= 0; }
+    inline bool HasBRDFLUT() { return brdf_lut >= 0; }
     inline float3 GetSunDirection() { return normalize(sun_direction); }
     inline float3 GetSunColor() { return sun_color_sun_intensity.xyz; }
     inline float GetSunIntensity() { return sun_color_sun_intensity.w; }
@@ -453,11 +484,44 @@ struct alignas(16) ShaderDDGIVolume
 #endif
 };
 
+enum SHADER_REFLECTION_PROBE_FLAGS
+{
+    SHADER_REFLECTION_PROBE_FLAG_NONE = 0,
+    SHADER_REFLECTION_PROBE_FLAG_ACTIVE = 1 << 0,
+};
+
+struct alignas(16) ShaderReflectionProbe
+{
+    uint flags;
+    float intensity;
+    float influence_radius;
+    int cubemap_texture;
+
+    float3 position;
+    float cubemap_mip_count;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        flags = SHADER_REFLECTION_PROBE_FLAG_NONE;
+        intensity = 1.0f;
+        influence_radius = 0.0f;
+        cubemap_texture = -1;
+        position = { 0.0f, 0.0f, 0.0f };
+        cubemap_mip_count = 0.0f;
+    }
+#else
+    inline bool IsActive() { return (flags & SHADER_REFLECTION_PROBE_FLAG_ACTIVE) != 0; }
+    inline bool HasCubemap() { return cubemap_texture >= 0; }
+#endif
+};
+
 struct alignas(16) ShaderFrame
 {
     ShaderScene scene;
     ShaderEnvironment environment;
     ShaderDDGIVolume ddgi_volume;
+    ShaderReflectionProbe reflection_probe;
 
 #ifdef __cplusplus
     inline void Init()
@@ -465,6 +529,7 @@ struct alignas(16) ShaderFrame
         scene.Init();
         environment.Init();
         ddgi_volume.Init();
+        reflection_probe.Init();
     }
 #endif
 };
@@ -743,9 +808,10 @@ static_assert(sizeof(ShaderTextureSlot) == 16, "ShaderTextureSlot layout mismatc
 static_assert(sizeof(ShaderGeometry) == 80, "ShaderGeometry layout mismatch");
 static_assert(sizeof(ShaderMaterial) == 272, "ShaderMaterial layout mismatch");
 static_assert(sizeof(ShaderScene) == 64, "ShaderScene layout mismatch");
-static_assert(sizeof(ShaderEnvironment) == 144, "ShaderEnvironment layout mismatch");
+static_assert(sizeof(ShaderEnvironment) == 176, "ShaderEnvironment layout mismatch");
 static_assert(sizeof(ShaderDDGIVolume) == 112, "ShaderDDGIVolume layout mismatch");
-static_assert(sizeof(ShaderFrame) == 320, "ShaderFrame layout mismatch");
+static_assert(sizeof(ShaderReflectionProbe) == 32, "ShaderReflectionProbe layout mismatch");
+static_assert(sizeof(ShaderFrame) == 384, "ShaderFrame layout mismatch");
 static_assert(sizeof(ShaderCamera) == 336, "ShaderCamera layout mismatch");
 static_assert(sizeof(ShaderLight) == 48, "ShaderLight layout mismatch");
 static_assert(sizeof(ShaderShadowCascade) == 96, "ShaderShadowCascade layout mismatch");

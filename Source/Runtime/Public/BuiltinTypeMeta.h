@@ -79,15 +79,22 @@ namespace won::reflection
         WON_REFLECT_ENUM_VALUE("Spot", won::ecs::LightComponent::LightType::Spot)
     WON_REFLECT_ENUM_END()
 
-    WON_REFLECT_ENUM(won::ecs::EnvironmentComponent::GIMode, "GIMode")
-        WON_REFLECT_ENUM_VALUE("None", won::ecs::EnvironmentComponent::GIMode::None)
-        WON_REFLECT_ENUM_VALUE("Ambient", won::ecs::EnvironmentComponent::GIMode::Ambient)
-        WON_REFLECT_ENUM_VALUE("DDGI", won::ecs::EnvironmentComponent::GIMode::DDGI)
+    WON_REFLECT_ENUM(won::ecs::EnvironmentComponent::DiffuseGIMode, "DiffuseGIMode")
+        WON_REFLECT_ENUM_VALUE("None", won::ecs::EnvironmentComponent::DiffuseGIMode::None)
+        WON_REFLECT_ENUM_VALUE("Ambient", won::ecs::EnvironmentComponent::DiffuseGIMode::Ambient)
+        WON_REFLECT_ENUM_VALUE("DDGI", won::ecs::EnvironmentComponent::DiffuseGIMode::DDGI)
+        WON_REFLECT_ENUM_VALUE("Cubemap", won::ecs::EnvironmentComponent::DiffuseGIMode::Cubemap)
+    WON_REFLECT_ENUM_END()
+
+    WON_REFLECT_ENUM(won::ecs::EnvironmentComponent::ReflectionMode, "ReflectionMode")
+        WON_REFLECT_ENUM_VALUE("None", won::ecs::EnvironmentComponent::ReflectionMode::None)
+        WON_REFLECT_ENUM_VALUE("Cubemap", won::ecs::EnvironmentComponent::ReflectionMode::Cubemap)
     WON_REFLECT_ENUM_END()
 
     WON_REFLECT_ENUM(won::ecs::EnvironmentComponent::SkyType, "SkyType")
         WON_REFLECT_ENUM_VALUE("None", won::ecs::EnvironmentComponent::SkyType::None)
         WON_REFLECT_ENUM_VALUE("Procedural", won::ecs::EnvironmentComponent::SkyType::Procedural)
+        WON_REFLECT_ENUM_VALUE("Cubemap", won::ecs::EnvironmentComponent::SkyType::Cubemap)
     WON_REFLECT_ENUM_END()
 
     WON_REFLECT_ENUM(won::ecs::Collider3DComponent::ShapeType, "Collider3DShapeType")
@@ -125,6 +132,7 @@ namespace won::reflection
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::CameraComponent, "CameraComponent")
+        WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(near_plane, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(far_plane, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(aspect_ratio, won::FieldFlagNone)
@@ -133,6 +141,10 @@ namespace won::reflection
         WON_REFLECT_FIELD(aperture, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(shutter_speed, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(sensitivity, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(exposure_compensation, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(auto_exposure_speed, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(auto_exposure_min_ev, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(auto_exposure_max_ev, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(culling_mask, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
@@ -152,7 +164,8 @@ namespace won::reflection
     WON_REFLECT_STRUCT(won::ecs::EnvironmentComponent, "EnvironmentComponent")
         WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(sky_type, won::FieldFlagEditable | won::FieldFlagSerializable)
-        WON_REFLECT_FIELD(gi_mode, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(diffuse_gi_mode, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(reflection_mode, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(sun_direction, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(sun_intensity, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(sun_color, won::FieldFlagEditable | won::FieldFlagSerializable)
@@ -171,12 +184,17 @@ namespace won::reflection
         WON_REFLECT_FIELD(ambient_intensity, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(indirect_diffuse_scale, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(indirect_specular_scale, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(sky_cubemap_asset_path, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(irradiance_cubemap_asset_path, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(specular_cubemap_asset_path, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::FogVolumeComponent, "FogVolumeComponent")
+        WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::DDGIVolumeComponent, "DDGIVolumeComponent")
+        WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(probe_counts, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(probe_spacing, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(volume_offset, won::FieldFlagEditable | won::FieldFlagSerializable)
@@ -186,6 +204,13 @@ namespace won::reflection
         WON_REFLECT_FIELD(normal_bias, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(view_bias, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(max_distance, won::FieldFlagEditable | won::FieldFlagSerializable)
+    WON_REFLECT_STRUCT_END()
+
+    WON_REFLECT_STRUCT(won::ecs::ReflectionProbeComponent, "ReflectionProbeComponent")
+        WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(cubemap_asset_path, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(influence_radius, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(intensity_multiplier, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::GeometryComponent, "GeometryComponent")
@@ -209,6 +234,7 @@ namespace won::reflection
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::RectTransform2DComponent, "RectTransform2DComponent")
+        WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(anchor, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(position, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(size, won::FieldFlagEditable | won::FieldFlagSerializable)
@@ -236,6 +262,7 @@ namespace won::reflection
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::Text2DComponent, "Text2DComponent")
+        WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(font_asset_path, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(text, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(pixel_height, won::FieldFlagEditable | won::FieldFlagSerializable)
@@ -243,6 +270,7 @@ namespace won::reflection
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::Text3DComponent, "Text3DComponent")
+        WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(font_asset_path, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(text, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(pixel_height, won::FieldFlagEditable | won::FieldFlagSerializable)
@@ -422,6 +450,7 @@ namespace won::reflection
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::MaterialComponent, "MaterialComponent")
+        WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(material_asset_path, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 

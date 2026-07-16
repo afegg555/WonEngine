@@ -199,6 +199,7 @@ namespace won::rendering
         uint32 mip_levels = 1;
         uint32 array_layers = 1;
         uint32 sample_count = 1;
+        bool is_cube = false;
         RHIFormat format = RHIFormat::Unknown;
         RHIResourceUsage usage = RHIResourceUsage::Default;
         RHIBindFlags bind_flags = RHIBindFlags::None;

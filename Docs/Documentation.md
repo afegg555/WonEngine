@@ -1,7 +1,7 @@
 # Documentation
 
 <p align="center">
-  <img src="logo.png" width="360" alt="WonEngine Logo">
+  <img src="logo.webp" width="360" alt="WonEngine Logo">
 </p>
 
 This document serves as a development reference for understanding and extending WonEngine's core systems.

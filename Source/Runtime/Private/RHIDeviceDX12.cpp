@@ -771,6 +771,10 @@ namespace won::rendering
             dimension = D3D12_RESOURCE_DIMENSION_TEXTURE3D;
             depth_or_array_size = static_cast<uint16>(desc.depth);
         }
+        else if (desc.is_cube)
+        {
+            depth_or_array_size = 6;
+        }
 
         D3D12_RESOURCE_DESC resource_desc = {};
         resource_desc.Dimension = dimension;
@@ -827,7 +831,9 @@ namespace won::rendering
         }
 
         RHIResourceDesc resource_info = {};
-        resource_info.type = (dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D) ? RHIResourceType::Texture3D : RHIResourceType::Texture2D;
+        resource_info.type = desc.is_cube
+            ? RHIResourceType::TextureCube
+            : ((dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D) ? RHIResourceType::Texture3D : RHIResourceType::Texture2D);
         resource_info.texture_desc = desc;
         auto texture_resource = std::make_shared<RHIResourceDX12>(resource_info, std::move(resource), allocation, descriptor_allocator);
         texture_resource->SetCurrentState(initial_state);
@@ -862,17 +868,19 @@ namespace won::rendering
             }
 
             const bool compressed_texture = block_size > 0u;
-            const uint32 upload_mip_count = compressed_texture ? desc.mip_levels : 1u;
+            const uint32 array_slice_count = desc.is_cube ? 6u : 1u;
+            const uint32 upload_mip_count = (compressed_texture || desc.is_cube) ? desc.mip_levels : 1u;
+            const uint32 subresource_count = upload_mip_count * array_slice_count;
             UINT64 total_size = 0;
             std::vector<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> footprints;
             std::vector<uint64> row_sizes;
             std::vector<uint> num_rows;
 
-            footprints.resize(upload_mip_count); // uncompressed uploads mip 0; compressed uploads stored mip chain
+            footprints.resize(subresource_count); // per slice: uncompressed uploads mip 0, compressed/cube uploads stored mip chain
             row_sizes.resize(footprints.size());
             num_rows.resize(footprints.size());
 
-            device->GetCopyableFootprints(&resource_desc, 0, upload_mip_count, 0, footprints.data(), num_rows.data(), row_sizes.data(), &total_size);
+            device->GetCopyableFootprints(&resource_desc, 0, subresource_count, 0, footprints.data(), num_rows.data(), row_sizes.data(), &total_size);
 
             RHIBufferDesc upload_buffer_desc = {};
             upload_buffer_desc.size = total_size;
@@ -898,8 +906,9 @@ namespace won::rendering
             Size source_offset = 0;
             for (size_t i = 0; i < footprints.size(); ++i)
             {
-                const uint32 mip_width = (std::max)(1u, desc.width >> static_cast<uint32>(i));
-                const uint32 mip_height = (std::max)(1u, desc.height >> static_cast<uint32>(i));
+                const uint32 mip = static_cast<uint32>(i) % upload_mip_count;
+                const uint32 mip_width = (std::max)(1u, desc.width >> mip);
+                const uint32 mip_height = (std::max)(1u, desc.height >> mip);
                 D3D12_SUBRESOURCE_DATA data{};
                 data.pData = static_cast<const uint8*>(initial_data) + source_offset;
                 if (block_size > 0u)

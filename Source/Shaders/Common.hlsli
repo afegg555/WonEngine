@@ -14,6 +14,11 @@ inline int DescriptorIndex(in int descriptor_index)
 #define MEDIUMP_FLT_MAX 65504.0
 #define saturateMediump(x) min(x, MEDIUMP_FLT_MAX)
 
+inline float Luminance(float3 linear_color) // Rec.709 relative luminance from linear RGB
+{
+    return dot(linear_color, float3(0.2126, 0.7152, 0.0722));
+}
+
 //	Note: when using -enable-16bit-types compile flag, half will be always FP16
 #define half min16float
 #define half2 min16float2
@@ -142,7 +147,7 @@ inline float RadicalInverseVdC(uint bits)
 
 inline float2 Hammersley(uint index, uint count)
 {
-    // result in range[0,1)
+    // uniformly distributed in [0, 1]^2
     return float2((float(index) + 0.5f) / max(float(count), 1.0f), RadicalInverseVdC(index));
 }
 
@@ -267,6 +272,11 @@ inline ShaderEnvironment GetEnvironment()
 inline ShaderDDGIVolume GetDDGIVolume()
 {
     return g_frame.ddgi_volume;
+}
+
+inline ShaderReflectionProbe GetReflectionProbe()
+{
+    return g_frame.reflection_probe;
 }
 
 inline ShaderCamera GetCamera()

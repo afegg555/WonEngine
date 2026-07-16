@@ -153,6 +153,12 @@ namespace won::editor
 			constexpr const char* add_to_scene = "Add to Scene";
 			constexpr const char* copy_disk_path = "Copy Disk Path";
 			constexpr const char* copy_virtual_path = "Copy Virtual Path";
+			constexpr const char* reimport = "Reimport";
+			constexpr const char* show_in_explorer = "Show in Explorer";
+			constexpr const char* asset_binary_missing = "Imported binary missing (needs import)";
+			constexpr const char* asset_source_missing = "Source file missing";
+			constexpr const char* asset_texture_missing = "Missing texture: ";
+			constexpr const char* asset_needs_reimport = "Source changed since last import";
 			constexpr const char* refresh = "Refresh";
 			constexpr const char* folder = "Folder";
 			constexpr const char* folder_empty = "Folder is empty.";
@@ -279,6 +285,12 @@ namespace won::editor
 			constexpr const char* aperture = "Aperture";
 			constexpr const char* shutter_speed = "Shutter Speed";
 			constexpr const char* sensitivity = "Sensitivity";
+			constexpr const char* auto_exposure = "Auto Exposure";
+			constexpr const char* exposure_multiplier_format = "Exposure Multiplier: %.6f";
+			constexpr const char* exposure_compensation = "Exposure Compensation (EV)";
+			constexpr const char* auto_exposure_min_ev = "Min EV100";
+			constexpr const char* auto_exposure_max_ev = "Max EV100";
+			constexpr const char* auto_exposure_speed = "Adaptation Speed";
 			constexpr const char* sun_direction = "Sun Direction";
 			constexpr const char* sun_color = "Sun Color";
 			constexpr const char* sun_intensity = "Sun Intensity";
@@ -293,9 +305,11 @@ namespace won::editor
 			constexpr const char* ground_horizon_color = "Ground Horizon Color";
 			constexpr const char* ground_falloff = "Ground Falloff";
 			constexpr const char* ground_color = "Ground Color";
-			constexpr const char* gi_mode = "GI Mode";
+			constexpr const char* gi_mode = "Diffuse GI Mode";
 			constexpr const char* ambient = "Ambient";
 			constexpr const char* ddgi = "DDGI";
+			constexpr const char* reflection_mode = "Reflection Mode";
+			constexpr const char* cubemap = "Cubemap";
 			constexpr const char* ambient_color = "Ambient Color";
 			constexpr const char* ambient_intensity = "Ambient Intensity";
 			constexpr const char* indirect_diffuse_scale = "Indirect Diffuse Scale";
@@ -504,6 +518,7 @@ namespace won::editor
 				{ reflection::TypeMeta<Collider3DComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id } },
 				{ reflection::TypeMeta<LightComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id } },
 				{ reflection::TypeMeta<CameraComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id } },
+				{ reflection::TypeMeta<ReflectionProbeComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id } },
 				{ reflection::TypeMeta<AudioSourceComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id } },
 				{ reflection::TypeMeta<DecalComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id, reflection::TypeMeta<MaterialComponent>::type_id } },
 				{ reflection::TypeMeta<ParticleEmitter3DComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id, reflection::TypeMeta<MaterialComponent>::type_id } },
@@ -2373,6 +2388,16 @@ namespace won::editor
 			return;
 		}
 
+		auto resolve_content_path = [this](const String& path) -> String
+		{
+			if (path.empty())
+			{
+				return String();
+			}
+			return io::NormalizePath(io::IsAbsolutePath(path) ? path : io::CombinePath(contents_root_dir, path));
+		};
+		UnorderedMap<String, resource::AssetMeta> meta_by_binary; // binary_path -> meta
+
 		for (const io::DirectoryEntry& entry : entries)
 		{
 			String relative = io::GetRelativePath(contents_root_dir, entry.path);
@@ -2394,6 +2419,11 @@ namespace won::editor
 			String extension = io::GetExtension(entry.path);
 			if (won::utils::ToLower(extension) == resource::asset_metadata_extension)
 			{
+				resource::AssetMeta meta = {};
+				if (resource::LoadAssetMeta(entry.path, meta) && !meta.binary_path.empty())
+				{
+					meta_by_binary[resolve_content_path(meta.binary_path)] = meta;
+				}
 				continue;
 			}
 
@@ -2408,6 +2438,59 @@ namespace won::editor
 			asset.type = guess_type(extension);
 			asset.id = won::utils::Hash(asset.virtual_path);
 			content_browser.assets.push_back(asset);
+		}
+
+		for (ContentBrowserAsset& asset : content_browser.assets)
+		{
+			const String extension = won::utils::ToLower(io::GetExtension(asset.disk_path));
+			if (GetAssetImportKind(extension) != AssetImportKind::None)
+			{
+				resource::AssetMeta meta = {};
+				if (resource::LoadAssetMeta(resource::GetAssetMetaPath(asset.disk_path), meta) && !meta.binary_path.empty())
+				{
+					if (!io::Exists(resolve_content_path(meta.binary_path)))
+					{
+						asset.has_broken_reference = true;
+						asset.broken_reason = editor_text::asset_binary_missing;
+					}
+					uint64 source_timestamp = 0;
+					if (io::GetLastTimestamp(asset.disk_path, &source_timestamp) && source_timestamp > meta.source_timestamp)
+					{
+						asset.needs_reimport = true;
+					}
+				}
+			}
+			else if (extension == resource::mesh_binary_extension || extension == resource::texture_binary_extension || extension == resource::material_binary_extension)
+			{
+				auto found = meta_by_binary.find(io::NormalizePath(asset.disk_path));
+				if (found != meta_by_binary.end())
+				{
+					asset.reimport_source_path = resolve_content_path(found->second.source_asset_path);
+					if (!asset.reimport_source_path.empty() && !io::Exists(asset.reimport_source_path))
+					{
+						asset.has_broken_reference = true;
+						asset.broken_reason = editor_text::asset_source_missing;
+					}
+				}
+				if (extension == resource::material_binary_extension)
+				{
+					if (std::shared_ptr<resource::Material> material = resource::LoadMaterialBinary(asset.disk_path))
+					{
+						for (const resource::MaterialSlot& slot : material->slots)
+						{
+							for (int texture_index = 0; texture_index < TEXTURESLOT_COUNT; ++texture_index)
+							{
+								const String& texture_path = slot.textures[texture_index].texture_asset_path;
+								if (!texture_path.empty() && !io::Exists(resolve_content_path(texture_path)))
+								{
+									asset.has_broken_reference = true;
+									asset.broken_reason = String(editor_text::asset_texture_missing) + io::GetFilename(texture_path);
+								}
+							}
+						}
+					}
+				}
+			}
 		}
 
 		std::sort(content_browser.folders.begin(), content_browser.folders.end());
@@ -2508,6 +2591,9 @@ namespace won::editor
 			}
 		};
 
+		auto to_u32 = [](const float4& color) { return ImGui::ColorConvertFloat4ToU32(ImVec4(color.x, color.y, color.z, color.w)); };
+		auto to_vec4 = [](const float4& color) { return ImVec4(color.x, color.y, color.z, color.w); };
+
 		ImGui::PushID(asset.virtual_path.c_str());
 		ImGui::BeginGroup();
 		const String asset_ext = won::utils::ToLower(io::GetExtension(asset.disk_path));
@@ -2524,8 +2610,16 @@ namespace won::editor
 			const ImVec2 icon_max = ImGui::GetItemRectMax();
 			const float dot_radius = 5.0f;
 			const ImVec2 dot_center = ImVec2(icon_max.x - dot_radius - 3.0f, icon_min.y + dot_radius + 3.0f);
-			const ImU32 dot_color = (import_kind != AssetImportKind::None) ? IM_COL32(242, 166, 64, 255) : IM_COL32(115, 204, 140, 255);
+			const ImU32 dot_color = to_u32((import_kind != AssetImportKind::None) ? theme::asset_source_color : theme::asset_imported_color);
 			ImGui::GetWindowDrawList()->AddCircleFilled(dot_center, dot_radius, dot_color);
+		}
+		if (asset.has_broken_reference || asset.needs_reimport)
+		{
+			const ImVec2 broken_icon_min = ImGui::GetItemRectMin();
+			const float broken_dot_radius = 5.0f;
+			const ImVec2 broken_dot_center = ImVec2(broken_icon_min.x + broken_dot_radius + 3.0f, broken_icon_min.y + broken_dot_radius + 3.0f);
+			const ImU32 broken_dot_color = to_u32(asset.has_broken_reference ? theme::asset_broken_color : theme::asset_needs_reimport_color);
+			ImGui::GetWindowDrawList()->AddCircleFilled(broken_dot_center, broken_dot_radius, broken_dot_color);
 		}
 		if (ImGui::BeginDragDropSource())
 		{
@@ -2538,11 +2632,11 @@ namespace won::editor
 		ImGui::TextWrapped("%s", asset.name.c_str());
 		if (import_kind != AssetImportKind::None)
 		{
-			ImGui::TextColored(ImVec4(0.95f, 0.65f, 0.25f, 1.0f), "%s (source)", type_name(asset.type));
+			ImGui::TextColored(to_vec4(theme::asset_source_color), "%s (source)", type_name(asset.type));
 		}
 		else if (is_imported_binary)
 		{
-			ImGui::TextColored(ImVec4(0.45f, 0.80f, 0.55f, 1.0f), "%s (imported)", type_name(asset.type));
+			ImGui::TextColored(to_vec4(theme::asset_imported_color), "%s (imported)", type_name(asset.type));
 		}
 		else
 		{
@@ -2605,6 +2699,21 @@ namespace won::editor
 			{
 				ImGui::SetClipboardText(asset.virtual_path.c_str());
 			}
+			ImGui::Separator();
+			const bool can_reimport = !asset.reimport_source_path.empty() && io::Exists(asset.reimport_source_path);
+			if (ImGui::MenuItem(editor_text::reimport, nullptr, false, can_reimport))
+			{
+				content_browser.pending_import_name = asset.name;
+				content_browser.pending_import_virtual_path = asset.virtual_path;
+				content_browser.pending_import_disk_path = asset.reimport_source_path;
+				content_browser.pending_import_type = asset.type;
+				content_browser.pending_import_add_to_scene = false;
+				content_browser.open_import_confirm = true;
+			}
+			if (ImGui::MenuItem(editor_text::show_in_explorer))
+			{
+				io::ShowInFileManager(asset.disk_path);
+			}
 			ImGui::EndPopup();
 		}
 		if (ImGui::IsItemHovered())
@@ -2612,6 +2721,14 @@ namespace won::editor
 			ImGui::BeginTooltip();
 			ImGui::TextUnformatted(asset.virtual_path.c_str());
 			ImGui::TextDisabled("%s", asset.disk_path.c_str());
+			if (asset.has_broken_reference)
+			{
+				ImGui::TextColored(to_vec4(theme::asset_broken_color), "%s", asset.broken_reason.c_str());
+			}
+			else if (asset.needs_reimport)
+			{
+				ImGui::TextColored(to_vec4(theme::asset_needs_reimport_color), "%s", editor_text::asset_needs_reimport);
+			}
 			ImGui::EndTooltip();
 		}
 		ImGui::PopID();
@@ -3115,8 +3232,8 @@ namespace won::editor
 						else
 						{
 							const String arguments = "\"" + loaded_project_settings.settings_path + "\" Release";
-							HINSTANCE result = ShellExecuteA(static_cast<HWND>(window ? window->GetNativeHandle() : nullptr), "open", package_tool_path.c_str(), arguments.c_str(), io::GetExecutableDirectory().c_str(), SW_SHOWNORMAL);
-							backlog::Post(reinterpret_cast<INT_PTR>(result) > 32 ? editor_text::package_project_started + loaded_project_settings.settings_path : editor_text::package_project_failed, reinterpret_cast<INT_PTR>(result) > 32 ? backlog::LogLevel::Default : backlog::LogLevel::Warning);
+							const bool launched = io::LaunchProcess(package_tool_path, arguments, io::GetExecutableDirectory());
+							backlog::Post(launched ? editor_text::package_project_started + loaded_project_settings.settings_path : editor_text::package_project_failed, launched ? backlog::LogLevel::Default : backlog::LogLevel::Warning);
 						}
 					}
 				}
@@ -4226,9 +4343,27 @@ namespace won::editor
 						}
 
 						ImGui::Text(editor_text::aspect_ratio_format, camera_comp->aspect_ratio);
+
+						bool auto_exposure = camera_comp->IsAutoExposure();
+						if (ImGui::Checkbox(editor_text::auto_exposure, &auto_exposure))
+						{
+							camera_comp->SetAutoExposure(auto_exposure);
+						}
+
+						ImGui::Text(editor_text::exposure_multiplier_format, camera_comp->exposure_multiplier);
+						ImGui::DragFloat(editor_text::exposure_compensation, &camera_comp->exposure_compensation, 0.01f, -16.0f, 16.0f);
+
+						ImGui::BeginDisabled(!auto_exposure);
+						ImGui::DragFloat(editor_text::auto_exposure_min_ev, &camera_comp->auto_exposure_min_ev, 0.1f, -16.0f, 32.0f);
+						ImGui::DragFloat(editor_text::auto_exposure_max_ev, &camera_comp->auto_exposure_max_ev, 0.1f, -16.0f, 32.0f);
+						ImGui::DragFloat(editor_text::auto_exposure_speed, &camera_comp->auto_exposure_speed, 0.05f, 0.0f, 100.0f);
+						ImGui::EndDisabled();
+
+						ImGui::BeginDisabled(auto_exposure);
 						ImGui::DragFloat(editor_text::aperture, &camera_comp->aperture, 0.01f, 0.0f, 128.0f);
 						ImGui::DragFloat(editor_text::shutter_speed, &camera_comp->shutter_speed, 0.001f, 0.0001f, 100.0f);
 						ImGui::DragFloat(editor_text::sensitivity, &camera_comp->sensitivity, 1.0f, 1.0f, 102400.0f);
+						ImGui::EndDisabled();
 					}
 					else if (remove_component && can_remove_camera)
 					{
@@ -4325,14 +4460,21 @@ namespace won::editor
 						ImGui::DragFloat(editor_text::ground_intensity, &environment_comp->ground_intensity, 0.01f, 0.0f, 1000.0f);
 						ImGui::DragFloat(editor_text::ground_falloff, &environment_comp->ground_falloff, 0.01f, 0.0f, 1000.0f);
 
-						int gi_mode = static_cast<int>(environment_comp->gi_mode);
-						const char* gi_mode_items[] = { editor_text::none, editor_text::ambient, editor_text::ddgi };
+						int gi_mode = static_cast<int>(environment_comp->diffuse_gi_mode);
+						const char* gi_mode_items[] = { editor_text::none, editor_text::ambient, editor_text::ddgi, editor_text::cubemap };
 						if (ImGui::Combo(editor_text::gi_mode, &gi_mode, gi_mode_items, IM_ARRAYSIZE(gi_mode_items)))
 						{
-							environment_comp->gi_mode = static_cast<EnvironmentComponent::GIMode>(gi_mode);
+							environment_comp->diffuse_gi_mode = static_cast<EnvironmentComponent::DiffuseGIMode>(gi_mode);
 						}
 
-						float ambient_color[3] = { environment_comp->ambient_color.x, environment_comp->ambient_color.y, environment_comp->ambient_color.z };
+						int reflection_mode = static_cast<int>(environment_comp->reflection_mode);
+							const char* reflection_mode_items[] = { editor_text::none, editor_text::cubemap };
+							if (ImGui::Combo(editor_text::reflection_mode, &reflection_mode, reflection_mode_items, IM_ARRAYSIZE(reflection_mode_items)))
+							{
+								environment_comp->reflection_mode = static_cast<EnvironmentComponent::ReflectionMode>(reflection_mode);
+							}
+
+							float ambient_color[3] = { environment_comp->ambient_color.x, environment_comp->ambient_color.y, environment_comp->ambient_color.z };
 						if (ImGui::InputFloat3(editor_text::ambient_color, ambient_color))
 						{
 							environment_comp->ambient_color = { ambient_color[0], ambient_color[1], ambient_color[2] };

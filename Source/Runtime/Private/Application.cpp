@@ -102,6 +102,14 @@ namespace won
         backlog::Post("[Startup] Startup scene: " + project_settings.startup_scene);
         backlog::Post("[Startup] Content root: " + project::GetContentRoot(project_settings));
 
+        utils::Timer startup_timer;
+        utils::Timer startup_phase_timer;
+        auto log_startup_phase = [&startup_phase_timer](const char* phase)
+        {
+            wonlog("[Startup] %s: %.1f ms", phase, startup_phase_timer.ElapsedMilliSeconds());
+            startup_phase_timer.Reset();
+        };
+
         console::LoadConfig(project_settings.project_name);
         console::ApplyCommandLine(desc.command_line_args);
 
@@ -109,6 +117,7 @@ namespace won
 
         jobsystem::Initialize(desc.jobsystem_thread_count);
         won::physics::Initialize();
+        log_startup_phase("jobsystem + physics");
 
         platform::WindowDesc window_desc = {};
         window_desc.title = project_settings.window_title.c_str();
@@ -124,6 +133,7 @@ namespace won
             is_running = false;
             return;
         }
+        log_startup_phase("window");
 
         developer_console_enabled = project_settings.developer_console_enabled;
 
@@ -133,6 +143,7 @@ namespace won
         device_desc.enable_debug_layer = true; // test
 
         device = rendering::CreateRHIDevice(device_desc);
+        log_startup_phase("rhi device");
 
         rendering::RendererDesc renderer_desc;
         renderer_desc.device = device;
@@ -146,10 +157,12 @@ namespace won
         }
         renderer_desc.vsync_enabled = project_settings.vsync_enabled;
         renderer = rendering::CreateRenderer(renderer_desc);
+        log_startup_phase("renderer + shaders");
 
         if (device)
         {
 			builtinfont::BuildAtlas(*device); // used for console rendering and debug text rendering
+            log_startup_phase("builtin font atlas");
         }
 
         audio_mixer = std::make_unique<won::audio::AudioMixer>(desc.audio.sample_rate, desc.audio.channel_count);
@@ -171,6 +184,7 @@ namespace won
         {
             backlog::Post("[Audio] no audio driver available", backlog::LogLevel::Error);
         }
+        log_startup_phase("audio");
 
         script::ScriptRuntimeDesc script_desc = {};
         script_desc.game_data = &game_data;
@@ -199,8 +213,12 @@ namespace won
             });
         }
 
+        log_startup_phase("script runtime");
+
         scene_manager = std::make_unique<SceneManager>(&project_settings);
         ApplyProjectSettings(project_settings);
+        log_startup_phase("scene manager + project settings");
+        wonlog("[Startup] initialize total: %.1f ms", startup_timer.ElapsedMilliSeconds());
 
         frame_timer.Reset();
         is_first_frame = true;
@@ -236,8 +254,11 @@ namespace won
                 WaitIdle();
                 scene_loaded = true;
             }
-            
-            scene_manager->ReloadScene(*scene, scene->TakePendingSceneLoad());
+
+            utils::Timer scene_load_timer;
+            const String scene_path = scene->TakePendingSceneLoad();
+            scene_manager->ReloadScene(*scene, scene_path);
+            wonlog("[Startup] scene load (%s): %.1f ms", scene_path.c_str(), scene_load_timer.ElapsedMilliSeconds());
 
             for (const std::unique_ptr<rendering::View>& view_ptr : views)
             {
@@ -258,7 +279,9 @@ namespace won
         }
         if (scene_loaded)
         {
+            utils::Timer upload_timer;
             rendering::utils::FlushEnqueuedResourceUploads(*device);
+            wonlog("[Startup] gpu resource upload: %.1f ms", upload_timer.ElapsedMilliSeconds());
         }
 
         scene_manager->FlushPrefabSpawns();

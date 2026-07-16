@@ -1116,6 +1116,45 @@ struct COMInitializer
             return true;
         }
 
+        bool SaveImportedDDS(const String& content_root, const String& source_asset_path, String& out_error)
+        {
+            out_error.clear();
+            if (!io::CreateDirectories(io::CombinePath(content_root, generated_asset_directory)))
+            {
+                out_error = "Failed to create Generated directory.";
+                return false;
+            }
+
+            String source_rel = io::GetRelativePath(content_root, source_asset_path);
+            if (source_rel.empty())
+            {
+                source_rel = source_asset_path;
+            }
+            const String asset_id = std::to_string(utils::Hash(source_rel));
+
+            const String texture_binary_path = String(generated_asset_directory) + "/" + asset_id + "." + resource::texture_binary_extension;
+            const String texture_full_path = io::CombinePath(content_root, texture_binary_path);
+            if (!io::CopyFileTo(source_asset_path, texture_full_path, true))
+            {
+                out_error = "Failed to copy dds to texture binary: " + source_asset_path;
+                return false;
+            }
+
+            resource::AssetMeta meta = {};
+            meta.asset_id = asset_id;
+            meta.asset_name = io::GetFilename(source_asset_path);
+            meta.source_asset_path = source_rel;
+            meta.asset_type = "texture";
+            meta.binary_path = texture_binary_path;
+            io::GetLastTimestamp(source_asset_path, &meta.source_timestamp);
+            resource::SaveAssetMeta(resource::GetAssetMetaPath(source_asset_path), meta);
+
+            std::cout << "Imported texture (dds passthrough): " << source_asset_path << "\n";
+            std::cout << "Asset id: " << asset_id << "\n";
+            std::cout << "Binary path: " << texture_binary_path << "\n";
+            return true;
+        }
+
         String ResolveProjectSettingsPath(const String& path)
         {
             const String project_path = io::GetAbsolutePath(path);
@@ -1167,6 +1206,16 @@ int main(int argc, char** argv)
 
     // Standalone image asset: import as a texture (.wontex) and stop.
     const String asset_ext = utils::ToLower(io::GetExtension(source_asset_path));
+    if (asset_ext == "dds")
+    {
+        String dds_error;
+        if (!SaveImportedDDS(content_root, source_asset_path, dds_error))
+        {
+            std::cout << dds_error << "\n";
+            return 1;
+        }
+        return 0;
+    }
     if (asset_ext == "png" || asset_ext == "jpg" || asset_ext == "jpeg" || asset_ext == "tga" || asset_ext == "bmp")
     {
         String texture_error;

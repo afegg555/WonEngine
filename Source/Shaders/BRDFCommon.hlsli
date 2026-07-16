@@ -39,6 +39,14 @@ half V_SmithGGXCorrelated(half roughness, half NoV, half NoL)
     half a2 = roughness * roughness;
     half GGXV = NoL * sqrt(NoV * NoV * (1.0 - a2) + a2);
     half GGXL = NoV * sqrt(NoL * NoL * (1.0 - a2) + a2);
+    return saturateMediump(0.5 / (GGXV + GGXL));
+}
+
+float V_SmithGGXCorrelatedPrecise(float roughness, float NoV, float NoL)
+{
+    float a2 = roughness * roughness;
+    float GGXV = NoL * sqrt(NoV * NoV * (1.0 - a2) + a2);
+    float GGXL = NoV * sqrt(NoL * NoL * (1.0 - a2) + a2);
     return 0.5 / (GGXV + GGXL);
 }
 
@@ -113,6 +121,31 @@ half f0ToIor(half f0)
 {
     half r = sqrt(f0);
     return (1.0 + r) / (1.0 - r);
+}
+
+float3 ImportanceSampleGGX(float2 xi, float perceptual_roughness, float3 n)
+{
+    // Importance sample the GGX normal distribution function (NDF) to generate a half vector h
+    float a = perceptual_roughness * perceptual_roughness;
+    float phi = 2.0 * PI * xi.x;
+    float cos_theta = sqrt((1.0 - xi.y) / (1.0 + (a * a - 1.0) * xi.y));
+    float sin_theta = sqrt(1.0 - cos_theta * cos_theta);
+
+    float3 h = float3(sin_theta * cos(phi), sin_theta * sin(phi), cos_theta);
+    float3 up = abs(n.z) < 0.999 ? float3(0.0, 0.0, 1.0) : float3(1.0, 0.0, 0.0);
+    float3 tangent = normalize(cross(up, n));
+    float3 bitangent = cross(n, tangent);
+    return tangent * h.x + bitangent * h.y + n * h.z;
+}
+
+float3 EnvBRDF(int brdf_lut_descriptor, float3 f0, float perceptual_roughness, float nov)
+{
+    if (brdf_lut_descriptor < 0)
+    {
+        return f0;
+    }
+    float2 brdf = bindless_textures[DescriptorIndex(brdf_lut_descriptor)].SampleLevel(sampler_linear_clamp, float2(nov, perceptual_roughness), 0).rg;
+    return f0 * brdf.x + brdf.y;
 }
 
 #endif
