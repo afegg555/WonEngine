@@ -732,6 +732,110 @@ namespace won::script
         return 1;
     }
 
+    int LuaScriptRuntime::LuaMaterialGetRoughness(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        const int arg_count = lua_gettop(state);
+        const bool has_entity_arg = arg_count >= 1 && lua_isinteger(state, 1);
+        const ecs::Entity entity = has_entity_arg ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        const uint32 slot_index = has_entity_arg && arg_count >= 2 ? static_cast<uint32>(luaL_checkinteger(state, 2)) : 0u;
+        ecs::MaterialComponent* material = runtime->current_context.scene->GetComponent<ecs::MaterialComponent>(entity);
+        if (!material || slot_index >= material->GetMaterialSlotCount())
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        lua_pushnumber(state, material->GetMaterialSlot(slot_index).roughness);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaMaterialSetRoughness(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const int arg_count = lua_gettop(state);
+        const bool has_entity_arg = arg_count >= 2 && lua_isinteger(state, 1);
+        const bool has_slot_arg = has_entity_arg && arg_count >= 3 && lua_isinteger(state, 2);
+        const ecs::Entity entity = has_entity_arg ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        const uint32 slot_index = has_slot_arg ? static_cast<uint32>(luaL_checkinteger(state, 2)) : 0u;
+        const int value_index = has_slot_arg ? 3 : (has_entity_arg ? 2 : 1);
+        ecs::MaterialComponent* material = runtime->current_context.scene->GetComponent<ecs::MaterialComponent>(entity);
+        if (!material || slot_index >= material->GetMaterialSlotCount())
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        material->GetMaterialSlot(slot_index).roughness = static_cast<float>(luaL_checknumber(state, value_index));
+        material->SetDirty();
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaMaterialGetMetallic(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        const int arg_count = lua_gettop(state);
+        const bool has_entity_arg = arg_count >= 1 && lua_isinteger(state, 1);
+        const ecs::Entity entity = has_entity_arg ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        const uint32 slot_index = has_entity_arg && arg_count >= 2 ? static_cast<uint32>(luaL_checkinteger(state, 2)) : 0u;
+        ecs::MaterialComponent* material = runtime->current_context.scene->GetComponent<ecs::MaterialComponent>(entity);
+        if (!material || slot_index >= material->GetMaterialSlotCount())
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        lua_pushnumber(state, material->GetMaterialSlot(slot_index).metallic);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaMaterialSetMetallic(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const int arg_count = lua_gettop(state);
+        const bool has_entity_arg = arg_count >= 2 && lua_isinteger(state, 1);
+        const bool has_slot_arg = has_entity_arg && arg_count >= 3 && lua_isinteger(state, 2);
+        const ecs::Entity entity = has_entity_arg ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        const uint32 slot_index = has_slot_arg ? static_cast<uint32>(luaL_checkinteger(state, 2)) : 0u;
+        const int value_index = has_slot_arg ? 3 : (has_entity_arg ? 2 : 1);
+        ecs::MaterialComponent* material = runtime->current_context.scene->GetComponent<ecs::MaterialComponent>(entity);
+        if (!material || slot_index >= material->GetMaterialSlotCount())
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        material->GetMaterialSlot(slot_index).metallic = static_cast<float>(luaL_checknumber(state, value_index));
+        material->SetDirty();
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
     int LuaScriptRuntime::LuaInputIsKeyDown(lua_State* state)
     {
         const io::Button button = io::GetButtonFromString(luaL_checkstring(state, 1));
@@ -2892,6 +2996,18 @@ namespace won::script
         lua_pushlightuserdata(lua_state, this);
         lua_pushcclosure(lua_state, LuaMaterialSetBaseColor, 1);
         lua_setfield(lua_state, -2, "set_base_color");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaMaterialGetRoughness, 1);
+        lua_setfield(lua_state, -2, "get_roughness");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaMaterialSetRoughness, 1);
+        lua_setfield(lua_state, -2, "set_roughness");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaMaterialGetMetallic, 1);
+        lua_setfield(lua_state, -2, "get_metallic");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaMaterialSetMetallic, 1);
+        lua_setfield(lua_state, -2, "set_metallic");
         lua_pushlightuserdata(lua_state, this);
         lua_pushcclosure(lua_state, LuaMaterialFork, 1);
         lua_setfield(lua_state, -2, "fork");
