@@ -159,7 +159,6 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
     {
         float3 reflection_direction = reflect(-surface.V, surface.N);
         float perceptual_roughness = sqrt(surface.roughness);
-        float nov = saturate(dot(surface.N, surface.V));
 
         float3 reflection_radiance = float3(0.0, 0.0, 0.0);
         bool has_reflection = false;
@@ -193,7 +192,7 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
 
         if (has_reflection)
         {
-            indirect_specular = reflection_radiance * EnvBRDF(environment_lighting.brdf_lut, surface.f0, perceptual_roughness, nov);
+            indirect_specular = reflection_radiance * EnvBRDF(environment_lighting.brdf_lut, surface.f0, perceptual_roughness, surface.NoV);
             indirect_specular *= environment_lighting.GetIndirectSpecularScale();
         }
     }

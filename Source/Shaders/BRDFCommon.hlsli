@@ -39,6 +39,14 @@ half V_SmithGGXCorrelated(half roughness, half NoV, half NoL)
     half a2 = roughness * roughness;
     half GGXV = NoL * sqrt(NoV * NoV * (1.0 - a2) + a2);
     half GGXL = NoV * sqrt(NoL * NoL * (1.0 - a2) + a2);
+    return saturateMediump(0.5 / (GGXV + GGXL));
+}
+
+float V_SmithGGXCorrelatedPrecise(float roughness, float NoV, float NoL)
+{
+    float a2 = roughness * roughness;
+    float GGXV = NoL * sqrt(NoV * NoV * (1.0 - a2) + a2);
+    float GGXL = NoV * sqrt(NoL * NoL * (1.0 - a2) + a2);
     return 0.5 / (GGXV + GGXL);
 }
 

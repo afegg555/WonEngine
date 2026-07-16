@@ -39,7 +39,7 @@ float2 IntegrateBRDF(float nov, float perceptual_roughness)
         // l below the surface contributes nothing; noh is a denominator below.
         if (nol > 0.0 && noh > 0.0)
         {
-            float vis = V_SmithGGXCorrelated(alpha, nov, nol);
+            float vis = V_SmithGGXCorrelatedPrecise(alpha, nov, nol); // V_SmithGGXCorrelated causes error
             float g_vis = 4.0 * vis * nol * voh / noh;
 
             // Split Fresnel into its two Schlick parts and accumulate them separately.
@@ -62,7 +62,6 @@ void main(uint3 dispatch_thread_id : SV_DispatchThreadID)
     // bilinear lookup lands on the values that were integrated here.
     float nov = (float(dispatch_thread_id.x) + 0.5) / float(brdf_lut_resolution);
     float perceptual_roughness = (float(dispatch_thread_id.y) + 0.5) / float(brdf_lut_resolution);
-    nov = max(nov, 0.001); // NoV == 0 makes the estimator degenerate (g_vis divides by NoV via V)
 
     float2 brdf = IntegrateBRDF(nov, perceptual_roughness);
     bindless_rwtextures[DescriptorIndex((int)brdfintegrationpush.output_descriptor)][dispatch_thread_id.xy] = float4(brdf, 0.0, 0.0);
