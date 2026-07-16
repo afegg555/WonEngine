@@ -1,6 +1,6 @@
 # WonEngine
 <p align="center">
-  <img src="Docs/logo.png" width="360" alt="WonEngine Logo">
+  <img src="Docs/logo.webp" width="360" alt="WonEngine Logo">
 </p>
 
 WonEngine is a work-in-progress C++ rendering engine for experimenting with modern real-time graphics, editor tooling, and game-engine systems.
@@ -11,7 +11,7 @@ WonEngine is a work-in-progress C++ rendering engine for experimenting with mode
 ## Showcase
 
 <p align="center">
-  <img src="Docs/showcase_image1.png" width="900" alt="WonEngine Editor Showcase">
+  <img src="Docs/showcase_image1.webp" width="900" alt="WonEngine Editor Showcase">
 </p>
 
 ### Playable sample — v0.1.0
