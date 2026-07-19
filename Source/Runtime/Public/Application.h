@@ -83,7 +83,6 @@ namespace won
         uint64 update_index = 0;
         bool is_first_frame = true;
         bool simulation_paused = false;
-        eventhandler::Handle safe_point_handle;
         eventhandler::Handle prefab_preload_handle;
         Vector<String> pending_preloads;
         std::unique_ptr<SceneManager> scene_manager;

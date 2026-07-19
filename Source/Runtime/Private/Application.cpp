@@ -224,10 +224,6 @@ namespace won
         is_first_frame = true;
         is_running = true;
 
-        safe_point_handle = eventhandler::Subscribe(
-            eventhandler::EVENT_THREAD_SAFE_POINT,
-            [this](const won::function::Value&) { ProcessSceneLifecycle(); });
-
         prefab_preload_handle = eventhandler::Subscribe(
             eventhandler::EVENT_PREFAB_PRELOAD,
             [this](const won::function::Value& payload)
@@ -333,6 +329,7 @@ namespace won
 
         ProcessWindowResize();
         eventhandler::FireEvent(eventhandler::EVENT_THREAD_SAFE_POINT);
+        ProcessSceneLifecycle();
 
         float dt = 0.0f;
         if (is_first_frame)
