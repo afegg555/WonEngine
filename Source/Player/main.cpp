@@ -83,19 +83,14 @@ int main(int argc, char** argv)
         won::String startup_scene_path = app_desc.project_settings.startup_scene;
         if (!startup_scene_path.empty())
         {
-            won::serialize::JsonArchive archive(won::serialize::ArchiveMode::Read);
-            const won::String normalized_startup_scene_path = won::project::ResolveProjectContentPath(content_root, startup_scene_path);
-            if (archive.LoadFromFile(normalized_startup_scene_path))
+            won::String error;
+            if (!app.GetSceneManager()->LoadSceneContents(game_scene, startup_scene_path, true, false, &error))
             {
-                won::serialize::LoadScene(archive, game_scene);
-                if (archive.HasError())
-                {
-                    wonlog_warning("Startup scene load warning: %s (%s)", normalized_startup_scene_path.c_str(), archive.GetError().c_str());
-                }
+                wonlog_warning("Failed to load startup scene: %s", error.c_str());
             }
-            else
+            else if (!error.empty())
             {
-                wonlog_warning("Failed to load startup scene: %s", normalized_startup_scene_path.c_str());
+                wonlog_warning("Startup scene load warning: %s", error.c_str());
             }
         }
 
@@ -105,28 +100,22 @@ int main(int argc, char** argv)
         }
         if (won::rendering::RHIDevice* device = app.GetDevice())
         {
-            won::resource::LoadSceneResources(game_scene, content_root);
             won::rendering::utils::FlushEnqueuedResourceUploads(*device);
         }
 
         const float window_width = (std::max)(1.0f, static_cast<float>(app_desc.project_settings.window_width));
         const float window_height = (std::max)(1.0f, static_cast<float>(app_desc.project_settings.window_height));
-        won::ecs::Entity camera_entity = won::ecs::INVALID_ENTITY;
         if (auto camera_array = game_scene.GetComponentArray<won::ecs::CameraComponent>())
         {
             for (won::Size i = 0; i < camera_array->GetSize(); ++i)
             {
                 camera_array->data[i].SetAspectRatio(window_width / window_height);
-                if (camera_entity == won::ecs::INVALID_ENTITY)
-                {
-                    camera_entity = camera_array->GetEntity(i);
-                }
             }
         }
 
         won::rendering::View game_view = {};
         game_view.scene = &game_scene;
-        game_view.camera_entity = camera_entity;
+        game_view.camera_entity = game_view.FindSceneCamera();
         game_view.viewport.width = app_desc.project_settings.window_width;
         game_view.viewport.height = app_desc.project_settings.window_height;
         game_view.scissor.width = app_desc.project_settings.window_width;

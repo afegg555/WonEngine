@@ -227,50 +227,26 @@ namespace won
         is_running = true;
     }
 
+    void Application::RebindViewCameras(ecs::Scene& scene)
+    {
+        for (const std::unique_ptr<rendering::View>& view_ptr : views)
+        {
+            if (view_ptr && view_ptr->scene == &scene)
+            {
+                view_ptr->camera_entity = view_ptr->FindSceneCamera();
+            }
+        }
+    }
+
     void Application::ProcessSceneLifecycle()
     {
-        bool scene_loaded = false;
-        for (const std::unique_ptr<ecs::Scene>& scene : scene_manager->GetScenes())
+        scene_manager->FlushQueuedSceneLoads();
+
+        for (ecs::Scene* activated : scene_manager->FlushCompletedSceneLoads())
         {
-            if (!scene || !scene->HasPendingSceneLoad())
-            {
-                continue;
-            }
-
-            if (!scene_loaded)
-            {
-                WaitIdle();
-                scene_loaded = true;
-            }
-
-            utils::Timer scene_load_timer;
-            const String scene_path = scene->TakePendingSceneLoad();
-            scene_manager->ReloadScene(*scene, scene_path);
-            wonlog("[Startup] scene load (%s): %.1f ms", scene_path.c_str(), scene_load_timer.ElapsedMilliSeconds());
-
-            for (const std::unique_ptr<rendering::View>& view_ptr : views)
-            {
-                if (!view_ptr || view_ptr->scene != scene.get())
-                {
-                    continue;
-                }
-                view_ptr->camera_entity = ecs::INVALID_ENTITY;
-                for (ecs::Entity e : scene->GetEntities())
-                {
-                    if (scene->GetComponent<ecs::CameraComponent>(e))
-                    {
-                        view_ptr->camera_entity = e;
-                        break;
-                    }
-                }
-            }
+            RebindViewCameras(*activated);
         }
-        if (scene_loaded)
-        {
-            utils::Timer upload_timer;
-            rendering::utils::FlushEnqueuedResourceUploads(*device);
-            wonlog("[Startup] gpu resource upload: %.1f ms", upload_timer.ElapsedMilliSeconds());
-        }
+        scene_manager->FlushDeferredSceneRemovals();
 
         scene_manager->FlushPrefabSpawns();
 

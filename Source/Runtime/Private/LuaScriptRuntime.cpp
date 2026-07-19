@@ -944,6 +944,15 @@ namespace won::script
         return 0;
     }
 
+    int LuaScriptRuntime::LuaSceneIsLoading(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        const bool loading = runtime && runtime->scene_manager && runtime->current_context.scene &&
+            runtime->scene_manager->IsLoading(runtime->current_context.scene);
+        lua_pushboolean(state, loading ? 1 : 0);
+        return 1;
+    }
+
     int LuaScriptRuntime::LuaText2DSetString(lua_State* state)
     {
         LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));

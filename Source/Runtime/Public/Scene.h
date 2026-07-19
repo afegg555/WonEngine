@@ -66,6 +66,8 @@ namespace won::ecs
 
         void ClearEntities();
 
+        void SwapContents(Scene& other);
+
         template <typename Component, typename... Args>
         Component* AddComponent(Entity entity, Args&&... args)
         {

@@ -193,6 +193,7 @@ namespace won::script
 
         static int LuaSceneFindByName(lua_State* state);
         static int LuaSceneLoad(lua_State* state);
+        static int LuaSceneIsLoading(lua_State* state);
 
         static int LuaEventSubscribe(lua_State* state);
         static int LuaEventPost(lua_State* state);

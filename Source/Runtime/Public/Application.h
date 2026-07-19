@@ -65,6 +65,7 @@ namespace won
         void ProcessWindowResize();
 
         void ProcessSceneLifecycle();
+        void RebindViewCameras(ecs::Scene& scene);
         void ApplyProjectSettings(const project::ProjectSettings& settings);
 
         bool is_running = false;

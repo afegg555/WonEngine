@@ -46,6 +46,7 @@ namespace won::rendering
 
         void UpdateUIInteraction();
         void BuildSortedIndices();
+        ecs::Entity FindSceneCamera() const;
         bool RayCast(float2 screen_position, ecs::RayCastHit& out_hit, bool use_local_bvh = true, uint32 layer_mask = 0xFFFFFFFF) const;
         bool ScreenToRay(float2 screen_position, math::Ray& out_ray) const;
 

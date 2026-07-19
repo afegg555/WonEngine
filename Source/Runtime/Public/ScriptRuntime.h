@@ -29,6 +29,11 @@ namespace won::rendering
     class View;
 }
 
+namespace won
+{
+    class SceneManager;
+}
+
 namespace won::script
 {
     enum class ScriptBackend
@@ -41,6 +46,7 @@ namespace won::script
         ScriptBackend backend = ScriptBackend::Lua;
         game::GameData* game_data = nullptr;
         audio::AudioMixer* audio_mixer = nullptr;
+        SceneManager* scene_manager = nullptr;
         String content_root;
     };
 
