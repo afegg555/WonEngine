@@ -984,14 +984,29 @@ namespace won::resource
         }
     }
 
-    void LoadSceneResources(ecs::Scene& scene, const String& content_root)
+    static void DispatchLoadJobs(bool parallel, jobsystem::Context& ctx, uint32 job_count, const jobsystem::job_function_type& task)
+    {
+        if (parallel)
+        {
+            jobsystem::Dispatch(ctx, job_count, 1, task);
+            return;
+        }
+        for (uint32 i = 0; i < job_count; ++i)
+        {
+            jobsystem::JobArgs args = {};
+            args.job_index = i;
+            task(args);
+        }
+    }
+
+    void LoadSceneResources(ecs::Scene& scene, const String& content_root, bool parallel)
     {
         jobsystem::Context ctx;
         jobsystem::Context mesh_ctx;
 
         if (auto geometry_array = scene.GetComponentArray<ecs::GeometryComponent>())
         {
-            jobsystem::Dispatch(mesh_ctx, static_cast<uint32>(geometry_array->GetSize()), 1, [geometry_array, &content_root](jobsystem::JobArgs args)
+            DispatchLoadJobs(parallel, mesh_ctx, static_cast<uint32>(geometry_array->GetSize()), [geometry_array, &content_root](jobsystem::JobArgs args)
             {
                 LoadMeshResource(geometry_array->data[args.job_index], content_root);
             });
@@ -999,7 +1014,7 @@ namespace won::resource
 
         if (auto material_array = scene.GetComponentArray<ecs::MaterialComponent>())
         {
-            jobsystem::Dispatch(ctx, static_cast<uint32>(material_array->GetSize()), 1, [material_array, &content_root](jobsystem::JobArgs args)
+            DispatchLoadJobs(parallel, ctx, static_cast<uint32>(material_array->GetSize()), [material_array, &content_root](jobsystem::JobArgs args)
             {
                 ecs::MaterialComponent& material_comp = material_array->data[args.job_index];
                 if (!material_comp.material_asset_path.empty())
@@ -1020,42 +1035,45 @@ namespace won::resource
                         if (!material_slot.textures[slot].texture_asset_path.empty())
                             texture_jobs.push_back({ &material_slot.textures[slot], slot });
             }
-            // Keep sequential until WON-147 (parallel Dispatch loses texture visibility).
-            for (const TextureJob& texture_job : texture_jobs)
+            DispatchLoadJobs(parallel, ctx, static_cast<uint32>(texture_jobs.size()), [&texture_jobs, &content_root](jobsystem::JobArgs args)
+            {
+                const TextureJob& texture_job = texture_jobs[args.job_index];
                 LoadTextureMap(*texture_job.map, texture_job.slot, content_root);
+            });
+            jobsystem::Wait(ctx);
         }
 
         if (auto text2d_array = scene.GetComponentArray<ecs::Text2DComponent>())
         {
-            jobsystem::Dispatch(ctx, static_cast<uint32>(text2d_array->GetSize()), 1, [text2d_array, &content_root](jobsystem::JobArgs args)
+            DispatchLoadJobs(parallel, ctx, static_cast<uint32>(text2d_array->GetSize()), [text2d_array, &content_root](jobsystem::JobArgs args)
             {
                 LoadFontResource(text2d_array->data[args.job_index], content_root);
             });
         }
         if (auto text3d_array = scene.GetComponentArray<ecs::Text3DComponent>())
         {
-            jobsystem::Dispatch(ctx, static_cast<uint32>(text3d_array->GetSize()), 1, [text3d_array, &content_root](jobsystem::JobArgs args)
+            DispatchLoadJobs(parallel, ctx, static_cast<uint32>(text3d_array->GetSize()), [text3d_array, &content_root](jobsystem::JobArgs args)
             {
                 LoadFontResource(text3d_array->data[args.job_index], content_root);
             });
         }
         if (auto audio_array = scene.GetComponentArray<ecs::AudioSourceComponent>())
         {
-            jobsystem::Dispatch(ctx, static_cast<uint32>(audio_array->GetSize()), 1, [audio_array, &content_root](jobsystem::JobArgs args)
+            DispatchLoadJobs(parallel, ctx, static_cast<uint32>(audio_array->GetSize()), [audio_array, &content_root](jobsystem::JobArgs args)
             {
                 LoadSoundResource(audio_array->data[args.job_index], content_root);
             });
         }
         if (auto reflection_probe_array = scene.GetComponentArray<ecs::ReflectionProbeComponent>())
         {
-            jobsystem::Dispatch(ctx, static_cast<uint32>(reflection_probe_array->GetSize()), 1, [reflection_probe_array, &content_root](jobsystem::JobArgs args)
+            DispatchLoadJobs(parallel, ctx, static_cast<uint32>(reflection_probe_array->GetSize()), [reflection_probe_array, &content_root](jobsystem::JobArgs args)
             {
                 LoadReflectionProbeResource(reflection_probe_array->data[args.job_index], content_root);
             });
         }
         if (auto environment_array = scene.GetComponentArray<ecs::EnvironmentComponent>())
         {
-            jobsystem::Dispatch(ctx, static_cast<uint32>(environment_array->GetSize()), 1, [environment_array, &content_root](jobsystem::JobArgs args)
+            DispatchLoadJobs(parallel, ctx, static_cast<uint32>(environment_array->GetSize()), [environment_array, &content_root](jobsystem::JobArgs args)
             {
                 LoadEnvironmentResource(environment_array->data[args.job_index], content_root);
             });
