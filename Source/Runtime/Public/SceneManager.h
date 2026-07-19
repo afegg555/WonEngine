@@ -28,12 +28,16 @@ namespace won
         const Vector<std::unique_ptr<ecs::Scene>>& GetScenes() const;
 
         void ReloadScene(ecs::Scene& scene, const String& path);
+        void QueueSceneLoad(ecs::Scene& target, const String& path);
         void SpawnQueuedPrefabs(ecs::Scene& scene);
         void FlushPrefabSpawns();
+        void QueuePrefabPreload(const String& path);
+        bool FlushPrefabPreloads();
         void PreloadPrefab(const String& path);
 
     private:
         Vector<std::unique_ptr<ecs::Scene>> scenes;
+        Vector<String> queued_prefab_preloads;
         const project::ProjectSettings* project_settings;
         UnorderedMap<String, Vector<std::shared_ptr<void>>> prefab_resource_cache;
     };

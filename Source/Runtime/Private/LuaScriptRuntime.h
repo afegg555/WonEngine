@@ -221,6 +221,7 @@ namespace won::script
         Vector<eventhandler::Handle> event_handles;
         game::GameData* game_data = nullptr;
         audio::AudioMixer* audio_mixer = nullptr;
+        SceneManager* scene_manager = nullptr;
         String content_root;
     };
 }

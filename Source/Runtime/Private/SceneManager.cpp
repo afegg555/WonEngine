@@ -134,6 +134,30 @@ namespace won
         }
     }
 
+    void SceneManager::QueuePrefabPreload(const String& path)
+    {
+        if (std::find(queued_prefab_preloads.begin(), queued_prefab_preloads.end(), path) != queued_prefab_preloads.end())
+        {
+            return;
+        }
+        queued_prefab_preloads.push_back(path);
+    }
+
+    bool SceneManager::FlushPrefabPreloads()
+    {
+        if (queued_prefab_preloads.empty())
+        {
+            return false;
+        }
+        Vector<String> queued;
+        queued.swap(queued_prefab_preloads);
+        for (const String& path : queued)
+        {
+            PreloadPrefab(path);
+        }
+        return true;
+    }
+
     void SceneManager::PreloadPrefab(const String& path)
     {
         if (prefab_resource_cache.find(path) != prefab_resource_cache.end())

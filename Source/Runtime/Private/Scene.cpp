@@ -323,9 +323,7 @@ namespace won::ecs
         scene_bvh_entities.clear();
         physics_world->Clear();
         prefab_spawn_queue.clear();
-        pending_scene_load.clear();
         animation_event_queue.clear();
-        has_pending_scene_load = false;
         next_entity = INVALID_ENTITY + 1;
         SetBVHDirty();
     }

@@ -6,6 +6,7 @@
 #include "Input.h"
 #include "ProjectSettings.h"
 #include "Scene.h"
+#include "SceneManager.h"
 #include "View.h"
 #include "SceneComponents.h"
 #include "Sound.h"
@@ -114,6 +115,7 @@ namespace won::script
     {
         game_data = desc.game_data;
         audio_mixer = desc.audio_mixer;
+        scene_manager = desc.scene_manager;
         content_root = desc.content_root;
     }
 
@@ -935,9 +937,9 @@ namespace won::script
     {
         LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
         const char* path = luaL_checkstring(state, 1);
-        if (runtime && runtime->current_context.scene)
+        if (runtime && runtime->scene_manager && runtime->current_context.scene)
         {
-            runtime->current_context.scene->QueueSceneLoad(path);
+            runtime->scene_manager->QueueSceneLoad(*runtime->current_context.scene, path);
         }
         return 0;
     }
@@ -1255,11 +1257,12 @@ namespace won::script
 
     int LuaScriptRuntime::LuaEntityPreloadPrefab(lua_State* state)
     {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
         const char* path = luaL_checkstring(state, 1);
-        won::function::Value payload;
-        payload.type = won::ValueType::String;
-        payload.string_value = path;
-        eventhandler::PostEvent(eventhandler::EVENT_PREFAB_PRELOAD, payload);
+        if (runtime && runtime->scene_manager)
+        {
+            runtime->scene_manager->QueuePrefabPreload(path);
+        }
         return 0;
     }
 
@@ -2928,7 +2931,8 @@ namespace won::script
         lua_pushlightuserdata(lua_state, this);
         lua_pushcclosure(lua_state, LuaEntitySpawnPrefabChild, 1);
         lua_setfield(lua_state, -2, "spawn_prefab_child");
-        lua_pushcfunction(lua_state, LuaEntityPreloadPrefab);
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaEntityPreloadPrefab, 1);
         lua_setfield(lua_state, -2, "preload_prefab");
         lua_pushlightuserdata(lua_state, this);
         lua_pushcclosure(lua_state, LuaEntityIsValid, 1);
@@ -3176,6 +3180,9 @@ namespace won::script
         lua_pushlightuserdata(lua_state, this);
         lua_pushcclosure(lua_state, LuaSceneLoad, 1);
         lua_setfield(lua_state, -2, "load");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaSceneIsLoading, 1);
+        lua_setfield(lua_state, -2, "is_loading");
         lua_setfield(lua_state, -2, "scene");
 
         lua_newtable(lua_state);
