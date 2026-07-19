@@ -3,8 +3,6 @@
 
 #include "RHIDeviceDX12.h"
 
-#include <cassert>
-
 namespace won::rendering
 {
     std::shared_ptr<RHIDevice> CreateRHIDevice(const RHIDeviceDesc& desc)
@@ -20,7 +18,8 @@ namespace won::rendering
         case RHIBackend::Vulkan:
         case RHIBackend::Metal:
         case RHIBackend::Unknown:
-            assert("Not Supported yet");
+            backlog::Post("Backend is not supported yet, falling back to DirectX12", backlog::LogLevel::Error);
+            device = std::make_shared<RHIDeviceDX12>(desc);
             break;
         }
 
