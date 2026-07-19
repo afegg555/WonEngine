@@ -12,7 +12,6 @@ namespace won::eventhandler
     constexpr uint64 HashEvent(const char* name) { return won::StableHash(name); }
 
     inline constexpr uint64 EVENT_THREAD_SAFE_POINT = HashEvent("won.thread_safe_point");
-    inline constexpr uint64 EVENT_PREFAB_PRELOAD    = HashEvent("won.prefab.preload");
 
     struct Handle
     {

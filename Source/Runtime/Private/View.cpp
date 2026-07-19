@@ -302,4 +302,20 @@ namespace won::rendering
 
         jobsystem::Wait(ctx);
     }
+
+    ecs::Entity View::FindSceneCamera() const
+    {
+        if (!scene)
+        {
+            return ecs::INVALID_ENTITY;
+        }
+        for (ecs::Entity entity : scene->GetEntities())
+        {
+            if (scene->GetComponent<ecs::CameraComponent>(entity))
+            {
+                return entity;
+            }
+        }
+        return ecs::INVALID_ENTITY;
+    }
 }

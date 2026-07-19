@@ -653,40 +653,66 @@ namespace won::rendering::utils
         pending_image_upload.push_back({ image, format });
     }
 
-    bool FlushEnqueuedResourceUploads(RHIDevice& device)
+    bool FlushEnqueuedResourceUploads(RHIDevice& device, uint32 max_uploads)
     {
         Vector<std::weak_ptr<resource::Mesh>> meshes;
         Vector<std::weak_ptr<resource::Font>> fonts;
         Vector<PendingImageUpload> images;
+        bool queue_empty = false;
         {
             std::lock_guard<std::mutex> lock(pending_resource_upload_mutex);
-            meshes.swap(pending_mesh_upload);
-            fonts.swap(pending_font_upload);
-            images.swap(pending_image_upload);
+            if (max_uploads == 0)
+            {
+                meshes.swap(pending_mesh_upload);
+                fonts.swap(pending_font_upload);
+                images.swap(pending_image_upload);
+            }
+            else
+            {
+                uint32 remaining = max_uploads;
+                auto take = [&remaining](auto& from, auto& to)
+                {
+                    while (remaining > 0 && !from.empty())
+                    {
+                        to.push_back(std::move(from.back()));
+                        from.pop_back();
+                        --remaining;
+                    }
+                };
+                take(pending_mesh_upload, meshes);
+                take(pending_font_upload, fonts);
+                take(pending_image_upload, images);
+            }
+            queue_empty = pending_mesh_upload.empty() && pending_font_upload.empty() && pending_image_upload.empty();
         }
-        bool succeeded = true;
         for (const std::weak_ptr<resource::Mesh>& weak : meshes)
         {
             if (std::shared_ptr<resource::Mesh> mesh = weak.lock())
             {
-                succeeded &= CreateRenderData(device, *mesh);
+                CreateRenderData(device, *mesh);
             }
         }
         for (const std::weak_ptr<resource::Font>& weak : fonts)
         {
             if (std::shared_ptr<resource::Font> font = weak.lock())
             {
-                succeeded &= CreateRenderData(device, *font);
+                CreateRenderData(device, *font);
             }
         }
         for (const PendingImageUpload& pending : images)
         {
             if (std::shared_ptr<resource::Image> image = pending.image.lock())
             {
-                succeeded &= CreateRenderData(device, *image, pending.format, true);
+                CreateRenderData(device, *image, pending.format, true);
             }
         }
-        return succeeded;
+        return queue_empty;
+    }
+
+    bool HasPendingResourceUploads()
+    {
+        std::lock_guard<std::mutex> lock(pending_resource_upload_mutex);
+        return !pending_mesh_upload.empty() || !pending_font_upload.empty() || !pending_image_upload.empty();
     }
 
     bool CompressTextureBC(RHIDevice& device, Renderer& renderer, const resource::Image& image, RHIFormat format, Vector<uint8>& out_blocks, uint32& out_mip_levels)

@@ -193,6 +193,7 @@ namespace won::script
 
         static int LuaSceneFindByName(lua_State* state);
         static int LuaSceneLoad(lua_State* state);
+        static int LuaSceneIsLoading(lua_State* state);
 
         static int LuaEventSubscribe(lua_State* state);
         static int LuaEventPost(lua_State* state);
@@ -221,6 +222,7 @@ namespace won::script
         Vector<eventhandler::Handle> event_handles;
         game::GameData* game_data = nullptr;
         audio::AudioMixer* audio_mixer = nullptr;
+        SceneManager* scene_manager = nullptr;
         String content_root;
     };
 }

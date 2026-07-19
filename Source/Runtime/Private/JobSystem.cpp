@@ -55,7 +55,7 @@ namespace won::jobsystem
                 task(args);
             }
 
-            return ctx->counter.fetch_sub(1, std::memory_order_relaxed);
+            return ctx->counter.fetch_sub(1, std::memory_order_release);
         }
     };
 
@@ -69,7 +69,7 @@ namespace won::jobsystem
         {
             std::scoped_lock lock(locker);
             items.push_back(item);
-            count.fetch_add(1, std::memory_order_relaxed);
+            count.fetch_add(1, std::memory_order_release);
         }
 
         bool PopFront(Job& item)
@@ -107,6 +107,18 @@ namespace won::jobsystem
         uint8 ConstrainQueueIndex(uint8 idx) const
         {
             return mod_lut[idx];
+        }
+
+        bool HasPendingJobs() const
+        {
+            for (uint32 i = 0; i < num_threads; ++i)
+            {
+                if (job_queue_per_thread[i].count.load(std::memory_order_acquire) > 0)
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         uint8 GetNextQueueIndex()
@@ -206,7 +218,7 @@ namespace won::jobsystem
 
         won::utils::Timer timer;
 
-        uint32 hardware_threads = std::thread::hardware_concurrency();
+		uint32 hardware_threads = std::thread::hardware_concurrency(); // get the number of hardware threads (logical cores) available on the system
         internal_state.num_cores = std::max(1u, hardware_threads);
 
         for (int prio = 0; prio < int(Priority::Count); ++prio)
@@ -247,7 +259,9 @@ namespace won::jobsystem
                     {
                         res.Work(thread_id, thread_id);
                         std::unique_lock<std::mutex> lock(res.sleeping_mutex);
-                        res.sleeping_condition.wait(lock);
+                        res.sleeping_condition.wait(lock, [&res] {
+                            return !internal_state.alive.load(std::memory_order_relaxed) || res.HasPendingJobs();
+                        });
                     }
                 });
 
@@ -339,6 +353,9 @@ namespace won::jobsystem
         }
 
         res.NextQueue().PushBack(job);
+        {
+            std::scoped_lock lock(res.sleeping_mutex);
+        }
         res.sleeping_condition.notify_one();
     }
 
@@ -375,8 +392,11 @@ namespace won::jobsystem
             }
         }
 
-        if (res.num_threads > 1)
+        if (res.num_threads >= 1)
         {
+            {
+                std::scoped_lock lock(res.sleeping_mutex);
+            }
             res.sleeping_condition.notify_all();
         }
     }
@@ -388,7 +408,7 @@ namespace won::jobsystem
 
     bool IsBusy(const Context& ctx)
     {
-        return ctx.counter.load(std::memory_order_relaxed) > 0;
+        return ctx.counter.load(std::memory_order_acquire) > 0;
     }
 
     void Wait(const Context& ctx)
@@ -413,6 +433,6 @@ namespace won::jobsystem
 
     uint32 GetRemainingJobCount(const Context& ctx)
     {
-        return ctx.counter.load(std::memory_order_relaxed);
+        return ctx.counter.load(std::memory_order_acquire);
     }
 }

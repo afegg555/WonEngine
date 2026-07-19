@@ -186,9 +186,12 @@ namespace won
         }
         log_startup_phase("audio");
 
+        scene_manager = std::make_unique<SceneManager>(&project_settings);
+
         script::ScriptRuntimeDesc script_desc = {};
         script_desc.game_data = &game_data;
         script_desc.audio_mixer = audio_mixer.get();
+        script_desc.scene_manager = scene_manager.get();
         script_desc.content_root = project::GetContentRoot(project_settings);
         script_runtime = script::CreateScriptRuntime(script_desc);
         if (script_runtime && !script_runtime->Initialize())
@@ -215,7 +218,6 @@ namespace won
 
         log_startup_phase("script runtime");
 
-        scene_manager = std::make_unique<SceneManager>(&project_settings);
         ApplyProjectSettings(project_settings);
         log_startup_phase("scene manager + project settings");
         wonlog("[Startup] initialize total: %.1f ms", startup_timer.ElapsedMilliSeconds());
@@ -223,76 +225,33 @@ namespace won
         frame_timer.Reset();
         is_first_frame = true;
         is_running = true;
+    }
 
-        safe_point_handle = eventhandler::Subscribe(
-            eventhandler::EVENT_THREAD_SAFE_POINT,
-            [this](const won::function::Value&) { ProcessSceneLifecycle(); });
-
-        prefab_preload_handle = eventhandler::Subscribe(
-            eventhandler::EVENT_PREFAB_PRELOAD,
-            [this](const won::function::Value& payload)
+    void Application::RebindViewCameras(ecs::Scene& scene)
+    {
+        for (const std::unique_ptr<rendering::View>& view_ptr : views)
+        {
+            if (view_ptr && view_ptr->scene == &scene)
             {
-                if (payload.type == won::ValueType::String && payload.string_value)
-                {
-                    pending_preloads.push_back(payload.string_value);
-                }
-            });
+                view_ptr->camera_entity = view_ptr->FindSceneCamera();
+            }
+        }
     }
 
     void Application::ProcessSceneLifecycle()
     {
-        bool scene_loaded = false;
-        for (const std::unique_ptr<ecs::Scene>& scene : scene_manager->GetScenes())
+        scene_manager->FlushQueuedSceneLoads();
+
+        for (ecs::Scene* activated : scene_manager->FlushCompletedSceneLoads())
         {
-            if (!scene || !scene->HasPendingSceneLoad())
-            {
-                continue;
-            }
-
-            if (!scene_loaded)
-            {
-                WaitIdle();
-                scene_loaded = true;
-            }
-
-            utils::Timer scene_load_timer;
-            const String scene_path = scene->TakePendingSceneLoad();
-            scene_manager->ReloadScene(*scene, scene_path);
-            wonlog("[Startup] scene load (%s): %.1f ms", scene_path.c_str(), scene_load_timer.ElapsedMilliSeconds());
-
-            for (const std::unique_ptr<rendering::View>& view_ptr : views)
-            {
-                if (!view_ptr || view_ptr->scene != scene.get())
-                {
-                    continue;
-                }
-                view_ptr->camera_entity = ecs::INVALID_ENTITY;
-                for (ecs::Entity e : scene->GetEntities())
-                {
-                    if (scene->GetComponent<ecs::CameraComponent>(e))
-                    {
-                        view_ptr->camera_entity = e;
-                        break;
-                    }
-                }
-            }
+            RebindViewCameras(*activated);
         }
-        if (scene_loaded)
-        {
-            utils::Timer upload_timer;
-            rendering::utils::FlushEnqueuedResourceUploads(*device);
-            wonlog("[Startup] gpu resource upload: %.1f ms", upload_timer.ElapsedMilliSeconds());
-        }
+        scene_manager->FlushDeferredSceneRemovals();
 
         scene_manager->FlushPrefabSpawns();
 
-        if (!pending_preloads.empty())
+        if (scene_manager->FlushPrefabPreloads())
         {
-            for (const String& path : pending_preloads)
-            {
-                scene_manager->PreloadPrefab(path);
-            }
-            pending_preloads.clear();
             rendering::utils::FlushEnqueuedResourceUploads(*device);
         }
     }
@@ -333,6 +292,7 @@ namespace won
 
         ProcessWindowResize();
         eventhandler::FireEvent(eventhandler::EVENT_THREAD_SAFE_POINT);
+        ProcessSceneLifecycle();
 
         float dt = 0.0f;
         if (is_first_frame)

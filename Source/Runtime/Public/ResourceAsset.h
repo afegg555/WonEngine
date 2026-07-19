@@ -57,6 +57,6 @@ namespace won::resource
     WONENGINE_API bool SaveMaterialBinary(const String& path, const std::shared_ptr<Material>& material);
     WONENGINE_API std::shared_ptr<Material> LoadMaterialBinary(const String& path);
 
-    WONENGINE_API void LoadSceneResources(ecs::Scene& scene, const String& content_root);
+    WONENGINE_API void LoadSceneResources(ecs::Scene& scene, const String& content_root, bool parallel = true);
     WONENGINE_API void LoadEntityResources(ecs::Scene& scene, const String& content_root, const Vector<ecs::Entity>& entities);
 }

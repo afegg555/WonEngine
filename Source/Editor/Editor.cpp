@@ -6901,21 +6901,10 @@ namespace won::editor
 					}
 				}
 
-				const char* backend_items[] = { "DirectX12", "Vulkan", "Metal" };
+				const char* backend_items[] = { "DirectX12" };
 				int backend_index = 0;
-				if (loaded_project_settings.backend_type == rendering::RHIBackend::Vulkan)
-				{
-					backend_index = 1;
-				}
-				else if (loaded_project_settings.backend_type == rendering::RHIBackend::Metal)
-				{
-					backend_index = 2;
-				}
 				draw_label("Backend");
-				if (ImGui::Combo("##Backend", &backend_index, backend_items, IM_ARRAYSIZE(backend_items)))
-				{
-					loaded_project_settings.backend_type = backend_index == 1 ? rendering::RHIBackend::Vulkan : backend_index == 2 ? rendering::RHIBackend::Metal : rendering::RHIBackend::DirectX12;
-				}
+				ImGui::Combo("##Backend", &backend_index, backend_items, IM_ARRAYSIZE(backend_items));
 
 				ImGui::EndTable();
 			}

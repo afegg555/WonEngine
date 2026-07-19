@@ -15,7 +15,13 @@ namespace won
     {
     }
 
-    SceneManager::~SceneManager() = default;
+    SceneManager::~SceneManager()
+    {
+        for (const std::unique_ptr<SceneLoadRequest>& request : scene_load_requests)
+        {
+            jobsystem::Wait(request->ctx);
+        }
+    }
 
     void SceneManager::SetProjectSettings(const project::ProjectSettings* settings)
     {
@@ -35,6 +41,24 @@ namespace won
             return;
         }
 
+        queued_scene_loads.erase(
+            std::remove_if(queued_scene_loads.begin(), queued_scene_loads.end(),
+                [scene](const QueuedSceneLoad& queued) { return queued.target == scene; }),
+            queued_scene_loads.end());
+
+        for (auto it = scene_load_requests.begin(); it != scene_load_requests.end();)
+        {
+            if ((*it)->target == scene)
+            {
+                jobsystem::Wait((*it)->ctx);
+                it = scene_load_requests.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+
         for (auto it = scenes.begin(); it != scenes.end(); ++it)
         {
             if (it->get() == scene)
@@ -50,21 +74,183 @@ namespace won
         return scenes;
     }
 
-    void SceneManager::ReloadScene(ecs::Scene& scene, const String& path)
+    void SceneManager::QueueSceneLoad(ecs::Scene& target, const String& path)
+    {
+        for (QueuedSceneLoad& queued : queued_scene_loads)
+        {
+            if (queued.target == &target)
+            {
+                queued.path = path;
+                return;
+            }
+        }
+        queued_scene_loads.push_back({ &target, path });
+    }
+
+    bool SceneManager::IsLoading(const ecs::Scene* scene) const
+    {
+        for (const QueuedSceneLoad& queued : queued_scene_loads)
+        {
+            if (queued.target == scene)
+            {
+                return true;
+            }
+        }
+        for (const std::unique_ptr<SceneLoadRequest>& request : scene_load_requests)
+        {
+            if (request->target == scene && !request->discarded)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void SceneManager::FlushQueuedSceneLoads()
+    {
+        Vector<QueuedSceneLoad> queued;
+        queued.swap(queued_scene_loads);
+        for (const QueuedSceneLoad& load : queued)
+        {
+            AsyncSceneLoad(*load.target, load.path);
+        }
+    }
+
+    bool SceneManager::LoadSceneContents(ecs::Scene& scene, const String& path, bool parallel, bool clear_entities, String* out_error)
     {
         const String content_root = project::GetContentRoot(*project_settings);
-        const String full_path = io::CombinePath(content_root, path);
+        const String full_path = project::ResolveProjectContentPath(content_root, path);
         serialize::JsonArchive archive(serialize::ArchiveMode::Read);
         if (!archive.LoadFromFile(full_path))
         {
-            backlog::Post("[SceneTransition] failed to load archive: " + full_path, backlog::LogLevel::Error);
-            return;
+            if (out_error)
+            {
+                *out_error = "failed to load archive: " + full_path;
+            }
+            return false;
         }
 
-        scene.ClearEntities();
+        if (clear_entities)
+        {
+            scene.ClearEntities();
+        }
         serialize::LoadScene(archive, scene);
-        resource::LoadSceneResources(scene, content_root);
-        backlog::Post("[SceneTransition] complete: " + full_path, backlog::LogLevel::Default);
+        if (archive.HasError() && out_error)
+        {
+            *out_error = archive.GetError();
+        }
+        resource::LoadSceneResources(scene, content_root, parallel);
+        return true;
+    }
+
+    void SceneManager::ReloadScene(ecs::Scene& scene, const String& path)
+    {
+        String error;
+        if (!LoadSceneContents(scene, path, true, true, &error))
+        {
+            backlog::Post("[SceneTransition] " + error, backlog::LogLevel::Error);
+            return;
+        }
+        if (!error.empty())
+        {
+            backlog::Post("[SceneTransition] archive warning: " + error, backlog::LogLevel::Warning);
+        }
+        backlog::Post("[SceneTransition] complete: " + path, backlog::LogLevel::Default);
+    }
+
+    void SceneManager::AsyncSceneLoad(ecs::Scene& target, const String& path)
+    {
+        for (const std::unique_ptr<SceneLoadRequest>& existing : scene_load_requests)
+        {
+            if (existing->target == &target)
+            {
+                existing->discarded = true;
+            }
+        }
+
+        auto request = std::make_unique<SceneLoadRequest>();
+        request->target = &target;
+        request->path = path;
+        request->staging = std::make_unique<ecs::Scene>();
+        for (const won::TypeDesc* type_desc : target.GetComponentTypes())
+        {
+            request->staging->RegisterComponent(type_desc);
+        }
+
+        SceneLoadRequest* job = request.get();
+
+        jobsystem::Execute(job->ctx, [this, job](jobsystem::JobArgs)
+        {
+            String error;
+            if (!LoadSceneContents(*job->staging, job->path, true, false, &error))
+            {
+                backlog::Post("[SceneTransition] " + error, backlog::LogLevel::Error);
+                job->failed.store(true, std::memory_order_release);
+                job->ready.store(true, std::memory_order_release);
+                return;
+            }
+            backlog::Post("[SceneTransition] staged: " + job->path, backlog::LogLevel::Default);
+            job->ready.store(true, std::memory_order_release);
+        });
+
+        scene_load_requests.push_back(std::move(request));
+    }
+
+    Vector<ecs::Scene*> SceneManager::FlushCompletedSceneLoads()
+    {
+        const bool allow_activate = !rendering::utils::HasPendingResourceUploads();
+
+        Vector<ecs::Scene*> activated_scenes;
+        for (auto it = scene_load_requests.begin(); it != scene_load_requests.end();)
+        {
+            SceneLoadRequest& request = **it;
+            if (!request.ready.load(std::memory_order_acquire))
+            {
+                ++it;
+                continue;
+            }
+
+            if (request.failed.load(std::memory_order_acquire) || request.discarded)
+            {
+                it = scene_load_requests.erase(it);
+                continue;
+            }
+
+			if (!allow_activate) // wait until all resource uploads are complete before activating the scene
+            {
+                ++it;
+                continue;
+            }
+
+            request.target->SwapContents(*request.staging);
+            DeferredSceneRemoval removal = {};
+            removal.frames_left = 8;
+            removal.contents = std::move(request.staging);
+            deferred_scene_removals.push_back(std::move(removal));
+            activated_scenes.push_back(request.target);
+            backlog::Post("[SceneTransition] complete: " + request.path, backlog::LogLevel::Default);
+            it = scene_load_requests.erase(it);
+        }
+        return activated_scenes;
+    }
+
+    void SceneManager::FlushDeferredSceneRemovals()
+    {
+        for (auto it = deferred_scene_removals.begin(); it != deferred_scene_removals.end();)
+        {
+            if (it->frames_left > 0)
+            {
+                --it->frames_left;
+            }
+            if (it->frames_left == 0)
+            {
+                it = deferred_scene_removals.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
     }
 
     void SceneManager::FlushPrefabSpawns()
@@ -132,6 +318,30 @@ namespace won
 
             scene.SetBVHDirty();
         }
+    }
+
+    void SceneManager::QueuePrefabPreload(const String& path)
+    {
+        if (std::find(queued_prefab_preloads.begin(), queued_prefab_preloads.end(), path) != queued_prefab_preloads.end())
+        {
+            return;
+        }
+        queued_prefab_preloads.push_back(path);
+    }
+
+    bool SceneManager::FlushPrefabPreloads()
+    {
+        if (queued_prefab_preloads.empty())
+        {
+            return false;
+        }
+        Vector<String> queued;
+        queued.swap(queued_prefab_preloads);
+        for (const String& path : queued)
+        {
+            PreloadPrefab(path);
+        }
+        return true;
     }
 
     void SceneManager::PreloadPrefab(const String& path)

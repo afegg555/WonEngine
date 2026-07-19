@@ -1673,6 +1673,7 @@ namespace won::rendering
     }
 
     static won::console::ConsoleVariable r_wireframe("r.wireframe", false, "render the main pass in wireframe", won::console::ConsoleVariableFlagNone);
+    static won::console::ConsoleVariable r_upload_budget("r.upload_budget", 8, "max queued resource uploads per frame, 0 = unlimited", won::console::ConsoleVariableFlagNone);
 
     bool RendererInternal::DrawScene(const FrameContext& frame_context, const View& view, RenderPassType pass, uint32 flags, RHICommandList& command_list)
     {
@@ -2350,7 +2351,7 @@ namespace won::rendering
 
         device->BeginFrame(frame_slot);
 
-        utils::FlushEnqueuedResourceUploads(*device);
+        utils::FlushEnqueuedResourceUploads(*device, static_cast<uint32>(r_upload_budget.GetInt()));
 
         CreateRenderTargetResources(frame_context);
 

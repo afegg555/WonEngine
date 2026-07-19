@@ -323,11 +323,28 @@ namespace won::ecs
         scene_bvh_entities.clear();
         physics_world->Clear();
         prefab_spawn_queue.clear();
-        pending_scene_load.clear();
         animation_event_queue.clear();
-        has_pending_scene_load = false;
         next_entity = INVALID_ENTITY + 1;
         SetBVHDirty();
+    }
+
+    void Scene::SwapContents(Scene& other)
+    {
+        std::swap(render_data, other.render_data);
+        std::swap(component_manager, other.component_manager);
+        std::swap(entities, other.entities);
+        std::swap(next_entity, other.next_entity);
+        std::swap(scene_bvh, other.scene_bvh);
+        std::swap(scene_bvh_entities, other.scene_bvh_entities);
+        std::swap(ui_click_queue, other.ui_click_queue);
+        std::swap(animation_event_queue, other.animation_event_queue);
+        std::swap(prefab_spawn_queue, other.prefab_spawn_queue);
+
+        physics_world->Clear();
+
+        SetBVHDirty();
+        SetHierarchyTopologyDirty(true);
+        system_schedule_dirty = true;
     }
 
     void Scene::BuildBVH()

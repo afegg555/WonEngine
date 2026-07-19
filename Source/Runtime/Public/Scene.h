@@ -66,6 +66,8 @@ namespace won::ecs
 
         void ClearEntities();
 
+        void SwapContents(Scene& other);
+
         template <typename Component, typename... Args>
         Component* AddComponent(Entity entity, Args&&... args)
         {
@@ -434,23 +436,6 @@ namespace won::ecs
             prefab_spawn_queue.clear();
         }
 
-        void QueueSceneLoad(const String& path)
-        {
-            pending_scene_load = path;
-            has_pending_scene_load = true;
-        }
-
-        bool HasPendingSceneLoad() const
-        {
-            return has_pending_scene_load;
-        }
-
-        String TakePendingSceneLoad()
-        {
-            has_pending_scene_load = false;
-            return std::move(pending_scene_load);
-        }
-
         const math::bvh::BVH& GetSceneBVH() const
         {
             return scene_bvh;
@@ -485,7 +470,5 @@ namespace won::ecs
         Vector<Entity> ui_click_queue;
         Vector<std::pair<Entity, String>> animation_event_queue;
         Vector<PrefabSpawnRequest> prefab_spawn_queue;
-        String pending_scene_load;
-        bool has_pending_scene_load = false;
     };
 }
