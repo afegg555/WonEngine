@@ -39,6 +39,8 @@ namespace won::ecs
     {
         Entity entity = INVALID_ENTITY;
         float distance = (std::numeric_limits<float>::max)();
+        float3 point = { 0.0f, 0.0f, 0.0f };
+        float3 normal = { 0.0f, 0.0f, 0.0f };
     };
 
     struct RayCastBVHHit
@@ -202,8 +204,6 @@ namespace won::ecs
         bool RayCastBVH(const math::Ray& ray, RayCastBVHHit& out_hit, bool use_local_bvh = true, uint32 layer_mask = 0xFFFFFFFF);
 
         bool RayCastCollider3D(const math::Ray& ray, RayCastHit& out_hit, float max_distance = (std::numeric_limits<float>::max)(), uint32 layer_mask = 0xFFFFFFFF);
-
-        void OverlapCollider3D(const math::AABB& bounds, Vector<OverlapHit>& out_hits);
 
         void OverlapCollider3D(const math::Sphere& sphere, Vector<OverlapHit>& out_hits);
 

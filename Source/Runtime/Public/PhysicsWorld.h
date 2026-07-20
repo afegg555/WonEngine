@@ -7,6 +7,7 @@ namespace won::ecs
     struct TransformComponent;
     struct Collider3DComponent;
     struct Rigidbody3DComponent;
+    struct JointComponent;
     using Entity = uint64;
 }
 
@@ -45,6 +46,14 @@ namespace won::physics
         won::ecs::Entity other = 0;
     };
 
+    struct RayCastHit
+    {
+        won::ecs::Entity entity = 0;
+        float distance = 0.0f;
+        float3 point = { 0.0f, 0.0f, 0.0f };
+        float3 normal = { 0.0f, 0.0f, 0.0f };
+    };
+
     class WONENGINE_API PhysicsWorld
     {
     public:
@@ -54,7 +63,18 @@ namespace won::physics
         void Step(float delta_time);
         void Clear();
 
-        void AddBody(won::ecs::Entity entity, const won::ecs::TransformComponent& transform, won::ecs::Collider3DComponent& collider, won::ecs::Rigidbody3DComponent* rb, uint32_t collision_layer = 0);
+        struct HeightFieldShapeDesc
+        {
+            const float* samples = nullptr;
+            uint32_t samples_x = 0;
+            uint32_t samples_z = 0;
+            float cell_x = 0.0f;
+            float cell_z = 0.0f;
+            float offset_x = 0.0f;
+            float offset_z = 0.0f;
+        };
+
+        void AddBody(won::ecs::Entity entity, const won::ecs::TransformComponent& transform, won::ecs::Collider3DComponent& collider, won::ecs::Rigidbody3DComponent* rb, uint32_t collision_layer = 0, const HeightFieldShapeDesc* height_field = nullptr);
         void RemoveBody(won::ecs::Entity entity);
         bool HasBody(won::ecs::Entity entity) const;
 
@@ -70,6 +90,14 @@ namespace won::physics
         void AddForce(won::ecs::Entity entity, const float3& force);
         void AddImpulse(won::ecs::Entity entity, const float3& impulse);
         void AddTorque(won::ecs::Entity entity, const float3& torque);
+
+        bool RayCast(const float3& origin, const float3& direction, float max_distance, RayCastHit& out_hit, uint32_t layer_mask = 0xFFFFFFFFu) const;
+        bool SphereCast(const float3& origin, const float3& direction, float radius, float max_distance, RayCastHit& out_hit, uint32_t layer_mask = 0xFFFFFFFFu) const;
+        void OverlapSphere(const float3& center, float radius, Vector<won::ecs::Entity>& out_entities, uint32_t layer_mask = 0xFFFFFFFFu) const;
+
+        void AddJoint(won::ecs::Entity owner_entity, const won::ecs::JointComponent& joint);
+        void RemoveJoint(won::ecs::Entity owner_entity);
+        bool HasJoint(won::ecs::Entity owner_entity) const;
 
         const Vector<Collider3DTriggerEvent>& GetTriggerEvents() const;
 

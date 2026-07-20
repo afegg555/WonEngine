@@ -1,8 +1,10 @@
 #include "PhysicsWorld.h"
+#include "Backlog.h"
 #include "Primitives.h"
 #include "TransformComponent.h"
 #include "Collider3DComponent.h"
 #include "Rigidbody3DComponent.h"
+#include "JointComponent.h"
 #include "JobSystem.h"
 
 #include <Jolt/Jolt.h>
@@ -14,9 +16,25 @@
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
+#include <Jolt/Physics/Collision/Shape/HeightFieldShape.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Body/BodyInterface.h>
+#include <Jolt/Physics/Body/BodyLock.h>
+#include <Jolt/Physics/Body/BodyFilter.h>
 #include <Jolt/Physics/Collision/ContactListener.h>
+#include <Jolt/Physics/Collision/NarrowPhaseQuery.h>
+#include <Jolt/Physics/Collision/RayCast.h>
+#include <Jolt/Physics/Collision/CastResult.h>
+#include <Jolt/Physics/Collision/CollideShape.h>
+#include <Jolt/Physics/Collision/ShapeCast.h>
+#include <Jolt/Physics/Collision/CollisionCollector.h>
+#include <Jolt/Physics/Collision/CollisionCollectorImpl.h>
+#include <Jolt/Physics/Body/Body.h>
+#include <Jolt/Physics/Body/BodyLockInterface.h>
+#include <Jolt/Physics/Constraints/Constraint.h>
+#include <Jolt/Physics/Constraints/TwoBodyConstraint.h>
+#include <Jolt/Physics/Constraints/FixedConstraint.h>
+#include <Jolt/Physics/Constraints/HingeConstraint.h>
 
 #include <mutex>
 #include <shared_mutex>
@@ -120,7 +138,7 @@ namespace won::physics
             static constexpr JPH::ObjectLayer NUM_LAYERS = 3;
         };
 
-        class BPLayerInterfaceImpl final : public JPH::BroadPhaseLayerInterface
+		class BPLayerInterfaceImpl final : public JPH::BroadPhaseLayerInterface // object layer -> broad phase layer mapping
         {
         public:
             BPLayerInterfaceImpl()
@@ -157,7 +175,7 @@ namespace won::physics
             JPH::BroadPhaseLayer mObjectToBroadPhase[ObjectLayers::NUM_LAYERS];
         };
 
-		class ObjectVsBroadPhaseLayerFilterImpl : public JPH::ObjectVsBroadPhaseLayerFilter // broad phase layer filter
+		class ObjectVsBroadPhaseLayerFilterImpl : public JPH::ObjectVsBroadPhaseLayerFilter // object layer -> broad phase layer filter (should this object layer interact with that broad phase layer?)
         {
         public:
             bool ShouldCollide(JPH::ObjectLayer inLayer1, JPH::BroadPhaseLayer inLayer2) const override
@@ -176,7 +194,7 @@ namespace won::physics
             }
         };
 
-		class ObjectLayerPairFilterImpl : public JPH::ObjectLayerPairFilter // narrow phase layer filter
+		class ObjectLayerPairFilterImpl : public JPH::ObjectLayerPairFilter // object layer -> object layer filter (should this object layer interact with that object layer?)
         {
         public:
             bool ShouldCollide(JPH::ObjectLayer inObject1, JPH::ObjectLayer inObject2) const override
@@ -196,7 +214,7 @@ namespace won::physics
         };
 
 		// broad phase -> narrow phase -> generate contact
-        class MyContactListener : public JPH::ContactListener
+		class MyContactListener : public JPH::ContactListener // contact listener for trigger events
         {
         public:
             struct ContactPair {
@@ -268,6 +286,15 @@ namespace won::physics
         UnorderedMap<won::ecs::Entity, JPH::BodyID> entity_to_body;
         UnorderedMap<JPH::BodyID, won::ecs::Entity> body_to_entity;
 
+        struct JointRecord
+        {
+            JPH::Ref<JPH::Constraint> constraint;
+            JPH::BodyID body_a;
+            JPH::BodyID body_b;
+        };
+        mutable std::mutex joints_mutex;
+        UnorderedMap<won::ecs::Entity, JointRecord> joints;
+
         Vector<ActiveTriggerPair> active_trigger_pairs;
         Vector<Collider3DTriggerEvent> trigger_events;
 
@@ -306,6 +333,15 @@ namespace won::physics
 
         void Clear()
         {
+            for (auto& [entity, record] : joints)
+            {
+                if (record.constraint != nullptr)
+                {
+                    physics_system->RemoveConstraint(record.constraint);
+                }
+            }
+            joints.clear();
+
             JPH::BodyInterface& body_interface = physics_system->GetBodyInterface();
             for (auto& [entity, body_id] : entity_to_body)
             {
@@ -410,7 +446,7 @@ namespace won::physics
         impl->active_trigger_pairs = std::move(current_pairs);
     }
 
-    void PhysicsWorld::AddBody(won::ecs::Entity entity, const won::ecs::TransformComponent& transform, won::ecs::Collider3DComponent& collider, won::ecs::Rigidbody3DComponent* rb, uint32_t collision_layer)
+    void PhysicsWorld::AddBody(won::ecs::Entity entity, const won::ecs::TransformComponent& transform, won::ecs::Collider3DComponent& collider, won::ecs::Rigidbody3DComponent* rb, uint32_t collision_layer, const HeightFieldShapeDesc* height_field)
     {
         XMMATRIX world = transform.GetWorldTransform();
         XMVECTOR world_scale_vec, world_rot_vec, world_pos_vec;
@@ -418,7 +454,44 @@ namespace won::physics
         XMFLOAT3 world_scale; XMStoreFloat3(&world_scale, world_scale_vec);
 
         JPH::Ref<JPH::Shape> shape;
-        if (collider.shape_type == won::ecs::Collider3DComponent::ShapeType::Sphere)
+        if (collider.shape_type == won::ecs::Collider3DComponent::ShapeType::HeightField)
+        {
+            if (!height_field || !height_field->samples || height_field->samples_x < 2 || height_field->samples_z < 2)
+            {
+                wonlog_warning("[PhysicsWorld] HeightField collider on entity %llu has no height field data, body skipped", static_cast<unsigned long long>(entity));
+                return;
+            }
+            if (rb && rb->motion_type != won::ecs::Rigidbody3DComponent::MotionType::Static)
+            {
+                wonlog_warning("[PhysicsWorld] HeightField collider is static-only, entity %llu rigidbody motion ignored", static_cast<unsigned long long>(entity));
+            }
+
+            constexpr uint32_t block_size = 2;
+            const uint32_t max_samples = (std::max)(height_field->samples_x, height_field->samples_z);
+            const uint32_t sample_count = ((max_samples + block_size - 1) / block_size) * block_size;
+
+            Vector<float> padded(static_cast<Size>(sample_count) * sample_count, JPH::HeightFieldShapeConstants::cNoCollisionValue);
+            for (uint32_t j = 0; j < height_field->samples_z; ++j)
+            {
+                for (uint32_t i = 0; i < height_field->samples_x; ++i)
+                {
+                    padded[j * sample_count + i] = height_field->samples[j * height_field->samples_x + i];
+                }
+            }
+
+            const JPH::Vec3 shape_offset(height_field->offset_x * world_scale.x, 0.0f, height_field->offset_z * world_scale.z);
+            const JPH::Vec3 shape_scale(height_field->cell_x * world_scale.x, world_scale.y, height_field->cell_z * world_scale.z);
+            JPH::HeightFieldShapeSettings settings(padded.data(), shape_offset, shape_scale, sample_count);
+            settings.mBlockSize = block_size;
+            JPH::ShapeSettings::ShapeResult result = settings.Create();
+            if (result.HasError())
+            {
+                wonlog_warning("[PhysicsWorld] HeightField shape creation failed for entity %llu: %s", static_cast<unsigned long long>(entity), result.GetError().c_str());
+                return;
+            }
+            shape = result.Get();
+        }
+        else if (collider.shape_type == won::ecs::Collider3DComponent::ShapeType::Sphere)
         {
             float max_scale = (std::max)((std::max)(world_scale.x, world_scale.y), world_scale.z);
             float radius = (std::max)(0.001f, collider.radius * max_scale);
@@ -435,7 +508,7 @@ namespace won::physics
         }
 
         JPH::EMotionType motion_type = JPH::EMotionType::Static;
-        if (rb)
+        if (rb && collider.shape_type != won::ecs::Collider3DComponent::ShapeType::HeightField)
         {
             if (rb->motion_type == won::ecs::Rigidbody3DComponent::MotionType::Kinematic)
                 motion_type = JPH::EMotionType::Kinematic;
@@ -520,6 +593,26 @@ namespace won::physics
             impl->body_to_entity.erase(body_id);
             impl->entity_to_body.erase(it);
         }
+
+        {
+            std::lock_guard lock(impl->joints_mutex);
+            for (auto it = impl->joints.begin(); it != impl->joints.end(); )
+            {
+                if (it->second.body_a == body_id || it->second.body_b == body_id)
+                {
+                    if (it->second.constraint != nullptr)
+                    {
+                        impl->physics_system->RemoveConstraint(it->second.constraint);
+                    }
+                    it = impl->joints.erase(it);
+                }
+                else
+                {
+                    ++it;
+                }
+            }
+        }
+
         JPH::BodyInterface& body_interface = impl->physics_system->GetBodyInterface();
         body_interface.RemoveBody(body_id);
         body_interface.DestroyBody(body_id);
@@ -661,6 +754,297 @@ namespace won::physics
             body_id = it->second;
         }
         impl->physics_system->GetBodyInterface().AddTorque(body_id, JPH::Vec3(torque.x, torque.y, torque.z));
+    }
+
+    namespace
+    {
+		class LayerMaskBodyFilter : public JPH::BodyFilter // temp filter for raycast and spherecast to filter by layer mask
+        {
+        public:
+            explicit LayerMaskBodyFilter(uint32_t mask) : layer_mask(mask) {}
+
+            bool ShouldCollideLocked(const JPH::Body& body) const override
+            {
+                const uint32_t layer = static_cast<uint32_t>(body.GetUserData()) & 31u;
+                return (layer_mask & (1u << layer)) != 0u;
+            }
+
+        private:
+            uint32_t layer_mask;
+        };
+    }
+
+    bool PhysicsWorld::RayCast(const float3& origin, const float3& direction, float max_distance, RayCastHit& out_hit, uint32_t layer_mask) const
+    {
+        out_hit = {};
+
+        const float direction_length = std::sqrt(direction.x * direction.x + direction.y * direction.y + direction.z * direction.z);
+        if (direction_length <= 1e-6f || max_distance <= 0.0f)
+        {
+            return false;
+        }
+        const float inv_length = 1.0f / direction_length;
+        const JPH::Vec3 scaled_direction(
+            direction.x * inv_length * max_distance,
+            direction.y * inv_length * max_distance,
+            direction.z * inv_length * max_distance);
+
+        const JPH::RRayCast ray(JPH::RVec3(origin.x, origin.y, origin.z), scaled_direction);
+        JPH::RayCastResult result;
+
+        const LayerMaskBodyFilter body_filter(layer_mask);
+        if (!impl->physics_system->GetNarrowPhaseQuery().CastRay(ray, result, {}, {}, body_filter))
+        {
+            return false;
+        }
+
+        {
+            std::shared_lock lock(impl->bodies_mutex);
+            auto it = impl->body_to_entity.find(result.mBodyID);
+            if (it == impl->body_to_entity.end())
+            {
+                return false;
+            }
+            out_hit.entity = it->second;
+        }
+
+        const JPH::RVec3 hit_point = ray.GetPointOnRay(result.mFraction);
+        JPH::Vec3 hit_normal = JPH::Vec3::sZero();
+        {
+            JPH::BodyLockRead lock(impl->physics_system->GetBodyLockInterface(), result.mBodyID);
+            if (lock.Succeeded())
+            {
+                hit_normal = lock.GetBody().GetWorldSpaceSurfaceNormal(result.mSubShapeID2, hit_point);
+            }
+        }
+
+        out_hit.distance = result.mFraction * max_distance;
+        out_hit.point = { (float)hit_point.GetX(), (float)hit_point.GetY(), (float)hit_point.GetZ() };
+        out_hit.normal = { hit_normal.GetX(), hit_normal.GetY(), hit_normal.GetZ() };
+        return true;
+    }
+
+    bool PhysicsWorld::SphereCast(const float3& origin, const float3& direction, float radius, float max_distance, RayCastHit& out_hit, uint32_t layer_mask) const
+    {
+        out_hit = {};
+
+        const float direction_length = std::sqrt(direction.x * direction.x + direction.y * direction.y + direction.z * direction.z);
+        if (direction_length <= 1e-6f || max_distance <= 0.0f || radius <= 0.0f)
+        {
+            return false;
+        }
+        const float inv_length = 1.0f / direction_length;
+        const JPH::Vec3 scaled_direction(
+            direction.x * inv_length * max_distance,
+            direction.y * inv_length * max_distance,
+            direction.z * inv_length * max_distance);
+
+        JPH::SphereShape sphere_shape(radius);
+        sphere_shape.SetEmbedded();
+
+        const JPH::RShapeCast shape_cast(
+            &sphere_shape,
+            JPH::Vec3::sReplicate(1.0f),
+            JPH::RMat44::sTranslation(JPH::RVec3(origin.x, origin.y, origin.z)),
+            scaled_direction);
+
+        JPH::ShapeCastSettings settings;
+        JPH::ClosestHitCollisionCollector<JPH::CastShapeCollector> collector;
+        const LayerMaskBodyFilter body_filter(layer_mask);
+
+        impl->physics_system->GetNarrowPhaseQuery().CastShape(
+            shape_cast,
+            settings,
+            JPH::RVec3::sZero(),
+            collector,
+            {},
+            {},
+            body_filter);
+
+        if (!collector.HadHit())
+        {
+            return false;
+        }
+
+        {
+            std::shared_lock lock(impl->bodies_mutex);
+            auto it = impl->body_to_entity.find(collector.mHit.mBodyID2);
+            if (it == impl->body_to_entity.end())
+            {
+                return false;
+            }
+            out_hit.entity = it->second;
+        }
+
+        const JPH::Vec3 contact_point = collector.mHit.mContactPointOn2;
+        JPH::Vec3 hit_normal = JPH::Vec3::sZero();
+        {
+            JPH::BodyLockRead lock(impl->physics_system->GetBodyLockInterface(), collector.mHit.mBodyID2);
+            if (lock.Succeeded())
+            {
+                hit_normal = lock.GetBody().GetWorldSpaceSurfaceNormal(collector.mHit.mSubShapeID2, JPH::RVec3(contact_point));
+            }
+        }
+
+        out_hit.distance = collector.mHit.mFraction * max_distance;
+        out_hit.point = { contact_point.GetX(), contact_point.GetY(), contact_point.GetZ() };
+        out_hit.normal = { hit_normal.GetX(), hit_normal.GetY(), hit_normal.GetZ() };
+        return true;
+    }
+
+    void PhysicsWorld::OverlapSphere(const float3& center, float radius, Vector<won::ecs::Entity>& out_entities, uint32_t layer_mask) const
+    {
+        out_entities.clear();
+        if (radius <= 0.0f)
+        {
+            return;
+        }
+
+        JPH::SphereShape sphere_shape(radius);
+        sphere_shape.SetEmbedded();
+
+        JPH::CollideShapeSettings settings;
+        JPH::AllHitCollisionCollector<JPH::CollideShapeCollector> collector;
+        const JPH::RMat44 transform = JPH::RMat44::sTranslation(JPH::RVec3(center.x, center.y, center.z));
+        const LayerMaskBodyFilter body_filter(layer_mask);
+
+        impl->physics_system->GetNarrowPhaseQuery().CollideShape(
+            &sphere_shape,
+            JPH::Vec3::sReplicate(1.0f),
+            transform,
+            settings,
+            JPH::RVec3::sZero(),
+            collector,
+            {},
+            {},
+            body_filter);
+
+        std::shared_lock lock(impl->bodies_mutex);
+        for (const JPH::CollideShapeResult& hit : collector.mHits)
+        {
+            auto it = impl->body_to_entity.find(hit.mBodyID2);
+            if (it == impl->body_to_entity.end())
+            {
+                continue;
+            }
+            const won::ecs::Entity entity = it->second;
+            if (std::find(out_entities.begin(), out_entities.end(), entity) == out_entities.end())
+            {
+                out_entities.push_back(entity);
+            }
+        }
+    }
+
+    void PhysicsWorld::AddJoint(won::ecs::Entity owner_entity, const won::ecs::JointComponent& joint)
+    {
+        JPH::BodyID owner_id;
+        JPH::BodyID other_id;
+        bool other_valid = false;
+        {
+            std::shared_lock lock(impl->bodies_mutex);
+            auto owner_it = impl->entity_to_body.find(owner_entity);
+            if (owner_it == impl->entity_to_body.end())
+            {
+                return;
+            }
+            owner_id = owner_it->second;
+            if (joint.connected_entity != 0)
+            {
+                auto other_it = impl->entity_to_body.find(joint.connected_entity);
+                if (other_it != impl->entity_to_body.end())
+                {
+                    other_id = other_it->second;
+                    other_valid = true;
+                }
+            }
+        }
+
+        const JPH::BodyLockInterface& lock_interface = impl->physics_system->GetBodyLockInterfaceNoLock();
+        JPH::Body* owner_body = lock_interface.TryGetBody(owner_id);
+        JPH::Body* other_body = other_valid ? lock_interface.TryGetBody(other_id) : &JPH::Body::sFixedToWorld;
+        if (owner_body == nullptr || other_body == nullptr)
+        {
+            return;
+        }
+
+        JPH::Ref<JPH::Constraint> constraint;
+        if (joint.type == won::ecs::JointComponent::JointType::Hinge)
+        {
+            JPH::Vec3 hinge_axis(joint.axis.x, joint.axis.y, joint.axis.z);
+            if (hinge_axis.LengthSq() < 1e-8f)
+            {
+                hinge_axis = JPH::Vec3::sAxisY();
+            }
+            hinge_axis = hinge_axis.Normalized();
+            const JPH::Vec3 reference = std::abs(hinge_axis.GetY()) < 0.99f ? JPH::Vec3::sAxisY() : JPH::Vec3::sAxisX();
+            const JPH::Vec3 normal_axis = hinge_axis.Cross(reference).Normalized();
+
+            JPH::HingeConstraintSettings settings;
+            settings.mSpace = JPH::EConstraintSpace::WorldSpace;
+            settings.mPoint1 = settings.mPoint2 = JPH::RVec3(joint.anchor.x, joint.anchor.y, joint.anchor.z);
+            settings.mHingeAxis1 = settings.mHingeAxis2 = hinge_axis;
+            settings.mNormalAxis1 = settings.mNormalAxis2 = normal_axis;
+            if (joint.use_limit)
+            {
+                settings.mLimitsMin = joint.limit_min;
+                settings.mLimitsMax = joint.limit_max;
+            }
+            constraint = settings.Create(*other_body, *owner_body);
+        }
+        else
+        {
+            JPH::FixedConstraintSettings settings;
+            settings.mSpace = JPH::EConstraintSpace::WorldSpace;
+            settings.mAutoDetectPoint = true;
+            constraint = settings.Create(*other_body, *owner_body);
+        }
+
+        if (constraint == nullptr)
+        {
+            return;
+        }
+
+        PhysicsWorldImpl::JointRecord record;
+        record.constraint = constraint;
+        record.body_a = owner_id;
+        record.body_b = other_valid ? other_id : JPH::BodyID();
+
+        std::lock_guard lock(impl->joints_mutex);
+        auto existing = impl->joints.find(owner_entity);
+        if (existing != impl->joints.end())
+        {
+            if (existing->second.constraint != nullptr)
+            {
+                impl->physics_system->RemoveConstraint(existing->second.constraint);
+            }
+            existing->second = record;
+        }
+        else
+        {
+            impl->joints[owner_entity] = record;
+        }
+        impl->physics_system->AddConstraint(constraint);
+    }
+
+    void PhysicsWorld::RemoveJoint(won::ecs::Entity owner_entity)
+    {
+        std::lock_guard lock(impl->joints_mutex);
+        auto it = impl->joints.find(owner_entity);
+        if (it == impl->joints.end())
+        {
+            return;
+        }
+        if (it->second.constraint != nullptr)
+        {
+            impl->physics_system->RemoveConstraint(it->second.constraint);
+        }
+        impl->joints.erase(it);
+    }
+
+    bool PhysicsWorld::HasJoint(won::ecs::Entity owner_entity) const
+    {
+        std::lock_guard lock(impl->joints_mutex);
+        return impl->joints.find(owner_entity) != impl->joints.end();
     }
 
     const Vector<Collider3DTriggerEvent>& PhysicsWorld::GetTriggerEvents() const

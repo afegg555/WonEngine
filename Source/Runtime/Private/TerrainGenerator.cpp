@@ -56,37 +56,52 @@ namespace won::ecs
         }
     }
 
+    TerrainHeightField GenerateTerrainHeights(const TerrainComponent& terrain)
+    {
+        const uint32 res_x = terrain.resolution_x < 1 ? 1 : terrain.resolution_x;
+        const uint32 res_z = terrain.resolution_z < 1 ? 1 : terrain.resolution_z;
+
+        TerrainHeightField height_field = {};
+        height_field.samples_x = res_x + 1;
+        height_field.samples_z = res_z + 1;
+        height_field.cell_x = terrain.world_size_x / static_cast<float>(res_x);
+        height_field.cell_z = terrain.world_size_z / static_cast<float>(res_z);
+        height_field.offset_x = -terrain.world_size_x * 0.5f;
+        height_field.offset_z = -terrain.world_size_z * 0.5f;
+        height_field.heights.resize(static_cast<Size>(height_field.samples_x) * height_field.samples_z);
+
+        for (uint32 j = 0; j < height_field.samples_z; ++j)
+        {
+            for (uint32 i = 0; i < height_field.samples_x; ++i)
+            {
+                const float x = height_field.offset_x + static_cast<float>(i) * height_field.cell_x;
+                const float z = height_field.offset_z + static_cast<float>(j) * height_field.cell_z;
+                height_field.heights[j * height_field.samples_x + i] = TerrainHeight(x, z, terrain) * terrain.height_scale;
+            }
+        }
+
+        return height_field;
+    }
+
     std::shared_ptr<resource::Mesh> GenerateTerrainMesh(const TerrainComponent& terrain)
     {
         const uint32 res_x = terrain.resolution_x < 1 ? 1 : terrain.resolution_x;
         const uint32 res_z = terrain.resolution_z < 1 ? 1 : terrain.resolution_z;
-        const uint32 vert_x = res_x + 1;
-        const uint32 vert_z = res_z + 1;
 
-        const float size_x = terrain.world_size_x;
-        const float size_z = terrain.world_size_z;
-        const float half_x = size_x * 0.5f;
-        const float half_z = size_z * 0.5f;
-        const float cell_x = size_x / static_cast<float>(res_x);
-        const float cell_z = size_z / static_cast<float>(res_z);
+        const TerrainHeightField height_field = GenerateTerrainHeights(terrain);
+        const Vector<float>& heights = height_field.heights;
+        const uint32 vert_x = height_field.samples_x;
+        const uint32 vert_z = height_field.samples_z;
+        const float half_x = -height_field.offset_x;
+        const float half_z = -height_field.offset_z;
+        const float cell_x = height_field.cell_x;
+        const float cell_z = height_field.cell_z;
 
         auto mesh = std::make_shared<resource::Mesh>();
         const uint32 vertex_count = vert_x * vert_z;
         mesh->positions.resize(vertex_count);
         mesh->normals.resize(vertex_count);
         mesh->texcoords.resize(vertex_count);
-
-        // Precompute the height field first so normals can use neighbor differences.
-        Vector<float> heights(vertex_count);
-        for (uint32 j = 0; j < vert_z; ++j)
-        {
-            for (uint32 i = 0; i < vert_x; ++i)
-            {
-                const float x = -half_x + static_cast<float>(i) * cell_x;
-                const float z = -half_z + static_cast<float>(j) * cell_z;
-                heights[j * vert_x + i] = TerrainHeight(x, z, terrain) * terrain.height_scale;
-            }
-        }
 
         math::AABB bounds = {};
         bounds.Invalidate();

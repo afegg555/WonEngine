@@ -327,6 +327,7 @@ namespace won::editor
 			constexpr const char* trigger = "Trigger";
 			constexpr const char* box = "Box";
 			constexpr const char* sphere = "Sphere";
+			constexpr const char* height_field = "Height Field";
 			constexpr const char* offset = "Offset";
 			constexpr const char* half_extent = "Half Extent";
 			constexpr const char* radius = "Radius";
@@ -2124,6 +2125,18 @@ namespace won::editor
 						float3 world_center = {};
 						XMStoreFloat3(&world_center, center);
 						add_sphere(world_center, (std::max)(0.0f, collider.radius) * max_scale, material_slot);
+					}
+					else if (collider.shape_type == ecs::Collider3DComponent::ShapeType::HeightField)
+					{
+						const ecs::GeometryComponent* geometry = editor_viewport.view->scene->GetComponent<ecs::GeometryComponent>(entity);
+						if (geometry && geometry->local_bounds.IsValid())
+						{
+							const math::AABB world_bounds = geometry->local_bounds.TransformAABB(world);
+							if (world_bounds.IsValid())
+							{
+								add_box(world_bounds.min, world_bounds.max, material_slot);
+							}
+						}
 					}
 					else
 					{
@@ -4729,7 +4742,7 @@ namespace won::editor
 					if (!remove_component && component_open)
 					{
 						int shape_type = static_cast<int>(collider_3d_comp->shape_type);
-						const char* shape_type_items[] = { editor_text::box, editor_text::sphere };
+						const char* shape_type_items[] = { editor_text::box, editor_text::sphere, editor_text::height_field };
 						if (ImGui::Combo(editor_text::type, &shape_type, shape_type_items, arraysize(shape_type_items)))
 						{
 							collider_3d_comp->shape_type = static_cast<Collider3DComponent::ShapeType>(shape_type);

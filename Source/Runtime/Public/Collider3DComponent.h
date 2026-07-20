@@ -20,6 +20,7 @@ namespace won::ecs
         {
             Box = 0,
             Sphere,
+            HeightField,
         };
 
         uint32 flags = Dirty | Enabled;

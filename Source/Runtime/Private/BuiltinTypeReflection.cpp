@@ -41,6 +41,7 @@ namespace won::reflection
         RegisterType(TypeMeta<ecs::UIScaleMode>::Get());
         RegisterType(TypeMeta<ecs::Canvas2DComponent::RenderMode>::Get());
         RegisterType(TypeMeta<ecs::Rigidbody3DComponent::MotionType>::Get());
+        RegisterType(TypeMeta<ecs::JointComponent::JointType>::Get());
         RegisterType(TypeMeta<ecs::AnimationParameter::Type>::Get());
         RegisterType(TypeMeta<ecs::TransitionCondition::Op>::Get());
 
@@ -70,6 +71,7 @@ namespace won::reflection
         RegisterType(TypeMeta<ecs::AnimationStateMachineComponent>::Get());
         RegisterType(TypeMeta<ecs::Collider3DComponent>::Get());
         RegisterType(TypeMeta<ecs::Rigidbody3DComponent>::Get());
+        RegisterType(TypeMeta<ecs::JointComponent>::Get());
         RegisterType(TypeMeta<ecs::AudioSourceComponent>::Get());
         RegisterType(TypeMeta<ecs::AudioListenerComponent>::Get());
         RegisterType(TypeMeta<ecs::VisibilityLayerComponent>::Get());

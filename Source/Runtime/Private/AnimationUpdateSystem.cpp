@@ -189,7 +189,7 @@ namespace won::ecs
                     animation.blend_elapsed += delta_time;
                     if (prev_clip && prev_clip->IsValid())
                     {
-                        const float prev_ticks_per_second = prev_clip->ticks_per_second > 0.0f ? prev_clip->ticks_per_second : 1.0f;
+                        //const float prev_ticks_per_second = prev_clip->ticks_per_second > 0.0f ? prev_clip->ticks_per_second : 1.0f;
                         const float prev_duration_seconds = prev_clip->DurationSeconds();
                         const float advanced_prev_time = animation.prev_time + delta_time * animation.speed;
                         animation.prev_time = animation.loop ? math::Wrap(advanced_prev_time, prev_duration_seconds) : math::Clamp(advanced_prev_time, 0.0f, prev_duration_seconds);
