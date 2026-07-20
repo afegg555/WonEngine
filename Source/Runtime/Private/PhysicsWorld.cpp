@@ -1,4 +1,5 @@
 #include "PhysicsWorld.h"
+#include "Backlog.h"
 #include "Primitives.h"
 #include "TransformComponent.h"
 #include "Collider3DComponent.h"
@@ -14,6 +15,7 @@
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
+#include <Jolt/Physics/Collision/Shape/HeightFieldShape.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Body/BodyInterface.h>
 #include <Jolt/Physics/Body/BodyLock.h>
@@ -419,7 +421,7 @@ namespace won::physics
         impl->active_trigger_pairs = std::move(current_pairs);
     }
 
-    void PhysicsWorld::AddBody(won::ecs::Entity entity, const won::ecs::TransformComponent& transform, won::ecs::Collider3DComponent& collider, won::ecs::Rigidbody3DComponent* rb, uint32_t collision_layer)
+    void PhysicsWorld::AddBody(won::ecs::Entity entity, const won::ecs::TransformComponent& transform, won::ecs::Collider3DComponent& collider, won::ecs::Rigidbody3DComponent* rb, uint32_t collision_layer, const HeightFieldShapeDesc* height_field)
     {
         XMMATRIX world = transform.GetWorldTransform();
         XMVECTOR world_scale_vec, world_rot_vec, world_pos_vec;
@@ -427,7 +429,44 @@ namespace won::physics
         XMFLOAT3 world_scale; XMStoreFloat3(&world_scale, world_scale_vec);
 
         JPH::Ref<JPH::Shape> shape;
-        if (collider.shape_type == won::ecs::Collider3DComponent::ShapeType::Sphere)
+        if (collider.shape_type == won::ecs::Collider3DComponent::ShapeType::HeightField)
+        {
+            if (!height_field || !height_field->samples || height_field->samples_x < 2 || height_field->samples_z < 2)
+            {
+                wonlog_warning("[PhysicsWorld] HeightField collider on entity %llu has no height field data, body skipped", static_cast<unsigned long long>(entity));
+                return;
+            }
+            if (rb && rb->motion_type != won::ecs::Rigidbody3DComponent::MotionType::Static)
+            {
+                wonlog_warning("[PhysicsWorld] HeightField collider is static-only, entity %llu rigidbody motion ignored", static_cast<unsigned long long>(entity));
+            }
+
+            constexpr uint32_t block_size = 2;
+            const uint32_t max_samples = (std::max)(height_field->samples_x, height_field->samples_z);
+            const uint32_t sample_count = ((max_samples + block_size - 1) / block_size) * block_size;
+
+            Vector<float> padded(static_cast<Size>(sample_count) * sample_count, JPH::HeightFieldShapeConstants::cNoCollisionValue);
+            for (uint32_t j = 0; j < height_field->samples_z; ++j)
+            {
+                for (uint32_t i = 0; i < height_field->samples_x; ++i)
+                {
+                    padded[j * sample_count + i] = height_field->samples[j * height_field->samples_x + i];
+                }
+            }
+
+            const JPH::Vec3 shape_offset(height_field->offset_x * world_scale.x, 0.0f, height_field->offset_z * world_scale.z);
+            const JPH::Vec3 shape_scale(height_field->cell_x * world_scale.x, world_scale.y, height_field->cell_z * world_scale.z);
+            JPH::HeightFieldShapeSettings settings(padded.data(), shape_offset, shape_scale, sample_count);
+            settings.mBlockSize = block_size;
+            JPH::ShapeSettings::ShapeResult result = settings.Create();
+            if (result.HasError())
+            {
+                wonlog_warning("[PhysicsWorld] HeightField shape creation failed for entity %llu: %s", static_cast<unsigned long long>(entity), result.GetError().c_str());
+                return;
+            }
+            shape = result.Get();
+        }
+        else if (collider.shape_type == won::ecs::Collider3DComponent::ShapeType::Sphere)
         {
             float max_scale = (std::max)((std::max)(world_scale.x, world_scale.y), world_scale.z);
             float radius = (std::max)(0.001f, collider.radius * max_scale);
@@ -444,7 +483,7 @@ namespace won::physics
         }
 
         JPH::EMotionType motion_type = JPH::EMotionType::Static;
-        if (rb)
+        if (rb && collider.shape_type != won::ecs::Collider3DComponent::ShapeType::HeightField)
         {
             if (rb->motion_type == won::ecs::Rigidbody3DComponent::MotionType::Kinematic)
                 motion_type = JPH::EMotionType::Kinematic;
@@ -792,9 +831,18 @@ namespace won::physics
             out_hit.entity = it->second;
         }
 
-        const JPH::Vec3 hit_normal = -collector.mHit.mPenetrationAxis.Normalized();
+        const JPH::Vec3 contact_point = collector.mHit.mContactPointOn2;
+        JPH::Vec3 hit_normal = JPH::Vec3::sZero();
+        {
+            JPH::BodyLockRead lock(impl->physics_system->GetBodyLockInterface(), collector.mHit.mBodyID2);
+            if (lock.Succeeded())
+            {
+                hit_normal = lock.GetBody().GetWorldSpaceSurfaceNormal(collector.mHit.mSubShapeID2, JPH::RVec3(contact_point));
+            }
+        }
+
         out_hit.distance = collector.mHit.mFraction * max_distance;
-        out_hit.point = { (float)collector.mHit.mContactPointOn2.GetX(), (float)collector.mHit.mContactPointOn2.GetY(), (float)collector.mHit.mContactPointOn2.GetZ() };
+        out_hit.point = { contact_point.GetX(), contact_point.GetY(), contact_point.GetZ() };
         out_hit.normal = { hit_normal.GetX(), hit_normal.GetY(), hit_normal.GetZ() };
         return true;
     }

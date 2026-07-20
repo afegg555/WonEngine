@@ -327,6 +327,7 @@ namespace won::editor
 			constexpr const char* trigger = "Trigger";
 			constexpr const char* box = "Box";
 			constexpr const char* sphere = "Sphere";
+			constexpr const char* height_field = "Height Field";
 			constexpr const char* offset = "Offset";
 			constexpr const char* half_extent = "Half Extent";
 			constexpr const char* radius = "Radius";
@@ -4729,7 +4730,7 @@ namespace won::editor
 					if (!remove_component && component_open)
 					{
 						int shape_type = static_cast<int>(collider_3d_comp->shape_type);
-						const char* shape_type_items[] = { editor_text::box, editor_text::sphere };
+						const char* shape_type_items[] = { editor_text::box, editor_text::sphere, editor_text::height_field };
 						if (ImGui::Combo(editor_text::type, &shape_type, shape_type_items, arraysize(shape_type_items)))
 						{
 							collider_3d_comp->shape_type = static_cast<Collider3DComponent::ShapeType>(shape_type);

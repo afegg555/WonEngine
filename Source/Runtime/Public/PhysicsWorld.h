@@ -62,7 +62,18 @@ namespace won::physics
         void Step(float delta_time);
         void Clear();
 
-        void AddBody(won::ecs::Entity entity, const won::ecs::TransformComponent& transform, won::ecs::Collider3DComponent& collider, won::ecs::Rigidbody3DComponent* rb, uint32_t collision_layer = 0);
+        struct HeightFieldShapeDesc
+        {
+            const float* samples = nullptr;
+            uint32_t samples_x = 0;
+            uint32_t samples_z = 0;
+            float cell_x = 0.0f;
+            float cell_z = 0.0f;
+            float offset_x = 0.0f;
+            float offset_z = 0.0f;
+        };
+
+        void AddBody(won::ecs::Entity entity, const won::ecs::TransformComponent& transform, won::ecs::Collider3DComponent& collider, won::ecs::Rigidbody3DComponent* rb, uint32_t collision_layer = 0, const HeightFieldShapeDesc* height_field = nullptr);
         void RemoveBody(won::ecs::Entity entity);
         bool HasBody(won::ecs::Entity entity) const;
 

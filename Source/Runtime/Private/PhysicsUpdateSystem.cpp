@@ -1,6 +1,7 @@
 #include "PhysicsUpdateSystem.h"
 #include "Scene.h"
 #include "PhysicsWorld.h"
+#include "TerrainGenerator.h"
 #include "JobSystem.h"
 
 using namespace DirectX;
@@ -21,6 +22,30 @@ namespace won::ecs
             return;
         }
 
+        auto add_body = [&](Entity entity, TransformComponent& transform, Collider3DComponent& collider, Rigidbody3DComponent* rb, uint32_t collision_layer)
+        {
+            if (collider.shape_type == Collider3DComponent::ShapeType::HeightField)
+            {
+                TerrainComponent* terrain = scene.GetComponent<TerrainComponent>(entity);
+                if (!terrain)
+                {
+                    return;
+                }
+                const TerrainHeightField height_field = GenerateTerrainHeights(*terrain);
+                physics::PhysicsWorld::HeightFieldShapeDesc desc = {};
+                desc.samples = height_field.heights.data();
+                desc.samples_x = height_field.samples_x;
+                desc.samples_z = height_field.samples_z;
+                desc.cell_x = height_field.cell_x;
+                desc.cell_z = height_field.cell_z;
+                desc.offset_x = height_field.offset_x;
+                desc.offset_z = height_field.offset_z;
+                physics_world->AddBody(entity, transform, collider, rb, collision_layer, &desc);
+                return;
+            }
+            physics_world->AddBody(entity, transform, collider, rb, collision_layer);
+        };
+
         jobsystem::Context sub_ctx;
         jobsystem::Dispatch(sub_ctx, (uint32_t)collider_array->GetSize(), jobsystem::groupsize_heavy, [&](jobsystem::JobArgs args)
         {
@@ -33,12 +58,12 @@ namespace won::ecs
 
             if (!physics_world->HasBody(entity))
             {
-                physics_world->AddBody(entity, transform, collider, rb, collision_layer);
+                add_body(entity, transform, collider, rb, collision_layer);
             }
             else if (collider.IsDirty() || (rb && rb->IsDirty()))
             {
                 physics_world->RemoveBody(entity);
-                physics_world->AddBody(entity, transform, collider, rb, collision_layer);
+                add_body(entity, transform, collider, rb, collision_layer);
             }
             else
             {
