@@ -45,6 +45,14 @@ namespace won::physics
         won::ecs::Entity other = 0;
     };
 
+    struct RayCastHit
+    {
+        won::ecs::Entity entity = 0;
+        float distance = 0.0f;
+        float3 point = { 0.0f, 0.0f, 0.0f };
+        float3 normal = { 0.0f, 0.0f, 0.0f };
+    };
+
     class WONENGINE_API PhysicsWorld
     {
     public:
@@ -70,6 +78,10 @@ namespace won::physics
         void AddForce(won::ecs::Entity entity, const float3& force);
         void AddImpulse(won::ecs::Entity entity, const float3& impulse);
         void AddTorque(won::ecs::Entity entity, const float3& torque);
+
+        bool RayCast(const float3& origin, const float3& direction, float max_distance, RayCastHit& out_hit, uint32_t layer_mask = 0xFFFFFFFFu) const;
+        bool SphereCast(const float3& origin, const float3& direction, float radius, float max_distance, RayCastHit& out_hit, uint32_t layer_mask = 0xFFFFFFFFu) const;
+        void OverlapSphere(const float3& center, float radius, Vector<won::ecs::Entity>& out_entities, uint32_t layer_mask = 0xFFFFFFFFu) const;
 
         const Vector<Collider3DTriggerEvent>& GetTriggerEvents() const;
 

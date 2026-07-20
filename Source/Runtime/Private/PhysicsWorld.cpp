@@ -16,7 +16,16 @@
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Body/BodyInterface.h>
+#include <Jolt/Physics/Body/BodyLock.h>
+#include <Jolt/Physics/Body/BodyFilter.h>
 #include <Jolt/Physics/Collision/ContactListener.h>
+#include <Jolt/Physics/Collision/NarrowPhaseQuery.h>
+#include <Jolt/Physics/Collision/RayCast.h>
+#include <Jolt/Physics/Collision/CastResult.h>
+#include <Jolt/Physics/Collision/CollideShape.h>
+#include <Jolt/Physics/Collision/ShapeCast.h>
+#include <Jolt/Physics/Collision/CollisionCollector.h>
+#include <Jolt/Physics/Collision/CollisionCollectorImpl.h>
 
 #include <mutex>
 #include <shared_mutex>
@@ -120,7 +129,7 @@ namespace won::physics
             static constexpr JPH::ObjectLayer NUM_LAYERS = 3;
         };
 
-        class BPLayerInterfaceImpl final : public JPH::BroadPhaseLayerInterface
+		class BPLayerInterfaceImpl final : public JPH::BroadPhaseLayerInterface // object layer -> broad phase layer mapping
         {
         public:
             BPLayerInterfaceImpl()
@@ -157,7 +166,7 @@ namespace won::physics
             JPH::BroadPhaseLayer mObjectToBroadPhase[ObjectLayers::NUM_LAYERS];
         };
 
-		class ObjectVsBroadPhaseLayerFilterImpl : public JPH::ObjectVsBroadPhaseLayerFilter // broad phase layer filter
+		class ObjectVsBroadPhaseLayerFilterImpl : public JPH::ObjectVsBroadPhaseLayerFilter // object layer -> broad phase layer filter (should this object layer interact with that broad phase layer?)
         {
         public:
             bool ShouldCollide(JPH::ObjectLayer inLayer1, JPH::BroadPhaseLayer inLayer2) const override
@@ -176,7 +185,7 @@ namespace won::physics
             }
         };
 
-		class ObjectLayerPairFilterImpl : public JPH::ObjectLayerPairFilter // narrow phase layer filter
+		class ObjectLayerPairFilterImpl : public JPH::ObjectLayerPairFilter // object layer -> object layer filter (should this object layer interact with that object layer?)
         {
         public:
             bool ShouldCollide(JPH::ObjectLayer inObject1, JPH::ObjectLayer inObject2) const override
@@ -196,7 +205,7 @@ namespace won::physics
         };
 
 		// broad phase -> narrow phase -> generate contact
-        class MyContactListener : public JPH::ContactListener
+		class MyContactListener : public JPH::ContactListener // contact listener for trigger events
         {
         public:
             struct ContactPair {
@@ -661,6 +670,176 @@ namespace won::physics
             body_id = it->second;
         }
         impl->physics_system->GetBodyInterface().AddTorque(body_id, JPH::Vec3(torque.x, torque.y, torque.z));
+    }
+
+    namespace
+    {
+		class LayerMaskBodyFilter : public JPH::BodyFilter // temp filter for raycast and spherecast to filter by layer mask
+        {
+        public:
+            explicit LayerMaskBodyFilter(uint32_t mask) : layer_mask(mask) {}
+
+            bool ShouldCollideLocked(const JPH::Body& body) const override
+            {
+                const uint32_t layer = static_cast<uint32_t>(body.GetUserData()) & 31u;
+                return (layer_mask & (1u << layer)) != 0u;
+            }
+
+        private:
+            uint32_t layer_mask;
+        };
+    }
+
+    bool PhysicsWorld::RayCast(const float3& origin, const float3& direction, float max_distance, RayCastHit& out_hit, uint32_t layer_mask) const
+    {
+        out_hit = {};
+
+        const float direction_length = std::sqrt(direction.x * direction.x + direction.y * direction.y + direction.z * direction.z);
+        if (direction_length <= 1e-6f || max_distance <= 0.0f)
+        {
+            return false;
+        }
+        const float inv_length = 1.0f / direction_length;
+        const JPH::Vec3 scaled_direction(
+            direction.x * inv_length * max_distance,
+            direction.y * inv_length * max_distance,
+            direction.z * inv_length * max_distance);
+
+        const JPH::RRayCast ray(JPH::RVec3(origin.x, origin.y, origin.z), scaled_direction);
+        JPH::RayCastResult result;
+
+        const LayerMaskBodyFilter body_filter(layer_mask);
+        if (!impl->physics_system->GetNarrowPhaseQuery().CastRay(ray, result, {}, {}, body_filter))
+        {
+            return false;
+        }
+
+        {
+            std::shared_lock lock(impl->bodies_mutex);
+            auto it = impl->body_to_entity.find(result.mBodyID);
+            if (it == impl->body_to_entity.end())
+            {
+                return false;
+            }
+            out_hit.entity = it->second;
+        }
+
+        const JPH::RVec3 hit_point = ray.GetPointOnRay(result.mFraction);
+        JPH::Vec3 hit_normal = JPH::Vec3::sZero();
+        {
+            JPH::BodyLockRead lock(impl->physics_system->GetBodyLockInterface(), result.mBodyID);
+            if (lock.Succeeded())
+            {
+                hit_normal = lock.GetBody().GetWorldSpaceSurfaceNormal(result.mSubShapeID2, hit_point);
+            }
+        }
+
+        out_hit.distance = result.mFraction * max_distance;
+        out_hit.point = { (float)hit_point.GetX(), (float)hit_point.GetY(), (float)hit_point.GetZ() };
+        out_hit.normal = { hit_normal.GetX(), hit_normal.GetY(), hit_normal.GetZ() };
+        return true;
+    }
+
+    bool PhysicsWorld::SphereCast(const float3& origin, const float3& direction, float radius, float max_distance, RayCastHit& out_hit, uint32_t layer_mask) const
+    {
+        out_hit = {};
+
+        const float direction_length = std::sqrt(direction.x * direction.x + direction.y * direction.y + direction.z * direction.z);
+        if (direction_length <= 1e-6f || max_distance <= 0.0f || radius <= 0.0f)
+        {
+            return false;
+        }
+        const float inv_length = 1.0f / direction_length;
+        const JPH::Vec3 scaled_direction(
+            direction.x * inv_length * max_distance,
+            direction.y * inv_length * max_distance,
+            direction.z * inv_length * max_distance);
+
+        JPH::SphereShape sphere_shape(radius);
+        sphere_shape.SetEmbedded();
+
+        const JPH::RShapeCast shape_cast(
+            &sphere_shape,
+            JPH::Vec3::sReplicate(1.0f),
+            JPH::RMat44::sTranslation(JPH::RVec3(origin.x, origin.y, origin.z)),
+            scaled_direction);
+
+        JPH::ShapeCastSettings settings;
+        JPH::ClosestHitCollisionCollector<JPH::CastShapeCollector> collector;
+        const LayerMaskBodyFilter body_filter(layer_mask);
+
+        impl->physics_system->GetNarrowPhaseQuery().CastShape(
+            shape_cast,
+            settings,
+            JPH::RVec3::sZero(),
+            collector,
+            {},
+            {},
+            body_filter);
+
+        if (!collector.HadHit())
+        {
+            return false;
+        }
+
+        {
+            std::shared_lock lock(impl->bodies_mutex);
+            auto it = impl->body_to_entity.find(collector.mHit.mBodyID2);
+            if (it == impl->body_to_entity.end())
+            {
+                return false;
+            }
+            out_hit.entity = it->second;
+        }
+
+        const JPH::Vec3 hit_normal = -collector.mHit.mPenetrationAxis.Normalized();
+        out_hit.distance = collector.mHit.mFraction * max_distance;
+        out_hit.point = { (float)collector.mHit.mContactPointOn2.GetX(), (float)collector.mHit.mContactPointOn2.GetY(), (float)collector.mHit.mContactPointOn2.GetZ() };
+        out_hit.normal = { hit_normal.GetX(), hit_normal.GetY(), hit_normal.GetZ() };
+        return true;
+    }
+
+    void PhysicsWorld::OverlapSphere(const float3& center, float radius, Vector<won::ecs::Entity>& out_entities, uint32_t layer_mask) const
+    {
+        out_entities.clear();
+        if (radius <= 0.0f)
+        {
+            return;
+        }
+
+        JPH::SphereShape sphere_shape(radius);
+        sphere_shape.SetEmbedded();
+
+        JPH::CollideShapeSettings settings;
+        JPH::AllHitCollisionCollector<JPH::CollideShapeCollector> collector;
+        const JPH::RMat44 transform = JPH::RMat44::sTranslation(JPH::RVec3(center.x, center.y, center.z));
+        const LayerMaskBodyFilter body_filter(layer_mask);
+
+        impl->physics_system->GetNarrowPhaseQuery().CollideShape(
+            &sphere_shape,
+            JPH::Vec3::sReplicate(1.0f),
+            transform,
+            settings,
+            JPH::RVec3::sZero(),
+            collector,
+            {},
+            {},
+            body_filter);
+
+        std::shared_lock lock(impl->bodies_mutex);
+        for (const JPH::CollideShapeResult& hit : collector.mHits)
+        {
+            auto it = impl->body_to_entity.find(hit.mBodyID2);
+            if (it == impl->body_to_entity.end())
+            {
+                continue;
+            }
+            const won::ecs::Entity entity = it->second;
+            if (std::find(out_entities.begin(), out_entities.end(), entity) == out_entities.end())
+            {
+                out_entities.push_back(entity);
+            }
+        }
     }
 
     const Vector<Collider3DTriggerEvent>& PhysicsWorld::GetTriggerEvents() const

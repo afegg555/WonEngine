@@ -39,6 +39,8 @@ namespace won::ecs
     {
         Entity entity = INVALID_ENTITY;
         float distance = (std::numeric_limits<float>::max)();
+        float3 point = { 0.0f, 0.0f, 0.0f };
+        float3 normal = { 0.0f, 0.0f, 0.0f };
     };
 
     struct RayCastBVHHit

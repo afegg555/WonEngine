@@ -2477,6 +2477,63 @@ namespace won::script
         lua_setfield(state, -2, "entity");
         lua_pushnumber(state, hit.distance);
         lua_setfield(state, -2, "distance");
+        lua_newtable(state);
+        lua_pushnumber(state, hit.point.x); lua_setfield(state, -2, "x");
+        lua_pushnumber(state, hit.point.y); lua_setfield(state, -2, "y");
+        lua_pushnumber(state, hit.point.z); lua_setfield(state, -2, "z");
+        lua_setfield(state, -2, "point");
+        lua_newtable(state);
+        lua_pushnumber(state, hit.normal.x); lua_setfield(state, -2, "x");
+        lua_pushnumber(state, hit.normal.y); lua_setfield(state, -2, "y");
+        lua_pushnumber(state, hit.normal.z); lua_setfield(state, -2, "z");
+        lua_setfield(state, -2, "normal");
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaPhysicsSphereCast(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene || !runtime->current_context.scene->GetPhysicsWorld())
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        float3 origin = {
+            static_cast<float>(luaL_checknumber(state, 1)),
+            static_cast<float>(luaL_checknumber(state, 2)),
+            static_cast<float>(luaL_checknumber(state, 3))
+        };
+        float3 direction = {
+            static_cast<float>(luaL_checknumber(state, 4)),
+            static_cast<float>(luaL_checknumber(state, 5)),
+            static_cast<float>(luaL_checknumber(state, 6))
+        };
+        const float radius = static_cast<float>(luaL_checknumber(state, 7));
+        const float max_distance = lua_gettop(state) >= 8 ? static_cast<float>(luaL_checknumber(state, 8)) : 1000.0f;
+
+        physics::RayCastHit hit;
+        if (!runtime->current_context.scene->GetPhysicsWorld()->SphereCast(origin, direction, radius, max_distance, hit))
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        lua_newtable(state);
+        lua_pushinteger(state, static_cast<lua_Integer>(hit.entity));
+        lua_setfield(state, -2, "entity");
+        lua_pushnumber(state, hit.distance);
+        lua_setfield(state, -2, "distance");
+        lua_newtable(state);
+        lua_pushnumber(state, hit.point.x); lua_setfield(state, -2, "x");
+        lua_pushnumber(state, hit.point.y); lua_setfield(state, -2, "y");
+        lua_pushnumber(state, hit.point.z); lua_setfield(state, -2, "z");
+        lua_setfield(state, -2, "point");
+        lua_newtable(state);
+        lua_pushnumber(state, hit.normal.x); lua_setfield(state, -2, "x");
+        lua_pushnumber(state, hit.normal.y); lua_setfield(state, -2, "y");
+        lua_pushnumber(state, hit.normal.z); lua_setfield(state, -2, "z");
+        lua_setfield(state, -2, "normal");
         return 1;
     }
 
@@ -3267,6 +3324,9 @@ namespace won::script
         lua_pushlightuserdata(lua_state, this);
         lua_pushcclosure(lua_state, LuaPhysicsRaycast, 1);
         lua_setfield(lua_state, -2, "raycast");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaPhysicsSphereCast, 1);
+        lua_setfield(lua_state, -2, "spherecast");
         lua_pushlightuserdata(lua_state, this);
         lua_pushcclosure(lua_state, LuaPhysicsOverlapSphere, 1);
         lua_setfield(lua_state, -2, "overlap_sphere");

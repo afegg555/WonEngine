@@ -156,6 +156,7 @@ namespace won::script
         static int LuaPhysicsAddImpulse(lua_State* state);
         static int LuaPhysicsAddTorque(lua_State* state);
         static int LuaPhysicsRaycast(lua_State* state);
+        static int LuaPhysicsSphereCast(lua_State* state);
         static int LuaPhysicsOverlapSphere(lua_State* state);
 
         static int LuaInputMousePosition(lua_State* state);
