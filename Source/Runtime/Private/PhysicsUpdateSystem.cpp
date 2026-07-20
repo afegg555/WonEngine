@@ -73,6 +73,48 @@ namespace won::ecs
         });
         jobsystem::Wait(sub_ctx);
 
+        auto joint_array = scene.GetComponentArray<JointComponent>().get();
+        if (joint_array && joint_array->GetSize() > 0)
+        {
+            jobsystem::Dispatch(sub_ctx, (uint32_t)joint_array->GetSize(), jobsystem::groupsize_heavy, [&](jobsystem::JobArgs args)
+            {
+                const Entity entity = joint_array->index_to_entity[args.job_index];
+                JointComponent& joint = joint_array->data[args.job_index];
+
+                if (!joint.IsEnabled())
+                {
+                    if (physics_world->HasJoint(entity))
+                    {
+                        physics_world->RemoveJoint(entity);
+                    }
+                    return;
+                }
+
+                if (joint.IsDirty() && physics_world->HasJoint(entity))
+                {
+                    physics_world->RemoveJoint(entity);
+                }
+
+                if (physics_world->HasJoint(entity))
+                {
+                    return;
+                }
+
+                if (!physics_world->HasBody(entity))
+                {
+                    return;
+                }
+                if (joint.connected_entity != INVALID_ENTITY && !physics_world->HasBody(joint.connected_entity))
+                {
+                    return;
+                }
+
+                physics_world->AddJoint(entity, joint);
+                joint.SetDirty(false);
+            });
+            jobsystem::Wait(sub_ctx);
+        }
+
         // step physics simulation
         physics_world->Step(delta_time);
 
@@ -150,6 +192,17 @@ namespace won::ecs
                     collider.world_sphere.radius = (std::max)(0.0f, collider.radius) * max_scale;
                     const float3 half_width = { collider.world_sphere.radius, collider.world_sphere.radius, collider.world_sphere.radius };
                     collider.world_bounds.CreateFromHalfWidth(collider.world_sphere.center, half_width);
+                }
+                else if (collider.shape_type == Collider3DComponent::ShapeType::HeightField)
+                {
+                    const GeometryComponent* geometry = scene.GetComponent<GeometryComponent>(entity);
+                    if (geometry && geometry->local_bounds.IsValid())
+                    {
+                        collider.world_bounds = geometry->local_bounds.TransformAABB(world);
+                        collider.world_sphere.center = collider.world_bounds.GetCenter();
+                        const float3 extent = collider.world_bounds.GetExtent();
+                        collider.world_sphere.radius = std::sqrt(extent.x * extent.x + extent.y * extent.y + extent.z * extent.z);
+                    }
                 }
                 else
                 {

@@ -2126,6 +2126,18 @@ namespace won::editor
 						XMStoreFloat3(&world_center, center);
 						add_sphere(world_center, (std::max)(0.0f, collider.radius) * max_scale, material_slot);
 					}
+					else if (collider.shape_type == ecs::Collider3DComponent::ShapeType::HeightField)
+					{
+						const ecs::GeometryComponent* geometry = editor_viewport.view->scene->GetComponent<ecs::GeometryComponent>(entity);
+						if (geometry && geometry->local_bounds.IsValid())
+						{
+							const math::AABB world_bounds = geometry->local_bounds.TransformAABB(world);
+							if (world_bounds.IsValid())
+							{
+								add_box(world_bounds.min, world_bounds.max, material_slot);
+							}
+						}
+					}
 					else
 					{
 						math::AABB local_bounds = {};

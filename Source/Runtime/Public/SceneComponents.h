@@ -20,6 +20,7 @@
 #include "ScriptComponent.h"
 #include "Collider3DComponent.h"
 #include "Rigidbody3DComponent.h"
+#include "JointComponent.h"
 #include "AudioSourceComponent.h"
 #include "AudioListenerComponent.h"
 #include "VisibilityLayerComponent.h"
@@ -75,7 +76,8 @@ namespace won::ecs
         CollisionLayer,
         Layout,
         AnimationStateMachine,
-        ReflectionProbe
+        ReflectionProbe,
+        Joint
     };
 
     constexpr ComponentMask ComponentMaskFromBit(SceneComponentBit bit)
@@ -115,4 +117,5 @@ namespace won::ecs
     inline constexpr ComponentMask collision_layer_component_mask = ComponentMaskFromBit(SceneComponentBit::CollisionLayer);
     inline constexpr ComponentMask layout_component_mask = ComponentMaskFromBit(SceneComponentBit::Layout);
     inline constexpr ComponentMask animation_state_machine_component_mask = ComponentMaskFromBit(SceneComponentBit::AnimationStateMachine);
+    inline constexpr ComponentMask joint_component_mask = ComponentMaskFromBit(SceneComponentBit::Joint);
 }

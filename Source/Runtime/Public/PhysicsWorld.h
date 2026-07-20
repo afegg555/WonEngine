@@ -7,6 +7,7 @@ namespace won::ecs
     struct TransformComponent;
     struct Collider3DComponent;
     struct Rigidbody3DComponent;
+    struct JointComponent;
     using Entity = uint64;
 }
 
@@ -93,6 +94,10 @@ namespace won::physics
         bool RayCast(const float3& origin, const float3& direction, float max_distance, RayCastHit& out_hit, uint32_t layer_mask = 0xFFFFFFFFu) const;
         bool SphereCast(const float3& origin, const float3& direction, float radius, float max_distance, RayCastHit& out_hit, uint32_t layer_mask = 0xFFFFFFFFu) const;
         void OverlapSphere(const float3& center, float radius, Vector<won::ecs::Entity>& out_entities, uint32_t layer_mask = 0xFFFFFFFFu) const;
+
+        void AddJoint(won::ecs::Entity owner_entity, const won::ecs::JointComponent& joint);
+        void RemoveJoint(won::ecs::Entity owner_entity);
+        bool HasJoint(won::ecs::Entity owner_entity) const;
 
         const Vector<Collider3DTriggerEvent>& GetTriggerEvents() const;
 

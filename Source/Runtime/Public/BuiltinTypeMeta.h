@@ -117,6 +117,11 @@ namespace won::reflection
         WON_REFLECT_ENUM_VALUE("Dynamic", won::ecs::Rigidbody3DComponent::MotionType::Dynamic)
     WON_REFLECT_ENUM_END()
 
+    WON_REFLECT_ENUM(won::ecs::JointComponent::JointType, "JointType")
+        WON_REFLECT_ENUM_VALUE("Fixed", won::ecs::JointComponent::JointType::Fixed)
+        WON_REFLECT_ENUM_VALUE("Hinge", won::ecs::JointComponent::JointType::Hinge)
+    WON_REFLECT_ENUM_END()
+
     WON_REFLECT_STRUCT(won::ecs::NameComponent, "NameComponent")
         WON_REFLECT_FIELD(value, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
@@ -354,6 +359,17 @@ namespace won::reflection
         WON_REFLECT_FIELD(gravity_factor, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(linear_velocity, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(angular_velocity, won::FieldFlagEditable | won::FieldFlagSerializable)
+    WON_REFLECT_STRUCT_END()
+
+    WON_REFLECT_STRUCT(won::ecs::JointComponent, "JointComponent")
+        WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(type, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(connected_entity, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(anchor, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(axis, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(use_limit, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(limit_min, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(limit_max, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::AudioSourceComponent, "AudioSourceComponent")

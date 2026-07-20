@@ -4,6 +4,7 @@
 #include "TransformComponent.h"
 #include "Collider3DComponent.h"
 #include "Rigidbody3DComponent.h"
+#include "JointComponent.h"
 #include "JobSystem.h"
 
 #include <Jolt/Jolt.h>
@@ -28,6 +29,12 @@
 #include <Jolt/Physics/Collision/ShapeCast.h>
 #include <Jolt/Physics/Collision/CollisionCollector.h>
 #include <Jolt/Physics/Collision/CollisionCollectorImpl.h>
+#include <Jolt/Physics/Body/Body.h>
+#include <Jolt/Physics/Body/BodyLockInterface.h>
+#include <Jolt/Physics/Constraints/Constraint.h>
+#include <Jolt/Physics/Constraints/TwoBodyConstraint.h>
+#include <Jolt/Physics/Constraints/FixedConstraint.h>
+#include <Jolt/Physics/Constraints/HingeConstraint.h>
 
 #include <mutex>
 #include <shared_mutex>
@@ -279,6 +286,15 @@ namespace won::physics
         UnorderedMap<won::ecs::Entity, JPH::BodyID> entity_to_body;
         UnorderedMap<JPH::BodyID, won::ecs::Entity> body_to_entity;
 
+        struct JointRecord
+        {
+            JPH::Ref<JPH::Constraint> constraint;
+            JPH::BodyID body_a;
+            JPH::BodyID body_b;
+        };
+        mutable std::mutex joints_mutex;
+        UnorderedMap<won::ecs::Entity, JointRecord> joints;
+
         Vector<ActiveTriggerPair> active_trigger_pairs;
         Vector<Collider3DTriggerEvent> trigger_events;
 
@@ -317,6 +333,15 @@ namespace won::physics
 
         void Clear()
         {
+            for (auto& [entity, record] : joints)
+            {
+                if (record.constraint != nullptr)
+                {
+                    physics_system->RemoveConstraint(record.constraint);
+                }
+            }
+            joints.clear();
+
             JPH::BodyInterface& body_interface = physics_system->GetBodyInterface();
             for (auto& [entity, body_id] : entity_to_body)
             {
@@ -568,6 +593,26 @@ namespace won::physics
             impl->body_to_entity.erase(body_id);
             impl->entity_to_body.erase(it);
         }
+
+        {
+            std::lock_guard lock(impl->joints_mutex);
+            for (auto it = impl->joints.begin(); it != impl->joints.end(); )
+            {
+                if (it->second.body_a == body_id || it->second.body_b == body_id)
+                {
+                    if (it->second.constraint != nullptr)
+                    {
+                        impl->physics_system->RemoveConstraint(it->second.constraint);
+                    }
+                    it = impl->joints.erase(it);
+                }
+                else
+                {
+                    ++it;
+                }
+            }
+        }
+
         JPH::BodyInterface& body_interface = impl->physics_system->GetBodyInterface();
         body_interface.RemoveBody(body_id);
         body_interface.DestroyBody(body_id);
@@ -888,6 +933,118 @@ namespace won::physics
                 out_entities.push_back(entity);
             }
         }
+    }
+
+    void PhysicsWorld::AddJoint(won::ecs::Entity owner_entity, const won::ecs::JointComponent& joint)
+    {
+        JPH::BodyID owner_id;
+        JPH::BodyID other_id;
+        bool other_valid = false;
+        {
+            std::shared_lock lock(impl->bodies_mutex);
+            auto owner_it = impl->entity_to_body.find(owner_entity);
+            if (owner_it == impl->entity_to_body.end())
+            {
+                return;
+            }
+            owner_id = owner_it->second;
+            if (joint.connected_entity != 0)
+            {
+                auto other_it = impl->entity_to_body.find(joint.connected_entity);
+                if (other_it != impl->entity_to_body.end())
+                {
+                    other_id = other_it->second;
+                    other_valid = true;
+                }
+            }
+        }
+
+        const JPH::BodyLockInterface& lock_interface = impl->physics_system->GetBodyLockInterfaceNoLock();
+        JPH::Body* owner_body = lock_interface.TryGetBody(owner_id);
+        JPH::Body* other_body = other_valid ? lock_interface.TryGetBody(other_id) : &JPH::Body::sFixedToWorld;
+        if (owner_body == nullptr || other_body == nullptr)
+        {
+            return;
+        }
+
+        JPH::Ref<JPH::Constraint> constraint;
+        if (joint.type == won::ecs::JointComponent::JointType::Hinge)
+        {
+            JPH::Vec3 hinge_axis(joint.axis.x, joint.axis.y, joint.axis.z);
+            if (hinge_axis.LengthSq() < 1e-8f)
+            {
+                hinge_axis = JPH::Vec3::sAxisY();
+            }
+            hinge_axis = hinge_axis.Normalized();
+            const JPH::Vec3 reference = std::abs(hinge_axis.GetY()) < 0.99f ? JPH::Vec3::sAxisY() : JPH::Vec3::sAxisX();
+            const JPH::Vec3 normal_axis = hinge_axis.Cross(reference).Normalized();
+
+            JPH::HingeConstraintSettings settings;
+            settings.mSpace = JPH::EConstraintSpace::WorldSpace;
+            settings.mPoint1 = settings.mPoint2 = JPH::RVec3(joint.anchor.x, joint.anchor.y, joint.anchor.z);
+            settings.mHingeAxis1 = settings.mHingeAxis2 = hinge_axis;
+            settings.mNormalAxis1 = settings.mNormalAxis2 = normal_axis;
+            if (joint.use_limit)
+            {
+                settings.mLimitsMin = joint.limit_min;
+                settings.mLimitsMax = joint.limit_max;
+            }
+            constraint = settings.Create(*other_body, *owner_body);
+        }
+        else
+        {
+            JPH::FixedConstraintSettings settings;
+            settings.mSpace = JPH::EConstraintSpace::WorldSpace;
+            settings.mAutoDetectPoint = true;
+            constraint = settings.Create(*other_body, *owner_body);
+        }
+
+        if (constraint == nullptr)
+        {
+            return;
+        }
+
+        PhysicsWorldImpl::JointRecord record;
+        record.constraint = constraint;
+        record.body_a = owner_id;
+        record.body_b = other_valid ? other_id : JPH::BodyID();
+
+        std::lock_guard lock(impl->joints_mutex);
+        auto existing = impl->joints.find(owner_entity);
+        if (existing != impl->joints.end())
+        {
+            if (existing->second.constraint != nullptr)
+            {
+                impl->physics_system->RemoveConstraint(existing->second.constraint);
+            }
+            existing->second = record;
+        }
+        else
+        {
+            impl->joints[owner_entity] = record;
+        }
+        impl->physics_system->AddConstraint(constraint);
+    }
+
+    void PhysicsWorld::RemoveJoint(won::ecs::Entity owner_entity)
+    {
+        std::lock_guard lock(impl->joints_mutex);
+        auto it = impl->joints.find(owner_entity);
+        if (it == impl->joints.end())
+        {
+            return;
+        }
+        if (it->second.constraint != nullptr)
+        {
+            impl->physics_system->RemoveConstraint(it->second.constraint);
+        }
+        impl->joints.erase(it);
+    }
+
+    bool PhysicsWorld::HasJoint(won::ecs::Entity owner_entity) const
+    {
+        std::lock_guard lock(impl->joints_mutex);
+        return impl->joints.find(owner_entity) != impl->joints.end();
     }
 
     const Vector<Collider3DTriggerEvent>& PhysicsWorld::GetTriggerEvents() const

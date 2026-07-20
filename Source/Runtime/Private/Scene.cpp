@@ -32,6 +32,7 @@ namespace won::ecs
         component_manager.RegisterComponent<ScriptComponent>();
         component_manager.RegisterComponent<Collider3DComponent>();
         component_manager.RegisterComponent<Rigidbody3DComponent>();
+        component_manager.RegisterComponent<JointComponent>();
         component_manager.RegisterComponent<AudioSourceComponent>();
         component_manager.RegisterComponent<AudioListenerComponent>();
         component_manager.RegisterComponent<VisibilityLayerComponent>();
