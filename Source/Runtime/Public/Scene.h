@@ -205,8 +205,6 @@ namespace won::ecs
 
         bool RayCastCollider3D(const math::Ray& ray, RayCastHit& out_hit, float max_distance = (std::numeric_limits<float>::max)(), uint32 layer_mask = 0xFFFFFFFF);
 
-        void OverlapCollider3D(const math::AABB& bounds, Vector<OverlapHit>& out_hits);
-
         void OverlapCollider3D(const math::Sphere& sphere, Vector<OverlapHit>& out_hits);
 
         struct RenderData

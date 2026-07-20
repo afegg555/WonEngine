@@ -760,40 +760,6 @@ namespace won::ecs
         return true;
     }
 
-    void Scene::OverlapCollider3D(const math::AABB& bounds, Vector<OverlapHit>& out_hits)
-    {
-        out_hits.clear();
-        if (!bounds.IsValid())
-        {
-            return;
-        }
-
-        auto collider_3d_array = GetComponentArray<Collider3DComponent>().get();
-        if (!collider_3d_array)
-        {
-            return;
-        }
-
-        for (Size i = 0; i < collider_3d_array->GetSize(); ++i)
-        {
-            const Collider3DComponent& collider = collider_3d_array->data[i];
-            const math::AABB& collider_bounds = collider.world_bounds;
-            if (!collider.IsEnabled() || !collider_bounds.IsValid())
-            {
-                continue;
-            }
-
-            const bool overlap =
-                bounds.min.x <= collider_bounds.max.x && bounds.max.x >= collider_bounds.min.x &&
-                bounds.min.y <= collider_bounds.max.y && bounds.max.y >= collider_bounds.min.y &&
-                bounds.min.z <= collider_bounds.max.z && bounds.max.z >= collider_bounds.min.z;
-            if (overlap)
-            {
-                out_hits.push_back({ collider_3d_array->index_to_entity[i] });
-            }
-        }
-    }
-
     void Scene::OverlapCollider3D(const math::Sphere& sphere, Vector<OverlapHit>& out_hits)
     {
         out_hits.clear();
