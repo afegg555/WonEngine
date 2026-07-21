@@ -2610,6 +2610,11 @@ namespace won::rendering
     {
         switch (view.render_path_type)
         {
+        case RenderPathType::ForwardPlus:
+            {
+                RenderForwardPlusPath(view);
+            }
+            break;
         case RenderPathType::Forward:
         default:
             {
@@ -2617,6 +2622,11 @@ namespace won::rendering
             }
             break;
         }
+    }
+
+    void RendererInternal::RenderForwardPlusPath(const View& view)
+    {
+        RenderForwardPath(view);
     }
 
     void RendererInternal::RenderForwardPath(const View& view)

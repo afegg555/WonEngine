@@ -7,7 +7,8 @@ namespace won::rendering
 {
     enum class RenderPathType
     {
-        Forward
+        Forward,
+        ForwardPlus
     };
 
     struct Rect
