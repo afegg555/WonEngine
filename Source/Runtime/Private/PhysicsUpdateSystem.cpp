@@ -204,7 +204,7 @@ namespace won::ecs
                         collider.world_sphere.radius = std::sqrt(extent.x * extent.x + extent.y * extent.y + extent.z * extent.z);
                     }
                 }
-                else
+				else // Box
                 {
                     math::AABB local_bounds = {};
                     const float3 half_extent = {

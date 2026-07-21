@@ -196,6 +196,10 @@ namespace won::script
         static int LuaSceneLoad(lua_State* state);
         static int LuaSceneIsLoading(lua_State* state);
 
+        static int LuaNavFindPath(lua_State* state);
+        static int LuaNavNearestPoint(lua_State* state);
+        static int LuaNavIsReady(lua_State* state);
+
         static int LuaEventSubscribe(lua_State* state);
         static int LuaEventPost(lua_State* state);
         static int LuaEventFire(lua_State* state);

@@ -38,6 +38,7 @@ namespace won::ecs
         component_manager.RegisterComponent<VisibilityLayerComponent>();
         component_manager.RegisterComponent<CollisionLayerComponent>();
         component_manager.RegisterComponent<TerrainComponent>();
+        component_manager.RegisterComponent<NavMeshComponent>();
         component_manager.RegisterComponent<ParticleEmitter3DComponent>();
         component_manager.RegisterComponent<DecalComponent>();
 
@@ -323,6 +324,7 @@ namespace won::ecs
         scene_bvh.Clear();
         scene_bvh_entities.clear();
         physics_world->Clear();
+        nav_mesh.reset();
         prefab_spawn_queue.clear();
         animation_event_queue.clear();
         next_entity = INVALID_ENTITY + 1;
@@ -340,6 +342,7 @@ namespace won::ecs
         std::swap(ui_click_queue, other.ui_click_queue);
         std::swap(animation_event_queue, other.animation_event_queue);
         std::swap(prefab_spawn_queue, other.prefab_spawn_queue);
+        std::swap(nav_mesh, other.nav_mesh);
 
         physics_world->Clear();
 

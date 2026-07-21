@@ -77,6 +77,7 @@ namespace won::reflection
         RegisterType(TypeMeta<ecs::VisibilityLayerComponent>::Get());
         RegisterType(TypeMeta<ecs::CollisionLayerComponent>::Get());
         RegisterType(TypeMeta<ecs::TerrainComponent>::Get());
+        RegisterType(TypeMeta<ecs::NavMeshComponent>::Get());
         RegisterType(TypeMeta<ecs::ParticleEmitter3DComponent>::Get());
         RegisterType(TypeMeta<ecs::DecalComponent>::Get());
         RegisterType(TypeMeta<resource::MaterialSlot::TextureMap>::Get());
