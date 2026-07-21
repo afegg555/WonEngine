@@ -192,6 +192,7 @@ namespace won::editor
 			constexpr const char* add_component_popup = "AddComponentPopup";
 			constexpr const char* update_scene_gpubvh = "Update Scene GPUBVH";
 			constexpr const char* regenerate_terrain = "Regenerate Terrain";
+			constexpr const char* bake_navmesh = "Bake NavMesh";
 			constexpr const char* add_slot = "Add Slot";
 			constexpr const char* remove_slot = "Remove Slot";
 			constexpr const char* reload = "Reload";
@@ -6187,6 +6188,21 @@ namespace won::editor
 									}
 								}
 							}
+						}
+						ImGui::PopID();
+					}
+					else if (type_desc->type_id == reflection::TypeMeta<NavMeshComponent>::type_id)
+					{
+						ImGui::PushID("NavMeshBake");
+						NavMeshComponent* nav = editor_viewport.view->scene->GetComponent<NavMeshComponent>(editor_viewport.picked_entity);
+						if (nav && ImGui::Button(editor_text::bake_navmesh))
+						{
+							if (nav->navmesh_asset_path.empty())
+							{
+								nav->navmesh_asset_path = String(generated_asset_directory) + "/navmesh_" + std::to_string(editor_viewport.picked_entity) + "." + resource::navmesh_binary_extension;
+							}
+							const bool baked = resource::BuildSceneNavMesh(*editor_viewport.view->scene, contents_root_dir);
+							backlog::Post(String(editor_text::bake_navmesh) + (baked ? ": " + nav->navmesh_asset_path : " failed"), baked ? backlog::LogLevel::Default : backlog::LogLevel::Warning);
 						}
 						ImGui::PopID();
 					}

@@ -953,6 +953,81 @@ namespace won::script
         return 1;
     }
 
+    int LuaScriptRuntime::LuaNavFindPath(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        nav::NavMesh* nav_mesh = (runtime && runtime->current_context.scene) ? runtime->current_context.scene->GetNavMesh() : nullptr;
+        if (!nav_mesh)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        const float3 start = {
+            static_cast<float>(luaL_checknumber(state, 1)),
+            static_cast<float>(luaL_checknumber(state, 2)),
+            static_cast<float>(luaL_checknumber(state, 3))
+        };
+        const float3 end = {
+            static_cast<float>(luaL_checknumber(state, 4)),
+            static_cast<float>(luaL_checknumber(state, 5)),
+            static_cast<float>(luaL_checknumber(state, 6))
+        };
+
+        Vector<float3> path;
+        if (!nav_mesh->FindPath(start, end, path))
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        lua_createtable(state, static_cast<int>(path.size()), 0);
+        for (Size i = 0; i < path.size(); ++i)
+        {
+            lua_createtable(state, 0, 3);
+            lua_pushnumber(state, path[i].x); lua_setfield(state, -2, "x");
+            lua_pushnumber(state, path[i].y); lua_setfield(state, -2, "y");
+            lua_pushnumber(state, path[i].z); lua_setfield(state, -2, "z");
+            lua_rawseti(state, -2, static_cast<lua_Integer>(i + 1));
+        }
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaNavNearestPoint(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        nav::NavMesh* nav_mesh = (runtime && runtime->current_context.scene) ? runtime->current_context.scene->GetNavMesh() : nullptr;
+        if (!nav_mesh)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        const float3 position = {
+            static_cast<float>(luaL_checknumber(state, 1)),
+            static_cast<float>(luaL_checknumber(state, 2)),
+            static_cast<float>(luaL_checknumber(state, 3))
+        };
+        float3 nearest = {};
+        if (!nav_mesh->FindNearestPoint(position, nearest))
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+        lua_pushnumber(state, nearest.x);
+        lua_pushnumber(state, nearest.y);
+        lua_pushnumber(state, nearest.z);
+        return 3;
+    }
+
+    int LuaScriptRuntime::LuaNavIsReady(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        nav::NavMesh* nav_mesh = (runtime && runtime->current_context.scene) ? runtime->current_context.scene->GetNavMesh() : nullptr;
+        lua_pushboolean(state, (nav_mesh && nav_mesh->IsValid()) ? 1 : 0);
+        return 1;
+    }
+
     int LuaScriptRuntime::LuaText2DSetString(lua_State* state)
     {
         LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
@@ -3331,6 +3406,18 @@ namespace won::script
         lua_pushcclosure(lua_state, LuaPhysicsOverlapSphere, 1);
         lua_setfield(lua_state, -2, "overlap_sphere");
         lua_setfield(lua_state, -2, "physics");
+
+        lua_newtable(lua_state);
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaNavFindPath, 1);
+        lua_setfield(lua_state, -2, "find_path");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaNavNearestPoint, 1);
+        lua_setfield(lua_state, -2, "nearest_point");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaNavIsReady, 1);
+        lua_setfield(lua_state, -2, "is_ready");
+        lua_setfield(lua_state, -2, "nav");
 
         lua_newtable(lua_state);
         lua_pushlightuserdata(lua_state, this);

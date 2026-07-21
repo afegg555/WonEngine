@@ -7,6 +7,7 @@
 #include "BuiltinTypeMeta.h"
 #include "Systems.h"
 #include "PhysicsWorld.h"
+#include "NavMesh.h"
 #include "AudioMixer.h"
 #include "ShaderInterop_Renderer.h"
 #include "BVH.h"
@@ -391,6 +392,16 @@ namespace won::ecs
             return physics_world.get();
         }
 
+        won::nav::NavMesh* GetNavMesh() const
+        {
+            return nav_mesh.get();
+        }
+
+        void SetNavMesh(std::unique_ptr<won::nav::NavMesh> value)
+        {
+            nav_mesh = std::move(value);
+        }
+
         void QueueUIClick(Entity entity)
         {
             ui_click_queue.push_back(entity);
@@ -467,6 +478,7 @@ namespace won::ecs
         bool gpu_bvh_dirty = true;
         bool system_schedule_dirty = true;
         std::unique_ptr<won::physics::PhysicsWorld> physics_world;
+        std::unique_ptr<won::nav::NavMesh> nav_mesh;
         Vector<Entity> ui_click_queue;
         Vector<std::pair<Entity, String>> animation_event_queue;
         Vector<PrefabSpawnRequest> prefab_spawn_queue;

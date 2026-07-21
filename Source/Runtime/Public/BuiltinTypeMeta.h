@@ -411,6 +411,18 @@ namespace won::reflection
         WON_REFLECT_FIELD(island_falloff, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
+    WON_REFLECT_STRUCT(won::ecs::NavMeshComponent, "NavMeshComponent")
+        WON_REFLECT_FIELD(agent_radius, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(agent_height, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(agent_max_climb, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(agent_max_slope, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(use_bounds, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(bounds_center, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(bounds_extent, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(include_layers, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(navmesh_asset_path, won::FieldFlagEditable | won::FieldFlagSerializable)
+    WON_REFLECT_STRUCT_END()
+
     WON_REFLECT_STRUCT(won::ecs::ParticleEmitter3DComponent, "ParticleEmitter3DComponent")
         WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(max_particle_count, won::FieldFlagEditable | won::FieldFlagSerializable)

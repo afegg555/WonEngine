@@ -192,6 +192,8 @@ set(RUNTIME_RESOURCE
     Source/Runtime/Public/Mesh.h
     Source/Runtime/Public/TerrainGenerator.h
     Source/Runtime/Private/TerrainGenerator.cpp
+    Source/Runtime/Public/NavMesh.h
+    Source/Runtime/Private/NavMesh.cpp
     Source/Runtime/Public/ShaderCompiler.h
     Source/Runtime/Public/ShaderManifest.h
     Source/Runtime/Public/ShaderLoader.h
@@ -272,7 +274,6 @@ set(RUNTIME_SERIALIZATION
     Source/Runtime/Public/ArchiveMode.h
     Source/Runtime/Public/JsonArchive.h
     Source/Runtime/Public/SceneSerializer.h
-    Source/Runtime/Public/PrefabSpawnRequest.h
     Source/Runtime/Private/JsonArchive.cpp
     Source/Runtime/Private/SceneSerializer.cpp
 )
@@ -305,6 +306,7 @@ set(RUNTIME_ECS
     Source/Runtime/Public/System.h
     Source/Runtime/Public/PhysicsWorld.h
     Source/Runtime/Private/PhysicsWorld.cpp
+    Source/Runtime/Public/PrefabSpawnRequest.h
 )
 
 
@@ -340,6 +342,7 @@ set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/VisibilityLayerComponent.h
     Source/Runtime/Public/CollisionLayerComponent.h
     Source/Runtime/Public/TerrainComponent.h
+    Source/Runtime/Public/NavMeshComponent.h
     Source/Runtime/Public/ParticleEmitter3DComponent.h
     Source/Runtime/Public/DecalComponent.h
 )
@@ -498,6 +501,17 @@ set(BUILD_SAMPLE OFF CACHE BOOL "" FORCE)
 set(BUILD_TOOLS OFF CACHE BOOL "" FORCE)
 add_subdirectory(Source/Vendor/DirectXTex DirectXTex)
 set_target_properties(Jolt PROPERTIES FOLDER "Vendors")
+
+file(GLOB RECASTNAVIGATION_SOURCES
+    Source/Vendor/recastnavigation/Recast/Source/*.cpp
+    Source/Vendor/recastnavigation/Detour/Source/*.cpp
+)
+add_library(RecastNavigation STATIC ${RECASTNAVIGATION_SOURCES})
+target_include_directories(RecastNavigation PUBLIC
+    Source/Vendor/recastnavigation/Recast/Include
+    Source/Vendor/recastnavigation/Detour/Include
+)
+set_target_properties(RecastNavigation PROPERTIES FOLDER "Vendors")
 
 set(WONENGINE_RUNTIME_LIBRARY_TYPE STATIC)
 if(WONENGINE_BUILD_SHARED_RUNTIME)
@@ -701,6 +715,7 @@ target_include_directories(Runtime
 )
 
 target_link_libraries(Runtime PUBLIC Jolt)
+target_link_libraries(Runtime PRIVATE RecastNavigation)
 
 target_link_libraries(Editor PRIVATE Runtime)
 target_link_libraries(HelloTriangle PRIVATE Runtime)

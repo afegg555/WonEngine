@@ -7,9 +7,9 @@ namespace won::ecs
     {
         enum class MotionType
         {
-            Static = 0,
-            Kinematic,
-            Dynamic
+			Static = 0, // does not move, static world geometry
+			Kinematic, // moves according to transform changes(script, animation, etc)
+			Dynamic // moves according to physics simulation(forces, gravity, collisions, etc) can not be trigger !!
         };
 
         enum Flags

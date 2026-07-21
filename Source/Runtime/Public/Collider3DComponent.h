@@ -13,7 +13,7 @@ namespace won::ecs
             Empty = 0,
             Dirty = 1 << 0,
             Enabled = 1 << 1,
-			Trigger = 1 << 2, // if true, this collider will only generate trigger events and won't cause physical collision response
+			Trigger = 1 << 2, // if true, this collider will only generate trigger events and won't cause physical collision response, so can not be used with a dynamic rigidbody
         };
 
         enum class ShapeType
@@ -25,11 +25,13 @@ namespace won::ecs
 
         uint32 flags = Dirty | Enabled;
         ShapeType shape_type = ShapeType::Box;
-        float3 offset = {};
-        float3 half_extent = { 0.5f, 0.5f, 0.5f };
-        float radius = 0.5f;
+		float3 offset = {}; // local
+		float3 half_extent = { 0.5f, 0.5f, 0.5f }; // local, half size for box shape
+		float radius = 0.5f; // local, radius for sphere shape
         float friction = 0.2f;
         float restitution = 0.0f;
+
+		// These values are updated by PhysicsUpdateSystem.
         math::AABB world_bounds = { XMFLOAT3(FLT_MAX, FLT_MAX, FLT_MAX), XMFLOAT3(-FLT_MAX, -FLT_MAX, -FLT_MAX) };
         math::Sphere world_sphere = {};
 

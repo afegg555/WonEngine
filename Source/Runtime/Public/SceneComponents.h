@@ -26,6 +26,7 @@
 #include "VisibilityLayerComponent.h"
 #include "CollisionLayerComponent.h"
 #include "TerrainComponent.h"
+#include "NavMeshComponent.h"
 #include "ParticleEmitter3DComponent.h"
 #include "DecalComponent.h"
 #include "Canvas2DComponent.h"

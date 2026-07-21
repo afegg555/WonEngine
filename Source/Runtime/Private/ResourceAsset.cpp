@@ -10,7 +10,10 @@
 #include "RenderingUtils.h"
 #include "Scene.h"
 #include "SceneComponents.h"
+#include "TransformUpdateSystem.h"
 #include "TerrainGenerator.h"
+#include "NavMesh.h"
+#include "StableHash.h"
 #include "ShaderInterop_Renderer.h"
 #include "Sound.h"
 #include "StringUtils.h"
@@ -24,6 +27,8 @@ namespace won::resource
     {
         constexpr uint32 mesh_binary_version = 2;
         constexpr uint32 mesh_binary_magic = 0x48534D57; // WMSH
+        constexpr uint32 navmesh_binary_version = 1;
+		constexpr uint32 navmesh_binary_magic = 0x56414E57; // WNAV
         constexpr uint32 material_binary_version = 2;
         constexpr uint32 dds_magic = 0x20534444; // DDS
         constexpr uint32 dds_fourcc_dx10 = 0x30315844; // DX10
@@ -1000,7 +1005,7 @@ namespace won::resource
         }
     }
 
-    static void GenerateTerrainResources(ecs::Scene& scene)
+    static void BuildTerrainMeshes(ecs::Scene& scene)
     {
         auto terrain_array = scene.GetComponentArray<ecs::TerrainComponent>();
         if (!terrain_array)
@@ -1019,12 +1024,239 @@ namespace won::resource
         }
     }
 
+    static bool SaveNavMeshBinary(const String& path, const nav::NavMesh& nav_mesh, uint64 source_hash)
+    {
+        const uint8* data = nav_mesh.GetData();
+        const uint32 data_size = nav_mesh.GetDataSize();
+        if (!data || data_size == 0)
+        {
+            return false;
+        }
+
+        const Size header_size = sizeof(uint32) * 2 + sizeof(uint64) + sizeof(uint32);
+        Vector<uint8> bytes(header_size + data_size);
+        uint8* cursor = bytes.data();
+        const uint32 magic = navmesh_binary_magic;
+        const uint32 version = navmesh_binary_version;
+        std::memcpy(cursor, &magic, sizeof(magic)); cursor += sizeof(magic);
+        std::memcpy(cursor, &version, sizeof(version)); cursor += sizeof(version);
+        std::memcpy(cursor, &source_hash, sizeof(source_hash)); cursor += sizeof(source_hash);
+        std::memcpy(cursor, &data_size, sizeof(data_size)); cursor += sizeof(data_size);
+        std::memcpy(cursor, data, data_size);
+
+        return io::WriteAllBytes(path, bytes.data(), bytes.size());
+    }
+
+    static bool LoadNavMeshBinary(const String& path, uint64 expected_source_hash, nav::NavMesh& out_nav_mesh)
+    {
+        io::FileData file = {};
+        if (!io::ReadAllBytes(path, &file))
+        {
+            return false;
+        }
+
+        const Size header_size = sizeof(uint32) * 2 + sizeof(uint64) + sizeof(uint32);
+        if (file.bytes.size() < header_size)
+        {
+            return false;
+        }
+
+        const uint8* cursor = file.bytes.data();
+        uint32 magic = 0;
+        uint32 version = 0;
+        uint64 stored_hash = 0;
+        uint32 data_size = 0;
+        std::memcpy(&magic, cursor, sizeof(magic)); cursor += sizeof(magic);
+        std::memcpy(&version, cursor, sizeof(version)); cursor += sizeof(version);
+        std::memcpy(&stored_hash, cursor, sizeof(stored_hash)); cursor += sizeof(stored_hash);
+        std::memcpy(&data_size, cursor, sizeof(data_size)); cursor += sizeof(data_size);
+
+        if (magic != navmesh_binary_magic || version != navmesh_binary_version)
+        {
+            return false;
+        }
+        if (data_size == 0 || file.bytes.size() < header_size + data_size)
+        {
+            return false;
+        }
+        if (stored_hash != expected_source_hash)
+        {
+            backlog::Post("[NavMesh] asset stale (source changed), rebaking: " + path, backlog::LogLevel::Warning);
+            return false;
+        }
+
+        return out_nav_mesh.InitFromData(cursor, data_size);
+    }
+
+    bool BuildSceneNavMesh(ecs::Scene& scene, const String& content_root)
+    {
+        auto nav_array = scene.GetComponentArray<ecs::NavMeshComponent>();
+        if (!nav_array || nav_array->GetSize() == 0)
+        {
+            return false;
+        }
+        const ecs::NavMeshComponent& config = nav_array->data[0];
+
+		ecs::TransformUpdateSystem transform_update_system; // we use this to ensure that all transforms are up-to-date before baking the navmesh
+        transform_update_system.Update(scene, 0.0f);
+
+        Vector<float3> positions;
+        Vector<uint32> indices;
+
+        if (auto collider_array = scene.GetComponentArray<ecs::Collider3DComponent>())
+        {
+            static const float3 unit_box_positions[8] = {
+                { -1.0f, -1.0f, -1.0f }, { 1.0f, -1.0f, -1.0f }, { 1.0f, 1.0f, -1.0f }, { -1.0f, 1.0f, -1.0f },
+                { -1.0f, -1.0f, 1.0f }, { 1.0f, -1.0f, 1.0f }, { 1.0f, 1.0f, 1.0f }, { -1.0f, 1.0f, 1.0f },
+            };
+            static const uint32 unit_box_indices[36] = {
+                0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7,
+                0, 1, 5, 0, 5, 4, 3, 7, 6, 3, 6, 2,
+                0, 4, 7, 0, 7, 3, 1, 2, 6, 1, 6, 5,
+            };
+            for (Size i = 0; i < collider_array->GetSize(); ++i)
+            {
+                const ecs::Entity entity = collider_array->index_to_entity[i];
+                const ecs::Collider3DComponent& collider = collider_array->data[i];
+                if (!collider.IsEnabled() || collider.IsTrigger())
+                {
+                    continue;
+                }
+                const ecs::Rigidbody3DComponent* rb = scene.GetComponent<ecs::Rigidbody3DComponent>(entity);
+                if (rb && rb->motion_type != ecs::Rigidbody3DComponent::MotionType::Static)
+                {
+                    continue;
+                }
+                const ecs::CollisionLayerComponent* collision_layer = scene.GetComponent<ecs::CollisionLayerComponent>(entity);
+                const uint32 layer = collision_layer ? collision_layer->layer : 0;
+                if ((config.include_layers & (1u << layer)) == 0)
+                {
+                    continue;
+                }
+                ecs::TransformComponent* transform = scene.GetComponent<ecs::TransformComponent>(entity);
+                if (!transform)
+                {
+                    continue;
+                }
+
+                const float3* src_positions = nullptr;
+                Size src_position_count = 0;
+                const uint32* src_indices = nullptr;
+                Size src_index_count = 0;
+                DirectX::XMMATRIX world = transform->GetWorldTransform();
+                if (collider.shape_type == ecs::Collider3DComponent::ShapeType::HeightField)
+                {
+                    ecs::GeometryComponent* geometry = scene.GetComponent<ecs::GeometryComponent>(entity);
+                    if (!geometry || !geometry->mesh)
+                    {
+                        continue;
+                    }
+                    src_positions = geometry->mesh->positions.data();
+                    src_position_count = geometry->mesh->positions.size();
+                    src_indices = geometry->mesh->indices.data();
+                    src_index_count = geometry->mesh->indices.size();
+                }
+                else if (collider.shape_type == ecs::Collider3DComponent::ShapeType::Sphere)
+                {
+					// approximated as a box for navmesh baking
+                    world = DirectX::XMMatrixScaling(collider.radius, collider.radius, collider.radius) *
+                        DirectX::XMMatrixTranslation(collider.offset.x, collider.offset.y, collider.offset.z) *
+                        world;
+                    src_positions = unit_box_positions;
+                    src_position_count = 8;
+                    src_indices = unit_box_indices;
+                    src_index_count = 36;
+                }
+                else
+                {
+                    world = DirectX::XMMatrixScaling(collider.half_extent.x, collider.half_extent.y, collider.half_extent.z) *
+                        DirectX::XMMatrixTranslation(collider.offset.x, collider.offset.y, collider.offset.z) *
+                        world;
+                    src_positions = unit_box_positions;
+                    src_position_count = 8;
+                    src_indices = unit_box_indices;
+                    src_index_count = 36;
+                }
+
+                const uint32 base = static_cast<uint32>(positions.size());
+                for (Size v = 0; v < src_position_count; ++v)
+                {
+                    float3 world_position = {};
+                    DirectX::XMStoreFloat3(&world_position, DirectX::XMVector3TransformCoord(DirectX::XMLoadFloat3(&src_positions[v]), world));
+                    positions.push_back(world_position);
+                }
+                for (Size k = 0; k < src_index_count; ++k)
+                {
+                    indices.push_back(base + src_indices[k]);
+                }
+            }
+        }
+
+        if (positions.empty() || indices.size() < 3)
+        {
+            return false;
+        }
+
+        const float hash_params[] = {
+            config.agent_radius, config.agent_height, config.agent_max_climb, config.agent_max_slope,
+            config.use_bounds ? 1.0f : 0.0f,
+            config.bounds_center.x, config.bounds_center.y, config.bounds_center.z,
+            config.bounds_extent.x, config.bounds_extent.y, config.bounds_extent.z
+        };
+        const uint64 hash_parts[3] = {
+            won::StableHash(reinterpret_cast<const char*>(positions.data()), positions.size() * sizeof(float3)),
+            won::StableHash(reinterpret_cast<const char*>(indices.data()), indices.size() * sizeof(uint32)),
+            won::StableHash(reinterpret_cast<const char*>(hash_params), sizeof(hash_params))
+        };
+        const uint64 source_hash = won::StableHash(reinterpret_cast<const char*>(hash_parts), sizeof(hash_parts));
+        const bool has_asset = !config.navmesh_asset_path.empty();
+        const String asset_full_path = has_asset ? project::ResolveProjectContentPath(content_root, config.navmesh_asset_path) : String();
+
+        if (has_asset)
+        {
+            auto loaded = std::make_unique<nav::NavMesh>();
+            if (LoadNavMeshBinary(asset_full_path, source_hash, *loaded))
+            {
+                backlog::Post("[NavMesh] loaded from asset: " + config.navmesh_asset_path);
+                scene.SetNavMesh(std::move(loaded));
+                return true;
+            }
+        }
+
+        nav::NavMeshBuildDesc desc = {};
+        desc.agent_radius = config.agent_radius;
+        desc.agent_height = config.agent_height;
+        desc.agent_max_climb = config.agent_max_climb;
+        desc.agent_max_slope = config.agent_max_slope;
+        desc.use_bounds = config.use_bounds;
+        desc.bounds_min = { config.bounds_center.x - config.bounds_extent.x, config.bounds_center.y - config.bounds_extent.y, config.bounds_center.z - config.bounds_extent.z };
+        desc.bounds_max = { config.bounds_center.x + config.bounds_extent.x, config.bounds_center.y + config.bounds_extent.y, config.bounds_center.z + config.bounds_extent.z };
+
+        auto nav_mesh = std::make_unique<nav::NavMesh>();
+		// TODO: parallelize navmesh building(per tile)
+        if (!nav_mesh->Build(positions.data(), static_cast<uint32>(positions.size()), indices.data(), static_cast<uint32>(indices.size()), desc))
+        {
+            return false;
+        }
+        if (has_asset)
+        {
+            io::CreateDirectories(io::GetDirectoryFromPath(asset_full_path));
+            if (SaveNavMeshBinary(asset_full_path, *nav_mesh, source_hash))
+            {
+                backlog::Post("[NavMesh] cached to asset: " + config.navmesh_asset_path);
+            }
+        }
+        scene.SetNavMesh(std::move(nav_mesh));
+        return true;
+    }
+
     void LoadSceneResources(ecs::Scene& scene, const String& content_root, bool parallel)
     {
         jobsystem::Context ctx;
         jobsystem::Context mesh_ctx;
 
-        GenerateTerrainResources(scene);
+        BuildTerrainMeshes(scene);
+        BuildSceneNavMesh(scene, content_root);
 
         if (auto geometry_array = scene.GetComponentArray<ecs::GeometryComponent>())
         {
