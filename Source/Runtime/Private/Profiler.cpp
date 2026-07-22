@@ -32,6 +32,7 @@ namespace won::profiler
             float times[20] = {};
             int avg_counter = 0;
             float time_ms = 0.0f;
+            uint64 last_seen_frame = 0;
             won::utils::Timer cpu_timer;
             rendering::RHICommandList* command_list = nullptr;
             std::array<int32, rendering::max_frames_in_flight> query_begin = { -1, -1, -1 };
@@ -45,6 +46,7 @@ namespace won::profiler
         bool gpu_available = false;
         range_id cpu_frame = 0;
         range_id gpu_frame = 0;
+        uint64 frame_counter = 0;
         uint32 active_frame_slot = 0;
         uint32 next_query_index = 0;
         double timestamp_per_ms = 0.0;
@@ -95,6 +97,8 @@ namespace won::profiler
         {
             return;
         }
+
+        ++frame_counter;
 
         for (auto& pair : ranges)
         {
@@ -306,6 +310,7 @@ namespace won::profiler
         range.in_use = true;
         range.type = RangeType::CPU;
         range.name = name;
+        range.last_seen_frame = frame_counter;
         range.cpu_timer.Reset();
 
         return id;
@@ -333,6 +338,7 @@ namespace won::profiler
             range.in_use = true;
             range.type = RangeType::GPU;
             range.name = name;
+            range.last_seen_frame = frame_counter;
             range.command_list = &command_list;
             query_begin = AllocateQuery();
             range.query_begin[active_frame_slot] = query_begin;
@@ -435,6 +441,11 @@ namespace won::profiler
         {
             const Range& range = pair.second;
             if (!range.has_valid_result)
+            {
+                continue;
+            }
+
+            if (frame_counter - range.last_seen_frame > rendering::max_frames_in_flight)
             {
                 continue;
             }
