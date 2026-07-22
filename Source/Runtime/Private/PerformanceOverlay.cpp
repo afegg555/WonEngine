@@ -128,8 +128,11 @@ namespace won::stats
 
         const float panel_width = static_cast<float>(longest) * glyph_width + padding * 2.0f;
         const float panel_height = static_cast<float>(lines.size()) * line_height + padding * 2.0f;
-        const float panel_x = 8.0f;
-        const float panel_y = 8.0f;
+        const float margin = 8.0f;
+        const bool anchor_right = anchor == OverlayAnchor::TopRight || anchor == OverlayAnchor::BottomRight;
+        const bool anchor_bottom = anchor == OverlayAnchor::BottomLeft || anchor == OverlayAnchor::BottomRight;
+        const float panel_x = anchor_right ? (viewport_width - panel_width - margin) : margin;
+        const float panel_y = anchor_bottom ? (viewport_height - panel_height - margin) : margin;
 
         debugtext::DrawScreenRect(panel_x, panel_y, panel_width, panel_height, perf_background_color);
         float y = panel_y + padding;

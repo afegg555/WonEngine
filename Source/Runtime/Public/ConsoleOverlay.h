@@ -1,6 +1,7 @@
 #pragma once
 #include "RuntimeExport.h"
 #include "Types.h"
+#include "Overlay.h"
 
 namespace won::console
 {
@@ -10,6 +11,8 @@ namespace won::console
         void Update();
         void Draw(float viewport_width, float viewport_height);
         bool IsOpen() const;
+
+        OverlayAnchor anchor = OverlayAnchor::TopLeft;
 
     private:
         bool open = false;

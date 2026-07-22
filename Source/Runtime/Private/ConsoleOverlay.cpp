@@ -93,13 +93,15 @@ namespace won::console
 
         const float line_height = static_cast<float>(builtinfont::glyph_height) * console_text_scale;
         const float panel_height = viewport_height * 0.5f;
-        const float input_y = panel_height - line_height - 4.0f;
+        const bool anchor_bottom = anchor == OverlayAnchor::BottomLeft || anchor == OverlayAnchor::BottomRight;
+        const float panel_top = anchor_bottom ? (viewport_height - panel_height) : 0.0f;
+        const float input_y = panel_top + panel_height - line_height - 4.0f;
 
-        debugtext::DrawScreenRect(0.0f, 0.0f, viewport_width, panel_height, console_background_color);
+        debugtext::DrawScreenRect(0.0f, panel_top, viewport_width, panel_height, console_background_color);
         debugtext::DrawScreenRect(0.0f, input_y - 3.0f, viewport_width, 1.0f, console_separator_color);
         debugtext::DrawScreenText(4.0f, input_y, (console_prompt + input_line).c_str(), console_input_color, console_text_scale);
 
-        const int max_lines = static_cast<int>((input_y - 4.0f) / line_height);
+        const int max_lines = static_cast<int>((input_y - panel_top - 4.0f) / line_height);
         if (max_lines <= 0)
         {
             return;
@@ -133,7 +135,7 @@ namespace won::console
         }
 
         float y = input_y - line_height;
-        for (int i = static_cast<int>(visual_lines.size()) - 1; i >= 0 && y >= 0.0f; --i)
+        for (int i = static_cast<int>(visual_lines.size()) - 1; i >= 0 && y >= panel_top; --i)
         {
             debugtext::DrawScreenText(4.0f, y, visual_lines[i].c_str(), console_output_color, console_text_scale);
             y -= line_height;

@@ -241,6 +241,7 @@ set(RUNTIME_CONFIGURATION
 set(RUNTIME_CONSOLE
     Source/Runtime/Public/Console.h
     Source/Runtime/Private/Console.cpp
+    Source/Runtime/Public/Overlay.h
     Source/Runtime/Public/ConsoleOverlay.h
     Source/Runtime/Private/ConsoleOverlay.cpp
     Source/Runtime/Public/PerformanceOverlay.h
