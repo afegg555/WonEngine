@@ -213,6 +213,8 @@ set(RUNTIME_RESOURCE
 set(RUNTIME_RENDERING
     Source/Runtime/Public/Renderer.h
     Source/Runtime/Public/RenderingUtils.h
+    Source/Runtime/Private/GPUScene.h
+    Source/Runtime/Private/GPUScene.cpp
     Source/Runtime/Private/Renderer.cpp
     Source/Runtime/Private/RenderingUtils.cpp
     Source/Runtime/Public/View.h
@@ -241,6 +243,7 @@ set(RUNTIME_CONFIGURATION
 set(RUNTIME_CONSOLE
     Source/Runtime/Public/Console.h
     Source/Runtime/Private/Console.cpp
+    Source/Runtime/Public/Overlay.h
     Source/Runtime/Public/ConsoleOverlay.h
     Source/Runtime/Private/ConsoleOverlay.cpp
     Source/Runtime/Public/PerformanceOverlay.h
@@ -361,36 +364,22 @@ set(RUNTIME_AUDIO_WINDOWS
 
 set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Public/Systems.h
-    Source/Runtime/Public/EnvironmentUpdateSystem.h
     Source/Runtime/Public/CameraUpdateSystem.h
-    Source/Runtime/Public/GeometryUpdateSystem.h
     Source/Runtime/Public/LightUpdateSystem.h
-    Source/Runtime/Public/MaterialUpdateSystem.h
     Source/Runtime/Public/AnimationUpdateSystem.h
     Source/Runtime/Public/AnimationStateMachineSystem.h
     Source/Runtime/Public/TransformUpdateSystem.h
-    Source/Runtime/Public/RenderableUpdateSystem.h
-    Source/Runtime/Public/SpriteUpdateSystem.h
-    Source/Runtime/Public/TextUpdateSystem.h
     Source/Runtime/Public/ParticleUpdateSystem.h
-    Source/Runtime/Public/DecalUpdateSystem.h
     Source/Runtime/Public/ScriptUpdateSystem.h
     Source/Runtime/Public/ScriptEventDispatchSystem.h
     Source/Runtime/Public/PhysicsUpdateSystem.h
     Source/Runtime/Public/AudioUpdateSystem.h
-    Source/Runtime/Private/EnvironmentUpdateSystem.cpp
     Source/Runtime/Private/CameraUpdateSystem.cpp
-    Source/Runtime/Private/GeometryUpdateSystem.cpp
     Source/Runtime/Private/LightUpdateSystem.cpp
-    Source/Runtime/Private/MaterialUpdateSystem.cpp
     Source/Runtime/Private/AnimationUpdateSystem.cpp
     Source/Runtime/Private/AnimationStateMachineSystem.cpp
     Source/Runtime/Private/TransformUpdateSystem.cpp
-    Source/Runtime/Private/RenderableUpdateSystem.cpp
-    Source/Runtime/Private/SpriteUpdateSystem.cpp
     Source/Runtime/Private/ParticleUpdateSystem.cpp
-    Source/Runtime/Private/DecalUpdateSystem.cpp
-    Source/Runtime/Private/TextUpdateSystem.cpp
     Source/Runtime/Private/ScriptUpdateSystem.cpp
     Source/Runtime/Private/ScriptEventDispatchSystem.cpp
     Source/Runtime/Private/PhysicsUpdateSystem.cpp
@@ -437,6 +426,7 @@ set(SHADERS_INTEROP
     Source/Shaders/ShaderInterop_Sprite.h
     Source/Shaders/ShaderInterop_Utility.h
     Source/Shaders/ShaderInterop_PostProcess.h
+    Source/Shaders/ShaderInterop_LightCull.h
     Source/Shaders/ShaderInterop_Decal.h
     Source/Shaders/ShaderInterop_DebugText.h
 )
@@ -472,11 +462,13 @@ set(SHADERS_HLSL
     Source/Shaders/DecalPS.hlsl
     Source/Shaders/ObjectPS.hlsli
     Source/Shaders/ObjectPS_unlit.hlsl
-    Source/Shaders/ObjectPS_common.hlsl
+    Source/Shaders/ObjectPS_forward.hlsl
+    Source/Shaders/ObjectPS_forwardplus.hlsl
     Source/Shaders/ObjectPS_prepass.hlsl
     Source/Shaders/SpritePS.hlsl
     Source/Shaders/TextPS.hlsl
     Source/Shaders/DDGIProbeUpdateCS.hlsl
+    Source/Shaders/LightCullCS.hlsl
     Source/Shaders/GPUBVHBuildCommon.hlsli
     Source/Shaders/GPUBVHGeneratePrimitivesCS.hlsl
     Source/Shaders/GPUBVHSortPrimitivesCS.hlsl

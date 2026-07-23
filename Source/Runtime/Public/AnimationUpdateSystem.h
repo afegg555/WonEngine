@@ -9,8 +9,8 @@ namespace won::ecs
     class WONENGINE_API AnimationUpdateSystem final : public System
     {
     public:
-        explicit AnimationUpdateSystem(bool dispatch_events_in = false)
-            : dispatch_events(dispatch_events_in)
+        explicit AnimationUpdateSystem(bool simulate_in = false)
+            : simulate(simulate_in)
         {
         }
 
@@ -19,6 +19,7 @@ namespace won::ecs
         void Update(Scene& scene, float delta_time) override;
 
     private:
-        bool dispatch_events = false;
+        bool simulate = false;
+        uint32 last_bone_count = 0;
     };
 }

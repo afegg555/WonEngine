@@ -6,6 +6,7 @@
 #include "ProjectSettings.h"
 #include "ResourceAsset.h"
 #include "Scene.h"
+#include "RenderingUtils.h"
 #include "SceneSerializer.h"
 
 namespace won

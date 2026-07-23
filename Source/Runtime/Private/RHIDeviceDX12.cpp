@@ -488,6 +488,33 @@ namespace won::rendering
         compute_context.reset();
         copy_context.reset();
         descriptor_allocator.reset();
+        if (resource_allocator)
+        {
+            D3D12MA::TotalStatistics total_stats = {};
+            resource_allocator->CalculateStatistics(&total_stats);
+            if (total_stats.Total.Stats.AllocationCount > 0)
+            {
+                WCHAR* stats_string = nullptr;
+                resource_allocator->BuildStatsString(&stats_string, TRUE);
+                if (stats_string)
+                {
+                    const String stats_utf8 = won::utils::EncodeUtf8(stats_string);
+                    char module_path[MAX_PATH] = {};
+                    GetModuleFileNameA(nullptr, module_path, MAX_PATH);
+                    String stats_path = module_path;
+                    const Size separator_pos = stats_path.find_last_of("\\/");
+                    stats_path = (separator_pos != String::npos ? stats_path.substr(0, separator_pos + 1) : String()) + "d3d12ma_live_allocations.json";
+                    FILE* stats_file = nullptr;
+                    if (fopen_s(&stats_file, stats_path.c_str(), "wb") == 0 && stats_file)
+                    {
+                        fwrite(stats_utf8.data(), 1, stats_utf8.size(), stats_file);
+                        fclose(stats_file);
+                    }
+                    resource_allocator->FreeStatsString(stats_string);
+                }
+                backlog::Post("[RHI] leaked gpu allocations at device destruction: " + std::to_string(total_stats.Total.Stats.AllocationCount) + " (see d3d12ma_live_allocations.json)", backlog::LogLevel::Error);
+            }
+        }
         resource_allocator.Reset();
         device.Reset();
         adapter.Reset();

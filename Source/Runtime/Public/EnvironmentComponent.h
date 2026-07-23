@@ -71,7 +71,7 @@ namespace won::ecs
         String irradiance_cubemap_asset_path;
         String specular_cubemap_asset_path;
 
-		// These values are updated by EnvironmentUpdateSystem.
+		// These values are consumed by GPUScene environment extraction.
         std::shared_ptr<resource::Image> sky_cubemap;
         std::shared_ptr<resource::Image> irradiance_cubemap;
         std::shared_ptr<resource::Image> specular_cubemap;

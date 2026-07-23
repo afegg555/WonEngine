@@ -111,6 +111,10 @@ namespace won::rendering
         }
 
         resource->SetName(wide_name.c_str());
+        if (allocation)
+        {
+            allocation->SetName(wide_name.c_str());
+        }
     }
 
     const String& RHIResourceDX12::GetName() const

@@ -13,7 +13,7 @@ namespace won::rendering
         void Initialize(const RendererDesc& desc) override;
         void BeginFrame(platform::Window& window) override;
         void OnResize(platform::Window& window, uint32 width, uint32 height) override;
-        void Render(const View& view) override;
+        void Render(View& view) override;
         void RenderDebugText() override;
         void EndFrame() override;
         void WaitIdle() override;
@@ -42,56 +42,41 @@ namespace won::rendering
         // resource creation
         bool CreateDDGIResources(FrameContext& frame_context, const ShaderDDGIVolume& ddgi_volume);
         void ReleaseDDGIResources(FrameContext& frame_context);
-        bool CreateShadowMapAtlasResources(FrameContext& frame_context, const ecs::Scene::RenderData& render_data);
+        bool CreateShadowMapAtlasResources(FrameContext& frame_context, const View& view);
         bool CreateRenderTargetResources(FrameContext& frame_context);
 
         // gpu call
-        bool UpdateSceneGPUData(FrameContext& frame_context, const ecs::Scene::RenderData& render_data, const View& view, RHICommandList& command_list);
-        bool UpdateFrameConstants(FrameContext& frame_context, const View& view, const ecs::Scene::RenderData& render_data, RHICommandList& command_list);
+        bool UpdateSceneGPUData(FrameContext& frame_context, const View& view, RHICommandList& command_list);
+        bool UpdateFrameConstants(FrameContext& frame_context, const View& view, RHICommandList& command_list);
         bool DrawScene(const FrameContext& frame_context, const View& view, resource::RenderPassType pass, uint32 flags, RHICommandList& command_list);
         void UpdateDDGIProbe(FrameContext& frame_context, const ShaderEnvironment& environment_lighting, const ShaderDDGIVolume& ddgi_volume, const RHISubresourceBinding& shader_frame_binding, const RHISubresourceBinding& shader_camera_binding, RHICommandList& command_list);
         void DrawDebugText(const RHISubresourceBinding& back_buffer_binding, RHICommandList& command_list);
 
         // etc
-        bool BuildShadowCascades(const View& view);
-        void UpdateDebugState(const View& view, const ecs::Scene::RenderData& render_data);
-        void RenderForwardPath(const View& view);
+        void Update(View& view);
+        bool BuildShadowCascades(View& view);
+        void UpdateDebugState(const View& view);
+        void RenderForwardPath(View& view);
+        void UpdateForwardLightList(View& view, RHICommandList& command_list);
 
         std::shared_ptr<RHIDevice> device;
         resource::ShaderCompilerOptions shader_compiler_options = {};
         resource::ShaderLibrary shader_library;
 
-        std::shared_ptr<RHIResource> shader_instance_default_buffer;
-        RHISubresourceHandle shader_instance_default_buffer_srv = {};
-
-        std::shared_ptr<RHIResource> shader_particle_default_buffer;
-        RHISubresourceHandle shader_particle_default_buffer_srv = {};
-        std::shared_ptr<RHIResource> shader_decal_default_buffer;
-        RHISubresourceHandle shader_decal_default_buffer_srv = {};
 
         std::shared_ptr<RHIResource> shader_instance_sort_default_buffer;
         RHISubresourceHandle shader_instance_sort_default_buffer_srv = {};
 
-        std::shared_ptr<RHIResource> shader_geometry_default_buffer;
-        RHISubresourceHandle shader_geometry_default_buffer_srv = {};
 
-        std::shared_ptr<RHIResource> shader_material_default_buffer;
-        RHISubresourceHandle shader_material_default_buffer_srv = {};
 
-        std::shared_ptr<RHIResource> shader_bone_matrix_default_buffer;
-        RHISubresourceHandle shader_bone_matrix_default_buffer_srv = {};
-
-        std::shared_ptr<RHIResource> shader_light_default_buffer;
-        RHISubresourceHandle shader_light_default_buffer_srv = {};
 
         std::shared_ptr<RHIResource> shader_shadow_cascade_default_buffer;
         RHISubresourceHandle shader_shadow_cascade_default_buffer_srv = {};
 
-        std::shared_ptr<RHIResource> shader_bvh_node_default_buffer;
-        RHISubresourceHandle shader_bvh_node_default_buffer_srv = {};
+        std::shared_ptr<RHIResource> shader_light_shadow_slice_buffer;
+        RHISubresourceHandle shader_light_shadow_slice_buffer_srv = {};
 
-        std::shared_ptr<RHIResource> shader_bvh_instance_default_buffer;
-        RHISubresourceHandle shader_bvh_instance_default_buffer_srv = {};
+
 
         std::shared_ptr<RHIResource> shader_frame_buffer;
         RHISubresourceHandle shader_frame_buffer_cbv = {};
@@ -134,6 +119,9 @@ namespace won::rendering
         RHISubresourceHandle brdf_lut_uav = {};
         bool brdf_lut_valid = false;
 
+        std::shared_ptr<RHIPipeline> light_cull_pipeline;
+        std::shared_ptr<RHIShader> light_cull_shader;
+
         std::shared_ptr<RHIPipeline> composite_pipeline;
         std::shared_ptr<RHIShader> composite_shader;
 
@@ -162,6 +150,9 @@ namespace won::rendering
         RHISubresourceHandle ddgi_probe_data_buffer_uav = {};
         std::shared_ptr<RHIResource> ddgi_probe_data_history_buffer;
         RHISubresourceHandle ddgi_probe_data_history_buffer_srv = {};
+
+        std::shared_ptr<RHIResource> ddgi_probe_data_readback_buffer;
+        bool ddgi_probe_data_readback_valid = false;
 
         std::shared_ptr<RHIPipeline> ddgi_probe_update_pipeline;
         std::shared_ptr<RHIShader> ddgi_probe_update_shader;

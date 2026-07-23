@@ -68,8 +68,6 @@ namespace won::rendering
         int probe_data_buffer_srv = -1;
         int probe_data_buffer_uav = -1;
 
-        std::shared_ptr<RHIResource> probe_data_readback_buffer;
-        bool probe_data_readback_valid = false;
         Vector<DDGIProbe> probes;
     };
 
@@ -110,7 +108,7 @@ namespace won::rendering
         virtual void Initialize(const RendererDesc& desc) = 0;
         virtual void BeginFrame(platform::Window& window) = 0;
         virtual void OnResize(platform::Window& window, uint32 width, uint32 height) = 0;
-        virtual void Render(const View& view) = 0;
+        virtual void Render(View& view) = 0;
         virtual void RenderDebugText() = 0;
         virtual void EndFrame() = 0;
         virtual void WaitIdle() = 0;
@@ -280,11 +278,7 @@ namespace won::rendering
             std::mutex frame_upload_mutex;
             std::mutex deferred_res_removal_mutex;
             std::shared_ptr<RHIFence> fence;
-            std::shared_ptr<RHIResource> shader_instance_upload_buffer;
             std::shared_ptr<RHIResource> shader_instance_sort_upload_buffer;
-            std::shared_ptr<RHIResource> shader_geometry_upload_buffer;
-            std::shared_ptr<RHIResource> shader_material_upload_buffer;
-            std::shared_ptr<RHIResource> shader_light_upload_buffer;
             std::shared_ptr<RHIResource> frame_upload_buffer;
             Size frame_upload_offset = 0;
             uint64 fence_value = 0;

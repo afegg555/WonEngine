@@ -17,7 +17,8 @@ namespace won::resource
         VSDebugText,
 
         PSSky,
-        PSObjectCommon,
+        PSObjectForward,
+        PSObjectForwardPlus,
         PSObjectUnlit,
         PSObjectPrepass,
         PSSprite,
@@ -32,6 +33,7 @@ namespace won::resource
         CSLuminanceResolve,
         CSBRDFIntegration,
         CSDDGIProbeUpdate,
+        CSLightCull,
         CSTextureMipGen,
         CSGPUBVHBuildGeneratePrimitives,
         CSGPUBVHBuildSortPrimitives,
@@ -58,7 +60,8 @@ namespace won::resource
         case ShaderId::VSDecal: return "VSDecal";
         case ShaderId::VSDebugText: return "VSDebugText";
         case ShaderId::PSSky: return "PSSky";
-        case ShaderId::PSObjectCommon: return "PSObjectCommon";
+        case ShaderId::PSObjectForward: return "PSObjectForward";
+        case ShaderId::PSObjectForwardPlus: return "PSObjectForwardPlus";
         case ShaderId::PSObjectUnlit: return "PSObjectUnlit";
         case ShaderId::PSObjectPrepass: return "PSObjectPrepass";
         case ShaderId::PSSprite: return "PSSprite";
@@ -72,6 +75,7 @@ namespace won::resource
         case ShaderId::CSLuminanceResolve: return "CSLuminanceResolve";
         case ShaderId::CSBRDFIntegration: return "CSBRDFIntegration";
         case ShaderId::CSDDGIProbeUpdate: return "CSDDGIProbeUpdate";
+        case ShaderId::CSLightCull: return "CSLightCull";
         case ShaderId::CSTextureMipGen: return "CSTextureMipGen";
         case ShaderId::CSGPUBVHBuildGeneratePrimitives: return "CSGPUBVHBuildGeneratePrimitives";
         case ShaderId::CSGPUBVHBuildSortPrimitives: return "CSGPUBVHBuildSortPrimitives";

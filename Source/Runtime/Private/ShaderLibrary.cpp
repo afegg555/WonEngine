@@ -122,7 +122,7 @@ namespace won::resource
 
         pipeline_desc = {};
         pipeline_desc.vertex_shader = GetShader(ShaderId::VSObjectCommon).get();
-        pipeline_desc.pixel_shader = GetShader(ShaderId::PSObjectCommon).get();
+        pipeline_desc.pixel_shader = GetShader(ShaderId::PSObjectForward).get();
         pipeline_desc.sample_count = sample_count;
         pipeline_desc.depth_stencil_format = dsv_format;
         pipeline_desc.depth_stencil.depth_test = true;
@@ -143,6 +143,16 @@ namespace won::resource
         pipeline_desc.raster.cull_mode = RHICullMode::None;
         pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
         graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+
+        pipeline_desc.pixel_shader = GetShader(ShaderId::PSObjectForwardPlus).get();
+        pipeline_hash.storage.bits.clustered = 1;
+        pipeline_desc.raster.cull_mode = RHICullMode::Back;
+        pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::Back);
+        graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+        pipeline_desc.raster.cull_mode = RHICullMode::None;
+        pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
+        graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+        pipeline_hash.storage.bits.clustered = 0;
 
         pipeline_desc.vertex_shader = GetShader(ShaderId::VSObjectSimple).get();
         pipeline_desc.pixel_shader = GetShader(ShaderId::PSObjectUnlit).get();
@@ -171,7 +181,7 @@ namespace won::resource
         // Transparent mesh PSOs: blend on, depth write off, GreaterEqual (skip depth prepass)
         pipeline_desc = {};
         pipeline_desc.vertex_shader = GetShader(ShaderId::VSObjectCommon).get();
-        pipeline_desc.pixel_shader = GetShader(ShaderId::PSObjectCommon).get();
+        pipeline_desc.pixel_shader = GetShader(ShaderId::PSObjectForward).get();
         pipeline_desc.sample_count = sample_count;
         pipeline_desc.depth_stencil_format = dsv_format;
         pipeline_desc.depth_stencil.depth_test = true;
@@ -192,6 +202,16 @@ namespace won::resource
         pipeline_desc.raster.cull_mode = RHICullMode::None;
         pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
         graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+
+        pipeline_desc.pixel_shader = GetShader(ShaderId::PSObjectForwardPlus).get();
+        pipeline_hash.storage.bits.clustered = 1;
+        pipeline_desc.raster.cull_mode = RHICullMode::Back;
+        pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::Back);
+        graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+        pipeline_desc.raster.cull_mode = RHICullMode::None;
+        pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
+        graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+        pipeline_hash.storage.bits.clustered = 0;
 
         pipeline_desc.vertex_shader = GetShader(ShaderId::VSObjectSimple).get();
         pipeline_desc.pixel_shader = GetShader(ShaderId::PSObjectUnlit).get();

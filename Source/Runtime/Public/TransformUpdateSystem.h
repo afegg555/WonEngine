@@ -4,7 +4,6 @@
 #include "Types.h"
 #include "RuntimeExport.h"
 #include "SceneComponents.h"
-#include <mutex>
 
 namespace won::ecs
 {
@@ -19,7 +18,6 @@ namespace won::ecs
         void Update(Scene& scene, float delta_time) override;
 
     private:
-        mutable std::mutex shadow_caster_world_bound_mutex;
         Vector<Entity> hierarchy_update_order_cache;
         UnorderedMap<Entity, Vector<Entity>> hierarchy_children_cache;
     };

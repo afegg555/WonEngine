@@ -72,6 +72,11 @@ namespace won::ecs
             return data[entity_to_index[entity]];
         }
 
+        const T& GetData(Entity entity) const
+        {
+            return data[entity_to_index.at(entity)];
+        }
+
         void* GetRawData(Entity entity) override
         {
             return HasData(entity) ? &GetData(entity) : nullptr;
@@ -467,6 +472,23 @@ namespace won::ecs
                 return nullptr;
             }
             return std::static_pointer_cast<ComponentArray<T>>(it->second);
+        }
+
+        template <typename T>
+        std::shared_ptr<const ComponentArray<T>> GetComponentArray() const
+        {
+            const won::TypeDesc* type_desc = reflection::TypeMeta<T>::Get();
+            if (!type_desc || type_desc->type_id == 0)
+            {
+                return nullptr;
+            }
+
+            auto it = component_arrays.find(type_desc->type_id);
+            if (it == component_arrays.end() || !it->second)
+            {
+                return nullptr;
+            }
+            return std::static_pointer_cast<const ComponentArray<T>>(it->second);
         }
 
         std::shared_ptr<IComponentArray> GetComponentArray(won::TypeId type_id)

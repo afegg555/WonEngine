@@ -1,6 +1,7 @@
 #pragma once
 #include "RuntimeExport.h"
 #include "Types.h"
+#include "Overlay.h"
 
 namespace won::rendering
 {
@@ -14,6 +15,8 @@ namespace won::stats
     public:
         void Update(float dt, rendering::RHIDevice* device);
         void Draw(float viewport_width, float viewport_height);
+
+        OverlayAnchor anchor = OverlayAnchor::TopRight;
 
     private:
         float accumulated_time = 0.0f;

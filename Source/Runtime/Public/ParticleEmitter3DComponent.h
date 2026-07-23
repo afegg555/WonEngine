@@ -6,9 +6,15 @@ namespace won::ecs
 {
     // CPU sprite particle emitter. Particles are simulated on the CPU and drawn through the existing Sprite3D billboard path
     // entity also needs a MaterialComponent (texture)
-    // Per-particle runtime state is NOT stored here; it lives in ParticleUpdateSystem
     struct ParticleEmitter3DComponent
     {
+        struct Particle
+        {
+            float3 position = {};
+            float3 velocity = {};
+            float age = 0.0f;
+        };
+
         enum Flags
         {
             Empty = 0,
@@ -34,6 +40,13 @@ namespace won::ecs
         float emit_radius = 0.5f; // spawn disc radius around the emitter origin
 
         uint32 seed = 0; // deterministic per-emitter randomization
+
+        // runtime state, not serialized
+        Vector<Particle> particles;
+        float spawn_accumulator = 0.0f;
+        uint32 total_emitted = 0;
+        uint32 rng_state = 0;
+        bool runtime_initialized = false;
 
         constexpr void SetActive(bool value = true) { if (value) { flags |= Active; } else { flags &= ~Active; } }
         constexpr bool IsActive() const { return (flags & Active) != 0; }

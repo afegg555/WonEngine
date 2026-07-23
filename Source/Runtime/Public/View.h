@@ -2,12 +2,14 @@
 #include "Scene.h"
 #include "ViewOptionEnums.h"
 #include "Types.h"
+#include "RHIResource.h"
 
 namespace won::rendering
 {
     enum class RenderPathType
     {
-        Forward
+        Forward,
+        ForwardPlus
     };
 
     struct Rect
@@ -18,23 +20,59 @@ namespace won::rendering
         int32 height = 0;
     };
 
-    struct ViewOptions
-    {
-        ViewResizePolicy resize_policy = ViewResizePolicy::MatchWindow;
-        bool update_camera_aspect = true;
-        bool enable_frustum_culling = true;
-        bool enable_viewport_culling = true; // 2D sprites only
-        AntiAliasingMode aa_mode = AntiAliasingMode::None;
-        TonemapMode tonemap_mode = TonemapMode::Reinhard;
-    };
-
     class View
     {
     public:
+        struct Options
+        {
+            ViewResizePolicy resize_policy = ViewResizePolicy::MatchWindow;
+            bool update_camera_aspect = true;
+            bool enable_frustum_culling = true;
+            bool enable_viewport_culling = true; // 2D sprites only
+            AntiAliasingMode aa_mode = AntiAliasingMode::None;
+            TonemapMode tonemap_mode = TonemapMode::Reinhard;
+        };
+
+        struct LightResources
+        {
+            std::shared_ptr<RHIResource> forward_index_buffer;
+            std::shared_ptr<RHIResource> forward_index_upload_buffer;
+            RHISubresourceHandle forward_index_srv = {};
+            uint32 forward_light_count = 0;
+
+            std::shared_ptr<RHIResource> cluster_light_count_buffer;
+            RHISubresourceHandle cluster_light_count_srv = {};
+            RHISubresourceHandle cluster_light_count_uav = {};
+            std::shared_ptr<RHIResource> cluster_light_index_buffer;
+            RHISubresourceHandle cluster_light_index_srv = {};
+            RHISubresourceHandle cluster_light_index_uav = {};
+            uint2 cluster_dims = { 0, 0 };
+            uint32 depth_slice_count = 0;
+        };
+
+        struct RenderShadowSlice
+        {
+            uint32 light_index = 0;
+            float4x4 view_projection = math::IDENTITY_MATRIX;
+            int4 shadow_map_atlas_rect = { -1, -1, 0, 0 };
+
+            bool HasShadowMapAtlasRect() const { return shadow_map_atlas_rect.z > 0 && shadow_map_atlas_rect.w > 0; }
+        };
+
+        struct ShadowResources
+        {
+            Vector<ShaderShadowCascade> shader_shadow_cascades;
+            Vector<RenderShadowSlice> render_shadow_slices;
+            Vector<uint32> light_shadow_slices;
+            uint2 shadow_map_atlas_size = { 0, 0 };
+        };
+
         ecs::Entity camera_entity = {};
         ecs::Scene* scene = nullptr;
-        RenderPathType render_path_type = RenderPathType::Forward; // pipeline-level selection, not a lightweight ViewOption
-        ViewOptions options = {};
+        RenderPathType render_path_type = RenderPathType::ForwardPlus; // pipeline-level selection, not a lightweight ViewOption
+        Options options = {};
+        LightResources light_resources = {};
+        ShadowResources shadow_resources = {};
         Rect viewport = {};
         Rect scissor = {};
         uint32 ui_layer_mask = 0xFFFFFFFF;

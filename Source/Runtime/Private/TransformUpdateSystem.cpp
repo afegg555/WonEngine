@@ -3,7 +3,6 @@
 #include "MathUtils.h"
 #include "Scene.h"
 #include "JobSystem.h"
-#include <mutex>
 
 namespace won::ecs
 {
@@ -11,7 +10,6 @@ namespace won::ecs
     {
         jobsystem::Context sub_ctx;
         auto transform_array = scene.GetComponentArray<TransformComponent>().get();
-        Scene::RenderData& render_data = scene.GetRenderData();
 
         std::atomic<bool> dirty(false);
         // update local transform
@@ -192,7 +190,6 @@ namespace won::ecs
 
         auto geometry_array = scene.GetComponentArray<GeometryComponent>().get();
 
-        render_data.shadow_caster_world_bound.Invalidate();
         // update world bounds
         jobsystem::Dispatch(sub_ctx, (uint32_t)transform_array->data.size(), groupsize, [&](jobsystem::JobArgs args) {
             TransformComponent& transform = transform_array->data[args.job_index];
@@ -206,12 +203,6 @@ namespace won::ecs
 
             const GeometryComponent& geometry = geometry_array->GetData(entity);
             transform.world_bounds = geometry.local_bounds.TransformAABB(transform.world_transform);
-
-            if (geometry.IsCastShadow())
-            {
-                std::lock_guard<std::mutex> mutex(shadow_caster_world_bound_mutex);
-                render_data.shadow_caster_world_bound.Merge(transform.world_bounds);
-            }
         });
 
         if (dirty.load() == true)

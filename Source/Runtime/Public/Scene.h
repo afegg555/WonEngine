@@ -9,21 +9,20 @@
 #include "PhysicsWorld.h"
 #include "NavMesh.h"
 #include "AudioMixer.h"
-#include "ShaderInterop_Renderer.h"
 #include "BVH.h"
-#include "RenderingUtils.h"
 
 #include "Types.h"
 #include "MathUtils.h"
 #include "Profiler.h"
 
 #include <algorithm>
+#include <atomic>
 #include <memory>
 #include <utility>
 
 namespace won::rendering
 {
-    class RHIResource;
+    struct GPUScene;
 }
 
 namespace won::ecs
@@ -62,6 +61,7 @@ namespace won::ecs
     {
     public:
         Scene(const SceneDesc& desc = {});
+        ~Scene();
 
         Entity CreateEntity();
 
@@ -76,6 +76,13 @@ namespace won::ecs
         {
             Component component { std::forward<Args>(args)... };
             Component* result = component_manager.AddComponent<Component>(entity, component);
+            if constexpr (ComponentMaskFromType<Component>() != none_component_mask)
+            {
+                if (result)
+                {
+                    MarkGpuDirty(ComponentMaskFromType<Component>());
+                }
+            }
 
             if constexpr (std::is_same_v<Component, HierarchyComponent>)
             {
@@ -97,16 +104,23 @@ namespace won::ecs
 
         void* AddComponent(Entity entity, const won::TypeDesc* type_desc);
 
+		// we assume that if you are getting a component you are going to modify it
+        // !! If you don't want to modify it, then use the const version of GetComponent
         template <typename Component>
         Component* GetComponent(Entity entity)
         {
-            return component_manager.GetComponent<Component>(entity);
+            Component* result = component_manager.GetComponent<Component>(entity);
+            if constexpr (ComponentMaskFromType<Component>() != none_component_mask)
+            {
+                if (result)
+                {
+                    MarkGpuDirty(ComponentMaskFromType<Component>());
+                }
+            }
+            return result;
         }
 
-        void* GetComponent(Entity entity, won::TypeId type_id)
-        {
-            return component_manager.GetComponent(entity, type_id);
-        }
+        void* GetComponent(Entity entity, won::TypeId type_id);
 
         const void* GetComponent(Entity entity, won::TypeId type_id) const
         {
@@ -122,6 +136,13 @@ namespace won::ecs
                     physics_world->RemoveBody(entity);
             }
 
+            if constexpr (ComponentMaskFromType<Component>() != none_component_mask)
+            {
+                if (HasComponent<Component>(entity))
+                {
+                    MarkGpuDirty(ComponentMaskFromType<Component>());
+                }
+            }
             component_manager.RemoveComponent<Component>(entity);
 
             if constexpr (std::is_same_v<Component, HierarchyComponent>)
@@ -154,6 +175,12 @@ namespace won::ecs
 
         template <typename Component>
         std::shared_ptr<ComponentArray<Component>> GetComponentArray()
+        {
+            return component_manager.GetComponentArray<Component>();
+        }
+
+        template <typename Component>
+        std::shared_ptr<const ComponentArray<Component>> GetComponentArray() const
         {
             return component_manager.GetComponentArray<Component>();
         }
@@ -198,6 +225,16 @@ namespace won::ecs
             gpu_bvh_dirty = value;
         }
 
+        void MarkGpuDirty(ComponentMask mask)
+        {
+            gpu_dirty_mask.fetch_or(mask, std::memory_order_relaxed);
+        }
+
+        ComponentMask GetGpuDirtySnapshot() const
+        {
+            return gpu_dirty_snapshot;
+        }
+
         void BuildBVH();
 
         bool BuildGPUBVH();
@@ -208,179 +245,7 @@ namespace won::ecs
 
         void OverlapCollider3D(const math::Sphere& sphere, Vector<OverlapHit>& out_hits);
 
-        struct RenderData
-        {
-            struct Renderable
-            {
-                enum Flags : uint32
-                {
-                    None = 0,
-                    CastShadow = 1 << 0,
-                    Transparent = 1 << 1,
-                    DoubleSided = 1 << 2,
-                };
-
-                ObjectPushConstants push_constants;
-                std::shared_ptr<rendering::RHIResource> index_buffer;
-                float3 world_position = {};
-                math::AABB aabb = {};
-                uint32 index_offset = 0;
-                uint32 index_count = 0;
-                uint32 flags = None;
-                uint32 shader_type = SHADER_MATERIAL_TYPE_PBR;
-                resource::MaterialBlendMode blend_mode = resource::MaterialBlendMode::Opaque;
-                uint32 layer_mask = 0xFFFFFFFF;
-                resource::PrimitiveTopology primitive_topology = resource::PrimitiveTopology::TriangleList;
-
-                bool IsTransparent() const
-                {
-                    return (flags & Transparent) != 0;
-                }
-
-                bool IsCastShadow() const
-                {
-                    return (flags & CastShadow) != 0;
-                }
-
-                bool IsDoubleSided() const
-                {
-                    return (flags & DoubleSided) != 0;
-                }
-            };
-
-            struct RenderShadowSlice
-            {
-                uint32 light_index = 0;
-                float4x4 view_projection = math::IDENTITY_MATRIX;
-                int4 shadow_map_atlas_rect = { -1, -1, 0, 0 };
-
-                bool HasShadowMapAtlasRect() const { return shadow_map_atlas_rect.z > 0 && shadow_map_atlas_rect.w > 0; }
-            };
-
-            struct Sprite3DRenderable
-            {
-                enum Flags : uint32
-                {
-                    None        = 0,
-                    Text        = 1 << 0,
-                    Billboard   = 1 << 1,
-                    Transparent = 1 << 2,
-                    Particle    = 1 << 3,
-                };
-
-                uint32 instance_index = 0;
-                uint32 material_index = 0;
-                float3 world_position = {};
-                math::AABB aabb = {};
-                float2 size = { 1.0f, 1.0f };
-                float2 pivot = { 0.5f, 0.5f };
-                float4 uv_rect = { 0.0f, 0.0f, 1.0f, 1.0f };
-                uint32 flags = None;
-                resource::MaterialBlendMode blend_mode = resource::MaterialBlendMode::Alpha;
-                uint32 layer_mask = 0xFFFFFFFF;
-                // For particles: bindless descriptor of the per-frame float4 buffer holding
-                // interleaved [position, color] pairs, indexed by instance_index.
-                uint32 resource_index = 0;
-                std::shared_ptr<resource::Font> font;
-
-                bool IsText()        const { return (flags & Text) != 0; }
-                bool IsBillboard()   const { return (flags & Billboard) != 0; }
-                bool IsTransparent() const { return (flags & Transparent) != 0; }
-                bool IsParticle()    const { return (flags & Particle) != 0; }
-            };
-
-            struct Sprite2DRenderable
-            {
-                enum Flags : uint32
-                {
-                    None = 0,
-                    Text = 1 << 0,
-                };
-
-                uint32 material_index = 0;
-                float2 anchor = { 0.0f, 0.0f };
-                float2 position = { 0.0f, 0.0f };
-                float2 size = { 1.0f, 1.0f };
-                float2 pivot = { 0.5f, 0.5f };
-                float2 reference_resolution = { 0.0f, 0.0f };
-                float4 uv_rect = { 0.0f, 0.0f, 1.0f, 1.0f };
-                int32  layer = 0;
-                uint32 layer_mask = 0xFFFFFFFF;
-                float  match = 0.5f;
-                uint32 flags = None;
-                std::shared_ptr<resource::Font> font;
-
-                bool IsText() const { return (flags & Text) != 0; }
-            };
-
-            ShaderEnvironment shader_environment;
-            ShaderDDGIVolume shader_ddgi_volume;
-            ShaderReflectionProbe shader_reflection_probe;
-
-            Vector<ShaderInstance> shader_instances;
-            Vector<ShaderGeometry> shader_geometries;
-            Vector<ShaderMaterial> shader_materials;
-            Vector<float4> shader_bone_matrices;
-            Vector<ShaderBVHNode> shader_bvh_nodes;
-            Vector<ShaderBVHInstance> shader_bvh_instances;
-            Vector<Renderable> opaque_renderables;
-            Vector<Renderable> transparent_renderables;
-            Vector<Renderable> line_renderables;
-            Vector<Renderable> point_renderables;
-            Vector<Sprite2DRenderable> sprite_2d_renderables;
-            Vector<Sprite3DRenderable> sprite_3d_renderables;
-            // Per-frame CPU particle GPU data: interleaved [position, color] float4 pairs,
-            // uploaded to a bindless buffer and indexed by particle Sprite3DRenderable.instance_index.
-            Vector<float4> particle_instances;
-            Vector<ShaderDecal> shader_decals;
-
-            Vector<ShaderLight> shader_lights; // all lights
-            Vector<ShaderShadowCascade> shader_shadow_cascades; // lights with shadow map
-            Vector<RenderShadowSlice> render_shadow_slices;
-            uint4 forward_light_mask;
-            uint2 shadow_map_atlas_size = { 0, 0 };
-            math::AABB shadow_caster_world_bound;
-
-            Entity ddgi_volume_entity = INVALID_ENTITY;
-
-            void Clear()
-            {
-                shader_instances.clear();
-                shader_decals.clear();
-                shader_geometries.clear();
-                shader_materials.clear();
-                shader_bone_matrices.clear();
-                shader_bvh_nodes.clear();
-                shader_bvh_instances.clear();
-                opaque_renderables.clear();
-                transparent_renderables.clear();
-                line_renderables.clear();
-                point_renderables.clear();
-                sprite_2d_renderables.clear();
-                sprite_3d_renderables.clear();
-                particle_instances.clear();
-
-                shader_lights.clear();
-                shader_shadow_cascades.clear();
-                render_shadow_slices.clear();
-                forward_light_mask = { 0,0,0,0 };
-                shadow_map_atlas_size = { 0, 0 };
-                shadow_caster_world_bound.Invalidate();
-                shader_environment.Init();
-                shader_ddgi_volume.Init();
-                ddgi_volume_entity = INVALID_ENTITY;
-            }
-        };
-
-        RenderData& GetRenderData()
-        {
-            return render_data;
-        }
-
-        const RenderData& GetRenderData() const
-        {
-            return render_data;
-        }
+        rendering::GPUScene& GetGPUScene();
 
         const Vector<physics::Collider3DTriggerEvent>& GetCollider3DTriggerEvents() const
         {
@@ -465,7 +330,6 @@ namespace won::ecs
     private:
         bool hierarchy_topology_dirty = true;
 
-        RenderData render_data;
         ComponentManager component_manager;
         Vector<Entity> entities;
         Entity next_entity = INVALID_ENTITY + 1;
@@ -474,11 +338,14 @@ namespace won::ecs
         Vector<std::shared_ptr<System>> systems;
         Vector<Vector<uint32>> system_execution_batches;
         uint64 update_index = 0;
+        std::atomic<ComponentMask> gpu_dirty_mask = 0;
+        ComponentMask gpu_dirty_snapshot = ~0ull;
         bool cpu_bvh_dirty = true;
         bool gpu_bvh_dirty = true;
         bool system_schedule_dirty = true;
         std::unique_ptr<won::physics::PhysicsWorld> physics_world;
         std::unique_ptr<won::nav::NavMesh> nav_mesh;
+        std::unique_ptr<rendering::GPUScene> gpu_scene;
         Vector<Entity> ui_click_queue;
         Vector<std::pair<Entity, String>> animation_event_queue;
         Vector<PrefabSpawnRequest> prefab_spawn_queue;

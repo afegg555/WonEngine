@@ -44,6 +44,7 @@ namespace won::ecs
             animation.time = 0.0f;
             animation.event_scan_time = 0.0f;
             animation.playing = true;
+            animation.bone_matrices_dirty = true;
             sm.current_state = state_index;
         }
 

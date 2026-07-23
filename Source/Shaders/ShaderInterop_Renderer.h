@@ -263,7 +263,18 @@ struct alignas(16) ShaderScene
     int instance_sort_buffer;
     int bone_matrix_buffer;
 
-    uint4 lights; // supports indexing 128 lights
+    int forward_light_index_buffer;
+    uint forward_light_count;
+    uint directional_count;
+    uint light_count;
+
+    int cluster_light_count_buffer;
+    int cluster_light_index_buffer;
+    uint2 cluster_count;
+
+    int light_shadow_slice_buffer;
+    uint cluster_depth_slices;
+    int2 padding;
 #ifdef __cplusplus
     inline void Init()
     {
@@ -281,7 +292,17 @@ struct alignas(16) ShaderScene
         instance_sort_buffer = -1;
         bone_matrix_buffer = -1;
 
-        lights = { 0,0,0,0 };
+        forward_light_index_buffer = -1;
+        forward_light_count = 0;
+        directional_count = 0;
+        light_count = 0;
+
+        cluster_light_count_buffer = -1;
+        cluster_light_index_buffer = -1;
+        cluster_count = { 0,0 };
+        cluster_depth_slices = 1;
+
+        light_shadow_slice_buffer = -1;
     }
 #endif
 };
@@ -739,7 +760,8 @@ struct alignas(16) ShaderShadowCascade
 
     float split_far;
     float blend_band;
-    uint2 padding;
+    float texel_world_size;
+    float padding;
 
 #ifdef __cplusplus
     inline void Init()
@@ -749,6 +771,7 @@ struct alignas(16) ShaderShadowCascade
 
         split_far = 0.0f;
         blend_band = 0.0f;
+        texel_world_size = 0.0f;
     }
 #endif
 };
@@ -807,11 +830,11 @@ PUSHCONSTANT(push, ObjectPushConstants);
 static_assert(sizeof(ShaderTextureSlot) == 16, "ShaderTextureSlot layout mismatch");
 static_assert(sizeof(ShaderGeometry) == 80, "ShaderGeometry layout mismatch");
 static_assert(sizeof(ShaderMaterial) == 272, "ShaderMaterial layout mismatch");
-static_assert(sizeof(ShaderScene) == 64, "ShaderScene layout mismatch");
+static_assert(sizeof(ShaderScene) == 96, "ShaderScene layout mismatch");
 static_assert(sizeof(ShaderEnvironment) == 176, "ShaderEnvironment layout mismatch");
 static_assert(sizeof(ShaderDDGIVolume) == 112, "ShaderDDGIVolume layout mismatch");
 static_assert(sizeof(ShaderReflectionProbe) == 32, "ShaderReflectionProbe layout mismatch");
-static_assert(sizeof(ShaderFrame) == 384, "ShaderFrame layout mismatch");
+static_assert(sizeof(ShaderFrame) == 416, "ShaderFrame layout mismatch");
 static_assert(sizeof(ShaderCamera) == 336, "ShaderCamera layout mismatch");
 static_assert(sizeof(ShaderLight) == 48, "ShaderLight layout mismatch");
 static_assert(sizeof(ShaderShadowCascade) == 96, "ShaderShadowCascade layout mismatch");

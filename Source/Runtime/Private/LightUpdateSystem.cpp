@@ -5,6 +5,8 @@
 #include "JobSystem.h"
 #include "Backlog.h"
 
+#include <atomic>
+
 namespace won::ecs
 {
     void LightUpdateSystem::Update(Scene& scene, float delta_time)
@@ -12,19 +14,11 @@ namespace won::ecs
         jobsystem::Context sub_ctx;
         auto light_array = scene.GetComponentArray<LightComponent>().get();
         auto transform_array = scene.GetComponentArray<TransformComponent>().get();
-        Scene::RenderData& render_data = scene.GetRenderData();
 
-        Size light_count = light_array->GetSize();
-        if (light_array->GetSize() > NUM_MAX_LIGHTS_FORWARD_RENDERING)
+        const uint32 count = static_cast<uint32>(light_array->GetSize());
+        std::atomic<bool> any_dirty = false;
+        jobsystem::Dispatch(sub_ctx, count, jobsystem::groupsize_light, [&](jobsystem::JobArgs args)
         {
-            backlog::Post(String("Maximum number of lights in forward rendering is: ") + std::to_string(NUM_MAX_LIGHTS_FORWARD_RENDERING), backlog::LogLevel::Warning);
-            light_count = NUM_MAX_LIGHTS_FORWARD_RENDERING;
-        }
-
-        render_data.shader_lights.resize(light_count);
-        render_data.forward_light_mask = { 0,0,0,0 };
-
-        jobsystem::Dispatch(sub_ctx, (uint32)light_count, groupsize, [&](jobsystem::JobArgs args) {
             LightComponent& light = light_array->data[args.job_index];
             Entity entity = light_array->index_to_entity[args.job_index];
 
@@ -35,9 +29,18 @@ namespace won::ecs
             }
 
             const TransformComponent& transform = transform_array->GetData(entity);
+            const float3 new_position = math::GetPosition(transform.world_transform);
+            const float3 new_direction = math::GetForward(transform.world_transform);
 
-            light.position = math::GetPosition(transform.world_transform);
-            light.direction = math::GetForward(transform.world_transform);
+            const bool moved = new_position.x != light.position.x || new_position.y != light.position.y || new_position.z != light.position.z
+                || new_direction.x != light.direction.x || new_direction.y != light.direction.y || new_direction.z != light.direction.z;
+            if (moved)
+            {
+                any_dirty.store(true, std::memory_order_relaxed);
+            }
+
+            light.position = new_position;
+            light.direction = new_direction;
 
             switch (light.type)
             {
@@ -54,29 +57,12 @@ namespace won::ecs
                 light.aabb.CreateFromHalfWidth(float3(0, 0, 0), float3(0, 0, 0));
                 break;
             }
-
-            if (light.IsActive())
-            {
-                ShaderLight& shader_light = render_data.shader_lights[args.job_index];
-                shader_light.Init();
-                shader_light.position = light.position;
-
-                shader_light.SetType(static_cast<uint32>(light.type));
-                shader_light.SetColor({ light.color.x * light.intensity, light.color.y * light.intensity, light.color.z * light.intensity, light.intensity });
-                shader_light.SetRange(light.range);
-                shader_light.SetDirection(light.direction);
-                shader_light.SetOuterConeAngleCos(cos(light.outer_cone_angle));
-                shader_light.SetInnerConeAngleCos(cos(light.inner_cone_angle));
-                if (!light.IsDynamic()) shader_light.SetFlags(SHADER_LIGHT_FLAGS::LIGHT_FLAG_LIGHT_STATIC);
-                if (light.IsCastShadow()) shader_light.SetFlags(SHADER_LIGHT_FLAGS::LIGHT_FLAG_LIGHT_CASTING_SHADOW);
-
-                const uint8_t bucket_index = uint8_t(args.job_index / 32);
-                const uint8_t bucket_place = uint8_t(args.job_index % 32);
-                uint32_t* value = reinterpret_cast<uint32_t*>(&render_data.forward_light_mask);
-                value[bucket_index] |= 1 << bucket_place;
-            }
         });
-
         jobsystem::Wait(sub_ctx);
+
+        if (any_dirty.load(std::memory_order_relaxed))
+        {
+            scene.MarkGpuDirty(light_component_mask);
+        }
     }
 }
