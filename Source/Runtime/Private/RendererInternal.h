@@ -57,7 +57,7 @@ namespace won::rendering
         bool BuildShadowCascades(View& view);
         void UpdateDebugState(const View& view);
         void RenderForwardPath(View& view);
-        void UpdateForwardLightList(View& view, const ecs::Scene::RenderData& render_data, RHICommandList& command_list);
+        void UpdateForwardLightList(View& view, RHICommandList& command_list);
 
         std::shared_ptr<RHIDevice> device;
         resource::ShaderCompilerOptions shader_compiler_options = {};

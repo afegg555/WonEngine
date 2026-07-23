@@ -54,18 +54,11 @@ static float3 EvaluateDDGIDirectDiffuse(float3 position, float3 normal, float ma
 {
     float3 radiance = float3(0.0f, 0.0f, 0.0f);
 
-    [unroll]
-    for (uint bucket = 0; bucket < 4; ++bucket)
+    const uint light_count = GetScene().light_count;
+    [loop]
+    for (uint light_index = 0; light_index < light_count; ++light_index)
     {
-        uint bucket_bits = GetScene().lights[bucket];
-        [loop]
-        while (bucket_bits != 0)
-        {
-            uint bit_index = firstbitlow(bucket_bits);
-            uint light_index = bucket * 32u + bit_index;
-            bucket_bits ^= 1u << bit_index;
-
-            ShaderLight light = GetLight(light_index);
+        ShaderLight light = GetLight(light_index);
             float3 light_radiance = float3(0.0f, 0.0f, 0.0f);
 
             if (light.GetType() == SHADER_LIGHT_TYPE_DIRECTIONAL)
@@ -123,8 +116,7 @@ static float3 EvaluateDDGIDirectDiffuse(float3 position, float3 normal, float ma
                 }
             }
 
-            radiance += light_radiance;
-        }
+        radiance += light_radiance;
     }
 
     return radiance;

@@ -40,13 +40,14 @@ namespace won::rendering
             RHISubresourceHandle forward_index_srv = {};
             uint32 forward_light_count = 0;
 
-            std::shared_ptr<RHIResource> cluster_light_grid_buffer;
-            RHISubresourceHandle cluster_light_grid_srv = {};
-            RHISubresourceHandle cluster_light_grid_uav = {};
+            std::shared_ptr<RHIResource> cluster_light_count_buffer;
+            RHISubresourceHandle cluster_light_count_srv = {};
+            RHISubresourceHandle cluster_light_count_uav = {};
             std::shared_ptr<RHIResource> cluster_light_index_buffer;
             RHISubresourceHandle cluster_light_index_srv = {};
             RHISubresourceHandle cluster_light_index_uav = {};
             uint2 cluster_dims = { 0, 0 };
+            uint32 depth_slice_count = 0;
         };
 
         struct RenderShadowSlice
@@ -68,7 +69,7 @@ namespace won::rendering
 
         ecs::Entity camera_entity = {};
         ecs::Scene* scene = nullptr;
-        RenderPathType render_path_type = RenderPathType::Forward; // pipeline-level selection, not a lightweight ViewOption
+        RenderPathType render_path_type = RenderPathType::ForwardPlus; // pipeline-level selection, not a lightweight ViewOption
         Options options = {};
         LightResources light_resources = {};
         ShadowResources shadow_resources = {};

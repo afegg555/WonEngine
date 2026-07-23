@@ -426,6 +426,7 @@ set(SHADERS_INTEROP
     Source/Shaders/ShaderInterop_Sprite.h
     Source/Shaders/ShaderInterop_Utility.h
     Source/Shaders/ShaderInterop_PostProcess.h
+    Source/Shaders/ShaderInterop_LightCull.h
     Source/Shaders/ShaderInterop_Decal.h
     Source/Shaders/ShaderInterop_DebugText.h
 )
@@ -461,11 +462,13 @@ set(SHADERS_HLSL
     Source/Shaders/DecalPS.hlsl
     Source/Shaders/ObjectPS.hlsli
     Source/Shaders/ObjectPS_unlit.hlsl
-    Source/Shaders/ObjectPS_common.hlsl
+    Source/Shaders/ObjectPS_forward.hlsl
+    Source/Shaders/ObjectPS_forwardplus.hlsl
     Source/Shaders/ObjectPS_prepass.hlsl
     Source/Shaders/SpritePS.hlsl
     Source/Shaders/TextPS.hlsl
     Source/Shaders/DDGIProbeUpdateCS.hlsl
+    Source/Shaders/LightCullCS.hlsl
     Source/Shaders/GPUBVHBuildCommon.hlsli
     Source/Shaders/GPUBVHGeneratePrimitivesCS.hlsl
     Source/Shaders/GPUBVHSortPrimitivesCS.hlsl

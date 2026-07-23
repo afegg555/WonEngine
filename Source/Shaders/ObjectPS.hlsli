@@ -202,7 +202,7 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
     indirect_specular *= GetCamera().exposure;
     lighting.Create(0, 0, ambient, indirect_specular);
     
-    ForwardLighting(surface, lighting); // note: overflow can results in INF, but we will clamp
+    ApplyLighting(surface, lighting, input.pos.xy); // note: overflow can results in INF, but we will clamp
     
     half3 diffuse = (lighting.direct.diffuse + lighting.indirect.diffuse) * Fd_Lambert(); // apply fd here for efficiency
     half3 specular = lighting.direct.specular + lighting.indirect.specular;

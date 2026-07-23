@@ -3,8 +3,7 @@
 
 #include "Common.hlsli"
 #include "BRDFCommon.hlsli"
-
-#define min_roughness 0.045
+#include "ShaderInterop_LightCull.h"
 
 //#define PCSS_SHADOW
 
@@ -162,8 +161,9 @@ half3 GetDiffuseBRDF(in Surface surface, in LightingContext lighting_context)
 #endif //PHONG
 }
 
-inline float SampleDirectionalShadowCascade(in ShaderShadowCascade cascade, in float3 world_position, in half NoL)
+inline float SampleDirectionalShadowCascade(in ShaderShadowCascade cascade, in float3 world_position, in half3 N, in half NoL)
 {
+    world_position += (float3) N * cascade.texel_world_size * 2.0f;
     float4 shadow_pos = mul(cascade.shadow_view_projection, float4(world_position, 1.0f));
     float3 shadow_ndc = shadow_pos.xyz / shadow_pos.w;
     float2 shadow_uv = shadow_ndc.xy * float2(0.5f, -0.5f) + 0.5f;
@@ -226,14 +226,14 @@ inline float SampleDirectionalShadowCascade(in ShaderShadowCascade cascade, in f
             float2 sample_uv = atlas_uv + float2(x, y) * filter_step;
             sample_uv = clamp(sample_uv, atlas_uv_min + atlas_texel * 0.5f, atlas_uv_max - atlas_texel * 0.5f);
             float shadow_depth = shadow_map.SampleLevel(sampler_point_clamp, sample_uv, 0).r;
-            visibility += shadow_ndc.z - shadow_bias > shadow_depth ? 1.0f : 0.0f;
+            visibility += shadow_ndc.z + shadow_bias > shadow_depth ? 1.0f : 0.0f;
         }
     }
 
     return visibility / 25.0f;
 }
 
-inline void LightDirectional(in ShaderLight light, in Surface surface, inout Lighting lighting)
+inline void LightDirectional(in ShaderLight light, uint light_index, in Surface surface, inout Lighting lighting)
 {
     half3 L = normalize(-light.GetDirection());
     LightingContext lighting_context;
@@ -247,7 +247,12 @@ inline void LightDirectional(in ShaderLight light, in Surface surface, inout Lig
 	[branch]
     if (light.IsCastingShadow() && GetMaterial().IsReceiveShadow())
     {
-        if (GetScene().shadow_atlas >= 0 && GetScene().shadow_cascade_buffer >= 0 && light.HasShadowSlices())
+        uint shadow_slice = (GetScene().light_shadow_slice_buffer >= 0)
+            ? bindless_buffers_uint[DescriptorIndex(GetScene().light_shadow_slice_buffer)][light_index] : 0u;
+        uint shadow_slice_offset = shadow_slice & 0xFFFFu;
+        uint shadow_slice_count = (shadow_slice >> 16u) & 0xFFFFu;
+
+        if (GetScene().shadow_atlas >= 0 && GetScene().shadow_cascade_buffer >= 0 && shadow_slice_count > 0)
         {
             ShaderCamera camera = GetCamera();
             float linear_depth = max(0.0f, dot(surface.P - camera.position, camera.forward));
@@ -256,11 +261,11 @@ inline void LightDirectional(in ShaderLight light, in Surface surface, inout Lig
             [unroll]
             for (uint i = 0; i < 4; ++i)
             {
-                if (i >= light.GetShadowSliceCount())
+                if (i >= shadow_slice_count)
                 {
                     break;
                 }
-                ShaderShadowCascade cascade_candidate = GetShadowCascade(light.GetShadowSliceOffset() + i);
+                ShaderShadowCascade cascade_candidate = GetShadowCascade(shadow_slice_offset + i);
                 if (linear_depth <= cascade_candidate.split_far)
                 {
                     cascade_local_index = i;
@@ -269,15 +274,15 @@ inline void LightDirectional(in ShaderLight light, in Surface surface, inout Lig
                 cascade_local_index = i;
             }
 
-            ShaderShadowCascade cascade = GetShadowCascade(light.GetShadowSliceOffset() + cascade_local_index);
-            float visibility = SampleDirectionalShadowCascade(cascade, surface.P, lighting_context.NoL);
+            ShaderShadowCascade cascade = GetShadowCascade(shadow_slice_offset + cascade_local_index);
+            float visibility = SampleDirectionalShadowCascade(cascade, surface.P, surface.N, lighting_context.NoL);
 
-            if (cascade_local_index + 1 < light.GetShadowSliceCount())
+            if (cascade_local_index + 1 < shadow_slice_count)
             {
                 float split_near = camera.z_near;
                 if (cascade_local_index > 0)
                 {
-                    split_near = GetShadowCascade(light.GetShadowSliceOffset() + cascade_local_index - 1).split_far;
+                    split_near = GetShadowCascade(shadow_slice_offset + cascade_local_index - 1).split_far;
                 }
 
                 float cascade_range = max(cascade.split_far - split_near, 0.0001f);
@@ -287,8 +292,8 @@ inline void LightDirectional(in ShaderLight light, in Surface surface, inout Lig
                     float blend_start = cascade.split_far - blend_distance;
                     if (linear_depth > blend_start)
                     {
-                        ShaderShadowCascade next_cascade = GetShadowCascade(light.GetShadowSliceOffset() + cascade_local_index + 1);
-                        float next_visibility = SampleDirectionalShadowCascade(next_cascade, surface.P, lighting_context.NoL);
+                        ShaderShadowCascade next_cascade = GetShadowCascade(shadow_slice_offset + cascade_local_index + 1);
+                        float next_visibility = SampleDirectionalShadowCascade(next_cascade, surface.P, surface.N, lighting_context.NoL);
                         float blend_weight = saturate((linear_depth - blend_start) / blend_distance);
                         visibility = lerp(visibility, next_visibility, blend_weight);
                     }
@@ -384,46 +389,72 @@ inline void LightSpotlight(in ShaderLight light, in Surface surface, inout Light
     lighting.direct.specular = mad(light_color, GetSpecularBRDF(surface, context), lighting.direct.specular);
 }
 
-inline void ForwardLighting(inout Surface surface, inout Lighting lighting)
+inline void ForwardLighting(inout Surface surface, inout Lighting lighting, float2 pixel_position)
 {
-    if (any(GetScene().lights))
+    for (uint d = 0; d < GetScene().directional_count; ++d)
     {
-        uint max_bucket_count = 4;
-        [unroll]
-        for (uint bucket = 0; bucket < max_bucket_count; ++bucket)
-        {
-            uint bucket_bits = GetScene().lights[bucket];
-            [loop]
-            while (bucket_bits != 0)
-            {
-                // Retrieve global light index from local bucket, then remove bit from local bucket:
-                const uint bucket_bit_index = firstbitlow(bucket_bits);
-                const uint light_index = bucket * 32 + bucket_bit_index;
-                bucket_bits ^= 1u << bucket_bit_index;
-                
-                ShaderLight light = GetLight(light_index);
-                switch (light.GetType())
-                {
-                    case SHADER_LIGHT_TYPE_DIRECTIONAL:
-				    {
-                        LightDirectional(light, surface, lighting);
-                    }
-                    break;
-                    case SHADER_LIGHT_TYPE_POINT:
-				    {
-                        LightPoint(light, surface, lighting);
-                    }
-                    break;
-                    case SHADER_LIGHT_TYPE_SPOT:
-				    {
-                        LightSpotlight(light, surface, lighting);
-                    }
-                    break;
-                }
+        LightDirectional(GetLight(d), d, surface, lighting);
+    }
 
+#ifdef CLUSTERED
+    const uint2 tile = (uint2)(pixel_position / LIGHTCULL_TILE_SIZE);
+    const float cluster_view_z = max(0.0f, dot(surface.P - GetCamera().position, GetCamera().forward));
+    const uint cluster_slice = ClusterSliceFromViewZ(cluster_view_z, GetCamera().z_near, GetCamera().z_far, GetScene().cluster_depth_slices);
+    const uint cluster_tiles = GetScene().cluster_count.x * GetScene().cluster_count.y;
+    const uint cluster_index = cluster_slice * cluster_tiles + tile.y * GetScene().cluster_count.x + tile.x;
+    const uint cluster_light_count = bindless_buffers_uint[DescriptorIndex(GetScene().cluster_light_count_buffer)][cluster_index];
+    const uint cluster_light_base = cluster_index * MAX_LIGHTS_PER_CLUSTER;
+    [loop]
+    for (uint t = 0; t < cluster_light_count; ++t)
+    {
+        const uint light_index = bindless_buffers_uint[DescriptorIndex(GetScene().cluster_light_index_buffer)][cluster_light_base + t];
+        ShaderLight light = GetLight(light_index);
+        switch (light.GetType())
+        {
+            case SHADER_LIGHT_TYPE_POINT:
+            {
+                LightPoint(light, surface, lighting);
+            }
+            break;
+            case SHADER_LIGHT_TYPE_SPOT:
+            {
+                LightSpotlight(light, surface, lighting);
+            }
+            break;
+        }
+    }
+#else
+    if (GetScene().forward_light_index_buffer >= 0)
+    {
+        const uint forward_light_count = GetScene().forward_light_count;
+        [loop]
+        for (uint t = 0; t < forward_light_count; ++t)
+        {
+            const uint light_index = bindless_buffers_uint[DescriptorIndex(GetScene().forward_light_index_buffer)][t];
+            ShaderLight light = GetLight(light_index);
+            switch (light.GetType())
+            {
+                case SHADER_LIGHT_TYPE_POINT:
+                {
+                    LightPoint(light, surface, lighting);
+                }
+                break;
+                case SHADER_LIGHT_TYPE_SPOT:
+                {
+                    LightSpotlight(light, surface, lighting);
+                }
+                break;
             }
         }
     }
+#endif
+}
+
+inline void ApplyLighting(inout Surface surface, inout Lighting lighting, float2 pixel_position)
+{
+#ifdef FORWARD
+    ForwardLighting(surface, lighting, pixel_position);
+#endif
 }
 
 #endif // SHADING_COMMON

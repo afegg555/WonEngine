@@ -23,6 +23,7 @@
 
 #include "ShaderInterop.h"
 #include "ShaderInterop_PostProcess.h"
+#include "ShaderInterop_LightCull.h"
 
 #include <algorithm>
 #include <cstring>
@@ -873,6 +874,13 @@ namespace won::rendering
             shader_frame.scene.forward_light_index_buffer = static_cast<int>(view.light_resources.forward_index_srv.descriptor_index);
             shader_frame.scene.forward_light_count = view.light_resources.forward_light_count;
         }
+        if (view.render_path_type == RenderPathType::ForwardPlus && view.light_resources.cluster_light_count_buffer && view.light_resources.cluster_light_index_buffer)
+        {
+            shader_frame.scene.cluster_light_count_buffer = static_cast<int>(view.light_resources.cluster_light_count_srv.descriptor_index);
+            shader_frame.scene.cluster_light_index_buffer = static_cast<int>(view.light_resources.cluster_light_index_srv.descriptor_index);
+            shader_frame.scene.cluster_count = view.light_resources.cluster_dims;
+            shader_frame.scene.cluster_depth_slices = view.light_resources.depth_slice_count;
+        }
         shader_frame.scene.shadow_atlas = shadow_map_atlas_srv.descriptor_index;
         shader_frame.scene.shadow_cascade_buffer = shader_shadow_cascade_default_buffer_srv.descriptor_index;
         shader_frame.scene.light_shadow_slice_buffer = shader_light_shadow_slice_buffer_srv.descriptor_index;
@@ -1168,6 +1176,7 @@ namespace won::rendering
 
     static won::console::ConsoleVariable r_wireframe("r.wireframe", false, "render the main pass in wireframe", won::console::ConsoleVariableFlagNone);
     static won::console::ConsoleVariable r_upload_budget("r.upload_budget", 8, "max queued resource uploads per frame, 0 = unlimited", won::console::ConsoleVariableFlagNone);
+    static won::console::ConsoleVariable r_cluster_depth_slices("r.cluster.depth_slices", 32, "Forward+ cluster depth slices (1 = 2D tiled)", won::console::ConsoleVariableFlagArchive);
 
     bool RendererInternal::DrawScene(const FrameContext& frame_context, const View& view, RenderPassType pass, uint32 flags, RHICommandList& command_list)
     {
@@ -2152,7 +2161,7 @@ namespace won::rendering
         }
     }
 
-    void RendererInternal::UpdateForwardLightList(View& view, const Scene::RenderData& render_data, RHICommandList& command_list)
+    void RendererInternal::UpdateForwardLightList(View& view, RHICommandList& command_list)
     {
         View::LightResources& resources = view.light_resources;
         resources.forward_light_count = 0;
@@ -2380,10 +2389,67 @@ namespace won::rendering
                 }
             }
 
+            if (view.render_path_type == RenderPathType::ForwardPlus)
+            {
+                const uint32 tiles_x = (static_cast<uint32>(view.viewport.width) + LIGHTCULL_TILE_SIZE - 1) / LIGHTCULL_TILE_SIZE;
+                const uint32 tiles_y = (static_cast<uint32>(view.viewport.height) + LIGHTCULL_TILE_SIZE - 1) / LIGHTCULL_TILE_SIZE;
+                const int cluster_depth_slices_requested = r_cluster_depth_slices.GetInt();
+                const uint32 depth_slices = cluster_depth_slices_requested < 1 ? 1u : (std::min)(static_cast<uint32>(cluster_depth_slices_requested), static_cast<uint32>(MAX_DEPTH_SLICES));
+                if (tiles_x > 0 && tiles_y > 0 && (!view.light_resources.cluster_light_count_buffer || !view.light_resources.cluster_light_index_buffer || view.light_resources.cluster_dims.x != tiles_x || view.light_resources.cluster_dims.y != tiles_y || view.light_resources.depth_slice_count != depth_slices))
+                {
+                    const uint32 cluster_count = tiles_x * tiles_y * depth_slices;
+
+                    RHIBufferDesc grid_desc = {};
+                    grid_desc.size = static_cast<Size>(cluster_count) * sizeof(uint32);
+                    grid_desc.usage = RHIResourceUsage::Default;
+                    grid_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
+                    view.light_resources.cluster_light_count_buffer = device->CreateBuffer(grid_desc);
+
+                    RHIBufferDesc index_desc = {};
+                    index_desc.size = static_cast<Size>(cluster_count) * MAX_LIGHTS_PER_CLUSTER * sizeof(uint32);
+                    index_desc.usage = RHIResourceUsage::Default;
+                    index_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
+                    view.light_resources.cluster_light_index_buffer = device->CreateBuffer(index_desc);
+
+                    if (view.light_resources.cluster_light_count_buffer && view.light_resources.cluster_light_index_buffer)
+                    {
+                        view.light_resources.cluster_light_count_buffer->SetName("Tile Light Grid");
+                        view.light_resources.cluster_light_index_buffer->SetName("Tile Light Index List");
+
+                        RHISubresourceDesc grid_uav_desc = {};
+                        grid_uav_desc.type = RHISubresourceType::UnorderedAccess;
+                        grid_uav_desc.buffer_offset = 0;
+                        grid_uav_desc.buffer_size = grid_desc.size;
+                        grid_uav_desc.buffer_stride = sizeof(uint32);
+                        device->CreateSubresource(*view.light_resources.cluster_light_count_buffer, grid_uav_desc, &view.light_resources.cluster_light_count_uav);
+                        RHISubresourceDesc grid_srv_desc = grid_uav_desc;
+                        grid_srv_desc.type = RHISubresourceType::ShaderResource;
+                        device->CreateSubresource(*view.light_resources.cluster_light_count_buffer, grid_srv_desc, &view.light_resources.cluster_light_count_srv);
+
+                        RHISubresourceDesc index_uav_desc = {};
+                        index_uav_desc.type = RHISubresourceType::UnorderedAccess;
+                        index_uav_desc.buffer_offset = 0;
+                        index_uav_desc.buffer_size = index_desc.size;
+                        index_uav_desc.buffer_stride = sizeof(uint32);
+                        device->CreateSubresource(*view.light_resources.cluster_light_index_buffer, index_uav_desc, &view.light_resources.cluster_light_index_uav);
+                        RHISubresourceDesc index_srv_desc = index_uav_desc;
+                        index_srv_desc.type = RHISubresourceType::ShaderResource;
+                        device->CreateSubresource(*view.light_resources.cluster_light_index_buffer, index_srv_desc, &view.light_resources.cluster_light_index_srv);
+
+                        view.light_resources.cluster_dims = { tiles_x, tiles_y };
+                        view.light_resources.depth_slice_count = depth_slices;
+                    }
+                }
+            }
+            else if (view.render_path_type == RenderPathType::Forward)
+            {
+                UpdateForwardLightList(view, *command_list);
+            }
+
             {
                 auto cpu_range = profiler::ScopedRangeCPU("Update Frame Constants");
                 auto gpu_range = profiler::ScopedRangeGPU("Update Frame Constants", *command_list);
-                if (!UpdateFrameConstants(frame_context, view, render_data, *command_list))
+                if (!UpdateFrameConstants(frame_context, view, *command_list))
                 {
                     return;
                 }
@@ -2570,7 +2636,62 @@ namespace won::rendering
                 }
                 command_list->EndEvent();
             }
-        
+            
+			// light culling for ForwardPlus
+            if (view.render_path_type == RenderPathType::ForwardPlus && view.light_resources.cluster_light_count_buffer && view.light_resources.cluster_light_index_buffer)
+            {
+                std::shared_ptr<RHIShader> current_light_cull_shader = shader_library.GetShader(ShaderId::CSLightCull);
+                if (light_cull_shader != current_light_cull_shader)
+                {
+                    light_cull_pipeline = nullptr;
+                    light_cull_shader = current_light_cull_shader;
+                }
+                if (!light_cull_pipeline && light_cull_shader)
+                {
+                    RHIComputePipelineDesc light_cull_pipeline_desc = {};
+                    light_cull_pipeline_desc.compute_shader = light_cull_shader.get();
+                    light_cull_pipeline = device->CreateComputePipeline(light_cull_pipeline_desc);
+                    if (light_cull_pipeline)
+                    {
+                        light_cull_pipeline->SetName("Light Cull Pipeline");
+                    }
+                }
+                if (light_cull_pipeline)
+                {
+                    auto gpu_range = profiler::ScopedRangeGPU("Light Cull", *command_list);
+                    command_list->BeginEvent("Light Cull");
+                    command_list->TransitionResource(*view.light_resources.cluster_light_count_buffer, RHIResourceState::ShaderWrite);
+                    command_list->TransitionResource(*view.light_resources.cluster_light_index_buffer, RHIResourceState::ShaderWrite);
+                    command_list->SetComputePipeline(*light_cull_pipeline);
+
+                    RHISubresourceBinding light_cull_frame_binding = {};
+                    light_cull_frame_binding.resource = shader_frame_buffer.get();
+                    light_cull_frame_binding.subresource = shader_frame_buffer_cbv;
+                    RHISubresourceBinding light_cull_camera_binding = {};
+                    light_cull_camera_binding.resource = shader_camera_buffer.get();
+                    light_cull_camera_binding.subresource = shader_camera_buffer_cbv;
+                    command_list->SetConstantBuffer(RHIShaderStage::Compute, 0, light_cull_frame_binding);
+                    command_list->SetConstantBuffer(RHIShaderStage::Compute, 1, light_cull_camera_binding);
+
+                    LightCullPushConstants light_cull_push = {};
+                    light_cull_push.Init();
+                    light_cull_push.cluster_light_count_uav = static_cast<uint32>(view.light_resources.cluster_light_count_uav.descriptor_index);
+                    light_cull_push.cluster_light_index_uav = static_cast<uint32>(view.light_resources.cluster_light_index_uav.descriptor_index);
+                    light_cull_push.cluster_count = view.light_resources.cluster_dims;
+                    light_cull_push.light_count = static_cast<uint32>(view.scene->GetGPUScene().shader_lights.size());
+                    light_cull_push.depth_slice_count = view.light_resources.depth_slice_count;
+                    command_list->PushConstants(RHIShaderStage::Compute, &light_cull_push, sizeof(light_cull_push), 0);
+
+                    command_list->Dispatch(view.light_resources.cluster_dims.x, view.light_resources.cluster_dims.y, 1u);
+
+                    command_list->UAVBarrier(*view.light_resources.cluster_light_count_buffer);
+                    command_list->UAVBarrier(*view.light_resources.cluster_light_index_buffer);
+                    command_list->TransitionResource(*view.light_resources.cluster_light_count_buffer, RHIResourceState::ShaderRead);
+                    command_list->TransitionResource(*view.light_resources.cluster_light_index_buffer, RHIResourceState::ShaderRead);
+                    command_list->EndEvent();
+                }
+            }
+
             // main pass
             {
                 auto gpu_range = profiler::ScopedRangeGPU("Main Pass", *command_list);
@@ -2897,7 +3018,7 @@ namespace won::rendering
                     composite_push.Init();
                     composite_push.input_descriptor = static_cast<uint32>(color_buffer_srv[src].descriptor_index);
                     command_list->PushConstants(RHIShaderStage::Pixel, &composite_push, sizeof(composite_push), 0);
-                    
+
                     command_list->SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
                     command_list->Draw(3, 1, 0, 0);
                 }

@@ -340,13 +340,6 @@ inline ShaderBVHInstance GetBVHInstance(uint instance_index)
     return bindless_structured_bvh_instance[DescriptorIndex(GetScene().bvh_instance_buffer)][instance_index];
 }
 
-inline ShaderLightIterator lights(uint bucket_index = 0)
-{
-    ShaderLightIterator iter;
-    iter.value = GetScene().lights[bucket_index];
-    return iter;
-}
-
 inline ShaderLight GetLight(uint light_index)
 {
     return bindless_structured_light[DescriptorIndex(GetScene().lightbuffer)][light_index];
@@ -355,6 +348,12 @@ inline ShaderLight GetLight(uint light_index)
 inline ShaderShadowCascade GetShadowCascade(uint cascade_index)
 {
     return bindless_structured_shadow_cascade[DescriptorIndex(GetScene().shadow_cascade_buffer)][cascade_index];
+}
+
+inline float3 UnprojectRay(float2 ndc)
+{
+    float4 h = mul(GetCamera().inv_view_projection, float4(ndc, 0.0, 1.0));
+    return h.xyz / h.w;
 }
 
 #endif // WON_COMMON
