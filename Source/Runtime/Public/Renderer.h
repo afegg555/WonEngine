@@ -68,8 +68,6 @@ namespace won::rendering
         int probe_data_buffer_srv = -1;
         int probe_data_buffer_uav = -1;
 
-        std::shared_ptr<RHIResource> probe_data_readback_buffer;
-        bool probe_data_readback_valid = false;
         Vector<DDGIProbe> probes;
     };
 

@@ -151,6 +151,9 @@ namespace won::rendering
         std::shared_ptr<RHIResource> ddgi_probe_data_history_buffer;
         RHISubresourceHandle ddgi_probe_data_history_buffer_srv = {};
 
+        std::shared_ptr<RHIResource> ddgi_probe_data_readback_buffer;
+        bool ddgi_probe_data_readback_valid = false;
+
         std::shared_ptr<RHIPipeline> ddgi_probe_update_pipeline;
         std::shared_ptr<RHIShader> ddgi_probe_update_shader;
         std::shared_ptr<RHICommandAllocator> enqueued_work_command_allocator;

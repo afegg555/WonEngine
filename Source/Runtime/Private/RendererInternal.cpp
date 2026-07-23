@@ -135,8 +135,8 @@ namespace won::rendering
         frame_context.RemoveResourceDeferred(ddgi_visibility_history_texture);
         frame_context.RemoveResourceDeferred(ddgi_probe_data_buffer);
         frame_context.RemoveResourceDeferred(ddgi_probe_data_history_buffer);
-        frame_context.RemoveResourceDeferred(debug_state.ddgi.probe_data_readback_buffer);
-        debug_state.ddgi.probe_data_readback_valid = false;
+        frame_context.RemoveResourceDeferred(ddgi_probe_data_readback_buffer);
+        ddgi_probe_data_readback_valid = false;
         ddgi_irradiance_texture_srv = {};
         ddgi_irradiance_texture_uav = {};
         ddgi_irradiance_history_texture_srv = {};
@@ -184,24 +184,24 @@ namespace won::rendering
 
         if (!recreate_ddgi_texture)
         {
-            if (debug_options.ddgi_debug_enable && !debug_state.ddgi.probe_data_readback_buffer && ddgi_probe_data_buffer)
+            if (debug_options.ddgi_debug_enable && !ddgi_probe_data_readback_buffer && ddgi_probe_data_buffer)
             {
                 RHIBufferDesc probe_data_readback_buffer_desc = {};
                 probe_data_readback_buffer_desc.size = ddgi_probe_data_buffer->GetDesc().buffer_desc.size;
                 probe_data_readback_buffer_desc.usage = RHIResourceUsage::Readback;
-                debug_state.ddgi.probe_data_readback_buffer = device->CreateBuffer(probe_data_readback_buffer_desc);
-                if (!debug_state.ddgi.probe_data_readback_buffer)
+                ddgi_probe_data_readback_buffer = device->CreateBuffer(probe_data_readback_buffer_desc);
+                if (!ddgi_probe_data_readback_buffer)
                 {
                     backlog::Post("failed to create ddgi debug probe data readback buffer", backlog::LogLevel::Error);
                     return false;
                 }
-                debug_state.ddgi.probe_data_readback_buffer->SetName("DDGI Debug Probe Data Readback Buffer");
-                debug_state.ddgi.probe_data_readback_valid = false;
+                ddgi_probe_data_readback_buffer->SetName("DDGI Debug Probe Data Readback Buffer");
+                ddgi_probe_data_readback_valid = false;
             }
-            else if (!debug_options.ddgi_debug_enable && debug_state.ddgi.probe_data_readback_buffer)
+            else if (!debug_options.ddgi_debug_enable && ddgi_probe_data_readback_buffer)
             {
-                frame_context.RemoveResourceDeferred(debug_state.ddgi.probe_data_readback_buffer);
-                debug_state.ddgi.probe_data_readback_valid = false;
+                frame_context.RemoveResourceDeferred(ddgi_probe_data_readback_buffer);
+                ddgi_probe_data_readback_valid = false;
             }
 
             const bool reset_ddgi_history =
@@ -401,15 +401,15 @@ namespace won::rendering
             RHIBufferDesc probe_data_readback_buffer_desc = {};
             probe_data_readback_buffer_desc.size = ddgi_probe_data_buffer_desc.size;
             probe_data_readback_buffer_desc.usage = RHIResourceUsage::Readback;
-            debug_state.ddgi.probe_data_readback_buffer = device->CreateBuffer(probe_data_readback_buffer_desc);
-            if (!debug_state.ddgi.probe_data_readback_buffer)
+            ddgi_probe_data_readback_buffer = device->CreateBuffer(probe_data_readback_buffer_desc);
+            if (!ddgi_probe_data_readback_buffer)
             {
                 backlog::Post("failed to create ddgi debug probe data readback buffer", backlog::LogLevel::Error);
                 return false;
             }
-            debug_state.ddgi.probe_data_readback_buffer->SetName("DDGI Debug Probe Data Readback Buffer");
+            ddgi_probe_data_readback_buffer->SetName("DDGI Debug Probe Data Readback Buffer");
         }
-        debug_state.ddgi.probe_data_readback_valid = false;
+        ddgi_probe_data_readback_valid = false;
 
         ddgi_probe_counts = ddgi_volume.probe_counts;
         ddgi_probe_spacing = ddgi_volume.probe_spacing;
@@ -1986,9 +1986,9 @@ namespace won::rendering
         command_list.CopyResource(*ddgi_irradiance_history_texture, *ddgi_irradiance_texture);
         command_list.CopyResource(*ddgi_visibility_history_texture, *ddgi_visibility_texture);
         command_list.CopyResource(*ddgi_probe_data_history_buffer, *ddgi_probe_data_buffer);
-        if (debug_options.ddgi_debug_enable && debug_state.ddgi.probe_data_readback_buffer)
+        if (debug_options.ddgi_debug_enable && ddgi_probe_data_readback_buffer)
         {
-            command_list.CopyBuffer(*debug_state.ddgi.probe_data_readback_buffer, 0, *ddgi_probe_data_buffer, 0, ddgi_probe_data_buffer->GetDesc().buffer_desc.size);
+            command_list.CopyBuffer(*ddgi_probe_data_readback_buffer, 0, *ddgi_probe_data_buffer, 0, ddgi_probe_data_buffer->GetDesc().buffer_desc.size);
         }
 
         command_list.TransitionResource(*ddgi_irradiance_texture, RHIResourceState::ShaderRead);
@@ -2002,17 +2002,13 @@ namespace won::rendering
         debug_state.ddgi.probe_update_dispatched = true;
         ddgi_probe_update_offset = (probe_update_start + probes_per_frame) % ddgi_volume.total_probe_count;
         ddgi_history_valid = true;
-        debug_state.ddgi.probe_data_readback_valid = debug_options.ddgi_debug_enable && debug_state.ddgi.probe_data_readback_buffer != nullptr;
+        ddgi_probe_data_readback_valid = debug_options.ddgi_debug_enable && ddgi_probe_data_readback_buffer != nullptr;
     }
 
     void RendererInternal::UpdateDebugState(const View& view)
     {
         rendering::GPUScene& gpu_scene = view.scene->GetGPUScene();
-        std::shared_ptr<RHIResource> ddgi_probe_data_readback_buffer = debug_state.ddgi.probe_data_readback_buffer;
-        const bool ddgi_probe_data_readback_valid = debug_state.ddgi.probe_data_readback_valid;
         debug_state.ddgi = {};
-        debug_state.ddgi.probe_data_readback_buffer = ddgi_probe_data_readback_buffer;
-        debug_state.ddgi.probe_data_readback_valid = ddgi_probe_data_readback_valid;
         if (debug_options.bvh_debug_enable)
         {
             debug_state.bvh = {};
@@ -2071,14 +2067,14 @@ namespace won::rendering
         debug_state.ddgi.visibility_texture_uav = ddgi_visibility_texture_uav.descriptor_index;
         debug_state.ddgi.probe_data_buffer_srv = ddgi_probe_data_buffer_srv.descriptor_index;
         debug_state.ddgi.probe_data_buffer_uav = ddgi_probe_data_buffer_uav.descriptor_index;
-        if (debug_options.ddgi_debug_enable && debug_state.ddgi.gi_mode_ddgi && debug_state.ddgi.volume_active && debug_state.ddgi.probe_data_readback_valid && debug_state.ddgi.probe_data_readback_buffer && debug_state.ddgi.probe_data_readback_buffer->GetMappedData())
+        if (debug_options.ddgi_debug_enable && debug_state.ddgi.gi_mode_ddgi && debug_state.ddgi.volume_active && ddgi_probe_data_readback_valid && ddgi_probe_data_readback_buffer && ddgi_probe_data_readback_buffer->GetMappedData())
         {
             const uint32 max_debug_probe_count = 4096;
             const uint32 total_probe_count = gpu_scene.shader_ddgi_volume.total_probe_count;
             const float sample_ratio = total_probe_count > max_debug_probe_count ? static_cast<float>(total_probe_count) / static_cast<float>(max_debug_probe_count) : 1.0f;
             const uint32 sampling_step = sample_ratio > 1.0f ? static_cast<uint32>((std::max)(1.0f, std::ceil(std::cbrt(sample_ratio)))) : 1u;
-            const float4* probe_data = static_cast<const float4*>(debug_state.ddgi.probe_data_readback_buffer->GetMappedData());
-            const Size readback_probe_count = debug_state.ddgi.probe_data_readback_buffer->GetDesc().buffer_desc.size / sizeof(float4);
+            const float4* probe_data = static_cast<const float4*>(ddgi_probe_data_readback_buffer->GetMappedData());
+            const Size readback_probe_count = ddgi_probe_data_readback_buffer->GetDesc().buffer_desc.size / sizeof(float4);
             debug_state.ddgi.probes.reserve((std::min)(total_probe_count, max_debug_probe_count));
 
             for (uint32 z = 0; z < gpu_scene.shader_ddgi_volume.probe_counts.z; z += sampling_step)
@@ -3096,8 +3092,15 @@ namespace won::rendering
         ddgi_probe_data_buffer = nullptr;
         ddgi_probe_data_history_buffer_srv = {};
         ddgi_probe_data_history_buffer = nullptr;
-        debug_state.ddgi.probe_data_readback_buffer = nullptr;
-        debug_state.ddgi.probe_data_readback_valid = false;
+        ddgi_probe_data_readback_buffer = nullptr;
+        ddgi_probe_data_readback_valid = false;
+        luminance_partial_buffer_uav = {};
+        luminance_partial_buffer_srv = {};
+        luminance_partial_buffer = nullptr;
+        luminance_buffer_uav = {};
+        luminance_buffer = nullptr;
+        luminance_readback_buffer = nullptr;
+        auto_exposure_active = false;
         ddgi_probe_update_pipeline = nullptr;
         ddgi_probe_update_shader = nullptr;
         fxaa_pipeline = nullptr;
