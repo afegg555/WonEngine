@@ -1,11 +1,67 @@
 #include "Scene.h"
 
 #include "Backlog.h"
+#include "GPUScene.h"
+#include "RenderingUtils.h"
 
 #include <typeinfo>
 
 namespace won::ecs
 {
+    namespace
+    {
+        ComponentMask ComponentMaskFromTypeId(won::TypeId type_id)
+        {
+            switch (type_id)
+            {
+            case reflection::TypeMeta<TransformComponent>::type_id: return transform_component_mask;
+            case reflection::TypeMeta<HierarchyComponent>::type_id: return hierarchy_component_mask;
+            case reflection::TypeMeta<NameComponent>::type_id: return name_component_mask;
+            case reflection::TypeMeta<GeometryComponent>::type_id: return geometry_component_mask;
+            case reflection::TypeMeta<MaterialComponent>::type_id: return material_component_mask;
+            case reflection::TypeMeta<Sprite2DComponent>::type_id: return sprite_2d_component_mask;
+            case reflection::TypeMeta<Sprite3DComponent>::type_id: return sprite_3d_component_mask;
+            case reflection::TypeMeta<Text2DComponent>::type_id: return text_2d_component_mask;
+            case reflection::TypeMeta<Text3DComponent>::type_id: return text_3d_component_mask;
+            case reflection::TypeMeta<CameraComponent>::type_id: return camera_component_mask;
+            case reflection::TypeMeta<LightComponent>::type_id: return light_component_mask;
+            case reflection::TypeMeta<EnvironmentComponent>::type_id: return environment_component_mask;
+            case reflection::TypeMeta<FogVolumeComponent>::type_id: return fog_volume_component_mask;
+            case reflection::TypeMeta<DDGIVolumeComponent>::type_id: return ddgi_volume_component_mask;
+            case reflection::TypeMeta<ReflectionProbeComponent>::type_id: return reflection_probe_component_mask;
+            case reflection::TypeMeta<AnimationComponent>::type_id: return animation_component_mask;
+            case reflection::TypeMeta<AnimationStateMachineComponent>::type_id: return animation_state_machine_component_mask;
+            case reflection::TypeMeta<ScriptComponent>::type_id: return script_component_mask;
+            case reflection::TypeMeta<Collider3DComponent>::type_id: return collider_3d_component_mask;
+            case reflection::TypeMeta<Rigidbody3DComponent>::type_id: return rigidbody_3d_component_mask;
+            case reflection::TypeMeta<JointComponent>::type_id: return joint_component_mask;
+            case reflection::TypeMeta<AudioSourceComponent>::type_id: return audio_source_component_mask;
+            case reflection::TypeMeta<AudioListenerComponent>::type_id: return audio_listener_component_mask;
+            case reflection::TypeMeta<VisibilityLayerComponent>::type_id: return layer_component_mask;
+            case reflection::TypeMeta<CollisionLayerComponent>::type_id: return collision_layer_component_mask;
+            case reflection::TypeMeta<TerrainComponent>::type_id: return terrain_component_mask;
+            case reflection::TypeMeta<ParticleEmitter3DComponent>::type_id: return particle_emitter_3d_component_mask;
+            case reflection::TypeMeta<DecalComponent>::type_id: return decal_component_mask;
+            case reflection::TypeMeta<ButtonComponent>::type_id: return button_component_mask;
+            case reflection::TypeMeta<Canvas2DComponent>::type_id: return canvas_2d_component_mask;
+            case reflection::TypeMeta<RectTransform2DComponent>::type_id: return rect_transform_2d_component_mask;
+            case reflection::TypeMeta<LayoutComponent>::type_id: return layout_component_mask;
+            default: return none_component_mask;
+            }
+        }
+    }
+
+    Scene::~Scene() = default;
+
+    rendering::GPUScene& Scene::GetGPUScene()
+    {
+        if (!gpu_scene)
+        {
+            gpu_scene = std::make_unique<rendering::GPUScene>();
+        }
+        return *gpu_scene;
+    }
+
     Scene::Scene(const SceneDesc& desc)
     {
         component_manager.RegisterComponent<TransformComponent>();
@@ -55,24 +111,17 @@ namespace won::ecs
         {
             AddSystem(std::make_shared<ScriptEventDispatchSystem>(desc.script_runtime));
         }
-        AddSystem(std::make_shared<EnvironmentUpdateSystem>());
         AddSystem(std::make_shared<CameraUpdateSystem>());
         AddSystem(std::make_shared<LightUpdateSystem>());
-        AddSystem(std::make_shared<GeometryUpdateSystem>());
-        AddSystem(std::make_shared<MaterialUpdateSystem>());
         if (desc.enable_simulation)
         {
             AddSystem(std::make_shared<AnimationStateMachineSystem>());
         }
         AddSystem(std::make_shared<AnimationUpdateSystem>(desc.enable_simulation));
-        AddSystem(std::make_shared<RenderableUpdateSystem>());
-        AddSystem(std::make_shared<SpriteUpdateSystem>());
-        AddSystem(std::make_shared<TextUpdateSystem>());
         if (desc.enable_simulation)
         {
             AddSystem(std::make_shared<ParticleUpdateSystem>());
         }
-        AddSystem(std::make_shared<DecalUpdateSystem>());
         if (desc.enable_simulation)
         {
             AddSystem(std::make_shared<AudioUpdateSystem>(desc.audio_mixer));
@@ -252,6 +301,12 @@ namespace won::ecs
             jobsystem::Wait(ctx);
         }
 
+        gpu_dirty_snapshot = gpu_dirty_mask.exchange(0, std::memory_order_relaxed);
+        if ((gpu_dirty_snapshot & geometry_component_mask) != 0)
+        {
+            SetBVHDirty();
+        }
+
         if (cpu_bvh_dirty)
         {
             BuildBVH();
@@ -297,10 +352,22 @@ namespace won::ecs
             }
         }
 
+        const Vector<const won::TypeDesc*> component_types = component_manager.GetComponentTypes();
         for (Entity current : entities_to_destroy)
         {
             if (physics_world && HasComponent<Collider3DComponent>(current))
                 physics_world->RemoveBody(current);
+
+            ComponentMask destroyed_mask = none_component_mask;
+            for (const won::TypeDesc* type_desc : component_types)
+            {
+                if (type_desc && component_manager.HasComponent(current, type_desc->type_id))
+                {
+                    destroyed_mask |= ComponentMaskFromTypeId(type_desc->type_id);
+                }
+            }
+            MarkGpuDirty(destroyed_mask);
+
             component_manager.RemoveComponents(current);
         }
 
@@ -320,7 +387,6 @@ namespace won::ecs
     {
         component_manager.Clear();
         entities.clear();
-        render_data.Clear();
         scene_bvh.Clear();
         scene_bvh_entities.clear();
         physics_world->Clear();
@@ -329,11 +395,11 @@ namespace won::ecs
         animation_event_queue.clear();
         next_entity = INVALID_ENTITY + 1;
         SetBVHDirty();
+        MarkGpuDirty(~0ull);
     }
 
     void Scene::SwapContents(Scene& other)
     {
-        std::swap(render_data, other.render_data);
         std::swap(component_manager, other.component_manager);
         std::swap(entities, other.entities);
         std::swap(next_entity, other.next_entity);
@@ -349,6 +415,8 @@ namespace won::ecs
         SetBVHDirty();
         SetHierarchyTopologyDirty(true);
         system_schedule_dirty = true;
+        MarkGpuDirty(~0ull);
+        other.MarkGpuDirty(~0ull);
     }
 
     void Scene::BuildBVH()
@@ -395,6 +463,10 @@ namespace won::ecs
     void* Scene::AddComponent(Entity entity, won::TypeId type_id, const void* component)
     {
         void* result = component_manager.AddComponent(entity, type_id, component);
+        if (result)
+        {
+            MarkGpuDirty(ComponentMaskFromTypeId(type_id));
+        }
 
         const won::TypeDesc* hierarchy_desc = reflection::TypeMeta<HierarchyComponent>::Get();
         if (hierarchy_desc && type_id == hierarchy_desc->type_id)
@@ -416,6 +488,10 @@ namespace won::ecs
         }
         component_manager.RegisterComponent(type_desc);
         void* result = component_manager.AddComponent(entity, type_desc->type_id, nullptr);
+        if (result)
+        {
+            MarkGpuDirty(ComponentMaskFromTypeId(type_desc->type_id));
+        }
 
         const won::TypeDesc* hierarchy_desc = reflection::TypeMeta<HierarchyComponent>::Get();
         if (hierarchy_desc && type_desc->type_id == hierarchy_desc->type_id)
@@ -429,12 +505,26 @@ namespace won::ecs
         return result;
     }
 
+    void* Scene::GetComponent(Entity entity, won::TypeId type_id)
+    {
+        void* result = component_manager.GetComponent(entity, type_id);
+        if (result)
+        {
+            MarkGpuDirty(ComponentMaskFromTypeId(type_id));
+        }
+        return result;
+    }
+
     void Scene::RemoveComponent(Entity entity, won::TypeId type_id)
     {
         const won::TypeDesc* collider_desc = reflection::TypeMeta<Collider3DComponent>::Get();
         if (collider_desc && type_id == collider_desc->type_id && physics_world)
             physics_world->RemoveBody(entity);
 
+        if (component_manager.HasComponent(entity, type_id))
+        {
+            MarkGpuDirty(ComponentMaskFromTypeId(type_id));
+        }
         component_manager.RemoveComponent(entity, type_id);
 
         const won::TypeDesc* hierarchy_desc = reflection::TypeMeta<HierarchyComponent>::Get();
@@ -450,13 +540,13 @@ namespace won::ecs
 
     bool Scene::BuildGPUBVH()
     {
-        const bool ddgi_trace_required = render_data.shader_environment.diffuse_gi_mode == SHADER_DIFFUSE_GI_MODE_DDGI &&
-            (render_data.shader_ddgi_volume.flags & SHADER_DDGI_FLAG_ACTIVE) != 0 &&
-            render_data.shader_ddgi_volume.total_probe_count > 0;
+        const bool ddgi_trace_required = GetGPUScene().shader_environment.diffuse_gi_mode == SHADER_DIFFUSE_GI_MODE_DDGI &&
+            (GetGPUScene().shader_ddgi_volume.flags & SHADER_DDGI_FLAG_ACTIVE) != 0 &&
+            GetGPUScene().shader_ddgi_volume.total_probe_count > 0;
         if (!ddgi_trace_required)
         {
-            render_data.shader_bvh_nodes.clear();
-            render_data.shader_bvh_instances.clear();
+            GetGPUScene().shader_bvh_nodes.clear();
+            GetGPUScene().shader_bvh_instances.clear();
             gpu_bvh_dirty = true;
             return true;
         }
@@ -466,8 +556,8 @@ namespace won::ecs
         auto material_array = GetComponentArray<MaterialComponent>().get();
         if (!geometry_array || !transform_array)
         {
-            render_data.shader_bvh_nodes.clear();
-            render_data.shader_bvh_instances.clear();
+            GetGPUScene().shader_bvh_nodes.clear();
+            GetGPUScene().shader_bvh_instances.clear();
             gpu_bvh_dirty = false;
             return true;
         }
@@ -491,8 +581,8 @@ namespace won::ecs
             return true;
         }
 
-        render_data.shader_bvh_nodes.clear();
-        render_data.shader_bvh_instances.clear();
+        GetGPUScene().shader_bvh_nodes.clear();
+        GetGPUScene().shader_bvh_instances.clear();
 
         math::bvh::BVH bvh;
         Vector<math::bvh::BVHPrimitive> primitives;
@@ -555,11 +645,11 @@ namespace won::ecs
             return !mesh_gpu_bvh_pending;
         }
 
-        render_data.shader_bvh_nodes.resize(bvh.nodes.size());
+        GetGPUScene().shader_bvh_nodes.resize(bvh.nodes.size());
         for (Size i = 0; i < bvh.nodes.size(); ++i)
         {
             const math::bvh::BVHNode& node = bvh.nodes[i];
-            ShaderBVHNode& shader_node = render_data.shader_bvh_nodes[i];
+            ShaderBVHNode& shader_node = GetGPUScene().shader_bvh_nodes[i];
             shader_node.bounds_min = node.bounds.min;
             shader_node.bounds_max = node.bounds.max;
             shader_node.left_index = node.left_index;
@@ -569,13 +659,13 @@ namespace won::ecs
             shader_node.padding = { 0, 0 };
         }
 
-        render_data.shader_bvh_instances.resize(bvh.primitive_indices.size());
+        GetGPUScene().shader_bvh_instances.resize(bvh.primitive_indices.size());
         for (Size i = 0; i < bvh.primitive_indices.size(); ++i)
         {
             const uint32 source_index = bvh.primitives[bvh.primitive_indices[i]].user_data;
             if (source_index < source_instances.size())
             {
-                render_data.shader_bvh_instances[i] = source_instances[source_index];
+                GetGPUScene().shader_bvh_instances[i] = source_instances[source_index];
             }
         }
         gpu_bvh_dirty = mesh_gpu_bvh_pending;

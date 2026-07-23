@@ -409,8 +409,6 @@ namespace won
                 scene->Update(dt);
                 scene->SetUpdateIndex(update_index);
             }
-
-            view.BuildSortedIndices();
         }
         profiler::EndRange(range);
     }

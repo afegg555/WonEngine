@@ -15,17 +15,16 @@ namespace won::ecs
     {
         auto animation_array = scene.GetComponentArray<AnimationComponent>().get();
         auto geometry_array = scene.GetComponentArray<GeometryComponent>().get();
-        Scene::RenderData& render_data = scene.GetRenderData();
-        render_data.shader_bone_matrices.clear();
         if (!animation_array || !geometry_array)
         {
             return;
         }
 
         jobsystem::Context sub_ctx;
-        std::atomic<uint32> total_bone_count{ 0 };
+        const uint32 anim_count = static_cast<uint32>(animation_array->GetSize());
+        Vector<uint32> bone_counts(anim_count, 0);
 
-        jobsystem::Dispatch(sub_ctx, (uint32)animation_array->GetSize(), jobsystem::groupsize_heavy, [&](jobsystem::JobArgs args) {
+        jobsystem::Dispatch(sub_ctx, anim_count, jobsystem::groupsize_heavy, [&](jobsystem::JobArgs args) {
             const Entity entity = animation_array->index_to_entity[args.job_index];
             AnimationComponent& animation = animation_array->data[args.job_index];
             animation.bone_matrix_offset = 0;
@@ -47,8 +46,11 @@ namespace won::ecs
                 return;
             }
 
-            const Size clip_index = animation.current_clip_index < animation.clips.size() ? animation.current_clip_index : 0;
-            const std::shared_ptr<resource::AnimationClip>& clip = animation.clips[clip_index];
+            if (animation.current_clip_index >= animation.clips.size())
+            {
+                animation.current_clip_index = 0;
+            }
+            const std::shared_ptr<resource::AnimationClip>& clip = animation.clips[animation.current_clip_index];
             if (!clip || !clip->IsValid())
             {
                 animation.bone_matrices.clear();
@@ -62,27 +64,44 @@ namespace won::ecs
                 return;
             }
 
-            animation.bone_matrix_offset = total_bone_count.fetch_add(static_cast<uint32>(bone_count), std::memory_order_relaxed);
+            bone_counts[args.job_index] = static_cast<uint32>(bone_count);
         });
 
         jobsystem::Wait(sub_ctx);
 
-        const uint32 final_bone_count = total_bone_count.load(std::memory_order_relaxed);
-        if (final_bone_count == 0)
+        uint32 final_bone_count = 0;
+        for (uint32 i = 0; i < anim_count; ++i)
         {
-            return;
+            if (bone_counts[i] == 0)
+            {
+                continue;
+            }
+            animation_array->data[i].bone_matrix_offset = final_bone_count;
+            final_bone_count += bone_counts[i];
         }
 
-        render_data.shader_bone_matrices.resize(static_cast<Size>(final_bone_count) * 4);
+        bool bones_dirty = (final_bone_count != last_bone_count);
+        last_bone_count = final_bone_count;
+
+        if (final_bone_count == 0)
+        {
+            if (bones_dirty)
+            {
+                scene.MarkGpuDirty(animation_component_mask);
+            }
+            return;
+        }
 
         struct AnimationEventBucket
         {
             Vector<std::pair<Entity, String>> events;
         };
-        const bool should_dispatch_events = dispatch_events;
-        Vector<AnimationEventBucket> event_buckets(should_dispatch_events ? jobsystem::DispatchGroupCount((uint32)animation_array->GetSize(), jobsystem::groupsize_heavy) : 0);
+        const bool should_dispatch_events = simulate;
+        Vector<AnimationEventBucket> event_buckets(should_dispatch_events ? jobsystem::DispatchGroupCount(anim_count, jobsystem::groupsize_heavy) : 0);
 
-        jobsystem::Dispatch(sub_ctx, (uint32)animation_array->GetSize(), jobsystem::groupsize_heavy, [&](jobsystem::JobArgs args) {
+        std::atomic<bool> any_recomputed{ false };
+
+        jobsystem::Dispatch(sub_ctx, anim_count, jobsystem::groupsize_heavy, [&](jobsystem::JobArgs args) {
             const Entity entity = animation_array->index_to_entity[args.job_index];
             AnimationComponent& animation = animation_array->data[args.job_index];
             if (!geometry_array->HasData(entity))
@@ -120,7 +139,7 @@ namespace won::ecs
 
             const float ticks_per_second = clip->ticks_per_second > 0.0f ? clip->ticks_per_second : 1.0f;
             const float duration_seconds = clip->DurationSeconds();
-            if (animation.playing)
+            if (simulate && animation.playing)
             {
                 const float advanced_time = animation.time + delta_time * animation.speed;
                 const float new_time = animation.loop ? math::Wrap(advanced_time, duration_seconds) : math::Clamp(advanced_time, 0.0f, duration_seconds);
@@ -173,8 +192,7 @@ namespace won::ecs
                 return;
             }
 
-            const uint32 current_bone_matrix_offset = animation.bone_matrix_offset;
-
+            const bool was_blending = animation.blending;
             float blend_weight = 1.0f;
             const resource::AnimationClip* prev_clip = nullptr;
             if (animation.blending)
@@ -184,7 +202,7 @@ namespace won::ecs
                 {
                     prev_clip = animation.clips[animation.prev_clip_index].get();
                 }
-                if (animation.playing)
+                if (simulate && animation.playing)
                 {
                     animation.blend_elapsed += delta_time;
                     if (prev_clip && prev_clip->IsValid())
@@ -202,6 +220,13 @@ namespace won::ecs
                     prev_clip = nullptr;
                 }
             }
+
+            const bool needs_compute = animation.bone_matrices_dirty || was_blending || animation.bone_matrices.size() != bone_count;
+            if (!needs_compute)
+            {
+                return;
+            }
+            any_recomputed.store(true, std::memory_order_relaxed);
 
             Vector<resource::BonePose> current_pose;
             resource::SampleAnimationPose(*clip, animation.time * ticks_per_second, skeleton, current_pose);
@@ -248,19 +273,21 @@ namespace won::ecs
                 XMStoreFloat4x4(&global_matrices[bone_index], global_matrix);
                 const XMMATRIX inverse_bind_matrix = XMLoadFloat4x4(&bone.inverse_bind_matrix);
                 XMStoreFloat4x4(&animation.bone_matrices[bone_index], inverse_bind_matrix * global_matrix);
-
-                const float4x4& bone_matrix = animation.bone_matrices[bone_index];
-                const Size shader_bone_matrix_index = static_cast<Size>(current_bone_matrix_offset + bone_index) * 4;
-                render_data.shader_bone_matrices[shader_bone_matrix_index + 0] = { bone_matrix._11, bone_matrix._21, bone_matrix._31, bone_matrix._41 };
-                render_data.shader_bone_matrices[shader_bone_matrix_index + 1] = { bone_matrix._12, bone_matrix._22, bone_matrix._32, bone_matrix._42 };
-                render_data.shader_bone_matrices[shader_bone_matrix_index + 2] = { bone_matrix._13, bone_matrix._23, bone_matrix._33, bone_matrix._43 };
-                render_data.shader_bone_matrices[shader_bone_matrix_index + 3] = { bone_matrix._14, bone_matrix._24, bone_matrix._34, bone_matrix._44 };
             }
 
             animation.bone_matrices_dirty = false;
         });
 
         jobsystem::Wait(sub_ctx);
+
+        if (any_recomputed.load(std::memory_order_relaxed))
+        {
+            bones_dirty = true;
+        }
+        if (bones_dirty)
+        {
+            scene.MarkGpuDirty(animation_component_mask);
+        }
 
         for (AnimationEventBucket& event_bucket : event_buckets)
         {

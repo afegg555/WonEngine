@@ -1,5 +1,7 @@
 #pragma once
 
+#include <type_traits>
+
 #include "GeometryComponent.h"
 #include "MaterialComponent.h"
 #include "NameComponent.h"
@@ -119,4 +121,42 @@ namespace won::ecs
     inline constexpr ComponentMask layout_component_mask = ComponentMaskFromBit(SceneComponentBit::Layout);
     inline constexpr ComponentMask animation_state_machine_component_mask = ComponentMaskFromBit(SceneComponentBit::AnimationStateMachine);
     inline constexpr ComponentMask joint_component_mask = ComponentMaskFromBit(SceneComponentBit::Joint);
+
+    template <typename Component>
+    constexpr ComponentMask ComponentMaskFromType()
+    {
+        if constexpr (std::is_same_v<Component, TransformComponent>) { return transform_component_mask; }
+        else if constexpr (std::is_same_v<Component, HierarchyComponent>) { return hierarchy_component_mask; }
+        else if constexpr (std::is_same_v<Component, NameComponent>) { return name_component_mask; }
+        else if constexpr (std::is_same_v<Component, GeometryComponent>) { return geometry_component_mask; }
+        else if constexpr (std::is_same_v<Component, MaterialComponent>) { return material_component_mask; }
+        else if constexpr (std::is_same_v<Component, Sprite2DComponent>) { return sprite_2d_component_mask; }
+        else if constexpr (std::is_same_v<Component, Sprite3DComponent>) { return sprite_3d_component_mask; }
+        else if constexpr (std::is_same_v<Component, Text2DComponent>) { return text_2d_component_mask; }
+        else if constexpr (std::is_same_v<Component, Text3DComponent>) { return text_3d_component_mask; }
+        else if constexpr (std::is_same_v<Component, CameraComponent>) { return camera_component_mask; }
+        else if constexpr (std::is_same_v<Component, LightComponent>) { return light_component_mask; }
+        else if constexpr (std::is_same_v<Component, EnvironmentComponent>) { return environment_component_mask; }
+        else if constexpr (std::is_same_v<Component, FogVolumeComponent>) { return fog_volume_component_mask; }
+        else if constexpr (std::is_same_v<Component, DDGIVolumeComponent>) { return ddgi_volume_component_mask; }
+        else if constexpr (std::is_same_v<Component, ReflectionProbeComponent>) { return reflection_probe_component_mask; }
+        else if constexpr (std::is_same_v<Component, AnimationComponent>) { return animation_component_mask; }
+        else if constexpr (std::is_same_v<Component, AnimationStateMachineComponent>) { return animation_state_machine_component_mask; }
+        else if constexpr (std::is_same_v<Component, ScriptComponent>) { return script_component_mask; }
+        else if constexpr (std::is_same_v<Component, Collider3DComponent>) { return collider_3d_component_mask; }
+        else if constexpr (std::is_same_v<Component, Rigidbody3DComponent>) { return rigidbody_3d_component_mask; }
+        else if constexpr (std::is_same_v<Component, JointComponent>) { return joint_component_mask; }
+        else if constexpr (std::is_same_v<Component, AudioSourceComponent>) { return audio_source_component_mask; }
+        else if constexpr (std::is_same_v<Component, AudioListenerComponent>) { return audio_listener_component_mask; }
+        else if constexpr (std::is_same_v<Component, VisibilityLayerComponent>) { return layer_component_mask; }
+        else if constexpr (std::is_same_v<Component, CollisionLayerComponent>) { return collision_layer_component_mask; }
+        else if constexpr (std::is_same_v<Component, TerrainComponent>) { return terrain_component_mask; }
+        else if constexpr (std::is_same_v<Component, ParticleEmitter3DComponent>) { return particle_emitter_3d_component_mask; }
+        else if constexpr (std::is_same_v<Component, DecalComponent>) { return decal_component_mask; }
+        else if constexpr (std::is_same_v<Component, ButtonComponent>) { return button_component_mask; }
+        else if constexpr (std::is_same_v<Component, Canvas2DComponent>) { return canvas_2d_component_mask; }
+        else if constexpr (std::is_same_v<Component, RectTransform2DComponent>) { return rect_transform_2d_component_mask; }
+        else if constexpr (std::is_same_v<Component, LayoutComponent>) { return layout_component_mask; }
+        else { return none_component_mask; }
+    }
 }

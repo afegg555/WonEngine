@@ -1,4 +1,5 @@
 #include "View.h"
+#include "GPUScene.h"
 #include "CameraComponent.h"
 #include "Input.h"
 #include "MathUtils.h"
@@ -178,7 +179,7 @@ namespace won::rendering
         if (!scene || camera_entity == ecs::INVALID_ENTITY)
             return;
 
-        const ecs::Scene::RenderData& render_data = scene->GetRenderData();
+        GPUScene& gpu_scene = scene->GetGPUScene();
         const ecs::CameraComponent* camera = scene->GetComponent<ecs::CameraComponent>(camera_entity);
         const float3 eye = camera ? camera->eye : float3{};
         const math::Frustum* frustum = (options.enable_frustum_culling && camera) ? &camera->frustum : nullptr;
@@ -190,7 +191,7 @@ namespace won::rendering
 
         jobsystem::Execute(ctx, [&](jobsystem::JobArgs)
         {
-            const auto& renderables = render_data.opaque_renderables;
+            const auto& renderables = gpu_scene.opaque_renderables;
             sorted_opaque_indices.clear();
             for (uint32 i = 0; i < static_cast<uint32>(renderables.size()); ++i)
             {
@@ -220,7 +221,7 @@ namespace won::rendering
 
         jobsystem::Execute(ctx, [&](jobsystem::JobArgs)
         {
-            const auto& renderables = render_data.transparent_renderables;
+            const auto& renderables = gpu_scene.transparent_renderables;
             sorted_transparent_indices.clear();
             for (uint32 i = 0; i < static_cast<uint32>(renderables.size()); ++i)
             {
@@ -241,7 +242,7 @@ namespace won::rendering
 
         jobsystem::Execute(ctx, [&](jobsystem::JobArgs)
         {
-            const auto& renderables = render_data.sprite_3d_renderables;
+            const auto& renderables = gpu_scene.sprite_3d_renderables;
             sorted_sprite_3d_indices.clear();
             for (uint32 i = 0; i < static_cast<uint32>(renderables.size()); ++i)
             {
@@ -262,7 +263,7 @@ namespace won::rendering
 
         jobsystem::Execute(ctx, [&](jobsystem::JobArgs)
         {
-            const auto& renderables = render_data.sprite_2d_renderables;
+            const auto& renderables = gpu_scene.sprite_2d_renderables;
             const float vp_w = static_cast<float>(viewport.width);
             const float vp_h = static_cast<float>(viewport.height);
             sorted_sprite_2d_indices.clear();

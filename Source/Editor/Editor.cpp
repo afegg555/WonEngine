@@ -59,7 +59,16 @@ namespace won::editor
 	static String editor_contents_root_dir;
 	namespace
 	{
-
+		template <typename Component>
+		Component* FindComponent(ecs::Scene& scene, ecs::Entity entity)
+		{
+			auto component_array = scene.GetComponentArray<Component>();
+			if (!component_array || !component_array->HasData(entity))
+			{
+				return nullptr;
+			}
+			return &component_array->GetData(entity);
+		}
 
 		constexpr const char* generated_asset_directory = "Generated";
 		constexpr const char* scene_directory_name = "Scenes";
@@ -4238,65 +4247,79 @@ namespace won::editor
 					ImGui::Separator();
 				}
 
-				LightComponent* light_comp = editor_viewport.view->scene->GetComponent<LightComponent>(editor_viewport.picked_entity);
+				LightComponent* light_comp = FindComponent<LightComponent>(*editor_viewport.view->scene, editor_viewport.picked_entity);
 				if (light_comp)
 				{
 					ImGui::PushID("LightComponent");
 					const bool component_open = DrawComponentCollapsingHeader(editor_text::light_component);
 					bool remove_component = DrawComponentRemoveButton(editor_text::light_component);
-					
+
 					if (!remove_component && component_open)
 					{
 						// TODO: enum is hard coded
+						bool light_changed = false;
+
 						int light_type = static_cast<int>(light_comp->type);
 						const char* light_type_items[] = { editor_text::directional, editor_text::point, editor_text::spot };
 						if (ImGui::Combo(editor_text::type, &light_type, light_type_items, IM_ARRAYSIZE(light_type_items)))
 						{
 							light_comp->type = static_cast<LightComponent::LightType>(light_type);
+							light_changed = true;
 						}
 
 						float color[3] = { light_comp->color.x, light_comp->color.y, light_comp->color.z };
 						if (ImGui::InputFloat3(editor_text::color, color))
 						{
 							light_comp->color = { color[0], color[1], color[2] };
+							light_changed = true;
 						}
 
-						ImGui::DragFloat(editor_text::intensity, &light_comp->intensity, 1.0f, 0.0f, 100000.0f);
-						ImGui::DragFloat(editor_text::range, &light_comp->range, 0.1f, 0.0f, 100000.0f);
-						ImGui::DragFloat(editor_text::outer_cone, &light_comp->outer_cone_angle, 0.01f, 0.0f, math::PI);
-						ImGui::DragFloat(editor_text::inner_cone, &light_comp->inner_cone_angle, 0.01f, 0.0f, math::PI);
+						light_changed |= ImGui::DragFloat(editor_text::intensity, &light_comp->intensity, 1.0f, 0.0f, 100000.0f);
+						light_changed |= ImGui::DragFloat(editor_text::range, &light_comp->range, 0.1f, 0.0f, 100000.0f);
+						light_changed |= ImGui::DragFloat(editor_text::outer_cone, &light_comp->outer_cone_angle, 0.01f, 0.0f, math::PI);
+						light_changed |= ImGui::DragFloat(editor_text::inner_cone, &light_comp->inner_cone_angle, 0.01f, 0.0f, math::PI);
 
 						int shadow_map_resolution = static_cast<int>(light_comp->shadow_map_resolution);
 						if (ImGui::InputInt(editor_text::shadow_resolution, &shadow_map_resolution))
 						{
 							light_comp->shadow_map_resolution = (std::max)(1, shadow_map_resolution);
+							light_changed = true;
 						}
 
 						int shadow_cascade_count = static_cast<int>(light_comp->shadow_cascade_count);
 						if (ImGui::SliderInt(editor_text::cascade_count, &shadow_cascade_count, 1, SHADOW_CASCADE_COUNT_MAX))
 						{
 							light_comp->shadow_cascade_count = static_cast<uint32>(shadow_cascade_count);
+							light_changed = true;
 						}
 
-						ImGui::SliderFloat(editor_text::cascade_lambda, &light_comp->shadow_cascade_lambda, 0.0f, 1.0f);
-						ImGui::SliderFloat(editor_text::cascade_blend, &light_comp->shadow_cascade_blend, 0.0f, 0.3f);
+						light_changed |= ImGui::SliderFloat(editor_text::cascade_lambda, &light_comp->shadow_cascade_lambda, 0.0f, 1.0f);
+						light_changed |= ImGui::SliderFloat(editor_text::cascade_blend, &light_comp->shadow_cascade_blend, 0.0f, 0.3f);
 
 						bool is_active = light_comp->IsActive();
 						if (ImGui::Checkbox(editor_text::active, &is_active))
 						{
 							light_comp->SetActive(is_active);
+							light_changed = true;
 						}
 
 						bool is_dynamic = light_comp->IsDynamic();
 						if (ImGui::Checkbox(editor_text::dynamic, &is_dynamic))
 						{
 							light_comp->SetDynamic(is_dynamic);
+							light_changed = true;
 						}
 
 						bool is_cast_shadow = light_comp->IsCastShadow();
 						if (ImGui::Checkbox(editor_text::cast_shadow, &is_cast_shadow))
 						{
 							light_comp->SetCastShadow(is_cast_shadow);
+							light_changed = true;
+						}
+
+						if (light_changed)
+						{
+							editor_viewport.view->scene->MarkGpuDirty(ComponentMaskFromType<LightComponent>());
 						}
 					}
 					else if (remove_component)
@@ -4613,7 +4636,7 @@ namespace won::editor
 					ImGui::Separator();
 				}
 
-				GeometryComponent* geometry_comp = editor_viewport.view->scene->GetComponent<GeometryComponent>(editor_viewport.picked_entity);
+				GeometryComponent* geometry_comp = FindComponent<GeometryComponent>(*editor_viewport.view->scene, editor_viewport.picked_entity);
 				if (geometry_comp)
 				{
 					ImGui::PushID("GeometryComponent");
@@ -4692,6 +4715,7 @@ namespace won::editor
 						if (ImGui::Checkbox(editor_text::cast_shadow, &cast_shadow))
 						{
 							geometry_comp->SetCastShadow(cast_shadow);
+							editor_viewport.view->scene->MarkGpuDirty(ComponentMaskFromType<GeometryComponent>());
 						}
 					}
 					else if (remove_component)
@@ -5339,7 +5363,7 @@ namespace won::editor
 					ImGui::Separator();
 				}
 
-				AnimationComponent* animation_comp = editor_viewport.view->scene->GetComponent<AnimationComponent>(editor_viewport.picked_entity);
+				AnimationComponent* animation_comp = FindComponent<AnimationComponent>(*editor_viewport.view->scene, editor_viewport.picked_entity);
 				if (animation_comp)
 				{
 					ImGui::PushID("AnimationComponent");
@@ -5404,6 +5428,13 @@ namespace won::editor
 									animation_comp->bone_matrices_dirty = true;
 								}
 								ImGui::Text(editor_text::duration_format, duration_seconds);
+
+								if (!is_playing && animation_comp->playing)
+								{
+									const float advanced_time = animation_comp->time + ImGui::GetIO().DeltaTime * animation_comp->speed;
+									animation_comp->time = animation_comp->loop ? math::Wrap(advanced_time, duration_seconds) : std::clamp(advanced_time, 0.0f, duration_seconds);
+									animation_comp->bone_matrices_dirty = true;
+								}
 							}
 							else
 							{
@@ -5528,7 +5559,7 @@ namespace won::editor
 					ImGui::Separator();
 				}
 
-				MaterialComponent* material_comp = editor_viewport.view->scene->GetComponent<MaterialComponent>(editor_viewport.picked_entity);
+				MaterialComponent* material_comp = FindComponent<MaterialComponent>(*editor_viewport.view->scene, editor_viewport.picked_entity);
 				if (material_comp)
 				{
 					ImGui::PushID("MaterialComponent");
@@ -5556,6 +5587,7 @@ namespace won::editor
 									material_comp->SetMaterial(nullptr);
 									material_comp->SetMaterialAssetPath(String());
 									material_comp->SetDirty();
+									editor_viewport.view->scene->MarkGpuDirty(ComponentMaskFromType<MaterialComponent>());
 								}
 								for (const ContentBrowserAsset& asset : content_browser.assets)
 								{
@@ -5574,6 +5606,7 @@ namespace won::editor
 										material_comp->SetMaterial(resource::LoadMaterialBinary(asset.disk_path));
 										material_comp->SetMaterialAssetPath(asset_rel);
 										material_comp->SetDirty();
+										editor_viewport.view->scene->MarkGpuDirty(ComponentMaskFromType<MaterialComponent>());
 									}
 									if (asset_selected)
 									{
@@ -5594,6 +5627,7 @@ namespace won::editor
 						if (ImGui::Button(editor_text::fork_material))
 						{
 							material_comp->ForkMaterial();
+							editor_viewport.view->scene->MarkGpuDirty(ComponentMaskFromType<MaterialComponent>());
 						}
 						ImGui::EndDisabled();
 
@@ -5609,6 +5643,7 @@ namespace won::editor
 						if (ImGui::Button(editor_text::add_slot))
 						{
 							material_comp->AddMaterialSlot();
+							editor_viewport.view->scene->MarkGpuDirty(ComponentMaskFromType<MaterialComponent>());
 							selected_material_slot = material_slot_count;
 							material_slot_count = static_cast<int>(material_comp->GetMaterialSlotCount());
 						}
@@ -5621,6 +5656,7 @@ namespace won::editor
 						{
 							material_comp->material->slots.erase(material_comp->material->slots.begin() + selected_material_slot);
 							material_comp->SetDirty();
+							editor_viewport.view->scene->MarkGpuDirty(ComponentMaskFromType<MaterialComponent>());
 							material_slot_count = static_cast<int>(material_comp->GetMaterialSlotCount());
 							selected_material_slot = (std::max)(0, material_slot_count - 1);
 						}
@@ -5770,6 +5806,7 @@ namespace won::editor
 							if (material_changed)
 							{
 								material_comp->SetDirty();
+								editor_viewport.view->scene->MarkGpuDirty(ComponentMaskFromType<MaterialComponent>());
 							}
 						}
 					}

@@ -63,7 +63,7 @@ namespace won::resource
     struct Material : public Resource
     {
         Vector<MaterialSlot> slots;
-        uint32 material_offset = 0; // assigned by MaterialUpdateSystem, shared by all entities using this material
+        uint32 material_offset = 0; // assigned by GPUScene material extraction, shared by all entities using this material
 
         bool IsValid() const override
         {

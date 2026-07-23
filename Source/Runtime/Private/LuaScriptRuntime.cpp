@@ -1644,6 +1644,7 @@ namespace won::script
         animation.time = 0.0f;
         animation.event_scan_time = 0.0f;
         animation.playing = true;
+        animation.bone_matrices_dirty = true;
     }
 
     ecs::AnimationComponent* LuaScriptRuntime::GetSelfAnimation(LuaScriptRuntime* runtime)

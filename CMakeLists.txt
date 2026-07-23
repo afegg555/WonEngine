@@ -213,6 +213,8 @@ set(RUNTIME_RESOURCE
 set(RUNTIME_RENDERING
     Source/Runtime/Public/Renderer.h
     Source/Runtime/Public/RenderingUtils.h
+    Source/Runtime/Private/GPUScene.h
+    Source/Runtime/Private/GPUScene.cpp
     Source/Runtime/Private/Renderer.cpp
     Source/Runtime/Private/RenderingUtils.cpp
     Source/Runtime/Public/View.h
@@ -362,36 +364,22 @@ set(RUNTIME_AUDIO_WINDOWS
 
 set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Public/Systems.h
-    Source/Runtime/Public/EnvironmentUpdateSystem.h
     Source/Runtime/Public/CameraUpdateSystem.h
-    Source/Runtime/Public/GeometryUpdateSystem.h
     Source/Runtime/Public/LightUpdateSystem.h
-    Source/Runtime/Public/MaterialUpdateSystem.h
     Source/Runtime/Public/AnimationUpdateSystem.h
     Source/Runtime/Public/AnimationStateMachineSystem.h
     Source/Runtime/Public/TransformUpdateSystem.h
-    Source/Runtime/Public/RenderableUpdateSystem.h
-    Source/Runtime/Public/SpriteUpdateSystem.h
-    Source/Runtime/Public/TextUpdateSystem.h
     Source/Runtime/Public/ParticleUpdateSystem.h
-    Source/Runtime/Public/DecalUpdateSystem.h
     Source/Runtime/Public/ScriptUpdateSystem.h
     Source/Runtime/Public/ScriptEventDispatchSystem.h
     Source/Runtime/Public/PhysicsUpdateSystem.h
     Source/Runtime/Public/AudioUpdateSystem.h
-    Source/Runtime/Private/EnvironmentUpdateSystem.cpp
     Source/Runtime/Private/CameraUpdateSystem.cpp
-    Source/Runtime/Private/GeometryUpdateSystem.cpp
     Source/Runtime/Private/LightUpdateSystem.cpp
-    Source/Runtime/Private/MaterialUpdateSystem.cpp
     Source/Runtime/Private/AnimationUpdateSystem.cpp
     Source/Runtime/Private/AnimationStateMachineSystem.cpp
     Source/Runtime/Private/TransformUpdateSystem.cpp
-    Source/Runtime/Private/RenderableUpdateSystem.cpp
-    Source/Runtime/Private/SpriteUpdateSystem.cpp
     Source/Runtime/Private/ParticleUpdateSystem.cpp
-    Source/Runtime/Private/DecalUpdateSystem.cpp
-    Source/Runtime/Private/TextUpdateSystem.cpp
     Source/Runtime/Private/ScriptUpdateSystem.cpp
     Source/Runtime/Private/ScriptEventDispatchSystem.cpp
     Source/Runtime/Private/PhysicsUpdateSystem.cpp
