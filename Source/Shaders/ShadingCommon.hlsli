@@ -403,7 +403,7 @@ inline void ForwardLighting(inout Surface surface, inout Lighting lighting, floa
     const uint cluster_tiles = GetScene().cluster_count.x * GetScene().cluster_count.y;
     const uint cluster_index = cluster_slice * cluster_tiles + tile.y * GetScene().cluster_count.x + tile.x;
     const uint cluster_light_count = bindless_buffers_uint[DescriptorIndex(GetScene().cluster_light_count_buffer)][cluster_index];
-    const uint cluster_light_base = cluster_index * MAX_LIGHTS_PER_CLUSTER;
+    const uint cluster_light_base = bindless_buffers_uint[DescriptorIndex(GetScene().cluster_light_offset_buffer)][cluster_index];
     [loop]
     for (uint t = 0; t < cluster_light_count; ++t)
     {

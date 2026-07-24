@@ -43,6 +43,9 @@ namespace won::rendering
             std::shared_ptr<RHIResource> cluster_light_count_buffer;
             RHISubresourceHandle cluster_light_count_srv = {};
             RHISubresourceHandle cluster_light_count_uav = {};
+            std::shared_ptr<RHIResource> cluster_light_offset_buffer;
+            RHISubresourceHandle cluster_light_offset_srv = {};
+            RHISubresourceHandle cluster_light_offset_uav = {};
             std::shared_ptr<RHIResource> cluster_light_index_buffer;
             RHISubresourceHandle cluster_light_index_srv = {};
             RHISubresourceHandle cluster_light_index_uav = {};

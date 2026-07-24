@@ -274,7 +274,8 @@ struct alignas(16) ShaderScene
 
     int light_shadow_slice_buffer;
     uint cluster_depth_slices;
-    int2 padding;
+    int cluster_light_offset_buffer;
+    int padding;
 #ifdef __cplusplus
     inline void Init()
     {
@@ -298,6 +299,7 @@ struct alignas(16) ShaderScene
         light_count = 0;
 
         cluster_light_count_buffer = -1;
+        cluster_light_offset_buffer = -1;
         cluster_light_index_buffer = -1;
         cluster_count = { 0,0 };
         cluster_depth_slices = 1;
