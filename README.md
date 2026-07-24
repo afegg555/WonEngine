@@ -20,6 +20,16 @@ WonEngine is a work-in-progress C++ rendering engine for experimenting with mode
   </tr>
   <tr>
     <td width="50%"><img src="Docs/ibl_capture.webp" width="100%" alt="Environment IBL"><br><sub><b>Environment IBL</b> — metallic × roughness matrix lit by a cubemap sky</sub></td>
+    <td width="50%"><video src="https://github.com/user-attachments/assets/2e950cca-4a0c-42ec-ad62-f8321a048352" width="100%" controls muted>
+      Your browser does not support the video tag —
+      <a href="https://github.com/user-attachments/assets/2e950cca-4a0c-42ec-ad62-f8321a048352">watch the clip</a>.
+    </video><br><sub><b>Navmesh pathfinding</b> — Recast/Detour agent navigation and crowd movement</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><video src="https://github.com/user-attachments/assets/5aff2b73-bf61-4829-8516-a4389217b444" width="100%" controls muted>
+      Your browser does not support the video tag —
+      <a href="https://github.com/user-attachments/assets/5aff2b73-bf61-4829-8516-a4389217b444">watch the clip</a>.
+    </video><br><sub><b>Clustered forward lighting</b> — 2,048 dynamic point lights in a single view</sub></td>
     <td width="50%"></td>
   </tr>
 </table>

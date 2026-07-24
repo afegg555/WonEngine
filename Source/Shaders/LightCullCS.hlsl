@@ -4,6 +4,43 @@
 #include "ShaderInterop_LightCull.h"
 
 groupshared uint gs_slice_count[MAX_DEPTH_SLICES];
+groupshared uint gs_slice_offset[MAX_DEPTH_SLICES];
+groupshared uint gs_slice_cursor[MAX_DEPTH_SLICES];
+
+bool CullLightToSlices(uint li, float3 cam, float3 fwd, float3 planes[4], float cam_near, float cam_far, uint slice_count, out uint slice_min, out uint slice_max)
+{
+    slice_min = 0;
+    slice_max = 0;
+
+    ShaderLight light = GetLight(li);
+    if (light.GetType() == SHADER_LIGHT_TYPE_DIRECTIONAL)
+    {
+        return false;
+    }
+
+    const float3 to_center = light.position - cam;
+    const float r = (float)light.GetRange();
+
+    [unroll]
+    for (uint pi = 0; pi < 4; ++pi)
+    {
+        if (dot(planes[pi], to_center) < -r)
+        {
+            return false;
+        }
+    }
+
+    const float t = dot(to_center, fwd); // view space light_pos.z
+    if (t + r < cam_near)
+    {
+        return false;
+    }
+    // if depth is divided uniformly, the near froxel becomes needle-like
+    // so we use a logarithmic depth division to avoid that(more froxels near the camera)
+    slice_min = ClusterSliceFromViewZ(max(t - r, cam_near), cam_near, cam_far, slice_count);
+    slice_max = ClusterSliceFromViewZ(max(t + r, cam_near), cam_near, cam_far, slice_count);
+    return true;
+}
 
 [numthreads(LIGHTCULL_TILE_SIZE, LIGHTCULL_TILE_SIZE, 1)]
 void main(uint3 group_id : SV_GroupID, uint group_index : SV_GroupIndex)
@@ -15,8 +52,10 @@ void main(uint3 group_id : SV_GroupID, uint group_index : SV_GroupIndex)
 
     const uint slice_count = min(lightcullpush.depth_slice_count, MAX_DEPTH_SLICES);
     const uint total_threads = LIGHTCULL_TILE_SIZE * LIGHTCULL_TILE_SIZE;
-    const uint cluster_tiles = lightcullpush.cluster_count.x * lightcullpush.cluster_count.y; // total count of tiles
+    const uint cluster_tiles = lightcullpush.cluster_count.x * lightcullpush.cluster_count.y;
     const uint tile_index = group_id.y * lightcullpush.cluster_count.x + group_id.x;
+    const uint tile_region = slice_count * MAX_LIGHTS_PER_CLUSTER; // froxels in one tile share this budget
+    const uint tile_base = tile_index * tile_region;
 
     for (uint s = group_index; s < slice_count; s += total_threads)
     {
@@ -60,58 +99,57 @@ void main(uint3 group_id : SV_GroupID, uint group_index : SV_GroupIndex)
     const float cam_near = GetCamera().z_near;
     const float cam_far = GetCamera().z_far;
 
+    // 1. count lights per slice pass
     for (uint li = group_index; li < lightcullpush.light_count; li += total_threads)
     {
-        ShaderLight light = GetLight(li);
-        if (light.GetType() == SHADER_LIGHT_TYPE_DIRECTIONAL)
+        uint slice_min;
+        uint slice_max;
+        if (!CullLightToSlices(li, cam, fwd, planes, cam_near, cam_far, slice_count, slice_min, slice_max))
         {
             continue;
         }
-
-        const float3 to_center = light.position - cam;
-        const float r = (float)light.GetRange();
-
-        bool inside = true;
-        [unroll]
-        for (uint pi = 0; pi < 4; ++pi)
-        {
-            if (dot(planes[pi], to_center) < -r)
-            {
-                inside = false;
-            }
-        }
-        if (!inside)
-        {
-            continue;
-        }
-
-        const float t = dot(to_center, fwd); // view space light_pos.z
-        if (t + r < cam_near)
-        {
-            continue;
-        }
-
-        // if depth is divided uniformly, the near froxel becomes needle-like
-        // so we use a logarithmic depth division to avoid that(more froxels near the camera)
-        const uint slice_min = ClusterSliceFromViewZ(max(t - r, cam_near), cam_near, cam_far, slice_count);
-        const uint slice_max = ClusterSliceFromViewZ(max(t + r, cam_near), cam_near, cam_far, slice_count);
-
         for (uint s = slice_min; s <= slice_max; ++s)
         {
-            uint slot;
-            InterlockedAdd(gs_slice_count[s], 1, slot);
-            if (slot < MAX_LIGHTS_PER_CLUSTER)
-            {
-                const uint froxel_index = s * cluster_tiles + tile_index;
-                bindless_rwbuffers_uint[DescriptorIndex((int)lightcullpush.cluster_light_index_uav)][froxel_index * MAX_LIGHTS_PER_CLUSTER + slot] = li;
-            }
+            InterlockedAdd(gs_slice_count[s], 1);
+        }
+    }
+    GroupMemoryBarrierWithGroupSync();
+    if (group_index == 0)
+    {
+        uint running = 0;
+        for (uint s = 0; s < slice_count; ++s)
+        {
+            const uint avail = (running < tile_region) ? (tile_region - running) : 0u; // froxels in one tile share this budget
+            const uint cnt = min(gs_slice_count[s], avail);
+            const uint froxel_index = s * cluster_tiles + tile_index;
+            
+            bindless_rwbuffers_uint[DescriptorIndex((int) lightcullpush.cluster_light_count_uav)][froxel_index] = cnt;
+            bindless_rwbuffers_uint[DescriptorIndex((int)lightcullpush.cluster_light_offset_uav)][froxel_index] = tile_base + running; // prefix sum offset
+            gs_slice_offset[s] = running;
+            gs_slice_cursor[s] = running;
+            gs_slice_count[s] = cnt;
+            running += cnt;
         }
     }
     GroupMemoryBarrierWithGroupSync();
 
-    for (uint sw = group_index; sw < slice_count; sw += total_threads)
+    // 2. write light indices to slices pass
+    for (uint lj = group_index; lj < lightcullpush.light_count; lj += total_threads)
     {
-        const uint froxel_index = sw * cluster_tiles + tile_index;
-        bindless_rwbuffers_uint[DescriptorIndex((int)lightcullpush.cluster_light_count_uav)][froxel_index] = min(gs_slice_count[sw], MAX_LIGHTS_PER_CLUSTER);
+        uint slice_min;
+        uint slice_max;
+        if (!CullLightToSlices(lj, cam, fwd, planes, cam_near, cam_far, slice_count, slice_min, slice_max))
+        {
+            continue;
+        }
+        for (uint s = slice_min; s <= slice_max; ++s)
+        {
+            uint slot;
+            InterlockedAdd(gs_slice_cursor[s], 1, slot);
+            if (slot < gs_slice_offset[s] + gs_slice_count[s])
+            {
+                bindless_rwbuffers_uint[DescriptorIndex((int)lightcullpush.cluster_light_index_uav)][tile_base + slot] = lj;
+            }
+        }
     }
 }

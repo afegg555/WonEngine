@@ -4,23 +4,25 @@
 #include "ShaderInterop.h"
 
 static const uint LIGHTCULL_TILE_SIZE = 16;
-static const uint MAX_LIGHTS_PER_CLUSTER = 64;
+static const uint MAX_LIGHTS_PER_CLUSTER = 32;
 static const uint MAX_DEPTH_SLICES = 32;
 
 struct LightCullPushConstants
 {
-    uint cluster_light_count_uav;
-    uint cluster_light_index_uav;
     uint2 cluster_count;
+    uint cluster_light_count_uav;
+    uint cluster_light_offset_uav;
+    uint cluster_light_index_uav;
     uint light_count;
     uint depth_slice_count;
 
 #ifdef __cplusplus
     inline void Init()
     {
-        cluster_light_count_uav = 0;
-        cluster_light_index_uav = 0;
         cluster_count = uint2(0, 0);
+        cluster_light_count_uav = 0;
+        cluster_light_offset_uav = 0;
+        cluster_light_index_uav = 0;
         light_count = 0;
         depth_slice_count = 1;
     }
@@ -28,7 +30,7 @@ struct LightCullPushConstants
 };
 
 #ifdef __cplusplus
-static_assert(sizeof(LightCullPushConstants) == 24, "LightCullPushConstants layout mismatch");
+static_assert(sizeof(LightCullPushConstants) == 28, "LightCullPushConstants layout mismatch");
 #endif
 
 #ifndef __cplusplus
