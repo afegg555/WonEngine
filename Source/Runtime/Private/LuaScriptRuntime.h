@@ -200,6 +200,10 @@ namespace won::script
         static int LuaNavNearestPoint(lua_State* state);
         static int LuaNavIsReady(lua_State* state);
 
+        static int LuaSettingsGet(lua_State* state);
+        static int LuaSettingsSet(lua_State* state);
+        static int LuaSettingsSave(lua_State* state);
+
         static int LuaEventSubscribe(lua_State* state);
         static int LuaEventPost(lua_State* state);
         static int LuaEventFire(lua_State* state);
@@ -229,5 +233,9 @@ namespace won::script
         audio::AudioMixer* audio_mixer = nullptr;
         SceneManager* scene_manager = nullptr;
         String content_root;
+        settings::UserSettings* user_settings = nullptr;
+        const project::ProjectSettings* project_settings = nullptr;
+        std::function<void()> apply_user_settings;
+        std::function<bool()> save_user_settings;
     };
 }

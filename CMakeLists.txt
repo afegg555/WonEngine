@@ -238,6 +238,7 @@ set(RUNTIME_CONFIGURATION
     Source/Runtime/Private/Configuration.cpp
     Source/Runtime/Private/GameData.cpp
     Source/Runtime/Public/ProjectSettings.h
+    Source/Runtime/Public/UserSettings.h
 )
 
 set(RUNTIME_CONSOLE

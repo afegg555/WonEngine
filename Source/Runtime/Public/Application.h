@@ -10,6 +10,7 @@
 #include "RHIDevice.h"
 #include "ScriptRuntime.h"
 #include "ProjectSettings.h"
+#include "UserSettings.h"
 #include "AudioDriver.h"
 #include "AudioMixer.h"
 #include "ConsoleOverlay.h"
@@ -54,6 +55,8 @@ namespace won
         void WaitIdle();
         void ClearViews();
         uint32 AddView(const rendering::View& view = {});
+        void ApplyUserSettings();
+        bool SaveUserSettings();
 
     protected:
         virtual void RenderScene();
@@ -79,6 +82,7 @@ namespace won
         std::unique_ptr<won::audio::IAudioDriver> audio_driver;
         Vector<std::unique_ptr<rendering::View>> views;
         project::ProjectSettings project_settings;
+        settings::UserSettings user_settings;
         game::GameData game_data;
         utils::Timer frame_timer;
         uint64 update_index = 0;

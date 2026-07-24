@@ -117,6 +117,8 @@ namespace won::rendering
         virtual std::shared_ptr<RHIShader> GetShader(resource::ShaderId shader_id) const = 0;
         virtual void SetClearColor(const RHIClearColor& color) = 0;
         virtual RHIClearColor GetClearColor() const = 0;
+        virtual void SetVSync(bool enabled) = 0;
+        virtual void SetShadowResolutionScale(float scale) = 0;
         virtual void SetDebugOptions(const RendererDebugOptions& options) = 0;
         virtual RendererDebugState GetDebugState() const = 0;
         virtual bool GetCurrentBackBufferBinding(RHISubresourceBinding& out_binding) const = 0;

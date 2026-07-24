@@ -34,6 +34,16 @@ namespace won
     class SceneManager;
 }
 
+namespace won::settings
+{
+    struct UserSettings;
+}
+
+namespace won::project
+{
+    struct ProjectSettings;
+}
+
 namespace won::script
 {
     enum class ScriptBackend
@@ -48,6 +58,10 @@ namespace won::script
         audio::AudioMixer* audio_mixer = nullptr;
         SceneManager* scene_manager = nullptr;
         String content_root;
+        settings::UserSettings* user_settings = nullptr;
+        const project::ProjectSettings* project_settings = nullptr;
+        std::function<void()> apply_user_settings;
+        std::function<bool()> save_user_settings;
     };
 
     struct ScriptInstanceHandle

@@ -67,6 +67,16 @@ namespace won::rendering
         return clear_color;
     }
 
+    void RendererInternal::SetVSync(bool enabled)
+    {
+        vsync_requested = enabled;
+    }
+
+    void RendererInternal::SetShadowResolutionScale(float scale)
+    {
+        shadow_resolution_scale = (std::max)(0.1f, scale);
+    }
+
     bool RendererInternal::GetCurrentBackBufferBinding(RHISubresourceBinding& out_binding) const
     {
         if (!current_window)
@@ -1082,7 +1092,7 @@ namespace won::rendering
                 float3 cascade_center_ls = frustum_light_bound.GetCenter();
                 float3 cascade_extent_ls = frustum_light_bound.GetExtent();
 
-                const uint32 shadow_resolution = (std::max)(1u, light.shadow_map_resolution);
+                const uint32 shadow_resolution = (std::max)(1u, static_cast<uint32>(light.shadow_map_resolution * shadow_resolution_scale));
                 const float cascade_width = (std::max)(cascade_extent_ls.x * 2.0f, 0.001f);
                 const float cascade_height = (std::max)(cascade_extent_ls.y * 2.0f, 0.001f);
                 const float texel_size_x = cascade_width / static_cast<float>(shadow_resolution);
@@ -1743,6 +1753,7 @@ namespace won::rendering
         shader_compiler_options.shader_bin_root_path = desc.shader_bin_root_path;
         clear_color = desc.clear_color;
         vsync_enabled = desc.vsync_enabled;
+        vsync_requested = desc.vsync_enabled;
 
         for (uint32 i = 0; i < max_frames_in_flight; ++i)
         {
@@ -3136,6 +3147,12 @@ namespace won::rendering
 
         const std::shared_ptr<RHIContext> graphics_context = device->GetContext(RHIQueueType::Graphics);
         frame_context.SubmitCommandLists(*graphics_context);
+
+        if (vsync_requested != vsync_enabled)
+        {
+            vsync_enabled = vsync_requested;
+            swapchain->SetVSync(vsync_enabled);
+        }
 
         if (!swapchain->Present())
         {

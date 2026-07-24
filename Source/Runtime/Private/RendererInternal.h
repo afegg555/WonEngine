@@ -22,6 +22,8 @@ namespace won::rendering
         std::shared_ptr<RHIShader> GetShader(resource::ShaderId shader_id) const override;
         void SetClearColor(const RHIClearColor& color) override;
         RHIClearColor GetClearColor() const override;
+        void SetVSync(bool enabled) override;
+        void SetShadowResolutionScale(float scale) override;
         void SetDebugOptions(const RendererDebugOptions& options) override;
         RendererDebugState GetDebugState() const override;
         bool GetCurrentBackBufferBinding(RHISubresourceBinding& out_binding) const override;
@@ -165,6 +167,8 @@ namespace won::rendering
         bool enqueued_work_recorded = false;
         RHIClearColor clear_color = {};
         bool vsync_enabled = true;
+        bool vsync_requested = true;
+        float shadow_resolution_scale = 1.0f;
         RendererDebugOptions debug_options = {};
         RendererDebugState debug_state = {};
 

@@ -155,8 +155,10 @@ namespace won
         {
             renderer_desc.shader_bin_root_path = io::NormalizePath(io::CombinePath(io::GetExecutableDirectory(), "CompiledShaders"));
         }
-        renderer_desc.vsync_enabled = project_settings.vsync_enabled;
+        settings::LoadSettings(settings::GetUserSettingsPath(project_settings.project_name), user_settings);
+		renderer_desc.vsync_enabled = user_settings.vsync.value_or(project_settings.vsync_enabled); // if user setting is not set, use project setting. note user setting is not changed
         renderer = rendering::CreateRenderer(renderer_desc);
+        renderer->SetShadowResolutionScale(user_settings.shadow_resolution_scale.value_or(1.0f));
         log_startup_phase("renderer + shaders");
 
         if (device)
@@ -193,6 +195,10 @@ namespace won
         script_desc.audio_mixer = audio_mixer.get();
         script_desc.scene_manager = scene_manager.get();
         script_desc.content_root = project::GetContentRoot(project_settings);
+        script_desc.user_settings = &user_settings;
+        script_desc.project_settings = &project_settings;
+        script_desc.apply_user_settings = [this]() { ApplyUserSettings(); };
+        script_desc.save_user_settings = [this]() { return SaveUserSettings(); };
         script_runtime = script::CreateScriptRuntime(script_desc);
         if (script_runtime && !script_runtime->Initialize())
         {
@@ -488,10 +494,32 @@ namespace won
     uint32 Application::AddView(const rendering::View& view)
     {
         views.push_back(std::make_unique<rendering::View>(view));
-        // Project settings provide the default render/view options (anti-aliasing, etc.).
-        views.back()->options.aa_mode = project_settings.aa_mode;
+        views.back()->options.aa_mode = user_settings.aa_mode.value_or(project_settings.aa_mode);
         views.back()->options.tonemap_mode = project_settings.tonemap_mode;
         return static_cast<uint32>(views.size() - 1);
+    }
+
+    void Application::ApplyUserSettings()
+    {
+        if (renderer)
+        {
+            renderer->SetVSync(user_settings.vsync.value_or(project_settings.vsync_enabled));
+            renderer->SetShadowResolutionScale(user_settings.shadow_resolution_scale.value_or(1.0f));
+        }
+
+        const rendering::AntiAliasingMode effective_aa = user_settings.aa_mode.value_or(project_settings.aa_mode);
+        for (std::unique_ptr<rendering::View>& view : views)
+        {
+            if (view)
+            {
+                view->options.aa_mode = effective_aa;
+            }
+        }
+    }
+
+    bool Application::SaveUserSettings()
+    {
+        return settings::SaveSettings(settings::GetUserSettingsPath(project_settings.project_name), user_settings);
     }
 
     rendering::View& Application::GetView(uint32 view_index)
