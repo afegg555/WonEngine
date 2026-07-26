@@ -218,9 +218,27 @@ namespace won::rendering
         inline FrameContext& GetFrameContext() { return frame_contexts[current_frame_slot]; };
         inline jobsystem::Context& GetRenderingWorkContext() { return rendering_work_context; };
 
-        virtual bool UpdateDefaultBuffer(FrameContext& frame_context, RHIResource& destination_buffer, const void* source_data, Size data_size, RHIResourceState final_state, Size destination_offset, RHICommandList& command_list) = 0;
+        bool UpdateDefaultBuffer(FrameContext& frame_context, RHIResource& destination_buffer, const void* source_data, Size data_size, RHIResourceState final_state, Size destination_offset, RHICommandList& command_list)
+        {
+            const RHIResourceDesc& destination_desc = destination_buffer.GetDesc();
+            Size upload_alignment = device->GetMinOffsetAlignment(destination_desc.buffer_desc);
+
+            FrameUploadAllocation upload_allocation = {};
+            if (!frame_context.AllocateFrameUpload(*device, data_size, upload_alignment, upload_allocation))
+            {
+                return false;
+            }
+
+            std::memcpy(upload_allocation.mapped_data, source_data, data_size);
+
+            command_list.TransitionResource(destination_buffer, RHIResourceState::CopyDest);
+            command_list.CopyBuffer(destination_buffer, destination_offset, *upload_allocation.buffer, upload_allocation.buffer_offset, data_size);
+            command_list.TransitionResource(destination_buffer, final_state);
+            return true;
+        }
 
     protected:
+        std::shared_ptr<RHIDevice> device;
         std::array<FrameContext, max_frames_in_flight> frame_contexts = {};
         jobsystem::Context rendering_work_context;
 

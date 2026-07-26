@@ -28,7 +28,6 @@ namespace won::rendering
         void SetShadowResolutionScale(float scale) override;
         bool GetCurrentBackBufferBinding(RHISubresourceBinding& out_binding) const override;
         bool GetCurrentDepthBufferBinding(RHISubresourceBinding& out_binding) const override;
-        bool UpdateDefaultBuffer(FrameContext& frame_context, RHIResource& destination_buffer, const void* source_data, Size data_size, RHIResourceState final_state, Size destination_offset, RHICommandList& command_list) override;
     private:
         
         enum DrawSceneFlags : uint32
@@ -62,7 +61,6 @@ namespace won::rendering
         void RenderForwardPath(View& view);
         void UpdateForwardLightList(View& view, RHICommandList& command_list);
 
-        std::shared_ptr<RHIDevice> device;
         resource::ShaderCompilerOptions shader_compiler_options = {};
         resource::ShaderLibrary shader_library;
 
@@ -82,50 +80,23 @@ namespace won::rendering
         RHISubresourceHandle color_buffer_rtv[2] = {};
         RHISubresourceHandle color_buffer_srv[2] = {};
         RHISubresourceHandle color_buffer_uav[2] = {};
-        std::shared_ptr<RHIPipeline> fxaa_pipeline;
-        std::shared_ptr<RHIShader> fxaa_shader;
 
-        std::shared_ptr<RHIPipeline> tonemap_pipeline;
-        std::shared_ptr<RHIShader> tonemap_shader;
-
-        std::shared_ptr<RHIPipeline> luminance_reduce_pipeline;
-        std::shared_ptr<RHIShader> luminance_reduce_shader;
-        std::shared_ptr<RHIPipeline> luminance_resolve_pipeline;
-        std::shared_ptr<RHIShader> luminance_resolve_shader;
         std::shared_ptr<RHIResource> luminance_partial_buffer;
         RHISubresourceHandle luminance_partial_buffer_uav = {};
         RHISubresourceHandle luminance_partial_buffer_srv = {};
         std::shared_ptr<RHIResource> luminance_buffer;
         RHISubresourceHandle luminance_buffer_uav = {};
         std::shared_ptr<RHIResource> luminance_readback_buffer;
-        bool auto_exposure_active = false;
 
-        std::shared_ptr<RHIPipeline> brdf_integration_pipeline;
-        std::shared_ptr<RHIShader> brdf_integration_shader;
         std::shared_ptr<RHIResource> brdf_lut;
         RHISubresourceHandle brdf_lut_srv = {};
         RHISubresourceHandle brdf_lut_uav = {};
 
-        std::shared_ptr<RHIPipeline> light_cull_pipeline;
-        std::shared_ptr<RHIShader> light_cull_shader;
-
-        std::shared_ptr<RHIPipeline> composite_pipeline;
-        std::shared_ptr<RHIShader> composite_shader;
-
 #ifndef WON_SHIPPING
-        std::shared_ptr<RHIPipeline> debug_2d_pipeline;
-        std::shared_ptr<RHIShader> debug_2d_vs;
-        std::shared_ptr<RHIShader> debug_2d_ps;
-
-        std::shared_ptr<RHIPipeline> debug_3d_pipeline;
-        std::shared_ptr<RHIShader> debug_3d_vs;
-        std::shared_ptr<RHIShader> debug_3d_ps;
         std::shared_ptr<RHIResource> debug_3d_buffer;
         RHISubresourceHandle debug_3d_buffer_srv = {};
 #endif
 
-        std::shared_ptr<RHIPipeline> ddgi_probe_update_pipeline;
-        std::shared_ptr<RHIShader> ddgi_probe_update_shader;
         std::shared_ptr<RHICommandAllocator> enqueued_work_command_allocator;
         std::shared_ptr<RHICommandList> enqueued_work_command_list;
         std::shared_ptr<RHIFence> enqueued_work_fence;

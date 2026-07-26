@@ -1345,7 +1345,7 @@ namespace won::rendering
         ddgi.history_valid = false;
     }
 
-    bool GPUScene::UpdateDDGIResources(RHIDevice& device, uint32 frame_slot, bool probe_debug_wanted)
+    bool GPUScene::CreateDDGIResources(RHIDevice& device, uint32 frame_slot, bool probe_debug_wanted)
     {
         if ((shader_ddgi_volume.flags & SHADER_DDGI_FLAG_ACTIVE) == 0)
         {
@@ -1688,6 +1688,6 @@ namespace won::rendering
         UploadBuffer(bvh_node_buffer, retired[frame_slot], shader_bvh_nodes.data(), shader_bvh_nodes.size() * sizeof(ShaderBVHNode), sizeof(ShaderBVHNode), device, command_list, frame_slot);
         UploadBuffer(bvh_instance_buffer, retired[frame_slot], shader_bvh_instances.data(), shader_bvh_instances.size() * sizeof(ShaderBVHInstance), sizeof(ShaderBVHInstance), device, command_list, frame_slot);
 
-        UpdateDDGIResources(device, frame_slot, ddgi_probe_debug_wanted);
+        CreateDDGIResources(device, frame_slot, ddgi_probe_debug_wanted);
     }
 }

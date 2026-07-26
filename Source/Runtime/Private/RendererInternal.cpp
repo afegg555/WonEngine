@@ -111,25 +111,6 @@ namespace won::rendering
         return true;
     }
 
-    bool RendererInternal::UpdateDefaultBuffer(FrameContext& frame_context, RHIResource& destination_buffer, const void* source_data, Size data_size, RHIResourceState final_state, Size destination_offset, RHICommandList& command_list)
-    {
-        const RHIResourceDesc& destination_desc = destination_buffer.GetDesc();
-        Size upload_alignment = device->GetMinOffsetAlignment(destination_desc.buffer_desc);
-
-        FrameUploadAllocation upload_allocation = {};
-        if (!frame_context.AllocateFrameUpload(*device, data_size, upload_alignment, upload_allocation))
-        {
-            return false;
-        }
-
-        std::memcpy(upload_allocation.mapped_data, source_data, data_size);
-
-        command_list.TransitionResource(destination_buffer, RHIResourceState::CopyDest);
-        command_list.CopyBuffer(destination_buffer, destination_offset, *upload_allocation.buffer, upload_allocation.buffer_offset, data_size);
-        command_list.TransitionResource(destination_buffer, final_state);
-        return true;
-    }
-
     bool RendererInternal::CreateRenderTargetResources(FrameContext& frame_context)
     {
         std::shared_ptr<RHISwapchain> swapchain = current_window->GetRHISwapchain();
@@ -389,7 +370,6 @@ namespace won::rendering
                 shader_camera.view_projection = camera_component->view_projection;
                 shader_camera.inv_view_projection = camera_component->inv_view_projection;
 				shader_camera.exposure = camera_component->exposure_multiplier * std::exp2(camera_component->exposure_compensation);
-                auto_exposure_active = camera_component->IsAutoExposure();
             }
         }
 
@@ -1452,13 +1432,13 @@ namespace won::rendering
         }
 
         WaitIdle();
-        shader_library = resource::ShaderLibrary(shader_compiler_options);
+        shader_library = resource::ShaderLibrary(device, shader_compiler_options);
         if (!shader_library.LoadManifest(resource::GetDefaultShaderManifest()))
         {
             return false;
         }
 
-        return shader_library.BuildAllGraphicsPipelines(device, HDR_COLOR_BUFFER_FORMAT, RENDERTARGET_BUFFER_FORMAT, DEPTH_BUFFER_FORMAT, 1u);
+        return shader_library.BuildAllGraphicsPipelines(HDR_COLOR_BUFFER_FORMAT, RENDERTARGET_BUFFER_FORMAT, DEPTH_BUFFER_FORMAT, 1u);
     }
 
     std::shared_ptr<RHIShader> RendererInternal::GetShader(resource::ShaderId shader_id) const
@@ -1537,24 +1517,7 @@ namespace won::rendering
         GPUScene& gpu_scene = view.scene->GetGPUScene();
         const ShaderDDGIVolume& ddgi_volume = gpu_scene.shader_ddgi_volume;
         const ShaderEnvironment& environment_lighting = gpu_scene.shader_environment;
-        std::shared_ptr<RHIShader> current_ddgi_probe_update_shader = shader_library.GetShader(ShaderId::CSDDGIProbeUpdate);
-        if (ddgi_probe_update_shader != current_ddgi_probe_update_shader)
-        {
-            ddgi_probe_update_pipeline = nullptr;
-            ddgi_probe_update_shader = current_ddgi_probe_update_shader;
-        }
-
-        if (!ddgi_probe_update_pipeline && ddgi_probe_update_shader)
-        {
-            RHIComputePipelineDesc ddgi_probe_update_pipeline_desc = {};
-            ddgi_probe_update_pipeline_desc.compute_shader = ddgi_probe_update_shader.get();
-            ddgi_probe_update_pipeline = device->CreateComputePipeline(ddgi_probe_update_pipeline_desc);
-            if (ddgi_probe_update_pipeline)
-            {
-                ddgi_probe_update_pipeline->SetName("DDGI Probe Update Pipeline");
-            }
-        }
-
+        std::shared_ptr<RHIPipeline> ddgi_probe_update_pipeline = shader_library.GetPipeline(ComputePipelineHash(ShaderId::CSDDGIProbeUpdate));
 
         const uint32 probe_update_start = ddgi_volume.total_probe_count > 0 ? gpu_scene.ddgi.probe_update_offset % ddgi_volume.total_probe_count : 0;
         const uint32 probes_per_frame = gpu_scene.ddgi.history_valid ? (std::min)(ddgi_volume.probes_per_frame, ddgi_volume.total_probe_count) : ddgi_volume.total_probe_count;
@@ -1808,35 +1771,17 @@ namespace won::rendering
 
         FrameContext& frame_context = GetFrameContext();
 
+        GraphicsPipelineHash debug_3d_pipeline_hash = {};
+        debug_3d_pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::DebugDraw3DPass);
+        debug_3d_pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::LineList);
+        debug_3d_pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
+        debug_3d_pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
+        debug_3d_pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
+        std::shared_ptr<RHIPipeline> debug_3d_pipeline = shader_library.GetPipeline(debug_3d_pipeline_hash);
         if (!debug_3d_pipeline)
         {
-            std::shared_ptr<RHIShader> vs = shader_library.GetShader(ShaderId::VSDebugDraw3D);
-            std::shared_ptr<RHIShader> ps = shader_library.GetShader(ShaderId::PSDebugDraw3D);
-            if (!vs || !ps)
-            {
-                debugdraw::Clear3D();
-                return;
-            }
-            RHIGraphicsPipelineDesc desc = {};
-            desc.vertex_shader = vs.get();
-            desc.pixel_shader = ps.get();
-            desc.blend.enable = false;
-            desc.depth_stencil.depth_test = true;
-            desc.depth_stencil.depth_write = false;
-            desc.depth_stencil.depth_compare = RHICompareOp::GreaterEqual;
-            desc.raster.cull_mode = RHICullMode::None;
-            desc.topology = RHIPrimitiveTopology::LineList;
-            desc.render_target_formats = { back_buffer_binding.resource->GetDesc().texture_desc.format };
-            desc.depth_stencil_format = DEPTH_BUFFER_FORMAT;
-            debug_3d_pipeline = device->CreateGraphicsPipeline(desc);
-            if (!debug_3d_pipeline)
-            {
-                debugdraw::Clear3D();
-                return;
-            }
-            debug_3d_pipeline->SetName("DebugDraw3D Pipeline");
-            debug_3d_vs = vs;
-            debug_3d_ps = ps;
+            debugdraw::Clear3D();
+            return;
         }
 
         const Size required_buffer_size = line_vertices.size() * sizeof(debugdraw::Item3D);
@@ -1912,34 +1857,17 @@ namespace won::rendering
             return;
         }
 
+        GraphicsPipelineHash debug_2d_pipeline_hash = {};
+        debug_2d_pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::DebugDraw2DPass);
+        debug_2d_pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
+        debug_2d_pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
+        debug_2d_pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
+        debug_2d_pipeline_hash.storage.bits.blend_mode = 1;
+        std::shared_ptr<RHIPipeline> debug_2d_pipeline = shader_library.GetPipeline(debug_2d_pipeline_hash);
         if (!debug_2d_pipeline)
         {
-            std::shared_ptr<RHIShader> vs = shader_library.GetShader(ShaderId::VSDebugDraw2D);
-            std::shared_ptr<RHIShader> ps = shader_library.GetShader(ShaderId::PSDebugDraw2D);
-            if (!vs || !ps)
-            {
-                debugdraw::Clear2D();
-                return;
-            }
-            RHIGraphicsPipelineDesc desc = {};
-            desc.vertex_shader = vs.get();
-            desc.pixel_shader = ps.get();
-            desc.blend.enable = true;
-            desc.blend.mode = RHIBlendMode::Alpha;
-            desc.depth_stencil.depth_test = false;
-            desc.depth_stencil.depth_write = false;
-            desc.raster.cull_mode = RHICullMode::None;
-            desc.topology = RHIPrimitiveTopology::TriangleList;
-            desc.render_target_formats = { back_buffer_binding.resource->GetDesc().texture_desc.format };
-            debug_2d_pipeline = device->CreateGraphicsPipeline(desc);
-            if (!debug_2d_pipeline)
-            {
-                debugdraw::Clear2D();
-                return;
-            }
-            debug_2d_pipeline->SetName("DebugDraw2D Pipeline");
-            debug_2d_vs = vs;
-            debug_2d_ps = ps;
+            debugdraw::Clear2D();
+            return;
         }
 
         const float bb_width = static_cast<float>(back_buffer_binding.resource->GetDesc().texture_desc.width);
@@ -2081,22 +2009,7 @@ namespace won::rendering
         if (!brdf_lut)
         {
             won::utils::Timer brdf_setup_timer;
-            std::shared_ptr<RHIShader> current_brdf_shader = shader_library.GetShader(ShaderId::CSBRDFIntegration);
-            if (brdf_integration_shader != current_brdf_shader)
-            {
-                brdf_integration_pipeline = nullptr;
-                brdf_integration_shader = current_brdf_shader;
-            }
-            if (!brdf_integration_pipeline && brdf_integration_shader)
-            {
-                RHIComputePipelineDesc brdf_pipeline_desc = {};
-                brdf_pipeline_desc.compute_shader = brdf_integration_shader.get();
-                brdf_integration_pipeline = device->CreateComputePipeline(brdf_pipeline_desc);
-                if (brdf_integration_pipeline)
-                {
-                    brdf_integration_pipeline->SetName("BRDF Integration Pipeline");
-                }
-            }
+            std::shared_ptr<RHIPipeline> brdf_integration_pipeline = shader_library.GetPipeline(ComputePipelineHash(ShaderId::CSBRDFIntegration));
 
             RHITextureDesc brdf_lut_desc = {};
             brdf_lut_desc.width = brdf_lut_resolution;
@@ -2487,22 +2400,7 @@ namespace won::rendering
 			// light culling for ForwardPlus
             if (view.render_path_type == RenderPathType::ForwardPlus && view.light_resources.cluster_light_count_buffer && view.light_resources.cluster_light_offset_buffer && view.light_resources.cluster_light_index_buffer)
             {
-                std::shared_ptr<RHIShader> current_light_cull_shader = shader_library.GetShader(ShaderId::CSLightCull);
-                if (light_cull_shader != current_light_cull_shader)
-                {
-                    light_cull_pipeline = nullptr;
-                    light_cull_shader = current_light_cull_shader;
-                }
-                if (!light_cull_pipeline && light_cull_shader)
-                {
-                    RHIComputePipelineDesc light_cull_pipeline_desc = {};
-                    light_cull_pipeline_desc.compute_shader = light_cull_shader.get();
-                    light_cull_pipeline = device->CreateComputePipeline(light_cull_pipeline_desc);
-                    if (light_cull_pipeline)
-                    {
-                        light_cull_pipeline->SetName("Light Cull Pipeline");
-                    }
-                }
+                std::shared_ptr<RHIPipeline> light_cull_pipeline = shader_library.GetPipeline(ComputePipelineHash(ShaderId::CSLightCull));
                 if (light_cull_pipeline)
                 {
                     auto gpu_range = profiler::ScopedRangeGPU("Light Cull", *command_list);
@@ -2587,22 +2485,10 @@ namespace won::rendering
                 const uint32 width = color_desc.width;
                 const uint32 height = color_desc.height;
 
-                std::shared_ptr<RHIShader> current_tonemap_shader = shader_library.GetShader(ShaderId::CSTonemap);
-                if (tonemap_shader != current_tonemap_shader)
-                {
-                    tonemap_pipeline = nullptr;
-                    tonemap_shader = current_tonemap_shader;
-                }
-                if (!tonemap_pipeline && tonemap_shader)
-                {
-                    RHIComputePipelineDesc tonemap_pipeline_desc = {};
-                    tonemap_pipeline_desc.compute_shader = tonemap_shader.get();
-                    tonemap_pipeline = device->CreateComputePipeline(tonemap_pipeline_desc);
-                    if (tonemap_pipeline)
-                    {
-                        tonemap_pipeline->SetName("Tonemap Pipeline");
-                    }
-                }
+                const ecs::CameraComponent* camera_component = view.scene->GetComponent<ecs::CameraComponent>(view.camera_entity);
+                const bool auto_exposure_active = camera_component && camera_component->IsAutoExposure();
+
+                std::shared_ptr<RHIPipeline> tonemap_pipeline = shader_library.GetPipeline(ComputePipelineHash(ShaderId::CSTonemap));
 
                 if (auto_exposure_active && !luminance_partial_buffer)
                 {
@@ -2658,84 +2544,18 @@ namespace won::rendering
                         luminance_readback_buffer->SetName("Auto-Exposure Luminance Readback");
                     }
                 }
-                std::shared_ptr<RHIShader> current_luminance_shader = auto_exposure_active ? shader_library.GetShader(ShaderId::CSLuminanceReduce) : nullptr;
-                if (auto_exposure_active && luminance_reduce_shader != current_luminance_shader)
-                {
-                    luminance_reduce_pipeline = nullptr;
-                    luminance_reduce_shader = current_luminance_shader;
-                }
-                if (auto_exposure_active && !luminance_reduce_pipeline && luminance_reduce_shader)
-                {
-                    RHIComputePipelineDesc luminance_pipeline_desc = {};
-                    luminance_pipeline_desc.compute_shader = luminance_reduce_shader.get();
-                    luminance_reduce_pipeline = device->CreateComputePipeline(luminance_pipeline_desc);
-                    if (luminance_reduce_pipeline)
-                    {
-                        luminance_reduce_pipeline->SetName("Luminance Reduce Pipeline");
-                    }
-                }
-                std::shared_ptr<RHIShader> current_luminance_resolve_shader = auto_exposure_active ? shader_library.GetShader(ShaderId::CSLuminanceResolve) : nullptr;
-                if (auto_exposure_active && luminance_resolve_shader != current_luminance_resolve_shader)
-                {
-                    luminance_resolve_pipeline = nullptr;
-                    luminance_resolve_shader = current_luminance_resolve_shader;
-                }
-                if (auto_exposure_active && !luminance_resolve_pipeline && luminance_resolve_shader)
-                {
-                    RHIComputePipelineDesc luminance_resolve_pipeline_desc = {};
-                    luminance_resolve_pipeline_desc.compute_shader = luminance_resolve_shader.get();
-                    luminance_resolve_pipeline = device->CreateComputePipeline(luminance_resolve_pipeline_desc);
-                    if (luminance_resolve_pipeline)
-                    {
-                        luminance_resolve_pipeline->SetName("Luminance Resolve Pipeline");
-                    }
-                }
+                std::shared_ptr<RHIPipeline> luminance_reduce_pipeline = auto_exposure_active ? shader_library.GetPipeline(ComputePipelineHash(ShaderId::CSLuminanceReduce)) : nullptr;
+                std::shared_ptr<RHIPipeline> luminance_resolve_pipeline = auto_exposure_active ? shader_library.GetPipeline(ComputePipelineHash(ShaderId::CSLuminanceResolve)) : nullptr;
 
                 const bool use_fxaa = view.options.aa_mode == AntiAliasingMode::FXAA;
-                if (use_fxaa)
-                {
-                    std::shared_ptr<RHIShader> current_fxaa_shader = shader_library.GetShader(ShaderId::CSFXAA);
-                    if (fxaa_shader != current_fxaa_shader)
-                    {
-                        fxaa_pipeline = nullptr;
-                        fxaa_shader = current_fxaa_shader;
-                    }
-                    if (!fxaa_pipeline && fxaa_shader)
-                    {
-                        RHIComputePipelineDesc fxaa_pipeline_desc = {};
-                        fxaa_pipeline_desc.compute_shader = fxaa_shader.get();
-                        fxaa_pipeline = device->CreateComputePipeline(fxaa_pipeline_desc);
-                        if (fxaa_pipeline)
-                        {
-                            fxaa_pipeline->SetName("FXAA Pipeline");
-                        }
-                    }
-                }
+                std::shared_ptr<RHIPipeline> fxaa_pipeline = use_fxaa ? shader_library.GetPipeline(ComputePipelineHash(ShaderId::CSFXAA)) : nullptr;
 
-                std::shared_ptr<RHIShader> current_composite_shader = shader_library.GetShader(ShaderId::PSComposite);
-                if (composite_shader != current_composite_shader)
-                {
-                    composite_pipeline = nullptr;
-                    composite_shader = current_composite_shader;
-                }
-                if (!composite_pipeline && composite_shader)
-                {
-                    RHIGraphicsPipelineDesc composite_desc = {};
-                    composite_desc.vertex_shader = shader_library.GetShader(ShaderId::VSFullTriangle).get();
-                    composite_desc.pixel_shader = composite_shader.get();
-                    composite_desc.blend.enable = true;
-                    composite_desc.depth_stencil.depth_test = false;
-                    composite_desc.depth_stencil.depth_write = false;
-                    composite_desc.raster.cull_mode = RHICullMode::None;
-                    composite_desc.topology = RHIPrimitiveTopology::TriangleList;
-                    composite_desc.render_target_formats = { back_buffer_binding.resource->GetDesc().texture_desc.format };
-
-                    composite_pipeline = device->CreateGraphicsPipeline(composite_desc);
-                    if (composite_pipeline)
-                    {
-                        composite_pipeline->SetName("Composite Pipeline");
-                    }
-                }
+                GraphicsPipelineHash composite_pipeline_hash = {};
+                composite_pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::CompositePass);
+                composite_pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
+                composite_pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
+                composite_pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
+                std::shared_ptr<RHIPipeline> composite_pipeline = shader_library.GetPipeline(composite_pipeline_hash);
 
                 // Ping-pong index of the buffer holding the current color (no member mutation).
                 uint32 src = 0;
@@ -3049,19 +2869,7 @@ namespace won::rendering
         luminance_buffer_uav = {};
         luminance_buffer = nullptr;
         luminance_readback_buffer = nullptr;
-        auto_exposure_active = false;
-        ddgi_probe_update_pipeline = nullptr;
-        ddgi_probe_update_shader = nullptr;
-        fxaa_pipeline = nullptr;
-        tonemap_pipeline = nullptr;
-        fxaa_shader = nullptr;
-        tonemap_shader = nullptr;
-        composite_pipeline = nullptr;
-        composite_shader = nullptr;
 #ifndef WON_SHIPPING
-        debug_3d_pipeline = nullptr;
-        debug_3d_vs = nullptr;
-        debug_3d_ps = nullptr;
         debug_3d_buffer = nullptr;
         debug_3d_buffer_srv = {};
 #endif

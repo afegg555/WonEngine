@@ -197,6 +197,6 @@ namespace won::rendering
     private:
         void RetireResource(std::shared_ptr<RHIResource>& resource, uint32 frame_slot);
         void ReleaseDDGIResources(uint32 frame_slot);
-        bool UpdateDDGIResources(RHIDevice& device, uint32 frame_slot, bool probe_debug_wanted);
+        bool CreateDDGIResources(RHIDevice& device, uint32 frame_slot, bool probe_debug_wanted);
     };
 }
