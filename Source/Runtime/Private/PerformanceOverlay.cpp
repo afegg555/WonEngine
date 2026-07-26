@@ -2,7 +2,7 @@
 
 #include "BuiltinFont.h"
 #include "Console.h"
-#include "DebugText.h"
+#include "DebugDraw.h"
 #include "Platform.h"
 #include "Profiler.h"
 #include "RHIDevice.h"
@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cstdio>
 
+#ifndef WON_SHIPPING
 namespace won::stats
 {
     namespace
@@ -17,8 +18,8 @@ namespace won::stats
         console::ConsoleVariable stat_overlay("stat.overlay", 0, "performance overlay: 0=off, 1=fps/memory, 2=full profiler", console::ConsoleVariableFlagNone);
 
         constexpr float perf_text_scale = 1.0f;
-        constexpr uint32 perf_background_color = debugtext::PackRGBA8(0, 0, 0, 180);
-        constexpr uint32 perf_text_color = debugtext::PackRGBA8(120, 255, 120);
+        constexpr uint32 perf_background_color = debugdraw::PackRGBA8(0, 0, 0, 180);
+        constexpr uint32 perf_text_color = debugdraw::PackRGBA8(120, 255, 120);
 
         String FormatGigabytes(uint64 bytes)
         {
@@ -134,12 +135,13 @@ namespace won::stats
         const float panel_x = anchor_right ? (viewport_width - panel_width - margin) : margin;
         const float panel_y = anchor_bottom ? (viewport_height - panel_height - margin) : margin;
 
-        debugtext::DrawScreenRect(panel_x, panel_y, panel_width, panel_height, perf_background_color);
+        debugdraw::Rect2D({ panel_x, panel_y }, { panel_width, panel_height }, perf_background_color);
         float y = panel_y + padding;
         for (const String& line : lines)
         {
-            debugtext::DrawScreenText(panel_x + padding, y, line.c_str(), perf_text_color, perf_text_scale);
+            debugdraw::Text2D({ panel_x + padding, y }, line.c_str(), perf_text_color, perf_text_scale);
             y += line_height;
         }
     }
 }
+#endif

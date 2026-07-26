@@ -17,83 +17,10 @@ namespace won::rendering
 {
     struct RendererDesc
     {
-        std::shared_ptr<RHIDevice> device;
+        RHIDevice* device = nullptr;
         String shader_bin_root_path;
         RHIClearColor clear_color = { 0.0f, 0.3f, 0.3f, 1.0f };
         bool vsync_enabled = true;
-    };
-
-    struct RendererDebugOptions
-    {
-        bool ddgi_debug_enable = false;
-        bool bvh_debug_enable = false;
-    };
-
-    struct RendererDebugDDGIState
-    {
-        struct DDGIProbe
-        {
-            float3 position = { 0.0f, 0.0f, 0.0f };
-            float relocation = 0.0f;
-            float validity = 1.0f;
-        };
-
-        bool gi_mode_ddgi = false;
-        bool volume_active = false;
-        bool irradiance_texture_allocated = false;
-        bool irradiance_srv_valid = false;
-        bool irradiance_uav_valid = false;
-        bool visibility_texture_allocated = false;
-        bool visibility_srv_valid = false;
-        bool visibility_uav_valid = false;
-        bool probe_data_buffer_allocated = false;
-        bool probe_data_srv_valid = false;
-        bool probe_data_uav_valid = false;
-        bool history_valid = false;
-        bool probe_update_pipeline_ready = false;
-        bool probe_update_dispatched = false;
-
-        ecs::Entity volume_entity = ecs::INVALID_ENTITY;
-        uint3 probe_counts = { 0, 0, 0 };
-        float3 volume_min = { 0.0f, 0.0f, 0.0f };
-        float3 volume_max = { 0.0f, 0.0f, 0.0f };
-        float3 probe_spacing = { 0.0f, 0.0f, 0.0f };
-        uint32 total_probe_count = 0;
-        uint3 dispatch_groups = { 0, 0, 0 };
-
-        int irradiance_texture_srv = -1;
-        int irradiance_texture_uav = -1;
-        int visibility_texture_srv = -1;
-        int visibility_texture_uav = -1;
-        int probe_data_buffer_srv = -1;
-        int probe_data_buffer_uav = -1;
-
-        Vector<DDGIProbe> probes;
-    };
-
-    struct RendererDebugBVHState
-    {
-        struct BVHNode
-        {
-            float3 bounds_min = { 0.0f, 0.0f, 0.0f };
-            float3 bounds_max = { 0.0f, 0.0f, 0.0f };
-            bool is_leaf = false;
-        };
-
-        bool cpu_bvh_available = false;
-        bool gpu_bvh_available = false;
-        Vector<BVHNode> cpu_nodes;
-        Vector<BVHNode> gpu_nodes;
-    };
-
-    struct RendererDebugState
-    {
-        RendererDebugDDGIState ddgi = {};
-        RendererDebugBVHState bvh = {};
-
-        uint32 draw_call_count = 0;
-        uint32 total_renderable_count = 0;         // total before frustum culling
-        uint32 visible_renderable_count = 0; // after frustum culling
     };
 
     constexpr RHIFormat HDR_COLOR_BUFFER_FORMAT = RHIFormat::R16G16B16A16Float;
@@ -109,28 +36,30 @@ namespace won::rendering
         virtual void BeginFrame(platform::Window& window) = 0;
         virtual void OnResize(platform::Window& window, uint32 width, uint32 height) = 0;
         virtual void Render(View& view) = 0;
-        virtual void RenderDebugText() = 0;
+#ifndef WON_SHIPPING
+        virtual void RenderDebug2D() = 0;
+#endif
         virtual void EndFrame() = 0;
         virtual void WaitIdle() = 0;
         virtual void Shutdown() = 0;
         virtual bool ReloadShaders() = 0;
-        virtual std::shared_ptr<RHIShader> GetShader(resource::ShaderId shader_id) const = 0;
+        virtual RHIShader* GetShader(resource::ShaderId shader_id) const = 0;
         virtual void SetClearColor(const RHIClearColor& color) = 0;
         virtual RHIClearColor GetClearColor() const = 0;
-        virtual void SetDebugOptions(const RendererDebugOptions& options) = 0;
-        virtual RendererDebugState GetDebugState() const = 0;
+        virtual void SetVSync(bool enabled) = 0;
+        virtual void SetShadowResolutionScale(float scale) = 0;
         virtual bool GetCurrentBackBufferBinding(RHISubresourceBinding& out_binding) const = 0;
         virtual bool GetCurrentDepthBufferBinding(RHISubresourceBinding& out_binding) const = 0;
 
         struct FrameCommandList
         {
-            std::shared_ptr<RHICommandAllocator> command_allocator;
-            std::shared_ptr<RHICommandList> command_list;
+            std::unique_ptr<RHICommandAllocator> command_allocator;
+            std::unique_ptr<RHICommandList> command_list;
         };
 
         struct FrameUploadAllocation
         {
-            std::shared_ptr<RHIResource> buffer;
+            RHIResource* buffer = nullptr;
             void* mapped_data = nullptr;
             Size buffer_offset = 0;
         };
@@ -259,17 +188,16 @@ namespace won::rendering
 
                 void* mapped_data = frame_upload_buffer->GetMappedData();
 
-                out_allocation.buffer = frame_upload_buffer;
+                out_allocation.buffer = frame_upload_buffer.get();
                 out_allocation.mapped_data = static_cast<uint8*>(mapped_data) + aligned_offset;
                 out_allocation.buffer_offset = aligned_offset;
                 return true;
             }
 
-            void RemoveResourceDeferred(std::shared_ptr<RHIResource>& resource)
+            void RemoveResourceDeferred(std::unique_ptr<RHIResource>& resource)
             {
                 std::scoped_lock lock(deferred_res_removal_mutex);
-                deferred_res_removal.push_back(resource);
-                resource = nullptr;
+                deferred_res_removal.push_back(std::move(resource));
             }
 
             Vector<FrameCommandList> command_lists[static_cast<Size>(RHIQueueType::Count)];
@@ -277,21 +205,39 @@ namespace won::rendering
             std::mutex command_lists_mutex;
             std::mutex frame_upload_mutex;
             std::mutex deferred_res_removal_mutex;
-            std::shared_ptr<RHIFence> fence;
-            std::shared_ptr<RHIResource> shader_instance_sort_upload_buffer;
-            std::shared_ptr<RHIResource> frame_upload_buffer;
+            std::unique_ptr<RHIFence> fence;
+            std::unique_ptr<RHIResource> shader_instance_sort_upload_buffer;
+            std::unique_ptr<RHIResource> frame_upload_buffer;
             Size frame_upload_offset = 0;
             uint64 fence_value = 0;
 
-            std::vector<std::shared_ptr<RHIResource>> deferred_res_removal;
+            std::vector<std::unique_ptr<RHIResource>> deferred_res_removal;
         };
 
         inline FrameContext& GetFrameContext() { return frame_contexts[current_frame_slot]; };
         inline jobsystem::Context& GetRenderingWorkContext() { return rendering_work_context; };
 
-        virtual bool UpdateDefaultBuffer(FrameContext& frame_context, RHIResource& destination_buffer, const void* source_data, Size data_size, RHIResourceState final_state, Size destination_offset, RHICommandList& command_list) = 0;
+        bool UpdateDefaultBuffer(FrameContext& frame_context, RHIResource& destination_buffer, const void* source_data, Size data_size, RHIResourceState final_state, Size destination_offset, RHICommandList& command_list)
+        {
+            const RHIResourceDesc& destination_desc = destination_buffer.GetDesc();
+            Size upload_alignment = device->GetMinOffsetAlignment(destination_desc.buffer_desc);
+
+            FrameUploadAllocation upload_allocation = {};
+            if (!frame_context.AllocateFrameUpload(*device, data_size, upload_alignment, upload_allocation))
+            {
+                return false;
+            }
+
+            std::memcpy(upload_allocation.mapped_data, source_data, data_size);
+
+            command_list.TransitionResource(destination_buffer, RHIResourceState::CopyDest);
+            command_list.CopyBuffer(destination_buffer, destination_offset, *upload_allocation.buffer, upload_allocation.buffer_offset, data_size);
+            command_list.TransitionResource(destination_buffer, final_state);
+            return true;
+        }
 
     protected:
+        RHIDevice* device = nullptr;
         std::array<FrameContext, max_frames_in_flight> frame_contexts = {};
         jobsystem::Context rendering_work_context;
 
@@ -299,5 +245,5 @@ namespace won::rendering
         uint64 frame_count = 0;
     };
 
-    WONENGINE_API std::shared_ptr<Renderer> CreateRenderer(const RendererDesc& desc);
+    WONENGINE_API std::unique_ptr<Renderer> CreateRenderer(const RendererDesc& desc);
 }

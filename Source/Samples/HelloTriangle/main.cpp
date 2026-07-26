@@ -91,7 +91,7 @@ int main()
         game_view.viewport.height = app_desc.project_settings.window_height;
         game_view.scissor.width = app_desc.project_settings.window_width;
         game_view.scissor.height = app_desc.project_settings.window_height;
-        app.AddView(game_view);
+        app.AddView(std::move(game_view));
 
         while (app.IsRunning())
         {

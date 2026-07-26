@@ -21,9 +21,9 @@ namespace won::rendering
 
     struct GPUBuffer
     {
-        std::shared_ptr<RHIResource> buffer;
+        std::unique_ptr<RHIResource> buffer;
         RHISubresourceHandle srv = {};
-        std::array<std::shared_ptr<RHIResource>, max_frames_in_flight> staging = {};
+        std::array<std::unique_ptr<RHIResource>, max_frames_in_flight> staging = {};
     };
 
     struct Renderable
@@ -37,7 +37,7 @@ namespace won::rendering
         };
 
         ObjectPushConstants push_constants;
-        std::shared_ptr<RHIResource> index_buffer;
+        RHIResource* index_buffer = nullptr;
         float3 world_position = {};
         math::AABB aabb = {};
         uint32 index_offset = 0;
@@ -77,7 +77,7 @@ namespace won::rendering
         // For particles: bindless descriptor of the per-frame float4 buffer holding
         // interleaved [position, color] pairs, indexed by instance_index.
         uint32 resource_index = 0;
-        std::shared_ptr<resource::Font> font;
+        resource::Font* font = nullptr;
 
         bool IsText()        const { return (flags & Text) != 0; }
         bool IsBillboard()   const { return (flags & Billboard) != 0; }
@@ -104,7 +104,7 @@ namespace won::rendering
         uint32 layer_mask = 0xFFFFFFFF;
         float  match = 0.5f;
         uint32 flags = None;
-        std::shared_ptr<resource::Font> font;
+        resource::Font* font = nullptr;
 
         bool IsText() const { return (flags & Text) != 0; }
     };
@@ -144,10 +144,42 @@ namespace won::rendering
         Vector<ShaderDecal> shader_decals;
         GPUBuffer decal_buffer;
 
+        struct DDGIResources
+        {
+            std::unique_ptr<RHIResource> irradiance_texture;
+            RHISubresourceHandle irradiance_texture_srv = {};
+            RHISubresourceHandle irradiance_texture_uav = {};
+            std::unique_ptr<RHIResource> irradiance_history_texture;
+            RHISubresourceHandle irradiance_history_texture_srv = {};
+
+            std::unique_ptr<RHIResource> visibility_texture;
+            RHISubresourceHandle visibility_texture_srv = {};
+            RHISubresourceHandle visibility_texture_uav = {};
+            std::unique_ptr<RHIResource> visibility_history_texture;
+            RHISubresourceHandle visibility_history_texture_srv = {};
+
+            std::unique_ptr<RHIResource> probe_data_buffer;
+            RHISubresourceHandle probe_data_buffer_srv = {};
+            RHISubresourceHandle probe_data_buffer_uav = {};
+            std::unique_ptr<RHIResource> probe_data_history_buffer;
+            RHISubresourceHandle probe_data_history_buffer_srv = {};
+
+            std::unique_ptr<RHIResource> probe_data_readback_buffer;
+            bool probe_data_readback_valid = false;
+
+            uint3 probe_counts = { 0, 0, 0 };
+            float3 probe_spacing = { 0.0f, 0.0f, 0.0f };
+            float3 volume_min = { 0.0f, 0.0f, 0.0f };
+            float max_distance = 0.0f;
+            uint32 probe_update_offset = 0;
+            bool history_valid = false;
+        };
+
         ShaderEnvironment shader_environment;
         ShaderDDGIVolume shader_ddgi_volume;
         ShaderReflectionProbe shader_reflection_probe;
         ecs::Entity ddgi_volume_entity = ecs::INVALID_ENTITY;
+        DDGIResources ddgi = {};
 
         math::AABB shadow_caster_world_bound;
 
@@ -156,10 +188,15 @@ namespace won::rendering
         Vector<ShaderBVHInstance> shader_bvh_instances;
         GPUBuffer bvh_instance_buffer;
 
-        std::array<Vector<std::shared_ptr<RHIResource>>, max_frames_in_flight> retired = {};
+        std::array<Vector<std::unique_ptr<RHIResource>>, max_frames_in_flight> retired = {};
 
         uint64 synced_index = ~0ull;
 
-        void Update(const ecs::Scene& scene, RHIDevice& device, RHICommandList& command_list, uint32 frame_slot);
+        void Update(const ecs::Scene& scene, RHIDevice& device, RHICommandList& command_list, uint32 frame_slot, bool ddgi_probe_debug_wanted);
+
+    private:
+        void RetireResource(std::unique_ptr<RHIResource>& resource, uint32 frame_slot);
+        void ReleaseDDGIResources(uint32 frame_slot);
+        bool CreateDDGIResources(RHIDevice& device, uint32 frame_slot, bool probe_debug_wanted);
     };
 }

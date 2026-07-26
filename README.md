@@ -13,13 +13,13 @@ WonEngine is a work-in-progress C++ rendering engine for experimenting with mode
 <table>
   <tr>
     <td width="50%"><img src="Docs/showcase_image1.webp" width="100%" alt="WonEngine Editor"><br><sub><b>Editor</b> — dockable panels, inspector, and DDGI debug overlay in Sponza</sub></td>
+    <td width="50%"><img src="Docs/ibl_capture.webp" width="100%" alt="Environment IBL"><br><sub><b>Environment IBL</b> — metallic × roughness matrix lit by a cubemap sky</sub></td>
+  </tr>
+  <tr>
     <td width="50%"><video src="https://github.com/user-attachments/assets/204d38e9-62ba-43cb-8d11-6752cc7273bd" width="100%" controls muted>
       Your browser does not support the video tag —
       <a href="https://github.com/user-attachments/assets/204d38e9-62ba-43cb-8d11-6752cc7273bd">watch the showcase clip</a>.
     </video><br><sub><b>Playable sample v0.1.0</b> — third-person physics character in Sponza</sub></td>
-  </tr>
-  <tr>
-    <td width="50%"><img src="Docs/ibl_capture.webp" width="100%" alt="Environment IBL"><br><sub><b>Environment IBL</b> — metallic × roughness matrix lit by a cubemap sky</sub></td>
     <td width="50%"><video src="https://github.com/user-attachments/assets/2e950cca-4a0c-42ec-ad62-f8321a048352" width="100%" controls muted>
       Your browser does not support the video tag —
       <a href="https://github.com/user-attachments/assets/2e950cca-4a0c-42ec-ad62-f8321a048352">watch the clip</a>.
@@ -52,25 +52,31 @@ WonEngine is currently developed and tested on Windows.
 Build the editor from the WonEngine directory by running the provided batch file:
 
 ```bat
-Build_Windows.bat Editor
+Build_Win64.bat Editor
 ```
 
-The script configures CMake and writes build output to `Binary/Windows`. Release is used by default. For a Debug build:
+The script configures CMake and writes build output to `Binary/Win64/<Config>`. Release is used by default. For a Debug build:
 
 ```bat
-Build_Windows.bat Editor Debug
+Build_Win64.bat Editor Debug
+```
+
+`Shipping` is the third configuration. It uses the same code generation as Release, and additionally strips debug rendering and developer overlays (debug draw, debug view modes, `r.debug` cvars, the in-game console, and the stat overlay):
+
+```bat
+Build_Win64.bat Player Shipping
 ```
 
 To build every target:
 
 ```bat
-Build_Windows.bat
+Build_Win64.bat
 ```
 
 To run the editor:
 
 ```text
-Binary\Windows\Editor.exe
+Binary\Win64\Release\Editor.exe
 ```
 
 ### Other Platforms
@@ -101,5 +107,6 @@ Source/
 
 Contents/         Editor and runtime assets
 Projects/         Project files
-Binary/           Build output
+Binary/           Build output, per platform and configuration
+Packages/         Packaged builds, per project, platform and configuration
 ```

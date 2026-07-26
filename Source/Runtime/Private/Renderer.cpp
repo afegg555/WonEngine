@@ -3,9 +3,9 @@
 
 namespace won::rendering
 {
-    std::shared_ptr<Renderer> CreateRenderer(const RendererDesc& desc)
+    std::unique_ptr<Renderer> CreateRenderer(const RendererDesc& desc)
     {
-        std::shared_ptr<Renderer> renderer = std::make_shared<RendererInternal>();
+        std::unique_ptr<Renderer> renderer = std::make_unique<RendererInternal>();
         renderer->Initialize(desc);
         return renderer;
     }

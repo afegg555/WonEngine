@@ -46,7 +46,7 @@ int main(int argc, char** argv)
         compiler_options.shader_source_root_path = String(src_path);
     }
 
-    std::shared_ptr<resource::ShaderCompiler> shader_compiler = resource::CreateShaderCompiler(compiler_options);
+    std::unique_ptr<resource::ShaderCompiler> shader_compiler = resource::CreateShaderCompiler(compiler_options);
     if (!shader_compiler)
     {
         jobsystem::ShutDown();

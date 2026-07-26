@@ -388,20 +388,27 @@ During editor development, shaders can be reloaded through `won::rendering::Relo
 
 Use `won::backlog::Post()` for engine/editor log messages. Use `won::profiler::ScopedRangeCPU` around meaningful CPU work that should appear in profiling output. Use `won::utils::Timer` for local timing when profiling integration is unnecessary.
 
-Avoid depending on private renderer internals for debug views. Prefer public debug state exposed by `Renderer::SetDebugOptions()` and `Renderer::GetDebugState()`.
 
 ## Build Artifacts
 
 Runtime binaries and executables are generated into:
 
 ```text
-Binary/
+Binary/<Platform>/<Config>/
 ```
+
+`<Platform>` is `Win64`, `Mac` or `Linux`. `<Config>` is `Debug`, `Release` or `Shipping`.
 
 Compiled shader binaries are generated into:
 
 ```text
-CompiledShaders/
+Binary/<Platform>/<Config>/CompiledShaders/
+```
+
+Packaged builds are generated into:
+
+```text
+Packages/<Project>/<Platform>/<Config>/
 ```
 
 Runtime and editor assets are located in:

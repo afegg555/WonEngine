@@ -8,6 +8,7 @@ namespace won::rendering
     class RHIDevice;
 }
 
+#ifndef WON_SHIPPING
 namespace won::stats
 {
     class WONENGINE_API PerformanceOverlay
@@ -29,3 +30,4 @@ namespace won::stats
         bool overlay_enabled_profiler = false;
     };
 }
+#endif

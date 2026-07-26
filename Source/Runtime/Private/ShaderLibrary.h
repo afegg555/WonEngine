@@ -18,6 +18,9 @@ namespace won::resource
         Sprite2DPass,
         Sprite3DPass,
         DecalPass,
+        CompositePass,
+        DebugDraw2DPass,
+        DebugDraw3DPass,
         Count
     };
 
@@ -95,6 +98,11 @@ namespace won::resource
 
         ComputePipelineHash() = default;
 
+        explicit ComputePipelineHash(ShaderId compute_shader)
+        {
+            storage.bits.compute_shader = static_cast<uint64>(compute_shader);
+        }
+
         bool IsValid() const
         {
             return storage.value != 0;
@@ -113,22 +121,23 @@ namespace won::resource
     class ShaderLibrary
     {
     public:
-        explicit ShaderLibrary(const ShaderCompilerOptions& options = {});
+        explicit ShaderLibrary(rendering::RHIDevice* device = nullptr, const ShaderCompilerOptions& options = {});
         bool LoadManifest(const ShaderManifest& manifest);
-        bool BuildAllGraphicsPipelines(const std::shared_ptr<rendering::RHIDevice>& device, rendering::RHIFormat hdr_rtv_format, rendering::RHIFormat ldr_rtv_format, rendering::RHIFormat dsv_format, uint32 sample_count);
+        bool BuildAllGraphicsPipelines(rendering::RHIFormat hdr_rtv_format, rendering::RHIFormat ldr_rtv_format, rendering::RHIFormat dsv_format, uint32 sample_count);
         void SetShader(ShaderId shader_id, const std::shared_ptr<rendering::RHIShader>& shader);
-        
-        std::shared_ptr<rendering::RHIShader> GetShader(ShaderId shader_id) const;
-        std::shared_ptr<rendering::RHIPipeline> GetPipeline(GraphicsPipelineHash pipeline_hash) const;
-        std::shared_ptr<rendering::RHIPipeline> GetPipeline(ComputePipelineHash pipeline_hash) const;
+
+        rendering::RHIShader* GetShader(ShaderId shader_id) const;
+        rendering::RHIPipeline* GetPipeline(GraphicsPipelineHash pipeline_hash) const;
+        rendering::RHIPipeline* GetPipeline(ComputePipelineHash pipeline_hash);
         void ClearPipelines();
         void ClearShaders();
         void ClearAll();
         Size GetShaderCount() const;
 
     private:
+        rendering::RHIDevice* device = nullptr;
         ShaderCompilerOptions compiler_options = {};
-        std::shared_ptr<ShaderCompiler> shader_compiler = {};
+        std::unique_ptr<ShaderCompiler> shader_compiler = {};
         std::array<std::shared_ptr<rendering::RHIShader>, static_cast<Size>(ShaderId::Count)> shaders;
         UnorderedMap<uint64, std::shared_ptr<rendering::RHIPipeline>> graphics_pipeline_cache;
         UnorderedMap<uint64, std::shared_ptr<rendering::RHIPipeline>> compute_pipeline_cache;

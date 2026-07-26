@@ -5,7 +5,7 @@
 
 namespace won::resource
 {
-    std::shared_ptr<ShaderCompiler> CreateShaderCompiler(const ShaderCompilerOptions& options)
+    std::unique_ptr<ShaderCompiler> CreateShaderCompiler(const ShaderCompilerOptions& options)
     {
         ShaderCompilerOptions resolved_options = options;
         if (resolved_options.shader_source_root_path.empty())
@@ -37,7 +37,7 @@ namespace won::resource
         switch (resolved_options.backend)
         {
         case ShaderCompilerBackend::DXC:
-            return std::make_shared<DXCShaderCompiler>(resolved_options);
+            return std::make_unique<DXCShaderCompiler>(resolved_options);
         default:
             backlog::Post("Unsupported shader compiler backend", backlog::LogLevel::Error);
             return nullptr;

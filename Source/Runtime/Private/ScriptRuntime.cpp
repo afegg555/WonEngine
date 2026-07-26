@@ -5,12 +5,12 @@
 
 namespace won::script
 {
-    std::shared_ptr<ScriptRuntime> CreateScriptRuntime(const ScriptRuntimeDesc& desc)
+    std::unique_ptr<ScriptRuntime> CreateScriptRuntime(const ScriptRuntimeDesc& desc)
     {
         switch (desc.backend)
         {
         case ScriptBackend::Lua:
-            return std::make_shared<LuaScriptRuntime>(desc);
+            return std::make_unique<LuaScriptRuntime>(desc);
         default:
             return nullptr;
         }

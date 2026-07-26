@@ -25,6 +25,14 @@
 
 namespace won
 {
+#ifndef WON_SHIPPING
+    static console::ConsoleVariable r_debug_viewmode("r.debug.viewmode", 0, "exclusive debug view mode: 0=Lit 1=Unlit 2=BaseColor 3=WorldNormal 4=Roughness 5=Metallic 6=LightComplexity 7=ShadowCascades 8=Wireframe 9=Overdraw", console::ConsoleVariableFlagNone);
+    static console::ConsoleVariable r_debug_show_bvh("r.debug.show.bvh", false, "overlay scene BVH bounds", console::ConsoleVariableFlagNone);
+    static console::ConsoleVariable r_debug_show_ddgi("r.debug.show.ddgi", false, "overlay DDGI volume and probes", console::ConsoleVariableFlagNone);
+    static console::ConsoleVariable r_debug_show_colliders("r.debug.show.colliders", false, "overlay physics collider bounds", console::ConsoleVariableFlagNone);
+    static console::ConsoleVariable r_debug_freeze_culling("r.debug.freeze_culling", false, "freeze the culling frustum at its current state", console::ConsoleVariableFlagNone);
+#endif
+
 	// currently uses a hash of the schema filename to derive the save file name... maybe changed ??
     static String DeriveGameDataSaveFile(const String& schema_path)
     {
@@ -135,8 +143,6 @@ namespace won
         }
         log_startup_phase("window");
 
-        developer_console_enabled = project_settings.developer_console_enabled;
-
         rendering::RHIDeviceDesc device_desc;
         device_desc.backend = project_settings.backend_type;
         device_desc.preference = desc.device_preference;
@@ -146,7 +152,7 @@ namespace won
         log_startup_phase("rhi device");
 
         rendering::RendererDesc renderer_desc;
-        renderer_desc.device = device;
+        renderer_desc.device = device.get();
         if (!project_settings.project_root.empty())
         {
             renderer_desc.shader_bin_root_path = io::NormalizePath(io::CombinePath(project_settings.project_root, "CompiledShaders"));
@@ -155,8 +161,10 @@ namespace won
         {
             renderer_desc.shader_bin_root_path = io::NormalizePath(io::CombinePath(io::GetExecutableDirectory(), "CompiledShaders"));
         }
-        renderer_desc.vsync_enabled = project_settings.vsync_enabled;
+        settings::LoadSettings(settings::GetUserSettingsPath(project_settings.project_name), user_settings);
+		renderer_desc.vsync_enabled = user_settings.vsync.value_or(project_settings.vsync_enabled); // if user setting is not set, use project setting. note user setting is not changed
         renderer = rendering::CreateRenderer(renderer_desc);
+        renderer->SetShadowResolutionScale(user_settings.shadow_resolution_scale.value_or(1.0f));
         log_startup_phase("renderer + shaders");
 
         if (device)
@@ -193,6 +201,10 @@ namespace won
         script_desc.audio_mixer = audio_mixer.get();
         script_desc.scene_manager = scene_manager.get();
         script_desc.content_root = project::GetContentRoot(project_settings);
+        script_desc.user_settings = &user_settings;
+        script_desc.project_settings = &project_settings;
+        script_desc.apply_user_settings = [this]() { ApplyUserSettings(); };
+        script_desc.save_user_settings = [this]() { return SaveUserSettings(); };
         script_runtime = script::CreateScriptRuntime(script_desc);
         if (script_runtime && !script_runtime->Initialize())
         {
@@ -381,11 +393,10 @@ namespace won
             io::Reset();
         }
 
-        if (developer_console_enabled)
-        {
-            console_overlay.Update();
-        }
+#ifndef WON_SHIPPING
+        console_overlay.Update();
         performance_overlay.Update(dt, device.get());
+#endif
         ++update_index;
 
         for (const std::unique_ptr<rendering::View>& view_ptr : views)
@@ -407,8 +418,8 @@ namespace won
             if (!simulation_paused && scene->GetUpdateIndex() != update_index)
             {
                 scene->Update(dt);
-                scene->SetUpdateIndex(update_index);
             }
+            scene->SetUpdateIndex(update_index);
         }
         profiler::EndRange(range);
     }
@@ -479,19 +490,74 @@ namespace won
             {
                 if (view_ptr && view_ptr->scene)
                 {
+#ifndef WON_SHIPPING
+                    const int view_mode = r_debug_viewmode.GetInt();
+                    if (view_mode >= 0 && view_mode < static_cast<int>(rendering::ViewMode::VIEWMODE_COUNT))
+                    {
+                        view_ptr->view_mode = static_cast<rendering::ViewMode>(view_mode);
+                    }
+                    if (r_debug_show_bvh.GetBool())
+                    {
+                        view_ptr->show_flags |= rendering::Show_BVH;
+                    }
+                    else
+                    {
+                        view_ptr->show_flags &= ~rendering::Show_BVH;
+                    }
+                    if (r_debug_show_ddgi.GetBool())
+                    {
+                        view_ptr->show_flags |= rendering::Show_DDGI;
+                    }
+                    else
+                    {
+                        view_ptr->show_flags &= ~rendering::Show_DDGI;
+                    }
+                    if (r_debug_show_colliders.GetBool())
+                    {
+                        view_ptr->show_flags |= rendering::Show_Colliders;
+                    }
+                    else
+                    {
+                        view_ptr->show_flags &= ~rendering::Show_Colliders;
+                    }
+                    view_ptr->freeze_culling = r_debug_freeze_culling.GetBool();
+#endif
+
                     renderer->Render(*view_ptr);
                 }
             }
         }
     }
 
-    uint32 Application::AddView(const rendering::View& view)
+    uint32 Application::AddView(rendering::View&& view)
     {
-        views.push_back(std::make_unique<rendering::View>(view));
-        // Project settings provide the default render/view options (anti-aliasing, etc.).
-        views.back()->options.aa_mode = project_settings.aa_mode;
+        views.push_back(std::make_unique<rendering::View>(std::move(view)));
+        views.back()->options.aa_mode = user_settings.aa_mode.value_or(project_settings.aa_mode);
         views.back()->options.tonemap_mode = project_settings.tonemap_mode;
         return static_cast<uint32>(views.size() - 1);
+    }
+
+    void Application::ApplyUserSettings()
+    {
+        if (renderer)
+        {
+            renderer->SetVSync(user_settings.vsync.value_or(project_settings.vsync_enabled));
+            renderer->SetShadowResolutionScale(user_settings.shadow_resolution_scale.value_or(1.0f));
+        }
+
+        const rendering::AntiAliasingMode effective_aa = user_settings.aa_mode.value_or(project_settings.aa_mode);
+        for (std::unique_ptr<rendering::View>& view : views)
+        {
+            if (view)
+            {
+                view->options.aa_mode = effective_aa;
+            }
+        }
+    }
+
+    bool Application::SaveUserSettings()
+    {
+        return settings::SaveSettings(settings::GetUserSettingsPath(project_settings.project_name), user_settings);
     }
 
     rendering::View& Application::GetView(uint32 view_index)
@@ -506,6 +572,7 @@ namespace won
 
     void Application::RenderUI()
     {
+#ifndef WON_SHIPPING
         if (renderer)
         {
             rendering::RHISubresourceBinding back_buffer_binding = {};
@@ -514,14 +581,12 @@ namespace won
                 const rendering::RHITextureDesc& desc = back_buffer_binding.resource->GetDesc().texture_desc;
                 const float viewport_width = static_cast<float>(desc.width);
                 const float viewport_height = static_cast<float>(desc.height);
-                if (developer_console_enabled)
-                {
-                    console_overlay.Draw(viewport_width, viewport_height);
-                }
+                console_overlay.Draw(viewport_width, viewport_height);
                 performance_overlay.Draw(viewport_width, viewport_height);
             }
-            renderer->RenderDebugText();
+            renderer->RenderDebug2D();
         }
+#endif
     }
 
     void Application::OnWindowResized(int width, int height)

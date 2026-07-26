@@ -131,14 +131,7 @@ namespace won::editor
 			constexpr const char* editor_grid = "Editor Grid";
 			constexpr const char* collider_3d = "Collider3D";
 			constexpr const char* bvh_debug = "BVH Debug";
-			constexpr const char* cpu_bvh_nodes = "CPU BVH Nodes";
-			constexpr const char* gpu_bvh_nodes = "GPU BVH Nodes";
-			constexpr const char* renderer_stats = "Renderer Stats";
 			constexpr const char* ddgi_debug_overlay = "DDGI Debug Overlay";
-			constexpr const char* ddgi_volume = "DDGI Volume";
-			constexpr const char* ddgi_probes = "DDGI Probes";
-			constexpr const char* ddgi_text = "DDGI Text";
-			constexpr const char* ddgi_max_probe_draw = "DDGI Max Probe Draw";
 			constexpr const char* close = "Close";
 			constexpr const char* entity_list_window = "Entity List";
 			constexpr const char* delete_entity = "Delete Entity";
@@ -922,55 +915,6 @@ namespace won::editor
 			}
 		}
 
-		void DrawDDGIDebugOverlay(
-			const ecs::CameraComponent& camera,
-			const rendering::RendererDebugState& renderer_debug_state,
-			const ImVec2& viewport_pos,
-			const ImVec2& viewport_size,
-			bool show_volume,
-			bool show_probes,
-			bool show_text,
-			int max_probe_draw_count)
-		{
-			ImDrawList* draw_list = ImGui::GetWindowDrawList();
-			const rendering::RendererDebugDDGIState& ddgi_state = renderer_debug_state.ddgi;
-
-			if (show_text)
-			{
-				auto bool_text = [](bool value) -> const char*
-				{
-					return value ? "Yes" : "No";
-				};
-
-				Vector<String> lines;
-				lines.push_back("DDGI Debug");
-				lines.push_back(String("GI Mode DDGI: ") + bool_text(ddgi_state.gi_mode_ddgi));
-				lines.push_back(String("Active Volume: ") + bool_text(ddgi_state.volume_active));
-				if (ddgi_state.volume_active)
-				{
-					lines.push_back("Volume Entity: " + std::to_string(ddgi_state.volume_entity));
-					lines.push_back("Probe Counts: " + std::to_string(ddgi_state.probe_counts.x) + ", " + std::to_string(ddgi_state.probe_counts.y) + ", " + std::to_string(ddgi_state.probe_counts.z));
-					lines.push_back("Probe Spacing: " + std::to_string(ddgi_state.probe_spacing.x) + ", " + std::to_string(ddgi_state.probe_spacing.y) + ", " + std::to_string(ddgi_state.probe_spacing.z));
-					lines.push_back("Total Probes: " + std::to_string(ddgi_state.total_probe_count));
-					lines.push_back("Debug Probe Samples: " + std::to_string(ddgi_state.probes.size()));
-				}
-				lines.push_back(String("Texture Allocated: ") + bool_text(ddgi_state.irradiance_texture_allocated));
-				lines.push_back(String("SRV Valid: ") + bool_text(ddgi_state.irradiance_srv_valid) + " (" + std::to_string(ddgi_state.irradiance_texture_srv) + ")");
-				lines.push_back(String("UAV Valid: ") + bool_text(ddgi_state.irradiance_uav_valid) + " (" + std::to_string(ddgi_state.irradiance_texture_uav) + ")");
-				lines.push_back(String("Visibility Allocated: ") + bool_text(ddgi_state.visibility_texture_allocated));
-				lines.push_back(String("Visibility SRV: ") + bool_text(ddgi_state.visibility_srv_valid) + " (" + std::to_string(ddgi_state.visibility_texture_srv) + ")");
-				lines.push_back(String("Visibility UAV: ") + bool_text(ddgi_state.visibility_uav_valid) + " (" + std::to_string(ddgi_state.visibility_texture_uav) + ")");
-				lines.push_back(String("Probe Data Allocated: ") + bool_text(ddgi_state.probe_data_buffer_allocated));
-				lines.push_back(String("Probe Data SRV: ") + bool_text(ddgi_state.probe_data_srv_valid) + " (" + std::to_string(ddgi_state.probe_data_buffer_srv) + ")");
-				lines.push_back(String("Probe Data UAV: ") + bool_text(ddgi_state.probe_data_uav_valid) + " (" + std::to_string(ddgi_state.probe_data_buffer_uav) + ")");
-				lines.push_back(String("History Valid: ") + bool_text(ddgi_state.history_valid));
-				lines.push_back(String("Pipeline Ready: ") + bool_text(ddgi_state.probe_update_pipeline_ready));
-				lines.push_back(String("Probe Dispatch: ") + bool_text(ddgi_state.probe_update_dispatched));
-				lines.push_back("Dispatch Groups: " + std::to_string(ddgi_state.dispatch_groups.x) + ", " + std::to_string(ddgi_state.dispatch_groups.y) + ", " + std::to_string(ddgi_state.dispatch_groups.z));
-
-				DrawTextBlock(draw_list, ImVec2(viewport_pos.x + viewport_size.x, viewport_pos.y), lines, true);
-			}
-		}
 	}
 
 	void EditorApplication::EditorViewport::CameraController::Update(const ecs::CameraComponent& camera, ecs::TransformComponent& transform, float dt, const float2& viewport_mouse_pos, const float2& viewport_size, bool can_begin_interaction)
@@ -1208,14 +1152,14 @@ namespace won::editor
 		editor_view.viewport.height = project_settings.window_height;
 		editor_view.scissor.width = project_settings.window_width;
 		editor_view.scissor.height = project_settings.window_height;
-		uint32 editor_view_index = AddView(editor_view);
+		uint32 editor_view_index = AddView(std::move(editor_view));
 		editor_viewport.view = &GetView(editor_view_index);
 
 		{
 			ShaderCompilerOptions compiler_options;
 			compiler_options.backend = ShaderCompilerBackend::DXC;
 			compiler_options.shader_source_root_path = editor_contents_root_dir + "CustomShaders";
-			std::shared_ptr<ShaderCompiler> compiler = CreateShaderCompiler(compiler_options);
+			std::unique_ptr<ShaderCompiler> compiler = CreateShaderCompiler(compiler_options);
 
 			ShaderCompileDesc compile_desc;
 			compile_desc.stage = RHIShaderStage::Vertex;
@@ -1328,7 +1272,6 @@ namespace won::editor
 		imgui_font.reset();
 		imgui_font_subresource = {};
 		imgui_sampler.reset();
-		editor_viewport.debug_primitive_mesh.reset();
 		editor_viewport.deferred_res_removals.clear();
 		editor_viewport.camera_controller = {};
 		for (const std::shared_ptr<EditorAssetImporter::ImportTask>& task : asset_importer.tasks)
@@ -1343,7 +1286,6 @@ namespace won::editor
 		asset_importer.tasks.clear();
 		contents_watcher.reset();
 		contents_watcher_poll_timer = 0.0f;
-		editor_viewport.debug_primitive_entity = ecs::INVALID_ENTITY;
 		if (editor_viewport.view)
 		{
 			editor_viewport.view->scene = nullptr;
@@ -1370,7 +1312,6 @@ namespace won::editor
 
 		io::SetMouseCaptured(is_playing && !editor_viewport.input_enabled);
 
-		editor_viewport.renderer_debug_state = renderer ? renderer->GetDebugState() : rendering::RendererDebugState{};
 
 		for (auto it = editor_viewport.deferred_res_removals.begin(); it != editor_viewport.deferred_res_removals.end();)
 		{
@@ -1514,18 +1455,34 @@ namespace won::editor
 			}
 		}
 
-		if (renderer)
+		if (editor_viewport.view)
 		{
-			rendering::RendererDebugOptions debug_options = {};
-			debug_options.ddgi_debug_enable = editor_viewport.debug_settings.show_ddgi_overlay;
-			debug_options.bvh_debug_enable = editor_viewport.debug_settings.show_bvh_debug;
-			renderer->SetDebugOptions(debug_options);
+			if (editor_viewport.debug_settings.show_ddgi_overlay)
+			{
+				editor_viewport.view->show_flags |= rendering::Show_DDGI;
+			}
+			else
+			{
+				editor_viewport.view->show_flags &= ~rendering::Show_DDGI;
+			}
+			if (editor_viewport.debug_settings.show_bvh_debug)
+			{
+				editor_viewport.view->show_flags |= rendering::Show_BVH;
+			}
+			else
+			{
+				editor_viewport.view->show_flags &= ~rendering::Show_BVH;
+			}
+			if (editor_viewport.debug_settings.show_colliders)
+			{
+				editor_viewport.view->show_flags |= rendering::Show_Colliders;
+			}
+			else
+			{
+				editor_viewport.view->show_flags &= ~rendering::Show_Colliders;
+			}
+			editor_viewport.view->view_mode = editor_viewport.debug_settings.use_wireframe ? rendering::ViewMode::Wireframe : rendering::ViewMode::Lit;
 		}
-		if (!is_playing)
-		{
-			UpdateDebugPrimitiveMesh();
-		}
-
 		if (won::io::IsPressed(io::Button('R')))
 		{
 			renderer->ReloadShaders();
@@ -1642,7 +1599,7 @@ namespace won::editor
 					continue;
 				}
 
-				scene.AddSystem(std::make_shared<PluginSystemAdapter>(plugin, desc));
+				scene.AddSystem(std::make_unique<PluginSystemAdapter>(plugin, desc));
 			}
 		}
 	}
@@ -1939,367 +1896,6 @@ namespace won::editor
 		scene->SetBVHDirty();
 		return true;
 	}
-	void EditorApplication::UpdateDebugPrimitiveMesh()
-	{
-		bool created_debug_primitive_entity = false;
-		if (editor_viewport.debug_primitive_entity == ecs::INVALID_ENTITY || !editor_viewport.debug_primitive_mesh)
-		{
-			editor_viewport.debug_primitive_entity = editor_viewport.view->scene->CreateEntity();
-			editor_viewport.debug_primitive_mesh = std::make_shared<resource::Mesh>();
-			created_debug_primitive_entity = true;
-
-			editor_viewport.view->scene->AddComponent<ecs::TransformComponent>(editor_viewport.debug_primitive_entity);
-
-			if (auto geometry = editor_viewport.view->scene->AddComponent<ecs::GeometryComponent>(editor_viewport.debug_primitive_entity))
-			{
-				geometry->SetMesh(editor_viewport.debug_primitive_mesh);
-				geometry->SetExcludeFromBVH(true);
-			}
-
-			editor_viewport.view->scene->AddComponent<ecs::MaterialComponent>(editor_viewport.debug_primitive_entity);
-
-			if (auto name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(editor_viewport.debug_primitive_entity))
-			{
-				name->value = "Debug Primitives";
-			}
-		}
-		if (created_debug_primitive_entity)
-		{
-			UpdateEntityList();
-		}
-
-		if (!editor_viewport.debug_primitive_mesh)
-		{
-			return;
-		}
-
-		enum EditorPrimitiveMaterialSlot : uint32
-		{
-			EditorPrimitiveDDGIVolume,
-			EditorPrimitiveDDGIProbe,
-			EditorPrimitiveDDGIProbeRelocated,
-			EditorPrimitiveDDGIProbeInvalid,
-			EditorPrimitiveCPUBVHInternal,
-			EditorPrimitiveCPUBVHLeaf,
-			EditorPrimitiveGPUBVHInternal,
-			EditorPrimitiveGPUBVHLeaf,
-			EditorPrimitiveCollider3D,
-			EditorPrimitiveCollider3DTrigger,
-			EditorPrimitiveMaterialCount
-		};
-
-		const float4 primitive_material_colors[EditorPrimitiveMaterialCount] = {
-			theme::ddgi_volume_color,
-			theme::ddgi_probe_color,
-			theme::ddgi_probe_relocated_color,
-			theme::ddgi_probe_invalid_color,
-			theme::cpu_bvh_internal_color,
-			theme::cpu_bvh_leaf_color,
-			theme::gpu_bvh_internal_color,
-			theme::gpu_bvh_leaf_color,
-			theme::collider_3d_color,
-			theme::collider_3d_trigger_color
-		};
-
-		if (auto material = editor_viewport.view->scene->GetComponent<ecs::MaterialComponent>(editor_viewport.debug_primitive_entity))
-		{
-			material->SetMaterial(std::make_shared<resource::Material>());
-			for (const float4& color : primitive_material_colors)
-			{
-				auto& material_slot = material->AddMaterialSlot();
-				material_slot.base_color = color;
-				material_slot.metallic = 0.0f;
-				material_slot.roughness = 1.0f;
-			}
-		}
-
-		editor_viewport.debug_primitive_mesh->positions.clear();
-		editor_viewport.debug_primitive_mesh->indices.clear();
-		editor_viewport.debug_primitive_mesh->submeshes.clear();
-
-		struct PrimitiveBatch
-		{
-			uint32 first_index = 0;
-			uint32 index_count = 0;
-			uint32 material_slot = 0;
-		};
-
-		Vector<PrimitiveBatch> primitive_batches;
-
-		auto add_line = [&](const float3& from, const float3& to, uint32 material_slot)
-		{
-			const uint32 first_vertex = static_cast<uint32>(editor_viewport.debug_primitive_mesh->positions.size());
-			const uint32 first_index = static_cast<uint32>(editor_viewport.debug_primitive_mesh->indices.size());
-			editor_viewport.debug_primitive_mesh->positions.push_back(from);
-			editor_viewport.debug_primitive_mesh->positions.push_back(to);
-			editor_viewport.debug_primitive_mesh->indices.push_back(first_vertex);
-			editor_viewport.debug_primitive_mesh->indices.push_back(first_vertex + 1);
-			if (!primitive_batches.empty() && primitive_batches.back().material_slot == material_slot && primitive_batches.back().first_index + primitive_batches.back().index_count == first_index)
-			{
-				primitive_batches.back().index_count += 2;
-			}
-			else
-			{
-				primitive_batches.push_back({ first_index, 2, material_slot });
-			}
-		};
-
-		auto add_box = [&](const float3& bounds_min, const float3& bounds_max, uint32 material_slot)
-		{
-			const float3 corners[8] = {
-				{ bounds_min.x, bounds_min.y, bounds_min.z },
-				{ bounds_max.x, bounds_min.y, bounds_min.z },
-				{ bounds_max.x, bounds_max.y, bounds_min.z },
-				{ bounds_min.x, bounds_max.y, bounds_min.z },
-				{ bounds_min.x, bounds_min.y, bounds_max.z },
-				{ bounds_max.x, bounds_min.y, bounds_max.z },
-				{ bounds_max.x, bounds_max.y, bounds_max.z },
-				{ bounds_min.x, bounds_max.y, bounds_max.z }
-			};
-			const uint32 edges[12][2] = {
-				{ 0, 1 }, { 1, 2 }, { 2, 3 }, { 3, 0 },
-				{ 4, 5 }, { 5, 6 }, { 6, 7 }, { 7, 4 },
-				{ 0, 4 }, { 1, 5 }, { 2, 6 }, { 3, 7 }
-			};
-			for (const auto& edge : edges)
-			{
-				add_line(corners[edge[0]], corners[edge[1]], material_slot);
-			}
-		};
-
-		auto add_point = [&](const float3& position, float size, uint32 material_slot)
-		{
-			add_line({ position.x - size, position.y, position.z }, { position.x + size, position.y, position.z }, material_slot);
-			add_line({ position.x, position.y - size, position.z }, { position.x, position.y + size, position.z }, material_slot);
-			add_line({ position.x, position.y, position.z - size }, { position.x, position.y, position.z + size }, material_slot);
-		};
-
-		auto add_sphere = [&](const float3& center, float radius, uint32 material_slot)
-		{
-			if (radius <= 0.0f)
-			{
-				return;
-			}
-
-			constexpr uint32 segment_count = 32;
-			float3 previous_xy = { center.x + radius, center.y, center.z };
-			float3 previous_xz = { center.x + radius, center.y, center.z };
-			float3 previous_yz = { center.x, center.y + radius, center.z };
-			for (uint32 segment_index = 1; segment_index <= segment_count; ++segment_index)
-			{
-				const float angle = math::PI * 2.0f * static_cast<float>(segment_index) / static_cast<float>(segment_count);
-				const float cos_angle = std::cos(angle);
-				const float sin_angle = std::sin(angle);
-				const float3 current_xy = { center.x + cos_angle * radius, center.y + sin_angle * radius, center.z };
-				const float3 current_xz = { center.x + cos_angle * radius, center.y, center.z + sin_angle * radius };
-				const float3 current_yz = { center.x, center.y + cos_angle * radius, center.z + sin_angle * radius };
-				add_line(previous_xy, current_xy, material_slot);
-				add_line(previous_xz, current_xz, material_slot);
-				add_line(previous_yz, current_yz, material_slot);
-				previous_xy = current_xy;
-				previous_xz = current_xz;
-				previous_yz = current_yz;
-			}
-		};
-
-		if (editor_viewport.debug_settings.show_colliders)
-		{
-			auto collider_3d_array = editor_viewport.view->scene->GetComponentArray<ecs::Collider3DComponent>().get();
-			auto transform_array = editor_viewport.view->scene->GetComponentArray<ecs::TransformComponent>().get();
-			if (collider_3d_array && transform_array)
-			{
-				for (Size collider_index = 0; collider_index < collider_3d_array->GetSize(); ++collider_index)
-				{
-					const ecs::Entity entity = collider_3d_array->index_to_entity[collider_index];
-					if (!transform_array->HasData(entity))
-					{
-						continue;
-					}
-
-					const ecs::Collider3DComponent& collider = collider_3d_array->data[collider_index];
-					if (!collider.IsEnabled())
-					{
-						continue;
-					}
-
-					const ecs::TransformComponent& transform = transform_array->GetData(entity);
-					const XMMATRIX world = transform.GetWorldTransform();
-					const uint32 material_slot = collider.IsTrigger() ? EditorPrimitiveCollider3DTrigger : EditorPrimitiveCollider3D;
-					if (collider.shape_type == ecs::Collider3DComponent::ShapeType::Sphere)
-					{
-						const XMVECTOR center = XMVector3TransformCoord(XMLoadFloat3(&collider.offset), world);
-						const float scale_x = XMVectorGetX(XMVector3Length(world.r[0]));
-						const float scale_y = XMVectorGetX(XMVector3Length(world.r[1]));
-						const float scale_z = XMVectorGetX(XMVector3Length(world.r[2]));
-						const float max_scale = (std::max)((std::max)(scale_x, scale_y), scale_z);
-						float3 world_center = {};
-						XMStoreFloat3(&world_center, center);
-						add_sphere(world_center, (std::max)(0.0f, collider.radius) * max_scale, material_slot);
-					}
-					else if (collider.shape_type == ecs::Collider3DComponent::ShapeType::HeightField)
-					{
-						const ecs::GeometryComponent* geometry = editor_viewport.view->scene->GetComponent<ecs::GeometryComponent>(entity);
-						if (geometry && geometry->local_bounds.IsValid())
-						{
-							const math::AABB world_bounds = geometry->local_bounds.TransformAABB(world);
-							if (world_bounds.IsValid())
-							{
-								add_box(world_bounds.min, world_bounds.max, material_slot);
-							}
-						}
-					}
-					else
-					{
-						math::AABB local_bounds = {};
-						const float3 half_extent = {
-							(std::max)(0.0f, collider.half_extent.x),
-							(std::max)(0.0f, collider.half_extent.y),
-							(std::max)(0.0f, collider.half_extent.z)
-						};
-						local_bounds.CreateFromHalfWidth(collider.offset, half_extent);
-						const math::AABB world_bounds = local_bounds.TransformAABB(world);
-						if (world_bounds.IsValid())
-						{
-							add_box(world_bounds.min, world_bounds.max, material_slot);
-						}
-					}
-				}
-			}
-		}
-
-		if (editor_viewport.debug_settings.show_ddgi_overlay && renderer)
-		{
-			const rendering::RendererDebugDDGIState& ddgi_state = editor_viewport.renderer_debug_state.ddgi;
-			if (ddgi_state.volume_active)
-			{
-				if (editor_viewport.debug_settings.show_ddgi_volume)
-				{
-					add_box(ddgi_state.volume_min, ddgi_state.volume_max, EditorPrimitiveDDGIVolume);
-				}
-
-				if (editor_viewport.debug_settings.show_ddgi_probes && ddgi_state.total_probe_count > 0)
-				{
-					const float min_probe_spacing = (std::min)(ddgi_state.probe_spacing.x, (std::min)(ddgi_state.probe_spacing.y, ddgi_state.probe_spacing.z));
-					const float point_size = (std::max)(0.04f, min_probe_spacing * 0.08f);
-					uint32 drawn_probe_count = 0;
-					const uint32 max_probe_draw_count = static_cast<uint32>((std::max)(1, editor_viewport.debug_settings.ddgi_max_probe_draw_count));
-					if (!ddgi_state.probes.empty())
-					{
-						for (const rendering::RendererDebugDDGIState::DDGIProbe& probe : ddgi_state.probes)
-						{
-							if (drawn_probe_count >= max_probe_draw_count)
-							{
-								break;
-							}
-							const uint32 probe_material_slot = probe.validity <= 0.0f ? EditorPrimitiveDDGIProbeInvalid : (probe.relocation > 0.0f ? EditorPrimitiveDDGIProbeRelocated : EditorPrimitiveDDGIProbe);
-							add_point(probe.position, point_size, probe_material_slot);
-							++drawn_probe_count;
-						}
-					}
-					else
-					{
-						const float sample_ratio = static_cast<float>(ddgi_state.total_probe_count) / static_cast<float>(max_probe_draw_count);
-						const uint32 sampling_step = sample_ratio > 1.0f ? static_cast<uint32>((std::max)(1, static_cast<int>(std::ceil(std::cbrt(sample_ratio))))) : 1u;
-						for (uint32 z = 0; z < ddgi_state.probe_counts.z; z += sampling_step)
-						{
-							for (uint32 y = 0; y < ddgi_state.probe_counts.y; y += sampling_step)
-							{
-								for (uint32 x = 0; x < ddgi_state.probe_counts.x; x += sampling_step)
-								{
-									if (drawn_probe_count >= max_probe_draw_count)
-									{
-										break;
-									}
-									const float3 probe_position = {
-										ddgi_state.volume_min.x + static_cast<float>(x) * ddgi_state.probe_spacing.x,
-										ddgi_state.volume_min.y + static_cast<float>(y) * ddgi_state.probe_spacing.y,
-										ddgi_state.volume_min.z + static_cast<float>(z) * ddgi_state.probe_spacing.z
-									};
-									add_point(probe_position, point_size, EditorPrimitiveDDGIProbe);
-									++drawn_probe_count;
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-
-		if (editor_viewport.debug_settings.show_bvh_debug && renderer)
-		{
-			const rendering::RendererDebugBVHState& bvh_state = editor_viewport.renderer_debug_state.bvh;
-			if (editor_viewport.debug_settings.show_cpu_bvh_nodes && bvh_state.cpu_bvh_available)
-			{
-				for (const rendering::RendererDebugBVHState::BVHNode& node : bvh_state.cpu_nodes)
-				{
-					add_box(node.bounds_min, node.bounds_max, node.is_leaf ? EditorPrimitiveCPUBVHLeaf : EditorPrimitiveCPUBVHInternal);
-				}
-			}
-			if (editor_viewport.debug_settings.show_gpu_bvh_nodes && bvh_state.gpu_bvh_available)
-			{
-				for (const rendering::RendererDebugBVHState::BVHNode& node : bvh_state.gpu_nodes)
-				{
-					add_box(node.bounds_min, node.bounds_max, node.is_leaf ? EditorPrimitiveGPUBVHLeaf : EditorPrimitiveGPUBVHInternal);
-				}
-			}
-		}
-
-		if (editor_viewport.debug_primitive_mesh->render_data.IsValid())
-		{
-			if (editor_viewport.debug_primitive_mesh->render_data.buffer)
-			{
-				EditorViewport::DeferredResRemoval deferred_res_removal = {};
-				deferred_res_removal.frames_left = 8;
-				deferred_res_removal.resources.push_back(editor_viewport.debug_primitive_mesh->render_data.buffer);
-				editor_viewport.deferred_res_removals.push_back(std::move(deferred_res_removal));
-			}
-		}
-
-		editor_viewport.debug_primitive_mesh->ClearRenderData();
-		if (!editor_viewport.debug_primitive_mesh->indices.empty())
-		{
-			auto make_submesh = [&](uint32 first_index, uint32 index_count, resource::PrimitiveTopology topology, uint32 material_slot)
-			{
-				resource::Submesh submesh = {};
-				submesh.first_index = first_index;
-				submesh.index_count = index_count;
-				submesh.first_vertex = 0;
-				submesh.material_slot = material_slot;
-				submesh.primitive_topology = topology;
-				submesh.local_bounds.Invalidate();
-				for (uint32 index = first_index; index < first_index + index_count; ++index)
-				{
-					const uint32 vertex_index = editor_viewport.debug_primitive_mesh->indices[index];
-					if (vertex_index >= editor_viewport.debug_primitive_mesh->positions.size())
-					{
-						continue;
-					}
-					math::AABB vertex_bounds = {};
-					vertex_bounds.min = editor_viewport.debug_primitive_mesh->positions[vertex_index];
-					vertex_bounds.max = editor_viewport.debug_primitive_mesh->positions[vertex_index];
-					submesh.local_bounds.Merge(vertex_bounds);
-				}
-				editor_viewport.debug_primitive_mesh->submeshes.push_back(submesh);
-			};
-
-			for (const PrimitiveBatch& batch : primitive_batches)
-			{
-				if (batch.index_count > 0)
-				{
-					make_submesh(batch.first_index, batch.index_count, resource::PrimitiveTopology::LineList, batch.material_slot);
-				}
-			}
-
-			rendering::utils::CreateRenderData(*device, *editor_viewport.debug_primitive_mesh);
-		}
-
-		if (auto geometry = editor_viewport.view->scene->GetComponent<ecs::GeometryComponent>(editor_viewport.debug_primitive_entity))
-		{
-			geometry->UpdateLocalBounds();
-			geometry->SetDirty();
-		}
-	}
-
 	void EditorApplication::LoadEditorSettings()
 	{
 		EditorSettings loaded_settings = {};
@@ -2312,19 +1908,9 @@ namespace won::editor
 		content_browser.tile_size = (std::max)(48.0f, (std::min)(128.0f, editor_settings.content_tile_size));
 		editor_viewport.debug_settings.show_grid = editor_settings.viewport_show_grid;
 		editor_viewport.debug_settings.show_colliders = editor_settings.viewport_show_colliders;
-		if (won::console::ConsoleVariable* wireframe_cvar = won::console::Find("r.wireframe"))
-		{
-			wireframe_cvar->SetFromString(editor_settings.viewport_use_wireframe ? "1" : "0");
-		}
+		editor_viewport.debug_settings.use_wireframe = editor_settings.viewport_use_wireframe;
 		editor_viewport.debug_settings.show_bvh_debug = editor_settings.viewport_show_bvh_debug;
-		editor_viewport.debug_settings.show_cpu_bvh_nodes = editor_settings.viewport_show_cpu_bvh_nodes;
-		editor_viewport.debug_settings.show_gpu_bvh_nodes = editor_settings.viewport_show_gpu_bvh_nodes;
 		editor_viewport.debug_settings.show_ddgi_overlay = editor_settings.viewport_show_ddgi_overlay;
-		editor_viewport.debug_settings.show_ddgi_volume = editor_settings.viewport_show_ddgi_volume;
-		editor_viewport.debug_settings.show_ddgi_probes = editor_settings.viewport_show_ddgi_probes;
-		editor_viewport.debug_settings.show_ddgi_text = editor_settings.viewport_show_ddgi_text;
-		editor_viewport.debug_settings.show_renderer_stats = editor_settings.viewport_show_renderer_stats;
-		editor_viewport.debug_settings.ddgi_max_probe_draw_count = (std::max)(1, editor_settings.viewport_ddgi_max_probe_draw_count);
 		editor_camera_speed = (std::max)(0.1f, editor_settings.camera_speed);
 	}
 
@@ -2335,19 +1921,9 @@ namespace won::editor
 		editor_settings.content_tile_size = content_browser.tile_size;
 		editor_settings.viewport_show_grid = editor_viewport.debug_settings.show_grid;
 		editor_settings.viewport_show_colliders = editor_viewport.debug_settings.show_colliders;
-		if (won::console::ConsoleVariable* wireframe_cvar = won::console::Find("r.wireframe"))
-		{
-			editor_settings.viewport_use_wireframe = wireframe_cvar->GetBool();
-		}
+		editor_settings.viewport_use_wireframe = editor_viewport.debug_settings.use_wireframe;
 		editor_settings.viewport_show_bvh_debug = editor_viewport.debug_settings.show_bvh_debug;
-		editor_settings.viewport_show_cpu_bvh_nodes = editor_viewport.debug_settings.show_cpu_bvh_nodes;
-		editor_settings.viewport_show_gpu_bvh_nodes = editor_viewport.debug_settings.show_gpu_bvh_nodes;
 		editor_settings.viewport_show_ddgi_overlay = editor_viewport.debug_settings.show_ddgi_overlay;
-		editor_settings.viewport_show_ddgi_volume = editor_viewport.debug_settings.show_ddgi_volume;
-		editor_settings.viewport_show_ddgi_probes = editor_viewport.debug_settings.show_ddgi_probes;
-		editor_settings.viewport_show_ddgi_text = editor_viewport.debug_settings.show_ddgi_text;
-		editor_settings.viewport_show_renderer_stats = editor_viewport.debug_settings.show_renderer_stats;
-		editor_settings.viewport_ddgi_max_probe_draw_count = editor_viewport.debug_settings.ddgi_max_probe_draw_count;
 		editor_settings.camera_speed = editor_camera_speed;
 		if (!current_scene_path.empty())
 		{
@@ -3067,7 +2643,7 @@ namespace won::editor
 			}
 
 			RHISubresourceBinding constants_binding = {};
-			constants_binding.resource = allocation.buffer.get();
+			constants_binding.resource = allocation.buffer;
 			constants_binding.subresource = constants_subresource;
 
 			RHIViewport viewport = {};
@@ -3527,8 +3103,6 @@ namespace won::editor
 				editor_viewport.view->scene->ClearEntities();
 				current_scene_path.clear();
 				editor_viewport.picked_entity = ecs::INVALID_ENTITY;
-				editor_viewport.debug_primitive_entity = ecs::INVALID_ENTITY;
-				editor_viewport.debug_primitive_mesh.reset();
 				CreateStartupScene();
 				UpdateEntityList();
 			}
@@ -3718,16 +3292,11 @@ namespace won::editor
 			ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(500, 500));
 			if (ImGui::BeginPopup(editor_text::options_popup))
 			{
-				won::console::ConsoleVariable* wireframe_cvar = won::console::Find("r.wireframe");
-				bool wireframe_on = wireframe_cvar && wireframe_cvar->GetBool();
-				if (ImGui::Checkbox(editor_text::wireframe, &wireframe_on) && wireframe_cvar)
-				{
-					wireframe_cvar->SetFromString(wireframe_on ? "1" : "0");
-				}
+				ImGui::Checkbox(editor_text::wireframe, &editor_viewport.debug_settings.use_wireframe);
 
 				if (window)
 				{
-					std::shared_ptr<RHISwapchain> swapchain = window->GetRHISwapchain();
+					RHISwapchain* swapchain = window->GetRHISwapchain();
 					if (swapchain)
 					{
 						bool vsync_enabled = swapchain->IsVSyncEnabled();
@@ -3788,30 +3357,11 @@ namespace won::editor
 				}
 
 				ImGui::Separator();
-				ImGui::Checkbox(editor_text::renderer_stats, &editor_viewport.debug_settings.show_renderer_stats);
 				ImGui::Checkbox(editor_text::editor_grid, &editor_viewport.debug_settings.show_grid);
 				ImGui::Checkbox(editor_text::collider_3d, &editor_viewport.debug_settings.show_colliders);
 				ImGui::Separator();
 				ImGui::Checkbox(editor_text::bvh_debug, &editor_viewport.debug_settings.show_bvh_debug);
-				if (editor_viewport.debug_settings.show_bvh_debug)
-				{
-					ImGui::Checkbox(editor_text::cpu_bvh_nodes, &editor_viewport.debug_settings.show_cpu_bvh_nodes);
-					editor_viewport.debug_settings.show_gpu_bvh_nodes = false;
-					ImGui::BeginDisabled();
-					ImGui::Checkbox(editor_text::gpu_bvh_nodes, &editor_viewport.debug_settings.show_gpu_bvh_nodes);
-					ImGui::EndDisabled();
-				}
-
-				ImGui::Separator();
 				ImGui::Checkbox(editor_text::ddgi_debug_overlay, &editor_viewport.debug_settings.show_ddgi_overlay);
-				if (editor_viewport.debug_settings.show_ddgi_overlay)
-				{
-					ImGui::Checkbox(editor_text::ddgi_volume, &editor_viewport.debug_settings.show_ddgi_volume);
-					ImGui::Checkbox(editor_text::ddgi_probes, &editor_viewport.debug_settings.show_ddgi_probes);
-					ImGui::Checkbox(editor_text::ddgi_text, &editor_viewport.debug_settings.show_ddgi_text);
-					ImGui::InputInt(editor_text::ddgi_max_probe_draw, &editor_viewport.debug_settings.ddgi_max_probe_draw_count);
-					editor_viewport.debug_settings.ddgi_max_probe_draw_count = (std::max)(1, editor_viewport.debug_settings.ddgi_max_probe_draw_count);
-				}
 
 				ImGui::Separator();
 				if (ImGui::Button(editor_text::close)) ImGui::CloseCurrentPopup();
@@ -3839,41 +3389,6 @@ namespace won::editor
 			if (auto* camera = editor_viewport.view->scene->GetComponent<ecs::CameraComponent>(editor_viewport.view->camera_entity))
 			{
 				camera->SetAspectRatio(static_cast<float>(editor_viewport.view->viewport.width) / static_cast<float>(editor_viewport.view->viewport.height));
-				if (editor_viewport.debug_settings.show_ddgi_overlay)
-				{
-					DrawDDGIDebugOverlay(
-						*camera,
-						editor_viewport.renderer_debug_state,
-						viewport_pos,
-						viewport_size,
-						editor_viewport.debug_settings.show_ddgi_volume,
-						editor_viewport.debug_settings.show_ddgi_probes,
-						editor_viewport.debug_settings.show_ddgi_text,
-						editor_viewport.debug_settings.ddgi_max_probe_draw_count);
-				}
-			}
-
-			if (renderer && editor_viewport.debug_settings.show_renderer_stats)
-			{
-				const rendering::RendererDebugState& stats = editor_viewport.renderer_debug_state;
-				ImGui::SetNextWindowPos(
-					ImVec2(viewport_pos.x + 8.0f, viewport_pos.y + viewport_size.y - 8.0f),
-					ImGuiCond_Always, ImVec2(0.0f, 1.0f));
-				ImGui::SetNextWindowBgAlpha(0.5f);
-				constexpr ImGuiWindowFlags overlay_flags =
-					ImGuiWindowFlags_NoDecoration |
-					ImGuiWindowFlags_NoDocking |
-					ImGuiWindowFlags_AlwaysAutoResize |
-					ImGuiWindowFlags_NoSavedSettings |
-					ImGuiWindowFlags_NoFocusOnAppearing |
-					ImGuiWindowFlags_NoNav |
-					ImGuiWindowFlags_NoMove;
-				if (ImGui::Begin("##renderer_stats", nullptr, overlay_flags))
-				{
-					ImGui::Text("Draw Calls : %u", stats.draw_call_count);
-					ImGui::Text("Renderables: %u / %u (visible / total)", stats.visible_renderable_count, stats.total_renderable_count);
-				}
-				ImGui::End();
 			}
 		}
 		ImGui::End();
@@ -6478,7 +5993,7 @@ namespace won::editor
 				device->CreateSubresource(*allocation.buffer, subresource_desc, &cb_subresource_handle);
 
 				RHISubresourceBinding cb_binding;
-				cb_binding.resource = allocation.buffer.get();
+				cb_binding.resource = allocation.buffer;
 				cb_binding.subresource = cb_subresource_handle;
 
 				command_list->SetVertexBuffer(*allocation.buffer, sizeof(ImDrawVert), vb_buffer_offset, vbSize);
@@ -6803,8 +6318,6 @@ namespace won::editor
 		GetSceneManager()->DestroyScene(old_scene);
 		current_scene_path.clear();
 		editor_viewport.picked_entity = ecs::INVALID_ENTITY;
-		editor_viewport.debug_primitive_entity = ecs::INVALID_ENTITY;
-		editor_viewport.debug_primitive_mesh.reset();
 		editor_viewport.deferred_res_removals.clear();
 		editor_viewport.camera_controller = {};
 		plugins.clear();
@@ -7206,10 +6719,6 @@ namespace won::editor
 		{
 			excluded_entities.push_back(editor_viewport.view->camera_entity);
 		}
-		if (editor_viewport.debug_primitive_entity != ecs::INVALID_ENTITY)
-		{
-			excluded_entities.push_back(editor_viewport.debug_primitive_entity);
-		}
 
 		won::serialize::JsonArchive archive(won::serialize::ArchiveMode::Write);
 		won::serialize::SaveSceneDesc desc = {};
@@ -7464,8 +6973,6 @@ namespace won::editor
 		String config_path = relative_path.empty() ? path : relative_path;
 		editor_settings.last_scene_path = config_path;
 		editor_viewport.picked_entity = ecs::INVALID_ENTITY;
-		editor_viewport.debug_primitive_entity = ecs::INVALID_ENTITY;
-		editor_viewport.debug_primitive_mesh.reset();
 		RebindSceneResources();
 		CreateEditorCamera();
 		UpdateEntityList();
@@ -7511,10 +7018,6 @@ namespace won::editor
 		if (editor_viewport.view->camera_entity != ecs::INVALID_ENTITY)
 		{
 			excluded_entities.push_back(editor_viewport.view->camera_entity);
-		}
-		if (editor_viewport.debug_primitive_entity != ecs::INVALID_ENTITY)
-		{
-			excluded_entities.push_back(editor_viewport.debug_primitive_entity);
 		}
 
 		won::serialize::JsonArchive write_archive(won::serialize::ArchiveMode::Write);
@@ -7603,7 +7106,7 @@ namespace won::editor
 		sorted_entities.reserve(entities.size());
 		for (ecs::Entity entity : entities)
 		{
-			if (!is_playing && (entity == editor_viewport.view->camera_entity || entity == editor_viewport.debug_primitive_entity))
+			if (!is_playing && (entity == editor_viewport.view->camera_entity))
 			{
 				continue;
 			}

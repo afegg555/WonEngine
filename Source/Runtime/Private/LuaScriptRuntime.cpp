@@ -1,6 +1,8 @@
 #include "LuaScriptRuntime.h"
 
 #include "Backlog.h"
+#include "ProjectSettings.h"
+#include "UserSettings.h"
 #include "EventHandler.h"
 #include "GameData.h"
 #include "Input.h"
@@ -114,6 +116,10 @@ namespace won::script
     LuaScriptRuntime::LuaScriptRuntime(const ScriptRuntimeDesc& desc)
     {
         game_data = desc.game_data;
+        user_settings = desc.user_settings;
+        project_settings = desc.project_settings;
+        apply_user_settings = desc.apply_user_settings;
+        save_user_settings = desc.save_user_settings;
         audio_mixer = desc.audio_mixer;
         scene_manager = desc.scene_manager;
         content_root = desc.content_root;
@@ -1025,6 +1031,86 @@ namespace won::script
         LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
         nav::NavMesh* nav_mesh = (runtime && runtime->current_context.scene) ? runtime->current_context.scene->GetNavMesh() : nullptr;
         lua_pushboolean(state, (nav_mesh && nav_mesh->IsValid()) ? 1 : 0);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaSettingsGet(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        const String key = luaL_checkstring(state, 1);
+        if (!runtime || !runtime->user_settings || !runtime->project_settings)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        const settings::UserSettings& user = *runtime->user_settings;
+        const project::ProjectSettings& project = *runtime->project_settings;
+        if (key == "vsync")
+        {
+            lua_pushboolean(state, user.vsync.value_or(project.vsync_enabled) ? 1 : 0);
+            return 1;
+        }
+        if (key == "aa_mode")
+        {
+            const rendering::AntiAliasingMode aa_mode = user.aa_mode.value_or(project.aa_mode);
+            lua_pushstring(state, aa_mode == rendering::AntiAliasingMode::FXAA ? "FXAA" : "None");
+            return 1;
+        }
+        if (key == "shadow_resolution_scale")
+        {
+            lua_pushnumber(state, static_cast<lua_Number>(user.shadow_resolution_scale.value_or(1.0f)));
+            return 1;
+        }
+        lua_pushnil(state);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaSettingsSet(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        const String key = luaL_checkstring(state, 1);
+        if (!runtime || !runtime->user_settings)
+        {
+            lua_pushboolean(state, 0);
+            return 1;
+        }
+
+        settings::UserSettings& user = *runtime->user_settings;
+        bool applied = false;
+        if (key == "vsync")
+        {
+            user.vsync = lua_toboolean(state, 2) != 0;
+            applied = true;
+        }
+        else if (key == "aa_mode")
+        {
+            const String value = luaL_checkstring(state, 2);
+            if (value == "FXAA" || value == "None")
+            {
+                user.aa_mode = value == "FXAA" ? rendering::AntiAliasingMode::FXAA : rendering::AntiAliasingMode::None;
+                applied = true;
+            }
+        }
+        else if (key == "shadow_resolution_scale")
+        {
+            user.shadow_resolution_scale = static_cast<float>(luaL_checknumber(state, 2));
+            applied = true;
+        }
+
+        if (applied && runtime->apply_user_settings)
+        {
+            runtime->apply_user_settings();
+        }
+        lua_pushboolean(state, applied ? 1 : 0);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaSettingsSave(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        const bool saved = runtime && runtime->save_user_settings && runtime->save_user_settings();
+        lua_pushboolean(state, saved ? 1 : 0);
         return 1;
     }
 
@@ -3419,6 +3505,18 @@ namespace won::script
         lua_pushcclosure(lua_state, LuaNavIsReady, 1);
         lua_setfield(lua_state, -2, "is_ready");
         lua_setfield(lua_state, -2, "nav");
+
+        lua_newtable(lua_state);
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaSettingsGet, 1);
+        lua_setfield(lua_state, -2, "get");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaSettingsSet, 1);
+        lua_setfield(lua_state, -2, "set");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaSettingsSave, 1);
+        lua_setfield(lua_state, -2, "save");
+        lua_setfield(lua_state, -2, "settings");
 
         lua_newtable(lua_state);
         lua_pushlightuserdata(lua_state, this);

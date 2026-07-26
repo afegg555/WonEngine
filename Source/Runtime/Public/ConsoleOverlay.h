@@ -3,6 +3,7 @@
 #include "Types.h"
 #include "Overlay.h"
 
+#ifndef WON_SHIPPING
 namespace won::console
 {
     class WONENGINE_API ConsoleOverlay
@@ -21,3 +22,4 @@ namespace won::console
         int history_index = -1;
     };
 }
+#endif

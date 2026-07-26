@@ -457,4 +457,140 @@ inline void ApplyLighting(inout Surface surface, inout Lighting lighting, float2
 #endif
 }
 
+#ifndef WON_SHIPPING
+static const uint debug_complexity_max_lights = 32u;
+static const float3 debug_complexity_low = float3(0.0f, 0.2f, 0.0f); // green
+static const float3 debug_complexity_mid = float3(1.0f, 1.0f, 0.0f); // yellow
+static const float3 debug_complexity_high = float3(1.0f, 0.0f, 0.0f); // red
+static const half3 debug_cascade_tint[4] = {
+    half3(1.0h, 0.3h, 0.3h), // red
+    half3(0.3h, 1.0h, 0.3h), // green
+    half3(0.3h, 0.3h, 1.0h), // blue
+    half3(1.0h, 1.0h, 0.3h), // yellow
+};
+static const half3 debug_overdraw_color = half3(0.06h, 0.06h, 0.06h); // dark gray
+
+inline uint GetDebugLightCount(in float3 world_position, in float2 pixel_position)
+{
+    uint light_count = GetScene().directional_count;
+#ifdef CLUSTERED
+    const uint2 tile = (uint2)(pixel_position / LIGHTCULL_TILE_SIZE);
+    const float cluster_view_z = max(0.0f, dot(world_position - GetCamera().position, GetCamera().forward));
+    const uint cluster_slice = ClusterSliceFromViewZ(cluster_view_z, GetCamera().z_near, GetCamera().z_far, GetScene().cluster_depth_slices);
+    const uint cluster_tiles = GetScene().cluster_count.x * GetScene().cluster_count.y;
+    const uint cluster_index = cluster_slice * cluster_tiles + tile.y * GetScene().cluster_count.x + tile.x;
+    if (GetScene().cluster_light_count_buffer >= 0)
+    {
+        light_count += bindless_buffers_uint[DescriptorIndex(GetScene().cluster_light_count_buffer)][cluster_index];
+    }
+#else
+    if (GetScene().forward_light_index_buffer >= 0)
+    {
+        light_count += GetScene().forward_light_count;
+    }
+#endif
+    return light_count;
+}
+
+inline float3 GetDebugLightComplexityColor(in uint light_count)
+{
+    const float t = saturate(float(light_count) / float(debug_complexity_max_lights));
+    if (t < 0.5f)
+    {
+        return lerp(debug_complexity_low, debug_complexity_mid, t * 2.0f);
+    }
+    return lerp(debug_complexity_mid, debug_complexity_high, t * 2.0f - 1.0f);
+}
+
+inline int GetDebugShadowCascadeIndex(in float3 world_position)
+{
+    if (GetScene().shadow_cascade_buffer < 0 || GetScene().light_shadow_slice_buffer < 0)
+    {
+        return -1;
+    }
+
+    for (uint d = 0; d < GetScene().directional_count; ++d)
+    {
+        ShaderLight light = GetLight(d);
+        if (!light.IsCastingShadow())
+        {
+            continue;
+        }
+
+        const uint shadow_slice = bindless_buffers_uint[DescriptorIndex(GetScene().light_shadow_slice_buffer)][d];
+        const uint shadow_slice_offset = shadow_slice & 0xFFFFu;
+        const uint shadow_slice_count = (shadow_slice >> 16u) & 0xFFFFu;
+        if (shadow_slice_count == 0)
+        {
+            continue;
+        }
+
+        ShaderCamera camera = GetCamera();
+        const float linear_depth = max(0.0f, dot(world_position - camera.position, camera.forward));
+        uint cascade_local_index = 0;
+
+        [unroll]
+        for (uint i = 0; i < 4; ++i)
+        {
+            if (i >= shadow_slice_count)
+            {
+                break;
+            }
+            ShaderShadowCascade cascade_candidate = GetShadowCascade(shadow_slice_offset + i);
+            if (linear_depth <= cascade_candidate.split_far)
+            {
+                cascade_local_index = i;
+                break;
+            }
+            cascade_local_index = i;
+        }
+        return (int)cascade_local_index;
+    }
+    return -1;
+}
+
+inline half4 ApplyDebugViewMode(in half4 lit_color, in Surface surface, in half4 base_color, in half metallic, in float2 pixel_position)
+{
+    const uint debug_view_mode = GetScene().debug_view_mode;
+    if (debug_view_mode == DEBUG_VIEW_MODE_NONE || debug_view_mode == DEBUG_VIEW_MODE_WIREFRAME)
+    {
+        return lit_color;
+    }
+
+    half4 debug_color = lit_color;
+    switch (debug_view_mode)
+    {
+    case DEBUG_VIEW_MODE_UNLIT:
+        debug_color = half4(base_color.rgb + (half3)surface.emissive_color, lit_color.a);
+        break;
+    case DEBUG_VIEW_MODE_BASE_COLOR:
+        debug_color = half4(base_color.rgb, lit_color.a);
+        break;
+    case DEBUG_VIEW_MODE_WORLD_NORMAL:
+        debug_color = half4((half3)(surface.N * 0.5f + 0.5f), lit_color.a);
+        break;
+    case DEBUG_VIEW_MODE_ROUGHNESS:
+        debug_color = half4((half3)sqrt(surface.roughness).xxx, lit_color.a);
+        break;
+    case DEBUG_VIEW_MODE_METALLIC:
+        debug_color = half4(metallic.xxx, lit_color.a);
+        break;
+    case DEBUG_VIEW_MODE_LIGHT_COMPLEXITY:
+        debug_color = half4((half3)GetDebugLightComplexityColor(GetDebugLightCount(surface.P, pixel_position)), lit_color.a);
+        break;
+    case DEBUG_VIEW_MODE_SHADOW_CASCADES:
+    {
+        const int cascade_index = GetDebugShadowCascadeIndex(surface.P);
+        const half3 cascade_tint = (cascade_index >= 0 && cascade_index < 4) ? debug_cascade_tint[cascade_index] : half3(1.0h, 1.0h, 1.0h);
+        debug_color = half4((half3)(base_color.rgb * cascade_tint), lit_color.a);
+        break;
+    }
+    case DEBUG_VIEW_MODE_OVERDRAW:
+        debug_color = half4(debug_overdraw_color, 1.0h);
+        break;
+    }
+    return debug_color;
+}
+#endif // WON_SHIPPING
+
 #endif // SHADING_COMMON

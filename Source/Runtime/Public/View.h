@@ -35,18 +35,18 @@ namespace won::rendering
 
         struct LightResources
         {
-            std::shared_ptr<RHIResource> forward_index_buffer;
-            std::shared_ptr<RHIResource> forward_index_upload_buffer;
+            std::unique_ptr<RHIResource> forward_index_buffer;
+            std::unique_ptr<RHIResource> forward_index_upload_buffer;
             RHISubresourceHandle forward_index_srv = {};
             uint32 forward_light_count = 0;
 
-            std::shared_ptr<RHIResource> cluster_light_count_buffer;
+            std::unique_ptr<RHIResource> cluster_light_count_buffer;
             RHISubresourceHandle cluster_light_count_srv = {};
             RHISubresourceHandle cluster_light_count_uav = {};
-            std::shared_ptr<RHIResource> cluster_light_offset_buffer;
+            std::unique_ptr<RHIResource> cluster_light_offset_buffer;
             RHISubresourceHandle cluster_light_offset_srv = {};
             RHISubresourceHandle cluster_light_offset_uav = {};
-            std::shared_ptr<RHIResource> cluster_light_index_buffer;
+            std::unique_ptr<RHIResource> cluster_light_index_buffer;
             RHISubresourceHandle cluster_light_index_srv = {};
             RHISubresourceHandle cluster_light_index_uav = {};
             uint2 cluster_dims = { 0, 0 };
@@ -68,14 +68,33 @@ namespace won::rendering
             Vector<RenderShadowSlice> render_shadow_slices;
             Vector<uint32> light_shadow_slices;
             uint2 shadow_map_atlas_size = { 0, 0 };
+
+            std::unique_ptr<RHIResource> atlas;
+            RHISubresourceHandle atlas_dsv = {};
+            RHISubresourceHandle atlas_srv = {};
+
+            std::unique_ptr<RHIResource> cascade_buffer;
+            RHISubresourceHandle cascade_srv = {};
+            std::unique_ptr<RHIResource> light_slice_buffer;
+            RHISubresourceHandle light_slice_srv = {};
+        };
+
+        struct InstanceResources
+        {
+            std::unique_ptr<RHIResource> sort_buffer;
+            RHISubresourceHandle sort_srv = {};
         };
 
         ecs::Entity camera_entity = {};
         ecs::Scene* scene = nullptr;
         RenderPathType render_path_type = RenderPathType::ForwardPlus; // pipeline-level selection, not a lightweight ViewOption
+        ViewMode view_mode = ViewMode::Lit;
+        uint32 show_flags = Show_Default;
+        bool freeze_culling = false;
         Options options = {};
         LightResources light_resources = {};
         ShadowResources shadow_resources = {};
+        InstanceResources instance_resources = {};
         Rect viewport = {};
         Rect scissor = {};
         uint32 ui_layer_mask = 0xFFFFFFFF;
@@ -97,5 +116,7 @@ namespace won::rendering
 
         ecs::Entity ui_hovered = ecs::INVALID_ENTITY;
         ecs::Entity ui_press_target = ecs::INVALID_ENTITY;
+        math::Frustum frozen_frustum = {};
+        bool frozen_frustum_valid = false;
     };
 }

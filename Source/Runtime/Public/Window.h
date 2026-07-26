@@ -1,14 +1,10 @@
 #pragma once
 #include "RuntimeExport.h"
 #include "Types.h"
+#include "RHISwapchain.h"
 
 #include <functional>
 #include <memory>
-
-namespace won::rendering
-{
-    class RHISwapchain;
-}
 
 namespace won::platform
 {
@@ -65,20 +61,20 @@ namespace won::platform
             return platform_message_handler(hwnd, message, wparam, lparam);
         }
 
-        void SetRHISwapchain(const std::shared_ptr<rendering::RHISwapchain>& new_swapchain)
+        void SetRHISwapchain(std::unique_ptr<rendering::RHISwapchain> new_swapchain)
         {
-            rhi_swapchain = new_swapchain;
+            rhi_swapchain = std::move(new_swapchain);
         }
 
-        std::shared_ptr<rendering::RHISwapchain> GetRHISwapchain() const
+        rendering::RHISwapchain* GetRHISwapchain() const
         {
-            return rhi_swapchain;
+            return rhi_swapchain.get();
         }
 
     private:
         PlatformMessageHandler platform_message_handler;
-        std::shared_ptr<rendering::RHISwapchain> rhi_swapchain;
+        std::unique_ptr<rendering::RHISwapchain> rhi_swapchain;
     };
 
-    WONENGINE_API std::shared_ptr<Window> CreateNativeWindow(const WindowDesc& desc);
+    WONENGINE_API std::unique_ptr<Window> CreateNativeWindow(const WindowDesc& desc);
 }

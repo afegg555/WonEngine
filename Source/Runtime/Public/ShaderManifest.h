@@ -14,7 +14,8 @@ namespace won::resource
         VSSprite2D,
         VSSprite3D,
         VSDecal,
-        VSDebugText,
+        VSDebugDraw2D,
+        VSDebugDraw3D,
 
         PSSky,
         PSObjectForward,
@@ -25,7 +26,8 @@ namespace won::resource
         PSText3D,
         PSComposite,
         PSDecal,
-        PSDebugText,
+        PSDebugDraw2D,
+        PSDebugDraw3D,
 
         CSFXAA,
         CSTonemap,
@@ -58,7 +60,8 @@ namespace won::resource
         case ShaderId::VSSprite2D: return "VSSprite2D";
         case ShaderId::VSSprite3D: return "VSSprite3D";
         case ShaderId::VSDecal: return "VSDecal";
-        case ShaderId::VSDebugText: return "VSDebugText";
+        case ShaderId::VSDebugDraw2D: return "VSDebugDraw2D";
+        case ShaderId::VSDebugDraw3D: return "VSDebugDraw3D";
         case ShaderId::PSSky: return "PSSky";
         case ShaderId::PSObjectForward: return "PSObjectForward";
         case ShaderId::PSObjectForwardPlus: return "PSObjectForwardPlus";
@@ -68,7 +71,8 @@ namespace won::resource
         case ShaderId::PSText3D: return "PSText3D";
         case ShaderId::PSComposite: return "PSComposite";
         case ShaderId::PSDecal: return "PSDecal";
-        case ShaderId::PSDebugText: return "PSDebugText";
+        case ShaderId::PSDebugDraw2D: return "PSDebugDraw2D";
+        case ShaderId::PSDebugDraw3D: return "PSDebugDraw3D";
         case ShaderId::CSFXAA: return "CSFXAA";
         case ShaderId::CSTonemap: return "CSTonemap";
         case ShaderId::CSLuminanceReduce: return "CSLuminanceReduce";
