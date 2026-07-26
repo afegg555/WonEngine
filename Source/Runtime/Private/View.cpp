@@ -182,7 +182,24 @@ namespace won::rendering
         GPUScene& gpu_scene = scene->GetGPUScene();
         const ecs::CameraComponent* camera = scene->GetComponent<ecs::CameraComponent>(camera_entity);
         const float3 eye = camera ? camera->eye : float3{};
-        const math::Frustum* frustum = (options.enable_frustum_culling && camera) ? &camera->frustum : nullptr;
+        const math::Frustum* frustum = nullptr;
+        if (options.enable_frustum_culling && camera)
+        {
+            if (freeze_culling)
+            {
+                if (!frozen_frustum_valid)
+                {
+                    frozen_frustum = camera->frustum;
+                    frozen_frustum_valid = true;
+                }
+                frustum = &frozen_frustum;
+            }
+            else
+            {
+                frozen_frustum_valid = false;
+                frustum = &camera->frustum;
+            }
+        }
         const uint32 culling_mask = camera ? camera->culling_mask : 0xFFFFFFFF;
         // No iota fast path: layer_mask == 0 must be culled even when culling_mask is all-ones,
         // so every renderable needs a per-element layer test regardless of frustum presence.

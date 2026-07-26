@@ -40,6 +40,10 @@ void main(uint3 dispatch_thread_id : SV_DispatchThreadID)
         // ACES
         ldr_color = ACESFilm(hdr_color.rgb);
     }
+    else if (tonemappush.tonemap_type == TONEMAP_TYPE_NONE)
+    {
+        ldr_color = saturate(hdr_color.rgb);
+    }
 
     destination[pixel_coord] = float4(ldr_color, hdr_color.a);
 }

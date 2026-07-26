@@ -246,6 +246,17 @@ struct alignas(16) ShaderDecal
 #endif
 };
 
+static const uint DEBUG_VIEW_MODE_NONE = 0;
+static const uint DEBUG_VIEW_MODE_UNLIT = 1;
+static const uint DEBUG_VIEW_MODE_BASE_COLOR = 2;
+static const uint DEBUG_VIEW_MODE_WORLD_NORMAL = 3;
+static const uint DEBUG_VIEW_MODE_ROUGHNESS = 4;
+static const uint DEBUG_VIEW_MODE_METALLIC = 5;
+static const uint DEBUG_VIEW_MODE_LIGHT_COMPLEXITY = 6;
+static const uint DEBUG_VIEW_MODE_SHADOW_CASCADES = 7;
+static const uint DEBUG_VIEW_MODE_WIREFRAME = 8;
+static const uint DEBUG_VIEW_MODE_OVERDRAW = 9;
+
 struct alignas(16) ShaderScene
 {
     int instancebuffer;
@@ -275,7 +286,7 @@ struct alignas(16) ShaderScene
     int light_shadow_slice_buffer;
     uint cluster_depth_slices;
     int cluster_light_offset_buffer;
-    int padding;
+    uint debug_view_mode;
 #ifdef __cplusplus
     inline void Init()
     {
@@ -305,6 +316,7 @@ struct alignas(16) ShaderScene
         cluster_depth_slices = 1;
 
         light_shadow_slice_buffer = -1;
+        debug_view_mode = DEBUG_VIEW_MODE_NONE;
     }
 #endif
 };

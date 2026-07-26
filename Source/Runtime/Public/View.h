@@ -73,6 +73,9 @@ namespace won::rendering
         ecs::Entity camera_entity = {};
         ecs::Scene* scene = nullptr;
         RenderPathType render_path_type = RenderPathType::ForwardPlus; // pipeline-level selection, not a lightweight ViewOption
+        ViewMode view_mode = ViewMode::Lit;
+        uint32 show_flags = Show_Default;
+        bool freeze_culling = false;
         Options options = {};
         LightResources light_resources = {};
         ShadowResources shadow_resources = {};
@@ -97,5 +100,7 @@ namespace won::rendering
 
         ecs::Entity ui_hovered = ecs::INVALID_ENTITY;
         ecs::Entity ui_press_target = ecs::INVALID_ENTITY;
+        math::Frustum frozen_frustum = {};
+        bool frozen_frustum_valid = false;
     };
 }

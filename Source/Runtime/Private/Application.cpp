@@ -25,6 +25,14 @@
 
 namespace won
 {
+#ifndef WON_SHIPPING
+    static console::ConsoleVariable r_debug_viewmode("r.debug.viewmode", 0, "exclusive debug view mode: 0=Lit 1=Unlit 2=BaseColor 3=WorldNormal 4=Roughness 5=Metallic 6=LightComplexity 7=ShadowCascades 8=Wireframe 9=Overdraw", console::ConsoleVariableFlagNone);
+    static console::ConsoleVariable r_debug_show_bvh("r.debug.show.bvh", false, "overlay scene BVH bounds", console::ConsoleVariableFlagNone);
+    static console::ConsoleVariable r_debug_show_ddgi("r.debug.show.ddgi", false, "overlay DDGI volume and probes", console::ConsoleVariableFlagNone);
+    static console::ConsoleVariable r_debug_show_colliders("r.debug.show.colliders", false, "overlay physics collider bounds", console::ConsoleVariableFlagNone);
+    static console::ConsoleVariable r_debug_freeze_culling("r.debug.freeze_culling", false, "freeze the culling frustum at its current state", console::ConsoleVariableFlagNone);
+#endif
+
 	// currently uses a hash of the schema filename to derive the save file name... maybe changed ??
     static String DeriveGameDataSaveFile(const String& schema_path)
     {
@@ -482,6 +490,39 @@ namespace won
             {
                 if (view_ptr && view_ptr->scene)
                 {
+#ifndef WON_SHIPPING
+                    const int view_mode = r_debug_viewmode.GetInt();
+                    if (view_mode >= 0 && view_mode < static_cast<int>(rendering::ViewMode::VIEWMODE_COUNT))
+                    {
+                        view_ptr->view_mode = static_cast<rendering::ViewMode>(view_mode);
+                    }
+                    if (r_debug_show_bvh.GetBool())
+                    {
+                        view_ptr->show_flags |= rendering::Show_BVH;
+                    }
+                    else
+                    {
+                        view_ptr->show_flags &= ~rendering::Show_BVH;
+                    }
+                    if (r_debug_show_ddgi.GetBool())
+                    {
+                        view_ptr->show_flags |= rendering::Show_DDGI;
+                    }
+                    else
+                    {
+                        view_ptr->show_flags &= ~rendering::Show_DDGI;
+                    }
+                    if (r_debug_show_colliders.GetBool())
+                    {
+                        view_ptr->show_flags |= rendering::Show_Colliders;
+                    }
+                    else
+                    {
+                        view_ptr->show_flags &= ~rendering::Show_Colliders;
+                    }
+                    view_ptr->freeze_culling = r_debug_freeze_culling.GetBool();
+#endif
+
                     renderer->Render(*view_ptr);
                 }
             }

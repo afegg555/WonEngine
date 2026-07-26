@@ -95,10 +95,10 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
     surface.emissive_color *= GetCamera().exposure;
 #endif // OBJECTSHADER_USE_EMISSIVE
     
+    half metallic = material.GetMetallic();
     {
 		// Metallic-roughness workflow:
         half perceptual_roughness = material.GetRoughness();
-        half metallic = material.GetMetallic();
 
 #ifdef OBJECTSHADER_USE_UVSETS
         [branch]
@@ -209,6 +209,10 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
     final_color.rgb = surface.albedo * diffuse;
     final_color.rgb += specular;
     final_color.rgb += surface.emissive_color;
+
+#ifndef WON_SHIPPING
+    final_color = ApplyDebugViewMode(final_color, surface, base_color, metallic, input.pos.xy);
+#endif
 
 #endif // UNLIT
  

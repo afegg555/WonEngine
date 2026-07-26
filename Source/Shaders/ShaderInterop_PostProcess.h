@@ -51,6 +51,7 @@ PUSHCONSTANT(compositepush, CompositePushConstants);
 
 static const uint TONEMAP_TYPE_REINHARD = 0;
 static const uint TONEMAP_TYPE_ACES = 1;
+static const uint TONEMAP_TYPE_NONE = 2;
 
 struct TonemapPushConstants
 {

@@ -1455,14 +1455,34 @@ namespace won::editor
 			}
 		}
 
-		if (renderer)
+		if (editor_viewport.view)
 		{
+			if (editor_viewport.debug_settings.show_ddgi_overlay)
+			{
+				editor_viewport.view->show_flags |= rendering::Show_DDGI;
+			}
+			else
+			{
+				editor_viewport.view->show_flags &= ~rendering::Show_DDGI;
+			}
+			if (editor_viewport.debug_settings.show_bvh_debug)
+			{
+				editor_viewport.view->show_flags |= rendering::Show_BVH;
+			}
+			else
+			{
+				editor_viewport.view->show_flags &= ~rendering::Show_BVH;
+			}
+			if (editor_viewport.debug_settings.show_colliders)
+			{
+				editor_viewport.view->show_flags |= rendering::Show_Colliders;
+			}
+			else
+			{
+				editor_viewport.view->show_flags &= ~rendering::Show_Colliders;
+			}
+			editor_viewport.view->view_mode = editor_viewport.debug_settings.use_wireframe ? rendering::ViewMode::Wireframe : rendering::ViewMode::Lit;
 		}
-		if (!is_playing)
-		{
-			UpdateDebugPrimitiveMesh();
-		}
-
 		if (won::io::IsPressed(io::Button('R')))
 		{
 			renderer->ReloadShaders();
@@ -1888,10 +1908,7 @@ namespace won::editor
 		content_browser.tile_size = (std::max)(48.0f, (std::min)(128.0f, editor_settings.content_tile_size));
 		editor_viewport.debug_settings.show_grid = editor_settings.viewport_show_grid;
 		editor_viewport.debug_settings.show_colliders = editor_settings.viewport_show_colliders;
-		if (won::console::ConsoleVariable* wireframe_cvar = won::console::Find("r.wireframe"))
-		{
-			wireframe_cvar->SetFromString(editor_settings.viewport_use_wireframe ? "1" : "0");
-		}
+		editor_viewport.debug_settings.use_wireframe = editor_settings.viewport_use_wireframe;
 		editor_viewport.debug_settings.show_bvh_debug = editor_settings.viewport_show_bvh_debug;
 		editor_viewport.debug_settings.show_ddgi_overlay = editor_settings.viewport_show_ddgi_overlay;
 		editor_camera_speed = (std::max)(0.1f, editor_settings.camera_speed);
@@ -1904,10 +1921,7 @@ namespace won::editor
 		editor_settings.content_tile_size = content_browser.tile_size;
 		editor_settings.viewport_show_grid = editor_viewport.debug_settings.show_grid;
 		editor_settings.viewport_show_colliders = editor_viewport.debug_settings.show_colliders;
-		if (won::console::ConsoleVariable* wireframe_cvar = won::console::Find("r.wireframe"))
-		{
-			editor_settings.viewport_use_wireframe = wireframe_cvar->GetBool();
-		}
+		editor_settings.viewport_use_wireframe = editor_viewport.debug_settings.use_wireframe;
 		editor_settings.viewport_show_bvh_debug = editor_viewport.debug_settings.show_bvh_debug;
 		editor_settings.viewport_show_ddgi_overlay = editor_viewport.debug_settings.show_ddgi_overlay;
 		editor_settings.camera_speed = editor_camera_speed;
@@ -3278,12 +3292,7 @@ namespace won::editor
 			ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(500, 500));
 			if (ImGui::BeginPopup(editor_text::options_popup))
 			{
-				won::console::ConsoleVariable* wireframe_cvar = won::console::Find("r.wireframe");
-				bool wireframe_on = wireframe_cvar && wireframe_cvar->GetBool();
-				if (ImGui::Checkbox(editor_text::wireframe, &wireframe_on) && wireframe_cvar)
-				{
-					wireframe_cvar->SetFromString(wireframe_on ? "1" : "0");
-				}
+				ImGui::Checkbox(editor_text::wireframe, &editor_viewport.debug_settings.use_wireframe);
 
 				if (window)
 				{
