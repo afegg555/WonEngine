@@ -26,8 +26,6 @@ namespace won::rendering
         RHIClearColor GetClearColor() const override;
         void SetVSync(bool enabled) override;
         void SetShadowResolutionScale(float scale) override;
-        void SetDebugOptions(const RendererDebugOptions& options) override;
-        RendererDebugState GetDebugState() const override;
         bool GetCurrentBackBufferBinding(RHISubresourceBinding& out_binding) const override;
         bool GetCurrentDepthBufferBinding(RHISubresourceBinding& out_binding) const override;
         bool UpdateDefaultBuffer(FrameContext& frame_context, RHIResource& destination_buffer, const void* source_data, Size data_size, RHIResourceState final_state, Size destination_offset, RHICommandList& command_list) override;
@@ -61,7 +59,6 @@ namespace won::rendering
         // etc
         void Update(View& view);
         bool BuildShadowCascades(View& view);
-        void UpdateDebugState(const View& view);
 #ifndef WON_SHIPPING
         void SubmitDebugDraw(const View& view);
         bool DrawDebug3D(FrameContext& frame_context, RHICommandList& command_list);
@@ -135,9 +132,18 @@ namespace won::rendering
         std::shared_ptr<RHIPipeline> composite_pipeline;
         std::shared_ptr<RHIShader> composite_shader;
 
-        std::shared_ptr<RHIPipeline> debug_text_pipeline;
-        std::shared_ptr<RHIShader> debug_text_vs;
-        std::shared_ptr<RHIShader> debug_text_ps;
+#ifndef WON_SHIPPING
+        std::shared_ptr<RHIPipeline> debug_2d_pipeline;
+        std::shared_ptr<RHIShader> debug_2d_vs;
+        std::shared_ptr<RHIShader> debug_2d_ps;
+
+        std::shared_ptr<RHIPipeline> debug_3d_pipeline;
+        std::shared_ptr<RHIShader> debug_3d_vs;
+        std::shared_ptr<RHIShader> debug_3d_ps;
+        std::shared_ptr<RHIResource> debug_3d_buffer;
+        RHISubresourceHandle debug_3d_buffer_srv = {};
+#endif
+        bool ddgi_probe_debug_wanted = false;
 
         std::shared_ptr<RHIResource> shadow_map_atlas;
         RHISubresourceHandle shadow_map_atlas_dsv = {};
@@ -177,8 +183,6 @@ namespace won::rendering
         bool vsync_enabled = true;
         bool vsync_requested = true;
         float shadow_resolution_scale = 1.0f;
-        RendererDebugOptions debug_options = {};
-        RendererDebugState debug_state = {};
 
         uint2 shadow_map_atlas_size = { 0, 0 };
         uint3 ddgi_probe_counts = { 0, 0, 0 };

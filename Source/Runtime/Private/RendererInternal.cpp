@@ -54,11 +54,6 @@ namespace won::rendering
         }
     }
 
-    RendererDebugState RendererInternal::GetDebugState() const
-    {
-        return debug_state;
-    }
-
     void RendererInternal::SetClearColor(const RHIClearColor& color)
     {
         clear_color = color;
@@ -114,11 +109,6 @@ namespace won::rendering
         out_binding.resource = depth_buffer.get();
         out_binding.subresource = depth_buffer_dsv;
         return true;
-    }
-
-    void RendererInternal::SetDebugOptions(const RendererDebugOptions& options)
-    {
-        debug_options = options;
     }
 
     bool RendererInternal::UpdateDefaultBuffer(FrameContext& frame_context, RHIResource& destination_buffer, const void* source_data, Size data_size, RHIResourceState final_state, Size destination_offset, RHICommandList& command_list)
@@ -197,7 +187,7 @@ namespace won::rendering
 
         if (!recreate_ddgi_texture)
         {
-            if (debug_options.ddgi_debug_enable && !ddgi_probe_data_readback_buffer && ddgi_probe_data_buffer)
+            if (ddgi_probe_debug_wanted && !ddgi_probe_data_readback_buffer && ddgi_probe_data_buffer)
             {
                 RHIBufferDesc probe_data_readback_buffer_desc = {};
                 probe_data_readback_buffer_desc.size = ddgi_probe_data_buffer->GetDesc().buffer_desc.size;
@@ -211,7 +201,7 @@ namespace won::rendering
                 ddgi_probe_data_readback_buffer->SetName("DDGI Debug Probe Data Readback Buffer");
                 ddgi_probe_data_readback_valid = false;
             }
-            else if (!debug_options.ddgi_debug_enable && ddgi_probe_data_readback_buffer)
+            else if (!ddgi_probe_debug_wanted && ddgi_probe_data_readback_buffer)
             {
                 frame_context.RemoveResourceDeferred(ddgi_probe_data_readback_buffer);
                 ddgi_probe_data_readback_valid = false;
@@ -409,7 +399,7 @@ namespace won::rendering
             return false;
         }
 
-        if (debug_options.ddgi_debug_enable)
+        if (ddgi_probe_debug_wanted)
         {
             RHIBufferDesc probe_data_readback_buffer_desc = {};
             probe_data_readback_buffer_desc.size = ddgi_probe_data_buffer_desc.size;
@@ -1202,15 +1192,6 @@ namespace won::rendering
         {
             if (!draw_wireframe)
                 depth_compare = RHICompareOp::Equal;
-            debug_state.draw_call_count = 0;
-            debug_state.total_renderable_count =
-                static_cast<uint32>(gpu_scene.opaque_renderables.size() + gpu_scene.transparent_renderables.size()
-                + gpu_scene.sprite_3d_renderables.size() + gpu_scene.sprite_2d_renderables.size()
-                + gpu_scene.line_renderables.size() + gpu_scene.point_renderables.size());
-            debug_state.visible_renderable_count =
-                static_cast<uint32>(view.sorted_opaque_indices.size() + view.sorted_transparent_indices.size()
-                + view.sorted_sprite_3d_indices.size() + view.sorted_sprite_2d_indices.size()
-                + gpu_scene.line_renderables.size() + gpu_scene.point_renderables.size());
         }
 
         GraphicsPipelineHash pipeline_hash = {};
@@ -1239,8 +1220,6 @@ namespace won::rendering
             command_list.SetPrimitiveTopology(ToRHIPrimitiveTopology(first.primitive_topology));
             command_list.PushConstants(RHIShaderStage::Vertex, &push, sizeof(ObjectPushConstants), 0);
             command_list.DrawIndexed(first.index_count, size, 0, 0, 0);
-            if (pass == RenderPassType::MainPass)
-                ++debug_state.draw_call_count;
         };
 
         if ((flags & DrawScene_Opaque) != 0 && !gpu_scene.opaque_renderables.empty())
@@ -1357,8 +1336,6 @@ namespace won::rendering
                 command_list.SetPrimitiveTopology(ToRHIPrimitiveTopology(renderable.primitive_topology));
                 command_list.PushConstants(RHIShaderStage::Vertex, &push, sizeof(ObjectPushConstants), 0);
                 command_list.DrawIndexed(renderable.index_count, 1, 0, 0, 0);
-                if (pass == RenderPassType::MainPass)
-                    ++debug_state.draw_call_count;
             }
         }
 
@@ -1385,7 +1362,6 @@ namespace won::rendering
                     command_list.SetPrimitiveTopology(ToRHIPrimitiveTopology(renderable.primitive_topology));
                     command_list.PushConstants(RHIShaderStage::Vertex, &renderable.push_constants, sizeof(ObjectPushConstants), 0);
                     command_list.DrawIndexed(renderable.index_count, 1, 0, 0, 0);
-                    ++debug_state.draw_call_count;
                 }
             }
 
@@ -1410,7 +1386,6 @@ namespace won::rendering
                     command_list.SetPrimitiveTopology(ToRHIPrimitiveTopology(renderable.primitive_topology));
                     command_list.PushConstants(RHIShaderStage::Vertex, &renderable.push_constants, sizeof(ObjectPushConstants), 0);
                     command_list.DrawIndexed(renderable.index_count, 1, 0, 0, 0);
-                    ++debug_state.draw_call_count;
                 }
             }
         }
@@ -1506,7 +1481,6 @@ namespace won::rendering
                     }
                     command_list.PushConstants(RHIShaderStage::Vertex, &push_constants, sizeof(SpritePushConstants), 0);
                     command_list.Draw(6, 1, 0, 0);
-                    ++debug_state.draw_call_count;
                 }
                 else
                 {
@@ -1531,7 +1505,6 @@ namespace won::rendering
                     push_constants.SetResourceIndex(static_cast<uint32>(renderable.font->render_data.atlas_srv.descriptor_index));
                     command_list.PushConstants(RHIShaderStage::Vertex, &push_constants, sizeof(SpritePushConstants), 0);
                     command_list.Draw(6, 1, 0, 0);
-                    ++debug_state.draw_call_count;
                 }
             }
         }
@@ -1600,7 +1573,6 @@ namespace won::rendering
                     push_constants.material_index = renderable.material_index;
                     command_list.PushConstants(RHIShaderStage::Vertex, &push_constants, sizeof(SpritePushConstants), 0);
                     command_list.Draw(6, 1, 0, 0);
-                    ++debug_state.draw_call_count;
                 }
                 else
                 {
@@ -1621,7 +1593,6 @@ namespace won::rendering
                     push_constants.SetResourceIndex(static_cast<uint32>(renderable.font->render_data.atlas_srv.descriptor_index));
                     command_list.PushConstants(RHIShaderStage::Vertex, &push_constants, sizeof(SpritePushConstants), 0);
                     command_list.Draw(6, 1, 0, 0);
-                    ++debug_state.draw_call_count;
                 }
             }
         }
@@ -1629,22 +1600,23 @@ namespace won::rendering
         return true;
     }
 
-    void RendererInternal::DrawDebugText(const RHISubresourceBinding& back_buffer_binding, RHICommandList& command_list)
+#ifndef WON_SHIPPING
+    void RendererInternal::DrawDebug2D(const RHISubresourceBinding& back_buffer_binding, RHICommandList& command_list)
     {
-        const Vector<debugtext::Item>& items = debugtext::GetItems();
+        const Vector<debugdraw::Item2D>& items = debugdraw::GetItems2D();
         if (items.empty() || !builtinfont::IsReady())
         {
-            debugtext::Clear();
+            debugdraw::Clear2D();
             return;
         }
 
-        if (!debug_text_pipeline)
+        if (!debug_2d_pipeline)
         {
-            std::shared_ptr<RHIShader> vs = shader_library.GetShader(ShaderId::VSDebugText);
-            std::shared_ptr<RHIShader> ps = shader_library.GetShader(ShaderId::PSDebugText);
+            std::shared_ptr<RHIShader> vs = shader_library.GetShader(ShaderId::VSDebugDraw2D);
+            std::shared_ptr<RHIShader> ps = shader_library.GetShader(ShaderId::PSDebugDraw2D);
             if (!vs || !ps)
             {
-                debugtext::Clear();
+                debugdraw::Clear2D();
                 return;
             }
             RHIGraphicsPipelineDesc desc = {};
@@ -1657,22 +1629,22 @@ namespace won::rendering
             desc.raster.cull_mode = RHICullMode::None;
             desc.topology = RHIPrimitiveTopology::TriangleList;
             desc.render_target_formats = { back_buffer_binding.resource->GetDesc().texture_desc.format };
-            debug_text_pipeline = device->CreateGraphicsPipeline(desc);
-            if (!debug_text_pipeline)
+            debug_2d_pipeline = device->CreateGraphicsPipeline(desc);
+            if (!debug_2d_pipeline)
             {
-                debugtext::Clear();
+                debugdraw::Clear2D();
                 return;
             }
-            debug_text_pipeline->SetName("Debug Text Pipeline");
-            debug_text_vs = vs;
-            debug_text_ps = ps;
+            debug_2d_pipeline->SetName("DebugDraw2D Pipeline");
+            debug_2d_vs = vs;
+            debug_2d_ps = ps;
         }
 
         const float bb_width = static_cast<float>(back_buffer_binding.resource->GetDesc().texture_desc.width);
         const float bb_height = static_cast<float>(back_buffer_binding.resource->GetDesc().texture_desc.height);
         if (bb_width <= 0.0f || bb_height <= 0.0f)
         {
-            debugtext::Clear();
+            debugdraw::Clear2D();
             return;
         }
 
@@ -1694,37 +1666,36 @@ namespace won::rendering
         command_list.SetRenderTargets({ back_buffer_binding }, nullptr);
         command_list.SetViewport(viewport);
         command_list.SetScissor(scissor);
-        command_list.SetGraphicsPipeline(*debug_text_pipeline);
+        command_list.SetGraphicsPipeline(*debug_2d_pipeline);
         command_list.SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
 
         const uint32 atlas_index = static_cast<uint32>(builtinfont::GetAtlasSRV().descriptor_index);
         const float cell_u = static_cast<float>(builtinfont::glyph_width) / static_cast<float>(builtinfont::atlas_width);
         const float cell_v = static_cast<float>(builtinfont::glyph_height) / static_cast<float>(builtinfont::atlas_height);
 
-        for (const debugtext::Item& item : items)
+        for (const debugdraw::Item2D& item : items)
         {
             if (item.is_rect)
             {
-                DebugTextPushConstants push = {};
+                DebugDraw2DPushConstants push = {};
                 push.Init();
-                push.rect = { item.x / bb_width, item.y / bb_height, item.width / bb_width, item.height / bb_height };
+                push.rect = { item.position.x / bb_width, item.position.y / bb_height, item.size.x / bb_width, item.size.y / bb_height };
                 push.color = item.color;
                 push.atlas_index = 0xffffffffu;
                 command_list.PushConstants(RHIShaderStage::Vertex, &push, sizeof(push), 0);
                 command_list.Draw(6, 1, 0, 0);
-                ++debug_state.draw_call_count;
                 continue;
             }
 
             const float glyph_w = static_cast<float>(builtinfont::glyph_width) * item.scale;
             const float glyph_h = static_cast<float>(builtinfont::glyph_height) * item.scale;
-            float pen_x = item.x;
-            float pen_y = item.y;
+            float pen_x = item.position.x;
+            float pen_y = item.position.y;
             for (unsigned char ch : item.text)
             {
                 if (ch == '\n')
                 {
-                    pen_x = item.x;
+                    pen_x = item.position.x;
                     pen_y += glyph_h;
                     continue;
                 }
@@ -1732,7 +1703,7 @@ namespace won::rendering
                 const int col = ch % builtinfont::atlas_cols;
                 const int row = ch / builtinfont::atlas_cols;
 
-                DebugTextPushConstants push = {};
+                DebugDraw2DPushConstants push = {};
                 push.Init();
                 push.rect = { pen_x / bb_width, pen_y / bb_height, glyph_w / bb_width, glyph_h / bb_height };
                 push.uv_rect = { col * cell_u, row * cell_v, (col + 1) * cell_u, (row + 1) * cell_v };
@@ -1740,14 +1711,14 @@ namespace won::rendering
                 push.atlas_index = atlas_index;
                 command_list.PushConstants(RHIShaderStage::Vertex, &push, sizeof(push), 0);
                 command_list.Draw(6, 1, 0, 0);
-                ++debug_state.draw_call_count;
 
                 pen_x += glyph_w;
             }
         }
 
-        debugtext::Clear();
+        debugdraw::Clear2D();
     }
+#endif
 
     void RendererInternal::Initialize(const RendererDesc& desc)
     {
@@ -1938,7 +1909,6 @@ namespace won::rendering
             }
         }
 
-        debug_state.ddgi.probe_update_pipeline_ready = ddgi_probe_update_pipeline != nullptr;
 
         const uint32 probe_update_start = ddgi_volume.total_probe_count > 0 ? ddgi_probe_update_offset % ddgi_volume.total_probe_count : 0;
         const uint32 probes_per_frame = ddgi_history_valid ? (std::min)(ddgi_volume.probes_per_frame, ddgi_volume.total_probe_count) : ddgi_volume.total_probe_count;
@@ -1972,7 +1942,7 @@ namespace won::rendering
         }
 
         const uint32 dispatch_width = (std::max)(probe_update_dispatch_width, 1u);
-        debug_state.ddgi.dispatch_groups = {
+        const uint3 dispatch_groups = {
             dispatch_width,
             (probes_per_frame + dispatch_width - 1) / dispatch_width,
             1
@@ -1993,7 +1963,7 @@ namespace won::rendering
         command_list.SetComputePipeline(*ddgi_probe_update_pipeline);
         command_list.SetConstantBuffer(RHIShaderStage::Compute, 0, shader_frame_binding);
         command_list.SetConstantBuffer(RHIShaderStage::Compute, 1, shader_camera_binding);
-        command_list.Dispatch(debug_state.ddgi.dispatch_groups.x, debug_state.ddgi.dispatch_groups.y, debug_state.ddgi.dispatch_groups.z);
+        command_list.Dispatch(dispatch_groups.x, dispatch_groups.y, dispatch_groups.z);
 
         command_list.UAVBarrier(*ddgi_irradiance_texture);
         command_list.UAVBarrier(*ddgi_visibility_texture);
@@ -2009,7 +1979,7 @@ namespace won::rendering
         command_list.CopyResource(*ddgi_irradiance_history_texture, *ddgi_irradiance_texture);
         command_list.CopyResource(*ddgi_visibility_history_texture, *ddgi_visibility_texture);
         command_list.CopyResource(*ddgi_probe_data_history_buffer, *ddgi_probe_data_buffer);
-        if (debug_options.ddgi_debug_enable && ddgi_probe_data_readback_buffer)
+        if (ddgi_probe_debug_wanted && ddgi_probe_data_readback_buffer)
         {
             command_list.CopyBuffer(*ddgi_probe_data_readback_buffer, 0, *ddgi_probe_data_buffer, 0, ddgi_probe_data_buffer->GetDesc().buffer_desc.size);
         }
@@ -2022,111 +1992,253 @@ namespace won::rendering
         command_list.TransitionResource(*ddgi_probe_data_history_buffer, RHIResourceState::ShaderRead);
         command_list.EndEvent();
 
-        debug_state.ddgi.probe_update_dispatched = true;
         ddgi_probe_update_offset = (probe_update_start + probes_per_frame) % ddgi_volume.total_probe_count;
         ddgi_history_valid = true;
-        ddgi_probe_data_readback_valid = debug_options.ddgi_debug_enable && ddgi_probe_data_readback_buffer != nullptr;
+        ddgi_probe_data_readback_valid = ddgi_probe_debug_wanted && ddgi_probe_data_readback_buffer != nullptr;
     }
 
-    void RendererInternal::UpdateDebugState(const View& view)
+#ifndef WON_SHIPPING
+    void RendererInternal::SubmitDebugDraw(const View& view)
     {
-        rendering::GPUScene& gpu_scene = view.scene->GetGPUScene();
-        debug_state.ddgi = {};
-        if (debug_options.bvh_debug_enable)
-        {
-            debug_state.bvh = {};
-            const math::bvh::BVH& cpu_bvh = view.scene->GetSceneBVH();
-            debug_state.bvh.cpu_bvh_available = cpu_bvh.IsValid();
-            debug_state.bvh.cpu_nodes.reserve(cpu_bvh.nodes.size());
-            for (const math::bvh::BVHNode& node : cpu_bvh.nodes)
-            {
-                RendererDebugBVHState::BVHNode debug_node = {};
-                debug_node.bounds_min = node.bounds.min;
-                debug_node.bounds_max = node.bounds.max;
-                debug_node.is_leaf = node.IsLeaf();
-                debug_state.bvh.cpu_nodes.push_back(debug_node);
-            }
-        }
-        else
-        {
-            debug_state.bvh = {};
-        }
-        debug_state.ddgi.gi_mode_ddgi = gpu_scene.shader_environment.diffuse_gi_mode == SHADER_DIFFUSE_GI_MODE_DDGI;
-        debug_state.ddgi.volume_active = (gpu_scene.shader_ddgi_volume.flags & SHADER_DDGI_FLAG_ACTIVE) != 0;
-        if (debug_state.ddgi.volume_active)
-        {
-            const uint3& probe_counts = gpu_scene.shader_ddgi_volume.probe_counts;
-            const float3& probe_spacing = gpu_scene.shader_ddgi_volume.probe_spacing;
-            const float3 probe_span = {
-                static_cast<float>((probe_counts.x > 0 ? probe_counts.x - 1 : 0)) * probe_spacing.x,
-                static_cast<float>((probe_counts.y > 0 ? probe_counts.y - 1 : 0)) * probe_spacing.y,
-                static_cast<float>((probe_counts.z > 0 ? probe_counts.z - 1 : 0)) * probe_spacing.z
-            };
+        GPUScene& gpu_scene = view.scene->GetGPUScene();
 
-            debug_state.ddgi.volume_entity = gpu_scene.ddgi_volume_entity;
-            debug_state.ddgi.probe_counts = probe_counts;
-            debug_state.ddgi.volume_min = gpu_scene.shader_ddgi_volume.volume_min;
-            debug_state.ddgi.volume_max = {
-                gpu_scene.shader_ddgi_volume.volume_min.x + probe_span.x,
-                gpu_scene.shader_ddgi_volume.volume_min.y + probe_span.y,
-                gpu_scene.shader_ddgi_volume.volume_min.z + probe_span.z
-            };
-            debug_state.ddgi.probe_spacing = probe_spacing;
-            debug_state.ddgi.total_probe_count = gpu_scene.shader_ddgi_volume.total_probe_count;
-        }
-        debug_state.ddgi.irradiance_texture_allocated = ddgi_irradiance_texture != nullptr;
-        debug_state.ddgi.irradiance_srv_valid = ddgi_irradiance_texture_srv.IsValid();
-        debug_state.ddgi.irradiance_uav_valid = ddgi_irradiance_texture_uav.IsValid();
-        debug_state.ddgi.visibility_texture_allocated = ddgi_visibility_texture != nullptr;
-        debug_state.ddgi.visibility_srv_valid = ddgi_visibility_texture_srv.IsValid();
-        debug_state.ddgi.visibility_uav_valid = ddgi_visibility_texture_uav.IsValid();
-        debug_state.ddgi.probe_data_buffer_allocated = ddgi_probe_data_buffer != nullptr;
-        debug_state.ddgi.probe_data_srv_valid = ddgi_probe_data_buffer_srv.IsValid();
-        debug_state.ddgi.probe_data_uav_valid = ddgi_probe_data_buffer_uav.IsValid();
-        debug_state.ddgi.history_valid = ddgi_history_valid;
-        debug_state.ddgi.irradiance_texture_srv = ddgi_irradiance_texture_srv.descriptor_index;
-        debug_state.ddgi.irradiance_texture_uav = ddgi_irradiance_texture_uav.descriptor_index;
-        debug_state.ddgi.visibility_texture_srv = ddgi_visibility_texture_srv.descriptor_index;
-        debug_state.ddgi.visibility_texture_uav = ddgi_visibility_texture_uav.descriptor_index;
-        debug_state.ddgi.probe_data_buffer_srv = ddgi_probe_data_buffer_srv.descriptor_index;
-        debug_state.ddgi.probe_data_buffer_uav = ddgi_probe_data_buffer_uav.descriptor_index;
-        if (debug_options.ddgi_debug_enable && debug_state.ddgi.gi_mode_ddgi && debug_state.ddgi.volume_active && ddgi_probe_data_readback_valid && ddgi_probe_data_readback_buffer && ddgi_probe_data_readback_buffer->GetMappedData())
+        if ((view.show_flags & Show_Colliders) != 0)
         {
-            const uint32 max_debug_probe_count = 4096;
-            const uint32 total_probe_count = gpu_scene.shader_ddgi_volume.total_probe_count;
-            const float sample_ratio = total_probe_count > max_debug_probe_count ? static_cast<float>(total_probe_count) / static_cast<float>(max_debug_probe_count) : 1.0f;
-            const uint32 sampling_step = sample_ratio > 1.0f ? static_cast<uint32>((std::max)(1.0f, std::ceil(std::cbrt(sample_ratio)))) : 1u;
-            const float4* probe_data = static_cast<const float4*>(ddgi_probe_data_readback_buffer->GetMappedData());
-            const Size readback_probe_count = ddgi_probe_data_readback_buffer->GetDesc().buffer_desc.size / sizeof(float4);
-            debug_state.ddgi.probes.reserve((std::min)(total_probe_count, max_debug_probe_count));
-
-            for (uint32 z = 0; z < gpu_scene.shader_ddgi_volume.probe_counts.z; z += sampling_step)
+            auto collider_array = view.scene->GetComponentArray<ecs::Collider3DComponent>().get();
+            auto transform_array = view.scene->GetComponentArray<ecs::TransformComponent>().get();
+            if (collider_array && transform_array)
             {
-                for (uint32 y = 0; y < gpu_scene.shader_ddgi_volume.probe_counts.y; y += sampling_step)
+                for (Size collider_index = 0; collider_index < collider_array->GetSize(); ++collider_index)
                 {
-                    for (uint32 x = 0; x < gpu_scene.shader_ddgi_volume.probe_counts.x; x += sampling_step)
+                    const ecs::Entity entity = collider_array->index_to_entity[collider_index];
+                    if (!transform_array->HasData(entity))
                     {
-                        const uint32 probe_linear_index = x + y * gpu_scene.shader_ddgi_volume.probe_counts.x + z * gpu_scene.shader_ddgi_volume.probe_counts.x * gpu_scene.shader_ddgi_volume.probe_counts.y;
-                        if (probe_linear_index >= readback_probe_count)
+                        continue;
+                    }
+
+                    const ecs::Collider3DComponent& collider = collider_array->data[collider_index];
+                    if (!collider.IsEnabled())
+                    {
+                        continue;
+                    }
+
+                    const DirectX::XMMATRIX world = transform_array->GetData(entity).GetWorldTransform();
+                    const uint32 color = collider.IsTrigger() ? debugdraw::color::collider_trigger : debugdraw::color::collider;
+                    if (collider.shape_type == ecs::Collider3DComponent::ShapeType::Sphere)
+                    {
+                        const DirectX::XMVECTOR center = DirectX::XMVector3TransformCoord(DirectX::XMLoadFloat3(&collider.offset), world);
+                        const float scale_x = DirectX::XMVectorGetX(DirectX::XMVector3Length(world.r[0]));
+                        const float scale_y = DirectX::XMVectorGetX(DirectX::XMVector3Length(world.r[1]));
+                        const float scale_z = DirectX::XMVectorGetX(DirectX::XMVector3Length(world.r[2]));
+                        const float max_scale = (std::max)((std::max)(scale_x, scale_y), scale_z);
+                        float3 world_center = {};
+                        DirectX::XMStoreFloat3(&world_center, center);
+                        debugdraw::Sphere3D(world_center, (std::max)(0.0f, collider.radius) * max_scale, color);
+                        continue;
+                    }
+
+                    math::AABB world_bounds = {};
+                    if (collider.shape_type == ecs::Collider3DComponent::ShapeType::HeightField)
+                    {
+                        const ecs::GeometryComponent* geometry = view.scene->GetComponent<ecs::GeometryComponent>(entity);
+                        if (!geometry || !geometry->local_bounds.IsValid())
                         {
                             continue;
                         }
-
-                        const float4 data = probe_data[probe_linear_index];
-                        RendererDebugDDGIState::DDGIProbe debug_probe = {};
-                        debug_probe.position = {
-                            gpu_scene.shader_ddgi_volume.volume_min.x + static_cast<float>(x) * gpu_scene.shader_ddgi_volume.probe_spacing.x + data.x,
-                            gpu_scene.shader_ddgi_volume.volume_min.y + static_cast<float>(y) * gpu_scene.shader_ddgi_volume.probe_spacing.y + data.y,
-                            gpu_scene.shader_ddgi_volume.volume_min.z + static_cast<float>(z) * gpu_scene.shader_ddgi_volume.probe_spacing.z + data.z
+                        world_bounds = geometry->local_bounds.TransformAABB(world);
+                    }
+                    else
+                    {
+                        const float3 half_extent = {
+                            (std::max)(0.0f, collider.half_extent.x),
+                            (std::max)(0.0f, collider.half_extent.y),
+                            (std::max)(0.0f, collider.half_extent.z)
                         };
-                        debug_probe.relocation = std::sqrt(data.x * data.x + data.y * data.y + data.z * data.z);
-                        debug_probe.validity = data.w;
-                        debug_state.ddgi.probes.push_back(debug_probe);
+                        math::AABB local_bounds = {};
+                        local_bounds.CreateFromHalfWidth(collider.offset, half_extent);
+                        world_bounds = local_bounds.TransformAABB(world);
+                    }
+
+                    if (world_bounds.IsValid())
+                    {
+                        debugdraw::Box3D(world_bounds.min, world_bounds.max, color);
+                    }
+                }
+            }
+        }
+
+        if ((view.show_flags & Show_BVH) != 0)
+        {
+            const math::bvh::BVH& cpu_bvh = view.scene->GetSceneBVH();
+            for (const math::bvh::BVHNode& node : cpu_bvh.nodes)
+            {
+                debugdraw::Box3D(node.bounds.min, node.bounds.max, node.IsLeaf() ? debugdraw::color::bvh_cpu_leaf : debugdraw::color::bvh_cpu_internal);
+            }
+
+            for (const ShaderBVHNode& node : gpu_scene.shader_bvh_nodes)
+            {
+                debugdraw::Box3D(node.bounds_min, node.bounds_max, node.primitive_count > 0 ? debugdraw::color::bvh_gpu_leaf : debugdraw::color::bvh_gpu_internal);
+            }
+        }
+
+        if ((view.show_flags & Show_DDGI) != 0 && (gpu_scene.shader_ddgi_volume.flags & SHADER_DDGI_FLAG_ACTIVE) != 0)
+        {
+            const ShaderDDGIVolume& ddgi_volume = gpu_scene.shader_ddgi_volume;
+            const float3 probe_span = {
+                static_cast<float>((ddgi_volume.probe_counts.x > 0 ? ddgi_volume.probe_counts.x - 1 : 0)) * ddgi_volume.probe_spacing.x,
+                static_cast<float>((ddgi_volume.probe_counts.y > 0 ? ddgi_volume.probe_counts.y - 1 : 0)) * ddgi_volume.probe_spacing.y,
+                static_cast<float>((ddgi_volume.probe_counts.z > 0 ? ddgi_volume.probe_counts.z - 1 : 0)) * ddgi_volume.probe_spacing.z
+            };
+            const float3 volume_max = {
+                ddgi_volume.volume_min.x + probe_span.x,
+                ddgi_volume.volume_min.y + probe_span.y,
+                ddgi_volume.volume_min.z + probe_span.z
+            };
+            debugdraw::Box3D(ddgi_volume.volume_min, volume_max, debugdraw::color::ddgi_volume);
+
+            if (ddgi_probe_data_readback_valid && ddgi_probe_data_readback_buffer && ddgi_probe_data_readback_buffer->GetMappedData())
+            {
+                const float min_probe_spacing = (std::min)(ddgi_volume.probe_spacing.x, (std::min)(ddgi_volume.probe_spacing.y, ddgi_volume.probe_spacing.z));
+                const float probe_marker_size = (std::max)(0.05f, min_probe_spacing * 0.2f);
+
+                const uint32 max_debug_probe_count = 4096;
+                const uint32 total_probe_count = ddgi_volume.total_probe_count;
+                const float sample_ratio = total_probe_count > max_debug_probe_count ? static_cast<float>(total_probe_count) / static_cast<float>(max_debug_probe_count) : 1.0f;
+                const uint32 sampling_step = sample_ratio > 1.0f ? static_cast<uint32>((std::max)(1.0f, std::ceil(std::cbrt(sample_ratio)))) : 1u;
+                const float4* probe_data = static_cast<const float4*>(ddgi_probe_data_readback_buffer->GetMappedData());
+                const Size readback_probe_count = ddgi_probe_data_readback_buffer->GetDesc().buffer_desc.size / sizeof(float4);
+
+                for (uint32 z = 0; z < ddgi_volume.probe_counts.z; z += sampling_step)
+                {
+                    for (uint32 y = 0; y < ddgi_volume.probe_counts.y; y += sampling_step)
+                    {
+                        for (uint32 x = 0; x < ddgi_volume.probe_counts.x; x += sampling_step)
+                        {
+                            const uint32 probe_linear_index = x + y * ddgi_volume.probe_counts.x + z * ddgi_volume.probe_counts.x * ddgi_volume.probe_counts.y;
+                            if (probe_linear_index >= readback_probe_count)
+                            {
+                                continue;
+                            }
+
+                            const float4 data = probe_data[probe_linear_index];
+                            const float3 position = {
+                                ddgi_volume.volume_min.x + static_cast<float>(x) * ddgi_volume.probe_spacing.x + data.x,
+                                ddgi_volume.volume_min.y + static_cast<float>(y) * ddgi_volume.probe_spacing.y + data.y,
+                                ddgi_volume.volume_min.z + static_cast<float>(z) * ddgi_volume.probe_spacing.z + data.z
+                            };
+                            const float relocation = std::sqrt(data.x * data.x + data.y * data.y + data.z * data.z);
+                            uint32 color = debugdraw::color::ddgi_probe;
+                            if (data.w < 0.5f)
+                            {
+                                color = debugdraw::color::ddgi_probe_invalid;
+                            }
+                            else if (relocation > 0.01f)
+                            {
+                                color = debugdraw::color::ddgi_probe_relocated;
+                            }
+                            debugdraw::Cross3D(position, probe_marker_size, color);
+                        }
                     }
                 }
             }
         }
     }
+
+    bool RendererInternal::DrawDebug3D(FrameContext& frame_context, RHICommandList& command_list)
+    {
+        const Vector<debugdraw::Item3D>& line_vertices = debugdraw::GetItems3D();
+        if (line_vertices.empty())
+        {
+            return true;
+        }
+
+        if (!debug_3d_pipeline)
+        {
+            std::shared_ptr<RHIShader> vs = shader_library.GetShader(ShaderId::VSDebugDraw3D);
+            std::shared_ptr<RHIShader> ps = shader_library.GetShader(ShaderId::PSDebugDraw3D);
+            if (!vs || !ps)
+            {
+                return false;
+            }
+            RHIGraphicsPipelineDesc desc = {};
+            desc.vertex_shader = vs.get();
+            desc.pixel_shader = ps.get();
+            desc.blend.enable = false;
+            desc.depth_stencil.depth_test = true;
+            desc.depth_stencil.depth_write = false;
+            desc.depth_stencil.depth_compare = RHICompareOp::GreaterEqual;
+            desc.raster.cull_mode = RHICullMode::None;
+            desc.topology = RHIPrimitiveTopology::LineList;
+            desc.render_target_formats = { HDR_COLOR_BUFFER_FORMAT };
+            desc.depth_stencil_format = DEPTH_BUFFER_FORMAT;
+            debug_3d_pipeline = device->CreateGraphicsPipeline(desc);
+            if (!debug_3d_pipeline)
+            {
+                return false;
+            }
+            debug_3d_pipeline->SetName("DebugDraw3D Pipeline");
+            debug_3d_vs = vs;
+            debug_3d_ps = ps;
+        }
+
+        const Size required_buffer_size = line_vertices.size() * sizeof(debugdraw::Item3D);
+        Size current_buffer_size = 0;
+        if (debug_3d_buffer)
+        {
+            current_buffer_size = debug_3d_buffer->GetDesc().buffer_desc.size;
+        }
+        if (!debug_3d_buffer || current_buffer_size < required_buffer_size)
+        {
+            frame_context.RemoveResourceDeferred(debug_3d_buffer);
+            RHIBufferDesc buffer_desc = {};
+            buffer_desc.size = required_buffer_size;
+            buffer_desc.usage = RHIResourceUsage::Default;
+            buffer_desc.bind_flags = RHIBindFlags::ShaderResource;
+            debug_3d_buffer = device->CreateBuffer(buffer_desc);
+            if (!debug_3d_buffer)
+            {
+                return false;
+            }
+            debug_3d_buffer->SetName("DebugDraw3D Buffer");
+
+            debug_3d_buffer_srv = {};
+            RHISubresourceDesc srv_desc = {};
+            srv_desc.type = RHISubresourceType::ShaderResource;
+            srv_desc.buffer_offset = 0;
+            srv_desc.buffer_size = debug_3d_buffer->GetDesc().buffer_desc.size;
+            srv_desc.buffer_stride = sizeof(debugdraw::Item3D);
+            if (!device->CreateSubresource(*debug_3d_buffer, srv_desc, &debug_3d_buffer_srv))
+            {
+                debug_3d_buffer = nullptr;
+                return false;
+            }
+        }
+
+        if (!UpdateDefaultBuffer(frame_context, *debug_3d_buffer, line_vertices.data(), required_buffer_size, RHIResourceState::ShaderRead, 0, command_list))
+        {
+            return false;
+        }
+
+        RHISubresourceBinding shader_frame_binding = {};
+        shader_frame_binding.resource = shader_frame_buffer.get();
+        shader_frame_binding.subresource = shader_frame_buffer_cbv;
+        RHISubresourceBinding shader_camera_binding = {};
+        shader_camera_binding.resource = shader_camera_buffer.get();
+        shader_camera_binding.subresource = shader_camera_buffer_cbv;
+
+        command_list.SetGraphicsPipeline(*debug_3d_pipeline);
+        command_list.SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
+        command_list.SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_camera_binding);
+        command_list.SetPrimitiveTopology(RHIPrimitiveTopology::LineList);
+
+        DebugDraw3DPushConstants push = {};
+        push.Init();
+        push.vertex_buffer = static_cast<uint32>(debug_3d_buffer_srv.descriptor_index);
+        command_list.PushConstants(RHIShaderStage::Vertex, &push, sizeof(DebugDraw3DPushConstants), 0);
+        command_list.Draw(static_cast<uint32>(line_vertices.size()), 1, 0, 0);
+        return true;
+    }
+#endif
 
     void RendererInternal::Update(View& view)
     {
@@ -2137,6 +2249,7 @@ namespace won::rendering
 
         ecs::Scene& scene = *view.scene;
         GPUScene& gpu_scene = scene.GetGPUScene();
+        ddgi_probe_debug_wanted = (view.show_flags & Show_DDGI) != 0;
         if (scene.GetUpdateIndex() != gpu_scene.synced_index)
         {
             RHICommandList* command_list = GetFrameContext().BeginCommandList(*device);
@@ -2284,11 +2397,6 @@ namespace won::rendering
             {
                 return;
             }
-        }
-
-        {
-            auto cpu_range = profiler::ScopedRangeCPU("Update Debug State");
-            UpdateDebugState(view);
         }
 
         if (enqueued_work_fence_value > 0 && enqueued_work_fence->GetCompletedValue() >= enqueued_work_fence_value)
@@ -2744,6 +2852,23 @@ namespace won::rendering
                 command_list->EndEvent();
             }
 
+#ifndef WON_SHIPPING
+            SubmitDebugDraw(view);
+            if (!debugdraw::GetItems3D().empty())
+            {
+                auto gpu_range = profiler::ScopedRangeGPU("DebugDraw3D Pass", *command_list);
+                command_list->BeginEvent("DebugDraw3D Pass");
+
+                command_list->SetRenderTargets(color_targets, &depth_buffer_binding);
+                command_list->SetViewport(viewport);
+                command_list->SetScissor(scissor);
+                DrawDebug3D(frame_context, *command_list);
+
+                command_list->EndEvent();
+            }
+            debugdraw::Clear3D();
+#endif
+
             // Post chain + resolve
             {
                 auto gpu_range = profiler::ScopedRangeGPU("Post Resolve", *command_list);
@@ -3095,9 +3220,10 @@ namespace won::rendering
         });
     }
 
-    void RendererInternal::RenderDebugText()
+#ifndef WON_SHIPPING
+    void RendererInternal::RenderDebug2D()
     {
-        if (debugtext::GetItems().empty())
+        if (debugdraw::GetItems2D().empty())
         {
             return;
         }
@@ -3105,7 +3231,7 @@ namespace won::rendering
         RHICommandList* command_list = GetFrameContext().BeginCommandList(*device);
         if (!command_list)
         {
-            debugtext::Clear();
+            debugdraw::Clear2D();
             return;
         }
 
@@ -3114,16 +3240,17 @@ namespace won::rendering
             RHISubresourceBinding back_buffer_binding = {};
             if (!GetCurrentBackBufferBinding(back_buffer_binding))
             {
-                debugtext::Clear();
+                debugdraw::Clear2D();
                 return;
             }
 
-            auto gpu_range = profiler::ScopedRangeGPU("DebugText Pass", *command_list);
-            command_list->BeginEvent("DebugText Pass");
-            DrawDebugText(back_buffer_binding, *command_list);
+            auto gpu_range = profiler::ScopedRangeGPU("DebugDraw2D Pass", *command_list);
+            command_list->BeginEvent("DebugDraw2D Pass");
+            DrawDebug2D(back_buffer_binding, *command_list);
             command_list->EndEvent();
         });
     }
+#endif
 
     void RendererInternal::EndFrame()
     {
@@ -3259,6 +3386,13 @@ namespace won::rendering
         tonemap_shader = nullptr;
         composite_pipeline = nullptr;
         composite_shader = nullptr;
+#ifndef WON_SHIPPING
+        debug_3d_pipeline = nullptr;
+        debug_3d_vs = nullptr;
+        debug_3d_ps = nullptr;
+        debug_3d_buffer = nullptr;
+        debug_3d_buffer_srv = {};
+#endif
         color_buffer[0] = nullptr;
         color_buffer[1] = nullptr;
         color_buffer_rtv[0] = {};
@@ -3267,7 +3401,6 @@ namespace won::rendering
         color_buffer_srv[1] = {};
         color_buffer_uav[0] = {};
         color_buffer_uav[1] = {};
-        debug_state = {};
         ddgi_probe_counts = { 0, 0, 0 };
         ddgi_probe_spacing = { 0.0f, 0.0f, 0.0f };
         ddgi_volume_min = { 0.0f, 0.0f, 0.0f };

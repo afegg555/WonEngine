@@ -17,14 +17,7 @@ namespace won::editor
         bool viewport_show_colliders = true;
         bool viewport_use_wireframe = false;
         bool viewport_show_bvh_debug = false;
-        bool viewport_show_cpu_bvh_nodes = true;
-        bool viewport_show_gpu_bvh_nodes = true;
         bool viewport_show_ddgi_overlay = false;
-        bool viewport_show_ddgi_volume = true;
-        bool viewport_show_ddgi_probes = true;
-        bool viewport_show_ddgi_text = true;
-        bool viewport_show_renderer_stats = false;
-        int viewport_ddgi_max_probe_draw_count = 4096;
         float camera_speed = 5.0f;
         String last_scene_path;
     };
@@ -73,37 +66,9 @@ namespace won::editor
         {
             settings.viewport_show_bvh_debug = bool_value;
         }
-        if (configuration.GetBool("editor.viewport.show_cpu_bvh_nodes", bool_value))
-        {
-            settings.viewport_show_cpu_bvh_nodes = bool_value;
-        }
-        if (configuration.GetBool("editor.viewport.show_gpu_bvh_nodes", bool_value))
-        {
-            settings.viewport_show_gpu_bvh_nodes = bool_value;
-        }
         if (configuration.GetBool("editor.viewport.show_ddgi_overlay", bool_value))
         {
             settings.viewport_show_ddgi_overlay = bool_value;
-        }
-        if (configuration.GetBool("editor.viewport.show_ddgi_volume", bool_value))
-        {
-            settings.viewport_show_ddgi_volume = bool_value;
-        }
-        if (configuration.GetBool("editor.viewport.show_ddgi_probes", bool_value))
-        {
-            settings.viewport_show_ddgi_probes = bool_value;
-        }
-        if (configuration.GetBool("editor.viewport.show_ddgi_text", bool_value))
-        {
-            settings.viewport_show_ddgi_text = bool_value;
-        }
-        if (configuration.GetBool("editor.viewport.show_renderer_stats", bool_value))
-        {
-            settings.viewport_show_renderer_stats = bool_value;
-        }
-        if (configuration.GetInt("editor.viewport.ddgi_max_probe_draw_count", int_value))
-        {
-            settings.viewport_ddgi_max_probe_draw_count = int_value;
         }
         if (configuration.GetFloat("editor.camera.speed", float_value))
         {
@@ -128,14 +93,7 @@ namespace won::editor
         configuration.SetBool("editor.viewport.show_colliders", settings.viewport_show_colliders);
         configuration.SetBool("editor.viewport.use_wireframe", settings.viewport_use_wireframe);
         configuration.SetBool("editor.viewport.show_bvh_debug", settings.viewport_show_bvh_debug);
-        configuration.SetBool("editor.viewport.show_cpu_bvh_nodes", settings.viewport_show_cpu_bvh_nodes);
-        configuration.SetBool("editor.viewport.show_gpu_bvh_nodes", settings.viewport_show_gpu_bvh_nodes);
         configuration.SetBool("editor.viewport.show_ddgi_overlay", settings.viewport_show_ddgi_overlay);
-        configuration.SetBool("editor.viewport.show_ddgi_volume", settings.viewport_show_ddgi_volume);
-        configuration.SetBool("editor.viewport.show_ddgi_probes", settings.viewport_show_ddgi_probes);
-        configuration.SetBool("editor.viewport.show_ddgi_text", settings.viewport_show_ddgi_text);
-        configuration.SetBool("editor.viewport.show_renderer_stats", settings.viewport_show_renderer_stats);
-        configuration.SetInt("editor.viewport.ddgi_max_probe_draw_count", settings.viewport_ddgi_max_probe_draw_count);
         configuration.SetFloat("editor.camera.speed", settings.camera_speed);
         configuration.SetString("editor.scene.last_path", settings.last_scene_path.c_str());
         return configuration.SaveToFile(path.c_str());

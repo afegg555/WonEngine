@@ -21,6 +21,8 @@ namespace won::debugdraw
         inline constexpr uint32 ddgi_probe = PackRGBA8(0x40, 0xff, 0x80);
         inline constexpr uint32 ddgi_probe_relocated = PackRGBA8(0xff, 0xe0, 0x40);
         inline constexpr uint32 ddgi_probe_invalid = PackRGBA8(0xff, 0x40, 0x40);
+        inline constexpr uint32 collider = PackRGBA8(0x40, 0xd0, 0xff);
+        inline constexpr uint32 collider_trigger = PackRGBA8(0xff, 0xd0, 0x40);
     }
 
     struct Item3D
@@ -42,6 +44,7 @@ namespace won::debugdraw
     void Line3D(const float3& from, const float3& to, uint32 color);
     void Box3D(const float3& bounds_min, const float3& bounds_max, uint32 color);
     void Cross3D(const float3& center, float size, uint32 color);
+    void Sphere3D(const float3& center, float radius, uint32 color);
     const Vector<Item3D>& GetItems3D();
     void Clear3D();
 
@@ -53,6 +56,7 @@ namespace won::debugdraw
     inline void Line3D(const float3&, const float3&, uint32) {}
     inline void Box3D(const float3&, const float3&, uint32) {}
     inline void Cross3D(const float3&, float, uint32) {}
+    inline void Sphere3D(const float3&, float, uint32) {}
     inline void Text2D(float2, const char*, uint32 = 0xffffffffu, float = 1.0f) {}
     inline void Rect2D(float2, float2, uint32) {}
 #endif

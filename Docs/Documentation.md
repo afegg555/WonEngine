@@ -388,7 +388,6 @@ During editor development, shaders can be reloaded through `won::rendering::Relo
 
 Use `won::backlog::Post()` for engine/editor log messages. Use `won::profiler::ScopedRangeCPU` around meaningful CPU work that should appear in profiling output. Use `won::utils::Timer` for local timing when profiling integration is unnecessary.
 
-Avoid depending on private renderer internals for debug views. Prefer public debug state exposed by `Renderer::SetDebugOptions()` and `Renderer::GetDebugState()`.
 
 ## Build Artifacts
 

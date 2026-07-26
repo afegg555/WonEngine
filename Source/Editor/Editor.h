@@ -85,7 +85,6 @@ namespace won::editor
 		void DrawProjectSettingsWindow(bool* open);
 		void RebindSceneResources();
 		void UpdateEntityList();
-		void UpdateDebugPrimitiveMesh();
 		uint64 StartAssetImport(const String& path, bool add_to_scene);
 		bool CommitAssetImportResult(EditorAssetImporter::ImportTask& task);
 		uint64 AddBackgroundTask(const String& name);
@@ -156,15 +155,9 @@ namespace won::editor
 		{
 			bool show_grid = false;
 			bool show_colliders = true;
+			bool use_wireframe = false;
 			bool show_ddgi_overlay = false;
-			bool show_ddgi_volume = true;
-			bool show_ddgi_probes = true;
-			bool show_ddgi_text = true;
 			bool show_bvh_debug = false;
-			bool show_cpu_bvh_nodes = true;
-			bool show_gpu_bvh_nodes = true;
-			bool show_renderer_stats = false;
-			int ddgi_max_probe_draw_count = 4096;
 		};
 
 		struct EditorViewport
@@ -205,13 +198,10 @@ namespace won::editor
 
 			rendering::View* view = nullptr;
 			CameraController camera_controller;
-			ecs::Entity debug_primitive_entity = ecs::INVALID_ENTITY;
-			std::shared_ptr<resource::Mesh> debug_primitive_mesh;
 			std::vector<DeferredResRemoval> deferred_res_removals;
 			ecs::Entity picked_entity = ecs::INVALID_ENTITY;
 			bool input_enabled = false;
 			ViewportDebugSettings debug_settings = {};
-			rendering::RendererDebugState renderer_debug_state = {}; // cached
 		};
 
 		std::shared_ptr<RHIPipeline> imgui_pso;

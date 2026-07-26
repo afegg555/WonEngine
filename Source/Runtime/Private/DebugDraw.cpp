@@ -1,5 +1,7 @@
 #include "DebugDraw.h"
+#include "MathUtils.h"
 
+#include <cmath>
 #include <utility>
 
 #ifndef WON_SHIPPING
@@ -46,6 +48,34 @@ namespace won::debugdraw
         Line3D({ center.x - half_size, center.y, center.z }, { center.x + half_size, center.y, center.z }, color);
         Line3D({ center.x, center.y - half_size, center.z }, { center.x, center.y + half_size, center.z }, color);
         Line3D({ center.x, center.y, center.z - half_size }, { center.x, center.y, center.z + half_size }, color);
+    }
+
+    void Sphere3D(const float3& center, float radius, uint32 color)
+    {
+        if (radius <= 0.0f)
+        {
+            return;
+        }
+
+        constexpr uint32 segment_count = 32;
+        float3 previous_xy = { center.x + radius, center.y, center.z };
+        float3 previous_xz = { center.x + radius, center.y, center.z };
+        float3 previous_yz = { center.x, center.y + radius, center.z };
+        for (uint32 segment_index = 1; segment_index <= segment_count; ++segment_index)
+        {
+            const float angle = math::PI * 2.0f * static_cast<float>(segment_index) / static_cast<float>(segment_count);
+            const float cos_angle = std::cos(angle);
+            const float sin_angle = std::sin(angle);
+            const float3 current_xy = { center.x + cos_angle * radius, center.y + sin_angle * radius, center.z };
+            const float3 current_xz = { center.x + cos_angle * radius, center.y, center.z + sin_angle * radius };
+            const float3 current_yz = { center.x, center.y + cos_angle * radius, center.z + sin_angle * radius };
+            Line3D(previous_xy, current_xy, color);
+            Line3D(previous_xz, current_xz, color);
+            Line3D(previous_yz, current_yz, color);
+            previous_xy = current_xy;
+            previous_xz = current_xz;
+            previous_yz = current_yz;
+        }
     }
 
     const Vector<Item3D>& GetItems3D()

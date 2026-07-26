@@ -23,79 +23,6 @@ namespace won::rendering
         bool vsync_enabled = true;
     };
 
-    struct RendererDebugOptions
-    {
-        bool ddgi_debug_enable = false;
-        bool bvh_debug_enable = false;
-    };
-
-    struct RendererDebugDDGIState
-    {
-        struct DDGIProbe
-        {
-            float3 position = { 0.0f, 0.0f, 0.0f };
-            float relocation = 0.0f;
-            float validity = 1.0f;
-        };
-
-        bool gi_mode_ddgi = false;
-        bool volume_active = false;
-        bool irradiance_texture_allocated = false;
-        bool irradiance_srv_valid = false;
-        bool irradiance_uav_valid = false;
-        bool visibility_texture_allocated = false;
-        bool visibility_srv_valid = false;
-        bool visibility_uav_valid = false;
-        bool probe_data_buffer_allocated = false;
-        bool probe_data_srv_valid = false;
-        bool probe_data_uav_valid = false;
-        bool history_valid = false;
-        bool probe_update_pipeline_ready = false;
-        bool probe_update_dispatched = false;
-
-        ecs::Entity volume_entity = ecs::INVALID_ENTITY;
-        uint3 probe_counts = { 0, 0, 0 };
-        float3 volume_min = { 0.0f, 0.0f, 0.0f };
-        float3 volume_max = { 0.0f, 0.0f, 0.0f };
-        float3 probe_spacing = { 0.0f, 0.0f, 0.0f };
-        uint32 total_probe_count = 0;
-        uint3 dispatch_groups = { 0, 0, 0 };
-
-        int irradiance_texture_srv = -1;
-        int irradiance_texture_uav = -1;
-        int visibility_texture_srv = -1;
-        int visibility_texture_uav = -1;
-        int probe_data_buffer_srv = -1;
-        int probe_data_buffer_uav = -1;
-
-        Vector<DDGIProbe> probes;
-    };
-
-    struct RendererDebugBVHState
-    {
-        struct BVHNode
-        {
-            float3 bounds_min = { 0.0f, 0.0f, 0.0f };
-            float3 bounds_max = { 0.0f, 0.0f, 0.0f };
-            bool is_leaf = false;
-        };
-
-        bool cpu_bvh_available = false;
-        bool gpu_bvh_available = false;
-        Vector<BVHNode> cpu_nodes;
-        Vector<BVHNode> gpu_nodes;
-    };
-
-    struct RendererDebugState
-    {
-        RendererDebugDDGIState ddgi = {};
-        RendererDebugBVHState bvh = {};
-
-        uint32 draw_call_count = 0;
-        uint32 total_renderable_count = 0;         // total before frustum culling
-        uint32 visible_renderable_count = 0; // after frustum culling
-    };
-
     constexpr RHIFormat HDR_COLOR_BUFFER_FORMAT = RHIFormat::R16G16B16A16Float;
     constexpr RHIFormat RENDERTARGET_BUFFER_FORMAT = RHIFormat::R8G8B8A8Unorm;
     constexpr RHIFormat DEPTH_BUFFER_FORMAT = RHIFormat::D32Float;
@@ -121,8 +48,6 @@ namespace won::rendering
         virtual RHIClearColor GetClearColor() const = 0;
         virtual void SetVSync(bool enabled) = 0;
         virtual void SetShadowResolutionScale(float scale) = 0;
-        virtual void SetDebugOptions(const RendererDebugOptions& options) = 0;
-        virtual RendererDebugState GetDebugState() const = 0;
         virtual bool GetCurrentBackBufferBinding(RHISubresourceBinding& out_binding) const = 0;
         virtual bool GetCurrentDepthBufferBinding(RHISubresourceBinding& out_binding) const = 0;
 
