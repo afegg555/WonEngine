@@ -68,6 +68,21 @@ namespace won::rendering
             Vector<RenderShadowSlice> render_shadow_slices;
             Vector<uint32> light_shadow_slices;
             uint2 shadow_map_atlas_size = { 0, 0 };
+
+            std::shared_ptr<RHIResource> atlas;
+            RHISubresourceHandle atlas_dsv = {};
+            RHISubresourceHandle atlas_srv = {};
+
+            std::shared_ptr<RHIResource> cascade_buffer;
+            RHISubresourceHandle cascade_srv = {};
+            std::shared_ptr<RHIResource> light_slice_buffer;
+            RHISubresourceHandle light_slice_srv = {};
+        };
+
+        struct InstanceResources
+        {
+            std::shared_ptr<RHIResource> sort_buffer;
+            RHISubresourceHandle sort_srv = {};
         };
 
         ecs::Entity camera_entity = {};
@@ -79,6 +94,7 @@ namespace won::rendering
         Options options = {};
         LightResources light_resources = {};
         ShadowResources shadow_resources = {};
+        InstanceResources instance_resources = {};
         Rect viewport = {};
         Rect scissor = {};
         uint32 ui_layer_mask = 0xFFFFFFFF;

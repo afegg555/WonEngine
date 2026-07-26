@@ -15,7 +15,7 @@ namespace won::rendering
         void OnResize(platform::Window& window, uint32 width, uint32 height) override;
         void Render(View& view) override;
 #ifndef WON_SHIPPING
-        void RenderDebug2D() override;
+		void RenderDebug2D() override; // should be called after Render() to draw debug 2D elements on top of the scene
 #endif
         void EndFrame() override;
         void WaitIdle() override;
@@ -42,48 +42,29 @@ namespace won::rendering
         };
 
         // resource creation
-        bool CreateDDGIResources(FrameContext& frame_context, const ShaderDDGIVolume& ddgi_volume);
-        void ReleaseDDGIResources(FrameContext& frame_context);
-        bool CreateShadowMapAtlasResources(FrameContext& frame_context, const View& view);
         bool CreateRenderTargetResources(FrameContext& frame_context);
 
         // gpu call
-        bool UpdateSceneGPUData(FrameContext& frame_context, const View& view, RHICommandList& command_list);
+        bool BuildViewResources(FrameContext& frame_context, View& view, RHICommandList& command_list);
         bool UpdateFrameConstants(FrameContext& frame_context, const View& view, RHICommandList& command_list);
         bool DrawScene(const FrameContext& frame_context, const View& view, resource::RenderPassType pass, uint32 flags, RHICommandList& command_list);
-        void UpdateDDGIProbe(FrameContext& frame_context, const ShaderEnvironment& environment_lighting, const ShaderDDGIVolume& ddgi_volume, const RHISubresourceBinding& shader_frame_binding, const RHISubresourceBinding& shader_camera_binding, RHICommandList& command_list);
+        void UpdateDDGIProbe(FrameContext& frame_context, const View& view, RHICommandList& command_list);
+
+        // debug draw
 #ifndef WON_SHIPPING
-        void DrawDebug2D(const RHISubresourceBinding& back_buffer_binding, RHICommandList& command_list);
+        void BuildDebug3D(const View& view);
+        void DrawDebug3D(RHICommandList& command_list);
+        void DrawDebug2D(RHICommandList& command_list);
 #endif
 
         // etc
-        void Update(View& view);
-        bool BuildShadowCascades(View& view);
-#ifndef WON_SHIPPING
-        void SubmitDebugDraw(const View& view);
-        bool DrawDebug3D(FrameContext& frame_context, RHICommandList& command_list);
-#endif
+        bool Update(View& view);
         void RenderForwardPath(View& view);
         void UpdateForwardLightList(View& view, RHICommandList& command_list);
 
         std::shared_ptr<RHIDevice> device;
         resource::ShaderCompilerOptions shader_compiler_options = {};
         resource::ShaderLibrary shader_library;
-
-
-        std::shared_ptr<RHIResource> shader_instance_sort_default_buffer;
-        RHISubresourceHandle shader_instance_sort_default_buffer_srv = {};
-
-
-
-
-        std::shared_ptr<RHIResource> shader_shadow_cascade_default_buffer;
-        RHISubresourceHandle shader_shadow_cascade_default_buffer_srv = {};
-
-        std::shared_ptr<RHIResource> shader_light_shadow_slice_buffer;
-        RHISubresourceHandle shader_light_shadow_slice_buffer_srv = {};
-
-
 
         std::shared_ptr<RHIResource> shader_frame_buffer;
         RHISubresourceHandle shader_frame_buffer_cbv = {};
@@ -124,7 +105,6 @@ namespace won::rendering
         std::shared_ptr<RHIResource> brdf_lut;
         RHISubresourceHandle brdf_lut_srv = {};
         RHISubresourceHandle brdf_lut_uav = {};
-        bool brdf_lut_valid = false;
 
         std::shared_ptr<RHIPipeline> light_cull_pipeline;
         std::shared_ptr<RHIShader> light_cull_shader;
@@ -143,32 +123,6 @@ namespace won::rendering
         std::shared_ptr<RHIResource> debug_3d_buffer;
         RHISubresourceHandle debug_3d_buffer_srv = {};
 #endif
-        bool ddgi_probe_debug_wanted = false;
-
-        std::shared_ptr<RHIResource> shadow_map_atlas;
-        RHISubresourceHandle shadow_map_atlas_dsv = {};
-        RHISubresourceHandle shadow_map_atlas_srv = {};
-
-        std::shared_ptr<RHIResource> ddgi_irradiance_texture;
-        RHISubresourceHandle ddgi_irradiance_texture_srv = {};
-        RHISubresourceHandle ddgi_irradiance_texture_uav = {};
-        std::shared_ptr<RHIResource> ddgi_irradiance_history_texture;
-        RHISubresourceHandle ddgi_irradiance_history_texture_srv = {};
-
-        std::shared_ptr<RHIResource> ddgi_visibility_texture;
-        RHISubresourceHandle ddgi_visibility_texture_srv = {};
-        RHISubresourceHandle ddgi_visibility_texture_uav = {};
-        std::shared_ptr<RHIResource> ddgi_visibility_history_texture;
-        RHISubresourceHandle ddgi_visibility_history_texture_srv = {};
-
-        std::shared_ptr<RHIResource> ddgi_probe_data_buffer;
-        RHISubresourceHandle ddgi_probe_data_buffer_srv = {};
-        RHISubresourceHandle ddgi_probe_data_buffer_uav = {};
-        std::shared_ptr<RHIResource> ddgi_probe_data_history_buffer;
-        RHISubresourceHandle ddgi_probe_data_history_buffer_srv = {};
-
-        std::shared_ptr<RHIResource> ddgi_probe_data_readback_buffer;
-        bool ddgi_probe_data_readback_valid = false;
 
         std::shared_ptr<RHIPipeline> ddgi_probe_update_pipeline;
         std::shared_ptr<RHIShader> ddgi_probe_update_shader;
@@ -184,13 +138,6 @@ namespace won::rendering
         bool vsync_requested = true;
         float shadow_resolution_scale = 1.0f;
 
-        uint2 shadow_map_atlas_size = { 0, 0 };
-        uint3 ddgi_probe_counts = { 0, 0, 0 };
-        float3 ddgi_probe_spacing = { 0.0f, 0.0f, 0.0f };
-        float3 ddgi_volume_min = { 0.0f, 0.0f, 0.0f };
-        float ddgi_max_distance = 0.0f;
-        uint32 ddgi_probe_update_offset = 0;
-        bool ddgi_history_valid = false;
         std::array<RHISubresourceHandle, max_frames_in_flight> back_buffers_rtv = {};
 
         platform::Window* current_window = nullptr;

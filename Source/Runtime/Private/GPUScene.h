@@ -144,10 +144,42 @@ namespace won::rendering
         Vector<ShaderDecal> shader_decals;
         GPUBuffer decal_buffer;
 
+        struct DDGIResources
+        {
+            std::shared_ptr<RHIResource> irradiance_texture;
+            RHISubresourceHandle irradiance_texture_srv = {};
+            RHISubresourceHandle irradiance_texture_uav = {};
+            std::shared_ptr<RHIResource> irradiance_history_texture;
+            RHISubresourceHandle irradiance_history_texture_srv = {};
+
+            std::shared_ptr<RHIResource> visibility_texture;
+            RHISubresourceHandle visibility_texture_srv = {};
+            RHISubresourceHandle visibility_texture_uav = {};
+            std::shared_ptr<RHIResource> visibility_history_texture;
+            RHISubresourceHandle visibility_history_texture_srv = {};
+
+            std::shared_ptr<RHIResource> probe_data_buffer;
+            RHISubresourceHandle probe_data_buffer_srv = {};
+            RHISubresourceHandle probe_data_buffer_uav = {};
+            std::shared_ptr<RHIResource> probe_data_history_buffer;
+            RHISubresourceHandle probe_data_history_buffer_srv = {};
+
+            std::shared_ptr<RHIResource> probe_data_readback_buffer;
+            bool probe_data_readback_valid = false;
+
+            uint3 probe_counts = { 0, 0, 0 };
+            float3 probe_spacing = { 0.0f, 0.0f, 0.0f };
+            float3 volume_min = { 0.0f, 0.0f, 0.0f };
+            float max_distance = 0.0f;
+            uint32 probe_update_offset = 0;
+            bool history_valid = false;
+        };
+
         ShaderEnvironment shader_environment;
         ShaderDDGIVolume shader_ddgi_volume;
         ShaderReflectionProbe shader_reflection_probe;
         ecs::Entity ddgi_volume_entity = ecs::INVALID_ENTITY;
+        DDGIResources ddgi = {};
 
         math::AABB shadow_caster_world_bound;
 
@@ -160,6 +192,11 @@ namespace won::rendering
 
         uint64 synced_index = ~0ull;
 
-        void Update(const ecs::Scene& scene, RHIDevice& device, RHICommandList& command_list, uint32 frame_slot);
+        void Update(const ecs::Scene& scene, RHIDevice& device, RHICommandList& command_list, uint32 frame_slot, bool ddgi_probe_debug_wanted);
+
+    private:
+        void RetireResource(std::shared_ptr<RHIResource>& resource, uint32 frame_slot);
+        void ReleaseDDGIResources(uint32 frame_slot);
+        bool UpdateDDGIResources(RHIDevice& device, uint32 frame_slot, bool probe_debug_wanted);
     };
 }
