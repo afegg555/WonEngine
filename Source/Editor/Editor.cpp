@@ -1152,14 +1152,14 @@ namespace won::editor
 		editor_view.viewport.height = project_settings.window_height;
 		editor_view.scissor.width = project_settings.window_width;
 		editor_view.scissor.height = project_settings.window_height;
-		uint32 editor_view_index = AddView(editor_view);
+		uint32 editor_view_index = AddView(std::move(editor_view));
 		editor_viewport.view = &GetView(editor_view_index);
 
 		{
 			ShaderCompilerOptions compiler_options;
 			compiler_options.backend = ShaderCompilerBackend::DXC;
 			compiler_options.shader_source_root_path = editor_contents_root_dir + "CustomShaders";
-			std::shared_ptr<ShaderCompiler> compiler = CreateShaderCompiler(compiler_options);
+			std::unique_ptr<ShaderCompiler> compiler = CreateShaderCompiler(compiler_options);
 
 			ShaderCompileDesc compile_desc;
 			compile_desc.stage = RHIShaderStage::Vertex;
@@ -1599,7 +1599,7 @@ namespace won::editor
 					continue;
 				}
 
-				scene.AddSystem(std::make_shared<PluginSystemAdapter>(plugin, desc));
+				scene.AddSystem(std::make_unique<PluginSystemAdapter>(plugin, desc));
 			}
 		}
 	}
@@ -2643,7 +2643,7 @@ namespace won::editor
 			}
 
 			RHISubresourceBinding constants_binding = {};
-			constants_binding.resource = allocation.buffer.get();
+			constants_binding.resource = allocation.buffer;
 			constants_binding.subresource = constants_subresource;
 
 			RHIViewport viewport = {};
@@ -3296,7 +3296,7 @@ namespace won::editor
 
 				if (window)
 				{
-					std::shared_ptr<RHISwapchain> swapchain = window->GetRHISwapchain();
+					RHISwapchain* swapchain = window->GetRHISwapchain();
 					if (swapchain)
 					{
 						bool vsync_enabled = swapchain->IsVSyncEnabled();
@@ -5993,7 +5993,7 @@ namespace won::editor
 				device->CreateSubresource(*allocation.buffer, subresource_desc, &cb_subresource_handle);
 
 				RHISubresourceBinding cb_binding;
-				cb_binding.resource = allocation.buffer.get();
+				cb_binding.resource = allocation.buffer;
 				cb_binding.subresource = cb_subresource_handle;
 
 				command_list->SetVertexBuffer(*allocation.buffer, sizeof(ImDrawVert), vb_buffer_offset, vbSize);

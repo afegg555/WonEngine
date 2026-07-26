@@ -126,5 +126,5 @@ namespace won::script
         virtual void SetViewResolver(std::function<rendering::View*(float2)> resolver) {}
     };
 
-    WONENGINE_API std::shared_ptr<ScriptRuntime> CreateScriptRuntime(const ScriptRuntimeDesc& desc);
+    WONENGINE_API std::unique_ptr<ScriptRuntime> CreateScriptRuntime(const ScriptRuntimeDesc& desc);
 }

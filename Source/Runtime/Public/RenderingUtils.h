@@ -20,7 +20,7 @@ namespace won::rendering::utils
     WONENGINE_API void EnqueueTextureMipGeneration(const std::shared_ptr<RHIResource>& texture_resource);
     WONENGINE_API void EnqueueGPUBVHBuild(const std::shared_ptr<resource::Mesh>& mesh);
 
-    WONENGINE_API bool FlushEnqueuedRenderingWork(RHIDevice& device, Renderer& renderer, RHICommandList& command_list, Vector<std::shared_ptr<RHIResource>>& scratch_resources);
+    WONENGINE_API bool FlushEnqueuedRenderingWork(RHIDevice& device, Renderer& renderer, RHICommandList& command_list, Vector<std::unique_ptr<RHIResource>>& scratch_resources);
 
     WONENGINE_API void EnqueueResourceUpload(const std::shared_ptr<resource::Mesh>& mesh);
     WONENGINE_API void EnqueueResourceUpload(const std::shared_ptr<resource::Font>& font);

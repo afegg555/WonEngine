@@ -92,5 +92,5 @@ namespace won::resource
         ShaderCompilerOptions compiler_options = {};
     };
 
-    WONENGINE_API std::shared_ptr<ShaderCompiler> CreateShaderCompiler(const ShaderCompilerOptions& options = {});
+    WONENGINE_API std::unique_ptr<ShaderCompiler> CreateShaderCompiler(const ShaderCompilerOptions& options = {});
 }

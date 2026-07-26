@@ -21,7 +21,7 @@ namespace won::rendering
         void WaitIdle() override;
         void Shutdown() override;
         bool ReloadShaders() override;
-        std::shared_ptr<RHIShader> GetShader(resource::ShaderId shader_id) const override;
+        RHIShader* GetShader(resource::ShaderId shader_id) const override;
         void SetClearColor(const RHIClearColor& color) override;
         RHIClearColor GetClearColor() const override;
         void SetVSync(bool enabled) override;
@@ -64,43 +64,43 @@ namespace won::rendering
         resource::ShaderCompilerOptions shader_compiler_options = {};
         resource::ShaderLibrary shader_library;
 
-        std::shared_ptr<RHIResource> shader_frame_buffer;
+        std::unique_ptr<RHIResource> shader_frame_buffer;
         RHISubresourceHandle shader_frame_buffer_cbv = {};
 
-        std::shared_ptr<RHIResource> shader_camera_buffer;
+        std::unique_ptr<RHIResource> shader_camera_buffer;
         RHISubresourceHandle shader_camera_buffer_cbv = {};
 
-        std::shared_ptr<RHIResource> depth_buffer;
+        std::unique_ptr<RHIResource> depth_buffer;
         RHISubresourceHandle depth_buffer_dsv = {};
         RHISubresourceHandle depth_buffer_srv = {};
 
         // Offscreen HDR color ping-pong buffers. The scene always renders into color_buffer[0];
         // the post chain ping-pongs between the two and the result is composited to the backbuffer.
-        std::shared_ptr<RHIResource> color_buffer[2];
+        std::unique_ptr<RHIResource> color_buffer[2];
         RHISubresourceHandle color_buffer_rtv[2] = {};
         RHISubresourceHandle color_buffer_srv[2] = {};
         RHISubresourceHandle color_buffer_uav[2] = {};
 
-        std::shared_ptr<RHIResource> luminance_partial_buffer;
+        std::unique_ptr<RHIResource> luminance_partial_buffer;
         RHISubresourceHandle luminance_partial_buffer_uav = {};
         RHISubresourceHandle luminance_partial_buffer_srv = {};
-        std::shared_ptr<RHIResource> luminance_buffer;
+        std::unique_ptr<RHIResource> luminance_buffer;
         RHISubresourceHandle luminance_buffer_uav = {};
-        std::shared_ptr<RHIResource> luminance_readback_buffer;
+        std::unique_ptr<RHIResource> luminance_readback_buffer;
 
-        std::shared_ptr<RHIResource> brdf_lut;
+        std::unique_ptr<RHIResource> brdf_lut;
         RHISubresourceHandle brdf_lut_srv = {};
         RHISubresourceHandle brdf_lut_uav = {};
 
 #ifndef WON_SHIPPING
-        std::shared_ptr<RHIResource> debug_3d_buffer;
+        std::unique_ptr<RHIResource> debug_3d_buffer;
         RHISubresourceHandle debug_3d_buffer_srv = {};
 #endif
 
-        std::shared_ptr<RHICommandAllocator> enqueued_work_command_allocator;
-        std::shared_ptr<RHICommandList> enqueued_work_command_list;
-        std::shared_ptr<RHIFence> enqueued_work_fence;
-        Vector<std::shared_ptr<RHIResource>> enqueued_work_scratch_resources;
+        std::unique_ptr<RHICommandAllocator> enqueued_work_command_allocator;
+        std::unique_ptr<RHICommandList> enqueued_work_command_list;
+        std::unique_ptr<RHIFence> enqueued_work_fence;
+        Vector<std::unique_ptr<RHIResource>> enqueued_work_scratch_resources;
         uint64 enqueued_work_fence_value = 0;
         bool enqueued_work_succeeded = true;
         bool enqueued_work_recorded = false;

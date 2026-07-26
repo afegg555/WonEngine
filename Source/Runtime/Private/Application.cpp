@@ -152,7 +152,7 @@ namespace won
         log_startup_phase("rhi device");
 
         rendering::RendererDesc renderer_desc;
-        renderer_desc.device = device;
+        renderer_desc.device = device.get();
         if (!project_settings.project_root.empty())
         {
             renderer_desc.shader_bin_root_path = io::NormalizePath(io::CombinePath(project_settings.project_root, "CompiledShaders"));
@@ -418,8 +418,8 @@ namespace won
             if (!simulation_paused && scene->GetUpdateIndex() != update_index)
             {
                 scene->Update(dt);
-                scene->SetUpdateIndex(update_index);
             }
+            scene->SetUpdateIndex(update_index);
         }
         profiler::EndRange(range);
     }
@@ -529,9 +529,9 @@ namespace won
         }
     }
 
-    uint32 Application::AddView(const rendering::View& view)
+    uint32 Application::AddView(rendering::View&& view)
     {
-        views.push_back(std::make_unique<rendering::View>(view));
+        views.push_back(std::make_unique<rendering::View>(std::move(view)));
         views.back()->options.aa_mode = user_settings.aa_mode.value_or(project_settings.aa_mode);
         views.back()->options.tonemap_mode = project_settings.tonemap_mode;
         return static_cast<uint32>(views.size() - 1);

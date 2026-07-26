@@ -539,27 +539,27 @@ namespace won::rendering
         return (feature_flags & static_cast<uint32>(feature)) != 0;
     }
 
-    std::shared_ptr<RHIFence> RHIDeviceDX12::CreateFence(uint64 initial_value)
+    std::unique_ptr<RHIFence> RHIDeviceDX12::CreateFence(uint64 initial_value)
     {
         if (!device)
         {
             return nullptr;
         }
 
-        return std::make_shared<RHIFenceDX12>(device, initial_value);
+        return std::make_unique<RHIFenceDX12>(device, initial_value);
     }
 
-    std::shared_ptr<RHICommandAllocator> RHIDeviceDX12::CreateCommandAllocator(RHIQueueType type)
+    std::unique_ptr<RHICommandAllocator> RHIDeviceDX12::CreateCommandAllocator(RHIQueueType type)
     {
-        return std::make_shared<RHICommandAllocatorDX12>(type, device);
+        return std::make_unique<RHICommandAllocatorDX12>(type, device);
     }
 
-    std::shared_ptr<RHICommandList> RHIDeviceDX12::CreateCommandList(RHIQueueType type)
+    std::unique_ptr<RHICommandList> RHIDeviceDX12::CreateCommandList(RHIQueueType type)
     {
-        return std::make_shared<RHICommandListDX12>(type, device, descriptor_allocator);
+        return std::make_unique<RHICommandListDX12>(type, device, descriptor_allocator);
     }
 
-    std::shared_ptr<RHIQueryHeap> RHIDeviceDX12::CreateQueryHeap(const RHIQueryHeapDesc& desc)
+    std::unique_ptr<RHIQueryHeap> RHIDeviceDX12::CreateQueryHeap(const RHIQueryHeapDesc& desc)
     {
         if (!device || desc.query_count == 0)
         {
@@ -587,10 +587,10 @@ namespace won::rendering
             return nullptr;
         }
 
-        return std::make_shared<RHIQueryHeapDX12>(desc, std::move(query_heap));
+        return std::make_unique<RHIQueryHeapDX12>(desc, std::move(query_heap));
     }
 
-    std::shared_ptr<RHIResource> RHIDeviceDX12::CreateBuffer(const RHIBufferDesc& desc,
+    std::unique_ptr<RHIResource> RHIDeviceDX12::CreateBuffer(const RHIBufferDesc& desc,
         const void* initial_data, Size initial_size)
     {
         if (!resource_allocator || !device || desc.size == 0)
@@ -652,7 +652,7 @@ namespace won::rendering
         resource_info.type = RHIResourceType::Buffer;
         resource_info.buffer_desc = desc;
         resource_info.buffer_desc.size = buffer_size;
-        auto buffer_resource = std::make_shared<RHIResourceDX12>(resource_info, std::move(resource), allocation, descriptor_allocator);
+        auto buffer_resource = std::make_unique<RHIResourceDX12>(resource_info, std::move(resource), allocation, descriptor_allocator);
         buffer_resource->SetCurrentState(initial_state);
 
         if (initial_data && initial_size > 0)
@@ -693,7 +693,7 @@ namespace won::rendering
                 RHIResourceDesc upload_resource_info = {};
                 upload_resource_info.type = RHIResourceType::Buffer;
                 upload_resource_info.buffer_desc = upload_buffer_desc;
-                auto upload_resource = std::make_shared<RHIResourceDX12>(upload_resource_info,
+                auto upload_resource = std::make_unique<RHIResourceDX12>(upload_resource_info,
                     std::move(upload_native_resource),
                     upload_allocation,
                     descriptor_allocator);
@@ -709,7 +709,7 @@ namespace won::rendering
                 const Size copy_size = initial_size < buffer_size ? initial_size : buffer_size;
                 std::memcpy(mapped_data, initial_data, copy_size);
 
-                std::shared_ptr<RHIContext> upload_context = GetContext(RHIQueueType::Copy);
+                RHIContext* upload_context = GetContext(RHIQueueType::Copy);
                 RHIQueueType upload_queue_type = RHIQueueType::Copy;
                 if (!upload_context)
                 {
@@ -763,7 +763,7 @@ namespace won::rendering
         return buffer_resource;
     }
 
-    std::shared_ptr<RHIResource> RHIDeviceDX12::CreateTexture(const RHITextureDesc& desc,
+    std::unique_ptr<RHIResource> RHIDeviceDX12::CreateTexture(const RHITextureDesc& desc,
         const void* initial_data, Size initial_size)
     {
         if (!resource_allocator || !device || desc.width == 0 || desc.height == 0)
@@ -862,7 +862,7 @@ namespace won::rendering
             ? RHIResourceType::TextureCube
             : ((dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D) ? RHIResourceType::Texture3D : RHIResourceType::Texture2D);
         resource_info.texture_desc = desc;
-        auto texture_resource = std::make_shared<RHIResourceDX12>(resource_info, std::move(resource), allocation, descriptor_allocator);
+        auto texture_resource = std::make_unique<RHIResourceDX12>(resource_info, std::move(resource), allocation, descriptor_allocator);
         texture_resource->SetCurrentState(initial_state);
 
         if (initial_data && initial_size > 0)
@@ -917,7 +917,7 @@ namespace won::rendering
 
             void* mapped_data = upload_buffer->GetMappedData();
 
-            std::shared_ptr<RHIContext> upload_context = GetContext(RHIQueueType::Graphics);
+            RHIContext* upload_context = GetContext(RHIQueueType::Graphics);
             RHIQueueType upload_queue_type = RHIQueueType::Graphics;
 
             auto upload_allocator = CreateCommandAllocator(upload_queue_type);
@@ -1054,7 +1054,7 @@ namespace won::rendering
         return true;
     }
 
-    std::shared_ptr<RHIPipeline> RHIDeviceDX12::CreateGraphicsPipeline(
+    std::unique_ptr<RHIPipeline> RHIDeviceDX12::CreateGraphicsPipeline(
         const RHIGraphicsPipelineDesc& desc)
     {
         if (!device || !desc.vertex_shader)
@@ -1139,10 +1139,10 @@ namespace won::rendering
             return nullptr;
         }
 
-        return std::make_shared<RHIPipelineDX12>(false, std::move(pipeline_state), std::move(root_signature), std::move(binding_table));
+        return std::make_unique<RHIPipelineDX12>(false, std::move(pipeline_state), std::move(root_signature), std::move(binding_table));
     }
 
-    std::shared_ptr<RHIPipeline> RHIDeviceDX12::CreateComputePipeline(
+    std::unique_ptr<RHIPipeline> RHIDeviceDX12::CreateComputePipeline(
         const RHIComputePipelineDesc& desc)
     {
         if (!device || !desc.compute_shader)
@@ -1170,10 +1170,10 @@ namespace won::rendering
             return nullptr;
         }
 
-        return std::make_shared<RHIPipelineDX12>(true, std::move(pipeline_state), std::move(root_signature), std::move(binding_table));
+        return std::make_unique<RHIPipelineDX12>(true, std::move(pipeline_state), std::move(root_signature), std::move(binding_table));
     }
 
-    std::shared_ptr<RHISampler> RHIDeviceDX12::CreateSampler(const RHISamplerDesc& desc)
+    std::unique_ptr<RHISampler> RHIDeviceDX12::CreateSampler(const RHISamplerDesc& desc)
     {
         if (!device || !descriptor_allocator || !descriptor_allocator->IsValid())
         {
@@ -1203,25 +1203,25 @@ namespace won::rendering
             return nullptr;
         }
 
-        return std::make_shared<RHISamplerDX12>(desc, descriptor_index, descriptor_allocator);
+        return std::make_unique<RHISamplerDX12>(desc, descriptor_index, descriptor_allocator);
     }
 
-    std::shared_ptr<RHIContext> RHIDeviceDX12::GetContext(RHIQueueType type)
+    RHIContext* RHIDeviceDX12::GetContext(RHIQueueType type)
     {
         switch (type)
         {
         case RHIQueueType::Graphics:
-            return graphics_context;
+            return graphics_context.get();
         case RHIQueueType::Compute:
-            return compute_context;
+            return compute_context.get();
         case RHIQueueType::Copy:
-            return copy_context;
+            return copy_context.get();
         default:
             return nullptr;
         }
     }
 
-    std::shared_ptr<RHISwapchain> RHIDeviceDX12::CreateSwapchain(platform::Window& window)
+    std::unique_ptr<RHISwapchain> RHIDeviceDX12::CreateSwapchain(platform::Window& window)
     {
         if (!device || !factory || !graphics_context)
         {
@@ -1229,6 +1229,6 @@ namespace won::rendering
             return nullptr;
         }
 
-        return std::make_shared<RHISwapchainDX12>(device, factory, graphics_context, descriptor_allocator, window);
+        return std::make_unique<RHISwapchainDX12>(device, factory, graphics_context, descriptor_allocator, window);
     }
 }

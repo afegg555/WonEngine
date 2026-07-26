@@ -35,18 +35,18 @@ namespace won::rendering
 
         struct LightResources
         {
-            std::shared_ptr<RHIResource> forward_index_buffer;
-            std::shared_ptr<RHIResource> forward_index_upload_buffer;
+            std::unique_ptr<RHIResource> forward_index_buffer;
+            std::unique_ptr<RHIResource> forward_index_upload_buffer;
             RHISubresourceHandle forward_index_srv = {};
             uint32 forward_light_count = 0;
 
-            std::shared_ptr<RHIResource> cluster_light_count_buffer;
+            std::unique_ptr<RHIResource> cluster_light_count_buffer;
             RHISubresourceHandle cluster_light_count_srv = {};
             RHISubresourceHandle cluster_light_count_uav = {};
-            std::shared_ptr<RHIResource> cluster_light_offset_buffer;
+            std::unique_ptr<RHIResource> cluster_light_offset_buffer;
             RHISubresourceHandle cluster_light_offset_srv = {};
             RHISubresourceHandle cluster_light_offset_uav = {};
-            std::shared_ptr<RHIResource> cluster_light_index_buffer;
+            std::unique_ptr<RHIResource> cluster_light_index_buffer;
             RHISubresourceHandle cluster_light_index_srv = {};
             RHISubresourceHandle cluster_light_index_uav = {};
             uint2 cluster_dims = { 0, 0 };
@@ -69,19 +69,19 @@ namespace won::rendering
             Vector<uint32> light_shadow_slices;
             uint2 shadow_map_atlas_size = { 0, 0 };
 
-            std::shared_ptr<RHIResource> atlas;
+            std::unique_ptr<RHIResource> atlas;
             RHISubresourceHandle atlas_dsv = {};
             RHISubresourceHandle atlas_srv = {};
 
-            std::shared_ptr<RHIResource> cascade_buffer;
+            std::unique_ptr<RHIResource> cascade_buffer;
             RHISubresourceHandle cascade_srv = {};
-            std::shared_ptr<RHIResource> light_slice_buffer;
+            std::unique_ptr<RHIResource> light_slice_buffer;
             RHISubresourceHandle light_slice_srv = {};
         };
 
         struct InstanceResources
         {
-            std::shared_ptr<RHIResource> sort_buffer;
+            std::unique_ptr<RHIResource> sort_buffer;
             RHISubresourceHandle sort_srv = {};
         };
 

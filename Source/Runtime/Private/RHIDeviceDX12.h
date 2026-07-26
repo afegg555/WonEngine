@@ -33,15 +33,15 @@ namespace won::rendering
         uint32 GetFeatureFlags() const override;
         bool HasFeature(RHIDeviceFeature feature) const override;
 
-        std::shared_ptr<RHIFence> CreateFence(uint64 initial_value) override;
-        std::shared_ptr<RHICommandAllocator> CreateCommandAllocator(RHIQueueType type) override;
-        std::shared_ptr<RHICommandList> CreateCommandList(RHIQueueType type) override;
-        std::shared_ptr<RHIQueryHeap> CreateQueryHeap(const RHIQueryHeapDesc& desc) override;
+        std::unique_ptr<RHIFence> CreateFence(uint64 initial_value) override;
+        std::unique_ptr<RHICommandAllocator> CreateCommandAllocator(RHIQueueType type) override;
+        std::unique_ptr<RHICommandList> CreateCommandList(RHIQueueType type) override;
+        std::unique_ptr<RHIQueryHeap> CreateQueryHeap(const RHIQueryHeapDesc& desc) override;
 
-        std::shared_ptr<RHIResource> CreateBuffer(const RHIBufferDesc& desc,
+        std::unique_ptr<RHIResource> CreateBuffer(const RHIBufferDesc& desc,
             const void* initial_data = nullptr, Size initial_size = 0) override;
 
-        std::shared_ptr<RHIResource> CreateTexture(const RHITextureDesc& desc,
+        std::unique_ptr<RHIResource> CreateTexture(const RHITextureDesc& desc,
             const void* initial_data = nullptr, Size initial_size = 0) override;
 
         Size GetMinOffsetAlignment(const RHIBufferDesc& desc) const override;
@@ -51,15 +51,15 @@ namespace won::rendering
             const RHISubresourceDesc& desc,
             RHISubresourceHandle* out_handle) override;
 
-        std::shared_ptr<RHIPipeline> CreateGraphicsPipeline(
+        std::unique_ptr<RHIPipeline> CreateGraphicsPipeline(
             const RHIGraphicsPipelineDesc& desc) override;
 
-        std::shared_ptr<RHIPipeline> CreateComputePipeline(
+        std::unique_ptr<RHIPipeline> CreateComputePipeline(
             const RHIComputePipelineDesc& desc) override;
 
-        std::shared_ptr<RHISampler> CreateSampler(const RHISamplerDesc& desc) override;
-        std::shared_ptr<RHIContext> GetContext(RHIQueueType type) override;
-        std::shared_ptr<RHISwapchain> CreateSwapchain(platform::Window& window) override;
+        std::unique_ptr<RHISampler> CreateSampler(const RHISamplerDesc& desc) override;
+        RHIContext* GetContext(RHIQueueType type) override;
+        std::unique_ptr<RHISwapchain> CreateSwapchain(platform::Window& window) override;
         bool GetMemoryUsage(RHIMemoryUsage& out_usage) override;
 
     private:

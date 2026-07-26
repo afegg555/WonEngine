@@ -56,7 +56,7 @@ namespace won
         void ShowMainWindow();
         void WaitIdle();
         void ClearViews();
-        uint32 AddView(const rendering::View& view = {});
+        uint32 AddView(rendering::View&& view = {});
         void ApplyUserSettings();
         bool SaveUserSettings();
 
@@ -74,10 +74,10 @@ namespace won
         void ApplyProjectSettings(const project::ProjectSettings& settings);
 
         bool is_running = false;
-        std::shared_ptr<rendering::RHIDevice> device;
-        std::shared_ptr<platform::Window> window;
-        std::shared_ptr<rendering::Renderer> renderer;
-        std::shared_ptr<script::ScriptRuntime> script_runtime;
+        std::unique_ptr<rendering::RHIDevice> device;
+        std::unique_ptr<platform::Window> window;
+        std::unique_ptr<rendering::Renderer> renderer;
+        std::unique_ptr<script::ScriptRuntime> script_runtime;
         // audio_mixer must be declared before audio_driver so the driver (which calls into the
         // mixer from the audio thread) is destroyed first.
         std::unique_ptr<won::audio::AudioMixer> audio_mixer;

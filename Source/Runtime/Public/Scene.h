@@ -195,11 +195,11 @@ namespace won::ecs
             return component_manager.GetComponentArray(type_id);
         }
 
-        void AddSystem(const std::shared_ptr<System>& system);
+        void AddSystem(std::unique_ptr<System> system);
 
         void BuildSystemSchedule();
 
-        const Vector<std::shared_ptr<System>>& GetSystems() const { return systems; }
+        const Vector<std::unique_ptr<System>>& GetSystems() const { return systems; }
         const Vector<Vector<uint32>>& GetSystemExecutionBatches() const { return system_execution_batches; }
 
         void Update(float delta_time);
@@ -335,7 +335,7 @@ namespace won::ecs
         Entity next_entity = INVALID_ENTITY + 1;
         math::bvh::BVH scene_bvh;
         Vector<Entity> scene_bvh_entities;
-        Vector<std::shared_ptr<System>> systems;
+        Vector<std::unique_ptr<System>> systems;
         Vector<Vector<uint32>> system_execution_batches;
         uint64 update_index = 0;
         std::atomic<ComponentMask> gpu_dirty_mask = 0;

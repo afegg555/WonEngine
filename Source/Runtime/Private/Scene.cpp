@@ -100,41 +100,41 @@ namespace won::ecs
 
         if (desc.script_runtime && desc.enable_simulation)
         {
-            AddSystem(std::make_shared<ScriptUpdateSystem>(desc.script_runtime));
+            AddSystem(std::make_unique<ScriptUpdateSystem>(desc.script_runtime));
         }
-        AddSystem(std::make_shared<TransformUpdateSystem>());
+        AddSystem(std::make_unique<TransformUpdateSystem>());
         if (desc.enable_simulation)
         {
-            AddSystem(std::make_shared<PhysicsUpdateSystem>());
+            AddSystem(std::make_unique<PhysicsUpdateSystem>());
         }
         if (desc.script_runtime && desc.enable_simulation)
         {
-            AddSystem(std::make_shared<ScriptEventDispatchSystem>(desc.script_runtime));
+            AddSystem(std::make_unique<ScriptEventDispatchSystem>(desc.script_runtime));
         }
-        AddSystem(std::make_shared<CameraUpdateSystem>());
-        AddSystem(std::make_shared<LightUpdateSystem>());
+        AddSystem(std::make_unique<CameraUpdateSystem>());
+        AddSystem(std::make_unique<LightUpdateSystem>());
         if (desc.enable_simulation)
         {
-            AddSystem(std::make_shared<AnimationStateMachineSystem>());
+            AddSystem(std::make_unique<AnimationStateMachineSystem>());
         }
-        AddSystem(std::make_shared<AnimationUpdateSystem>(desc.enable_simulation));
+        AddSystem(std::make_unique<AnimationUpdateSystem>(desc.enable_simulation));
         if (desc.enable_simulation)
         {
-            AddSystem(std::make_shared<ParticleUpdateSystem>());
+            AddSystem(std::make_unique<ParticleUpdateSystem>());
         }
         if (desc.enable_simulation)
         {
-            AddSystem(std::make_shared<AudioUpdateSystem>(desc.audio_mixer));
+            AddSystem(std::make_unique<AudioUpdateSystem>(desc.audio_mixer));
         }
 
         physics_world = std::make_unique<won::physics::PhysicsWorld>(desc.physics);
     }
 
-    void Scene::AddSystem(const std::shared_ptr<System>& system)
+    void Scene::AddSystem(std::unique_ptr<System> system)
     {
         if (system)
         {
-            systems.push_back(system);
+            systems.push_back(std::move(system));
             system_schedule_dirty = true;
         }
     }
@@ -284,7 +284,7 @@ namespace won::ecs
                     continue;
                 }
 
-                const std::shared_ptr<System>& system = systems[system_index];
+                const std::unique_ptr<System>& system = systems[system_index];
                 if (system)
                 {
                     if (system->GetExecutionPolicy() == SystemExecutionPolicy::Synchronous)
@@ -294,7 +294,8 @@ namespace won::ecs
                     }
                     else
                     {
-                        jobsystem::Execute(ctx, [this, system, delta_time](jobsystem::JobArgs args) { system->Update(*this, delta_time); });
+                        System* system_ptr = system.get();
+                        jobsystem::Execute(ctx, [this, system_ptr, delta_time](jobsystem::JobArgs args) { system_ptr->Update(*this, delta_time); });
                     }
                 }
             }

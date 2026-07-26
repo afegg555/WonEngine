@@ -17,7 +17,7 @@ namespace won::rendering
 {
     struct RendererDesc
     {
-        std::shared_ptr<RHIDevice> device;
+        RHIDevice* device = nullptr;
         String shader_bin_root_path;
         RHIClearColor clear_color = { 0.0f, 0.3f, 0.3f, 1.0f };
         bool vsync_enabled = true;
@@ -43,7 +43,7 @@ namespace won::rendering
         virtual void WaitIdle() = 0;
         virtual void Shutdown() = 0;
         virtual bool ReloadShaders() = 0;
-        virtual std::shared_ptr<RHIShader> GetShader(resource::ShaderId shader_id) const = 0;
+        virtual RHIShader* GetShader(resource::ShaderId shader_id) const = 0;
         virtual void SetClearColor(const RHIClearColor& color) = 0;
         virtual RHIClearColor GetClearColor() const = 0;
         virtual void SetVSync(bool enabled) = 0;
@@ -53,13 +53,13 @@ namespace won::rendering
 
         struct FrameCommandList
         {
-            std::shared_ptr<RHICommandAllocator> command_allocator;
-            std::shared_ptr<RHICommandList> command_list;
+            std::unique_ptr<RHICommandAllocator> command_allocator;
+            std::unique_ptr<RHICommandList> command_list;
         };
 
         struct FrameUploadAllocation
         {
-            std::shared_ptr<RHIResource> buffer;
+            RHIResource* buffer = nullptr;
             void* mapped_data = nullptr;
             Size buffer_offset = 0;
         };
@@ -188,17 +188,16 @@ namespace won::rendering
 
                 void* mapped_data = frame_upload_buffer->GetMappedData();
 
-                out_allocation.buffer = frame_upload_buffer;
+                out_allocation.buffer = frame_upload_buffer.get();
                 out_allocation.mapped_data = static_cast<uint8*>(mapped_data) + aligned_offset;
                 out_allocation.buffer_offset = aligned_offset;
                 return true;
             }
 
-            void RemoveResourceDeferred(std::shared_ptr<RHIResource>& resource)
+            void RemoveResourceDeferred(std::unique_ptr<RHIResource>& resource)
             {
                 std::scoped_lock lock(deferred_res_removal_mutex);
-                deferred_res_removal.push_back(resource);
-                resource = nullptr;
+                deferred_res_removal.push_back(std::move(resource));
             }
 
             Vector<FrameCommandList> command_lists[static_cast<Size>(RHIQueueType::Count)];
@@ -206,13 +205,13 @@ namespace won::rendering
             std::mutex command_lists_mutex;
             std::mutex frame_upload_mutex;
             std::mutex deferred_res_removal_mutex;
-            std::shared_ptr<RHIFence> fence;
-            std::shared_ptr<RHIResource> shader_instance_sort_upload_buffer;
-            std::shared_ptr<RHIResource> frame_upload_buffer;
+            std::unique_ptr<RHIFence> fence;
+            std::unique_ptr<RHIResource> shader_instance_sort_upload_buffer;
+            std::unique_ptr<RHIResource> frame_upload_buffer;
             Size frame_upload_offset = 0;
             uint64 fence_value = 0;
 
-            std::vector<std::shared_ptr<RHIResource>> deferred_res_removal;
+            std::vector<std::unique_ptr<RHIResource>> deferred_res_removal;
         };
 
         inline FrameContext& GetFrameContext() { return frame_contexts[current_frame_slot]; };
@@ -238,7 +237,7 @@ namespace won::rendering
         }
 
     protected:
-        std::shared_ptr<RHIDevice> device;
+        RHIDevice* device = nullptr;
         std::array<FrameContext, max_frames_in_flight> frame_contexts = {};
         jobsystem::Context rendering_work_context;
 
@@ -246,5 +245,5 @@ namespace won::rendering
         uint64 frame_count = 0;
     };
 
-    WONENGINE_API std::shared_ptr<Renderer> CreateRenderer(const RendererDesc& desc);
+    WONENGINE_API std::unique_ptr<Renderer> CreateRenderer(const RendererDesc& desc);
 }

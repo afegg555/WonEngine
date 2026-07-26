@@ -79,15 +79,15 @@ namespace won::rendering
         virtual uint32 GetFeatureFlags() const = 0;
         virtual bool HasFeature(RHIDeviceFeature feature) const = 0;
 
-        virtual std::shared_ptr<RHIFence> CreateFence(uint64 initial_value = 0) = 0;
-        virtual std::shared_ptr<RHICommandAllocator> CreateCommandAllocator(RHIQueueType type) = 0;
-        virtual std::shared_ptr<RHICommandList> CreateCommandList(RHIQueueType type) = 0;
-        virtual std::shared_ptr<RHIQueryHeap> CreateQueryHeap(const RHIQueryHeapDesc& desc) = 0;
+        virtual std::unique_ptr<RHIFence> CreateFence(uint64 initial_value = 0) = 0;
+        virtual std::unique_ptr<RHICommandAllocator> CreateCommandAllocator(RHIQueueType type) = 0;
+        virtual std::unique_ptr<RHICommandList> CreateCommandList(RHIQueueType type) = 0;
+        virtual std::unique_ptr<RHIQueryHeap> CreateQueryHeap(const RHIQueryHeapDesc& desc) = 0;
 
-        virtual std::shared_ptr<RHIResource> CreateBuffer(const RHIBufferDesc& desc,
+        virtual std::unique_ptr<RHIResource> CreateBuffer(const RHIBufferDesc& desc,
             const void* initial_data = nullptr, Size initial_size = 0) = 0;
 
-        virtual std::shared_ptr<RHIResource> CreateTexture(const RHITextureDesc& desc,
+        virtual std::unique_ptr<RHIResource> CreateTexture(const RHITextureDesc& desc,
             const void* initial_data = nullptr, Size initial_size = 0) = 0;
 
         virtual Size GetMinOffsetAlignment(const RHIBufferDesc& desc) const = 0;
@@ -96,17 +96,17 @@ namespace won::rendering
             const RHISubresourceDesc& desc,
             RHISubresourceHandle* out_handle) = 0;
 
-        virtual std::shared_ptr<RHIPipeline> CreateGraphicsPipeline(
+        virtual std::unique_ptr<RHIPipeline> CreateGraphicsPipeline(
             const RHIGraphicsPipelineDesc& desc) = 0;
 
-        virtual std::shared_ptr<RHIPipeline> CreateComputePipeline(
+        virtual std::unique_ptr<RHIPipeline> CreateComputePipeline(
             const RHIComputePipelineDesc& desc) = 0;
 
-        virtual std::shared_ptr<RHISampler> CreateSampler(const RHISamplerDesc& desc) = 0;
-        virtual std::shared_ptr<RHIContext> GetContext(RHIQueueType type) = 0;
-        virtual std::shared_ptr<RHISwapchain> CreateSwapchain(platform::Window& window) = 0;
+        virtual std::unique_ptr<RHISampler> CreateSampler(const RHISamplerDesc& desc) = 0;
+        virtual RHIContext* GetContext(RHIQueueType type) = 0;
+        virtual std::unique_ptr<RHISwapchain> CreateSwapchain(platform::Window& window) = 0;
         virtual bool GetMemoryUsage(RHIMemoryUsage& out_usage) = 0;
     };
 
-    WONENGINE_API std::shared_ptr<RHIDevice> CreateRHIDevice(const RHIDeviceDesc& desc);
+    WONENGINE_API std::unique_ptr<RHIDevice> CreateRHIDevice(const RHIDeviceDesc& desc);
 }

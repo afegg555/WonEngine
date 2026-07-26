@@ -21,9 +21,9 @@ namespace won::rendering
 
     struct GPUBuffer
     {
-        std::shared_ptr<RHIResource> buffer;
+        std::unique_ptr<RHIResource> buffer;
         RHISubresourceHandle srv = {};
-        std::array<std::shared_ptr<RHIResource>, max_frames_in_flight> staging = {};
+        std::array<std::unique_ptr<RHIResource>, max_frames_in_flight> staging = {};
     };
 
     struct Renderable
@@ -37,7 +37,7 @@ namespace won::rendering
         };
 
         ObjectPushConstants push_constants;
-        std::shared_ptr<RHIResource> index_buffer;
+        RHIResource* index_buffer = nullptr;
         float3 world_position = {};
         math::AABB aabb = {};
         uint32 index_offset = 0;
@@ -77,7 +77,7 @@ namespace won::rendering
         // For particles: bindless descriptor of the per-frame float4 buffer holding
         // interleaved [position, color] pairs, indexed by instance_index.
         uint32 resource_index = 0;
-        std::shared_ptr<resource::Font> font;
+        resource::Font* font = nullptr;
 
         bool IsText()        const { return (flags & Text) != 0; }
         bool IsBillboard()   const { return (flags & Billboard) != 0; }
@@ -104,7 +104,7 @@ namespace won::rendering
         uint32 layer_mask = 0xFFFFFFFF;
         float  match = 0.5f;
         uint32 flags = None;
-        std::shared_ptr<resource::Font> font;
+        resource::Font* font = nullptr;
 
         bool IsText() const { return (flags & Text) != 0; }
     };
@@ -146,25 +146,25 @@ namespace won::rendering
 
         struct DDGIResources
         {
-            std::shared_ptr<RHIResource> irradiance_texture;
+            std::unique_ptr<RHIResource> irradiance_texture;
             RHISubresourceHandle irradiance_texture_srv = {};
             RHISubresourceHandle irradiance_texture_uav = {};
-            std::shared_ptr<RHIResource> irradiance_history_texture;
+            std::unique_ptr<RHIResource> irradiance_history_texture;
             RHISubresourceHandle irradiance_history_texture_srv = {};
 
-            std::shared_ptr<RHIResource> visibility_texture;
+            std::unique_ptr<RHIResource> visibility_texture;
             RHISubresourceHandle visibility_texture_srv = {};
             RHISubresourceHandle visibility_texture_uav = {};
-            std::shared_ptr<RHIResource> visibility_history_texture;
+            std::unique_ptr<RHIResource> visibility_history_texture;
             RHISubresourceHandle visibility_history_texture_srv = {};
 
-            std::shared_ptr<RHIResource> probe_data_buffer;
+            std::unique_ptr<RHIResource> probe_data_buffer;
             RHISubresourceHandle probe_data_buffer_srv = {};
             RHISubresourceHandle probe_data_buffer_uav = {};
-            std::shared_ptr<RHIResource> probe_data_history_buffer;
+            std::unique_ptr<RHIResource> probe_data_history_buffer;
             RHISubresourceHandle probe_data_history_buffer_srv = {};
 
-            std::shared_ptr<RHIResource> probe_data_readback_buffer;
+            std::unique_ptr<RHIResource> probe_data_readback_buffer;
             bool probe_data_readback_valid = false;
 
             uint3 probe_counts = { 0, 0, 0 };
@@ -188,14 +188,14 @@ namespace won::rendering
         Vector<ShaderBVHInstance> shader_bvh_instances;
         GPUBuffer bvh_instance_buffer;
 
-        std::array<Vector<std::shared_ptr<RHIResource>>, max_frames_in_flight> retired = {};
+        std::array<Vector<std::unique_ptr<RHIResource>>, max_frames_in_flight> retired = {};
 
         uint64 synced_index = ~0ull;
 
         void Update(const ecs::Scene& scene, RHIDevice& device, RHICommandList& command_list, uint32 frame_slot, bool ddgi_probe_debug_wanted);
 
     private:
-        void RetireResource(std::shared_ptr<RHIResource>& resource, uint32 frame_slot);
+        void RetireResource(std::unique_ptr<RHIResource>& resource, uint32 frame_slot);
         void ReleaseDDGIResources(uint32 frame_slot);
         bool CreateDDGIResources(RHIDevice& device, uint32 frame_slot, bool probe_debug_wanted);
     };

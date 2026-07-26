@@ -25,7 +25,7 @@ namespace won::rendering
     {
         using namespace won::ecs;
 
-        bool UploadBuffer(GPUBuffer& target, Vector<std::shared_ptr<RHIResource>>& retire,
+        bool UploadBuffer(GPUBuffer& target, Vector<std::unique_ptr<RHIResource>>& retire,
             const void* data, Size size, Size stride,
             RHIDevice& device, RHICommandList& command_list, uint32 frame_slot)
         {
@@ -73,7 +73,7 @@ namespace won::rendering
                 }
             }
 
-            std::shared_ptr<RHIResource>& staging = target.staging[frame_slot];
+            std::unique_ptr<RHIResource>& staging = target.staging[frame_slot];
             const Size current_staging_size = staging ? staging->GetDesc().buffer_desc.size : 0;
             if (!staging || current_staging_size < size)
             {
@@ -463,7 +463,7 @@ namespace won::rendering
                         push_constants.material_index = material_comp.material->material_offset + submesh.material_slot;
                         push_constants.draw_offset = (uint)args.job_index;
 
-                        renderable.index_buffer = mesh_render_data.buffer;
+                        renderable.index_buffer = mesh_render_data.buffer.get();
                         renderable.index_offset = mesh_render_data.indices.offset + submesh.first_index * sizeof(uint32);
                         renderable.index_count = submesh.index_count;
                         renderable.world_position = world_position;
@@ -701,7 +701,7 @@ namespace won::rendering
 
         struct GlyphRequest
         {
-            std::shared_ptr<resource::Font> font;
+            resource::Font* font = nullptr;
             uint32 codepoint = 0;
             uint32 pixel_height = 0;
         };
@@ -792,7 +792,7 @@ namespace won::rendering
                     const resource::Font::Glyph* glyph = text.font->atlas.FindGlyph(codepoint, text.pixel_height);
                     if (!glyph)
                     {
-                        bucket.glyph_requests.push_back({ text.font, codepoint, text.pixel_height });
+                        bucket.glyph_requests.push_back({ text.font.get(), codepoint, text.pixel_height });
                         continue;
                     }
 
@@ -855,7 +855,7 @@ namespace won::rendering
                     Sprite2DRenderable renderable = {};
                     renderable.flags |= Sprite2DRenderable::Text;
                     renderable.material_index = material_array->GetData(entity).material->material_offset;
-                    renderable.font = text.font;
+                    renderable.font = text.font.get();
                     renderable.anchor = { 0.0f, 0.0f };
                     renderable.position = { text_anchor_point.x + glyph_visual_x, text_anchor_point.y + glyph_top_y };
                     renderable.size = glyph->size;
@@ -930,7 +930,7 @@ namespace won::rendering
                     const resource::Font::Glyph* glyph = text.font->atlas.FindGlyph(codepoint, text.pixel_height);
                     if (!glyph)
                     {
-                        bucket.glyph_requests.push_back({ text.font, codepoint, text.pixel_height });
+                        bucket.glyph_requests.push_back({ text.font.get(), codepoint, text.pixel_height });
                         continue;
                     }
 
@@ -983,7 +983,7 @@ namespace won::rendering
                         const float glyph_visual_x = line_x + layout.pen_x + glyph->offset.x * glyph_world_scale;
                         const float baseline_y = pivot_y_offset - line_advance * static_cast<float>(layout.line_index);
                         const float glyph_top_y = baseline_y - glyph->offset.y * glyph_world_scale;
-                        renderable.font = text.font;
+                        renderable.font = text.font.get();
                         renderable.pivot = { (glyph_visual_x + glyph_size.x) / glyph_size.x, (glyph_size.y - glyph_top_y) / glyph_size.y };
                         renderable.size = glyph_size;
                         renderable.uv_rect = { glyph->uv_min.x, glyph->uv_min.y, glyph->uv_max.x, glyph->uv_max.y };
@@ -1309,12 +1309,11 @@ namespace won::rendering
         }
     }
 
-    void GPUScene::RetireResource(std::shared_ptr<RHIResource>& resource, uint32 frame_slot)
+    void GPUScene::RetireResource(std::unique_ptr<RHIResource>& resource, uint32 frame_slot)
     {
         if (resource)
         {
-            retired[frame_slot].push_back(resource);
-            resource = nullptr;
+            retired[frame_slot].push_back(std::move(resource));
         }
     }
 
@@ -1660,7 +1659,7 @@ namespace won::rendering
         sprite_3d_renderables.insert(sprite_3d_renderables.end(), std::make_move_iterator(text_sprite_3d.begin()), std::make_move_iterator(text_sprite_3d.end()));
         sprite_3d_renderables.insert(sprite_3d_renderables.end(), std::make_move_iterator(particle_sprite_3d.begin()), std::make_move_iterator(particle_sprite_3d.end()));
 
-        Vector<std::shared_ptr<resource::Font>> dirty_fonts;
+        Vector<resource::Font*> dirty_fonts;
         for (const GlyphRequest& request : glyph_requests)
         {
             if (!request.font || !request.font->atlas.RequestGlyph(request.codepoint, request.pixel_height))
@@ -1672,7 +1671,7 @@ namespace won::rendering
                 dirty_fonts.push_back(request.font);
             }
         }
-        for (const std::shared_ptr<resource::Font>& font : dirty_fonts)
+        for (resource::Font* font : dirty_fonts)
         {
             resource::UpdateGlyphAtlas(*font);
         }

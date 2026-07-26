@@ -14,8 +14,8 @@ namespace won::rendering::utils
 {
     namespace
     {
-        std::shared_ptr<RHIPipeline> texture_mipgen_pipeline = nullptr;
-        std::shared_ptr<RHIPipeline> texture_bc_compress_pipelines[4] = {};
+        std::unique_ptr<RHIPipeline> texture_mipgen_pipeline = nullptr;
+        std::unique_ptr<RHIPipeline> texture_bc_compress_pipelines[4] = {};
         Vector<std::weak_ptr<RHIResource>> pending_texture_mip_generation;
         std::mutex pending_texture_mip_generation_mutex;
 
@@ -28,7 +28,7 @@ namespace won::rendering::utils
             Count
         };
 
-        std::shared_ptr<RHIPipeline> gpu_bvh_build_pipelines[static_cast<uint32>(GPUBVHBuildPipelineType::Count)] = {};
+        std::unique_ptr<RHIPipeline> gpu_bvh_build_pipelines[static_cast<uint32>(GPUBVHBuildPipelineType::Count)] = {};
         Vector<std::weak_ptr<resource::Mesh>> pending_gpu_bvh_build;
         std::mutex pending_gpu_bvh_build_mutex;
 
@@ -81,7 +81,7 @@ namespace won::rendering::utils
 
             if (!texture_mipgen_pipeline)
             {
-                std::shared_ptr<RHIShader> mipgen_shader = renderer.GetShader(resource::ShaderId::CSTextureMipGen);
+                RHIShader* mipgen_shader = renderer.GetShader(resource::ShaderId::CSTextureMipGen);
                 if (!mipgen_shader)
                 {
                     backlog::Post("Failed to load TextureMipGenCS.hlsl", backlog::LogLevel::Error);
@@ -89,7 +89,7 @@ namespace won::rendering::utils
                 }
 
                 RHIComputePipelineDesc pipeline_desc = {};
-                pipeline_desc.compute_shader = mipgen_shader.get();
+                pipeline_desc.compute_shader = mipgen_shader;
                 texture_mipgen_pipeline = device.CreateComputePipeline(pipeline_desc);
                 if (!texture_mipgen_pipeline)
                 {
@@ -170,7 +170,7 @@ namespace won::rendering::utils
             return true;
         }
 
-        bool FlushEnqueuedGPUBVHBuild(RHIDevice& device, Renderer& renderer, RHICommandList& command_list, Vector<std::shared_ptr<RHIResource>>& scratch_resources)
+        bool FlushEnqueuedGPUBVHBuild(RHIDevice& device, Renderer& renderer, RHICommandList& command_list, Vector<std::unique_ptr<RHIResource>>& scratch_resources)
         {
             Vector<std::weak_ptr<resource::Mesh>> pending_gpu_bvh_builds;
             {
@@ -262,7 +262,7 @@ namespace won::rendering::utils
                 {
                     if (!gpu_bvh_build_pipelines[pipeline_index])
                     {
-                        std::shared_ptr<RHIShader> build_shader = renderer.GetShader(gpu_bvh_build_shader_ids[pipeline_index]);
+                        RHIShader* build_shader = renderer.GetShader(gpu_bvh_build_shader_ids[pipeline_index]);
                         if (!build_shader)
                         {
                             backlog::Post("Failed to get GPU BVH build shader", backlog::LogLevel::Error);
@@ -271,7 +271,7 @@ namespace won::rendering::utils
                         }
 
                         RHIComputePipelineDesc pipeline_desc = {};
-                        pipeline_desc.compute_shader = build_shader.get();
+                        pipeline_desc.compute_shader = build_shader;
                         gpu_bvh_build_pipelines[pipeline_index] = device.CreateComputePipeline(pipeline_desc);
                         if (!gpu_bvh_build_pipelines[pipeline_index])
                         {
@@ -295,9 +295,9 @@ namespace won::rendering::utils
                 // total node: 2N - 1
 
                 resource::Mesh::GPUBVH gpu_bvh = {};
-                std::shared_ptr<RHIResource> sort_buffer;
-                std::shared_ptr<RHIResource> parent_buffer;
-                std::shared_ptr<RHIResource> counter_buffer;
+                std::unique_ptr<RHIResource> sort_buffer;
+                std::unique_ptr<RHIResource> parent_buffer;
+                std::unique_ptr<RHIResource> counter_buffer;
                 RHISubresourceHandle sort_uav = {};
                 RHISubresourceHandle parent_uav = {};
                 RHISubresourceHandle counter_uav = {};
@@ -327,26 +327,25 @@ namespace won::rendering::utils
                     Size stride,
                     RHIBindFlags bind_flags,
                     const void* data,
-                    std::shared_ptr<RHIResource>& out_buffer,
                     RHISubresourceHandle* out_srv,
-                    RHISubresourceHandle* out_uav) -> bool
+                    RHISubresourceHandle* out_uav) -> std::unique_ptr<RHIResource>
                 {
                     if (buffer_size == 0 || stride == 0)
                     {
-                        return false;
+                        return nullptr;
                     }
 
                     RHIBufferDesc buffer_desc = {};
                     buffer_desc.size = buffer_size;
                     buffer_desc.usage = RHIResourceUsage::Default;
                     buffer_desc.bind_flags = bind_flags;
-                    out_buffer = device.CreateBuffer(buffer_desc, data, data ? buffer_size : 0);
-                    if (!out_buffer)
+                    std::unique_ptr<RHIResource> buffer = device.CreateBuffer(buffer_desc, data, data ? buffer_size : 0);
+                    if (!buffer)
                     {
                         backlog::Post(String("failed to create ") + buffer_name, backlog::LogLevel::Error);
-                        return false;
+                        return nullptr;
                     }
-                    out_buffer->SetName(buffer_name);
+                    buffer->SetName(buffer_name);
 
                     if (out_srv)
                     {
@@ -355,10 +354,10 @@ namespace won::rendering::utils
                         srv_desc.buffer_offset = 0;
                         srv_desc.buffer_size = buffer_size;
                         srv_desc.buffer_stride = stride;
-                        if (!device.CreateSubresource(*out_buffer, srv_desc, out_srv))
+                        if (!device.CreateSubresource(*buffer, srv_desc, out_srv))
                         {
                             backlog::Post(String("failed to create ") + buffer_name + " SRV", backlog::LogLevel::Error);
-                            return false;
+                            return nullptr;
                         }
                     }
 
@@ -369,54 +368,56 @@ namespace won::rendering::utils
                         uav_desc.buffer_offset = 0;
                         uav_desc.buffer_size = buffer_size;
                         uav_desc.buffer_stride = stride;
-                        if (!device.CreateSubresource(*out_buffer, uav_desc, out_uav))
+                        if (!device.CreateSubresource(*buffer, uav_desc, out_uav))
                         {
                             backlog::Post(String("failed to create ") + buffer_name + " UAV", backlog::LogLevel::Error);
-                            return false;
+                            return nullptr;
                         }
                     }
 
-                    return true;
+                    return buffer;
                 };
 
-                if (!create_structured_buffer("Mesh GPU BVH Node Buffer",
+                gpu_bvh.node_buffer = create_structured_buffer("Mesh GPU BVH Node Buffer",
                     node_count * sizeof(ShaderBVHNode), sizeof(ShaderBVHNode),
-                    RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess, nullptr, gpu_bvh.node_buffer, &gpu_bvh.node_srv, &gpu_bvh.node_uav))
+                    RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess, nullptr, &gpu_bvh.node_srv, &gpu_bvh.node_uav);
+                if (!gpu_bvh.node_buffer)
                 {
                     succeeded = false;
                     continue;
                 }
-                if (!create_structured_buffer("Mesh GPU BVH Primitive Buffer",
+                gpu_bvh.primitive_buffer = create_structured_buffer("Mesh GPU BVH Primitive Buffer",
                     sort_count * sizeof(ShaderBVHPrimitive), sizeof(ShaderBVHPrimitive),
-                    RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess, nullptr, gpu_bvh.primitive_buffer, &gpu_bvh.primitive_srv, &gpu_bvh.primitive_uav))
+                    RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess, nullptr, &gpu_bvh.primitive_srv, &gpu_bvh.primitive_uav);
+                if (!gpu_bvh.primitive_buffer)
                 {
                     succeeded = false;
                     continue;
                 }
-                if (!create_structured_buffer("Mesh GPU BVH Sort Buffer",
+                sort_buffer = create_structured_buffer("Mesh GPU BVH Sort Buffer",
                     sort_count * sizeof(uint2), sizeof(uint2),
-                    RHIBindFlags::UnorderedAccess, sort_keys.data(), sort_buffer, nullptr, &sort_uav))
+                    RHIBindFlags::UnorderedAccess, sort_keys.data(), nullptr, &sort_uav);
+                if (!sort_buffer)
                 {
                     succeeded = false;
                     continue;
                 }
-                if (!create_structured_buffer("Mesh GPU BVH Parent Buffer",
+                parent_buffer = create_structured_buffer("Mesh GPU BVH Parent Buffer",
                     node_count * sizeof(uint32), sizeof(uint32),
-                    RHIBindFlags::UnorderedAccess, nullptr, parent_buffer, nullptr, &parent_uav))
+                    RHIBindFlags::UnorderedAccess, nullptr, nullptr, &parent_uav);
+                if (!parent_buffer)
                 {
                     succeeded = false;
                     continue;
                 }
-                if (!create_structured_buffer("Mesh GPU BVH Counter Buffer",
+                counter_buffer = create_structured_buffer("Mesh GPU BVH Counter Buffer",
                     node_count * sizeof(uint32), sizeof(uint32),
-                    RHIBindFlags::UnorderedAccess, zero_counters.data(), counter_buffer, nullptr, &counter_uav))
+                    RHIBindFlags::UnorderedAccess, zero_counters.data(), nullptr, &counter_uav);
+                if (!counter_buffer)
                 {
                     succeeded = false;
                     continue;
                 }
-                scratch_resources.push_back(sort_buffer);
-                scratch_resources.push_back(parent_buffer);
-                scratch_resources.push_back(counter_buffer);
                 command_list.TransitionResource(*mesh.render_data.buffer, RHIResourceState::ShaderRead);
                 command_list.TransitionResource(*gpu_bvh.node_buffer, RHIResourceState::ShaderWrite);
                 command_list.TransitionResource(*gpu_bvh.primitive_buffer, RHIResourceState::ShaderWrite);
@@ -506,6 +507,10 @@ namespace won::rendering::utils
                     command_list.UAVBarrier(*gpu_bvh.node_buffer);
                 }
 
+                scratch_resources.push_back(std::move(sort_buffer));
+                scratch_resources.push_back(std::move(parent_buffer));
+                scratch_resources.push_back(std::move(counter_buffer));
+
                 command_list.TransitionResource(*gpu_bvh.node_buffer, RHIResourceState::ShaderRead);
                 command_list.TransitionResource(*gpu_bvh.primitive_buffer, RHIResourceState::ShaderRead);
                 command_list.TransitionResource(*mesh.render_data.buffer, RHIResourceState::Undefined);
@@ -593,7 +598,7 @@ namespace won::rendering::utils
         pending_gpu_bvh_build.push_back(mesh);
     }
 
-    bool FlushEnqueuedRenderingWork(RHIDevice& device, Renderer& renderer, RHICommandList& command_list, Vector<std::shared_ptr<RHIResource>>& scratch_resources)
+    bool FlushEnqueuedRenderingWork(RHIDevice& device, Renderer& renderer, RHICommandList& command_list, Vector<std::unique_ptr<RHIResource>>& scratch_resources)
     {
         bool succeeded = true;
         succeeded &= FlushEnqueuedGPUBVHBuild(device, renderer, command_list, scratch_resources);
@@ -796,10 +801,10 @@ namespace won::rendering::utils
             return false;
         }
 
-        std::shared_ptr<RHIPipeline>& pipeline = texture_bc_compress_pipelines[pipeline_index];
+        std::unique_ptr<RHIPipeline>& pipeline = texture_bc_compress_pipelines[pipeline_index];
         if (!pipeline)
         {
-            std::shared_ptr<RHIShader> shader = renderer.GetShader(shader_id);
+            RHIShader* shader = renderer.GetShader(shader_id);
             if (!shader)
             {
                 backlog::Post("Failed to get texture BC compression shader", backlog::LogLevel::Error);
@@ -807,7 +812,7 @@ namespace won::rendering::utils
             }
 
             RHIComputePipelineDesc pipeline_desc = {};
-            pipeline_desc.compute_shader = shader.get();
+            pipeline_desc.compute_shader = shader;
             pipeline = device.CreateComputePipeline(pipeline_desc);
             if (!pipeline)
             {
@@ -827,7 +832,7 @@ namespace won::rendering::utils
         source_desc.format = is_srgb ? RHIFormat::R8G8B8A8UnormSrgb : RHIFormat::R8G8B8A8Unorm;
         source_desc.usage = RHIResourceUsage::Default;
         source_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
-        std::shared_ptr<RHIResource> source_texture = device.CreateTexture(source_desc, image.pixels.data(), image.pixels.size());
+        std::unique_ptr<RHIResource> source_texture = device.CreateTexture(source_desc, image.pixels.data(), image.pixels.size());
         if (!source_texture)
         {
             return false;
@@ -837,7 +842,7 @@ namespace won::rendering::utils
         output_desc.size = output_size;
         output_desc.usage = RHIResourceUsage::Default;
         output_desc.bind_flags = RHIBindFlags::UnorderedAccess;
-        std::shared_ptr<RHIResource> output_buffer = device.CreateBuffer(output_desc);
+        std::unique_ptr<RHIResource> output_buffer = device.CreateBuffer(output_desc);
         if (!output_buffer)
         {
             return false;
@@ -858,16 +863,16 @@ namespace won::rendering::utils
         readback_desc.size = output_size;
         readback_desc.usage = RHIResourceUsage::Readback;
         readback_desc.bind_flags = RHIBindFlags::None;
-        std::shared_ptr<RHIResource> readback_buffer = device.CreateBuffer(readback_desc);
+        std::unique_ptr<RHIResource> readback_buffer = device.CreateBuffer(readback_desc);
         if (!readback_buffer || !readback_buffer->GetMappedData())
         {
             return false;
         }
 
         RHIQueueType queue_type = RHIQueueType::Graphics;
-        std::shared_ptr<RHIContext> context = device.GetContext(queue_type);
-        std::shared_ptr<RHICommandAllocator> command_allocator = device.CreateCommandAllocator(queue_type);
-        std::shared_ptr<RHICommandList> command_list = device.CreateCommandList(queue_type);
+        RHIContext* context = device.GetContext(queue_type);
+        std::unique_ptr<RHICommandAllocator> command_allocator = device.CreateCommandAllocator(queue_type);
+        std::unique_ptr<RHICommandList> command_list = device.CreateCommandList(queue_type);
         if (!context || !command_allocator || !command_list)
         {
             return false;
@@ -923,7 +928,7 @@ namespace won::rendering::utils
         command_list->CopyBuffer(*readback_buffer, 0, *output_buffer, 0, output_size);
         command_list->End();
 
-        std::shared_ptr<RHIFence> fence = device.CreateFence(0);
+        std::unique_ptr<RHIFence> fence = device.CreateFence(0);
         if (fence)
         {
             const uint64 fence_value = context->Submit(*command_list, fence.get());
