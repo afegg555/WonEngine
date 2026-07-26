@@ -9,6 +9,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(WONENGINE_BUILD_SHARED_RUNTIME "Build Runtime as a shared library" OFF) # currently not supported
+option(WONENGINE_SHIPPING "Strip debug rendering (debugdraw, debug view modes, r.debug cvars)" OFF)
+if(WONENGINE_SHIPPING)
+    add_compile_definitions(WON_SHIPPING)
+endif()
 
 if(WIN32)
     set(OS_NAME "Windows")
