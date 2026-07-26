@@ -35,14 +35,14 @@ int main(int argc, char** argv)
 
     if (project_path_arg == nullptr || project_path_arg[0] == '\0' || check_extra != nullptr)
     {
-        std::cout << "Usage: PackageTool project_path [Debug|Release] [--manifest]\n";
+        std::cout << "Usage: PackageTool project_path [Debug|Release|Shipping] [--manifest]\n";
         return 1;
     }
 
     won::String config = "Release";
     if (config_arg != nullptr)
     {
-        if (won::String(config_arg) != "Debug" && won::String(config_arg) != "Release")
+        if (won::String(config_arg) != "Debug" && won::String(config_arg) != "Release" && won::String(config_arg) != "Shipping")
         {
             std::cout << "Invalid build config: " << config_arg << "\n";
             return 1;
@@ -64,9 +64,10 @@ int main(int argc, char** argv)
             source_settings_path = won::io::CombinePath(project_root, won::project::default_project_file_name);
         }
     }
-    const won::String build_bat = won::io::CombinePath(engine_root, "Build_Windows.bat");
-    const won::String binary_root = won::io::CombinePath(won::io::CombinePath(engine_root, "Binary"), "Windows");
-    const won::String packages_root = won::io::CombinePath(binary_root, "Packages");
+    const won::String platform = "Win64";
+    const won::String build_bat = won::io::CombinePath(engine_root, "Build_Win64.bat");
+    const won::String binary_root = won::io::CombinePath(won::io::CombinePath(won::io::CombinePath(engine_root, "Binary"), platform), config);
+    const won::String packages_root = won::io::CombinePath(engine_root, "Packages");
 
     std::cout << "Target: " << target << "\n";
     std::cout << "Config: " << config << "\n";
@@ -101,7 +102,7 @@ int main(int argc, char** argv)
         settings.project_name = target;
     }
 
-    const won::String package_root = won::io::CombinePath(won::io::CombinePath(packages_root, settings.project_name), config);
+    const won::String package_root = won::io::CombinePath(won::io::CombinePath(won::io::CombinePath(packages_root, settings.project_name), platform), config);
     if (won::io::GetRelativePath(packages_root, package_root).empty())
     {
         std::cout << "Invalid package directory: " << package_root << "\n";
@@ -137,7 +138,13 @@ int main(int argc, char** argv)
     }
 
     // compile shaders to source project directory
+    // the directory is shared by every build config, so stale shaders from another config must not leak into the package
     const won::String project_shader_output = won::io::CombinePath(project_root, "CompiledShaders");
+    if (!won::io::RemoveDirectoryRecursive(project_shader_output))
+    {
+        std::cout << "Failed to clean compiled shader directory: " << project_shader_output << "\n";
+        return 1;
+    }
     const won::String shader_compiler = won::io::CombinePath(binary_root, "ShaderOfflineCompiler.exe");
     const won::String shader_command = "cmd /c \"\"" + shader_compiler + "\" \"" + project_shader_output + "\"\"";
     if (std::system(shader_command.c_str()) != 0)

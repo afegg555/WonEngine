@@ -13,8 +13,10 @@
 #include "UserSettings.h"
 #include "AudioDriver.h"
 #include "AudioMixer.h"
+#ifndef WON_SHIPPING
 #include "ConsoleOverlay.h"
 #include "PerformanceOverlay.h"
+#endif
 
 #include <memory>
 
@@ -89,9 +91,10 @@ namespace won
         bool is_first_frame = true;
         bool simulation_paused = false;
         std::unique_ptr<SceneManager> scene_manager;
+#ifndef WON_SHIPPING
         console::ConsoleOverlay console_overlay;
         stats::PerformanceOverlay performance_overlay;
-        bool developer_console_enabled = false;
+#endif
     };
 }
 

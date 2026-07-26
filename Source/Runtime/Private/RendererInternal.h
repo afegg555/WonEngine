@@ -14,7 +14,9 @@ namespace won::rendering
         void BeginFrame(platform::Window& window) override;
         void OnResize(platform::Window& window, uint32 width, uint32 height) override;
         void Render(View& view) override;
-        void RenderDebugText() override;
+#ifndef WON_SHIPPING
+        void RenderDebug2D() override;
+#endif
         void EndFrame() override;
         void WaitIdle() override;
         void Shutdown() override;
@@ -52,12 +54,18 @@ namespace won::rendering
         bool UpdateFrameConstants(FrameContext& frame_context, const View& view, RHICommandList& command_list);
         bool DrawScene(const FrameContext& frame_context, const View& view, resource::RenderPassType pass, uint32 flags, RHICommandList& command_list);
         void UpdateDDGIProbe(FrameContext& frame_context, const ShaderEnvironment& environment_lighting, const ShaderDDGIVolume& ddgi_volume, const RHISubresourceBinding& shader_frame_binding, const RHISubresourceBinding& shader_camera_binding, RHICommandList& command_list);
-        void DrawDebugText(const RHISubresourceBinding& back_buffer_binding, RHICommandList& command_list);
+#ifndef WON_SHIPPING
+        void DrawDebug2D(const RHISubresourceBinding& back_buffer_binding, RHICommandList& command_list);
+#endif
 
         // etc
         void Update(View& view);
         bool BuildShadowCascades(View& view);
         void UpdateDebugState(const View& view);
+#ifndef WON_SHIPPING
+        void SubmitDebugDraw(const View& view);
+        bool DrawDebug3D(FrameContext& frame_context, RHICommandList& command_list);
+#endif
         void RenderForwardPath(View& view);
         void UpdateForwardLightList(View& view, RHICommandList& command_list);
 

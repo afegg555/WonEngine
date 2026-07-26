@@ -1,11 +1,13 @@
 #include "RendererInternal.h"
 #include "ShaderInterop_Sprite.h"
 #include "ShaderInterop_Decal.h"
-#include "ShaderInterop_DebugText.h"
+#ifndef WON_SHIPPING
+#include "ShaderInterop_DebugDraw.h"
+#endif
 
 #include "BuiltinFont.h"
 #include "Console.h"
-#include "DebugText.h"
+#include "DebugDraw.h"
 
 #include "Backlog.h"
 #include "Timer.h"

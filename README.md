@@ -52,25 +52,31 @@ WonEngine is currently developed and tested on Windows.
 Build the editor from the WonEngine directory by running the provided batch file:
 
 ```bat
-Build_Windows.bat Editor
+Build_Win64.bat Editor
 ```
 
-The script configures CMake and writes build output to `Binary/Windows`. Release is used by default. For a Debug build:
+The script configures CMake and writes build output to `Binary/Win64/<Config>`. Release is used by default. For a Debug build:
 
 ```bat
-Build_Windows.bat Editor Debug
+Build_Win64.bat Editor Debug
+```
+
+`Shipping` is the third configuration. It uses the same code generation as Release, and additionally strips debug rendering and developer overlays (debug draw, debug view modes, `r.debug` cvars, the in-game console, and the stat overlay):
+
+```bat
+Build_Win64.bat Player Shipping
 ```
 
 To build every target:
 
 ```bat
-Build_Windows.bat
+Build_Win64.bat
 ```
 
 To run the editor:
 
 ```text
-Binary\Windows\Editor.exe
+Binary\Win64\Release\Editor.exe
 ```
 
 ### Other Platforms
@@ -101,5 +107,6 @@ Source/
 
 Contents/         Editor and runtime assets
 Projects/         Project files
-Binary/           Build output
+Binary/           Build output, per platform and configuration
+Packages/         Packaged builds, per project, platform and configuration
 ```

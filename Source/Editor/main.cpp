@@ -37,7 +37,6 @@ int main(int argc, char** argv)
 	{
 		app_desc.project_settings.splash_image = default_editor_splash_image;
 	}
-	//app_desc.project_settings.developer_console_enabled = false;
 
 	String project_settings_path;
 	if (argc > 1 && argv && argv[1] && argv[1][0] != '\0')

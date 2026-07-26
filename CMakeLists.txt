@@ -9,24 +9,21 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(WONENGINE_BUILD_SHARED_RUNTIME "Build Runtime as a shared library" OFF) # currently not supported
-option(WONENGINE_SHIPPING "Strip debug rendering (debugdraw, debug view modes, r.debug cvars)" OFF)
-if(WONENGINE_SHIPPING)
-    add_compile_definitions(WON_SHIPPING)
-endif()
+
+# Shipping strips debug rendering and developer overlays (debug draw, debug view modes, r.debug cvars, in-game console, stat overlay)
+add_compile_definitions($<$<CONFIG:Shipping>:WON_SHIPPING>)
 
 if(WIN32)
-    set(OS_NAME "Windows")
+    set(PLATFORM_NAME "Win64")
 elseif(APPLE)
-    set(OS_NAME "MacOS")
+    set(PLATFORM_NAME "Mac")
 elseif(UNIX)
-    set(OS_NAME "Linux")
+    set(PLATFORM_NAME "Linux")
 endif()
 
-set(FINAL_OUT_DIR "${CMAKE_SOURCE_DIR}/Binary/${OS_NAME}")
-set(SHADER_BIN_DIR "${FINAL_OUT_DIR}/CompiledShaders")
+set(FINAL_OUT_DIR "${CMAKE_SOURCE_DIR}/Binary/${PLATFORM_NAME}")
 set(CONTENTS_ROOT_DIR "${CMAKE_SOURCE_DIR}/Contents")
 set(PROJECTS_ROOT_DIR "${CMAKE_SOURCE_DIR}/Projects" CACHE PATH "Default projects root directory")
-file(MAKE_DIRECTORY "${SHADER_BIN_DIR}")
 
 set(LUA_SOURCES
     Source/Vendor/lua/src/lapi.c
@@ -94,18 +91,27 @@ set(LUA_HEADERS
     Source/Vendor/lua/src/lzio.h
 )
 
-set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "" FORCE)
-set(CMAKE_DEBUG_POSTFIX "d")
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${FINAL_OUT_DIR}")  # .dll, .exe
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${FINAL_OUT_DIR}")  # .so, .dylib, Cmake MODULE
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${FINAL_OUT_DIR}")  # .a, .lib
+set(CMAKE_CONFIGURATION_TYPES "Debug;Release;Shipping" CACHE STRING "" FORCE)
+
+# Shipping inherits Release codegen; MSVC leaves flags for custom configurations empty otherwise.
+set(CMAKE_C_FLAGS_SHIPPING "${CMAKE_C_FLAGS_RELEASE}")
+set(CMAKE_CXX_FLAGS_SHIPPING "${CMAKE_CXX_FLAGS_RELEASE}")
+set(CMAKE_EXE_LINKER_FLAGS_SHIPPING "${CMAKE_EXE_LINKER_FLAGS_RELEASE}")
+set(CMAKE_SHARED_LINKER_FLAGS_SHIPPING "${CMAKE_SHARED_LINKER_FLAGS_RELEASE}")
+set(CMAKE_STATIC_LINKER_FLAGS_SHIPPING "${CMAKE_STATIC_LINKER_FLAGS_RELEASE}")
+set(CMAKE_MODULE_LINKER_FLAGS_SHIPPING "${CMAKE_MODULE_LINKER_FLAGS_RELEASE}")
+set(CMAKE_MAP_IMPORTED_CONFIG_SHIPPING Release "")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${FINAL_OUT_DIR}/$<CONFIG>")  # .dll, .exe
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${FINAL_OUT_DIR}/$<CONFIG>")  # .so, .dylib, Cmake MODULE
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${FINAL_OUT_DIR}/$<CONFIG>")  # .a, .lib
 
 # for MSVC
 foreach(CONFIG ${CMAKE_CONFIGURATION_TYPES})
     string(TOUPPER ${CONFIG} CONFIG_UPPER)
-    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${CONFIG_UPPER} "${FINAL_OUT_DIR}")
-    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${CONFIG_UPPER} "${FINAL_OUT_DIR}")
-    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${CONFIG_UPPER} "${FINAL_OUT_DIR}")
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${CONFIG_UPPER} "${FINAL_OUT_DIR}/${CONFIG}")
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${CONFIG_UPPER} "${FINAL_OUT_DIR}/${CONFIG}")
+    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${CONFIG_UPPER} "${FINAL_OUT_DIR}/${CONFIG}")
+    file(MAKE_DIRECTORY "${FINAL_OUT_DIR}/${CONFIG}/CompiledShaders")
 endforeach()
 
 set(RUNTIME_CORE
@@ -226,8 +232,8 @@ set(RUNTIME_RENDERING
     Source/Runtime/Private/View.cpp
     Source/Runtime/Private/BuiltinFont.h
     Source/Runtime/Private/BuiltinFont.cpp
-    Source/Runtime/Private/DebugText.h
-    Source/Runtime/Private/DebugText.cpp
+    Source/Runtime/Private/DebugDraw.h
+    Source/Runtime/Private/DebugDraw.cpp
 )
 
 set(RUNTIME_RENDERING_INTERNAL
@@ -433,7 +439,7 @@ set(SHADERS_INTEROP
     Source/Shaders/ShaderInterop_PostProcess.h
     Source/Shaders/ShaderInterop_LightCull.h
     Source/Shaders/ShaderInterop_Decal.h
-    Source/Shaders/ShaderInterop_DebugText.h
+    Source/Shaders/ShaderInterop_DebugDraw.h
 )
 
 set(SHADERS_HLSL
@@ -446,8 +452,10 @@ set(SHADERS_HLSL
     Source/Shaders/LuminanceResolveCS.hlsl
     Source/Shaders/BRDFIntegrationCS.hlsl
     Source/Shaders/CompositePS.hlsl
-    Source/Shaders/DebugTextVS.hlsl
-    Source/Shaders/DebugTextPS.hlsl
+    Source/Shaders/DebugDraw2DVS.hlsl
+    Source/Shaders/DebugDraw2DPS.hlsl
+    Source/Shaders/DebugDraw3DVS.hlsl
+    Source/Shaders/DebugDraw3DPS.hlsl
     Source/Shaders/ShadingCommon.hlsli
     Source/Shaders/BRDFCommon.hlsli
     Source/Shaders/FogCommon.hlsli
@@ -492,6 +500,7 @@ set(SHADERS_HLSL
 
 # Jolt Physics target integration (from source)
 set(ENABLE_ALL_WARNINGS OFF CACHE BOOL "" FORCE) # Disable warnings-as-errors for Jolt
+set(USE_STATIC_MSVC_RUNTIME_LIBRARY OFF CACHE BOOL "" FORCE) # Jolt must match the engine's dynamic CRT
 add_subdirectory(Source/Vendor/JoltPhysics/Build JoltPhysics)
 set(BUILD_DX12 OFF CACHE BOOL "" FORCE)
 set(BUILD_SAMPLE OFF CACHE BOOL "" FORCE)
@@ -685,18 +694,17 @@ add_library(CustomComponentSample SHARED
 )
 
 foreach(PLUGIN_TARGET PrintLogSample CustomComponentSample)
-    set(PLUGIN_OUTPUT_DIR "${FINAL_OUT_DIR}/Plugins/${PLUGIN_TARGET}")
     set_target_properties(${PLUGIN_TARGET} PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY "${PLUGIN_OUTPUT_DIR}"
-        LIBRARY_OUTPUT_DIRECTORY "${PLUGIN_OUTPUT_DIR}"
-        ARCHIVE_OUTPUT_DIRECTORY "${PLUGIN_OUTPUT_DIR}"
+        RUNTIME_OUTPUT_DIRECTORY "${FINAL_OUT_DIR}/$<CONFIG>/Plugins/${PLUGIN_TARGET}"
+        LIBRARY_OUTPUT_DIRECTORY "${FINAL_OUT_DIR}/$<CONFIG>/Plugins/${PLUGIN_TARGET}"
+        ARCHIVE_OUTPUT_DIRECTORY "${FINAL_OUT_DIR}/$<CONFIG>/Plugins/${PLUGIN_TARGET}"
     )
     foreach(CONFIG ${CMAKE_CONFIGURATION_TYPES})
         string(TOUPPER ${CONFIG} CONFIG_UPPER)
         set_target_properties(${PLUGIN_TARGET} PROPERTIES
-            RUNTIME_OUTPUT_DIRECTORY_${CONFIG_UPPER} "${PLUGIN_OUTPUT_DIR}"
-            LIBRARY_OUTPUT_DIRECTORY_${CONFIG_UPPER} "${PLUGIN_OUTPUT_DIR}"
-            ARCHIVE_OUTPUT_DIRECTORY_${CONFIG_UPPER} "${PLUGIN_OUTPUT_DIR}"
+            RUNTIME_OUTPUT_DIRECTORY_${CONFIG_UPPER} "${FINAL_OUT_DIR}/${CONFIG}/Plugins/${PLUGIN_TARGET}"
+            LIBRARY_OUTPUT_DIRECTORY_${CONFIG_UPPER} "${FINAL_OUT_DIR}/${CONFIG}/Plugins/${PLUGIN_TARGET}"
+            ARCHIVE_OUTPUT_DIRECTORY_${CONFIG_UPPER} "${FINAL_OUT_DIR}/${CONFIG}/Plugins/${PLUGIN_TARGET}"
         )
     endforeach()
 endforeach()
@@ -803,7 +811,7 @@ set_target_properties(CustomComponentSample PROPERTIES
 target_compile_definitions(Runtime
     PRIVATE
         WONENGINE_SHADER_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Source/Shaders"
-        WONENGINE_SHADER_BIN_DIR="${SHADER_BIN_DIR}"
+        WONENGINE_SHADER_BIN_DIR="${FINAL_OUT_DIR}/$<CONFIG>/CompiledShaders"
 )
 
 if(WONENGINE_BUILD_SHARED_RUNTIME)
@@ -846,4 +854,11 @@ if(WIN32)
     target_link_libraries(Editor PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler)
     target_link_libraries(HelloTriangle PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler)
     target_link_libraries(Player PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler)
+
+    add_custom_command(TARGET Runtime POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/Source/Vendor/DXC/bin/Win64/dxcompiler.dll"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Source/Vendor/DXC/bin/Win64/dxil.dll"
+            "$<TARGET_FILE_DIR:Runtime>"
+    )
 endif()

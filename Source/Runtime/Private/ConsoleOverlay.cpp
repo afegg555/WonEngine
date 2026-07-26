@@ -3,19 +3,20 @@
 #include "Backlog.h"
 #include "BuiltinFont.h"
 #include "Console.h"
-#include "DebugText.h"
+#include "DebugDraw.h"
 #include "Input.h"
 
+#ifndef WON_SHIPPING
 namespace won::console
 {
     namespace
     {
         constexpr float console_text_scale = 1.0f;
         constexpr const char* console_prompt = ">>> ";
-        constexpr uint32 console_background_color = debugtext::PackRGBA8(0, 0, 0, 200);
-        constexpr uint32 console_separator_color = debugtext::PackRGBA8(90, 90, 90, 255);
-        constexpr uint32 console_input_color = debugtext::PackRGBA8(255, 255, 255);
-        constexpr uint32 console_output_color = debugtext::PackRGBA8(200, 200, 200);
+        constexpr uint32 console_background_color = debugdraw::PackRGBA8(0, 0, 0, 200);
+        constexpr uint32 console_separator_color = debugdraw::PackRGBA8(90, 90, 90, 255);
+        constexpr uint32 console_input_color = debugdraw::PackRGBA8(255, 255, 255);
+        constexpr uint32 console_output_color = debugdraw::PackRGBA8(200, 200, 200);
     }
 
     void ConsoleOverlay::Update()
@@ -97,9 +98,9 @@ namespace won::console
         const float panel_top = anchor_bottom ? (viewport_height - panel_height) : 0.0f;
         const float input_y = panel_top + panel_height - line_height - 4.0f;
 
-        debugtext::DrawScreenRect(0.0f, panel_top, viewport_width, panel_height, console_background_color);
-        debugtext::DrawScreenRect(0.0f, input_y - 3.0f, viewport_width, 1.0f, console_separator_color);
-        debugtext::DrawScreenText(4.0f, input_y, (console_prompt + input_line).c_str(), console_input_color, console_text_scale);
+        debugdraw::Rect2D({ 0.0f, panel_top }, { viewport_width, panel_height }, console_background_color);
+        debugdraw::Rect2D({ 0.0f, input_y - 3.0f }, { viewport_width, 1.0f }, console_separator_color);
+        debugdraw::Text2D({ 4.0f, input_y }, (console_prompt + input_line).c_str(), console_input_color, console_text_scale);
 
         const int max_lines = static_cast<int>((input_y - panel_top - 4.0f) / line_height);
         if (max_lines <= 0)
@@ -137,7 +138,7 @@ namespace won::console
         float y = input_y - line_height;
         for (int i = static_cast<int>(visual_lines.size()) - 1; i >= 0 && y >= panel_top; --i)
         {
-            debugtext::DrawScreenText(4.0f, y, visual_lines[i].c_str(), console_output_color, console_text_scale);
+            debugdraw::Text2D({ 4.0f, y }, visual_lines[i].c_str(), console_output_color, console_text_scale);
             y -= line_height;
         }
     }
@@ -147,3 +148,4 @@ namespace won::console
         return open;
     }
 }
+#endif

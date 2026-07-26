@@ -395,13 +395,21 @@ Avoid depending on private renderer internals for debug views. Prefer public deb
 Runtime binaries and executables are generated into:
 
 ```text
-Binary/
+Binary/<Platform>/<Config>/
 ```
+
+`<Platform>` is `Win64`, `Mac` or `Linux`. `<Config>` is `Debug`, `Release` or `Shipping`.
 
 Compiled shader binaries are generated into:
 
 ```text
-CompiledShaders/
+Binary/<Platform>/<Config>/CompiledShaders/
+```
+
+Packaged builds are generated into:
+
+```text
+Packages/<Project>/<Platform>/<Config>/
 ```
 
 Runtime and editor assets are located in:

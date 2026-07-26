@@ -22,6 +22,8 @@ if not "%config_arg%"=="" (
         set "build_config=Debug"
     ) else if /I "%config_arg%"=="Release" (
         set "build_config=Release"
+    ) else if /I "%config_arg%"=="Shipping" (
+        set "build_config=Shipping"
     ) else (
         echo Invalid build config: %config_arg%
         goto :usage_error
@@ -59,7 +61,7 @@ if defined build_target (
 ) else (
     echo Target: all
 )
-echo Output: Binary\Windows
+echo Output: Binary\Win64\%build_config%
 
 "%cmake_exe%" -S . -B build
 if errorlevel 1 (
@@ -82,16 +84,16 @@ exit /b 0
 
 :usage
 echo Usage:
-echo   Build_Windows.bat [target] [Release^|Debug]
+echo   Build_Win64.bat [target] [Release^|Debug^|Shipping]
 echo.
 echo Examples:
-echo   Build_Windows.bat
-echo   Build_Windows.bat Editor
-echo   Build_Windows.bat Editor Debug
+echo   Build_Win64.bat
+echo   Build_Win64.bat Editor
+echo   Build_Win64.bat Editor Debug
 exit /b 0
 
 :usage_error
 echo.
 echo Usage:
-echo   Build_Windows.bat [target] [Release^|Debug]
+echo   Build_Win64.bat [target] [Release^|Debug^|Shipping]
 exit /b 1

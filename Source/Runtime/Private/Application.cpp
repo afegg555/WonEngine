@@ -135,8 +135,6 @@ namespace won
         }
         log_startup_phase("window");
 
-        developer_console_enabled = project_settings.developer_console_enabled;
-
         rendering::RHIDeviceDesc device_desc;
         device_desc.backend = project_settings.backend_type;
         device_desc.preference = desc.device_preference;
@@ -387,11 +385,10 @@ namespace won
             io::Reset();
         }
 
-        if (developer_console_enabled)
-        {
-            console_overlay.Update();
-        }
+#ifndef WON_SHIPPING
+        console_overlay.Update();
         performance_overlay.Update(dt, device.get());
+#endif
         ++update_index;
 
         for (const std::unique_ptr<rendering::View>& view_ptr : views)
@@ -534,6 +531,7 @@ namespace won
 
     void Application::RenderUI()
     {
+#ifndef WON_SHIPPING
         if (renderer)
         {
             rendering::RHISubresourceBinding back_buffer_binding = {};
@@ -542,14 +540,12 @@ namespace won
                 const rendering::RHITextureDesc& desc = back_buffer_binding.resource->GetDesc().texture_desc;
                 const float viewport_width = static_cast<float>(desc.width);
                 const float viewport_height = static_cast<float>(desc.height);
-                if (developer_console_enabled)
-                {
-                    console_overlay.Draw(viewport_width, viewport_height);
-                }
+                console_overlay.Draw(viewport_width, viewport_height);
                 performance_overlay.Draw(viewport_width, viewport_height);
             }
-            renderer->RenderDebugText();
+            renderer->RenderDebug2D();
         }
+#endif
     }
 
     void Application::OnWindowResized(int width, int height)

@@ -1,6 +1,6 @@
 .vs/
-x64/
 Binary/
+Packages/
 CompiledShaders/
 build/
 Contents/Generated/
