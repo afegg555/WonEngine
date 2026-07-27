@@ -1,4 +1,4 @@
-#include "SceneSerializer.h"
+﻿#include "SceneSerializer.h"
 #include "Backlog.h"
 #include "Reflection.h"
 #include "Scene.h"
@@ -16,6 +16,12 @@ namespace won::serialize
     {
         constexpr uint64 invalid_entity_index = static_cast<uint64>(-1);
         constexpr uint32 invalid_resource_index = static_cast<uint32>(-1);
+
+        enum class EntityRefEncoding : uint32
+        {
+            FileIndex, // entity references are encoded as indices into the serialized entity array
+            RawId, // entity references are encoded as raw entity IDs (uint64)
+        };
 
         void WriteReflectedData(JsonArchive& archive, won::ValueType value_type, const won::TypeDesc* type_desc, uint32 value_size, const won::ArrayDesc* array_desc, const void* value)
         {
@@ -255,11 +261,38 @@ namespace won::serialize
             }
         }
 
-        void WriteEntities(JsonArchive& archive, const ecs::Scene& scene, const SaveSceneDesc& desc, const Vector<ecs::Entity>* ordered_entities = nullptr)
+        Vector<ecs::Entity> CollectSubtree(ecs::Scene& scene, ecs::Entity root)
         {
-            archive.BeginObject(); 
+            Vector<ecs::Entity> subtree;
+            subtree.push_back(root);
+            auto hierarchy_array = scene.GetComponentArray<ecs::HierarchyComponent>();
+            if (hierarchy_array)
+            {
+                for (Size head = 0; head < subtree.size(); ++head)
+                {
+                    const ecs::Entity parent = subtree[head];
+                    for (Size i = 0; i < hierarchy_array->GetSize(); ++i)
+                    {
+                        if (hierarchy_array->data[i].parent_id == parent)
+                        {
+                            subtree.push_back(hierarchy_array->index_to_entity[i]);
+                        }
+                    }
+                }
+            }
+            return subtree;
+        }
+
+        void WriteEntities(JsonArchive& archive, const ecs::Scene& scene, const SaveSceneDesc& desc, const Vector<ecs::Entity>* ordered_entities = nullptr, bool write_entity_ids = false, const won::TypeId* type_filter = nullptr, EntityRefEncoding entity_ref_encoding = EntityRefEncoding::FileIndex)
+        {
+            archive.BeginObject();
             uint32 version = scene_format_version;
-            archive.Field("version", version); 
+            archive.Field("version", version);
+            if (entity_ref_encoding != EntityRefEncoding::FileIndex)
+            {
+                uint32 entity_ref_encoding_value = static_cast<uint32>(entity_ref_encoding);
+                archive.Field("entity_ref_encoding", entity_ref_encoding_value);
+            }
 
             UnorderedMap<ecs::Entity, bool> excluded_entity_map;
             if (desc.excluded_entities)
@@ -304,6 +337,23 @@ namespace won::serialize
             }
             archive.Field("entity_count", entity_count);
 
+            if (write_entity_ids)
+            {
+                Vector<ecs::Entity> ordered_ids(static_cast<Size>(entity_count), ecs::INVALID_ENTITY);
+                for (const auto& pair : entity_to_index)
+                {
+                    ordered_ids[static_cast<Size>(pair.second)] = pair.first;
+                }
+
+                archive.BeginArray("entity_ids");
+                for (ecs::Entity entity : ordered_ids)
+                {
+                    uint64 id_value = entity;
+                    archive.Item(id_value);
+                }
+                archive.EndArray();
+            }
+
             Vector<const won::TypeDesc*> component_types = scene.GetComponentTypes();
             std::sort(component_types.begin(), component_types.end(), [](const won::TypeDesc* lhs, const won::TypeDesc* rhs) {
                 const won::TypeId lhs_id = lhs ? lhs->type_id : 0;
@@ -316,6 +366,10 @@ namespace won::serialize
             for (const won::TypeDesc* type_desc : component_types)
             {
                 if (!type_desc)
+                {
+                    continue;
+                }
+                if (type_filter && type_desc->type_id != *type_filter)
                 {
                     continue;
                 }
@@ -395,13 +449,20 @@ namespace won::serialize
                         }
 
                         const void* field_value = static_cast<const uint8*>(component) + field.offset;
-                        const bool hierarchy_parent_field = type_desc->type_id == reflection::TypeMeta<ecs::HierarchyComponent>::type_id && field.name && std::strcmp(field.name, "parent_id") == 0;
-                        if (hierarchy_parent_field)
+                        if ((field.flags & FieldFlagEntityRef) != 0)
                         {
-                            const ecs::Entity parent = *static_cast<const ecs::Entity*>(field_value);
-                            auto parent_index_it = entity_to_index.find(parent);
-                            uint64 parent_index = parent_index_it != entity_to_index.end() ? parent_index_it->second : invalid_entity_index;
-                            archive.Item(parent_index);
+                            const ecs::Entity referenced = *static_cast<const ecs::Entity*>(field_value);
+                            if (entity_ref_encoding == EntityRefEncoding::RawId)
+                            {
+                                uint64 raw_id = referenced;
+                                archive.Item(raw_id);
+                            }
+                            else
+                            {
+                                auto referenced_index_it = entity_to_index.find(referenced);
+                                uint64 referenced_index = referenced_index_it != entity_to_index.end() ? referenced_index_it->second : invalid_entity_index;
+                                archive.Item(referenced_index);
+                            }
                             continue;
                         }
 
@@ -617,11 +678,11 @@ namespace won::serialize
             archive.EndObject();
         }
 
-        void ReadEntities(JsonArchive& archive, ecs::Scene& scene, ecs::Entity preallocated_root, Vector<ecs::Entity>& entities)
+        bool ReadEntities(JsonArchive& archive, ecs::Scene& scene, Vector<ecs::Entity>& entities, ecs::Entity preallocated_root = ecs::INVALID_ENTITY, bool preserve_entity_ids = false)
         {
             if (!archive.BeginObject())
             {
-                return;
+                return false;
             }
 
             uint32 version = 0;
@@ -629,8 +690,12 @@ namespace won::serialize
             if (version != scene_format_version)
             {
                 wonlog_warning("Scene format version mismatch: file=%u runtime=%u", static_cast<unsigned>(version), static_cast<unsigned>(scene_format_version));
-                return;
+                return false;
             }
+
+            uint32 entity_ref_encoding_value = static_cast<uint32>(EntityRefEncoding::FileIndex);
+            archive.Field("entity_ref_encoding", entity_ref_encoding_value);
+            const EntityRefEncoding entity_ref_encoding = static_cast<EntityRefEncoding>(entity_ref_encoding_value);
 
             Vector<String> mesh_resources;
             Vector<String> texture_resources;
@@ -692,9 +757,48 @@ namespace won::serialize
             archive.Field("entity_count", entity_count);
             entities.clear();
             entities.reserve(static_cast<Size>(entity_count));
+            Vector<ecs::Entity> stored_ids;
+            if (archive.BeginArray("entity_ids"))
+            {
+                const Size stored_count = archive.GetArraySize();
+                stored_ids.reserve(stored_count);
+                for (Size i = 0; i < stored_count; ++i)
+                {
+                    uint64 id_value = ecs::INVALID_ENTITY;
+                    archive.Item(id_value);
+                    stored_ids.push_back(static_cast<ecs::Entity>(id_value));
+                }
+                archive.EndArray();
+            }
+
+			assert(!preserve_entity_ids || preallocated_root == ecs::INVALID_ENTITY); // cannot preserve entity IDs and use a preallocated root at the same time
+
+            if (preserve_entity_ids)
+            {
+                if (stored_ids.size() != static_cast<Size>(entity_count))
+                {
+                    assert(false && "preserve_entity_ids requested but stored entity ids are missing or mismatched");
+                    wonlog_error("Scene load failed: preserve_entity_ids requested but stored ids (%zu) do not match entity count (%llu)", stored_ids.size(), static_cast<unsigned long long>(entity_count));
+                    return false;
+                }
+                for (ecs::Entity stored_id : stored_ids)
+                {
+                    if (stored_id == ecs::INVALID_ENTITY || scene.IsEntityAlive(stored_id))
+                    {
+                        assert(false && "preserve_entity_ids requested but a stored id is invalid or still alive");
+                        wonlog_error("Scene load failed: stored entity id %llu is invalid or still alive", static_cast<unsigned long long>(stored_id));
+                        return false;
+                    }
+                }
+            }
+
             for (uint64 i = 0; i < entity_count; ++i)
             {
-                if (i == 0 && preallocated_root != ecs::INVALID_ENTITY)
+                if (preserve_entity_ids)
+                {
+                    entities.push_back(scene.ReviveEntity(stored_ids[static_cast<Size>(i)]));
+                }
+                else if (i == 0 && preallocated_root != ecs::INVALID_ENTITY)
                 {
                     entities.push_back(preallocated_root);
                 }
@@ -795,12 +899,20 @@ namespace won::serialize
                                         if (component && field->offset <= type_desc->size && field->size <= type_desc->size - field->offset)
                                         {
                                             void* field_value = static_cast<uint8*>(component) + field->offset;
-                                            const bool hierarchy_parent_field = type_desc->type_id == reflection::TypeMeta<ecs::HierarchyComponent>::type_id && field->name && std::strcmp(field->name, "parent_id") == 0;
-                                            if (hierarchy_parent_field)
+                                            if ((field->flags & FieldFlagEntityRef) != 0)
                                             {
-                                                uint64 parent_index = invalid_entity_index;
-                                                archive.Value(parent_index);
-                                                *static_cast<ecs::Entity*>(field_value) = parent_index < entities.size() ? entities[static_cast<Size>(parent_index)] : ecs::INVALID_ENTITY;
+                                                if (entity_ref_encoding == EntityRefEncoding::RawId)
+                                                {
+                                                    uint64 raw_id = ecs::INVALID_ENTITY;
+                                                    archive.Value(raw_id);
+                                                    *static_cast<ecs::Entity*>(field_value) = static_cast<ecs::Entity>(raw_id);
+                                                }
+                                                else
+                                                {
+                                                    uint64 referenced_index = invalid_entity_index;
+                                                    archive.Value(referenced_index);
+                                                    *static_cast<ecs::Entity*>(field_value) = referenced_index < entities.size() ? entities[static_cast<Size>(referenced_index)] : ecs::INVALID_ENTITY;
+                                                }
                                             }
                                             else if (type_desc->type_id == reflection::TypeMeta<ecs::GeometryComponent>::type_id && field->name && std::strcmp(field->name, "mesh_asset_path") == 0)
                                             {
@@ -1000,6 +1112,7 @@ namespace won::serialize
             scene.SetHierarchyTopologyDirty(true);
             scene.SetBVHDirty();
             archive.EndObject();
+            return true;
         }
 
     }
@@ -1009,7 +1122,7 @@ namespace won::serialize
         assert(archive.IsReadMode());
         scene.ClearEntities();
         Vector<ecs::Entity> entities;
-        ReadEntities(archive, scene, ecs::INVALID_ENTITY, entities);
+        ReadEntities(archive, scene, entities);
     }
 
     void SaveScene(JsonArchive& archive, const ecs::Scene& scene, const SaveSceneDesc& desc)
@@ -1018,11 +1131,14 @@ namespace won::serialize
         WriteEntities(archive, scene, desc);
     }
 
-    ecs::Entity LoadSceneAdditive(JsonArchive& archive, ecs::Scene& scene, ecs::Entity preallocated_root, Vector<ecs::Entity>& out_new_entities)
+    ecs::Entity LoadSceneAdditive(JsonArchive& archive, ecs::Scene& scene, Vector<ecs::Entity>& out_new_entities, ecs::Entity preallocated_root)
     {
         assert(archive.IsReadMode());
         out_new_entities.clear();
-        ReadEntities(archive, scene, preallocated_root, out_new_entities);
+        if (!ReadEntities(archive, scene, out_new_entities, preallocated_root))
+        {
+            return ecs::INVALID_ENTITY;
+        }
         return out_new_entities.empty() ? ecs::INVALID_ENTITY : out_new_entities[0];
     }
 
@@ -1034,25 +1150,58 @@ namespace won::serialize
             return false;
         }
 
-        Vector<ecs::Entity> subtree;
-        subtree.push_back(root);
-        auto hierarchy_array = scene.GetComponentArray<ecs::HierarchyComponent>();
-        if (hierarchy_array)
-        {
-            for (Size head = 0; head < subtree.size(); ++head)
-            {
-                const ecs::Entity parent = subtree[head];
-                for (Size i = 0; i < hierarchy_array->GetSize(); ++i)
-                {
-                    if (hierarchy_array->data[i].parent_id == parent)
-                    {
-                        subtree.push_back(hierarchy_array->index_to_entity[i]);
-                    }
-                }
-            }
-        }
-
+        const Vector<ecs::Entity> subtree = CollectSubtree(scene, root);
         WriteEntities(archive, scene, SaveSceneDesc{}, &subtree);
         return !archive.HasError();
+    }
+
+    bool SaveComponent(JsonArchive& archive, const ecs::Scene& scene, ecs::Entity entity, won::TypeId type_id)
+    {
+        assert(archive.IsWriteMode());
+        if (entity == ecs::INVALID_ENTITY || type_id == 0 || !scene.HasComponent(entity, type_id))
+        {
+            return false;
+        }
+
+        Vector<ecs::Entity> single_entity;
+        single_entity.push_back(entity);
+        WriteEntities(archive, scene, SaveSceneDesc{}, &single_entity, false, &type_id, EntityRefEncoding::RawId);
+        return !archive.HasError();
+    }
+
+    bool LoadComponent(JsonArchive& archive, ecs::Scene& scene, ecs::Entity entity, won::TypeId type_id)
+    {
+        assert(archive.IsReadMode());
+        if (entity == ecs::INVALID_ENTITY || type_id == 0 || !scene.IsEntityAlive(entity))
+        {
+            return false;
+        }
+
+        Vector<ecs::Entity> entities;
+        return ReadEntities(archive, scene, entities, entity);
+    }
+
+    bool SaveEntitySnapshot(JsonArchive& archive, ecs::Scene& scene, ecs::Entity root)
+    {
+        assert(archive.IsWriteMode());
+        if (root == ecs::INVALID_ENTITY)
+        {
+            return false;
+        }
+
+        const Vector<ecs::Entity> subtree = CollectSubtree(scene, root);
+        WriteEntities(archive, scene, SaveSceneDesc{}, &subtree, true, nullptr, EntityRefEncoding::RawId);
+        return !archive.HasError();
+    }
+
+    ecs::Entity LoadEntitySnapshot(JsonArchive& archive, ecs::Scene& scene, Vector<ecs::Entity>& out_entities)
+    {
+        assert(archive.IsReadMode());
+        out_entities.clear();
+        if (!ReadEntities(archive, scene, out_entities, ecs::INVALID_ENTITY, true))
+        {
+            return ecs::INVALID_ENTITY;
+        }
+        return out_entities.empty() ? ecs::INVALID_ENTITY : out_entities[0];
     }
 }

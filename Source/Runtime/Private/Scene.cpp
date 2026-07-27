@@ -4,6 +4,7 @@
 #include "GPUScene.h"
 #include "RenderingUtils.h"
 
+#include <cassert>
 #include <typeinfo>
 
 namespace won::ecs
@@ -319,6 +320,20 @@ namespace won::ecs
         Entity entity = next_entity++;
         entities.push_back(entity);
         return entity;
+    }
+
+    Entity Scene::ReviveEntity(Entity id)
+    {
+        assert(id != INVALID_ENTITY);
+        assert(!IsEntityAlive(id));
+        entities.push_back(id);
+        next_entity = (std::max)(next_entity, id + 1);
+        return id;
+    }
+
+    bool Scene::IsEntityAlive(Entity entity) const
+    {
+        return std::find(entities.begin(), entities.end(), entity) != entities.end();
     }
 
     void Scene::DestroyEntity(Entity entity)

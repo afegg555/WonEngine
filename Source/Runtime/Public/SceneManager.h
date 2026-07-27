@@ -1,4 +1,5 @@
 #pragma once
+#include "Entity.h"
 #include "JobSystem.h"
 #include "RuntimeExport.h"
 #include "Types.h"
@@ -28,7 +29,7 @@ namespace won
         void DestroyScene(ecs::Scene* scene);
         const Vector<std::unique_ptr<ecs::Scene>>& GetScenes() const;
 
-        bool LoadSceneContents(ecs::Scene& scene, const String& path, bool parallel, bool clear_entities, String* out_error);
+        bool LoadSceneContents(ecs::Scene& scene, const String& path, bool parallel, String* out_error);
         void ReloadScene(ecs::Scene& scene, const String& path);
         void QueueSceneLoad(ecs::Scene& target, const String& path);
         bool IsLoading(const ecs::Scene* scene) const;
@@ -36,6 +37,9 @@ namespace won
         void AsyncSceneLoad(ecs::Scene& target, const String& path);
         Vector<ecs::Scene*> FlushCompletedSceneLoads();
         void FlushDeferredSceneRemovals();
+
+        ecs::Entity LoadSceneAdditive(ecs::Scene& scene, const String& path, String* out_error);
+        bool UnloadSceneAdditive(ecs::Scene& scene, ecs::Entity root);
 
         void SpawnQueuedPrefabs(ecs::Scene& scene);
         void FlushPrefabSpawns();

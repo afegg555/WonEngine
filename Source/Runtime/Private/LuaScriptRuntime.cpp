@@ -950,6 +950,42 @@ namespace won::script
         return 0;
     }
 
+    int LuaScriptRuntime::LuaSceneLoadAdditive(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        const char* path = luaL_checkstring(state, 1);
+        if (!runtime || !runtime->scene_manager || !runtime->current_context.scene)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        String error;
+        const ecs::Entity root = runtime->scene_manager->LoadSceneAdditive(*runtime->current_context.scene, path, &error);
+        if (root == ecs::INVALID_ENTITY)
+        {
+            backlog::Post("won.scene.load_additive failed: " + String(path) + (error.empty() ? String() : " (" + error + ")"), backlog::LogLevel::Error);
+            lua_pushnil(state);
+            return 1;
+        }
+
+        lua_pushinteger(state, static_cast<lua_Integer>(root));
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaSceneUnloadAdditive(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        const ecs::Entity root = static_cast<ecs::Entity>(luaL_checkinteger(state, 1));
+        bool unloaded = false;
+        if (runtime && runtime->scene_manager && runtime->current_context.scene)
+        {
+            unloaded = runtime->scene_manager->UnloadSceneAdditive(*runtime->current_context.scene, root);
+        }
+        lua_pushboolean(state, unloaded ? 1 : 0);
+        return 1;
+    }
+
     int LuaScriptRuntime::LuaSceneIsLoading(lua_State* state)
     {
         LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
@@ -3408,6 +3444,12 @@ namespace won::script
         lua_pushlightuserdata(lua_state, this);
         lua_pushcclosure(lua_state, LuaSceneLoad, 1);
         lua_setfield(lua_state, -2, "load");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaSceneLoadAdditive, 1);
+        lua_setfield(lua_state, -2, "load_additive");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaSceneUnloadAdditive, 1);
+        lua_setfield(lua_state, -2, "unload_additive");
         lua_pushlightuserdata(lua_state, this);
         lua_pushcclosure(lua_state, LuaSceneIsLoading, 1);
         lua_setfield(lua_state, -2, "is_loading");

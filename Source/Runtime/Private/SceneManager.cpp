@@ -1,4 +1,4 @@
-#include "SceneManager.h"
+﻿#include "SceneManager.h"
 
 #include "Backlog.h"
 #include "FileSystem.h"
@@ -117,7 +117,7 @@ namespace won
         }
     }
 
-    bool SceneManager::LoadSceneContents(ecs::Scene& scene, const String& path, bool parallel, bool clear_entities, String* out_error)
+    bool SceneManager::LoadSceneContents(ecs::Scene& scene, const String& path, bool parallel, String* out_error)
     {
         const String content_root = project::GetContentRoot(*project_settings);
         const String full_path = project::ResolveProjectContentPath(content_root, path);
@@ -131,10 +131,6 @@ namespace won
             return false;
         }
 
-        if (clear_entities)
-        {
-            scene.ClearEntities();
-        }
         serialize::LoadScene(archive, scene);
         if (archive.HasError() && out_error)
         {
@@ -144,10 +140,83 @@ namespace won
         return true;
     }
 
+    ecs::Entity SceneManager::LoadSceneAdditive(ecs::Scene& scene, const String& path, String* out_error)
+    {
+        const String content_root = project::GetContentRoot(*project_settings);
+        const String full_path = project::ResolveProjectContentPath(content_root, path);
+        serialize::JsonArchive archive(serialize::ArchiveMode::Read);
+        if (!archive.LoadFromFile(full_path))
+        {
+            if (out_error)
+            {
+                *out_error = "failed to load archive: " + full_path;
+            }
+            return ecs::INVALID_ENTITY;
+        }
+
+        Vector<ecs::Entity> new_entities;
+        serialize::LoadSceneAdditive(archive, scene, new_entities);
+        if (archive.HasError() && out_error)
+        {
+            *out_error = archive.GetError();
+        }
+        if (new_entities.empty())
+        {
+            return ecs::INVALID_ENTITY;
+        }
+
+        ecs::Entity root = ecs::INVALID_ENTITY;
+        uint32 root_count = 0;
+        for (ecs::Entity entity : new_entities)
+        {
+            const ecs::HierarchyComponent* hierarchy = scene.GetComponent<ecs::HierarchyComponent>(entity);
+            const ecs::Entity parent = hierarchy ? hierarchy->parent_id : ecs::INVALID_ENTITY;
+            if (parent != ecs::INVALID_ENTITY && std::find(new_entities.begin(), new_entities.end(), parent) != new_entities.end())
+            {
+                continue;
+            }
+            root = entity;
+            ++root_count;
+        }
+
+        if (root_count != 1)
+        {
+            for (ecs::Entity entity : new_entities)
+            {
+                scene.DestroyEntity(entity);
+            }
+            if (out_error)
+            {
+                *out_error = "additive scene must have exactly one root entity, found " + std::to_string(root_count) + ": " + path;
+            }
+            return ecs::INVALID_ENTITY;
+        }
+
+        resource::LoadEntityResources(scene, content_root, new_entities);
+        return root;
+    }
+
+    bool SceneManager::UnloadSceneAdditive(ecs::Scene& scene, ecs::Entity root)
+    {
+        if (root == ecs::INVALID_ENTITY)
+        {
+            return false;
+        }
+
+        const Vector<ecs::Entity>& entities = scene.GetEntities();
+        if (std::find(entities.begin(), entities.end(), root) == entities.end())
+        {
+            return false;
+        }
+
+        scene.DestroyEntity(root);
+        return true;
+    }
+
     void SceneManager::ReloadScene(ecs::Scene& scene, const String& path)
     {
         String error;
-        if (!LoadSceneContents(scene, path, true, true, &error))
+        if (!LoadSceneContents(scene, path, true, &error))
         {
             backlog::Post("[SceneTransition] " + error, backlog::LogLevel::Error);
             return;
@@ -183,7 +252,7 @@ namespace won
         jobsystem::Execute(job->ctx, [this, job](jobsystem::JobArgs)
         {
             String error;
-            if (!LoadSceneContents(*job->staging, job->path, true, false, &error))
+            if (!LoadSceneContents(*job->staging, job->path, true, &error))
             {
                 backlog::Post("[SceneTransition] " + error, backlog::LogLevel::Error);
                 job->failed.store(true, std::memory_order_release);
@@ -285,7 +354,7 @@ namespace won
                 continue;
             }
             Vector<ecs::Entity> new_entities;
-            const ecs::Entity root = serialize::LoadSceneAdditive(archive, scene, request.reserved_root, new_entities);
+            const ecs::Entity root = serialize::LoadSceneAdditive(archive, scene, new_entities, request.reserved_root);
             if (root == ecs::INVALID_ENTITY)
             {
                 continue;
@@ -361,7 +430,7 @@ namespace won
 
         ecs::Scene scratch;
         Vector<ecs::Entity> temp_entities;
-        const ecs::Entity root = serialize::LoadSceneAdditive(archive, scratch, ecs::INVALID_ENTITY, temp_entities);
+        const ecs::Entity root = serialize::LoadSceneAdditive(archive, scratch, temp_entities);
         if (root == ecs::INVALID_ENTITY)
         {
             return;
