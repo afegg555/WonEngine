@@ -133,7 +133,7 @@ namespace won::reflection
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::HierarchyComponent, "HierarchyComponent")
-        WON_REFLECT_FIELD(parent_id, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(parent_id, won::FieldFlagEditable | won::FieldFlagSerializable | won::FieldFlagEntityRef)
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::CameraComponent, "CameraComponent")
@@ -364,7 +364,7 @@ namespace won::reflection
     WON_REFLECT_STRUCT(won::ecs::JointComponent, "JointComponent")
         WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(type, won::FieldFlagEditable | won::FieldFlagSerializable)
-        WON_REFLECT_FIELD(connected_entity, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(connected_entity, won::FieldFlagEditable | won::FieldFlagSerializable | won::FieldFlagEntityRef)
         WON_REFLECT_FIELD(anchor, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(axis, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(use_limit, won::FieldFlagEditable | won::FieldFlagSerializable)

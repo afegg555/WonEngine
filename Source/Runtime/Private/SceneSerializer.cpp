@@ -395,13 +395,12 @@ namespace won::serialize
                         }
 
                         const void* field_value = static_cast<const uint8*>(component) + field.offset;
-                        const bool hierarchy_parent_field = type_desc->type_id == reflection::TypeMeta<ecs::HierarchyComponent>::type_id && field.name && std::strcmp(field.name, "parent_id") == 0;
-                        if (hierarchy_parent_field)
+                        if ((field.flags & FieldFlagEntityRef) != 0)
                         {
-                            const ecs::Entity parent = *static_cast<const ecs::Entity*>(field_value);
-                            auto parent_index_it = entity_to_index.find(parent);
-                            uint64 parent_index = parent_index_it != entity_to_index.end() ? parent_index_it->second : invalid_entity_index;
-                            archive.Item(parent_index);
+                            const ecs::Entity referenced = *static_cast<const ecs::Entity*>(field_value);
+                            auto referenced_index_it = entity_to_index.find(referenced);
+                            uint64 referenced_index = referenced_index_it != entity_to_index.end() ? referenced_index_it->second : invalid_entity_index;
+                            archive.Item(referenced_index);
                             continue;
                         }
 
@@ -795,12 +794,11 @@ namespace won::serialize
                                         if (component && field->offset <= type_desc->size && field->size <= type_desc->size - field->offset)
                                         {
                                             void* field_value = static_cast<uint8*>(component) + field->offset;
-                                            const bool hierarchy_parent_field = type_desc->type_id == reflection::TypeMeta<ecs::HierarchyComponent>::type_id && field->name && std::strcmp(field->name, "parent_id") == 0;
-                                            if (hierarchy_parent_field)
+                                            if ((field->flags & FieldFlagEntityRef) != 0)
                                             {
-                                                uint64 parent_index = invalid_entity_index;
-                                                archive.Value(parent_index);
-                                                *static_cast<ecs::Entity*>(field_value) = parent_index < entities.size() ? entities[static_cast<Size>(parent_index)] : ecs::INVALID_ENTITY;
+                                                uint64 referenced_index = invalid_entity_index;
+                                                archive.Value(referenced_index);
+                                                *static_cast<ecs::Entity*>(field_value) = referenced_index < entities.size() ? entities[static_cast<Size>(referenced_index)] : ecs::INVALID_ENTITY;
                                             }
                                             else if (type_desc->type_id == reflection::TypeMeta<ecs::GeometryComponent>::type_id && field->name && std::strcmp(field->name, "mesh_asset_path") == 0)
                                             {

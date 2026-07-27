@@ -51,6 +51,7 @@ namespace won
         FieldFlagEditable = 1 << 0,
         FieldFlagSerializable = 1 << 1,
         FieldFlagHidden = 1 << 2,
+        FieldFlagEntityRef = 1 << 3,
     };
 
     struct EnumValueDesc

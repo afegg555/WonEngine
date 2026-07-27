@@ -69,12 +69,12 @@ namespace won::ecs
 
         T& GetData(Entity entity)
         {
-            return data[entity_to_index[entity]];
+            return data[entity_to_index[entity]]; // TODO: currently using hashmap, could be optimized
         }
 
         const T& GetData(Entity entity) const
         {
-            return data[entity_to_index.at(entity)];
+            return data[entity_to_index.at(entity)]; // TODO: currently using hashmap, could be optimized
         }
 
         void* GetRawData(Entity entity) override
@@ -120,7 +120,7 @@ namespace won::ecs
         }
 
         Vector<T> data;
-        UnorderedMap<Entity, Size> entity_to_index;
+        UnorderedMap<Entity, Size> entity_to_index; // TODO: currently using hashmap, could be optimized
         Vector<Entity> index_to_entity;
     };
 
@@ -267,7 +267,7 @@ namespace won::ecs
         const won::TypeDesc* type_desc = nullptr;
         memory::PoolAllocator allocator;
         Vector<void*> data;
-        UnorderedMap<Entity, Size> entity_to_index;
+        UnorderedMap<Entity, Size> entity_to_index; // TODO: currently using hashmap, could be optimized
         Vector<Entity> index_to_entity;
     };
 
