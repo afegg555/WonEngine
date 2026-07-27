@@ -117,7 +117,7 @@ namespace won
         }
     }
 
-    bool SceneManager::LoadSceneContents(ecs::Scene& scene, const String& path, bool parallel, bool clear_entities, String* out_error)
+    bool SceneManager::LoadSceneContents(ecs::Scene& scene, const String& path, bool parallel, String* out_error)
     {
         const String content_root = project::GetContentRoot(*project_settings);
         const String full_path = project::ResolveProjectContentPath(content_root, path);
@@ -131,10 +131,6 @@ namespace won
             return false;
         }
 
-        if (clear_entities)
-        {
-            scene.ClearEntities();
-        }
         serialize::LoadScene(archive, scene);
         if (archive.HasError() && out_error)
         {
@@ -220,7 +216,7 @@ namespace won
     void SceneManager::ReloadScene(ecs::Scene& scene, const String& path)
     {
         String error;
-        if (!LoadSceneContents(scene, path, true, true, &error))
+        if (!LoadSceneContents(scene, path, true, &error))
         {
             backlog::Post("[SceneTransition] " + error, backlog::LogLevel::Error);
             return;
@@ -256,7 +252,7 @@ namespace won
         jobsystem::Execute(job->ctx, [this, job](jobsystem::JobArgs)
         {
             String error;
-            if (!LoadSceneContents(*job->staging, job->path, true, false, &error))
+            if (!LoadSceneContents(*job->staging, job->path, true, &error))
             {
                 backlog::Post("[SceneTransition] " + error, backlog::LogLevel::Error);
                 job->failed.store(true, std::memory_order_release);

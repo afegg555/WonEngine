@@ -29,7 +29,7 @@ namespace won
         void DestroyScene(ecs::Scene* scene);
         const Vector<std::unique_ptr<ecs::Scene>>& GetScenes() const;
 
-        bool LoadSceneContents(ecs::Scene& scene, const String& path, bool parallel, bool clear_entities, String* out_error);
+        bool LoadSceneContents(ecs::Scene& scene, const String& path, bool parallel, String* out_error);
         void ReloadScene(ecs::Scene& scene, const String& path);
         void QueueSceneLoad(ecs::Scene& target, const String& path);
         bool IsLoading(const ecs::Scene* scene) const;

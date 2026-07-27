@@ -84,7 +84,7 @@ int main(int argc, char** argv)
         if (!startup_scene_path.empty())
         {
             won::String error;
-            if (!app.GetSceneManager()->LoadSceneContents(game_scene, startup_scene_path, true, false, &error))
+            if (!app.GetSceneManager()->LoadSceneContents(game_scene, startup_scene_path, true, &error))
             {
                 wonlog_warning("Failed to load startup scene: %s", error.c_str());
             }
