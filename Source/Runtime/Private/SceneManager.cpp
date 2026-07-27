@@ -1,4 +1,4 @@
-#include "SceneManager.h"
+﻿#include "SceneManager.h"
 
 #include "Backlog.h"
 #include "FileSystem.h"
@@ -155,7 +155,7 @@ namespace won
         }
 
         Vector<ecs::Entity> new_entities;
-        serialize::LoadSceneAdditive(archive, scene, ecs::INVALID_ENTITY, new_entities);
+        serialize::LoadSceneAdditive(archive, scene, new_entities);
         if (archive.HasError() && out_error)
         {
             *out_error = archive.GetError();
@@ -354,7 +354,7 @@ namespace won
                 continue;
             }
             Vector<ecs::Entity> new_entities;
-            const ecs::Entity root = serialize::LoadSceneAdditive(archive, scene, request.reserved_root, new_entities);
+            const ecs::Entity root = serialize::LoadSceneAdditive(archive, scene, new_entities, request.reserved_root);
             if (root == ecs::INVALID_ENTITY)
             {
                 continue;
@@ -430,7 +430,7 @@ namespace won
 
         ecs::Scene scratch;
         Vector<ecs::Entity> temp_entities;
-        const ecs::Entity root = serialize::LoadSceneAdditive(archive, scratch, ecs::INVALID_ENTITY, temp_entities);
+        const ecs::Entity root = serialize::LoadSceneAdditive(archive, scratch, temp_entities);
         if (root == ecs::INVALID_ENTITY)
         {
             return;

@@ -1,6 +1,7 @@
 #pragma once
 #include "Entity.h"
 #include "JsonArchive.h"
+#include "ReflectionTypes.h"
 #include "RuntimeExport.h"
 #include "Types.h"
 
@@ -24,6 +25,13 @@ namespace won::serialize
     WONENGINE_API void SaveScene(JsonArchive& archive, const ecs::Scene& scene, const SaveSceneDesc& desc = {});
 
 	// can be used loading scene/prefab additively into an existing scene's preallocated root entity
-    WONENGINE_API ecs::Entity LoadSceneAdditive(JsonArchive& archive, ecs::Scene& scene, ecs::Entity preallocated_root, Vector<ecs::Entity>& out_new_entities);
+    WONENGINE_API ecs::Entity LoadSceneAdditive(JsonArchive& archive, ecs::Scene& scene, Vector<ecs::Entity>& out_new_entities, ecs::Entity preallocated_root = ecs::INVALID_ENTITY);
     WONENGINE_API bool SavePrefab(JsonArchive& archive, ecs::Scene& scene, ecs::Entity root);
+
+
+    // runtime only: entity refs are raw ids valid within the current scene session, never write these to a file
+	WONENGINE_API bool SaveComponent(JsonArchive& archive, const ecs::Scene& scene, ecs::Entity entity, won::TypeId type_id); // dump a single component
+    WONENGINE_API bool LoadComponent(JsonArchive& archive, ecs::Scene& scene, ecs::Entity entity, won::TypeId type_id);
+	WONENGINE_API bool SaveEntitySnapshot(JsonArchive& archive, ecs::Scene& scene, ecs::Entity root); // dump a single entity and its subtree, including all components, to a snapshot
+    WONENGINE_API ecs::Entity LoadEntitySnapshot(JsonArchive& archive, ecs::Scene& scene, Vector<ecs::Entity>& out_entities);
 }

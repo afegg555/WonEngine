@@ -598,6 +598,8 @@ set(Editor_PUBLIC
     Source/Editor/Editor.h
     Source/Editor/EditorSettings.h
     Source/Editor/Editor.cpp
+    Source/Editor/EditorHistory.h
+    Source/Editor/EditorHistory.cpp
     Source/Editor/Themes.h
     Source/Editor/Themes.cpp
 )

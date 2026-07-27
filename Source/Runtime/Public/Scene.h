@@ -65,6 +65,10 @@ namespace won::ecs
 
         Entity CreateEntity();
 
+        Entity ReviveEntity(Entity id);
+
+        bool IsEntityAlive(Entity entity) const;
+
         void DestroyEntity(Entity entity);
 
         void ClearEntities();

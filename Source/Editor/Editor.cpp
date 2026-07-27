@@ -192,6 +192,15 @@ namespace won::editor
 			constexpr const char* no_components_available = "No components available";
 			constexpr const char* add_component = "Add Component";
 			constexpr const char* add_component_popup = "AddComponentPopup";
+			constexpr const char* edit_menu = "Edit";
+			constexpr const char* undo = "Undo";
+			constexpr const char* redo = "Redo";
+			constexpr const char* undo_shortcut = "Ctrl+Z";
+			constexpr const char* redo_shortcut = "Ctrl+Shift+Z";
+			constexpr const char* edit_entity_command = "Edit Entity";
+			constexpr const char* create_entity_command = "Create Entity";
+			constexpr const char* delete_entity_command = "Delete Entity";
+			constexpr const char* instantiate_prefab_command = "Instantiate Prefab";
 			constexpr const char* update_scene_gpubvh = "Update Scene GPUBVH";
 			constexpr const char* regenerate_terrain = "Regenerate Terrain";
 			constexpr const char* bake_navmesh = "Bake NavMesh";
@@ -1311,6 +1320,23 @@ namespace won::editor
 		}
 
 		io::SetMouseCaptured(is_playing && !editor_viewport.input_enabled);
+
+		if (!is_playing && !ImGui::GetIO().WantTextInput)
+		{
+			const bool ctrl_down = io::IsDown(io::KEYBOARD_BUTTON_LCONTROL) || io::IsDown(io::KEYBOARD_BUTTON_RCONTROL);
+			if (ctrl_down && io::IsPressed(static_cast<io::Button>(io::CHARACTER_RANGE_START + ('Z' - 'A'))))
+			{
+				const bool shift_down = io::IsDown(io::KEYBOARD_BUTTON_LSHIFT) || io::IsDown(io::KEYBOARD_BUTTON_RSHIFT);
+				if (shift_down)
+				{
+					PerformRedo();
+				}
+				else
+				{
+					PerformUndo();
+				}
+			}
+		}
 
 
 		for (auto it = editor_viewport.deferred_res_removals.begin(); it != editor_viewport.deferred_res_removals.end();)
@@ -2813,6 +2839,20 @@ namespace won::editor
 				ImGui::TextDisabled("%s", current_scene_path.empty() ? editor_text::unsaved_scene : current_scene_path.c_str());
 				ImGui::EndMenu();
 			}
+			if (ImGui::BeginMenu(editor_text::edit_menu))
+			{
+				String undo_label = editor_history.CanUndo() ? String(editor_text::undo) + " " + editor_history.PeekUndoName() : String(editor_text::undo);
+				if (ImGui::MenuItem(undo_label.c_str(), editor_text::undo_shortcut, false, !is_playing && editor_history.CanUndo()))
+				{
+					PerformUndo();
+				}
+				String redo_label = editor_history.CanRedo() ? String(editor_text::redo) + " " + editor_history.PeekRedoName() : String(editor_text::redo);
+				if (ImGui::MenuItem(redo_label.c_str(), editor_text::redo_shortcut, false, !is_playing && editor_history.CanRedo()))
+				{
+					PerformRedo();
+				}
+				ImGui::EndMenu();
+			}
 			if (ImGui::BeginMenu(editor_text::build_menu))
 			{
 				const bool can_package_project = !loaded_project_settings.settings_path.empty();
@@ -3430,6 +3470,7 @@ namespace won::editor
 			if (ImGui::Button("+"))
 			{
 				ecs::Entity entity = editor_viewport.view->scene->CreateEntity();
+				editor_history.PushEntityLifetime(*editor_viewport.view->scene, entity, String(), editor_text::create_entity_command);
 				UpdateEntityList();
 				editor_viewport.picked_entity = entity;
 
@@ -3576,6 +3617,8 @@ namespace won::editor
 						return;
 					}
 
+					String undo_blob = EditorHistory::CaptureSubtree(*editor_viewport.view->scene, delete_entity);
+
 					Vector<ecs::Entity> entities_to_delete;
 					entities_to_delete.push_back(delete_entity);
 
@@ -3645,6 +3688,8 @@ namespace won::editor
 					}
 
 					editor_viewport.view->scene->DestroyEntity(delete_entity);
+					editor_history.PushEntityLifetime(*editor_viewport.view->scene, delete_entity, std::move(undo_blob), editor_text::delete_entity_command);
+					ResetInspectorBaseline();
 					const Vector<ecs::Entity>& entities = editor_viewport.view->scene->GetEntities();
 					if (std::find(entities.begin(), entities.end(), editor_viewport.picked_entity) == entities.end())
 					{
@@ -5801,6 +5846,8 @@ namespace won::editor
 		}
 		ImGui::End();
 
+		UpdateInspectorHistory();
+
 		if (ImGui::Begin(editor_text::contents_browser_window, nullptr))
 		{
 			DrawContentsBrowser();
@@ -6196,6 +6243,8 @@ namespace won::editor
 		}
 
 		CreateEditorCamera();
+		editor_history.Clear();
+		ResetInspectorBaseline();
 	}
 
 	bool EditorApplication::NewProject(const String& path)
@@ -6973,6 +7022,8 @@ namespace won::editor
 		String config_path = relative_path.empty() ? path : relative_path;
 		editor_settings.last_scene_path = config_path;
 		editor_viewport.picked_entity = ecs::INVALID_ENTITY;
+		editor_history.Clear();
+		ResetInspectorBaseline();
 		RebindSceneResources();
 		CreateEditorCamera();
 		UpdateEntityList();
@@ -6994,7 +7045,7 @@ namespace won::editor
 		}
 
 		Vector<ecs::Entity> new_entities;
-		const ecs::Entity root = won::serialize::LoadSceneAdditive(archive, *editor_viewport.view->scene, ecs::INVALID_ENTITY, new_entities);
+		const ecs::Entity root = won::serialize::LoadSceneAdditive(archive, *editor_viewport.view->scene, new_entities);
 		if (root == ecs::INVALID_ENTITY)
 		{
 			backlog::Post(editor_text::load_prefab_failed + path, backlog::LogLevel::Warning);
@@ -7002,9 +7053,83 @@ namespace won::editor
 		}
 
 		RebindSceneResources();
+		editor_history.PushEntityLifetime(*editor_viewport.view->scene, root, String(), editor_text::instantiate_prefab_command);
 		editor_viewport.picked_entity = root;
 		UpdateEntityList();
 		backlog::Post(editor_text::prefab_added + path);
+	}
+
+	void EditorApplication::ResetInspectorBaseline()
+	{
+		inspector_baseline.clear();
+		inspector_baseline_entity = ecs::INVALID_ENTITY;
+		inspector_item_was_active = false;
+	}
+
+	void EditorApplication::UpdateInspectorHistory()
+	{
+		if (is_playing || !editor_viewport.view || !editor_viewport.view->scene)
+		{
+			ResetInspectorBaseline();
+			return;
+		}
+
+		ecs::Scene& scene = *editor_viewport.view->scene;
+		const ecs::Entity picked = editor_viewport.picked_entity;
+		const bool any_active = ImGui::IsAnyItemActive();
+		const bool trackable = picked != ecs::INVALID_ENTITY && picked != editor_viewport.view->camera_entity && scene.IsEntityAlive(picked);
+
+		if (!trackable || picked != inspector_baseline_entity)
+		{
+			ResetInspectorBaseline();
+			if (trackable && !any_active)
+			{
+				inspector_baseline_entity = picked;
+				inspector_baseline = EditorHistory::CaptureComponents(scene, picked);
+			}
+			inspector_item_was_active = any_active;
+			return;
+		}
+
+		if (!any_active)
+		{
+			if (inspector_item_was_active)
+			{
+				editor_history.PushComponentEdit(scene, picked, std::move(inspector_baseline), editor_text::edit_entity_command);
+			}
+			inspector_baseline = EditorHistory::CaptureComponents(scene, picked);
+		}
+		inspector_item_was_active = any_active;
+	}
+
+	void EditorApplication::PerformUndo()
+	{
+		if (is_playing || !editor_history.CanUndo() || !editor_viewport.view || !editor_viewport.view->scene)
+		{
+			return;
+		}
+
+		EditorContext context = {};
+		context.scene = editor_viewport.view->scene;
+		context.content_root = contents_root_dir;
+		editor_viewport.picked_entity = editor_history.Undo(context);
+		ResetInspectorBaseline();
+		UpdateEntityList();
+	}
+
+	void EditorApplication::PerformRedo()
+	{
+		if (is_playing || !editor_history.CanRedo() || !editor_viewport.view || !editor_viewport.view->scene)
+		{
+			return;
+		}
+
+		EditorContext context = {};
+		context.scene = editor_viewport.view->scene;
+		context.content_root = contents_root_dir;
+		editor_viewport.picked_entity = editor_history.Redo(context);
+		ResetInspectorBaseline();
+		UpdateEntityList();
 	}
 
 	void EditorApplication::EnterPlay()

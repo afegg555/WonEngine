@@ -1,4 +1,5 @@
 #include "Application.h"
+#include "EditorHistory.h"
 #include "EditorSettings.h"
 #include "FileSystem.h"
 #include "GameData.h"
@@ -92,6 +93,10 @@ namespace won::editor
 		void DrawBackgroundTaskStatus();
 		void LoadEditorSettings();
 		void SaveEditorSettings();
+		void UpdateInspectorHistory();
+		void PerformUndo();
+		void PerformRedo();
+		void ResetInspectorBaseline();
 
 	private:
 		enum class ContentAssetType
@@ -244,5 +249,10 @@ namespace won::editor
 		std::unique_ptr<io::DirectoryWatcher> contents_watcher;
 		float contents_watcher_poll_timer = 0.0f;
 		float editor_camera_speed = 5.0f;
+
+		EditorHistory editor_history;
+		Vector<ComponentState> inspector_baseline;
+		ecs::Entity inspector_baseline_entity = ecs::INVALID_ENTITY;
+		bool inspector_item_was_active = false;
 	};
 }
