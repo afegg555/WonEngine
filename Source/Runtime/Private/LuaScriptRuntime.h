@@ -15,11 +15,12 @@ namespace won::ecs
 {
     struct AnimationComponent;
     struct AnimationStateMachineComponent;
+    struct BehaviorTreeComponent;
 }
 
 namespace won::script
 {
-    inline constexpr uint32 lua_script_builtin_function_count = static_cast<uint32>(ScriptCallType::OnAnimationEvent) + 1u;
+    inline constexpr uint32 lua_script_builtin_function_count = static_cast<uint32>(ScriptCallType::Custom);
 
     struct LuaScriptModule
     {
@@ -201,6 +202,11 @@ namespace won::script
         static int LuaNavFindPath(lua_State* state);
         static int LuaNavNearestPoint(lua_State* state);
         static int LuaNavIsReady(lua_State* state);
+
+        static int LuaAISetTree(lua_State* state);
+        static int LuaAISet(lua_State* state);
+        static int LuaAIGet(lua_State* state);
+        static ecs::BehaviorTreeComponent* GetSelfBehaviorTree(LuaScriptRuntime* runtime, bool create);
 
         static int LuaSettingsGet(lua_State* state);
         static int LuaSettingsSet(lua_State* state);

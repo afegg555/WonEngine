@@ -372,6 +372,11 @@ namespace won::reflection
         WON_REFLECT_FIELD(limit_max, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
+    WON_REFLECT_STRUCT(won::ecs::BehaviorTreeComponent, "BehaviorTreeComponent")
+        WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(tree_asset_path, won::FieldFlagEditable | won::FieldFlagSerializable)
+    WON_REFLECT_STRUCT_END()
+
     WON_REFLECT_STRUCT(won::ecs::AudioSourceComponent, "AudioSourceComponent")
         WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(sound_asset_path, won::FieldFlagEditable | won::FieldFlagSerializable)

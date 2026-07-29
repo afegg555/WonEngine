@@ -35,6 +35,7 @@
 #include "RectTransform2DComponent.h"
 #include "ButtonComponent.h"
 #include "LayoutComponent.h"
+#include "BehaviorTreeComponent.h"
 
 namespace won::ecs
 {
@@ -80,7 +81,8 @@ namespace won::ecs
         Layout,
         AnimationStateMachine,
         ReflectionProbe,
-        Joint
+        Joint,
+        BehaviorTree
     };
 
     constexpr ComponentMask ComponentMaskFromBit(SceneComponentBit bit)
@@ -121,6 +123,7 @@ namespace won::ecs
     inline constexpr ComponentMask layout_component_mask = ComponentMaskFromBit(SceneComponentBit::Layout);
     inline constexpr ComponentMask animation_state_machine_component_mask = ComponentMaskFromBit(SceneComponentBit::AnimationStateMachine);
     inline constexpr ComponentMask joint_component_mask = ComponentMaskFromBit(SceneComponentBit::Joint);
+    inline constexpr ComponentMask behavior_tree_component_mask = ComponentMaskFromBit(SceneComponentBit::BehaviorTree);
 
     template <typename Component>
     constexpr ComponentMask ComponentMaskFromType()
@@ -157,6 +160,7 @@ namespace won::ecs
         else if constexpr (std::is_same_v<Component, Canvas2DComponent>) { return canvas_2d_component_mask; }
         else if constexpr (std::is_same_v<Component, RectTransform2DComponent>) { return rect_transform_2d_component_mask; }
         else if constexpr (std::is_same_v<Component, LayoutComponent>) { return layout_component_mask; }
+        else if constexpr (std::is_same_v<Component, BehaviorTreeComponent>) { return behavior_tree_component_mask; }
         else { return none_component_mask; }
     }
 }

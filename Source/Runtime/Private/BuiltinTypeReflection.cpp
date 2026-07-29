@@ -72,6 +72,7 @@ namespace won::reflection
         RegisterType(TypeMeta<ecs::Collider3DComponent>::Get());
         RegisterType(TypeMeta<ecs::Rigidbody3DComponent>::Get());
         RegisterType(TypeMeta<ecs::JointComponent>::Get());
+        RegisterType(TypeMeta<ecs::BehaviorTreeComponent>::Get());
         RegisterType(TypeMeta<ecs::AudioSourceComponent>::Get());
         RegisterType(TypeMeta<ecs::AudioListenerComponent>::Get());
         RegisterType(TypeMeta<ecs::VisibilityLayerComponent>::Get());

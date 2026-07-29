@@ -54,6 +54,7 @@ namespace
         { collision_layer_component_mask, "CollisionLayer" },
         { layout_component_mask, "Layout" },
         { animation_state_machine_component_mask, "AnimationStateMachine" },
+        { behavior_tree_component_mask, "BehaviorTree" },
     };
 
     std::string MaskToString(ComponentMask m)
