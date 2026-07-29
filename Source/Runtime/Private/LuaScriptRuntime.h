@@ -16,6 +16,7 @@ namespace won::ecs
     struct AnimationComponent;
     struct AnimationStateMachineComponent;
     struct BehaviorTreeComponent;
+    struct NavAgentComponent;
 }
 
 namespace won::script
@@ -130,6 +131,8 @@ namespace won::script
         static int LuaAnimationSetFloat(lua_State* state);
         static int LuaAnimationSetTrigger(lua_State* state);
         static int LuaAnimationGetState(lua_State* state);
+        static int LuaAnimationSMAdd(lua_State* state);
+        static int LuaAnimationSMHas(lua_State* state);
         static int LuaAnimationSMAddParameter(lua_State* state);
         static int LuaAnimationSMAddState(lua_State* state);
         static int LuaAnimationSMAddTransition(lua_State* state);
@@ -137,7 +140,7 @@ namespace won::script
         static int LuaAnimationSMSetExitTime(lua_State* state);
         static int LuaAnimationSMSetDefaultState(lua_State* state);
         static ecs::AnimationComponent* GetSelfAnimation(LuaScriptRuntime* runtime);
-        static ecs::AnimationStateMachineComponent* GetSelfStateMachine(LuaScriptRuntime* runtime, bool create);
+        static ecs::AnimationStateMachineComponent* GetSelfStateMachine(LuaScriptRuntime* runtime);
 
         static int LuaColliderHas(lua_State* state);
         static int LuaColliderAdd(lua_State* state);
@@ -206,7 +209,16 @@ namespace won::script
         static int LuaAISetTree(lua_State* state);
         static int LuaAISet(lua_State* state);
         static int LuaAIGet(lua_State* state);
-        static ecs::BehaviorTreeComponent* GetSelfBehaviorTree(LuaScriptRuntime* runtime, bool create);
+        static int LuaAIAddBehaviorTree(lua_State* state);
+        static int LuaAIAddNavAgent(lua_State* state);
+        static int LuaAIHasBehaviorTree(lua_State* state);
+        static int LuaAIHasNavAgent(lua_State* state);
+        static int LuaAIMoveTo(lua_State* state);
+        static int LuaAIStop(lua_State* state);
+        static int LuaAIGetMoveState(lua_State* state);
+        static int LuaAISetMoveSpeed(lua_State* state);
+        static ecs::NavAgentComponent* GetNavAgent(LuaScriptRuntime* runtime, ecs::Entity entity);
+        static ecs::BehaviorTreeComponent* GetSelfBehaviorTree(LuaScriptRuntime* runtime);
 
         static int LuaSettingsGet(lua_State* state);
         static int LuaSettingsSet(lua_State* state);

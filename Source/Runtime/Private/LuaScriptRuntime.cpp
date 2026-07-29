@@ -1075,20 +1075,28 @@ namespace won::script
         return 1;
     }
 
-    ecs::BehaviorTreeComponent* LuaScriptRuntime::GetSelfBehaviorTree(LuaScriptRuntime* runtime, bool create)
+    ecs::BehaviorTreeComponent* LuaScriptRuntime::GetSelfBehaviorTree(LuaScriptRuntime* runtime)
     {
         if (!runtime || !runtime->current_context.scene)
         {
             return nullptr;
         }
-        ecs::Scene* scene = runtime->current_context.scene;
-        const ecs::Entity entity = runtime->current_context.entity;
-        ecs::BehaviorTreeComponent* component = scene->GetComponent<ecs::BehaviorTreeComponent>(entity);
-        if (!component && create)
+        return runtime->current_context.scene->GetComponent<ecs::BehaviorTreeComponent>(runtime->current_context.entity);
+    }
+
+    int LuaScriptRuntime::LuaAIAddBehaviorTree(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
         {
-            component = scene->AddComponent<ecs::BehaviorTreeComponent>(entity);
+            lua_pushboolean(state, false);
+            return 1;
         }
-        return component;
+
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        runtime->current_context.scene->AddComponent<ecs::BehaviorTreeComponent>(entity);
+        lua_pushboolean(state, true);
+        return 1;
     }
 
     int LuaScriptRuntime::LuaAISetTree(lua_State* state)
@@ -1096,7 +1104,7 @@ namespace won::script
         LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
         luaL_checktype(state, 1, LUA_TTABLE);
 
-        ecs::BehaviorTreeComponent* component = GetSelfBehaviorTree(runtime, true);
+        ecs::BehaviorTreeComponent* component = GetSelfBehaviorTree(runtime);
         if (!component)
         {
             lua_pushboolean(state, 0);
@@ -1281,7 +1289,7 @@ namespace won::script
             return 1;
         }
 
-        ecs::BehaviorTreeComponent* component = GetSelfBehaviorTree(runtime, true);
+        ecs::BehaviorTreeComponent* component = GetSelfBehaviorTree(runtime);
         if (!component)
         {
             lua_pushboolean(state, 0);
@@ -1311,7 +1319,7 @@ namespace won::script
         LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
         const char* key = luaL_checkstring(state, 1);
 
-        ecs::BehaviorTreeComponent* component = GetSelfBehaviorTree(runtime, false);
+        ecs::BehaviorTreeComponent* component = GetSelfBehaviorTree(runtime);
         if (component)
         {
             for (const ai::Blackboard& entry : component->blackboard)
@@ -1339,6 +1347,172 @@ namespace won::script
         }
 
         lua_pushnil(state);
+        return 1;
+    }
+
+    ecs::NavAgentComponent* LuaScriptRuntime::GetNavAgent(LuaScriptRuntime* runtime, ecs::Entity entity)
+    {
+        if (!runtime || !runtime->current_context.scene)
+        {
+            return nullptr;
+        }
+        return runtime->current_context.scene->GetComponent<ecs::NavAgentComponent>(entity);
+    }
+
+    int LuaScriptRuntime::LuaAIHasBehaviorTree(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        lua_pushboolean(state, runtime->current_context.scene->GetComponent<ecs::BehaviorTreeComponent>(entity) != nullptr);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAIHasNavAgent(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        lua_pushboolean(state, runtime->current_context.scene->GetComponent<ecs::NavAgentComponent>(entity) != nullptr);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAIAddNavAgent(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        runtime->current_context.scene->AddComponent<ecs::NavAgentComponent>(entity);
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    static bool StartNavAgentMove(ecs::Scene& scene, ecs::Entity entity, ecs::NavAgentComponent& agent, const float3& target)
+    {
+        agent.path.clear();
+        agent.path_index = 0;
+
+        ecs::TransformComponent* transform = scene.GetComponent<ecs::TransformComponent>(entity);
+        nav::NavMesh* nav_mesh = scene.GetNavMesh();
+        if (!transform || !nav_mesh || !nav_mesh->IsValid())
+        {
+            agent.state = ecs::NavAgentComponent::MoveState::Failed;
+            return false;
+        }
+
+        float3 goal = target;
+        nav_mesh->FindNearestPoint(target, goal);
+        if (!nav_mesh->FindPath(transform->position, goal, agent.path) || agent.path.size() < 2)
+        {
+            agent.path.clear();
+            agent.state = ecs::NavAgentComponent::MoveState::Failed;
+            return false;
+        }
+
+        agent.move_target = goal;
+        agent.path_index = 1;
+        agent.state = ecs::NavAgentComponent::MoveState::Moving;
+        return true;
+    }
+
+    int LuaScriptRuntime::LuaAIMoveTo(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, 0);
+            return 1;
+        }
+
+        const int arg_count = lua_gettop(state);
+        const bool has_entity_arg = arg_count >= 4 && lua_isinteger(state, 1);
+        const ecs::Entity entity = has_entity_arg ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        const int value_index = has_entity_arg ? 2 : 1;
+
+        const float3 target = {
+            static_cast<float>(luaL_checknumber(state, value_index)),
+            static_cast<float>(luaL_checknumber(state, value_index + 1)),
+            static_cast<float>(luaL_checknumber(state, value_index + 2))
+        };
+
+        ecs::NavAgentComponent* agent = GetNavAgent(runtime, entity);
+        if (!agent)
+        {
+            lua_pushboolean(state, 0);
+            return 1;
+        }
+
+        lua_pushboolean(state, StartNavAgentMove(*runtime->current_context.scene, entity, *agent, target) ? 1 : 0);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAIStop(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        const bool has_entity_arg = lua_gettop(state) >= 1 && lua_isinteger(state, 1);
+        const ecs::Entity entity = has_entity_arg ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1))
+            : (runtime ? runtime->current_context.entity : 0);
+
+        ecs::NavAgentComponent* agent = GetNavAgent(runtime, entity);
+        if (!agent)
+        {
+            lua_pushboolean(state, 0);
+            return 1;
+        }
+
+        agent->path.clear();
+        agent->path_index = 0;
+        agent->state = ecs::NavAgentComponent::MoveState::Idle;
+        lua_pushboolean(state, 1);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAIGetMoveState(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        const bool has_entity_arg = lua_gettop(state) >= 1 && lua_isinteger(state, 1);
+        const ecs::Entity entity = has_entity_arg ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1))
+            : (runtime ? runtime->current_context.entity : 0);
+
+        ecs::NavAgentComponent* agent = GetNavAgent(runtime, entity);
+        const ecs::NavAgentComponent::MoveState move_state = agent ? agent->state : ecs::NavAgentComponent::MoveState::Idle;
+        lua_pushinteger(state, static_cast<lua_Integer>(move_state));
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAISetMoveSpeed(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        const int arg_count = lua_gettop(state);
+        const bool has_entity_arg = arg_count >= 2 && lua_isinteger(state, 1);
+        const ecs::Entity entity = has_entity_arg ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1))
+            : (runtime ? runtime->current_context.entity : 0);
+        const int value_index = has_entity_arg ? 2 : 1;
+        const float speed = static_cast<float>(luaL_checknumber(state, value_index));
+
+        ecs::NavAgentComponent* agent = GetNavAgent(runtime, entity);
+        if (!agent)
+        {
+            lua_pushboolean(state, 0);
+            return 1;
+        }
+        agent->move_speed = speed;
+        lua_pushboolean(state, 1);
         return 1;
     }
 
@@ -2050,20 +2224,41 @@ namespace won::script
         return runtime->current_context.scene->GetComponent<ecs::AnimationComponent>(runtime->current_context.entity);
     }
 
-    ecs::AnimationStateMachineComponent* LuaScriptRuntime::GetSelfStateMachine(LuaScriptRuntime* runtime, bool create)
+    ecs::AnimationStateMachineComponent* LuaScriptRuntime::GetSelfStateMachine(LuaScriptRuntime* runtime)
     {
         if (!runtime || !runtime->current_context.scene)
         {
             return nullptr;
         }
-        ecs::Scene* scene = runtime->current_context.scene;
-        const ecs::Entity entity = runtime->current_context.entity;
-        ecs::AnimationStateMachineComponent* state_machine = scene->GetComponent<ecs::AnimationStateMachineComponent>(entity);
-        if (!state_machine && create)
+        return runtime->current_context.scene->GetComponent<ecs::AnimationStateMachineComponent>(runtime->current_context.entity);
+    }
+
+    int LuaScriptRuntime::LuaAnimationSMAdd(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
         {
-            state_machine = scene->AddComponent<ecs::AnimationStateMachineComponent>(entity);
+            lua_pushboolean(state, false);
+            return 1;
         }
-        return state_machine;
+
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        lua_pushboolean(state, runtime->current_context.scene->AddComponent<ecs::AnimationStateMachineComponent>(entity) != nullptr);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAnimationSMHas(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        lua_pushboolean(state, runtime->current_context.scene->GetComponent<ecs::AnimationStateMachineComponent>(entity) != nullptr);
+        return 1;
     }
 
     int LuaScriptRuntime::LuaAnimationSetBool(lua_State* state)
@@ -2071,7 +2266,7 @@ namespace won::script
         LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
         const char* name = luaL_checkstring(state, 1);
         const bool value = lua_toboolean(state, 2) != 0;
-        ecs::AnimationStateMachineComponent* state_machine = GetSelfStateMachine(runtime, false);
+        ecs::AnimationStateMachineComponent* state_machine = GetSelfStateMachine(runtime);
         if (!state_machine)
         {
             lua_pushboolean(state, false);
@@ -2095,7 +2290,7 @@ namespace won::script
         LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
         const char* name = luaL_checkstring(state, 1);
         const float value = static_cast<float>(luaL_checknumber(state, 2));
-        ecs::AnimationStateMachineComponent* state_machine = GetSelfStateMachine(runtime, false);
+        ecs::AnimationStateMachineComponent* state_machine = GetSelfStateMachine(runtime);
         if (!state_machine)
         {
             lua_pushboolean(state, false);
@@ -2118,7 +2313,7 @@ namespace won::script
     {
         LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
         const char* name = luaL_checkstring(state, 1);
-        ecs::AnimationStateMachineComponent* state_machine = GetSelfStateMachine(runtime, false);
+        ecs::AnimationStateMachineComponent* state_machine = GetSelfStateMachine(runtime);
         if (!state_machine)
         {
             lua_pushboolean(state, false);
@@ -2140,7 +2335,7 @@ namespace won::script
     int LuaScriptRuntime::LuaAnimationGetState(lua_State* state)
     {
         LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
-        ecs::AnimationStateMachineComponent* state_machine = GetSelfStateMachine(runtime, false);
+        ecs::AnimationStateMachineComponent* state_machine = GetSelfStateMachine(runtime);
         if (!state_machine || state_machine->current_state < 0 || state_machine->current_state >= static_cast<int32>(state_machine->states.size()))
         {
             lua_pushnil(state);
@@ -2155,7 +2350,7 @@ namespace won::script
         LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
         const char* name = luaL_checkstring(state, 1);
         const char* type_name = luaL_checkstring(state, 2);
-        ecs::AnimationStateMachineComponent* state_machine = GetSelfStateMachine(runtime, true);
+        ecs::AnimationStateMachineComponent* state_machine = GetSelfStateMachine(runtime);
         if (!state_machine)
         {
             lua_pushboolean(state, false);
@@ -2187,7 +2382,7 @@ namespace won::script
         const char* clip = luaL_checkstring(state, 2);
         const bool loop = lua_gettop(state) >= 3 ? (lua_toboolean(state, 3) != 0) : true;
         const float speed = lua_gettop(state) >= 4 ? static_cast<float>(luaL_checknumber(state, 4)) : 1.0f;
-        ecs::AnimationStateMachineComponent* state_machine = GetSelfStateMachine(runtime, true);
+        ecs::AnimationStateMachineComponent* state_machine = GetSelfStateMachine(runtime);
         if (!state_machine)
         {
             lua_pushinteger(state, -1);
@@ -2209,7 +2404,7 @@ namespace won::script
         const int32 from_state = static_cast<int32>(luaL_checkinteger(state, 1));
         const int32 to_state = static_cast<int32>(luaL_checkinteger(state, 2));
         const float blend_duration = lua_gettop(state) >= 3 ? static_cast<float>(luaL_checknumber(state, 3)) : 0.2f;
-        ecs::AnimationStateMachineComponent* state_machine = GetSelfStateMachine(runtime, true);
+        ecs::AnimationStateMachineComponent* state_machine = GetSelfStateMachine(runtime);
         if (!state_machine)
         {
             lua_pushinteger(state, -1);
@@ -2231,7 +2426,7 @@ namespace won::script
         const char* parameter_name = luaL_checkstring(state, 2);
         const char* op_name = luaL_checkstring(state, 3);
         const float threshold = lua_gettop(state) >= 4 ? static_cast<float>(luaL_checknumber(state, 4)) : 0.0f;
-        ecs::AnimationStateMachineComponent* state_machine = GetSelfStateMachine(runtime, true);
+        ecs::AnimationStateMachineComponent* state_machine = GetSelfStateMachine(runtime);
         if (!state_machine || transition_index >= state_machine->transitions.size())
         {
             lua_pushboolean(state, false);
@@ -2282,7 +2477,7 @@ namespace won::script
         LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
         const uint32 transition_index = static_cast<uint32>(luaL_checkinteger(state, 1));
         const float exit_time = static_cast<float>(luaL_checknumber(state, 2));
-        ecs::AnimationStateMachineComponent* state_machine = GetSelfStateMachine(runtime, true);
+        ecs::AnimationStateMachineComponent* state_machine = GetSelfStateMachine(runtime);
         if (!state_machine || transition_index >= state_machine->transitions.size())
         {
             lua_pushboolean(state, false);
@@ -2298,7 +2493,7 @@ namespace won::script
     {
         LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
         const int32 state_index = static_cast<int32>(luaL_checkinteger(state, 1));
-        ecs::AnimationStateMachineComponent* state_machine = GetSelfStateMachine(runtime, true);
+        ecs::AnimationStateMachineComponent* state_machine = GetSelfStateMachine(runtime);
         if (!state_machine)
         {
             lua_pushboolean(state, false);
@@ -3654,6 +3849,12 @@ namespace won::script
         lua_pushcclosure(lua_state, LuaAnimationGetState, 1);
         lua_setfield(lua_state, -2, "get_state");
         lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAnimationSMAdd, 1);
+        lua_setfield(lua_state, -2, "add_state_machine");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAnimationSMHas, 1);
+        lua_setfield(lua_state, -2, "has_state_machine");
+        lua_pushlightuserdata(lua_state, this);
         lua_pushcclosure(lua_state, LuaAnimationSMAddParameter, 1);
         lua_setfield(lua_state, -2, "sm_add_parameter");
         lua_pushlightuserdata(lua_state, this);
@@ -3830,12 +4031,44 @@ namespace won::script
         lua_pushlightuserdata(lua_state, this);
         lua_pushcclosure(lua_state, LuaAIGet, 1);
         lua_setfield(lua_state, -2, "get");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAIAddBehaviorTree, 1);
+        lua_setfield(lua_state, -2, "add_behavior_tree");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAIAddNavAgent, 1);
+        lua_setfield(lua_state, -2, "add_nav_agent");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAIHasBehaviorTree, 1);
+        lua_setfield(lua_state, -2, "has_behavior_tree");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAIHasNavAgent, 1);
+        lua_setfield(lua_state, -2, "has_nav_agent");
         lua_pushinteger(lua_state, static_cast<lua_Integer>(ai::BehaviorTree::Status::Success));
         lua_setfield(lua_state, -2, "success");
         lua_pushinteger(lua_state, static_cast<lua_Integer>(ai::BehaviorTree::Status::Failure));
         lua_setfield(lua_state, -2, "failure");
         lua_pushinteger(lua_state, static_cast<lua_Integer>(ai::BehaviorTree::Status::Running));
         lua_setfield(lua_state, -2, "running");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAIMoveTo, 1);
+        lua_setfield(lua_state, -2, "move_to");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAIStop, 1);
+        lua_setfield(lua_state, -2, "stop");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAIGetMoveState, 1);
+        lua_setfield(lua_state, -2, "get_move_state");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAISetMoveSpeed, 1);
+        lua_setfield(lua_state, -2, "set_move_speed");
+        lua_pushinteger(lua_state, static_cast<lua_Integer>(ecs::NavAgentComponent::MoveState::Idle));
+        lua_setfield(lua_state, -2, "move_idle");
+        lua_pushinteger(lua_state, static_cast<lua_Integer>(ecs::NavAgentComponent::MoveState::Moving));
+        lua_setfield(lua_state, -2, "move_moving");
+        lua_pushinteger(lua_state, static_cast<lua_Integer>(ecs::NavAgentComponent::MoveState::Arrived));
+        lua_setfield(lua_state, -2, "move_arrived");
+        lua_pushinteger(lua_state, static_cast<lua_Integer>(ecs::NavAgentComponent::MoveState::Failed));
+        lua_setfield(lua_state, -2, "move_failed");
         lua_setfield(lua_state, -2, "ai");
 
         lua_newtable(lua_state);

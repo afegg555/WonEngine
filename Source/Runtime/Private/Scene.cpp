@@ -48,6 +48,7 @@ namespace won::ecs
             case reflection::TypeMeta<RectTransform2DComponent>::type_id: return rect_transform_2d_component_mask;
             case reflection::TypeMeta<LayoutComponent>::type_id: return layout_component_mask;
             case reflection::TypeMeta<BehaviorTreeComponent>::type_id: return behavior_tree_component_mask;
+            case reflection::TypeMeta<NavAgentComponent>::type_id: return nav_agent_component_mask;
             default: return none_component_mask;
             }
         }
@@ -100,10 +101,15 @@ namespace won::ecs
         component_manager.RegisterComponent<ParticleEmitter3DComponent>();
         component_manager.RegisterComponent<DecalComponent>();
         component_manager.RegisterComponent<BehaviorTreeComponent>();
+        component_manager.RegisterComponent<NavAgentComponent>();
 
         if (desc.script_runtime && desc.enable_simulation)
         {
             AddSystem(std::make_unique<ScriptUpdateSystem>(desc.script_runtime));
+        }
+        if (desc.enable_simulation)
+        {
+            AddSystem(std::make_unique<NavAgentSystem>());
         }
         AddSystem(std::make_unique<TransformUpdateSystem>());
         if (desc.enable_simulation)
