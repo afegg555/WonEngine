@@ -23,7 +23,7 @@ WonEngine is a work-in-progress C++ rendering engine for experimenting with mode
     <td width="50%"><video src="https://github.com/user-attachments/assets/2e950cca-4a0c-42ec-ad62-f8321a048352" width="100%" controls muted>
       Your browser does not support the video tag —
       <a href="https://github.com/user-attachments/assets/2e950cca-4a0c-42ec-ad62-f8321a048352">watch the clip</a>.
-    </video><br><sub><b>Navmesh pathfinding</b> — Recast/Detour agent navigation and crowd movement</sub></td>
+    </video><br><sub><b>Navmesh pathfinding</b> — Recast/Detour agent navigation</sub></td>
   </tr>
   <tr>
     <td width="50%"><video src="https://github.com/user-attachments/assets/5aff2b73-bf61-4829-8516-a4389217b444" width="100%" controls muted>
