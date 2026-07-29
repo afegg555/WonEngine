@@ -377,6 +377,13 @@ namespace won::reflection
         WON_REFLECT_FIELD(tree_asset_path, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
+    WON_REFLECT_STRUCT(won::ecs::NavAgentComponent, "NavAgentComponent")
+        WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(move_speed, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(arrival_threshold, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(turn_rate, won::FieldFlagEditable | won::FieldFlagSerializable)
+    WON_REFLECT_STRUCT_END()
+
     WON_REFLECT_STRUCT(won::ecs::AudioSourceComponent, "AudioSourceComponent")
         WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(sound_asset_path, won::FieldFlagEditable | won::FieldFlagSerializable)
