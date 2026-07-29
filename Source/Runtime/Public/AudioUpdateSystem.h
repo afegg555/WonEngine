@@ -17,7 +17,6 @@ namespace won::ecs
 
         ComponentMask GetReadOnlyMask() const override { return transform_component_mask | audio_listener_component_mask; }
         ComponentMask GetWriteMask() const override { return audio_source_component_mask; }
-        SystemExecutionPolicy GetExecutionPolicy() const override { return SystemExecutionPolicy::Synchronous; }
 
         void Update(Scene& scene, float delta_time) override;
 
