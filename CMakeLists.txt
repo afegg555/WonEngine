@@ -204,6 +204,8 @@ set(RUNTIME_RESOURCE
     Source/Runtime/Private/TerrainGenerator.cpp
     Source/Runtime/Public/NavMesh.h
     Source/Runtime/Private/NavMesh.cpp
+    Source/Runtime/Public/BehaviorTree.h
+    Source/Runtime/Private/BehaviorTree.cpp
     Source/Runtime/Public/ShaderCompiler.h
     Source/Runtime/Public/ShaderManifest.h
     Source/Runtime/Public/ShaderLoader.h
@@ -347,6 +349,7 @@ set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/ReflectionProbeComponent.h
     Source/Runtime/Public/AnimationComponent.h
     Source/Runtime/Public/AnimationStateMachineComponent.h
+    Source/Runtime/Public/BehaviorTreeComponent.h
     Source/Runtime/Public/ScriptComponent.h
     Source/Runtime/Public/Collider3DComponent.h
     Source/Runtime/Public/Rigidbody3DComponent.h
@@ -379,6 +382,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Public/LightUpdateSystem.h
     Source/Runtime/Public/AnimationUpdateSystem.h
     Source/Runtime/Public/AnimationStateMachineSystem.h
+    Source/Runtime/Public/BehaviorTreeSystem.h
     Source/Runtime/Public/TransformUpdateSystem.h
     Source/Runtime/Public/ParticleUpdateSystem.h
     Source/Runtime/Public/ScriptUpdateSystem.h
@@ -389,6 +393,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Private/LightUpdateSystem.cpp
     Source/Runtime/Private/AnimationUpdateSystem.cpp
     Source/Runtime/Private/AnimationStateMachineSystem.cpp
+    Source/Runtime/Private/BehaviorTreeSystem.cpp
     Source/Runtime/Private/TransformUpdateSystem.cpp
     Source/Runtime/Private/ParticleUpdateSystem.cpp
     Source/Runtime/Private/ScriptUpdateSystem.cpp

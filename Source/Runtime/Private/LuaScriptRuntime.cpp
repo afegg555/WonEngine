@@ -25,6 +25,7 @@ namespace won::script
     namespace
     {
         constexpr int lua_no_ref = LUA_NOREF;
+        constexpr Size max_behavior_tree_nodes = 4096;
 
         struct LuaStackGuard
         {
@@ -62,6 +63,10 @@ namespace won::script
                 return "OnClick";
             case ScriptCallType::OnAnimationEvent:
                 return "OnAnimationEvent";
+            case ScriptCallType::OnBehaviorAction:
+                return "OnBehaviorAction";
+            case ScriptCallType::OnBehaviorAbort:
+                return "OnBehaviorAbort";
             default:
                 return "";
             }
@@ -1067,6 +1072,273 @@ namespace won::script
         LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
         nav::NavMesh* nav_mesh = (runtime && runtime->current_context.scene) ? runtime->current_context.scene->GetNavMesh() : nullptr;
         lua_pushboolean(state, (nav_mesh && nav_mesh->IsValid()) ? 1 : 0);
+        return 1;
+    }
+
+    ecs::BehaviorTreeComponent* LuaScriptRuntime::GetSelfBehaviorTree(LuaScriptRuntime* runtime, bool create)
+    {
+        if (!runtime || !runtime->current_context.scene)
+        {
+            return nullptr;
+        }
+        ecs::Scene* scene = runtime->current_context.scene;
+        const ecs::Entity entity = runtime->current_context.entity;
+        ecs::BehaviorTreeComponent* component = scene->GetComponent<ecs::BehaviorTreeComponent>(entity);
+        if (!component && create)
+        {
+            component = scene->AddComponent<ecs::BehaviorTreeComponent>(entity);
+        }
+        return component;
+    }
+
+    int LuaScriptRuntime::LuaAISetTree(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        luaL_checktype(state, 1, LUA_TTABLE);
+
+        ecs::BehaviorTreeComponent* component = GetSelfBehaviorTree(runtime, true);
+        if (!component)
+        {
+            lua_pushboolean(state, 0);
+            return 1;
+        }
+
+        Vector<ai::BehaviorTreeNode> nodes;
+        nodes.resize(1);
+        Vector<int32> node_refs;
+        lua_pushvalue(state, 1);
+        node_refs.push_back(luaL_ref(state, LUA_REGISTRYINDEX));
+
+        String error;
+        for (Size i = 0; i < node_refs.size() && error.empty(); ++i)
+        {
+            lua_rawgeti(state, LUA_REGISTRYINDEX, node_refs[i]);
+            ai::BehaviorTreeNode node = {};
+
+            lua_getfield(state, -1, "type");
+            const char* type_name = lua_tostring(state, -1);
+            if (!type_name)
+            {
+                error = "node is missing 'type'";
+            }
+            else if (std::strcmp(type_name, "selector") == 0)
+            {
+                node.type = ai::BehaviorTreeNode::Type::Selector;
+            }
+            else if (std::strcmp(type_name, "sequence") == 0)
+            {
+                node.type = ai::BehaviorTreeNode::Type::Sequence;
+            }
+            else if (std::strcmp(type_name, "action") == 0)
+            {
+                node.type = ai::BehaviorTreeNode::Type::Action;
+            }
+            else if (std::strcmp(type_name, "condition") == 0)
+            {
+                node.type = ai::BehaviorTreeNode::Type::Condition;
+            }
+            else
+            {
+                error = String("unknown node type: ") + type_name;
+            }
+            lua_pop(state, 1);
+
+            lua_getfield(state, -1, "name");
+            if (const char* node_name = lua_tostring(state, -1))
+            {
+                node.name = node_name;
+            }
+            lua_pop(state, 1);
+
+            lua_getfield(state, -1, "key");
+            if (const char* key = lua_tostring(state, -1))
+            {
+                node.operand.key = key;
+            }
+            lua_pop(state, 1);
+
+            lua_getfield(state, -1, "op");
+            if (const char* op_name = lua_tostring(state, -1))
+            {
+                if (std::strcmp(op_name, "notequal") == 0)
+                {
+                    node.op = ai::BehaviorTreeNode::CompareOp::NotEqual;
+                }
+                else if (std::strcmp(op_name, "less") == 0)
+                {
+                    node.op = ai::BehaviorTreeNode::CompareOp::Less;
+                }
+                else if (std::strcmp(op_name, "greater") == 0)
+                {
+                    node.op = ai::BehaviorTreeNode::CompareOp::Greater;
+                }
+                else
+                {
+                    node.op = ai::BehaviorTreeNode::CompareOp::Equal;
+                }
+            }
+            lua_pop(state, 1);
+
+            lua_getfield(state, -1, "value");
+            switch (lua_type(state, -1))
+            {
+            case LUA_TBOOLEAN:
+                node.operand.value.type = ai::Blackboard::Value::Type::Bool;
+                node.operand.value.bool_value = lua_toboolean(state, -1) != 0;
+                break;
+            case LUA_TNUMBER:
+                node.operand.value.type = ai::Blackboard::Value::Type::Float;
+                node.operand.value.float_value = static_cast<float>(lua_tonumber(state, -1));
+                break;
+            case LUA_TSTRING:
+                node.operand.value.type = ai::Blackboard::Value::Type::String;
+                node.operand.value.string_value = lua_tostring(state, -1);
+                break;
+            default:
+                break;
+            }
+            lua_pop(state, 1);
+
+            lua_getfield(state, -1, "children");
+            const int32 child_count = lua_istable(state, -1) ? static_cast<int32>(lua_rawlen(state, -1)) : 0;
+            const int32 first_child = static_cast<int32>(nodes.size());
+            node.first_child = child_count > 0 ? first_child : -1;
+            node.child_count = child_count;
+            nodes[i] = node;
+
+            if (static_cast<Size>(first_child) + static_cast<Size>(child_count) > max_behavior_tree_nodes)
+            {
+                error = "tree exceeds the maximum node count";
+            }
+            else if (child_count > 0)
+            {
+                nodes.resize(static_cast<Size>(first_child) + static_cast<Size>(child_count));
+                for (int32 child = 0; child < child_count; ++child)
+                {
+                    lua_rawgeti(state, -1, child + 1);
+                    if (!lua_istable(state, -1))
+                    {
+                        error = "child entry is not a table";
+                        lua_pop(state, 1);
+                        break;
+                    }
+                    node_refs.push_back(luaL_ref(state, LUA_REGISTRYINDEX));
+                }
+            }
+            lua_pop(state, 2);
+        }
+
+        for (int32 node_ref : node_refs)
+        {
+            luaL_unref(state, LUA_REGISTRYINDEX, node_ref);
+        }
+
+        if (error.empty())
+        {
+            std::shared_ptr<ai::BehaviorTree> tree = std::make_shared<ai::BehaviorTree>();
+            tree->nodes = std::move(nodes);
+            if (ai::Validate(*tree, error))
+            {
+                component->tree = tree;
+                component->node_cursor.clear();
+                component->running_action_node = -1;
+                component->pending_action_node = -1;
+                component->pending_abort_node = -1;
+                component->action_result_node = -1;
+                component->missing_key_warned = false;
+                lua_pushboolean(state, 1);
+                return 1;
+            }
+        }
+
+        backlog::Post("[won.ai] set_tree failed: " + error, backlog::LogLevel::Error);
+        lua_pushboolean(state, 0);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAISet(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        const char* key = luaL_checkstring(state, 1);
+
+        ai::Blackboard::Value value = {};
+        switch (lua_type(state, 2))
+        {
+        case LUA_TBOOLEAN:
+            value.type = ai::Blackboard::Value::Type::Bool;
+            value.bool_value = lua_toboolean(state, 2) != 0;
+            break;
+        case LUA_TNUMBER:
+            value.type = ai::Blackboard::Value::Type::Float;
+            value.float_value = static_cast<float>(lua_tonumber(state, 2));
+            break;
+        case LUA_TSTRING:
+            value.type = ai::Blackboard::Value::Type::String;
+            value.string_value = lua_tostring(state, 2);
+            break;
+        default:
+            lua_pushboolean(state, 0);
+            return 1;
+        }
+
+        ecs::BehaviorTreeComponent* component = GetSelfBehaviorTree(runtime, true);
+        if (!component)
+        {
+            lua_pushboolean(state, 0);
+            return 1;
+        }
+
+        for (ai::Blackboard& entry : component->blackboard)
+        {
+            if (entry.key == key)
+            {
+                entry.value = value;
+                lua_pushboolean(state, 1);
+                return 1;
+            }
+        }
+
+        ai::Blackboard entry = {};
+        entry.key = key;
+        entry.value = value;
+        component->blackboard.push_back(entry);
+        lua_pushboolean(state, 1);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaAIGet(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        const char* key = luaL_checkstring(state, 1);
+
+        ecs::BehaviorTreeComponent* component = GetSelfBehaviorTree(runtime, false);
+        if (component)
+        {
+            for (const ai::Blackboard& entry : component->blackboard)
+            {
+                if (entry.key != key)
+                {
+                    continue;
+                }
+                switch (entry.value.type)
+                {
+                case ai::Blackboard::Value::Type::Bool:
+                    lua_pushboolean(state, entry.value.bool_value ? 1 : 0);
+                    return 1;
+                case ai::Blackboard::Value::Type::Float:
+                    lua_pushnumber(state, entry.value.float_value);
+                    return 1;
+                case ai::Blackboard::Value::Type::String:
+                    lua_pushstring(state, entry.value.string_value.c_str());
+                    return 1;
+                default:
+                    break;
+                }
+                break;
+            }
+        }
+
+        lua_pushnil(state);
         return 1;
     }
 
@@ -3547,6 +3819,24 @@ namespace won::script
         lua_pushcclosure(lua_state, LuaNavIsReady, 1);
         lua_setfield(lua_state, -2, "is_ready");
         lua_setfield(lua_state, -2, "nav");
+
+        lua_newtable(lua_state);
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAISetTree, 1);
+        lua_setfield(lua_state, -2, "set_tree");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAISet, 1);
+        lua_setfield(lua_state, -2, "set");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaAIGet, 1);
+        lua_setfield(lua_state, -2, "get");
+        lua_pushinteger(lua_state, static_cast<lua_Integer>(ai::BehaviorTree::Status::Success));
+        lua_setfield(lua_state, -2, "success");
+        lua_pushinteger(lua_state, static_cast<lua_Integer>(ai::BehaviorTree::Status::Failure));
+        lua_setfield(lua_state, -2, "failure");
+        lua_pushinteger(lua_state, static_cast<lua_Integer>(ai::BehaviorTree::Status::Running));
+        lua_setfield(lua_state, -2, "running");
+        lua_setfield(lua_state, -2, "ai");
 
         lua_newtable(lua_state);
         lua_pushlightuserdata(lua_state, this);

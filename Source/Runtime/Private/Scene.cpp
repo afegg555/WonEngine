@@ -47,6 +47,7 @@ namespace won::ecs
             case reflection::TypeMeta<Canvas2DComponent>::type_id: return canvas_2d_component_mask;
             case reflection::TypeMeta<RectTransform2DComponent>::type_id: return rect_transform_2d_component_mask;
             case reflection::TypeMeta<LayoutComponent>::type_id: return layout_component_mask;
+            case reflection::TypeMeta<BehaviorTreeComponent>::type_id: return behavior_tree_component_mask;
             default: return none_component_mask;
             }
         }
@@ -98,6 +99,7 @@ namespace won::ecs
         component_manager.RegisterComponent<NavMeshComponent>();
         component_manager.RegisterComponent<ParticleEmitter3DComponent>();
         component_manager.RegisterComponent<DecalComponent>();
+        component_manager.RegisterComponent<BehaviorTreeComponent>();
 
         if (desc.script_runtime && desc.enable_simulation)
         {
@@ -110,6 +112,7 @@ namespace won::ecs
         }
         if (desc.script_runtime && desc.enable_simulation)
         {
+            AddSystem(std::make_unique<BehaviorTreeSystem>());
             AddSystem(std::make_unique<ScriptEventDispatchSystem>(desc.script_runtime));
         }
         AddSystem(std::make_unique<CameraUpdateSystem>());
