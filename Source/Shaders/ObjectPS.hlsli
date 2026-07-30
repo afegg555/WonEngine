@@ -173,6 +173,11 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
             reflection_radiance = EvaluateProceduralSky(environment_lighting, reflection_direction) * (1.0 - surface.roughness);
             has_reflection = true;
         }
+        else if (environment_lighting.GetSkyType() == SHADER_SKY_TYPE_PHYSICALLY_BASED)
+        {
+            reflection_radiance = EvaluatePhysicallyBasedSky(environment_lighting, reflection_direction) * (1.0 - surface.roughness);
+            has_reflection = true;
+        }
 
         ShaderReflectionProbe reflection_probe = GetReflectionProbe();
         if (reflection_probe.IsActive() && reflection_probe.HasCubemap())

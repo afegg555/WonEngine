@@ -39,6 +39,7 @@ enum SHADER_SKY_TYPE
     SHADER_SKY_TYPE_NONE = 0,        // no sky dome (e.g. indoor); the sky pass is skipped
     SHADER_SKY_TYPE_PROCEDURAL = 1,
     SHADER_SKY_TYPE_CUBEMAP = 2,
+    SHADER_SKY_TYPE_PHYSICALLY_BASED = 3,
 };
 
 enum SHADER_MATERIAL_TYPE
@@ -347,6 +348,11 @@ struct alignas(16) ShaderEnvironment
     float specular_mip_count;
 
     int brdf_lut;
+    float turbidity;
+    float mie_eccentricity;
+    float rayleigh_coefficient;
+
+    float mie_coefficient;
     uint _padding0;
     uint _padding1;
     uint _padding2;
@@ -374,6 +380,10 @@ struct alignas(16) ShaderEnvironment
         specular_cubemap = -1;
         specular_mip_count = 0.0f;
         brdf_lut = -1;
+        turbidity = 0.0f;
+        mie_eccentricity = 0.0f;
+        rayleigh_coefficient = 0.0f;
+        mie_coefficient = 0.0f;
         _padding0 = 0;
         _padding1 = 0;
         _padding2 = 0;
@@ -424,6 +434,14 @@ struct alignas(16) ShaderEnvironment
         indirect_diffuse_specular_scale = float2(diffuse_scale, specular_scale);
     }
 
+    inline void SetAtmosphere(float turbidity_in, float mie_eccentricity_in, float rayleigh_coefficient_in, float mie_coefficient_in)
+    {
+        turbidity = turbidity_in;
+        mie_eccentricity = mie_eccentricity_in;
+        rayleigh_coefficient = rayleigh_coefficient_in;
+        mie_coefficient = mie_coefficient_in;
+    }
+
 #else
     inline uint GetSkyType() { return sky_type; }
     inline uint GetDiffuseGIMode() { return diffuse_gi_mode; }
@@ -444,6 +462,10 @@ struct alignas(16) ShaderEnvironment
     inline float3 GetGroundColor() { return ground_color_ground_falloff.xyz; }
     inline float GetGroundFalloff() { return ground_color_ground_falloff.w; }
     inline float GetSunAngularRadius() { return sun_params.x; }
+    inline float GetTurbidity() { return turbidity; }
+    inline float GetMieEccentricity() { return mie_eccentricity; }
+    inline float GetRayleighCoefficient() { return rayleigh_coefficient; }
+    inline float GetMieCoefficient() { return mie_coefficient; }
     inline float GetSunGlowIntensity() { return sun_params.y; }
     inline float GetSunGlowFalloff() { return sun_params.z; }
     inline float3 GetAmbientColor() { return ambient_color_ambient_intensity.xyz; }
@@ -845,10 +867,10 @@ static_assert(sizeof(ShaderTextureSlot) == 16, "ShaderTextureSlot layout mismatc
 static_assert(sizeof(ShaderGeometry) == 80, "ShaderGeometry layout mismatch");
 static_assert(sizeof(ShaderMaterial) == 272, "ShaderMaterial layout mismatch");
 static_assert(sizeof(ShaderScene) == 96, "ShaderScene layout mismatch");
-static_assert(sizeof(ShaderEnvironment) == 176, "ShaderEnvironment layout mismatch");
+static_assert(sizeof(ShaderEnvironment) == 192, "ShaderEnvironment layout mismatch");
 static_assert(sizeof(ShaderDDGIVolume) == 112, "ShaderDDGIVolume layout mismatch");
 static_assert(sizeof(ShaderReflectionProbe) == 32, "ShaderReflectionProbe layout mismatch");
-static_assert(sizeof(ShaderFrame) == 416, "ShaderFrame layout mismatch");
+static_assert(sizeof(ShaderFrame) == 432, "ShaderFrame layout mismatch");
 static_assert(sizeof(ShaderCamera) == 336, "ShaderCamera layout mismatch");
 static_assert(sizeof(ShaderLight) == 48, "ShaderLight layout mismatch");
 static_assert(sizeof(ShaderShadowCascade) == 96, "ShaderShadowCascade layout mismatch");

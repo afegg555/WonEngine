@@ -24,6 +24,10 @@ float4 main(VertexOutput input) : SV_Target
     {
         color = bindless_cubemaps[DescriptorIndex(sky.sky_cubemap)].SampleLevel(sampler_linear_clamp, ray_direction, 0).rgb;
     }
+    else if (sky.GetSkyType() == SHADER_SKY_TYPE_PHYSICALLY_BASED)
+    {
+        color = EvaluatePhysicallyBasedSky(sky, ray_direction);
+    }
     else
     {
         color = EvaluateProceduralSky(sky, ray_direction);

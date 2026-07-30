@@ -1198,6 +1198,7 @@ namespace won::rendering
                         shader_environment.SetSkyZenithColorFalloff(environment.sky_zenith_color, environment.sky_horizon_falloff);
                         shader_environment.SetGroundHorizonColorIntensity(environment.ground_horizon_color, environment.ground_intensity);
                         shader_environment.SetGroundColorFalloff(environment.ground_color, environment.ground_falloff);
+                        shader_environment.SetAtmosphere(environment.turbidity, environment.mie_eccentricity, environment.rayleigh_coefficient, environment.mie_coefficient);
                     }
 
                     shader_environment.diffuse_gi_mode = static_cast<uint32>(environment.diffuse_gi_mode);
