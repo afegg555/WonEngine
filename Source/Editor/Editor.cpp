@@ -237,6 +237,12 @@ namespace won::editor
 			constexpr const char* mie_eccentricity = "Mie Eccentricity";
 			constexpr const char* rayleigh_coefficient = "Rayleigh Coefficient";
 			constexpr const char* mie_coefficient = "Mie Coefficient";
+			constexpr const char* direct_sun_active = "Direct Sun Active";
+			constexpr const char* direct_sun_cast_shadow = "Direct Sun Cast Shadow";
+			constexpr const char* direct_sun_shadow_resolution = "Direct Sun Shadow Resolution";
+			constexpr const char* direct_sun_cascade_count = "Direct Sun Cascade Count";
+			constexpr const char* direct_sun_cascade_lambda = "Direct Sun Cascade Lambda";
+			constexpr const char* direct_sun_cascade_blend = "Direct Sun Cascade Blend";
 			constexpr const char* sky_cubemap_asset_path = "Sky Cubemap Path";
 			constexpr const char* irradiance_cubemap_asset_path = "Irradiance Cubemap Path";
 			constexpr const char* specular_cubemap_asset_path = "Specular Cubemap Path";
@@ -4070,6 +4076,20 @@ namespace won::editor
 							ImGui::DragFloat(editor_text::mie_eccentricity, &environment_comp->mie_eccentricity, 0.01f, -0.99f, 0.99f);
 							ImGui::DragFloat(editor_text::rayleigh_coefficient, &environment_comp->rayleigh_coefficient, 0.01f, 0.0f, 10.0f);
 							ImGui::DragFloat(editor_text::mie_coefficient, &environment_comp->mie_coefficient, 0.001f, 0.0f, 10.0f);
+							ImGui::Checkbox(editor_text::direct_sun_active, &environment_comp->direct_sun_active);
+							ImGui::Checkbox(editor_text::direct_sun_cast_shadow, &environment_comp->direct_sun_cast_shadow);
+							int direct_sun_shadow_resolution = static_cast<int>(environment_comp->direct_sun_shadow_resolution);
+							if (ImGui::InputInt(editor_text::direct_sun_shadow_resolution, &direct_sun_shadow_resolution))
+							{
+								environment_comp->direct_sun_shadow_resolution = (std::max)(1, direct_sun_shadow_resolution);
+							}
+							int direct_sun_cascade_count = static_cast<int>(environment_comp->direct_sun_cascade_count);
+							if (ImGui::SliderInt(editor_text::direct_sun_cascade_count, &direct_sun_cascade_count, 1, SHADOW_CASCADE_COUNT_MAX))
+							{
+								environment_comp->direct_sun_cascade_count = static_cast<uint32>(direct_sun_cascade_count);
+							}
+							ImGui::SliderFloat(editor_text::direct_sun_cascade_lambda, &environment_comp->direct_sun_cascade_lambda, 0.0f, 1.0f);
+							ImGui::SliderFloat(editor_text::direct_sun_cascade_blend, &environment_comp->direct_sun_cascade_blend, 0.0f, 0.3f);
 						}
 
 						if (sky_uses_cubemap)

@@ -1171,12 +1171,15 @@ namespace won::rendering
             }
         }
 
-        void ExtractEnvironment(const ecs::Scene& scene, ShaderEnvironment& shader_environment, ShaderDDGIVolume& shader_ddgi_volume, ShaderReflectionProbe& shader_reflection_probe, Entity& ddgi_volume_entity)
+        void ExtractEnvironment(const ecs::Scene& scene, ShaderEnvironment& shader_environment, ShaderDDGIVolume& shader_ddgi_volume, ShaderReflectionProbe& shader_reflection_probe, Entity& ddgi_volume_entity, ShaderLight& derived_sun, bool& has_derived_sun, bool& direct_sun_cast_shadow, uint32& direct_sun_shadow_resolution, uint32& direct_sun_cascade_count, float& direct_sun_cascade_lambda, float& direct_sun_cascade_blend)
         {
             shader_environment.Init();
             shader_ddgi_volume.Init();
             shader_reflection_probe.Init();
             ddgi_volume_entity = INVALID_ENTITY;
+            derived_sun.Init();
+            has_derived_sun = false;
+            direct_sun_cast_shadow = false;
 
             const auto environment_array = scene.GetComponentArray<EnvironmentComponent>().get();
             const auto transform_array = scene.GetComponentArray<TransformComponent>().get();
@@ -1200,6 +1203,31 @@ namespace won::rendering
                         shader_environment.SetGroundHorizonColorIntensity(environment.ground_horizon_color, environment.ground_intensity);
                         shader_environment.SetGroundColorFalloff(environment.ground_color, environment.ground_falloff);
                         shader_environment.SetAtmosphere(environment.turbidity, environment.mie_eccentricity, environment.rayleigh_coefficient, environment.mie_coefficient);
+                    }
+
+                    if (environment.sky_type == EnvironmentComponent::SkyType::PhysicallyBased
+                        && environment.direct_sun_active
+                        && environment.sun_direction.y > 0.0f
+                        && environment.sun_intensity > 0.0f)
+                    {
+                        derived_sun.SetType(SHADER_LIGHT_TYPE_DIRECTIONAL);
+                        derived_sun.SetDirection({ -environment.sun_direction.x, -environment.sun_direction.y, -environment.sun_direction.z });
+                        derived_sun.SetColor({
+                            environment.sun_color.x * environment.sun_intensity,
+                            environment.sun_color.y * environment.sun_intensity,
+                            environment.sun_color.z * environment.sun_intensity,
+                            environment.sun_intensity
+                        });
+                        if (environment.direct_sun_cast_shadow)
+                        {
+                            derived_sun.SetFlags(SHADER_LIGHT_FLAGS::LIGHT_FLAG_LIGHT_CASTING_SHADOW);
+                        }
+                        has_derived_sun = true;
+                        direct_sun_cast_shadow = environment.direct_sun_cast_shadow;
+                        direct_sun_shadow_resolution = environment.direct_sun_shadow_resolution;
+                        direct_sun_cascade_count = environment.direct_sun_cascade_count;
+                        direct_sun_cascade_lambda = environment.direct_sun_cascade_lambda;
+                        direct_sun_cascade_blend = environment.direct_sun_cascade_blend;
                     }
 
                     shader_environment.diffuse_gi_mode = static_cast<uint32>(environment.diffuse_gi_mode);
@@ -1733,6 +1761,14 @@ namespace won::rendering
 
         retired[frame_slot].clear();
 
+        if (has_derived_sun)
+        {
+            shader_lights.pop_back();
+            light_bounds.pop_back();
+            has_derived_sun = false;
+        }
+        derived_sun_index = std::numeric_limits<uint32>::max();
+
         const ComponentMask dirty = scene.GetGpuDirtySnapshot();
         const bool light_dirty = (dirty & ecs::light_component_mask) != 0;
         const bool geometry_dirty = (dirty & ecs::geometry_component_mask) != 0;
@@ -1769,8 +1805,16 @@ namespace won::rendering
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractText(scene, text_sprite_2d, text_sprite_3d, glyph_requests); });
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractParticles(scene, particle_instances, particle_sprite_3d); });
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractDecals(scene, shader_decals); });
-        jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractEnvironment(scene, shader_environment, shader_ddgi_volume, shader_reflection_probe, ddgi_volume_entity); });
+        jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractEnvironment(scene, shader_environment, shader_ddgi_volume, shader_reflection_probe, ddgi_volume_entity, derived_sun, has_derived_sun, direct_sun_cast_shadow, direct_sun_shadow_resolution, direct_sun_cascade_count, direct_sun_cascade_lambda, direct_sun_cascade_blend); });
         jobsystem::Wait(project_ctx);
+
+        if (has_derived_sun)
+        {
+            derived_sun_index = static_cast<uint32>(shader_lights.size());
+            shader_lights.push_back(derived_sun);
+            light_bounds.push_back({});
+        }
+        shader_environment.derived_sun_index = derived_sun_index;
 
         sprite_2d_renderables.insert(sprite_2d_renderables.end(), std::make_move_iterator(text_sprite_2d.begin()), std::make_move_iterator(text_sprite_2d.end()));
         sprite_3d_renderables.insert(sprite_3d_renderables.end(), std::make_move_iterator(text_sprite_3d.begin()), std::make_move_iterator(text_sprite_3d.end()));

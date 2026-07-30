@@ -116,6 +116,14 @@ namespace won::rendering
         Vector<ShaderLight> shader_lights;
         Vector<math::AABB> light_bounds;
         uint32 directional_count = 0;
+        ShaderLight derived_sun;
+        uint32 derived_sun_index = std::numeric_limits<uint32>::max();
+        bool has_derived_sun = false;
+        bool direct_sun_cast_shadow = false;
+        uint32 direct_sun_shadow_resolution = 1024;
+        uint32 direct_sun_cascade_count = 4;
+        float direct_sun_cascade_lambda = 0.95f;
+        float direct_sun_cascade_blend = 0.1f;
 
         GPUBuffer light_buffer;
 

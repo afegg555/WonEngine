@@ -24,7 +24,7 @@ void main(uint3 dispatch_thread_id : SV_DispatchThreadID)
     }
     else if (sky.GetSkyType() == SHADER_SKY_TYPE_PHYSICALLY_BASED)
     {
-        color = EvaluatePhysicallyBasedSky(sky, direction);
+        color = EvaluatePhysicalSkyAtmosphere(sky, direction); // without sun disk
     }
     else
     {

@@ -355,7 +355,7 @@ struct alignas(16) ShaderEnvironment
     float rayleigh_coefficient;
 
     float mie_coefficient;
-    uint _padding0;
+    uint derived_sun_index;
     uint _padding1;
     uint _padding2;
 
@@ -386,7 +386,7 @@ struct alignas(16) ShaderEnvironment
         mie_eccentricity = 0.0f;
         rayleigh_coefficient = 0.0f;
         mie_coefficient = 0.0f;
-        _padding0 = 0;
+        derived_sun_index = ~0u;
         _padding1 = 0;
         _padding2 = 0;
     }
@@ -468,6 +468,7 @@ struct alignas(16) ShaderEnvironment
     inline float GetMieEccentricity() { return mie_eccentricity; }
     inline float GetRayleighCoefficient() { return rayleigh_coefficient; }
     inline float GetMieCoefficient() { return mie_coefficient; }
+    inline uint GetDerivedSunIndex() { return derived_sun_index; }
     inline float GetSunGlowIntensity() { return sun_params.y; }
     inline float GetSunGlowFalloff() { return sun_params.z; }
     inline float3 GetAmbientColor() { return ambient_color_ambient_intensity.xyz; }

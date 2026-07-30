@@ -39,7 +39,27 @@ inline float HenyeyGreensteinPhase(float cos_theta, float g)
     return (1.0f - g2) / (4.0f * PI * pow(denom, 1.5f));
 }
 
-inline float3 EvaluatePhysicallyBasedSky(ShaderEnvironment sky, float3 direction)
+inline float3 EvaluatePhysicalSkyExtinction(ShaderEnvironment sky, float3 direction)
+{
+    // compute proportion of remaining light after scattering and absorption
+    
+    const float3 up = float3(0.0f, 1.0f, 0.0f);
+    float3 sun_direction = normalize(sky.GetSunDirection());
+    float turbidity = max(sky.GetTurbidity(), 1.0f);
+
+    float sun_fade = 1.0f - saturate(1.0f - exp(sun_direction.y)); // fade out the sun when it is below the horizon, upper horizon : 1.0
+
+    float rayleigh_scale = max(sky.GetRayleighCoefficient() - (1.0f - sun_fade), 0.0f);
+    float3 beta_rayleigh = physical_sky_rayleigh_beta * rayleigh_scale; // proportional to sun fade
+    float3 beta_mie = physical_sky_mie_beta * turbidity * max(sky.GetMieCoefficient(), 0.0f); // proportional to turbidity
+
+    float zenith_cos = max(dot(up, direction), 0.0f); // cos of the zenith angle of the view direction
+    float zenith_degrees = degrees(acos(zenith_cos));
+    float optical_mass = 1.0f / (zenith_cos + 0.15f * pow(max(93.885f - zenith_degrees, 0.0001f), -1.253f)); // relative air mass(Kasten and Young 1989) vertical : 1.0, horizontal: 38.0
+    return exp(-(beta_rayleigh * physical_sky_rayleigh_zenith_length + beta_mie * physical_sky_mie_zenith_length) * optical_mass); // Beer-Lambert law, proportion of remaining light after scattering and absorption
+}
+
+inline float3 EvaluatePhysicalSkyAtmosphere(ShaderEnvironment sky, float3 direction)
 {
     const float3 up = float3(0.0f, 1.0f, 0.0f);
     float3 sun_direction = normalize(sky.GetSunDirection());
@@ -54,10 +74,7 @@ inline float3 EvaluatePhysicallyBasedSky(ShaderEnvironment sky, float3 direction
     float3 beta_rayleigh = physical_sky_rayleigh_beta * rayleigh_scale; // proportional to sun fade
     float3 beta_mie = physical_sky_mie_beta * turbidity * max(sky.GetMieCoefficient(), 0.0f); // proportional to turbidity
 
-    float zenith_cos = max(dot(up, direction), 0.0f); // cos of the zenith angle of the view direction
-    float zenith_degrees = degrees(acos(zenith_cos));
-    float optical_mass = 1.0f / (zenith_cos + 0.15f * pow(max(93.885f - zenith_degrees, 0.0001f), -1.253f)); // relative air mass(Kasten and Young 1989) vertical : 1.0, horizontal: 38.0
-    float3 extinction = exp(-(beta_rayleigh * physical_sky_rayleigh_zenith_length + beta_mie * physical_sky_mie_zenith_length) * optical_mass); // Beer-Lambert law, proportion of remaining light after scattering and absorption
+    float3 extinction = EvaluatePhysicalSkyExtinction(sky, direction);
 
     float cos_theta = dot(direction, sun_direction);
     float rayleigh_phase = (3.0f / (16.0f * PI)) * (1.0f + cos_theta * cos_theta); // Rayleigh phase function
@@ -68,17 +85,26 @@ inline float3 EvaluatePhysicallyBasedSky(ShaderEnvironment sky, float3 direction
     float horizon_weight = saturate(pow(max(1.0f - dot(up, sun_direction), 0.0f), 5.0f)); // 1.0 at horizon, 0.0 at zenith
     in_scatter *= lerp(float3(1.0f, 1.0f, 1.0f), pow(max(sun_energy * scatter_ratio * extinction, 0.0f), 0.5f), horizon_weight); // empirical correction to reduce the brightness of the sun at the horizon
 
-    float sun_cos = cos(max(sky.GetSunAngularRadius(), 0.0001f));
-    float sun_disk = smoothstep(sun_cos, lerp(sun_cos, 1.0f, 0.5f), cos_theta);
-
     float3 color = in_scatter * physical_sky_radiance_scale * sky.GetSkyIntensity();
-    color += sky.GetSunColor() * sun_disk * sky.GetSunIntensity() * extinction;
 
     float3 ground_color = sky.GetGroundColor() * sky.GetGroundIntensity();
     float horizon_blend = smoothstep(-0.02f, 0.02f, direction.y);
     color = lerp(ground_color, color, horizon_blend);
 
     return min(color, MEDIUMP_FLT_MAX);
+}
+
+inline float3 EvaluatePhysicalSkySunDisk(ShaderEnvironment sky, float3 direction)
+{
+    float cos_theta = dot(normalize(direction), sky.GetSunDirection());
+    float sun_cos = cos(max(sky.GetSunAngularRadius(), 0.0001f));
+    float sun_disk = smoothstep(sun_cos, lerp(sun_cos, 1.0f, 0.5f), cos_theta);
+    return sky.GetSunColor() * sun_disk * sky.GetSunIntensity() * EvaluatePhysicalSkyExtinction(sky, sky.GetSunDirection());
+}
+
+inline float3 EvaluatePhysicallyBasedSky(ShaderEnvironment sky, float3 direction)
+{
+    return EvaluatePhysicalSkyAtmosphere(sky, direction) + EvaluatePhysicalSkySunDisk(sky, direction);
 }
 
 #endif

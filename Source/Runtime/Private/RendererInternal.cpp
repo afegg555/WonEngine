@@ -306,7 +306,7 @@ namespace won::rendering
         shader_frame.scene.materialbuffer = gpu_scene.material_buffer.srv.descriptor_index;
         shader_frame.scene.lightbuffer = gpu_scene.light_buffer.srv.descriptor_index;
         shader_frame.scene.directional_count = gpu_scene.directional_count;
-        shader_frame.scene.light_count = static_cast<uint32>(gpu_scene.shader_lights.size());
+        shader_frame.scene.light_count = static_cast<uint32>(gpu_scene.shader_lights.size()) - (gpu_scene.has_derived_sun ? 1u : 0u);
         if (view.render_path_type == RenderPathType::Forward && view.light_resources.forward_index_buffer && view.light_resources.forward_light_count > 0)
         {
             shader_frame.scene.forward_light_index_buffer = static_cast<int>(view.light_resources.forward_index_srv.descriptor_index);
@@ -421,25 +421,50 @@ namespace won::rendering
 
         const ecs::CameraComponent* camera = view.scene->GetComponent<ecs::CameraComponent>(view.camera_entity);
         auto light_array = view.scene->GetComponentArray<ecs::LightComponent>().get();
-        if ((view.show_flags & Show_Shadows) != 0 && camera && light_array)
+        rendering::GPUScene& gpu_scene = view.scene->GetGPUScene();
+        if ((view.show_flags & Show_Shadows) != 0 && camera)
         {
-
-            rendering::GPUScene& gpu_scene = view.scene->GetGPUScene();
-            const uint32 total_light_count = static_cast<uint32>(light_array->GetSize());
+            const uint32 total_light_count = light_array ? static_cast<uint32>(light_array->GetSize()) : 0u;
             view.shadow_resources.light_shadow_slices.assign(gpu_scene.shader_lights.size(), 0u);
             rectpacker::State atlas_packer = {};
             uint32 packed_directional_index = 0;
 
-            for (uint32 light_index = 0u; light_index < total_light_count; ++light_index)
+            ecs::LightComponent derived_sun_light = {};
+            if (gpu_scene.has_derived_sun)
             {
-                const ecs::LightComponent& light = light_array->data[light_index];
+                derived_sun_light.flags = ecs::LightComponent::Active | ecs::LightComponent::Dynamic;
+                if (gpu_scene.direct_sun_cast_shadow)
+                {
+                    derived_sun_light.flags |= ecs::LightComponent::CastShadow;
+                }
+                derived_sun_light.type = ecs::LightComponent::LightType::Directional;
+                derived_sun_light.direction = {
+                    -gpu_scene.shader_environment.sun_direction.x,
+                    -gpu_scene.shader_environment.sun_direction.y,
+                    -gpu_scene.shader_environment.sun_direction.z
+                };
+                derived_sun_light.shadow_map_resolution = gpu_scene.direct_sun_shadow_resolution;
+                derived_sun_light.shadow_cascade_count = gpu_scene.direct_sun_cascade_count;
+                derived_sun_light.shadow_cascade_lambda = gpu_scene.direct_sun_cascade_lambda;
+                derived_sun_light.shadow_cascade_blend = gpu_scene.direct_sun_cascade_blend;
+            }
+
+            for (uint32 light_index = 0u; light_index <= total_light_count; ++light_index)
+            {
+                const bool is_derived_sun = light_index == total_light_count;
+                if (is_derived_sun && !gpu_scene.has_derived_sun)
+                {
+                    break;
+                }
+
+                const ecs::LightComponent& light = is_derived_sun ? derived_sun_light : light_array->data[light_index];
 
                 if (!light.IsActive() || light.type != ecs::LightComponent::LightType::Directional)
                 {
                     continue;
                 }
 
-                const uint32 slice_index = packed_directional_index++;
+                const uint32 slice_index = is_derived_sun ? gpu_scene.derived_sun_index : packed_directional_index++;
 
                 if (!light.IsDynamic() || !light.IsCastShadow())
                 {
@@ -2608,7 +2633,7 @@ namespace won::rendering
                     light_cull_push.cluster_light_offset_uav = static_cast<uint32>(view.light_resources.cluster_light_offset_uav.descriptor_index);
                     light_cull_push.cluster_light_index_uav = static_cast<uint32>(view.light_resources.cluster_light_index_uav.descriptor_index);
                     light_cull_push.cluster_count = view.light_resources.cluster_dims;
-                    light_cull_push.light_count = static_cast<uint32>(view.scene->GetGPUScene().shader_lights.size());
+                    light_cull_push.light_count = static_cast<uint32>(gpu_scene.shader_lights.size()) - (gpu_scene.has_derived_sun ? 1u : 0u);
                     light_cull_push.depth_slice_count = view.light_resources.depth_slice_count;
                     command_list->PushConstants(RHIShaderStage::Compute, &light_cull_push, sizeof(light_cull_push), 0);
 
