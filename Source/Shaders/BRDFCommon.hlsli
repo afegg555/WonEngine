@@ -138,6 +138,19 @@ float3 ImportanceSampleGGX(float2 xi, float perceptual_roughness, float3 n)
     return tangent * h.x + bitangent * h.y + n * h.z;
 }
 
+float3 ImportanceSampleCosine(float2 xi, float3 n)
+{
+    float phi = 2.0 * PI * xi.x;
+    float cos_theta = sqrt(max(1.0 - xi.y, 0.0));
+    float sin_theta = sqrt(xi.y);
+
+    float3 h = float3(sin_theta * cos(phi), sin_theta * sin(phi), cos_theta);
+    float3 up = abs(n.z) < 0.999 ? float3(0.0, 0.0, 1.0) : float3(1.0, 0.0, 0.0);
+    float3 tangent = normalize(cross(up, n));
+    float3 bitangent = cross(n, tangent);
+    return normalize(tangent * h.x + bitangent * h.y + n * h.z);
+}
+
 float3 EnvBRDF(int brdf_lut_descriptor, float3 f0, float perceptual_roughness, float nov)
 {
     if (brdf_lut_descriptor < 0)

@@ -459,6 +459,9 @@ set(SHADERS_HLSL
     Source/Shaders/LuminanceReduceCS.hlsl
     Source/Shaders/LuminanceResolveCS.hlsl
     Source/Shaders/BRDFIntegrationCS.hlsl
+    Source/Shaders/SkyCaptureCS.hlsl
+    Source/Shaders/IrradianceConvolveCS.hlsl
+    Source/Shaders/SpecularPrefilterCS.hlsl
     Source/Shaders/CompositePS.hlsl
     Source/Shaders/DebugDraw2DVS.hlsl
     Source/Shaders/DebugDraw2DPS.hlsl

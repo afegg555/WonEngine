@@ -4,7 +4,6 @@
 #ifndef UNLIT
 #include "ShadingCommon.hlsli"
 #include "DDGICommon.hlsli"
-#include "SkyCommon.hlsli"
 #endif
 
 float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
@@ -146,7 +145,8 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
 
         }
     }
-    else if (environment_lighting.GetDiffuseGIMode() == SHADER_DIFFUSE_GI_MODE_CUBEMAP)
+    else if (environment_lighting.GetDiffuseGIMode() == SHADER_DIFFUSE_GI_MODE_CUBEMAP
+        || environment_lighting.GetDiffuseGIMode() == SHADER_DIFFUSE_GI_MODE_SKY)
     {
         if (environment_lighting.HasIrradianceCubemap())
         {
@@ -155,7 +155,8 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
         }
     }
     float3 indirect_specular = float3(0.0, 0.0, 0.0);
-    if (environment_lighting.GetReflectionMode() == SHADER_REFLECTION_MODE_CUBEMAP)
+    if (environment_lighting.GetReflectionMode() == SHADER_REFLECTION_MODE_CUBEMAP
+        || environment_lighting.GetReflectionMode() == SHADER_REFLECTION_MODE_SKY)
     {
         float3 reflection_direction = reflect(-surface.V, surface.N);
         float perceptual_roughness = sqrt(surface.roughness);
@@ -166,16 +167,6 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
         {
             float lod = perceptual_roughness * max(environment_lighting.specular_mip_count - 1.0, 0.0);
             reflection_radiance = bindless_cubemaps[DescriptorIndex(environment_lighting.specular_cubemap)].SampleLevel(sampler_linear_clamp, reflection_direction, lod).rgb;
-            has_reflection = true;
-        }
-        else if (environment_lighting.GetSkyType() == SHADER_SKY_TYPE_PROCEDURAL)
-        {
-            reflection_radiance = EvaluateProceduralSky(environment_lighting, reflection_direction) * (1.0 - surface.roughness);
-            has_reflection = true;
-        }
-        else if (environment_lighting.GetSkyType() == SHADER_SKY_TYPE_PHYSICALLY_BASED)
-        {
-            reflection_radiance = EvaluatePhysicallyBasedSky(environment_lighting, reflection_direction) * (1.0 - surface.roughness);
             has_reflection = true;
         }
 

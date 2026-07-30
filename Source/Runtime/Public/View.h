@@ -85,6 +85,12 @@ namespace won::rendering
             RHISubresourceHandle sort_srv = {};
         };
 
+        struct DDGIDebugResources
+        {
+            std::unique_ptr<RHIResource> probe_data_readback_buffer;
+            bool probe_data_readback_valid = false;
+        };
+
         ecs::Entity camera_entity = {};
         ecs::Scene* scene = nullptr;
         RenderPathType render_path_type = RenderPathType::ForwardPlus; // pipeline-level selection, not a lightweight ViewOption
@@ -95,6 +101,7 @@ namespace won::rendering
         LightResources light_resources = {};
         ShadowResources shadow_resources = {};
         InstanceResources instance_resources = {};
+        DDGIDebugResources ddgi_debug_resources = {};
         Rect viewport = {};
         Rect scissor = {};
         uint32 ui_layer_mask = 0xFFFFFFFF;

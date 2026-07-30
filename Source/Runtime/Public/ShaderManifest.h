@@ -34,6 +34,9 @@ namespace won::resource
         CSLuminanceReduce,
         CSLuminanceResolve,
         CSBRDFIntegration,
+        CSSkyCapture,
+        CSIrradianceConvolve,
+        CSSpecularPrefilter,
         CSDDGIProbeUpdate,
         CSLightCull,
         CSTextureMipGen,
@@ -78,6 +81,9 @@ namespace won::resource
         case ShaderId::CSLuminanceReduce: return "CSLuminanceReduce";
         case ShaderId::CSLuminanceResolve: return "CSLuminanceResolve";
         case ShaderId::CSBRDFIntegration: return "CSBRDFIntegration";
+        case ShaderId::CSSkyCapture: return "CSSkyCapture";
+        case ShaderId::CSIrradianceConvolve: return "CSIrradianceConvolve";
+        case ShaderId::CSSpecularPrefilter: return "CSSpecularPrefilter";
         case ShaderId::CSDDGIProbeUpdate: return "CSDDGIProbeUpdate";
         case ShaderId::CSLightCull: return "CSLightCull";
         case ShaderId::CSTextureMipGen: return "CSTextureMipGen";

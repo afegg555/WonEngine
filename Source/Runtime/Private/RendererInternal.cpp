@@ -332,6 +332,20 @@ namespace won::rendering
         shader_frame.scene.debug_view_mode = static_cast<uint32>(view.view_mode);
         shader_frame.environment = gpu_scene.shader_environment;
         shader_frame.environment.brdf_lut = brdf_lut ? static_cast<int>(brdf_lut_srv.descriptor_index) : -1;
+        if (shader_frame.environment.diffuse_gi_mode == SHADER_DIFFUSE_GI_MODE_SKY)
+        {
+            shader_frame.environment.irradiance_cubemap = gpu_scene.sky_lighting.valid
+                ? static_cast<int>(gpu_scene.sky_lighting.irradiance_srv.descriptor_index)
+                : -1;
+        }
+        if (shader_frame.environment.reflection_mode == SHADER_REFLECTION_MODE_SKY)
+        {
+            const bool has_specular = gpu_scene.sky_lighting.valid && gpu_scene.sky_lighting.specular_texture;
+            shader_frame.environment.specular_cubemap = has_specular
+                ? static_cast<int>(gpu_scene.sky_lighting.specular_srv.descriptor_index)
+                : -1;
+            shader_frame.environment.specular_mip_count = has_specular ? static_cast<float>(sky_specular_mip_count) : 0.0f;
+        }
         shader_frame.reflection_probe = gpu_scene.shader_reflection_probe;
         shader_frame.ddgi_volume = gpu_scene.shader_ddgi_volume;
         shader_frame.ddgi_volume.irradiance_texture = gpu_scene.ddgi.irradiance_texture_srv.descriptor_index;
@@ -908,6 +922,26 @@ namespace won::rendering
         else if (view.render_path_type == RenderPathType::Forward)
         {
             UpdateForwardLightList(view, command_list);
+        }
+
+        const RHIResource* ddgi_probe_data_buffer = view.scene->GetGPUScene().ddgi.probe_data_buffer.get();
+        const bool ddgi_debug_wanted = (view.show_flags & Show_DDGI) != 0 && ddgi_probe_data_buffer;
+        if (ddgi_debug_wanted && !view.ddgi_debug_resources.probe_data_readback_buffer)
+        {
+            RHIBufferDesc readback_desc = {};
+            readback_desc.size = ddgi_probe_data_buffer->GetDesc().buffer_desc.size;
+            readback_desc.usage = RHIResourceUsage::Readback;
+            view.ddgi_debug_resources.probe_data_readback_buffer = device->CreateBuffer(readback_desc);
+            if (view.ddgi_debug_resources.probe_data_readback_buffer)
+            {
+                view.ddgi_debug_resources.probe_data_readback_buffer->SetName("DDGI Debug Probe Data Readback Buffer");
+            }
+            view.ddgi_debug_resources.probe_data_readback_valid = false;
+        }
+        else if (!ddgi_debug_wanted && view.ddgi_debug_resources.probe_data_readback_buffer)
+        {
+            frame_context.RemoveResourceDeferred(view.ddgi_debug_resources.probe_data_readback_buffer);
+            view.ddgi_debug_resources.probe_data_readback_valid = false;
         }
 
         return true;
@@ -1513,7 +1547,7 @@ namespace won::rendering
         }
     }
 
-    void RendererInternal::UpdateDDGIProbe(FrameContext& frame_context, const View& view, RHICommandList& command_list)
+    void RendererInternal::UpdateDDGIProbe(FrameContext& frame_context, View& view, RHICommandList& command_list)
     {
         GPUScene& gpu_scene = view.scene->GetGPUScene();
         const ShaderDDGIVolume& ddgi_volume = gpu_scene.shader_ddgi_volume;
@@ -1595,9 +1629,9 @@ namespace won::rendering
         command_list.CopyResource(*gpu_scene.ddgi.irradiance_history_texture, *gpu_scene.ddgi.irradiance_texture);
         command_list.CopyResource(*gpu_scene.ddgi.visibility_history_texture, *gpu_scene.ddgi.visibility_texture);
         command_list.CopyResource(*gpu_scene.ddgi.probe_data_history_buffer, *gpu_scene.ddgi.probe_data_buffer);
-        if ((view.show_flags & Show_DDGI) != 0 && gpu_scene.ddgi.probe_data_readback_buffer)
+        if (view.ddgi_debug_resources.probe_data_readback_buffer)
         {
-            command_list.CopyBuffer(*gpu_scene.ddgi.probe_data_readback_buffer, 0, *gpu_scene.ddgi.probe_data_buffer, 0, gpu_scene.ddgi.probe_data_buffer->GetDesc().buffer_desc.size);
+            command_list.CopyBuffer(*view.ddgi_debug_resources.probe_data_readback_buffer, 0, *gpu_scene.ddgi.probe_data_buffer, 0, gpu_scene.ddgi.probe_data_buffer->GetDesc().buffer_desc.size);
         }
 
         command_list.TransitionResource(*gpu_scene.ddgi.irradiance_texture, RHIResourceState::ShaderRead);
@@ -1610,7 +1644,7 @@ namespace won::rendering
 
         gpu_scene.ddgi.probe_update_offset = (probe_update_start + probes_per_frame) % ddgi_volume.total_probe_count;
         gpu_scene.ddgi.history_valid = true;
-        gpu_scene.ddgi.probe_data_readback_valid = (view.show_flags & Show_DDGI) != 0 && gpu_scene.ddgi.probe_data_readback_buffer != nullptr;
+        view.ddgi_debug_resources.probe_data_readback_valid = view.ddgi_debug_resources.probe_data_readback_buffer != nullptr;
     }
 
 #ifndef WON_SHIPPING
@@ -1712,7 +1746,7 @@ namespace won::rendering
             };
             debugdraw::Box3D(ddgi_volume.volume_min, volume_max, debugdraw::color::ddgi_volume);
 
-            if (gpu_scene.ddgi.probe_data_readback_valid && gpu_scene.ddgi.probe_data_readback_buffer && gpu_scene.ddgi.probe_data_readback_buffer->GetMappedData())
+            if (view.ddgi_debug_resources.probe_data_readback_valid && view.ddgi_debug_resources.probe_data_readback_buffer && view.ddgi_debug_resources.probe_data_readback_buffer->GetMappedData())
             {
                 const float min_probe_spacing = (std::min)(ddgi_volume.probe_spacing.x, (std::min)(ddgi_volume.probe_spacing.y, ddgi_volume.probe_spacing.z));
                 const float probe_marker_size = (std::max)(0.05f, min_probe_spacing * 0.2f);
@@ -1721,8 +1755,8 @@ namespace won::rendering
                 const uint32 total_probe_count = ddgi_volume.total_probe_count;
                 const float sample_ratio = total_probe_count > max_debug_probe_count ? static_cast<float>(total_probe_count) / static_cast<float>(max_debug_probe_count) : 1.0f;
                 const uint32 sampling_step = sample_ratio > 1.0f ? static_cast<uint32>((std::max)(1.0f, std::ceil(std::cbrt(sample_ratio)))) : 1u;
-                const float4* probe_data = static_cast<const float4*>(gpu_scene.ddgi.probe_data_readback_buffer->GetMappedData());
-                const Size readback_probe_count = gpu_scene.ddgi.probe_data_readback_buffer->GetDesc().buffer_desc.size / sizeof(float4);
+                const float4* probe_data = static_cast<const float4*>(view.ddgi_debug_resources.probe_data_readback_buffer->GetMappedData());
+                const Size readback_probe_count = view.ddgi_debug_resources.probe_data_readback_buffer->GetDesc().buffer_desc.size / sizeof(float4);
 
                 for (uint32 z = 0; z < ddgi_volume.probe_counts.z; z += sampling_step)
                 {
@@ -1996,7 +2030,7 @@ namespace won::rendering
         if (scene.GetUpdateIndex() != gpu_scene.synced_index)
         {
             scene.BuildGPUBVH();
-            gpu_scene.Update(scene, *device, *command_list, current_frame_slot, (view.show_flags & Show_DDGI) != 0);
+            gpu_scene.Update(scene, *device, *command_list, current_frame_slot);
             gpu_scene.synced_index = scene.GetUpdateIndex();
         }
 
@@ -2062,9 +2096,157 @@ namespace won::rendering
             }
         }
 
-        auto frame_cpu_range = profiler::ScopedRangeCPU("Update Frame Constants");
-        auto frame_gpu_range = profiler::ScopedRangeGPU("Update Frame Constants", *command_list);
-        return UpdateFrameConstants(frame_context, view, *command_list);
+        {
+            auto frame_cpu_range = profiler::ScopedRangeCPU("Update Frame Constants");
+            auto frame_gpu_range = profiler::ScopedRangeGPU("Update Frame Constants", *command_list);
+            if (!UpdateFrameConstants(frame_context, view, *command_list))
+            {
+                return false;
+            }
+        }
+
+        UpdateSkyCapture(gpu_scene, *command_list);
+        return true;
+    }
+
+    void RendererInternal::UpdateSkyCapture(GPUScene& gpu_scene, RHICommandList& command_list)
+    {
+        GPUScene::SkyLightingResources& sky_lighting = gpu_scene.sky_lighting;
+        const ShaderEnvironment& environment = gpu_scene.shader_environment;
+        if (environment.sky_type == SHADER_SKY_TYPE_NONE
+            || (environment.diffuse_gi_mode != SHADER_DIFFUSE_GI_MODE_SKY
+                && environment.reflection_mode != SHADER_REFLECTION_MODE_SKY))
+        {
+            return;
+        }
+
+        ShaderEnvironment signature = environment;
+        signature.diffuse_gi_mode = 0;
+        signature.reflection_mode = 0;
+        signature.irradiance_cubemap = -1;
+        signature.specular_cubemap = -1;
+        signature.specular_mip_count = 0.0f;
+        signature.brdf_lut = -1;
+        signature.ambient_color_ambient_intensity = {};
+        signature.indirect_diffuse_specular_scale = {};
+
+        const float3 current_sun = signature.sun_direction;
+        signature.sun_direction = sky_lighting.signature.sun_direction;
+        bool needs_capture = !sky_lighting.valid
+            || std::memcmp(&signature, &sky_lighting.signature, sizeof(signature)) != 0;
+        signature.sun_direction = current_sun;
+
+        if (!needs_capture)
+        {
+            const XMVECTOR captured_direction = XMVector3Normalize(XMLoadFloat3(&sky_lighting.signature.sun_direction));
+            const XMVECTOR current_direction = XMVector3Normalize(XMLoadFloat3(&current_sun));
+            const float sun_cos = XMVectorGetX(XMVector3Dot(current_direction, captured_direction));
+            needs_capture = sun_cos < std::cos(math::DegreesToRadians(sky_capture_sun_angle_threshold_degrees));
+        }
+
+        if (!needs_capture
+            && sky_lighting.pending_irradiance_face >= static_cast<int32>(sky_cube_face_count)
+            && sky_lighting.pending_specular_mip >= static_cast<int32>(sky_specular_mip_count))
+        {
+            return;
+        }
+
+        RHIPipeline* capture_pipeline = shader_library.GetPipeline(ComputePipelineHash(ShaderId::CSSkyCapture));
+        RHIPipeline* irradiance_pipeline = shader_library.GetPipeline(ComputePipelineHash(ShaderId::CSIrradianceConvolve));
+        RHIPipeline* prefilter_pipeline = shader_library.GetPipeline(ComputePipelineHash(ShaderId::CSSpecularPrefilter));
+        if (!capture_pipeline || !irradiance_pipeline || !prefilter_pipeline || !sky_lighting.capture_texture)
+        {
+            return;
+        }
+
+        RHISubresourceBinding shader_frame_binding = {};
+        shader_frame_binding.resource = shader_frame_buffer.get();
+        shader_frame_binding.subresource = shader_frame_buffer_cbv;
+
+        auto gpu_range = profiler::ScopedRangeGPU("Sky Capture", command_list);
+        command_list.BeginEvent("Sky Capture");
+
+        if (needs_capture)
+        {
+            command_list.TransitionResource(*sky_lighting.capture_texture, RHIResourceState::ShaderWrite);
+            command_list.SetComputePipeline(*capture_pipeline);
+            command_list.SetConstantBuffer(RHIShaderStage::Compute, 0, shader_frame_binding);
+
+            SkyCapturePushConstants capture_push = {};
+            capture_push.Init();
+            capture_push.output_descriptor = static_cast<uint32>(sky_lighting.capture_uav.descriptor_index);
+            capture_push.face_resolution = sky_capture_resolution;
+            capture_push.source_cubemap = static_cast<uint32>(environment.sky_cubemap);
+            command_list.PushConstants(RHIShaderStage::Compute, &capture_push, sizeof(capture_push), 0);
+
+            const uint32 capture_group_count = (sky_capture_resolution + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D;
+            command_list.Dispatch(capture_group_count, capture_group_count, sky_cube_face_count);
+            command_list.UAVBarrier(*sky_lighting.capture_texture);
+            command_list.TransitionResource(*sky_lighting.capture_texture, RHIResourceState::ShaderRead);
+
+            sky_lighting.bake_step = sky_lighting.valid ? 1u : sky_cube_face_count;
+            sky_lighting.signature = signature;
+            sky_lighting.pending_irradiance_face = sky_lighting.irradiance_texture ? 0 : static_cast<int32>(sky_cube_face_count);
+            sky_lighting.pending_specular_mip = sky_lighting.specular_texture ? 0 : static_cast<int32>(sky_specular_mip_count);
+        }
+
+        if (sky_lighting.pending_irradiance_face < static_cast<int32>(sky_cube_face_count))
+        {
+            const uint32 face_offset = static_cast<uint32>(sky_lighting.pending_irradiance_face);
+            const uint32 face_count = std::min(sky_lighting.bake_step, sky_cube_face_count - face_offset);
+
+            command_list.TransitionResource(*sky_lighting.irradiance_texture, RHIResourceState::ShaderWrite);
+            command_list.SetComputePipeline(*irradiance_pipeline);
+            command_list.SetConstantBuffer(RHIShaderStage::Compute, 0, shader_frame_binding);
+
+            SkyCapturePushConstants irradiance_push = {};
+            irradiance_push.Init();
+            irradiance_push.output_descriptor = static_cast<uint32>(sky_lighting.irradiance_uav.descriptor_index);
+            irradiance_push.face_resolution = sky_irradiance_resolution;
+            irradiance_push.source_cubemap = static_cast<uint32>(sky_lighting.capture_srv.descriptor_index);
+            irradiance_push.face_offset = face_offset;
+            command_list.PushConstants(RHIShaderStage::Compute, &irradiance_push, sizeof(irradiance_push), 0);
+
+            const uint32 irradiance_group_count = (sky_irradiance_resolution + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D;
+            command_list.Dispatch(irradiance_group_count, irradiance_group_count, face_count);
+            command_list.UAVBarrier(*sky_lighting.irradiance_texture);
+            command_list.TransitionResource(*sky_lighting.irradiance_texture, RHIResourceState::ShaderRead);
+
+            sky_lighting.pending_irradiance_face = static_cast<int32>(face_offset + face_count);
+        }
+
+        if (sky_lighting.pending_specular_mip < static_cast<int32>(sky_specular_mip_count))
+        {
+            const uint32 first_mip = static_cast<uint32>(sky_lighting.pending_specular_mip);
+            const uint32 mip_count = std::min(sky_lighting.bake_step, sky_specular_mip_count - first_mip);
+            for (uint32 mip = first_mip; mip < first_mip + mip_count; ++mip)
+            {
+                const uint32 mip_resolution = sky_specular_resolution >> mip;
+
+                command_list.TransitionResource(*sky_lighting.specular_texture, RHIResourceState::ShaderWrite);
+                command_list.SetComputePipeline(*prefilter_pipeline);
+                command_list.SetConstantBuffer(RHIShaderStage::Compute, 0, shader_frame_binding);
+
+                SkyPrefilterPushConstants prefilter_push = {};
+                prefilter_push.Init();
+                prefilter_push.output_descriptor = static_cast<uint32>(sky_lighting.specular_mip_uav[mip].descriptor_index);
+                prefilter_push.face_resolution = mip_resolution;
+                prefilter_push.source_cubemap = static_cast<uint32>(sky_lighting.capture_srv.descriptor_index);
+                prefilter_push.perceptual_roughness = static_cast<float>(mip) / static_cast<float>(sky_specular_mip_count - 1);
+                prefilter_push.source_mip = static_cast<float>(mip) * 0.5f;
+                command_list.PushConstants(RHIShaderStage::Compute, &prefilter_push, sizeof(prefilter_push), 0);
+
+                const uint32 prefilter_group_count = (mip_resolution + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D;
+                command_list.Dispatch(prefilter_group_count, prefilter_group_count, sky_cube_face_count);
+                command_list.UAVBarrier(*sky_lighting.specular_texture);
+                command_list.TransitionResource(*sky_lighting.specular_texture, RHIResourceState::ShaderRead);
+            }
+
+            sky_lighting.pending_specular_mip = static_cast<int32>(first_mip + mip_count);
+        }
+
+        command_list.EndEvent();
+        sky_lighting.valid = true;
     }
 
     void RendererInternal::Render(View& view)

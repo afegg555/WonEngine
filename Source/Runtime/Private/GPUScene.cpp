@@ -1,4 +1,5 @@
 #include "GPUScene.h"
+#include "ShaderInterop_PostProcess.h"
 
 #include "Scene.h"
 #include "LightComponent.h"
@@ -1326,8 +1327,6 @@ namespace won::rendering
         RetireResource(ddgi.visibility_history_texture, frame_slot);
         RetireResource(ddgi.probe_data_buffer, frame_slot);
         RetireResource(ddgi.probe_data_history_buffer, frame_slot);
-        RetireResource(ddgi.probe_data_readback_buffer, frame_slot);
-        ddgi.probe_data_readback_valid = false;
         ddgi.irradiance_texture_srv = {};
         ddgi.irradiance_texture_uav = {};
         ddgi.irradiance_history_texture_srv = {};
@@ -1345,7 +1344,159 @@ namespace won::rendering
         ddgi.history_valid = false;
     }
 
-    bool GPUScene::CreateDDGIResources(RHIDevice& device, uint32 frame_slot, bool probe_debug_wanted)
+    bool GPUScene::CreateSkyLightingResources(RHIDevice& device)
+    {
+        const bool diffuse_from_sky = shader_environment.diffuse_gi_mode == SHADER_DIFFUSE_GI_MODE_SKY;
+        const bool specular_from_sky = shader_environment.reflection_mode == SHADER_REFLECTION_MODE_SKY;
+        if (!diffuse_from_sky && !specular_from_sky)
+        {
+            return false;
+        }
+
+        if (!sky_lighting.capture_texture)
+        {
+            RHITextureDesc desc = {};
+            desc.width = sky_capture_resolution;
+            desc.height = sky_capture_resolution;
+            desc.depth = 1;
+            desc.mip_levels = 1;
+            desc.array_layers = 6;
+            desc.is_cube = true;
+            desc.sample_count = 1;
+            desc.format = RHIFormat::R16G16B16A16Float;
+            desc.usage = RHIResourceUsage::Default;
+            desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
+            sky_lighting.capture_texture = device.CreateTexture(desc);
+            if (!sky_lighting.capture_texture)
+            {
+                return false;
+            }
+            sky_lighting.capture_texture->SetName("Sky Capture Cubemap");
+
+            RHISubresourceDesc srv_desc = {};
+            srv_desc.type = RHISubresourceType::ShaderResource;
+            srv_desc.format = desc.format;
+            srv_desc.first_mip = 0;
+            srv_desc.mip_count = 1;
+            srv_desc.first_slice = 0;
+            srv_desc.slice_count = 6;
+            device.CreateSubresource(*sky_lighting.capture_texture, srv_desc, &sky_lighting.capture_srv);
+
+            RHISubresourceDesc uav_desc = {};
+            uav_desc.type = RHISubresourceType::UnorderedAccess;
+            uav_desc.format = desc.format;
+            uav_desc.first_mip = 0;
+            uav_desc.mip_count = 1;
+            uav_desc.first_slice = 0;
+            uav_desc.slice_count = 6;
+            device.CreateSubresource(*sky_lighting.capture_texture, uav_desc, &sky_lighting.capture_uav);
+        }
+
+        if (diffuse_from_sky && !sky_lighting.irradiance_texture)
+        {
+            RHITextureDesc desc = {};
+            desc.width = sky_irradiance_resolution;
+            desc.height = sky_irradiance_resolution;
+            desc.depth = 1;
+            desc.mip_levels = 1;
+            desc.array_layers = 6;
+            desc.is_cube = true;
+            desc.sample_count = 1;
+            desc.format = RHIFormat::R16G16B16A16Float;
+            desc.usage = RHIResourceUsage::Default;
+            desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
+            sky_lighting.irradiance_texture = device.CreateTexture(desc);
+            if (!sky_lighting.irradiance_texture)
+            {
+                return false;
+            }
+            sky_lighting.irradiance_texture->SetName("Sky Irradiance Cubemap");
+
+            RHISubresourceDesc srv_desc = {};
+            srv_desc.type = RHISubresourceType::ShaderResource;
+            srv_desc.format = desc.format;
+            srv_desc.first_mip = 0;
+            srv_desc.mip_count = 1;
+            srv_desc.first_slice = 0;
+            srv_desc.slice_count = 6;
+            device.CreateSubresource(*sky_lighting.irradiance_texture, srv_desc, &sky_lighting.irradiance_srv);
+
+            RHISubresourceDesc uav_desc = {};
+            uav_desc.type = RHISubresourceType::UnorderedAccess;
+            uav_desc.format = desc.format;
+            uav_desc.first_mip = 0;
+            uav_desc.mip_count = 1;
+            uav_desc.first_slice = 0;
+            uav_desc.slice_count = 6;
+            device.CreateSubresource(*sky_lighting.irradiance_texture, uav_desc, &sky_lighting.irradiance_uav);
+        }
+
+        if (specular_from_sky && !sky_lighting.specular_texture)
+        {
+            RHITextureDesc desc = {};
+            desc.width = sky_specular_resolution;
+            desc.height = sky_specular_resolution;
+            desc.depth = 1;
+            desc.mip_levels = sky_specular_mip_count;
+            desc.array_layers = 6;
+            desc.is_cube = true;
+            desc.sample_count = 1;
+            desc.format = RHIFormat::R16G16B16A16Float;
+            desc.usage = RHIResourceUsage::Default;
+            desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
+            sky_lighting.specular_texture = device.CreateTexture(desc);
+            if (!sky_lighting.specular_texture)
+            {
+                return false;
+            }
+            sky_lighting.specular_texture->SetName("Sky Specular Cubemap");
+
+            RHISubresourceDesc srv_desc = {};
+            srv_desc.type = RHISubresourceType::ShaderResource;
+            srv_desc.format = desc.format;
+            srv_desc.first_mip = 0;
+            srv_desc.mip_count = sky_specular_mip_count;
+            srv_desc.first_slice = 0;
+            srv_desc.slice_count = 6;
+            device.CreateSubresource(*sky_lighting.specular_texture, srv_desc, &sky_lighting.specular_srv);
+
+            for (uint32 mip = 0; mip < sky_specular_mip_count; ++mip)
+            {
+                RHISubresourceDesc uav_desc = {};
+                uav_desc.type = RHISubresourceType::UnorderedAccess;
+                uav_desc.format = desc.format;
+                uav_desc.first_mip = mip;
+                uav_desc.mip_count = 1;
+                uav_desc.first_slice = 0;
+                uav_desc.slice_count = 6;
+                device.CreateSubresource(*sky_lighting.specular_texture, uav_desc, &sky_lighting.specular_mip_uav[mip]);
+            }
+        }
+
+        return true;
+    }
+
+    void GPUScene::ReleaseSkyLightingResources(uint32 frame_slot)
+    {
+        RetireResource(sky_lighting.capture_texture, frame_slot);
+        RetireResource(sky_lighting.irradiance_texture, frame_slot);
+        RetireResource(sky_lighting.specular_texture, frame_slot);
+        sky_lighting.capture_srv = {};
+        sky_lighting.capture_uav = {};
+        sky_lighting.irradiance_srv = {};
+        sky_lighting.irradiance_uav = {};
+        sky_lighting.specular_srv = {};
+        for (uint32 mip = 0; mip < sky_specular_mip_count; ++mip)
+        {
+            sky_lighting.specular_mip_uav[mip] = {};
+        }
+        sky_lighting.signature = {};
+        sky_lighting.pending_irradiance_face = -1;
+        sky_lighting.pending_specular_mip = -1;
+        sky_lighting.valid = false;
+    }
+
+    bool GPUScene::CreateDDGIResources(RHIDevice& device, uint32 frame_slot)
     {
         if ((shader_ddgi_volume.flags & SHADER_DDGI_FLAG_ACTIVE) == 0)
         {
@@ -1375,26 +1526,6 @@ namespace won::rendering
 
         if (!recreate_ddgi_texture)
         {
-            if (probe_debug_wanted && !ddgi.probe_data_readback_buffer && ddgi.probe_data_buffer)
-            {
-                RHIBufferDesc probe_data_readback_buffer_desc = {};
-                probe_data_readback_buffer_desc.size = ddgi.probe_data_buffer->GetDesc().buffer_desc.size;
-                probe_data_readback_buffer_desc.usage = RHIResourceUsage::Readback;
-                ddgi.probe_data_readback_buffer = device.CreateBuffer(probe_data_readback_buffer_desc);
-                if (!ddgi.probe_data_readback_buffer)
-                {
-                    backlog::Post("failed to create ddgi debug probe data readback buffer", backlog::LogLevel::Error);
-                    return false;
-                }
-                ddgi.probe_data_readback_buffer->SetName("DDGI Debug Probe Data Readback Buffer");
-                ddgi.probe_data_readback_valid = false;
-            }
-            else if (!probe_debug_wanted && ddgi.probe_data_readback_buffer)
-            {
-                RetireResource(ddgi.probe_data_readback_buffer, frame_slot);
-                ddgi.probe_data_readback_valid = false;
-            }
-
             const bool reset_ddgi_history =
                 ddgi.probe_spacing.x != shader_ddgi_volume.probe_spacing.x ||
                 ddgi.probe_spacing.y != shader_ddgi_volume.probe_spacing.y ||
@@ -1587,21 +1718,6 @@ namespace won::rendering
             return false;
         }
 
-        if (probe_debug_wanted)
-        {
-            RHIBufferDesc probe_data_readback_buffer_desc = {};
-            probe_data_readback_buffer_desc.size = ddgi_probe_data_buffer_desc.size;
-            probe_data_readback_buffer_desc.usage = RHIResourceUsage::Readback;
-            ddgi.probe_data_readback_buffer = device.CreateBuffer(probe_data_readback_buffer_desc);
-            if (!ddgi.probe_data_readback_buffer)
-            {
-                backlog::Post("failed to create ddgi debug probe data readback buffer", backlog::LogLevel::Error);
-                return false;
-            }
-            ddgi.probe_data_readback_buffer->SetName("DDGI Debug Probe Data Readback Buffer");
-        }
-        ddgi.probe_data_readback_valid = false;
-
         ddgi.probe_counts = shader_ddgi_volume.probe_counts;
         ddgi.probe_spacing = shader_ddgi_volume.probe_spacing;
         ddgi.volume_min = shader_ddgi_volume.volume_min;
@@ -1610,7 +1726,7 @@ namespace won::rendering
         return true;
     }
 
-    void GPUScene::Update(const ecs::Scene& scene, RHIDevice& device, RHICommandList& command_list, uint32 frame_slot, bool ddgi_probe_debug_wanted)
+    void GPUScene::Update(const ecs::Scene& scene, RHIDevice& device, RHICommandList& command_list, uint32 frame_slot)
     {
         auto cpu_range = profiler::ScopedRangeCPU("GPUScene::Update");
         auto gpu_range = profiler::ScopedRangeGPU("GPUScene::Update", command_list);
@@ -1688,6 +1804,17 @@ namespace won::rendering
         UploadBuffer(bvh_node_buffer, retired[frame_slot], shader_bvh_nodes.data(), shader_bvh_nodes.size() * sizeof(ShaderBVHNode), sizeof(ShaderBVHNode), device, command_list, frame_slot);
         UploadBuffer(bvh_instance_buffer, retired[frame_slot], shader_bvh_instances.data(), shader_bvh_instances.size() * sizeof(ShaderBVHInstance), sizeof(ShaderBVHInstance), device, command_list, frame_slot);
 
-        CreateDDGIResources(device, frame_slot, ddgi_probe_debug_wanted);
+        const bool uses_sky_lighting = shader_environment.sky_type != SHADER_SKY_TYPE_NONE
+            && (shader_environment.diffuse_gi_mode == SHADER_DIFFUSE_GI_MODE_SKY
+                || shader_environment.reflection_mode == SHADER_REFLECTION_MODE_SKY);
+        if (uses_sky_lighting)
+        {
+            CreateSkyLightingResources(device);
+        }
+        else if (sky_lighting.capture_texture)
+        {
+            ReleaseSkyLightingResources(frame_slot);
+        }
+        CreateDDGIResources(device, frame_slot);
     }
 }

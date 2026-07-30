@@ -154,6 +154,7 @@ namespace won::reflection
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::LightComponent, "LightComponent")
+        WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(type, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(color, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(intensity, won::FieldFlagEditable | won::FieldFlagSerializable)

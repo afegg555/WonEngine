@@ -109,6 +109,12 @@ PUSHCONSTANT(luminancereducepush, LuminanceReducePushConstants);
 #endif
 
 static const uint brdf_lut_resolution = 256;
+static const uint sky_capture_resolution = 128;
+static const uint sky_irradiance_resolution = 32;
+static const uint sky_cube_face_count = 6;
+static const uint sky_specular_resolution = 128;
+static const uint sky_specular_mip_count = 8;
+static const float sky_capture_sun_angle_threshold_degrees = 1.0f;
 
 struct BRDFIntegrationPushConstants
 {
@@ -128,6 +134,62 @@ static_assert(sizeof(BRDFIntegrationPushConstants) == 4, "BRDFIntegrationPushCon
 
 #ifdef WON_BRDF_INTEGRATION_PUSHCONSTANT
 PUSHCONSTANT(brdfintegrationpush, BRDFIntegrationPushConstants);
+#endif
+
+struct SkyCapturePushConstants
+{
+    uint output_descriptor;
+    uint face_resolution;
+    uint source_cubemap;
+    uint face_offset;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        output_descriptor = 0;
+        face_resolution = 0;
+        source_cubemap = 0;
+        face_offset = 0;
+    }
+#endif
+};
+
+#ifdef __cplusplus
+static_assert(sizeof(SkyCapturePushConstants) == 16, "SkyCapturePushConstants layout mismatch");
+#endif
+
+#ifdef WON_SKY_CAPTURE_PUSHCONSTANT
+PUSHCONSTANT(skycapturepush, SkyCapturePushConstants);
+#endif
+
+struct SkyPrefilterPushConstants
+{
+    uint output_descriptor;
+    uint face_resolution;
+    uint source_cubemap;
+    uint face_offset;
+    float perceptual_roughness;
+    float source_mip;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        output_descriptor = 0;
+        face_resolution = 0;
+        source_cubemap = 0;
+        face_offset = 0;
+        perceptual_roughness = 0.0f;
+        source_mip = 0.0f;
+    }
+#endif
+};
+
+#ifdef __cplusplus
+static_assert(sizeof(SkyPrefilterPushConstants) == 24, "SkyPrefilterPushConstants layout mismatch");
+#endif
+
+#ifdef WON_SKY_PREFILTER_PUSHCONSTANT
+PUSHCONSTANT(skyprefilterpush, SkyPrefilterPushConstants);
 #endif
 
 #endif // WON_SHADERINTEROP_POSTPROCESS_H

@@ -232,6 +232,7 @@ namespace won::editor
 			constexpr const char* sky_type = "Sky Type";
 			constexpr const char* procedural = "Procedural";
 			constexpr const char* physically_based = "Physically Based";
+			constexpr const char* sky = "Sky";
 			constexpr const char* turbidity = "Turbidity";
 			constexpr const char* mie_eccentricity = "Mie Eccentricity";
 			constexpr const char* rayleigh_coefficient = "Rayleigh Coefficient";
@@ -4114,8 +4115,8 @@ namespace won::editor
 						}
 
 						int gi_mode = static_cast<int>(environment_comp->diffuse_gi_mode);
-						const char* gi_mode_items[] = { editor_text::none, editor_text::ambient, editor_text::ddgi, editor_text::cubemap };
-						static_assert(static_cast<int>(EnvironmentComponent::DiffuseGIMode::Cubemap) == 3, "gi_mode_items must list every DiffuseGIMode value");
+						const char* gi_mode_items[] = { editor_text::none, editor_text::ambient, editor_text::ddgi, editor_text::cubemap, editor_text::sky };
+						static_assert(static_cast<int>(EnvironmentComponent::DiffuseGIMode::Sky) == 4, "gi_mode_items must list every DiffuseGIMode value");
 						if (ImGui::Combo(editor_text::gi_mode, &gi_mode, gi_mode_items, IM_ARRAYSIZE(gi_mode_items)))
 						{
 							environment_comp->diffuse_gi_mode = static_cast<EnvironmentComponent::DiffuseGIMode>(gi_mode);
@@ -4143,8 +4144,8 @@ namespace won::editor
 						}
 
 						int reflection_mode = static_cast<int>(environment_comp->reflection_mode);
-						const char* reflection_mode_items[] = { editor_text::none, editor_text::cubemap };
-						static_assert(static_cast<int>(EnvironmentComponent::ReflectionMode::Cubemap) == 1, "reflection_mode_items must list every ReflectionMode value");
+						const char* reflection_mode_items[] = { editor_text::none, editor_text::cubemap, editor_text::sky };
+						static_assert(static_cast<int>(EnvironmentComponent::ReflectionMode::Sky) == 2, "reflection_mode_items must list every ReflectionMode value");
 						if (ImGui::Combo(editor_text::reflection_mode, &reflection_mode, reflection_mode_items, IM_ARRAYSIZE(reflection_mode_items)))
 						{
 							environment_comp->reflection_mode = static_cast<EnvironmentComponent::ReflectionMode>(reflection_mode);

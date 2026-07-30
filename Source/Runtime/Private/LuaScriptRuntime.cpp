@@ -2142,6 +2142,81 @@ namespace won::script
         return 1;
     }
 
+    int LuaScriptRuntime::LuaEnvironmentSetSkyType(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const int arg_count = lua_gettop(state);
+        const bool has_entity_arg = arg_count >= 2 && lua_isinteger(state, 1);
+        const ecs::Entity entity = has_entity_arg ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        const int value_index = has_entity_arg ? 2 : 1;
+        ecs::EnvironmentComponent* environment = runtime->current_context.scene->GetComponent<ecs::EnvironmentComponent>(entity);
+        if (!environment)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        environment->sky_type = static_cast<ecs::EnvironmentComponent::SkyType>(luaL_checkinteger(state, value_index));
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaEnvironmentSetDiffuseGIMode(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const int arg_count = lua_gettop(state);
+        const bool has_entity_arg = arg_count >= 2 && lua_isinteger(state, 1);
+        const ecs::Entity entity = has_entity_arg ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        const int value_index = has_entity_arg ? 2 : 1;
+        ecs::EnvironmentComponent* environment = runtime->current_context.scene->GetComponent<ecs::EnvironmentComponent>(entity);
+        if (!environment)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        environment->diffuse_gi_mode = static_cast<ecs::EnvironmentComponent::DiffuseGIMode>(luaL_checkinteger(state, value_index));
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaEnvironmentSetReflectionMode(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const int arg_count = lua_gettop(state);
+        const bool has_entity_arg = arg_count >= 2 && lua_isinteger(state, 1);
+        const ecs::Entity entity = has_entity_arg ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        const int value_index = has_entity_arg ? 2 : 1;
+        ecs::EnvironmentComponent* environment = runtime->current_context.scene->GetComponent<ecs::EnvironmentComponent>(entity);
+        if (!environment)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        environment->reflection_mode = static_cast<ecs::EnvironmentComponent::ReflectionMode>(luaL_checkinteger(state, value_index));
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
     int LuaScriptRuntime::LuaEnvironmentSetScatteringCoefficients(lua_State* state)
     {
         LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
@@ -3851,6 +3926,15 @@ namespace won::script
         lua_pushlightuserdata(lua_state, this);
         lua_pushcclosure(lua_state, LuaEnvironmentSetSunDirection, 1);
         lua_setfield(lua_state, -2, "set_sun_direction");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaEnvironmentSetSkyType, 1);
+        lua_setfield(lua_state, -2, "set_sky_type");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaEnvironmentSetDiffuseGIMode, 1);
+        lua_setfield(lua_state, -2, "set_diffuse_gi_mode");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaEnvironmentSetReflectionMode, 1);
+        lua_setfield(lua_state, -2, "set_reflection_mode");
         lua_pushlightuserdata(lua_state, this);
         lua_pushcclosure(lua_state, LuaEnvironmentSetAtmosphere, 1);
         lua_setfield(lua_state, -2, "set_atmosphere");
