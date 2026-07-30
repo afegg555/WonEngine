@@ -47,7 +47,8 @@ namespace won::rendering
         bool BuildViewResources(FrameContext& frame_context, View& view, RHICommandList& command_list);
         bool UpdateFrameConstants(FrameContext& frame_context, const View& view, RHICommandList& command_list);
         bool DrawScene(const FrameContext& frame_context, const View& view, resource::RenderPassType pass, uint32 flags, RHICommandList& command_list);
-        void UpdateDDGIProbe(FrameContext& frame_context, const View& view, RHICommandList& command_list);
+        void UpdateDDGIProbe(FrameContext& frame_context, View& view, RHICommandList& command_list);
+        void UpdateSkyCapture(GPUScene& gpu_scene, RHICommandList& command_list);
 
         // debug draw
 #ifndef WON_SHIPPING

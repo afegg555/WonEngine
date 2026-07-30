@@ -1,4 +1,5 @@
 #include "GPUScene.h"
+#include "ShaderInterop_PostProcess.h"
 
 #include "Scene.h"
 #include "LightComponent.h"
@@ -1170,12 +1171,15 @@ namespace won::rendering
             }
         }
 
-        void ExtractEnvironment(const ecs::Scene& scene, ShaderEnvironment& shader_environment, ShaderDDGIVolume& shader_ddgi_volume, ShaderReflectionProbe& shader_reflection_probe, Entity& ddgi_volume_entity)
+        void ExtractEnvironment(const ecs::Scene& scene, ShaderEnvironment& shader_environment, ShaderDDGIVolume& shader_ddgi_volume, ShaderReflectionProbe& shader_reflection_probe, Entity& ddgi_volume_entity, ShaderLight& derived_sun, bool& has_derived_sun, bool& direct_sun_cast_shadow, uint32& direct_sun_shadow_resolution, uint32& direct_sun_cascade_count, float& direct_sun_cascade_lambda, float& direct_sun_cascade_blend)
         {
             shader_environment.Init();
             shader_ddgi_volume.Init();
             shader_reflection_probe.Init();
             ddgi_volume_entity = INVALID_ENTITY;
+            derived_sun.Init();
+            has_derived_sun = false;
+            direct_sun_cast_shadow = false;
 
             const auto environment_array = scene.GetComponentArray<EnvironmentComponent>().get();
             const auto transform_array = scene.GetComponentArray<TransformComponent>().get();
@@ -1198,6 +1202,32 @@ namespace won::rendering
                         shader_environment.SetSkyZenithColorFalloff(environment.sky_zenith_color, environment.sky_horizon_falloff);
                         shader_environment.SetGroundHorizonColorIntensity(environment.ground_horizon_color, environment.ground_intensity);
                         shader_environment.SetGroundColorFalloff(environment.ground_color, environment.ground_falloff);
+                        shader_environment.SetAtmosphere(environment.turbidity, environment.mie_eccentricity, environment.rayleigh_coefficient, environment.mie_coefficient);
+                    }
+
+                    if (environment.sky_type == EnvironmentComponent::SkyType::PhysicallyBased
+                        && environment.direct_sun_active
+                        && environment.sun_direction.y > 0.0f
+                        && environment.sun_intensity > 0.0f)
+                    {
+                        derived_sun.SetType(SHADER_LIGHT_TYPE_DIRECTIONAL);
+                        derived_sun.SetDirection({ -environment.sun_direction.x, -environment.sun_direction.y, -environment.sun_direction.z });
+                        derived_sun.SetColor({
+                            environment.sun_color.x * environment.sun_intensity,
+                            environment.sun_color.y * environment.sun_intensity,
+                            environment.sun_color.z * environment.sun_intensity,
+                            environment.sun_intensity
+                        });
+                        if (environment.direct_sun_cast_shadow)
+                        {
+                            derived_sun.SetFlags(SHADER_LIGHT_FLAGS::LIGHT_FLAG_LIGHT_CASTING_SHADOW);
+                        }
+                        has_derived_sun = true;
+                        direct_sun_cast_shadow = environment.direct_sun_cast_shadow;
+                        direct_sun_shadow_resolution = environment.direct_sun_shadow_resolution;
+                        direct_sun_cascade_count = environment.direct_sun_cascade_count;
+                        direct_sun_cascade_lambda = environment.direct_sun_cascade_lambda;
+                        direct_sun_cascade_blend = environment.direct_sun_cascade_blend;
                     }
 
                     shader_environment.diffuse_gi_mode = static_cast<uint32>(environment.diffuse_gi_mode);
@@ -1325,8 +1355,6 @@ namespace won::rendering
         RetireResource(ddgi.visibility_history_texture, frame_slot);
         RetireResource(ddgi.probe_data_buffer, frame_slot);
         RetireResource(ddgi.probe_data_history_buffer, frame_slot);
-        RetireResource(ddgi.probe_data_readback_buffer, frame_slot);
-        ddgi.probe_data_readback_valid = false;
         ddgi.irradiance_texture_srv = {};
         ddgi.irradiance_texture_uav = {};
         ddgi.irradiance_history_texture_srv = {};
@@ -1344,7 +1372,159 @@ namespace won::rendering
         ddgi.history_valid = false;
     }
 
-    bool GPUScene::CreateDDGIResources(RHIDevice& device, uint32 frame_slot, bool probe_debug_wanted)
+    bool GPUScene::CreateSkyLightingResources(RHIDevice& device)
+    {
+        const bool diffuse_from_sky = shader_environment.diffuse_gi_mode == SHADER_DIFFUSE_GI_MODE_SKY;
+        const bool specular_from_sky = shader_environment.reflection_mode == SHADER_REFLECTION_MODE_SKY;
+        if (!diffuse_from_sky && !specular_from_sky)
+        {
+            return false;
+        }
+
+        if (!sky_lighting.capture_texture)
+        {
+            RHITextureDesc desc = {};
+            desc.width = sky_capture_resolution;
+            desc.height = sky_capture_resolution;
+            desc.depth = 1;
+            desc.mip_levels = 1;
+            desc.array_layers = 6;
+            desc.is_cube = true;
+            desc.sample_count = 1;
+            desc.format = RHIFormat::R16G16B16A16Float;
+            desc.usage = RHIResourceUsage::Default;
+            desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
+            sky_lighting.capture_texture = device.CreateTexture(desc);
+            if (!sky_lighting.capture_texture)
+            {
+                return false;
+            }
+            sky_lighting.capture_texture->SetName("Sky Capture Cubemap");
+
+            RHISubresourceDesc srv_desc = {};
+            srv_desc.type = RHISubresourceType::ShaderResource;
+            srv_desc.format = desc.format;
+            srv_desc.first_mip = 0;
+            srv_desc.mip_count = 1;
+            srv_desc.first_slice = 0;
+            srv_desc.slice_count = 6;
+            device.CreateSubresource(*sky_lighting.capture_texture, srv_desc, &sky_lighting.capture_srv);
+
+            RHISubresourceDesc uav_desc = {};
+            uav_desc.type = RHISubresourceType::UnorderedAccess;
+            uav_desc.format = desc.format;
+            uav_desc.first_mip = 0;
+            uav_desc.mip_count = 1;
+            uav_desc.first_slice = 0;
+            uav_desc.slice_count = 6;
+            device.CreateSubresource(*sky_lighting.capture_texture, uav_desc, &sky_lighting.capture_uav);
+        }
+
+        if (diffuse_from_sky && !sky_lighting.irradiance_texture)
+        {
+            RHITextureDesc desc = {};
+            desc.width = sky_irradiance_resolution;
+            desc.height = sky_irradiance_resolution;
+            desc.depth = 1;
+            desc.mip_levels = 1;
+            desc.array_layers = 6;
+            desc.is_cube = true;
+            desc.sample_count = 1;
+            desc.format = RHIFormat::R16G16B16A16Float;
+            desc.usage = RHIResourceUsage::Default;
+            desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
+            sky_lighting.irradiance_texture = device.CreateTexture(desc);
+            if (!sky_lighting.irradiance_texture)
+            {
+                return false;
+            }
+            sky_lighting.irradiance_texture->SetName("Sky Irradiance Cubemap");
+
+            RHISubresourceDesc srv_desc = {};
+            srv_desc.type = RHISubresourceType::ShaderResource;
+            srv_desc.format = desc.format;
+            srv_desc.first_mip = 0;
+            srv_desc.mip_count = 1;
+            srv_desc.first_slice = 0;
+            srv_desc.slice_count = 6;
+            device.CreateSubresource(*sky_lighting.irradiance_texture, srv_desc, &sky_lighting.irradiance_srv);
+
+            RHISubresourceDesc uav_desc = {};
+            uav_desc.type = RHISubresourceType::UnorderedAccess;
+            uav_desc.format = desc.format;
+            uav_desc.first_mip = 0;
+            uav_desc.mip_count = 1;
+            uav_desc.first_slice = 0;
+            uav_desc.slice_count = 6;
+            device.CreateSubresource(*sky_lighting.irradiance_texture, uav_desc, &sky_lighting.irradiance_uav);
+        }
+
+        if (specular_from_sky && !sky_lighting.specular_texture)
+        {
+            RHITextureDesc desc = {};
+            desc.width = sky_specular_resolution;
+            desc.height = sky_specular_resolution;
+            desc.depth = 1;
+            desc.mip_levels = sky_specular_mip_count;
+            desc.array_layers = 6;
+            desc.is_cube = true;
+            desc.sample_count = 1;
+            desc.format = RHIFormat::R16G16B16A16Float;
+            desc.usage = RHIResourceUsage::Default;
+            desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
+            sky_lighting.specular_texture = device.CreateTexture(desc);
+            if (!sky_lighting.specular_texture)
+            {
+                return false;
+            }
+            sky_lighting.specular_texture->SetName("Sky Specular Cubemap");
+
+            RHISubresourceDesc srv_desc = {};
+            srv_desc.type = RHISubresourceType::ShaderResource;
+            srv_desc.format = desc.format;
+            srv_desc.first_mip = 0;
+            srv_desc.mip_count = sky_specular_mip_count;
+            srv_desc.first_slice = 0;
+            srv_desc.slice_count = 6;
+            device.CreateSubresource(*sky_lighting.specular_texture, srv_desc, &sky_lighting.specular_srv);
+
+            for (uint32 mip = 0; mip < sky_specular_mip_count; ++mip)
+            {
+                RHISubresourceDesc uav_desc = {};
+                uav_desc.type = RHISubresourceType::UnorderedAccess;
+                uav_desc.format = desc.format;
+                uav_desc.first_mip = mip;
+                uav_desc.mip_count = 1;
+                uav_desc.first_slice = 0;
+                uav_desc.slice_count = 6;
+                device.CreateSubresource(*sky_lighting.specular_texture, uav_desc, &sky_lighting.specular_mip_uav[mip]);
+            }
+        }
+
+        return true;
+    }
+
+    void GPUScene::ReleaseSkyLightingResources(uint32 frame_slot)
+    {
+        RetireResource(sky_lighting.capture_texture, frame_slot);
+        RetireResource(sky_lighting.irradiance_texture, frame_slot);
+        RetireResource(sky_lighting.specular_texture, frame_slot);
+        sky_lighting.capture_srv = {};
+        sky_lighting.capture_uav = {};
+        sky_lighting.irradiance_srv = {};
+        sky_lighting.irradiance_uav = {};
+        sky_lighting.specular_srv = {};
+        for (uint32 mip = 0; mip < sky_specular_mip_count; ++mip)
+        {
+            sky_lighting.specular_mip_uav[mip] = {};
+        }
+        sky_lighting.signature = {};
+        sky_lighting.pending_irradiance_face = -1;
+        sky_lighting.pending_specular_mip = -1;
+        sky_lighting.valid = false;
+    }
+
+    bool GPUScene::CreateDDGIResources(RHIDevice& device, uint32 frame_slot)
     {
         if ((shader_ddgi_volume.flags & SHADER_DDGI_FLAG_ACTIVE) == 0)
         {
@@ -1374,26 +1554,6 @@ namespace won::rendering
 
         if (!recreate_ddgi_texture)
         {
-            if (probe_debug_wanted && !ddgi.probe_data_readback_buffer && ddgi.probe_data_buffer)
-            {
-                RHIBufferDesc probe_data_readback_buffer_desc = {};
-                probe_data_readback_buffer_desc.size = ddgi.probe_data_buffer->GetDesc().buffer_desc.size;
-                probe_data_readback_buffer_desc.usage = RHIResourceUsage::Readback;
-                ddgi.probe_data_readback_buffer = device.CreateBuffer(probe_data_readback_buffer_desc);
-                if (!ddgi.probe_data_readback_buffer)
-                {
-                    backlog::Post("failed to create ddgi debug probe data readback buffer", backlog::LogLevel::Error);
-                    return false;
-                }
-                ddgi.probe_data_readback_buffer->SetName("DDGI Debug Probe Data Readback Buffer");
-                ddgi.probe_data_readback_valid = false;
-            }
-            else if (!probe_debug_wanted && ddgi.probe_data_readback_buffer)
-            {
-                RetireResource(ddgi.probe_data_readback_buffer, frame_slot);
-                ddgi.probe_data_readback_valid = false;
-            }
-
             const bool reset_ddgi_history =
                 ddgi.probe_spacing.x != shader_ddgi_volume.probe_spacing.x ||
                 ddgi.probe_spacing.y != shader_ddgi_volume.probe_spacing.y ||
@@ -1586,21 +1746,6 @@ namespace won::rendering
             return false;
         }
 
-        if (probe_debug_wanted)
-        {
-            RHIBufferDesc probe_data_readback_buffer_desc = {};
-            probe_data_readback_buffer_desc.size = ddgi_probe_data_buffer_desc.size;
-            probe_data_readback_buffer_desc.usage = RHIResourceUsage::Readback;
-            ddgi.probe_data_readback_buffer = device.CreateBuffer(probe_data_readback_buffer_desc);
-            if (!ddgi.probe_data_readback_buffer)
-            {
-                backlog::Post("failed to create ddgi debug probe data readback buffer", backlog::LogLevel::Error);
-                return false;
-            }
-            ddgi.probe_data_readback_buffer->SetName("DDGI Debug Probe Data Readback Buffer");
-        }
-        ddgi.probe_data_readback_valid = false;
-
         ddgi.probe_counts = shader_ddgi_volume.probe_counts;
         ddgi.probe_spacing = shader_ddgi_volume.probe_spacing;
         ddgi.volume_min = shader_ddgi_volume.volume_min;
@@ -1609,12 +1754,20 @@ namespace won::rendering
         return true;
     }
 
-    void GPUScene::Update(const ecs::Scene& scene, RHIDevice& device, RHICommandList& command_list, uint32 frame_slot, bool ddgi_probe_debug_wanted)
+    void GPUScene::Update(const ecs::Scene& scene, RHIDevice& device, RHICommandList& command_list, uint32 frame_slot)
     {
         auto cpu_range = profiler::ScopedRangeCPU("GPUScene::Update");
         auto gpu_range = profiler::ScopedRangeGPU("GPUScene::Update", command_list);
 
         retired[frame_slot].clear();
+
+        if (has_derived_sun)
+        {
+            shader_lights.pop_back();
+            light_bounds.pop_back();
+            has_derived_sun = false;
+        }
+        derived_sun_index = std::numeric_limits<uint32>::max();
 
         const ComponentMask dirty = scene.GetGpuDirtySnapshot();
         const bool light_dirty = (dirty & ecs::light_component_mask) != 0;
@@ -1652,8 +1805,16 @@ namespace won::rendering
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractText(scene, text_sprite_2d, text_sprite_3d, glyph_requests); });
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractParticles(scene, particle_instances, particle_sprite_3d); });
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractDecals(scene, shader_decals); });
-        jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractEnvironment(scene, shader_environment, shader_ddgi_volume, shader_reflection_probe, ddgi_volume_entity); });
+        jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractEnvironment(scene, shader_environment, shader_ddgi_volume, shader_reflection_probe, ddgi_volume_entity, derived_sun, has_derived_sun, direct_sun_cast_shadow, direct_sun_shadow_resolution, direct_sun_cascade_count, direct_sun_cascade_lambda, direct_sun_cascade_blend); });
         jobsystem::Wait(project_ctx);
+
+        if (has_derived_sun)
+        {
+            derived_sun_index = static_cast<uint32>(shader_lights.size());
+            shader_lights.push_back(derived_sun);
+            light_bounds.push_back({});
+        }
+        shader_environment.derived_sun_index = derived_sun_index;
 
         sprite_2d_renderables.insert(sprite_2d_renderables.end(), std::make_move_iterator(text_sprite_2d.begin()), std::make_move_iterator(text_sprite_2d.end()));
         sprite_3d_renderables.insert(sprite_3d_renderables.end(), std::make_move_iterator(text_sprite_3d.begin()), std::make_move_iterator(text_sprite_3d.end()));
@@ -1687,6 +1848,17 @@ namespace won::rendering
         UploadBuffer(bvh_node_buffer, retired[frame_slot], shader_bvh_nodes.data(), shader_bvh_nodes.size() * sizeof(ShaderBVHNode), sizeof(ShaderBVHNode), device, command_list, frame_slot);
         UploadBuffer(bvh_instance_buffer, retired[frame_slot], shader_bvh_instances.data(), shader_bvh_instances.size() * sizeof(ShaderBVHInstance), sizeof(ShaderBVHInstance), device, command_list, frame_slot);
 
-        CreateDDGIResources(device, frame_slot, ddgi_probe_debug_wanted);
+        const bool uses_sky_lighting = shader_environment.sky_type != SHADER_SKY_TYPE_NONE
+            && (shader_environment.diffuse_gi_mode == SHADER_DIFFUSE_GI_MODE_SKY
+                || shader_environment.reflection_mode == SHADER_REFLECTION_MODE_SKY);
+        if (uses_sky_lighting)
+        {
+            CreateSkyLightingResources(device);
+        }
+        else if (sky_lighting.capture_texture)
+        {
+            ReleaseSkyLightingResources(frame_slot);
+        }
+        CreateDDGIResources(device, frame_slot);
     }
 }

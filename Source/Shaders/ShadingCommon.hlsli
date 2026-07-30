@@ -3,6 +3,7 @@
 
 #include "Common.hlsli"
 #include "BRDFCommon.hlsli"
+#include "SkyCommon.hlsli"
 #include "ShaderInterop_LightCull.h"
 
 //#define PCSS_SHADOW
@@ -233,7 +234,7 @@ inline float SampleDirectionalShadowCascade(in ShaderShadowCascade cascade, in f
     return visibility / 25.0f;
 }
 
-inline void LightDirectional(in ShaderLight light, uint light_index, in Surface surface, inout Lighting lighting)
+inline void LightDirectional(in ShaderLight light, uint light_index, float3 radiance_scale, in Surface surface, inout Lighting lighting)
 {
     half3 L = normalize(-light.GetDirection());
     LightingContext lighting_context;
@@ -242,7 +243,7 @@ inline void LightDirectional(in ShaderLight light, uint light_index, in Surface 
     if (lighting_context.NoL <= FLT_EPSILON)
         return; // facing away from light
     
-    half3 light_color = (half3) (light.GetColor().xyz * GetCamera().exposure); // pre exposure to avoid precision issues with small values
+    half3 light_color = (half3) (light.GetColor().xyz * radiance_scale * GetCamera().exposure); // pre exposure to avoid precision issues with small values
     
 	[branch]
     if (light.IsCastingShadow() && GetMaterial().IsReceiveShadow())
@@ -393,7 +394,13 @@ inline void ForwardLighting(inout Surface surface, inout Lighting lighting, floa
 {
     for (uint d = 0; d < GetScene().directional_count; ++d)
     {
-        LightDirectional(GetLight(d), d, surface, lighting);
+        LightDirectional(GetLight(d), d, float3(1.0f, 1.0f, 1.0f), surface, lighting);
+    }
+
+    if (GetEnvironment().GetDerivedSunIndex() != ~0u)
+    {
+        const uint derived_sun_index = GetEnvironment().GetDerivedSunIndex();
+        LightDirectional(GetLight(derived_sun_index), derived_sun_index, EvaluatePhysicalSkyExtinction(GetEnvironment(), GetEnvironment().GetSunDirection()), surface, lighting);
     }
 
 #ifdef CLUSTERED

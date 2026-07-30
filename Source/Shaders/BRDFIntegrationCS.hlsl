@@ -7,7 +7,7 @@
 // Bakes the second term of the split-sum IBL approximation (Karis, UE4) into a 2D LUT:
 //   integral(env * BRDF) ~= prefiltered_env(roughness) * EnvBRDF(f0, roughness, NoV)
 
-#define SAMPLE_COUNT 1024u
+static const uint brdf_sample_count = 1024u;
 
 float2 IntegrateBRDF(float nov, float perceptual_roughness)
 {
@@ -25,11 +25,11 @@ float2 IntegrateBRDF(float nov, float perceptual_roughness)
     // so the integral becomes f0 * A + B. A (scale) and B (bias) depend only on (NoV, roughness)
     float a = 0.0; // A part
     float b = 0.0; // B part
-    for (uint i = 0u; i < SAMPLE_COUNT; ++i)
+    for (uint i = 0u; i < brdf_sample_count; ++i)
     {
         // we use importance sampling because the integrand is very spiky for low roughness values, and uniform sampling would
         // require a lot more samples to converge to a good result.
-        float2 xi = Hammersley(i, SAMPLE_COUNT);
+        float2 xi = Hammersley(i, brdf_sample_count);
         float3 h = ImportanceSampleGGX(xi, perceptual_roughness, n); // importance sample the half vector h
         float3 l = 2.0 * dot(v, h) * h - v; // reflect v about h to get the light vector l
 
@@ -48,7 +48,7 @@ float2 IntegrateBRDF(float nov, float perceptual_roughness)
             b += fc * g_vis;         // bias: added at runtime, independent of f0
         }
     }
-    return float2(a, b) / float(SAMPLE_COUNT);
+    return float2(a, b) / float(brdf_sample_count);
 }
 
 [numthreads(DISPATCH_THREAD_GROUP_2D, DISPATCH_THREAD_GROUP_2D, 1)]

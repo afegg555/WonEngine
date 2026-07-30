@@ -151,6 +151,20 @@ inline float2 Hammersley(uint index, uint count)
     return float2((float(index) + 0.5f) / max(float(count), 1.0f), RadicalInverseVdC(index));
 }
 
+inline float3 CubeFaceDirection(uint face, float2 uv)
+{
+    float2 st = uv * 2.0f - 1.0f;
+    switch (face)
+    {
+    case 0: return normalize(float3(1.0f, -st.y, -st.x));
+    case 1: return normalize(float3(-1.0f, -st.y, st.x));
+    case 2: return normalize(float3(st.x, 1.0f, st.y));
+    case 3: return normalize(float3(st.x, -1.0f, -st.y));
+    case 4: return normalize(float3(st.x, -st.y, 1.0f));
+    default: return normalize(float3(-st.x, -st.y, -1.0f));
+    }
+}
+
 inline float3 SampleSphere(float2 xi)
 {
     float z = 1.0f - 2.0f * xi.x;

@@ -1,6 +1,7 @@
 #include "Common.hlsli"
 #include "DDGICommon.hlsli"
 #include "RayTraceCommon.hlsli"
+#include "SkyCommon.hlsli"
 
 static const bool ddgi_debug_probe_index = true;
 
@@ -117,6 +118,17 @@ static float3 EvaluateDDGIDirectDiffuse(float3 position, float3 normal, float ma
             }
 
         radiance += light_radiance;
+    }
+
+    if (GetEnvironment().GetDerivedSunIndex() != ~0u)
+    {
+        ShaderLight light = GetLight(GetEnvironment().GetDerivedSunIndex());
+        float3 L = normalize(-light.GetDirection());
+        float NoL = saturate(dot(normal, L));
+        if (NoL > 0.0f && IsDDGILightVisible(position, L, max_trace_distance))
+        {
+            radiance += light.GetColor().xyz * EvaluatePhysicalSkyExtinction(GetEnvironment(), GetEnvironment().GetSunDirection()) * NoL;
+        }
     }
 
     return radiance;

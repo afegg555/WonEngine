@@ -2,6 +2,7 @@
 #include "RHIResource.h"
 #include "RHISwapchain.h"
 #include "ShaderInterop_Renderer.h"
+#include "ShaderInterop_PostProcess.h"
 #include "Primitives.h"
 #include "Types.h"
 #include "Material.h"
@@ -115,6 +116,14 @@ namespace won::rendering
         Vector<ShaderLight> shader_lights;
         Vector<math::AABB> light_bounds;
         uint32 directional_count = 0;
+        ShaderLight derived_sun;
+        uint32 derived_sun_index = std::numeric_limits<uint32>::max();
+        bool has_derived_sun = false;
+        bool direct_sun_cast_shadow = false;
+        uint32 direct_sun_shadow_resolution = 1024;
+        uint32 direct_sun_cascade_count = 4;
+        float direct_sun_cascade_lambda = 0.95f;
+        float direct_sun_cascade_blend = 0.1f;
 
         GPUBuffer light_buffer;
 
@@ -164,8 +173,6 @@ namespace won::rendering
             std::unique_ptr<RHIResource> probe_data_history_buffer;
             RHISubresourceHandle probe_data_history_buffer_srv = {};
 
-            std::unique_ptr<RHIResource> probe_data_readback_buffer;
-            bool probe_data_readback_valid = false;
 
             uint3 probe_counts = { 0, 0, 0 };
             float3 probe_spacing = { 0.0f, 0.0f, 0.0f };
@@ -175,7 +182,29 @@ namespace won::rendering
             bool history_valid = false;
         };
 
+        struct SkyLightingResources
+        {
+            std::unique_ptr<RHIResource> capture_texture;
+            RHISubresourceHandle capture_srv = {};
+            RHISubresourceHandle capture_uav = {};
+
+            std::unique_ptr<RHIResource> irradiance_texture;
+            RHISubresourceHandle irradiance_srv = {};
+            RHISubresourceHandle irradiance_uav = {};
+
+			ShaderEnvironment signature = {}; // used to detect if the resources are still valid for the current sky lighting environment
+            std::unique_ptr<RHIResource> specular_texture;
+            RHISubresourceHandle specular_srv = {};
+            RHISubresourceHandle specular_mip_uav[sky_specular_mip_count] = {};
+
+            uint32 bake_step = 1;
+            int32 pending_specular_mip = -1;
+            int32 pending_irradiance_face = -1;
+            bool valid = false;
+        };
+
         ShaderEnvironment shader_environment;
+        SkyLightingResources sky_lighting = {};
         ShaderDDGIVolume shader_ddgi_volume;
         ShaderReflectionProbe shader_reflection_probe;
         ecs::Entity ddgi_volume_entity = ecs::INVALID_ENTITY;
@@ -192,11 +221,13 @@ namespace won::rendering
 
         uint64 synced_index = ~0ull;
 
-        void Update(const ecs::Scene& scene, RHIDevice& device, RHICommandList& command_list, uint32 frame_slot, bool ddgi_probe_debug_wanted);
+        void Update(const ecs::Scene& scene, RHIDevice& device, RHICommandList& command_list, uint32 frame_slot);
 
     private:
         void RetireResource(std::unique_ptr<RHIResource>& resource, uint32 frame_slot);
+        bool CreateSkyLightingResources(RHIDevice& device);
+        void ReleaseSkyLightingResources(uint32 frame_slot);
         void ReleaseDDGIResources(uint32 frame_slot);
-        bool CreateDDGIResources(RHIDevice& device, uint32 frame_slot, bool probe_debug_wanted);
+        bool CreateDDGIResources(RHIDevice& device, uint32 frame_slot);
     };
 }

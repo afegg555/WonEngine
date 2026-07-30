@@ -231,6 +231,21 @@ namespace won::editor
 			constexpr const char* environment_component = "EnvironmentComponent";
 			constexpr const char* sky_type = "Sky Type";
 			constexpr const char* procedural = "Procedural";
+			constexpr const char* physically_based = "Physically Based";
+			constexpr const char* sky = "Sky";
+			constexpr const char* turbidity = "Turbidity";
+			constexpr const char* mie_eccentricity = "Mie Eccentricity";
+			constexpr const char* rayleigh_coefficient = "Rayleigh Coefficient";
+			constexpr const char* mie_coefficient = "Mie Coefficient";
+			constexpr const char* direct_sun_active = "Direct Sun Active";
+			constexpr const char* direct_sun_cast_shadow = "Direct Sun Cast Shadow";
+			constexpr const char* direct_sun_shadow_resolution = "Direct Sun Shadow Resolution";
+			constexpr const char* direct_sun_cascade_count = "Direct Sun Cascade Count";
+			constexpr const char* direct_sun_cascade_lambda = "Direct Sun Cascade Lambda";
+			constexpr const char* direct_sun_cascade_blend = "Direct Sun Cascade Blend";
+			constexpr const char* sky_cubemap_asset_path = "Sky Cubemap Path";
+			constexpr const char* irradiance_cubemap_asset_path = "Irradiance Cubemap Path";
+			constexpr const char* specular_cubemap_asset_path = "Specular Cubemap Path";
 			constexpr const char* fog_volume_component = "FogVolumeComponent";
 			constexpr const char* ddgi_volume_component = "DDGIVolumeComponent";
 			constexpr const char* geometry_component = "GeometryComponent";
@@ -3993,91 +4008,179 @@ namespace won::editor
 						}
 
 						int sky_type = static_cast<int>(environment_comp->sky_type);
-						const char* sky_type_items[] = { editor_text::none, editor_text::procedural };
+						const char* sky_type_items[] = { editor_text::none, editor_text::procedural, editor_text::cubemap, editor_text::physically_based };
+						static_assert(static_cast<int>(EnvironmentComponent::SkyType::PhysicallyBased) == 3, "sky_type_items must list every SkyType value");
 						if (ImGui::Combo(editor_text::sky_type, &sky_type, sky_type_items, IM_ARRAYSIZE(sky_type_items)))
 						{
 							environment_comp->sky_type = static_cast<EnvironmentComponent::SkyType>(sky_type);
 						}
 
-						float sun_direction[3] = { environment_comp->sun_direction.x, environment_comp->sun_direction.y, environment_comp->sun_direction.z };
-						if (ImGui::DragFloat3(editor_text::sun_direction, sun_direction, 0.01f, -1.0f, 1.0f))
+						const EnvironmentComponent::SkyType active_sky_type = environment_comp->sky_type;
+						const bool sky_uses_sun = active_sky_type == EnvironmentComponent::SkyType::Procedural
+							|| active_sky_type == EnvironmentComponent::SkyType::PhysicallyBased;
+						const bool sky_uses_gradient = active_sky_type == EnvironmentComponent::SkyType::Procedural;
+						const bool sky_uses_atmosphere = active_sky_type == EnvironmentComponent::SkyType::PhysicallyBased;
+						const bool sky_uses_cubemap = active_sky_type == EnvironmentComponent::SkyType::Cubemap;
+						const bool sky_uses_intensity = active_sky_type != EnvironmentComponent::SkyType::None;
+
+						if (sky_uses_sun)
 						{
-							float3 direction = { sun_direction[0], sun_direction[1], sun_direction[2] };
-							const float direction_length_sq = math::LengthSquared(direction);
-							if (direction_length_sq > 0.0f)
+							float sun_direction[3] = { environment_comp->sun_direction.x, environment_comp->sun_direction.y, environment_comp->sun_direction.z };
+							if (ImGui::DragFloat3(editor_text::sun_direction, sun_direction, 0.01f, -1.0f, 1.0f))
 							{
-								const float inv_direction_length = 1.0f / std::sqrt(direction_length_sq);
-								environment_comp->sun_direction =
+								float3 direction = { sun_direction[0], sun_direction[1], sun_direction[2] };
+								const float direction_length_sq = math::LengthSquared(direction);
+								if (direction_length_sq > 0.0f)
 								{
-									direction.x * inv_direction_length,
-									direction.y * inv_direction_length,
-									direction.z * inv_direction_length,
-								};
+									const float inv_direction_length = 1.0f / std::sqrt(direction_length_sq);
+									environment_comp->sun_direction =
+									{
+										direction.x * inv_direction_length,
+										direction.y * inv_direction_length,
+										direction.z * inv_direction_length,
+									};
+								}
+							}
+
+							float sun_color[3] = { environment_comp->sun_color.x, environment_comp->sun_color.y, environment_comp->sun_color.z };
+							if (ImGui::InputFloat3(editor_text::sun_color, sun_color))
+							{
+								environment_comp->sun_color = { sun_color[0], sun_color[1], sun_color[2] };
+							}
+
+							ImGui::DragFloat(editor_text::sun_intensity, &environment_comp->sun_intensity, 0.1f, 0.0f, 100000.0f);
+							ImGui::DragFloat(editor_text::sun_angular_radius, &environment_comp->sun_angular_radius, 0.0001f, 0.0f, 1.0f);
+						}
+
+						if (sky_uses_gradient)
+						{
+							ImGui::DragFloat(editor_text::sun_glow_intensity, &environment_comp->sun_glow_intensity, 0.01f, 0.0f, 1000.0f);
+							ImGui::DragFloat(editor_text::sun_glow_falloff, &environment_comp->sun_glow_falloff, 0.1f, 0.0f, 1000.0f);
+
+							float sky_horizon_color[3] = { environment_comp->sky_horizon_color.x, environment_comp->sky_horizon_color.y, environment_comp->sky_horizon_color.z };
+							if (ImGui::InputFloat3(editor_text::sky_horizon_color, sky_horizon_color))
+							{
+								environment_comp->sky_horizon_color = { sky_horizon_color[0], sky_horizon_color[1], sky_horizon_color[2] };
+							}
+
+							float sky_zenith_color[3] = { environment_comp->sky_zenith_color.x, environment_comp->sky_zenith_color.y, environment_comp->sky_zenith_color.z };
+							if (ImGui::InputFloat3(editor_text::sky_zenith_color, sky_zenith_color))
+							{
+								environment_comp->sky_zenith_color = { sky_zenith_color[0], sky_zenith_color[1], sky_zenith_color[2] };
 							}
 						}
 
-						float sun_color[3] = { environment_comp->sun_color.x, environment_comp->sun_color.y, environment_comp->sun_color.z };
-						if (ImGui::InputFloat3(editor_text::sun_color, sun_color))
+						if (sky_uses_atmosphere)
 						{
-							environment_comp->sun_color = { sun_color[0], sun_color[1], sun_color[2] };
+							ImGui::DragFloat(editor_text::turbidity, &environment_comp->turbidity, 0.05f, 1.0f, 20.0f);
+							ImGui::DragFloat(editor_text::mie_eccentricity, &environment_comp->mie_eccentricity, 0.01f, -0.99f, 0.99f);
+							ImGui::DragFloat(editor_text::rayleigh_coefficient, &environment_comp->rayleigh_coefficient, 0.01f, 0.0f, 10.0f);
+							ImGui::DragFloat(editor_text::mie_coefficient, &environment_comp->mie_coefficient, 0.001f, 0.0f, 10.0f);
+							ImGui::Checkbox(editor_text::direct_sun_active, &environment_comp->direct_sun_active);
+							ImGui::Checkbox(editor_text::direct_sun_cast_shadow, &environment_comp->direct_sun_cast_shadow);
+							int direct_sun_shadow_resolution = static_cast<int>(environment_comp->direct_sun_shadow_resolution);
+							if (ImGui::InputInt(editor_text::direct_sun_shadow_resolution, &direct_sun_shadow_resolution))
+							{
+								environment_comp->direct_sun_shadow_resolution = (std::max)(1, direct_sun_shadow_resolution);
+							}
+							int direct_sun_cascade_count = static_cast<int>(environment_comp->direct_sun_cascade_count);
+							if (ImGui::SliderInt(editor_text::direct_sun_cascade_count, &direct_sun_cascade_count, 1, SHADOW_CASCADE_COUNT_MAX))
+							{
+								environment_comp->direct_sun_cascade_count = static_cast<uint32>(direct_sun_cascade_count);
+							}
+							ImGui::SliderFloat(editor_text::direct_sun_cascade_lambda, &environment_comp->direct_sun_cascade_lambda, 0.0f, 1.0f);
+							ImGui::SliderFloat(editor_text::direct_sun_cascade_blend, &environment_comp->direct_sun_cascade_blend, 0.0f, 0.3f);
 						}
 
-						ImGui::DragFloat(editor_text::sun_intensity, &environment_comp->sun_intensity, 0.1f, 0.0f, 100000.0f);
-						ImGui::DragFloat(editor_text::sun_angular_radius, &environment_comp->sun_angular_radius, 0.0001f, 0.0f, 1.0f);
-						ImGui::DragFloat(editor_text::sun_glow_intensity, &environment_comp->sun_glow_intensity, 0.01f, 0.0f, 1000.0f);
-						ImGui::DragFloat(editor_text::sun_glow_falloff, &environment_comp->sun_glow_falloff, 0.1f, 0.0f, 1000.0f);
-
-						float sky_horizon_color[3] = { environment_comp->sky_horizon_color.x, environment_comp->sky_horizon_color.y, environment_comp->sky_horizon_color.z };
-						if (ImGui::InputFloat3(editor_text::sky_horizon_color, sky_horizon_color))
+						if (sky_uses_cubemap)
 						{
-							environment_comp->sky_horizon_color = { sky_horizon_color[0], sky_horizon_color[1], sky_horizon_color[2] };
+							char sky_cubemap_path[256] = {};
+							strncpy(sky_cubemap_path, environment_comp->sky_cubemap_asset_path.c_str(), sizeof(sky_cubemap_path) - 1);
+							if (ImGui::InputText(editor_text::sky_cubemap_asset_path, sky_cubemap_path, sizeof(sky_cubemap_path)))
+							{
+								environment_comp->sky_cubemap_asset_path = sky_cubemap_path;
+							}
 						}
 
-						float sky_zenith_color[3] = { environment_comp->sky_zenith_color.x, environment_comp->sky_zenith_color.y, environment_comp->sky_zenith_color.z };
-						if (ImGui::InputFloat3(editor_text::sky_zenith_color, sky_zenith_color))
+						if (sky_uses_intensity)
 						{
-							environment_comp->sky_zenith_color = { sky_zenith_color[0], sky_zenith_color[1], sky_zenith_color[2] };
+							ImGui::DragFloat(editor_text::sky_intensity, &environment_comp->sky_intensity, 1.0f, 0.0f, 1000000.0f);
 						}
 
-						ImGui::DragFloat(editor_text::sky_intensity, &environment_comp->sky_intensity, 0.01f, 0.0f, 1000.0f);
-						ImGui::DragFloat(editor_text::sky_horizon_falloff, &environment_comp->sky_horizon_falloff, 0.01f, 0.0f, 1000.0f);
-
-						float ground_horizon_color[3] = { environment_comp->ground_horizon_color.x, environment_comp->ground_horizon_color.y, environment_comp->ground_horizon_color.z };
-						if (ImGui::InputFloat3(editor_text::ground_horizon_color, ground_horizon_color))
+						if (sky_uses_gradient)
 						{
-							environment_comp->ground_horizon_color = { ground_horizon_color[0], ground_horizon_color[1], ground_horizon_color[2] };
+							ImGui::DragFloat(editor_text::sky_horizon_falloff, &environment_comp->sky_horizon_falloff, 0.01f, 0.0f, 1000.0f);
+
+							float ground_horizon_color[3] = { environment_comp->ground_horizon_color.x, environment_comp->ground_horizon_color.y, environment_comp->ground_horizon_color.z };
+							if (ImGui::InputFloat3(editor_text::ground_horizon_color, ground_horizon_color))
+							{
+								environment_comp->ground_horizon_color = { ground_horizon_color[0], ground_horizon_color[1], ground_horizon_color[2] };
+							}
 						}
 
-						float ground_color[3] = { environment_comp->ground_color.x, environment_comp->ground_color.y, environment_comp->ground_color.z };
-						if (ImGui::InputFloat3(editor_text::ground_color, ground_color))
+						if (sky_uses_sun)
 						{
-							environment_comp->ground_color = { ground_color[0], ground_color[1], ground_color[2] };
+							float ground_color[3] = { environment_comp->ground_color.x, environment_comp->ground_color.y, environment_comp->ground_color.z };
+							if (ImGui::InputFloat3(editor_text::ground_color, ground_color))
+							{
+								environment_comp->ground_color = { ground_color[0], ground_color[1], ground_color[2] };
+							}
+
+							ImGui::DragFloat(editor_text::ground_intensity, &environment_comp->ground_intensity, 1.0f, 0.0f, 1000000.0f);
 						}
 
-						ImGui::DragFloat(editor_text::ground_intensity, &environment_comp->ground_intensity, 0.01f, 0.0f, 1000.0f);
-						ImGui::DragFloat(editor_text::ground_falloff, &environment_comp->ground_falloff, 0.01f, 0.0f, 1000.0f);
+						if (sky_uses_gradient)
+						{
+							ImGui::DragFloat(editor_text::ground_falloff, &environment_comp->ground_falloff, 0.01f, 0.0f, 1000.0f);
+						}
 
 						int gi_mode = static_cast<int>(environment_comp->diffuse_gi_mode);
-						const char* gi_mode_items[] = { editor_text::none, editor_text::ambient, editor_text::ddgi, editor_text::cubemap };
+						const char* gi_mode_items[] = { editor_text::none, editor_text::ambient, editor_text::ddgi, editor_text::cubemap, editor_text::sky };
+						static_assert(static_cast<int>(EnvironmentComponent::DiffuseGIMode::Sky) == 4, "gi_mode_items must list every DiffuseGIMode value");
 						if (ImGui::Combo(editor_text::gi_mode, &gi_mode, gi_mode_items, IM_ARRAYSIZE(gi_mode_items)))
 						{
 							environment_comp->diffuse_gi_mode = static_cast<EnvironmentComponent::DiffuseGIMode>(gi_mode);
 						}
 
-						int reflection_mode = static_cast<int>(environment_comp->reflection_mode);
-							const char* reflection_mode_items[] = { editor_text::none, editor_text::cubemap };
-							if (ImGui::Combo(editor_text::reflection_mode, &reflection_mode, reflection_mode_items, IM_ARRAYSIZE(reflection_mode_items)))
+						if (environment_comp->diffuse_gi_mode == EnvironmentComponent::DiffuseGIMode::Ambient)
+						{
+							float ambient_color[3] = { environment_comp->ambient_color.x, environment_comp->ambient_color.y, environment_comp->ambient_color.z };
+							if (ImGui::InputFloat3(editor_text::ambient_color, ambient_color))
 							{
-								environment_comp->reflection_mode = static_cast<EnvironmentComponent::ReflectionMode>(reflection_mode);
+								environment_comp->ambient_color = { ambient_color[0], ambient_color[1], ambient_color[2] };
 							}
 
-							float ambient_color[3] = { environment_comp->ambient_color.x, environment_comp->ambient_color.y, environment_comp->ambient_color.z };
-						if (ImGui::InputFloat3(editor_text::ambient_color, ambient_color))
-						{
-							environment_comp->ambient_color = { ambient_color[0], ambient_color[1], ambient_color[2] };
+							ImGui::DragFloat(editor_text::ambient_intensity, &environment_comp->ambient_intensity, 1.0f, 0.0f, 1000000.0f);
 						}
 
-						ImGui::DragFloat(editor_text::ambient_intensity, &environment_comp->ambient_intensity, 0.01f, 0.0f, 1000.0f);
+						if (environment_comp->diffuse_gi_mode == EnvironmentComponent::DiffuseGIMode::Cubemap)
+						{
+							char irradiance_path[256] = {};
+							strncpy(irradiance_path, environment_comp->irradiance_cubemap_asset_path.c_str(), sizeof(irradiance_path) - 1);
+							if (ImGui::InputText(editor_text::irradiance_cubemap_asset_path, irradiance_path, sizeof(irradiance_path)))
+							{
+								environment_comp->irradiance_cubemap_asset_path = irradiance_path;
+							}
+						}
+
+						int reflection_mode = static_cast<int>(environment_comp->reflection_mode);
+						const char* reflection_mode_items[] = { editor_text::none, editor_text::cubemap, editor_text::sky };
+						static_assert(static_cast<int>(EnvironmentComponent::ReflectionMode::Sky) == 2, "reflection_mode_items must list every ReflectionMode value");
+						if (ImGui::Combo(editor_text::reflection_mode, &reflection_mode, reflection_mode_items, IM_ARRAYSIZE(reflection_mode_items)))
+						{
+							environment_comp->reflection_mode = static_cast<EnvironmentComponent::ReflectionMode>(reflection_mode);
+						}
+
+						if (environment_comp->reflection_mode == EnvironmentComponent::ReflectionMode::Cubemap)
+						{
+							char specular_path[256] = {};
+							strncpy(specular_path, environment_comp->specular_cubemap_asset_path.c_str(), sizeof(specular_path) - 1);
+							if (ImGui::InputText(editor_text::specular_cubemap_asset_path, specular_path, sizeof(specular_path)))
+							{
+								environment_comp->specular_cubemap_asset_path = specular_path;
+							}
+						}
+
 						ImGui::DragFloat(editor_text::indirect_diffuse_scale, &environment_comp->indirect_diffuse_scale, 0.01f, 0.0f, 1000.0f);
 						ImGui::DragFloat(editor_text::indirect_specular_scale, &environment_comp->indirect_specular_scale, 0.01f, 0.0f, 1000.0f);
 					}
