@@ -759,7 +759,7 @@ namespace won::rendering
                 Vector<GlyphLayout> glyph_layouts;
                 Vector<float> line_widths;
                 line_widths.push_back(0.0f);
-                const WString decoded_text = utils::DecodeUtf8(text.text);
+                const WString decoded_text = utils::DecodeUtf8(text.resolved_text);
                 uint32 line_index = 0;
                 float pen_x = 0.0f;
                 for (Size char_index = 0; char_index < decoded_text.size(); ++char_index)
@@ -895,7 +895,7 @@ namespace won::rendering
                 Vector<GlyphLayout> glyph_layouts;
                 Vector<float> line_widths;
                 line_widths.push_back(0.0f);
-                const WString decoded_text = utils::DecodeUtf8(text.text);
+                const WString decoded_text = utils::DecodeUtf8(text.resolved_text);
                 const float glyph_world_scale = text.height / static_cast<float>(text.pixel_height);
                 uint32 line_index = 0;
                 float pen_x = 0.0f;

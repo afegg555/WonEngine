@@ -17,7 +17,10 @@ namespace won::ecs
         uint32 flags = Dirty;
         std::shared_ptr<resource::Font> font;
         String font_asset_path;
-        String text;
+        String text; // text to display, if text_key is empty, this will be used as the text to display
+        String text_key; // for text localization, if not empty, this will be used to look up the localized text
+        String resolved_text;
+        uint32 locale_revision = 0;
         uint32 pixel_height = 32;
         float height = 1.0f;
         float2 pivot = { 0.5f, 0.5f };

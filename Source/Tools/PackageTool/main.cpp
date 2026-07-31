@@ -2,6 +2,7 @@
 #include "FileSystem.h"
 #include "JsonArchive.h"
 #include "ProjectSettings.h"
+#include "Localization.h"
 #include "ResourceExtension.h"
 
 #include <cstdlib>
@@ -217,6 +218,26 @@ int main(int argc, char** argv)
                 {
                     content_paths.push_back(won::io::CombinePath("Config", won::io::GetRelativePath(config_source, entry.path)));
                 }
+            }
+        }
+    }
+
+    {
+        won::Vector<won::String> languages = settings.packaged_languages;
+        if (languages.empty() && !settings.default_language.empty())
+        {
+            languages.push_back(settings.default_language);
+        }
+        for (const won::String& language : languages)
+        {
+            const won::String relative_path = won::io::CombinePath(won::locale::localization_directory, language + "." + won::locale::localization_file_extension);
+            if (won::io::IsFile(won::io::CombinePath(content_source, relative_path)))
+            {
+                content_paths.push_back(relative_path);
+            }
+            else
+            {
+                std::cout << "Warning: declared language table not found: " << relative_path << "\n";
             }
         }
     }

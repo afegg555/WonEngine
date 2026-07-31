@@ -43,6 +43,8 @@ namespace won::project
         rendering::RHIBackend backend_type = rendering::RHIBackend::DirectX12;
         Vector<String> enabled_plugins;
         Vector<String> packaged_scenes;
+        String default_language;
+        Vector<String> packaged_languages;
 
         // Physics
         uint32 physics_temp_allocator_size     = physics::default_temp_allocator_size;
@@ -263,6 +265,11 @@ namespace won::project
         };
         parse_semicolon_list("enabled_plugins", settings.enabled_plugins);
         parse_semicolon_list("packaged_scenes", settings.packaged_scenes);
+        parse_semicolon_list("packaged_languages", settings.packaged_languages);
+        if (const char* string_value = configuration.GetString("default_language"))
+        {
+            settings.default_language = string_value;
+        }
 
         float float_value = 0.0f;
         if (configuration.GetInt("physics_temp_allocator_size", int_value))
@@ -330,6 +337,8 @@ namespace won::project
         };
         configuration.SetString("enabled_plugins", serialize_semicolon_list(settings.enabled_plugins).c_str());
         configuration.SetString("packaged_scenes", serialize_semicolon_list(settings.packaged_scenes).c_str());
+        configuration.SetString("packaged_languages", serialize_semicolon_list(settings.packaged_languages).c_str());
+        configuration.SetString("default_language", settings.default_language.c_str());
 
         configuration.SetInt("physics_temp_allocator_size", static_cast<int>(settings.physics_temp_allocator_size));
         configuration.SetInt("physics_max_bodies",              static_cast<int>(settings.physics_max_bodies));

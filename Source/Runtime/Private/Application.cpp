@@ -7,6 +7,7 @@
 #include "BuiltinFont.h"
 #include "Console.h"
 #include "JsonArchive.h"
+#include "Localization.h"
 #include "Renderer.h"
 #include "ResourceAsset.h"
 #include "RenderingUtils.h"
@@ -44,6 +45,24 @@ namespace won
     void Application::ApplyProjectSettings(const project::ProjectSettings& settings)
     {
         const String content_root = project::GetContentRoot(settings);
+
+        locale::Initialize(content_root, settings.packaged_languages, settings.default_language);
+        if (!settings.packaged_languages.empty() || !settings.default_language.empty())
+        {
+            String selected_language = user_settings.language.value_or(String());
+            if (selected_language.empty())
+            {
+                selected_language = locale::GetSystemLanguage();
+            }
+            if (selected_language.empty())
+            {
+                selected_language = settings.default_language;
+            }
+            if (!selected_language.empty())
+            {
+                locale::SetLanguage(selected_language);
+            }
+        }
 
         if (!settings.input_action_map.empty())
         {

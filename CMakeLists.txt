@@ -253,6 +253,11 @@ set(RUNTIME_CONFIGURATION
     Source/Runtime/Public/UserSettings.h
 )
 
+set(RUNTIME_LOCALIZATION
+    Source/Runtime/Public/Localization.h
+    Source/Runtime/Private/Localization.cpp
+)
+
 set(RUNTIME_CONSOLE
     Source/Runtime/Public/Console.h
     Source/Runtime/Private/Console.cpp
@@ -391,6 +396,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Public/ScriptEventDispatchSystem.h
     Source/Runtime/Public/PhysicsUpdateSystem.h
     Source/Runtime/Public/AudioUpdateSystem.h
+    Source/Runtime/Public/LocalizeTextSystem.h
     Source/Runtime/Private/CameraUpdateSystem.cpp
     Source/Runtime/Private/LightUpdateSystem.cpp
     Source/Runtime/Private/AnimationUpdateSystem.cpp
@@ -403,6 +409,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Private/ScriptEventDispatchSystem.cpp
     Source/Runtime/Private/PhysicsUpdateSystem.cpp
     Source/Runtime/Private/AudioUpdateSystem.cpp
+    Source/Runtime/Private/LocalizeTextSystem.cpp
 )
 
 
@@ -547,6 +554,7 @@ add_library(Runtime ${WONENGINE_RUNTIME_LIBRARY_TYPE}
     ${RUNTIME_RENDERING_INTERNAL}
     ${RUNTIME_CONFIGURATION}
     ${RUNTIME_CONSOLE}
+    ${RUNTIME_LOCALIZATION}
     ${RUNTIME_PLUGIN}
     ${RUNTIME_SCRIPT}
     ${RUNTIME_SCRIPT_LUA}
@@ -581,6 +589,7 @@ source_group("Application" FILES ${RUNTIME_APPLICATION})
 source_group("Rendering/Internal" FILES ${RUNTIME_RENDERING_INTERNAL})
 source_group("Configuration" FILES ${RUNTIME_CONFIGURATION})
 source_group("Console" FILES ${RUNTIME_CONSOLE})
+source_group("Localization" FILES ${RUNTIME_LOCALIZATION})
 source_group("Plugin" FILES ${RUNTIME_PLUGIN})
 source_group("Plugin/Include" FILES ${PLUGIN_PUBLIC})
 source_group("Script" FILES ${RUNTIME_SCRIPT})
