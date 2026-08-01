@@ -1,0 +1,2161 @@
+{
+    "version": 1,
+    "language": "ko",
+    "entries": {
+        "editor.menu.file": {
+            "source": "File",
+            "text": "파일",
+            "comment": "main menu bar"
+        },
+        "editor.menu.edit": {
+            "source": "Edit",
+            "text": "편집",
+            "comment": "main menu bar"
+        },
+        "editor.menu.build": {
+            "source": "Build",
+            "text": "빌드",
+            "comment": "main menu bar"
+        },
+        "editor.menu.window": {
+            "source": "Window",
+            "text": "창",
+            "comment": "main menu bar"
+        },
+        "editor.menu.plugins": {
+            "source": "Plugins",
+            "text": "플러그인",
+            "comment": "main menu bar"
+        },
+        "editor.window.viewport": {
+            "source": "Viewport",
+            "text": "뷰포트",
+            "comment": "window title"
+        },
+        "editor.window.entity_list": {
+            "source": "Entity List",
+            "text": "엔티티 목록",
+            "comment": "window title"
+        },
+        "editor.window.inspector": {
+            "source": "Inspector",
+            "text": "인스펙터",
+            "comment": "window title"
+        },
+        "editor.window.log": {
+            "source": "Log",
+            "text": "로그",
+            "comment": "window title"
+        },
+        "editor.window.profiler": {
+            "source": "Profiler",
+            "text": "프로파일러",
+            "comment": "window title"
+        },
+        "editor.window.contents_browser": {
+            "source": "Contents Browser",
+            "text": "콘텐츠 브라우저",
+            "comment": "window title"
+        },
+        "editor.window.project_settings": {
+            "source": "Project Settings",
+            "text": "프로젝트 설정",
+            "comment": "window title"
+        },
+        "editor.window.localization": {
+            "source": "Localization",
+            "text": "로컬라이제이션",
+            "comment": "window title"
+        },
+        "editor.action.save": {
+            "source": "Save",
+            "text": "저장",
+            "comment": "button"
+        },
+        "editor.action.reload": {
+            "source": "Reload",
+            "text": "다시 불러오기",
+            "comment": "button"
+        },
+        "editor.action.add_key": {
+            "source": "Add Key",
+            "text": "키 추가",
+            "comment": "localization window button"
+        },
+        "editor.action.remove_key": {
+            "source": "Remove Key",
+            "text": "키 삭제",
+            "comment": "localization window context menu"
+        },
+        "editor.action.add_language": {
+            "source": "Add Language",
+            "text": "언어 추가",
+            "comment": "localization window button"
+        },
+        "editor.label.key": {
+            "source": "Key",
+            "text": "키",
+            "comment": "table column header"
+        },
+        "editor.label.comment": {
+            "source": "Comment",
+            "text": "설명",
+            "comment": "table column header"
+        },
+        "editor.hint.new_key": {
+            "source": "new key",
+            "text": "새 키",
+            "comment": "input placeholder"
+        },
+        "editor.hint.new_language": {
+            "source": "new language",
+            "text": "새 언어",
+            "comment": "input placeholder"
+        },
+        "editor.message.no_languages": {
+            "source": "no languages declared - add one above",
+            "text": "선언된 언어가 없습니다 - 위에서 추가하세요",
+            "comment": "localization window empty state"
+        },
+        "editor.menu.edit.preferences": {
+            "source": "Editor Preferences",
+            "text": "에디터 환경설정",
+            "comment": "Edit menu item"
+        },
+        "editor.window.preferences": {
+            "source": "Editor Preferences",
+            "text": "에디터 환경설정",
+            "comment": "window title"
+        },
+        "editor.label.language": {
+            "source": "Language",
+            "text": "언어",
+            "comment": "editor preferences field"
+        },
+        "editor.message.preferences_scope": {
+            "source": "These settings are per-machine and are not shared with the project.",
+            "text": "이 설정은 이 PC에만 적용되며 프로젝트와 공유되지 않습니다.",
+            "comment": "editor preferences footnote"
+        },
+        "editor.menu.edit.project_localization": {
+            "source": "Project Localization",
+            "text": "프로젝트 로컬라이제이션",
+            "comment": "Edit menu item"
+        },
+        "editor.window.project_localization": {
+            "source": "Project Localization",
+            "text": "프로젝트 로컬라이제이션",
+            "comment": "window title"
+        },
+        "editor.label.default_language": {
+            "source": "Default Language",
+            "text": "기본 언어",
+            "comment": "project settings field"
+        },
+        "editor.label.packaged_languages": {
+            "source": "Packaged Languages",
+            "text": "패키징 언어",
+            "comment": "project settings field, semicolon separated"
+        },
+        "editor.menu.window.reset_layout": {
+            "source": "Reset Layout",
+            "text": "레이아웃 초기화",
+            "comment": "Window menu item"
+        },
+        "editor.action.add_component": {
+            "source": "Add Component",
+            "text": "컴포넌트 추가",
+            "comment": "action"
+        },
+        "editor.action.add_script": {
+            "source": "Add Script",
+            "text": "스크립트 추가",
+            "comment": "action"
+        },
+        "editor.action.add_slot": {
+            "source": "Add Slot",
+            "text": "슬롯 추가",
+            "comment": "action"
+        },
+        "editor.action.animation_event_add": {
+            "source": "Add Event",
+            "text": "이벤트 추가",
+            "comment": "action"
+        },
+        "editor.action.animation_event_save": {
+            "source": "Save Events",
+            "text": "이벤트 저장",
+            "comment": "action"
+        },
+        "editor.action.bake_navmesh": {
+            "source": "Bake NavMesh",
+            "text": "NavMesh 굽기",
+            "comment": "action"
+        },
+        "editor.action.cancel": {
+            "source": "Cancel",
+            "text": "취소",
+            "comment": "action"
+        },
+        "editor.action.clear": {
+            "source": "Clear",
+            "text": "지우기",
+            "comment": "action"
+        },
+        "editor.action.close": {
+            "source": "Close",
+            "text": "닫기",
+            "comment": "action"
+        },
+        "editor.action.copy_to_clipboard": {
+            "source": "Copy to Clipboard",
+            "text": "클립보드에 복사",
+            "comment": "action"
+        },
+        "editor.action.delete_button": {
+            "source": "Delete",
+            "text": "삭제",
+            "comment": "action"
+        },
+        "editor.action.dont_save": {
+            "source": "Don't Save",
+            "text": "저장 안 함",
+            "comment": "action"
+        },
+        "editor.action.down": {
+            "source": "Down",
+            "text": "아래로",
+            "comment": "action"
+        },
+        "editor.action.up": {
+            "source": "Up",
+            "text": "위로",
+            "comment": "action"
+        },
+        "editor.action.fork_material": {
+            "source": "Fork Material",
+            "text": "머티리얼 복제",
+            "comment": "action"
+        },
+        "editor.action.pause": {
+            "source": "Pause",
+            "text": "일시정지",
+            "comment": "action"
+        },
+        "editor.action.play": {
+            "source": "Play",
+            "text": "재생",
+            "comment": "action"
+        },
+        "editor.action.regenerate_terrain": {
+            "source": "Regenerate Terrain",
+            "text": "Terrain 재생성",
+            "comment": "action"
+        },
+        "editor.action.remove": {
+            "source": "Remove",
+            "text": "제거",
+            "comment": "action"
+        },
+        "editor.action.remove_slot": {
+            "source": "Remove Slot",
+            "text": "슬롯 제거",
+            "comment": "action"
+        },
+        "editor.action.reset_editor_camera": {
+            "source": "Reset Editor Camera",
+            "text": "에디터 카메라 초기화",
+            "comment": "action"
+        },
+        "editor.action.save_as": {
+            "source": "Save As",
+            "text": "다른 이름으로 저장",
+            "comment": "action"
+        },
+        "editor.action.save_material_asset": {
+            "source": "Save as Material Asset",
+            "text": "머티리얼 에셋으로 저장",
+            "comment": "action"
+        },
+        "editor.action.update_scene_gpubvh": {
+            "source": "Update Scene GPUBVH",
+            "text": "씬 GPUBVH 갱신",
+            "comment": "action"
+        },
+        "editor.format.delete_confirm_format": {
+            "source": "Delete %s?",
+            "text": "%s을(를) 삭제할까요?",
+            "comment": "format"
+        },
+        "editor.format.remove_confirm_format": {
+            "source": "Remove %s?",
+            "text": "%s을(를) 제거할까요?",
+            "comment": "format"
+        },
+        "editor.format.remove_tooltip_format": {
+            "source": "Remove %s",
+            "text": "%s 제거",
+            "comment": "format"
+        },
+        "editor.format.unsupported_format": {
+            "source": "%s: unsupported",
+            "text": "%s: 지원되지 않음",
+            "comment": "format"
+        },
+        "editor.format.last_error_format": {
+            "source": "Last Error: %s",
+            "text": "마지막 오류: %s",
+            "comment": "format"
+        },
+        "editor.format.size_format": {
+            "source": "Size %.0f",
+            "text": "크기 %.0f",
+            "comment": "format"
+        },
+        "editor.format.duration_format": {
+            "source": "Duration: %.3fs",
+            "text": "길이: %.3f초",
+            "comment": "format"
+        },
+        "editor.format.clips_format": {
+            "source": "Clips: %d",
+            "text": "클립: %d",
+            "comment": "format"
+        },
+        "editor.format.font_format": {
+            "source": "Font: %s",
+            "text": "폰트: %s",
+            "comment": "format"
+        },
+        "editor.menu.add_to_scene": {
+            "source": "Add to Scene",
+            "text": "씬에 추가",
+            "comment": "menu"
+        },
+        "editor.menu.copy_disk_path": {
+            "source": "Copy Disk Path",
+            "text": "디스크 경로 복사",
+            "comment": "menu"
+        },
+        "editor.menu.copy_virtual_path": {
+            "source": "Copy Virtual Path",
+            "text": "가상 경로 복사",
+            "comment": "menu"
+        },
+        "editor.menu.delete_entity": {
+            "source": "Delete Entity",
+            "text": "엔티티 삭제",
+            "comment": "menu"
+        },
+        "editor.menu.import": {
+            "source": "Import",
+            "text": "가져오기",
+            "comment": "menu"
+        },
+        "editor.menu.import_to_scene": {
+            "source": "Import to Scene",
+            "text": "씬으로 가져오기",
+            "comment": "menu"
+        },
+        "editor.menu.reimport": {
+            "source": "Reimport",
+            "text": "다시 가져오기",
+            "comment": "menu"
+        },
+        "editor.menu.load_project": {
+            "source": "Load Project",
+            "text": "프로젝트 열기",
+            "comment": "menu"
+        },
+        "editor.menu.load_scene": {
+            "source": "Load Scene",
+            "text": "씬 열기",
+            "comment": "menu"
+        },
+        "editor.menu.new_project": {
+            "source": "New Project",
+            "text": "새 프로젝트",
+            "comment": "menu"
+        },
+        "editor.menu.new_scene": {
+            "source": "New Scene",
+            "text": "새 씬",
+            "comment": "menu"
+        },
+        "editor.menu.package_project": {
+            "source": "Package Project",
+            "text": "프로젝트 패키징",
+            "comment": "menu"
+        },
+        "editor.menu.save_as_prefab": {
+            "source": "Save as Prefab...",
+            "text": "프리팹으로 저장...",
+            "comment": "menu"
+        },
+        "editor.menu.save_project": {
+            "source": "Save Project",
+            "text": "프로젝트 저장",
+            "comment": "menu"
+        },
+        "editor.menu.save_scene": {
+            "source": "Save Scene",
+            "text": "씬 저장",
+            "comment": "menu"
+        },
+        "editor.menu.save_scene_as": {
+            "source": "Save Scene As...",
+            "text": "다른 이름으로 씬 저장...",
+            "comment": "menu"
+        },
+        "editor.menu.show_in_explorer": {
+            "source": "Show in Explorer",
+            "text": "탐색기에서 열기",
+            "comment": "menu"
+        },
+        "editor.label.action_cannot_be_undone": {
+            "source": "This action cannot be undone.",
+            "text": "이 작업은 되돌릴 수 없습니다.",
+            "comment": "label"
+        },
+        "editor.label.delete_entity_children_warning": {
+            "source": "Children and components will also be removed.",
+            "text": "자식과 컴포넌트도 함께 제거됩니다.",
+            "comment": "label"
+        },
+        "editor.label.save_current_scene_message": {
+            "source": "Save current scene?",
+            "text": "현재 씬을 저장할까요?",
+            "comment": "label"
+        },
+        "editor.label.import_content_asset_message": {
+            "source": "Import this asset to Scene?",
+            "text": "이 에셋을 씬에 추가할까요?",
+            "comment": "label"
+        },
+        "editor.label.folder_empty": {
+            "source": "Folder is empty.",
+            "text": "폴더가 비어 있습니다.",
+            "comment": "label"
+        },
+        "editor.label.no_animation_clips": {
+            "source": "No animation clips",
+            "text": "애니메이션 클립 없음",
+            "comment": "label"
+        },
+        "editor.label.no_components_available": {
+            "source": "No components available",
+            "text": "추가할 수 있는 컴포넌트 없음",
+            "comment": "label"
+        },
+        "editor.label.no_plugins_found": {
+            "source": "No plugins found",
+            "text": "플러그인 없음",
+            "comment": "label"
+        },
+        "editor.label.no_project": {
+            "source": "No Project",
+            "text": "프로젝트 없음",
+            "comment": "label"
+        },
+        "editor.label.asset_needs_reimport": {
+            "source": "Source changed since last import",
+            "text": "마지막 가져오기 이후 원본이 변경됨",
+            "comment": "label"
+        },
+        "editor.label.script_already_exists": {
+            "source": "script already exists on this component",
+            "text": "이 컴포넌트에 이미 등록된 스크립트입니다",
+            "comment": "label"
+        },
+        "editor.label.profiler_starting": {
+            "source": "Profiler starting...",
+            "text": "Profiler 시작 중...",
+            "comment": "label"
+        },
+        "editor.label.profiler_warning": {
+            "source": "Profiler Turned On! Performance may be reduced!",
+            "text": "Profiler가 켜져 있습니다! 성능이 저하될 수 있습니다.",
+            "comment": "label"
+        },
+        "editor.label.enable_profiler": {
+            "source": "Enable Profiler",
+            "text": "Profiler 활성화",
+            "comment": "label"
+        },
+        "editor.label.importing_asset": {
+            "source": "Importing asset",
+            "text": "에셋 가져오는 중",
+            "comment": "label"
+        },
+        "editor.label.importing_assets": {
+            "source": "Importing assets (",
+            "text": "에셋 가져오는 중 (",
+            "comment": "label"
+        },
+        "editor.label.unsaved_scene": {
+            "source": "Unsaved Scene",
+            "text": "저장되지 않은 씬",
+            "comment": "label"
+        },
+        "editor.label.unknown": {
+            "source": "Unknown",
+            "text": "알 수 없음",
+            "comment": "label"
+        },
+        "editor.label.none": {
+            "source": "None",
+            "text": "없음",
+            "comment": "label"
+        },
+        "editor.label.none_placeholder": {
+            "source": "<none>",
+            "text": "<없음>",
+            "comment": "label"
+        },
+        "editor.label.all_types": {
+            "source": "All Types",
+            "text": "전체 유형",
+            "comment": "label"
+        },
+        "editor.label.assigned": {
+            "source": "Assigned",
+            "text": "할당됨",
+            "comment": "label"
+        },
+        "editor.label.folder": {
+            "source": "Folder",
+            "text": "폴더",
+            "comment": "label"
+        },
+        "editor.label.path": {
+            "source": "Path",
+            "text": "경로",
+            "comment": "label"
+        },
+        "editor.label.path_label": {
+            "source": "Path:",
+            "text": "경로:",
+            "comment": "label"
+        },
+        "editor.label.refresh": {
+            "source": "Refresh",
+            "text": "새로 고침",
+            "comment": "label"
+        },
+        "editor.label.value": {
+            "source": "Value",
+            "text": "값",
+            "comment": "label"
+        },
+        "editor.label.type": {
+            "source": "Type",
+            "text": "유형",
+            "comment": "label"
+        },
+        "editor.label.size": {
+            "source": "Size",
+            "text": "크기",
+            "comment": "label"
+        },
+        "editor.label.text": {
+            "source": "Text",
+            "text": "텍스트",
+            "comment": "label"
+        },
+        "editor.label.time": {
+            "source": "Time",
+            "text": "시간",
+            "comment": "label"
+        },
+        "editor.label.color": {
+            "source": "Color",
+            "text": "색상",
+            "comment": "label"
+        },
+        "editor.label.parent": {
+            "source": "Parent",
+            "text": "부모",
+            "comment": "label"
+        },
+        "editor.label.script": {
+            "source": "Script",
+            "text": "스크립트",
+            "comment": "label"
+        },
+        "editor.label.asset": {
+            "source": "Asset",
+            "text": "에셋",
+            "comment": "label"
+        },
+        "editor.label.selected_slot": {
+            "source": "Selected Slot",
+            "text": "선택된 슬롯",
+            "comment": "label"
+        },
+        "editor.label.active": {
+            "source": "Active",
+            "text": "활성",
+            "comment": "label"
+        },
+        "editor.label.enabled": {
+            "source": "Enabled",
+            "text": "활성화",
+            "comment": "label"
+        },
+        "editor.label.script_enabled": {
+            "source": "Script Enabled",
+            "text": "스크립트 활성화",
+            "comment": "label"
+        },
+        "editor.label.is_playing": {
+            "source": "Playing",
+            "text": "재생 중",
+            "comment": "label"
+        },
+        "editor.label.play_on_start": {
+            "source": "Play On Start",
+            "text": "시작 시 재생",
+            "comment": "label"
+        },
+        "editor.label.reverse": {
+            "source": "Reverse",
+            "text": "역방향",
+            "comment": "label"
+        },
+        "editor.label.undo": {
+            "source": "Undo",
+            "text": "실행 취소",
+            "comment": "label"
+        },
+        "editor.label.redo": {
+            "source": "Redo",
+            "text": "다시 실행",
+            "comment": "label"
+        },
+        "editor.label.edit_entity_command": {
+            "source": "Edit Entity",
+            "text": "엔티티 편집",
+            "comment": "label"
+        },
+        "editor.label.create_entity_command": {
+            "source": "Create Entity",
+            "text": "엔티티 생성",
+            "comment": "label"
+        },
+        "editor.label.delete_entity_command": {
+            "source": "Delete Entity",
+            "text": "엔티티 삭제",
+            "comment": "label"
+        },
+        "editor.label.instantiate_prefab_command": {
+            "source": "Instantiate Prefab",
+            "text": "프리팹 생성",
+            "comment": "label"
+        },
+        "editor.label.position": {
+            "source": "Position",
+            "text": "위치",
+            "comment": "label"
+        },
+        "editor.label.scale": {
+            "source": "Scale",
+            "text": "크기",
+            "comment": "label"
+        },
+        "editor.label.rotation_xyz": {
+            "source": "Rotation XYZ",
+            "text": "회전 XYZ",
+            "comment": "label"
+        },
+        "editor.label.height": {
+            "source": "Height",
+            "text": "높이",
+            "comment": "label"
+        },
+        "editor.label.radius": {
+            "source": "Radius",
+            "text": "반지름",
+            "comment": "label"
+        },
+        "editor.label.range": {
+            "source": "Range",
+            "text": "범위",
+            "comment": "label"
+        },
+        "editor.label.speed": {
+            "source": "Speed",
+            "text": "속도",
+            "comment": "label"
+        },
+        "editor.label.priority": {
+            "source": "Priority",
+            "text": "우선순위",
+            "comment": "label"
+        },
+        "editor.label.offset": {
+            "source": "Offset",
+            "text": "오프셋",
+            "comment": "label"
+        },
+        "editor.label.spacing": {
+            "source": "Spacing",
+            "text": "간격",
+            "comment": "label"
+        },
+        "editor.label.layer": {
+            "source": "Layer",
+            "text": "레이어",
+            "comment": "label"
+        },
+        "editor.label.volume": {
+            "source": "Volume",
+            "text": "볼륨",
+            "comment": "label"
+        },
+        "editor.label.volume_offset": {
+            "source": "Volume Offset",
+            "text": "볼륨 오프셋",
+            "comment": "label"
+        },
+        "editor.label.mass": {
+            "source": "Mass",
+            "text": "질량",
+            "comment": "label"
+        },
+        "editor.label.friction": {
+            "source": "Friction",
+            "text": "마찰",
+            "comment": "label"
+        },
+        "editor.label.restitution": {
+            "source": "Restitution",
+            "text": "반발 계수",
+            "comment": "label"
+        },
+        "editor.label.gravity_factor": {
+            "source": "Gravity Factor",
+            "text": "중력 계수",
+            "comment": "label"
+        },
+        "editor.label.min_distance": {
+            "source": "Min Distance",
+            "text": "최소 거리",
+            "comment": "label"
+        },
+        "editor.label.max_distance": {
+            "source": "Max Distance",
+            "text": "최대 거리",
+            "comment": "label"
+        },
+        "editor.label.intensity": {
+            "source": "Intensity",
+            "text": "강도",
+            "comment": "label"
+        },
+        "editor.label.textures": {
+            "source": "Textures",
+            "text": "텍스처",
+            "comment": "label"
+        },
+        "editor.message.animation_events_no_mesh": {
+            "source": "No mesh asset to save animation events.",
+            "text": "애니메이션 이벤트를 저장할 mesh 에셋이 없습니다.",
+            "comment": "message"
+        },
+        "editor.message.animation_events_save_failed": {
+            "source": "Failed to save animation events.",
+            "text": "애니메이션 이벤트 저장 실패.",
+            "comment": "message"
+        },
+        "editor.message.animation_events_saved": {
+            "source": "Animation events saved: ",
+            "text": "애니메이션 이벤트 저장됨: ",
+            "comment": "message"
+        },
+        "editor.message.asset_binary_missing": {
+            "source": "Imported binary missing (needs import)",
+            "text": "가져온 바이너리 없음 (가져오기 필요)",
+            "comment": "message"
+        },
+        "editor.message.asset_importer_tool_not_found": {
+            "source": "AssetImporterTool not found: ",
+            "text": "AssetImporterTool을 찾을 수 없음: ",
+            "comment": "message"
+        },
+        "editor.message.asset_source_missing": {
+            "source": "Source file missing",
+            "text": "원본 파일 없음",
+            "comment": "message"
+        },
+        "editor.message.asset_texture_missing": {
+            "source": "Missing texture: ",
+            "text": "텍스처 없음: ",
+            "comment": "message"
+        },
+        "editor.message.content_browser_import_commit_failed": {
+            "source": "Content Browser import commit failed: ",
+            "text": "콘텐츠 브라우저 가져오기 커밋 실패: ",
+            "comment": "message"
+        },
+        "editor.message.content_browser_import_failed": {
+            "source": "Content Browser import failed: ",
+            "text": "콘텐츠 브라우저 가져오기 실패: ",
+            "comment": "message"
+        },
+        "editor.message.create_project_failed": {
+            "source": "Create project failed: ",
+            "text": "프로젝트 생성 실패: ",
+            "comment": "message"
+        },
+        "editor.message.failed_enable_plugin": {
+            "source": "Failed to enable plugin: ",
+            "text": "플러그인 활성화 실패: ",
+            "comment": "message"
+        },
+        "editor.message.failed_register_component_type": {
+            "source": "Failed to register component type: ",
+            "text": "컴포넌트 타입 등록 실패: ",
+            "comment": "message"
+        },
+        "editor.message.load_prefab_failed": {
+            "source": "Load prefab failed: ",
+            "text": "프리팹 열기 실패: ",
+            "comment": "message"
+        },
+        "editor.message.load_project_failed": {
+            "source": "Load project failed: ",
+            "text": "프로젝트 열기 실패: ",
+            "comment": "message"
+        },
+        "editor.message.load_scene_failed": {
+            "source": "Load scene failed: ",
+            "text": "씬 열기 실패: ",
+            "comment": "message"
+        },
+        "editor.message.load_scene_warning": {
+            "source": "Load scene warning: ",
+            "text": "씬 열기 경고: ",
+            "comment": "message"
+        },
+        "editor.message.package_project_failed": {
+            "source": "Package failed.",
+            "text": "패키징 실패.",
+            "comment": "message"
+        },
+        "editor.message.package_project_missing_settings": {
+            "source": "Project settings path is empty.",
+            "text": "프로젝트 설정 경로가 비어 있습니다.",
+            "comment": "message"
+        },
+        "editor.message.package_project_started": {
+            "source": "Packaging project: ",
+            "text": "프로젝트 패키징 중: ",
+            "comment": "message"
+        },
+        "editor.message.package_tool_not_found": {
+            "source": "PackageTool not found: ",
+            "text": "PackageTool을 찾을 수 없음: ",
+            "comment": "message"
+        },
+        "editor.message.plugin_disabled_next_restart": {
+            "source": "Plugin will be disabled on next editor restart: ",
+            "text": "에디터를 다시 시작하면 플러그인이 비활성화됩니다: ",
+            "comment": "message"
+        },
+        "editor.message.plugin_loaded": {
+            "source": "Loaded",
+            "text": "로드됨",
+            "comment": "message"
+        },
+        "editor.message.plugin_not_loaded": {
+            "source": "Not loaded",
+            "text": "로드되지 않음",
+            "comment": "message"
+        },
+        "editor.message.prefab_added": {
+            "source": "Prefab added: ",
+            "text": "프리팹 추가됨: ",
+            "comment": "message"
+        },
+        "editor.message.project_created": {
+            "source": "Project created: ",
+            "text": "프로젝트 생성됨: ",
+            "comment": "message"
+        },
+        "editor.message.project_loaded": {
+            "source": "Project loaded: ",
+            "text": "프로젝트 열림: ",
+            "comment": "message"
+        },
+        "editor.message.project_saved": {
+            "source": "Project saved: ",
+            "text": "프로젝트 저장됨: ",
+            "comment": "message"
+        },
+        "editor.message.save_material_failed": {
+            "source": "Failed to save material: ",
+            "text": "머티리얼 저장 실패: ",
+            "comment": "message"
+        },
+        "editor.message.save_prefab_failed": {
+            "source": "Save prefab failed: ",
+            "text": "프리팹 저장 실패: ",
+            "comment": "message"
+        },
+        "editor.message.save_project_failed": {
+            "source": "Save project failed: ",
+            "text": "프로젝트 저장 실패: ",
+            "comment": "message"
+        },
+        "editor.message.save_scene_failed": {
+            "source": "Save scene failed: ",
+            "text": "씬 저장 실패: ",
+            "comment": "message"
+        },
+        "editor.message.scene_loaded": {
+            "source": "Scene loaded: ",
+            "text": "씬 열림: ",
+            "comment": "message"
+        },
+        "editor.message.scene_saved": {
+            "source": "Scene saved: ",
+            "text": "씬 저장됨: ",
+            "comment": "message"
+        },
+        "editor.message.splash_loading_editor_settings": {
+            "source": "Loading editor settings...",
+            "text": "에디터 설정 불러오는 중...",
+            "comment": "message"
+        },
+        "editor.message.splash_loading_plugins": {
+            "source": "Loading plugins...",
+            "text": "플러그인 불러오는 중...",
+            "comment": "message"
+        },
+        "editor.message.splash_loading_startup_scene": {
+            "source": "Loading startup scene...",
+            "text": "시작 씬 불러오는 중...",
+            "comment": "message"
+        },
+        "editor.message.splash_starting_renderer": {
+            "source": "Starting renderer...",
+            "text": "렌더러 시작 중...",
+            "comment": "message"
+        },
+        "editor.window.save_current_scene": {
+            "source": "Save Current Scene?",
+            "text": "현재 씬을 저장할까요?",
+            "comment": "modal title"
+        },
+        "editor.hint.search": {
+            "source": "Search",
+            "text": "검색",
+            "comment": "content browser search placeholder"
+        },
+        "editor.label.layout_horizontal": {
+            "source": "Horizontal",
+            "text": "가로",
+            "comment": "layout type combo item"
+        },
+        "editor.label.layout_vertical": {
+            "source": "Vertical",
+            "text": "세로",
+            "comment": "layout type combo item"
+        },
+        "editor.label.align_start": {
+            "source": "Start",
+            "text": "시작",
+            "comment": "cross align combo item"
+        },
+        "editor.label.align_center": {
+            "source": "Center",
+            "text": "가운데",
+            "comment": "cross align combo item"
+        },
+        "editor.label.align_end": {
+            "source": "End",
+            "text": "끝",
+            "comment": "cross align combo item"
+        },
+        "editor.label.align_stretch": {
+            "source": "Stretch",
+            "text": "늘이기",
+            "comment": "cross align combo item"
+        },
+        "editor.label.column_label": {
+            "source": "Label",
+            "text": "항목",
+            "comment": "settings table column"
+        },
+        "editor.label.column_value": {
+            "source": "Value",
+            "text": "값",
+            "comment": "settings table column"
+        },
+        "editor.label.column_type": {
+            "source": "Type",
+            "text": "유형",
+            "comment": "game data table column"
+        },
+        "editor.label.column_default": {
+            "source": "Default",
+            "text": "기본값",
+            "comment": "game data table column"
+        },
+        "editor.label.file_name": {
+            "source": "File name:",
+            "text": "파일 이름:",
+            "comment": "game data new schema prompt"
+        },
+        "editor.action.new": {
+            "source": "New...",
+            "text": "새로 만들기...",
+            "comment": "game data schema button"
+        },
+        "editor.action.create": {
+            "source": "Create",
+            "text": "만들기",
+            "comment": "game data schema button"
+        },
+        "editor.action.add": {
+            "source": "Add",
+            "text": "추가",
+            "comment": "game data entry button"
+        },
+        "editor.action.save_schema": {
+            "source": "Save Schema",
+            "text": "스키마 저장",
+            "comment": "game data button"
+        },
+        "editor.format.localization_summary": {
+            "source": "default: %s   keys: %d%s",
+            "text": "기본: %s   키: %d%s",
+            "comment": "localization window header"
+        },
+        "editor.format.source_changed": {
+            "source": "source changed: \"%s\" -> \"%s\"",
+            "text": "원문 변경됨: \"%s\" -> \"%s\"",
+            "comment": "localization stale tooltip"
+        },
+        "editor.label.asset_texture": {
+            "source": "Texture",
+            "text": "텍스처",
+            "comment": "label"
+        },
+        "editor.label.asset_material": {
+            "source": "Material",
+            "text": "머티리얼",
+            "comment": "label"
+        },
+        "editor.label.asset_mesh": {
+            "source": "Mesh",
+            "text": "메시",
+            "comment": "label"
+        },
+        "editor.label.asset_scene": {
+            "source": "Scene",
+            "text": "씬",
+            "comment": "label"
+        },
+        "editor.label.asset_shader": {
+            "source": "Shader",
+            "text": "셰이더",
+            "comment": "label"
+        },
+        "editor.label.asset_font": {
+            "source": "Font",
+            "text": "폰트",
+            "comment": "label"
+        },
+        "editor.label.asset_script": {
+            "source": "Script",
+            "text": "스크립트",
+            "comment": "label"
+        },
+        "editor.label.asset_prefab": {
+            "source": "Prefab",
+            "text": "프리팹",
+            "comment": "label"
+        },
+        "editor.format.aspect_ratio_format": {
+            "source": "Aspect Ratio: %.3f",
+            "text": "종횡비: %.3f",
+            "comment": "format"
+        },
+        "editor.format.bone_matrices_format": {
+            "source": "Bone Matrices: %d",
+            "text": "본 행렬: %d",
+            "comment": "format"
+        },
+        "editor.format.bone_matrix_offset_format": {
+            "source": "Bone Matrix Offset: %u",
+            "text": "본 행렬 오프셋: %u",
+            "comment": "format"
+        },
+        "editor.format.exposure_multiplier_format": {
+            "source": "Exposure Multiplier: %.6f",
+            "text": "노출 배수: %.6f",
+            "comment": "format"
+        },
+        "editor.format.material_slots_format": {
+            "source": "Material Slots: %d",
+            "text": "머티리얼 슬롯: %d",
+            "comment": "format"
+        },
+        "editor.label.aa_none": {
+            "source": "None",
+            "text": "없음",
+            "comment": "anti-aliasing combo item"
+        },
+        "editor.label.additive": {
+            "source": "Additive",
+            "text": "가산",
+            "comment": "label"
+        },
+        "editor.label.alpha": {
+            "source": "Alpha",
+            "text": "알파",
+            "comment": "label"
+        },
+        "editor.label.ambient": {
+            "source": "Ambient",
+            "text": "앰비언트",
+            "comment": "label"
+        },
+        "editor.label.ambient_color": {
+            "source": "Ambient Color",
+            "text": "앰비언트 색상",
+            "comment": "label"
+        },
+        "editor.label.ambient_intensity": {
+            "source": "Ambient Intensity",
+            "text": "앰비언트 강도",
+            "comment": "label"
+        },
+        "editor.label.anchor": {
+            "source": "Anchor",
+            "text": "앵커",
+            "comment": "label"
+        },
+        "editor.label.anchor_presets": {
+            "source": "Anchor Presets",
+            "text": "앵커 프리셋",
+            "comment": "label"
+        },
+        "editor.label.angular_velocity": {
+            "source": "Angular Velocity",
+            "text": "각속도",
+            "comment": "label"
+        },
+        "editor.label.animation_events": {
+            "source": "Animation Events",
+            "text": "애니메이션 이벤트",
+            "comment": "label"
+        },
+        "editor.label.anisotropy": {
+            "source": "Anisotropy",
+            "text": "이방성",
+            "comment": "label"
+        },
+        "editor.label.anisotropy_map": {
+            "source": "Anisotropy Map",
+            "text": "이방성 맵",
+            "comment": "label"
+        },
+        "editor.label.anti_aliasing": {
+            "source": "Anti-Aliasing",
+            "text": "안티에일리어싱",
+            "comment": "label"
+        },
+        "editor.label.aperture": {
+            "source": "Aperture",
+            "text": "조리개",
+            "comment": "label"
+        },
+        "editor.label.auto_exposure": {
+            "source": "Auto Exposure",
+            "text": "자동 노출",
+            "comment": "label"
+        },
+        "editor.label.auto_exposure_max_ev": {
+            "source": "Max EV100",
+            "text": "최대 EV100",
+            "comment": "label"
+        },
+        "editor.label.auto_exposure_min_ev": {
+            "source": "Min EV100",
+            "text": "최소 EV100",
+            "comment": "label"
+        },
+        "editor.label.auto_exposure_speed": {
+            "source": "Adaptation Speed",
+            "text": "적응 속도",
+            "comment": "label"
+        },
+        "editor.label.base_color": {
+            "source": "Base Color",
+            "text": "베이스 컬러",
+            "comment": "label"
+        },
+        "editor.label.base_color_map": {
+            "source": "Base Color Map",
+            "text": "베이스 컬러 맵",
+            "comment": "label"
+        },
+        "editor.label.billboard": {
+            "source": "Billboard",
+            "text": "빌보드",
+            "comment": "label"
+        },
+        "editor.label.blend_mode": {
+            "source": "Blend Mode",
+            "text": "블렌드 모드",
+            "comment": "label"
+        },
+        "editor.label.box": {
+            "source": "Box",
+            "text": "박스",
+            "comment": "label"
+        },
+        "editor.label.bvh_debug": {
+            "source": "BVH Debug",
+            "text": "BVH 디버그",
+            "comment": "label"
+        },
+        "editor.label.cascade_blend": {
+            "source": "Cascade Blend",
+            "text": "캐스케이드 블렌드",
+            "comment": "label"
+        },
+        "editor.label.cascade_count": {
+            "source": "Cascade Count",
+            "text": "캐스케이드 수",
+            "comment": "label"
+        },
+        "editor.label.cascade_lambda": {
+            "source": "Cascade Lambda",
+            "text": "캐스케이드 람다",
+            "comment": "label"
+        },
+        "editor.label.cast_shadow": {
+            "source": "Cast Shadow",
+            "text": "그림자 생성",
+            "comment": "label"
+        },
+        "editor.label.clearcoat": {
+            "source": "Clearcoat",
+            "text": "Clearcoat",
+            "comment": "label"
+        },
+        "editor.label.clearcoat_map": {
+            "source": "Clearcoat Map",
+            "text": "Clearcoat 맵",
+            "comment": "label"
+        },
+        "editor.label.clearcoat_normal_map": {
+            "source": "Clearcoat Normal Map",
+            "text": "Clearcoat 노멀 맵",
+            "comment": "label"
+        },
+        "editor.label.clearcoat_roughness": {
+            "source": "Clearcoat Roughness",
+            "text": "Clearcoat 러프니스",
+            "comment": "label"
+        },
+        "editor.label.clearcoat_roughness_map": {
+            "source": "Clearcoat Roughness Map",
+            "text": "Clearcoat 러프니스 맵",
+            "comment": "label"
+        },
+        "editor.label.clip": {
+            "source": "Clip",
+            "text": "클립",
+            "comment": "label"
+        },
+        "editor.label.cross_align": {
+            "source": "Cross Align",
+            "text": "교차축 정렬",
+            "comment": "label"
+        },
+        "editor.label.cubemap": {
+            "source": "Cubemap",
+            "text": "큐브맵",
+            "comment": "label"
+        },
+        "editor.label.ddgi_debug_overlay": {
+            "source": "DDGI Debug Overlay",
+            "text": "DDGI 디버그 오버레이",
+            "comment": "label"
+        },
+        "editor.label.direct_sun_active": {
+            "source": "Direct Sun Active",
+            "text": "직사광 활성",
+            "comment": "label"
+        },
+        "editor.label.direct_sun_cascade_blend": {
+            "source": "Direct Sun Cascade Blend",
+            "text": "직사광 캐스케이드 블렌드",
+            "comment": "label"
+        },
+        "editor.label.direct_sun_cascade_count": {
+            "source": "Direct Sun Cascade Count",
+            "text": "직사광 캐스케이드 수",
+            "comment": "label"
+        },
+        "editor.label.direct_sun_cascade_lambda": {
+            "source": "Direct Sun Cascade Lambda",
+            "text": "직사광 캐스케이드 람다",
+            "comment": "label"
+        },
+        "editor.label.direct_sun_cast_shadow": {
+            "source": "Direct Sun Cast Shadow",
+            "text": "직사광 그림자 생성",
+            "comment": "label"
+        },
+        "editor.label.direct_sun_shadow_resolution": {
+            "source": "Direct Sun Shadow Resolution",
+            "text": "직사광 그림자 해상도",
+            "comment": "label"
+        },
+        "editor.label.directional": {
+            "source": "Directional",
+            "text": "디렉셔널",
+            "comment": "label"
+        },
+        "editor.label.displacement_map": {
+            "source": "Displacement Map",
+            "text": "디스플레이스먼트 맵",
+            "comment": "label"
+        },
+        "editor.label.double_sided": {
+            "source": "Double Sided",
+            "text": "양면",
+            "comment": "label"
+        },
+        "editor.label.duration_zero": {
+            "source": "Duration: 0.000s",
+            "text": "길이: 0.000초",
+            "comment": "label"
+        },
+        "editor.label.dynamic": {
+            "source": "Dynamic",
+            "text": "다이내믹",
+            "comment": "label"
+        },
+        "editor.label.editor_grid": {
+            "source": "Editor Grid",
+            "text": "에디터 그리드",
+            "comment": "label"
+        },
+        "editor.label.emissive_map": {
+            "source": "Emissive Map",
+            "text": "이미시브 맵",
+            "comment": "label"
+        },
+        "editor.label.entity_label": {
+            "source": "Entity ",
+            "text": "엔티티 ",
+            "comment": "label"
+        },
+        "editor.label.exposure_compensation": {
+            "source": "Exposure Compensation (EV)",
+            "text": "노출 보정 (EV)",
+            "comment": "label"
+        },
+        "editor.label.font": {
+            "source": "Font",
+            "text": "폰트",
+            "comment": "label"
+        },
+        "editor.label.fov_y": {
+            "source": "FOV Y",
+            "text": "FOV Y",
+            "comment": "label"
+        },
+        "editor.label.gi_mode": {
+            "source": "Diffuse GI Mode",
+            "text": "디퓨즈 GI 모드",
+            "comment": "label"
+        },
+        "editor.label.ground_color": {
+            "source": "Ground Color",
+            "text": "지면 색상",
+            "comment": "label"
+        },
+        "editor.label.ground_falloff": {
+            "source": "Ground Falloff",
+            "text": "지면 감쇠",
+            "comment": "label"
+        },
+        "editor.label.ground_horizon_color": {
+            "source": "Ground Horizon Color",
+            "text": "지면 지평선 색상",
+            "comment": "label"
+        },
+        "editor.label.ground_intensity": {
+            "source": "Ground Intensity",
+            "text": "지면 강도",
+            "comment": "label"
+        },
+        "editor.label.half_extent": {
+            "source": "Half Extent",
+            "text": "절반 크기",
+            "comment": "label"
+        },
+        "editor.label.height_field": {
+            "source": "Height Field",
+            "text": "높이 필드",
+            "comment": "label"
+        },
+        "editor.label.hysteresis": {
+            "source": "Hysteresis",
+            "text": "히스테리시스(누적 비율)",
+            "comment": "label"
+        },
+        "editor.label.indirect_diffuse_scale": {
+            "source": "Indirect Diffuse Scale",
+            "text": "간접 디퓨즈 배율",
+            "comment": "label"
+        },
+        "editor.label.indirect_specular_scale": {
+            "source": "Indirect Specular Scale",
+            "text": "간접 스페큘러 배율",
+            "comment": "label"
+        },
+        "editor.label.inner_cone": {
+            "source": "Inner Cone",
+            "text": "내부 원뿔",
+            "comment": "label"
+        },
+        "editor.label.irradiance_cubemap_asset_path": {
+            "source": "Irradiance Cubemap Path",
+            "text": "Irradiance 큐브맵 경로",
+            "comment": "label"
+        },
+        "editor.label.is_3d": {
+            "source": "3D Spatial",
+            "text": "3D 공간 음향",
+            "comment": "label"
+        },
+        "editor.label.kinematic": {
+            "source": "Kinematic",
+            "text": "키네마틱",
+            "comment": "label"
+        },
+        "editor.label.linear_velocity": {
+            "source": "Linear Velocity",
+            "text": "선속도",
+            "comment": "label"
+        },
+        "editor.label.loop": {
+            "source": "Loop",
+            "text": "반복",
+            "comment": "label"
+        },
+        "editor.label.material_asset": {
+            "source": "Material Asset",
+            "text": "머티리얼 에셋",
+            "comment": "label"
+        },
+        "editor.label.mesh_asset": {
+            "source": "Mesh Asset",
+            "text": "메시 에셋",
+            "comment": "label"
+        },
+        "editor.label.metallic": {
+            "source": "Metallic",
+            "text": "메탈릭",
+            "comment": "label"
+        },
+        "editor.label.metallic_map": {
+            "source": "Metallic Map",
+            "text": "메탈릭 맵",
+            "comment": "label"
+        },
+        "editor.label.mie_coefficient": {
+            "source": "Mie Coefficient",
+            "text": "Mie 계수",
+            "comment": "label"
+        },
+        "editor.label.mie_eccentricity": {
+            "source": "Mie Eccentricity",
+            "text": "Mie 산란 방향성",
+            "comment": "label"
+        },
+        "editor.label.motion_type": {
+            "source": "Motion Type",
+            "text": "모션 타입",
+            "comment": "label"
+        },
+        "editor.label.normal_bias": {
+            "source": "Normal Bias",
+            "text": "노멀 바이어스",
+            "comment": "label"
+        },
+        "editor.label.normal_map": {
+            "source": "Normal Map",
+            "text": "노멀 맵",
+            "comment": "label"
+        },
+        "editor.label.occlusion_map": {
+            "source": "Occlusion Map",
+            "text": "오클루전 맵",
+            "comment": "label"
+        },
+        "editor.label.opacity_map": {
+            "source": "Opacity Map",
+            "text": "불투명도 맵",
+            "comment": "label"
+        },
+        "editor.label.opaque": {
+            "source": "Opaque",
+            "text": "불투명",
+            "comment": "label"
+        },
+        "editor.label.ortho_size": {
+            "source": "Ortho Size",
+            "text": "직교 뷰 크기",
+            "comment": "label"
+        },
+        "editor.label.orthographic": {
+            "source": "Orthographic",
+            "text": "직교",
+            "comment": "label"
+        },
+        "editor.label.outer_cone": {
+            "source": "Outer Cone",
+            "text": "외부 원뿔",
+            "comment": "label"
+        },
+        "editor.label.padding_max": {
+            "source": "Padding Max",
+            "text": "패딩 최대",
+            "comment": "label"
+        },
+        "editor.label.padding_min": {
+            "source": "Padding Min",
+            "text": "패딩 최소",
+            "comment": "label"
+        },
+        "editor.label.physically_based": {
+            "source": "Physically Based",
+            "text": "물리 기반",
+            "comment": "label"
+        },
+        "editor.label.pitch": {
+            "source": "Pitch",
+            "text": "피치(음정)",
+            "comment": "label"
+        },
+        "editor.label.pivot": {
+            "source": "Pivot",
+            "text": "피벗",
+            "comment": "label"
+        },
+        "editor.label.pixel_height": {
+            "source": "Pixel Height",
+            "text": "픽셀 높이",
+            "comment": "label"
+        },
+        "editor.label.point": {
+            "source": "Point",
+            "text": "포인트",
+            "comment": "label"
+        },
+        "editor.label.premultiplied": {
+            "source": "Premultiplied",
+            "text": "프리멀티플라이드 알파",
+            "comment": "label"
+        },
+        "editor.label.probe_counts": {
+            "source": "Probe Counts",
+            "text": "프로브 개수",
+            "comment": "label"
+        },
+        "editor.label.probe_spacing": {
+            "source": "Probe Spacing",
+            "text": "프로브 간격",
+            "comment": "label"
+        },
+        "editor.label.probes_per_frame": {
+            "source": "Probes Per Frame",
+            "text": "프레임당 프로브",
+            "comment": "label"
+        },
+        "editor.label.procedural": {
+            "source": "Procedural",
+            "text": "프로시저럴",
+            "comment": "label"
+        },
+        "editor.label.rayleigh_coefficient": {
+            "source": "Rayleigh Coefficient",
+            "text": "Rayleigh 계수",
+            "comment": "label"
+        },
+        "editor.label.receive_shadow": {
+            "source": "Receive Shadow",
+            "text": "그림자 받기",
+            "comment": "label"
+        },
+        "editor.label.reflectance": {
+            "source": "Reflectance",
+            "text": "반사율(F0)",
+            "comment": "label"
+        },
+        "editor.label.reflection_mode": {
+            "source": "Reflection Mode",
+            "text": "반사 모드",
+            "comment": "label"
+        },
+        "editor.label.roughness": {
+            "source": "Roughness",
+            "text": "러프니스",
+            "comment": "label"
+        },
+        "editor.label.roughness_map": {
+            "source": "Roughness Map",
+            "text": "러프니스 맵",
+            "comment": "label"
+        },
+        "editor.label.sensitivity": {
+            "source": "Sensitivity",
+            "text": "감도(ISO)",
+            "comment": "label"
+        },
+        "editor.label.shader_type": {
+            "source": "Material Type",
+            "text": "머티리얼 타입",
+            "comment": "label"
+        },
+        "editor.label.shadow_resolution": {
+            "source": "Shadow Resolution",
+            "text": "그림자 해상도",
+            "comment": "label"
+        },
+        "editor.label.shutter_speed": {
+            "source": "Shutter Speed",
+            "text": "셔터 속도",
+            "comment": "label"
+        },
+        "editor.label.sky": {
+            "source": "Sky",
+            "text": "하늘",
+            "comment": "label"
+        },
+        "editor.label.sky_cubemap_asset_path": {
+            "source": "Sky Cubemap Path",
+            "text": "하늘 큐브맵 경로",
+            "comment": "label"
+        },
+        "editor.label.sky_horizon_color": {
+            "source": "Sky Horizon Color",
+            "text": "하늘 지평선 색상",
+            "comment": "label"
+        },
+        "editor.label.sky_horizon_falloff": {
+            "source": "Sky Horizon Falloff",
+            "text": "하늘 지평선 감쇠",
+            "comment": "label"
+        },
+        "editor.label.sky_intensity": {
+            "source": "Sky Intensity",
+            "text": "하늘 강도",
+            "comment": "label"
+        },
+        "editor.label.sky_type": {
+            "source": "Sky Type",
+            "text": "하늘 유형",
+            "comment": "label"
+        },
+        "editor.label.sky_zenith_color": {
+            "source": "Sky Zenith Color",
+            "text": "하늘 천정 색상",
+            "comment": "label"
+        },
+        "editor.label.slot_prefix": {
+            "source": "Slot ",
+            "text": "슬롯 ",
+            "comment": "label"
+        },
+        "editor.label.sound_asset_path": {
+            "source": "Sound Path",
+            "text": "사운드 경로",
+            "comment": "label"
+        },
+        "editor.label.specular_cubemap_asset_path": {
+            "source": "Specular Cubemap Path",
+            "text": "Specular 큐브맵 경로",
+            "comment": "label"
+        },
+        "editor.label.sphere": {
+            "source": "Sphere",
+            "text": "구",
+            "comment": "label"
+        },
+        "editor.label.spot": {
+            "source": "Spot",
+            "text": "스포트",
+            "comment": "label"
+        },
+        "editor.label.static_str": {
+            "source": "Static",
+            "text": "스태틱",
+            "comment": "label"
+        },
+        "editor.label.sun_angular_radius": {
+            "source": "Sun Angular Radius",
+            "text": "태양 크기(각도)",
+            "comment": "label"
+        },
+        "editor.label.sun_color": {
+            "source": "Sun Color",
+            "text": "태양 색상",
+            "comment": "label"
+        },
+        "editor.label.sun_direction": {
+            "source": "Sun Direction",
+            "text": "태양 방향",
+            "comment": "label"
+        },
+        "editor.label.sun_glow_falloff": {
+            "source": "Sun Glow Falloff",
+            "text": "태양 글로우 감쇠",
+            "comment": "label"
+        },
+        "editor.label.sun_glow_intensity": {
+            "source": "Sun Glow Intensity",
+            "text": "태양 글로우 강도",
+            "comment": "label"
+        },
+        "editor.label.sun_intensity": {
+            "source": "Sun Intensity",
+            "text": "태양 강도",
+            "comment": "label"
+        },
+        "editor.label.tonemap_mode": {
+            "source": "Tonemap Mode",
+            "text": "톤매핑 모드",
+            "comment": "label"
+        },
+        "editor.label.trigger": {
+            "source": "Trigger",
+            "text": "트리거",
+            "comment": "label"
+        },
+        "editor.label.turbidity": {
+            "source": "Turbidity",
+            "text": "대기 혼탁도",
+            "comment": "label"
+        },
+        "editor.label.use_vertex_colors": {
+            "source": "Use Vertex Colors",
+            "text": "버텍스 컬러 사용",
+            "comment": "label"
+        },
+        "editor.label.uv_rect": {
+            "source": "UV Rect",
+            "text": "UV 사각형",
+            "comment": "label"
+        },
+        "editor.label.view_bias": {
+            "source": "View Bias",
+            "text": "뷰 바이어스",
+            "comment": "label"
+        },
+        "editor.label.vsync": {
+            "source": "VSync",
+            "text": "수직 동기화",
+            "comment": "label"
+        },
+        "editor.label.wireframe": {
+            "source": "WireFrame",
+            "text": "와이어프레임",
+            "comment": "label"
+        },
+        "editor.label.won_material_file": {
+            "source": "WonEngine Material",
+            "text": "WonEngine 머티리얼",
+            "comment": "label"
+        },
+        "editor.label.won_prefab_file": {
+            "source": "Won Prefab",
+            "text": "Won 프리팹",
+            "comment": "label"
+        },
+        "editor.label.won_project_file": {
+            "source": "Won Project",
+            "text": "Won 프로젝트",
+            "comment": "label"
+        },
+        "editor.label.won_scene_file": {
+            "source": "Won Scene",
+            "text": "Won 씬",
+            "comment": "label"
+        },
+        "editor.label.asset_sound": {
+            "source": "Sound",
+            "text": "사운드",
+            "comment": "content browser asset type"
+        },
+        "editor.label.sheen_color": {
+            "source": "Sheen Color",
+            "text": "Sheen 색상",
+            "comment": "label"
+        },
+        "editor.label.sheen_color_map": {
+            "source": "Sheen Color Map",
+            "text": "Sheen 색상 맵",
+            "comment": "label"
+        },
+        "editor.label.sheen_roughness": {
+            "source": "Sheen Roughness",
+            "text": "Sheen 러프니스",
+            "comment": "label"
+        },
+        "editor.label.sheen_roughness_map": {
+            "source": "Sheen Roughness Map",
+            "text": "Sheen 러프니스 맵",
+            "comment": "label"
+        },
+        "editor.field.agent_height": {
+            "source": "Agent Height",
+            "text": "에이전트 높이",
+            "comment": "reflected component field"
+        },
+        "editor.field.agent_max_climb": {
+            "source": "Agent Max Climb",
+            "text": "에이전트 최대 오름 높이",
+            "comment": "reflected component field"
+        },
+        "editor.field.agent_max_slope": {
+            "source": "Agent Max Slope",
+            "text": "에이전트 최대 경사",
+            "comment": "reflected component field"
+        },
+        "editor.field.agent_radius": {
+            "source": "Agent Radius",
+            "text": "에이전트 반지름",
+            "comment": "reflected component field"
+        },
+        "editor.field.anchor": {
+            "source": "Anchor",
+            "text": "앵커",
+            "comment": "reflected component field"
+        },
+        "editor.field.arrival_threshold": {
+            "source": "Arrival Threshold",
+            "text": "도착 판정 거리",
+            "comment": "reflected component field"
+        },
+        "editor.field.axis": {
+            "source": "Axis",
+            "text": "축",
+            "comment": "reflected component field"
+        },
+        "editor.field.blend_duration": {
+            "source": "Blend Duration",
+            "text": "블렌드 시간",
+            "comment": "reflected component field"
+        },
+        "editor.field.bounds_center": {
+            "source": "Bounds Center",
+            "text": "경계 중심",
+            "comment": "reflected component field"
+        },
+        "editor.field.bounds_extent": {
+            "source": "Bounds Extent",
+            "text": "경계 크기",
+            "comment": "reflected component field"
+        },
+        "editor.field.clip": {
+            "source": "Clip",
+            "text": "클립",
+            "comment": "reflected component field"
+        },
+        "editor.field.connected_entity": {
+            "source": "Connected Entity",
+            "text": "연결 엔티티",
+            "comment": "reflected component field"
+        },
+        "editor.field.cubemap_asset_path": {
+            "source": "Cubemap Asset Path",
+            "text": "큐브맵 경로",
+            "comment": "reflected component field"
+        },
+        "editor.field.default_state": {
+            "source": "Default State",
+            "text": "기본 상태",
+            "comment": "reflected component field"
+        },
+        "editor.field.emit_radius": {
+            "source": "Emit Radius",
+            "text": "방출 반경",
+            "comment": "reflected component field"
+        },
+        "editor.field.end_color": {
+            "source": "End Color",
+            "text": "끝 색상",
+            "comment": "reflected component field"
+        },
+        "editor.field.end_size": {
+            "source": "End Size",
+            "text": "끝 크기",
+            "comment": "reflected component field"
+        },
+        "editor.field.exit_time": {
+            "source": "Exit Time",
+            "text": "종료 시점",
+            "comment": "reflected component field"
+        },
+        "editor.field.frequency": {
+            "source": "Frequency",
+            "text": "주파수",
+            "comment": "reflected component field"
+        },
+        "editor.field.from_state": {
+            "source": "From State",
+            "text": "시작 상태",
+            "comment": "reflected component field"
+        },
+        "editor.field.gravity": {
+            "source": "Gravity",
+            "text": "중력",
+            "comment": "reflected component field"
+        },
+        "editor.field.has_exit_time": {
+            "source": "Has Exit Time",
+            "text": "종료 시점 사용",
+            "comment": "reflected component field"
+        },
+        "editor.field.height_scale": {
+            "source": "Height Scale",
+            "text": "높이 배율",
+            "comment": "reflected component field"
+        },
+        "editor.field.include_layers": {
+            "source": "Include Layers",
+            "text": "포함 레이어",
+            "comment": "reflected component field"
+        },
+        "editor.field.influence_radius": {
+            "source": "Influence Radius",
+            "text": "영향 반경",
+            "comment": "reflected component field"
+        },
+        "editor.field.intensity_multiplier": {
+            "source": "Intensity Multiplier",
+            "text": "강도 배수",
+            "comment": "reflected component field"
+        },
+        "editor.field.island_falloff": {
+            "source": "Island Falloff",
+            "text": "섬 감쇠",
+            "comment": "reflected component field"
+        },
+        "editor.field.lacunarity": {
+            "source": "Lacunarity",
+            "text": "라쿠나리티",
+            "comment": "reflected component field"
+        },
+        "editor.field.layer": {
+            "source": "Layer",
+            "text": "레이어",
+            "comment": "reflected component field"
+        },
+        "editor.field.layer_mask": {
+            "source": "Layer Mask",
+            "text": "레이어 마스크",
+            "comment": "reflected component field"
+        },
+        "editor.field.lifetime": {
+            "source": "Lifetime",
+            "text": "수명",
+            "comment": "reflected component field"
+        },
+        "editor.field.limit_max": {
+            "source": "Limit Max",
+            "text": "최대 제한",
+            "comment": "reflected component field"
+        },
+        "editor.field.limit_min": {
+            "source": "Limit Min",
+            "text": "최소 제한",
+            "comment": "reflected component field"
+        },
+        "editor.field.loop": {
+            "source": "Loop",
+            "text": "반복",
+            "comment": "reflected component field"
+        },
+        "editor.field.match": {
+            "source": "Match",
+            "text": "매치",
+            "comment": "reflected component field"
+        },
+        "editor.field.max_particle_count": {
+            "source": "Max Particle Count",
+            "text": "최대 파티클 수",
+            "comment": "reflected component field"
+        },
+        "editor.field.move_speed": {
+            "source": "Move Speed",
+            "text": "이동 속도",
+            "comment": "reflected component field"
+        },
+        "editor.field.name": {
+            "source": "Name",
+            "text": "이름",
+            "comment": "reflected component field"
+        },
+        "editor.field.navmesh_asset_path": {
+            "source": "Navmesh Asset Path",
+            "text": "NavMesh 경로",
+            "comment": "reflected component field"
+        },
+        "editor.field.octaves": {
+            "source": "Octaves",
+            "text": "옥타브",
+            "comment": "reflected component field"
+        },
+        "editor.field.op": {
+            "source": "Op",
+            "text": "연산",
+            "comment": "reflected component field"
+        },
+        "editor.field.parameter": {
+            "source": "Parameter",
+            "text": "파라미터",
+            "comment": "reflected component field"
+        },
+        "editor.field.persistence": {
+            "source": "Persistence",
+            "text": "퍼시스턴스",
+            "comment": "reflected component field"
+        },
+        "editor.field.reference_resolution": {
+            "source": "Reference Resolution",
+            "text": "기준 해상도",
+            "comment": "reflected component field"
+        },
+        "editor.field.render_mode": {
+            "source": "Render Mode",
+            "text": "렌더 모드",
+            "comment": "reflected component field"
+        },
+        "editor.field.resolution_x": {
+            "source": "Resolution X",
+            "text": "해상도 X",
+            "comment": "reflected component field"
+        },
+        "editor.field.resolution_z": {
+            "source": "Resolution Z",
+            "text": "해상도 Z",
+            "comment": "reflected component field"
+        },
+        "editor.field.ridge_strength": {
+            "source": "Ridge Strength",
+            "text": "능선 강도",
+            "comment": "reflected component field"
+        },
+        "editor.field.scale_mode": {
+            "source": "Scale Mode",
+            "text": "스케일 모드",
+            "comment": "reflected component field"
+        },
+        "editor.field.seed": {
+            "source": "Seed",
+            "text": "시드",
+            "comment": "reflected component field"
+        },
+        "editor.field.sort_order": {
+            "source": "Sort Order",
+            "text": "정렬 순서",
+            "comment": "reflected component field"
+        },
+        "editor.field.spawn_rate": {
+            "source": "Spawn Rate",
+            "text": "생성 속도",
+            "comment": "reflected component field"
+        },
+        "editor.field.speed": {
+            "source": "Speed",
+            "text": "속도",
+            "comment": "reflected component field"
+        },
+        "editor.field.start_color": {
+            "source": "Start Color",
+            "text": "시작 색상",
+            "comment": "reflected component field"
+        },
+        "editor.field.start_size": {
+            "source": "Start Size",
+            "text": "시작 크기",
+            "comment": "reflected component field"
+        },
+        "editor.field.threshold": {
+            "source": "Threshold",
+            "text": "임계값",
+            "comment": "reflected component field"
+        },
+        "editor.field.to_state": {
+            "source": "To State",
+            "text": "대상 상태",
+            "comment": "reflected component field"
+        },
+        "editor.field.tree_asset_path": {
+            "source": "Tree Asset Path",
+            "text": "트리 경로",
+            "comment": "reflected component field"
+        },
+        "editor.field.turn_rate": {
+            "source": "Turn Rate",
+            "text": "회전 속도",
+            "comment": "reflected component field"
+        },
+        "editor.field.type": {
+            "source": "Type",
+            "text": "유형",
+            "comment": "reflected component field"
+        },
+        "editor.field.use_bounds": {
+            "source": "Use Bounds",
+            "text": "경계 사용",
+            "comment": "reflected component field"
+        },
+        "editor.field.use_limit": {
+            "source": "Use Limit",
+            "text": "제한 사용",
+            "comment": "reflected component field"
+        },
+        "editor.field.value": {
+            "source": "Value",
+            "text": "값",
+            "comment": "reflected component field"
+        },
+        "editor.field.velocity": {
+            "source": "Velocity",
+            "text": "속도(벡터)",
+            "comment": "reflected component field"
+        },
+        "editor.field.velocity_variation": {
+            "source": "Velocity Variation",
+            "text": "속도 편차",
+            "comment": "reflected component field"
+        },
+        "editor.field.warp_strength": {
+            "source": "Warp Strength",
+            "text": "워프 강도",
+            "comment": "reflected component field"
+        },
+        "editor.field.world_size_x": {
+            "source": "World Size X",
+            "text": "월드 크기 X",
+            "comment": "reflected component field"
+        },
+        "editor.field.world_size_z": {
+            "source": "World Size Z",
+            "text": "월드 크기 Z",
+            "comment": "reflected component field"
+        }
+    }
+}

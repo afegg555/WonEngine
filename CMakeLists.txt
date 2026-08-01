@@ -617,6 +617,7 @@ set(Editor_PUBLIC
     Source/Editor/main.cpp
     Source/Editor/Editor.h
     Source/Editor/EditorSettings.h
+    Source/Editor/EditorTextKeys.h
     Source/Editor/Editor.cpp
     Source/Editor/EditorHistory.h
     Source/Editor/EditorHistory.cpp

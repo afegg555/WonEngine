@@ -111,10 +111,6 @@ int main(int argc, char** argv)
     }
     std::cout << "Package: " << package_root << "\n";
 
-    if (settings.content_root.empty())
-    {
-        settings.content_root = "Contents";
-    }
     const won::String content_root_path = won::io::NormalizePath(settings.content_root);
     const won::String startup_scene_path = settings.startup_scene.empty() ? "" : won::io::NormalizePath(settings.startup_scene);
     const won::String splash_image_path = won::io::NormalizePath(settings.splash_image);
@@ -188,7 +184,7 @@ int main(int argc, char** argv)
     }
 
     const won::String content_source = won::io::CombinePath(project_root, settings.content_root);
-    const won::String content_target = won::io::CombinePath(package_root, "Contents");
+    const won::String content_target = won::io::CombinePath(package_root, won::project::packaged_content_root);
     if (!won::io::CreateDirectories(content_target))
     {
         std::cout << "Failed to create content directory: " << content_target << "\n";
@@ -474,7 +470,7 @@ int main(int argc, char** argv)
     // new setting path
     settings.settings_path.clear();
     settings.project_root.clear();
-    settings.content_root = "Contents";
+    settings.content_root = won::project::packaged_content_root;
     if (!won::project::SaveSettings(won::io::CombinePath(package_root, won::io::GetFilename(source_settings_path)), settings))
     {
         std::cout << "Failed to write project settings.\n";

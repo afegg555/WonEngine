@@ -6,6 +6,8 @@
 namespace won::editor
 {
     inline constexpr const char* editor_settings_file_name = "EditorSettings.json";
+    inline constexpr const char* editor_default_language = "en";
+    inline constexpr const char* editor_layout_file_name = "EditorLayout.ini";
 
     struct EditorSettings
     {
@@ -20,6 +22,7 @@ namespace won::editor
         bool viewport_show_ddgi_overlay = false;
         float camera_speed = 5.0f;
         String last_scene_path;
+        String editor_language;
     };
 
     inline bool LoadSettings(const String& path, EditorSettings& out_settings)
@@ -78,6 +81,10 @@ namespace won::editor
         {
             settings.last_scene_path = string_value;
         }
+        if (const char* string_value = configuration.GetString("editor.language"))
+        {
+            settings.editor_language = string_value;
+        }
 
         out_settings = settings;
         return true;
@@ -96,6 +103,7 @@ namespace won::editor
         configuration.SetBool("editor.viewport.show_ddgi_overlay", settings.viewport_show_ddgi_overlay);
         configuration.SetFloat("editor.camera.speed", settings.camera_speed);
         configuration.SetString("editor.scene.last_path", settings.last_scene_path.c_str());
+        configuration.SetString("editor.language", settings.editor_language.c_str());
         return configuration.SaveToFile(path.c_str());
     }
 }

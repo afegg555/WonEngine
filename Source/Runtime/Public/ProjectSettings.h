@@ -12,6 +12,8 @@ namespace won::project
     inline constexpr uint32 project_settings_version = 1;
     inline constexpr const char* project_file_extension = "wonproj";
     inline constexpr const char* default_project_file_name = "Project.wonproj";
+    inline constexpr const char* default_content_root = "Contents";
+    inline constexpr const char* packaged_content_root = "Contents";
     inline constexpr const char* content_virtual_root = "/Contents";
     inline constexpr const char* content_virtual_root_prefix = "/Contents/";
     inline constexpr Size content_virtual_root_prefix_length = sizeof("/Contents/") - 1;
@@ -22,7 +24,7 @@ namespace won::project
         String settings_path;
         String project_root;
         String project_name;
-        String content_root = "Contents";
+        String content_root = default_content_root;
         String startup_scene;
         String window_title = "WonEngine";
         int window_width = 1280;
@@ -92,7 +94,7 @@ namespace won::project
 
     inline String GetContentRoot(const ProjectSettings& settings)
     {
-        String content_root = settings.content_root.empty() ? "Contents" : settings.content_root;
+        String content_root = settings.content_root.empty() ? default_content_root : settings.content_root;
         if (!io::IsAbsolutePath(content_root))
         {
             content_root = io::CombinePath(settings.project_root, content_root);
@@ -119,6 +121,37 @@ namespace won::project
             return io::NormalizePath(io::CombinePath(content_root, path.substr(content_virtual_root_prefix_length)));
         }
         return io::NormalizePath(io::CombinePath(content_root, path));
+    }
+
+    inline bool IsVirtualContentPath(const String& path)
+    {
+        return path == content_virtual_root || path.rfind(content_virtual_root_prefix, 0) == 0;
+    }
+
+    inline String StripVirtualContentRoot(const String& path)
+    {
+        if (path == content_virtual_root)
+        {
+            return String();
+        }
+        if (path.rfind(content_virtual_root_prefix, 0) == 0)
+        {
+            return io::NormalizePath(path.substr(content_virtual_root_prefix_length));
+        }
+        return path;
+    }
+
+    inline String MakeVirtualContentPath(const String& project_relative_path)
+    {
+        if (project_relative_path.empty())
+        {
+            return content_virtual_root;
+        }
+        if (IsVirtualContentPath(project_relative_path))
+        {
+            return project_relative_path;
+        }
+        return io::CombinePath(content_virtual_root, project_relative_path);
     }
 
     inline bool LoadSettings(const String& path, ProjectSettings& out_settings)

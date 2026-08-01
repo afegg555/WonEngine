@@ -11,15 +11,7 @@
 
 namespace won::locale
 {
-    static String content_root;
-    static String default_language;
-    static Vector<String> available_languages;
-    static String current_language;
-    static UnorderedMap<String, String> entries;
-    static UnorderedMap<String, String> fallback_entries;
-    static UnorderedSet<String> reported_missing_keys;
-    static utils::SpinLock missing_keys_lock;
-    static uint32 revision = 1;
+    static utils::SpinLock missing_entries_lock;
 
     String NormalizeLanguage(const String& language)
     {
@@ -62,11 +54,6 @@ namespace won::locale
             ++subtag_index;
         }
         return normalized;
-    }
-
-    String GetTablePath(const String& language)
-    {
-        return io::CombinePath(io::CombinePath(content_root, localization_directory), language + "." + localization_file_extension);
     }
 
     String GetSystemLanguage()
@@ -161,7 +148,7 @@ namespace won::locale
         return !archive.HasError() && archive.SaveToFile(path);
     }
 
-    void Initialize(const String& root, const Vector<String>& languages, const String& default_code)
+    void LocaleDomain::Initialize(const String& root, const Vector<String>& languages, const String& default_code)
     {
         content_root = root;
         default_language = NormalizeLanguage(default_code);
@@ -174,11 +161,11 @@ namespace won::locale
         current_language.clear();
         entries.clear();
         fallback_entries.clear();
-        reported_missing_keys.clear();
+        missing_entries.clear();
         ++revision;
     }
 
-    void Shutdown()
+    void LocaleDomain::Shutdown()
     {
         content_root.clear();
         default_language.clear();
@@ -186,11 +173,16 @@ namespace won::locale
         current_language.clear();
         entries.clear();
         fallback_entries.clear();
-        reported_missing_keys.clear();
+        missing_entries.clear();
         ++revision;
     }
 
-    static String ResolveLanguage(const String& language)
+    String LocaleDomain::GetTablePath(const String& language) const
+    {
+        return io::CombinePath(io::CombinePath(content_root, localization_directory), language + "." + localization_file_extension);
+    }
+
+    String LocaleDomain::FindAvailableLanguage(const String& language) const
     {
         String candidate = NormalizeLanguage(language);
         while (!candidate.empty())
@@ -212,14 +204,14 @@ namespace won::locale
         return default_language;
     }
 
-    bool SetLanguage(const String& language)
+    bool LocaleDomain::SetLanguage(const String& language)
     {
         if (language.empty())
         {
             return false;
         }
 
-        const String resolved = ResolveLanguage(language);
+        const String resolved = FindAvailableLanguage(language);
         if (resolved.empty())
         {
             backlog::Post("[Locale] no language table matches '" + language + "'", backlog::LogLevel::Warning);
@@ -262,23 +254,23 @@ namespace won::locale
         }
 
         current_language = resolved;
-        reported_missing_keys.clear();
+        missing_entries.clear();
         ++revision;
         backlog::Post("[Locale] language set to " + current_language + " (" + std::to_string(entries.size()) + " entries)");
         return true;
     }
 
-    const String& GetLanguage()
+    const String& LocaleDomain::GetLanguage() const
     {
         return current_language;
     }
 
-    const Vector<String>& GetAvailableLanguages()
+    const Vector<String>& LocaleDomain::GetAvailableLanguages() const
     {
         return available_languages;
     }
 
-    String GetText(const String& key)
+    const String& LocaleDomain::GetText(const String& key)
     {
         const auto it = entries.find(key);
         if (it != entries.end())
@@ -288,9 +280,12 @@ namespace won::locale
 
         const auto fallback = fallback_entries.find(key);
 
-        missing_keys_lock.Lock();
-        const bool first_report = reported_missing_keys.emplace(key).second;
-        missing_keys_lock.Unlock();
+        missing_entries_lock.Lock();
+        const auto inserted = missing_entries.emplace(key, fallback != fallback_entries.end() ? fallback->second : key);
+        const String& value = inserted.first->second;
+        const bool first_report = inserted.second;
+        missing_entries_lock.Unlock();
+
         if (first_report)
         {
             if (fallback != fallback_entries.end())
@@ -302,16 +297,17 @@ namespace won::locale
                 backlog::Post("[Locale] missing key '" + key + "' in '" + current_language + "'", backlog::LogLevel::Warning);
             }
         }
-
-        if (fallback != fallback_entries.end())
-        {
-            return fallback->second;
-        }
-        return key;
+        return value;
     }
 
-    uint32 GetRevision()
+    uint32 LocaleDomain::GetRevision() const
     {
         return revision;
+    }
+
+    LocaleDomain& GetGameDomain()
+    {
+        static LocaleDomain game_domain;
+        return game_domain;
     }
 }
