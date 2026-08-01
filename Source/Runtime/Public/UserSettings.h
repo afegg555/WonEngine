@@ -15,6 +15,7 @@ namespace won::settings
         std::optional<bool> vsync;
         std::optional<rendering::AntiAliasingMode> aa_mode;
         std::optional<float> shadow_resolution_scale;
+        std::optional<String> language;
     };
 
     inline String GetUserSettingsPath(const String& app_name)
@@ -50,6 +51,10 @@ namespace won::settings
         {
             out_settings.shadow_resolution_scale = float_value;
         }
+        if (const char* string_value = configuration.GetString("language"))
+        {
+            out_settings.language = string_value;
+        }
         return true;
     }
 
@@ -73,6 +78,10 @@ namespace won::settings
         if (settings.shadow_resolution_scale.has_value())
         {
             configuration.SetFloat("shadow_resolution_scale", settings.shadow_resolution_scale.value());
+        }
+        if (settings.language.has_value())
+        {
+            configuration.SetString("language", settings.language.value().c_str());
         }
 
         io::CreateDirectories(io::GetDirectoryFromPath(path));

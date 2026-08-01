@@ -5,6 +5,7 @@
 #include "Platform.h"
 #include "Timer.h"
 #include "MathUtils.h"
+#include "StringUtils.h"
 
 #if defined(_WIN32)
 #include <xinput.h>
@@ -676,7 +677,7 @@ namespace won::io
                     archive.Field(action_map_format::field_type, type_name);
                     if (!action_name.empty())
                     {
-                        std::transform(type_name.begin(), type_name.end(), type_name.begin(), [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+                        type_name = utils::ToUpper(type_name);
                         InputActionRuntimeState runtime_state = {};
                         if (type_name == action_map_format::type_axis1d || type_name == action_map_format::type_axis)
                         {
@@ -722,7 +723,7 @@ namespace won::io
                     InputActionBinding binding = {};
                     binding.action_name = action_name;
                     binding.scale = scale;
-                    std::transform(axis_name.begin(), axis_name.end(), axis_name.begin(), [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+                    axis_name = utils::ToUpper(axis_name);
                     if (axis_name == action_map_format::axis_x)
                     {
                         binding.target_axis = InputBindingAxis::X;
@@ -740,7 +741,7 @@ namespace won::io
                     {
                         device = path_value.substr(0, separator_pos);
                         control = path_value.substr(separator_pos + 1);
-                        std::transform(device.begin(), device.end(), device.begin(), [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+                        device = utils::ToUpper(device);
                     }
 
                     if (separator_pos == String::npos || device == action_map_format::device_keyboard)
@@ -751,7 +752,7 @@ namespace won::io
                     }
                     else if (device == action_map_format::device_mouse)
                     {
-                        std::transform(control.begin(), control.end(), control.begin(), [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+                        control = utils::ToUpper(control);
                         binding.source = InputBindingSource::Button;
                         if (control == action_map_format::mouse_left)
                         {
@@ -769,7 +770,7 @@ namespace won::io
                     }
                     else if (device == action_map_format::device_gamepad)
                     {
-                        std::transform(control.begin(), control.end(), control.begin(), [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+                        control = utils::ToUpper(control);
                         if (control == action_map_format::gamepad_left_stick || control == action_map_format::gamepad_left_stick_alias)
                         {
                             binding.source = InputBindingSource::Axis2D;
@@ -1077,7 +1078,7 @@ namespace won::io
         }
 
         String key(value);
-        std::transform(key.begin(), key.end(), key.begin(), [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+        key = utils::ToUpper(key);
         if (key.size() == 1)
         {
             const char c = key[0];

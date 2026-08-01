@@ -12,6 +12,8 @@ namespace won::project
     inline constexpr uint32 project_settings_version = 1;
     inline constexpr const char* project_file_extension = "wonproj";
     inline constexpr const char* default_project_file_name = "Project.wonproj";
+    inline constexpr const char* default_content_root = "Contents";
+    inline constexpr const char* packaged_content_root = "Contents";
     inline constexpr const char* content_virtual_root = "/Contents";
     inline constexpr const char* content_virtual_root_prefix = "/Contents/";
     inline constexpr Size content_virtual_root_prefix_length = sizeof("/Contents/") - 1;
@@ -22,7 +24,7 @@ namespace won::project
         String settings_path;
         String project_root;
         String project_name;
-        String content_root = "Contents";
+        String content_root = default_content_root;
         String startup_scene;
         String window_title = "WonEngine";
         int window_width = 1280;
@@ -43,6 +45,8 @@ namespace won::project
         rendering::RHIBackend backend_type = rendering::RHIBackend::DirectX12;
         Vector<String> enabled_plugins;
         Vector<String> packaged_scenes;
+        String default_language;
+        Vector<String> packaged_languages;
 
         // Physics
         uint32 physics_temp_allocator_size     = physics::default_temp_allocator_size;
@@ -90,7 +94,7 @@ namespace won::project
 
     inline String GetContentRoot(const ProjectSettings& settings)
     {
-        String content_root = settings.content_root.empty() ? "Contents" : settings.content_root;
+        String content_root = settings.content_root.empty() ? default_content_root : settings.content_root;
         if (!io::IsAbsolutePath(content_root))
         {
             content_root = io::CombinePath(settings.project_root, content_root);
@@ -117,6 +121,37 @@ namespace won::project
             return io::NormalizePath(io::CombinePath(content_root, path.substr(content_virtual_root_prefix_length)));
         }
         return io::NormalizePath(io::CombinePath(content_root, path));
+    }
+
+    inline bool IsVirtualContentPath(const String& path)
+    {
+        return path == content_virtual_root || path.rfind(content_virtual_root_prefix, 0) == 0;
+    }
+
+    inline String StripVirtualContentRoot(const String& path)
+    {
+        if (path == content_virtual_root)
+        {
+            return String();
+        }
+        if (path.rfind(content_virtual_root_prefix, 0) == 0)
+        {
+            return io::NormalizePath(path.substr(content_virtual_root_prefix_length));
+        }
+        return path;
+    }
+
+    inline String MakeVirtualContentPath(const String& project_relative_path)
+    {
+        if (project_relative_path.empty())
+        {
+            return content_virtual_root;
+        }
+        if (IsVirtualContentPath(project_relative_path))
+        {
+            return project_relative_path;
+        }
+        return io::CombinePath(content_virtual_root, project_relative_path);
     }
 
     inline bool LoadSettings(const String& path, ProjectSettings& out_settings)
@@ -263,6 +298,11 @@ namespace won::project
         };
         parse_semicolon_list("enabled_plugins", settings.enabled_plugins);
         parse_semicolon_list("packaged_scenes", settings.packaged_scenes);
+        parse_semicolon_list("packaged_languages", settings.packaged_languages);
+        if (const char* string_value = configuration.GetString("default_language"))
+        {
+            settings.default_language = string_value;
+        }
 
         float float_value = 0.0f;
         if (configuration.GetInt("physics_temp_allocator_size", int_value))
@@ -330,6 +370,8 @@ namespace won::project
         };
         configuration.SetString("enabled_plugins", serialize_semicolon_list(settings.enabled_plugins).c_str());
         configuration.SetString("packaged_scenes", serialize_semicolon_list(settings.packaged_scenes).c_str());
+        configuration.SetString("packaged_languages", serialize_semicolon_list(settings.packaged_languages).c_str());
+        configuration.SetString("default_language", settings.default_language.c_str());
 
         configuration.SetInt("physics_temp_allocator_size", static_cast<int>(settings.physics_temp_allocator_size));
         configuration.SetInt("physics_max_bodies",              static_cast<int>(settings.physics_max_bodies));

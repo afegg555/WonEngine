@@ -1,5 +1,7 @@
 #include "RHISwapchainDX12.h"
 #include "Backlog.h"
+
+#include <cstdio>
 #include "Platform.h"
 #include "DescriptorAllocatorDX12.h"
 #include "DirectX-Headers/d3d12.h"
@@ -118,7 +120,16 @@ namespace won::rendering
             return false;
         }
 
-        return SUCCEEDED(dxgi_swapchain->Present(vsync_enabled ? 1 : 0, 0));
+        const HRESULT present_result = dxgi_swapchain->Present(vsync_enabled ? 1 : 0, 0);
+        if (FAILED(present_result))
+        {
+            char message[256] = {};
+            const HRESULT removed_reason = device ? device->GetDeviceRemovedReason() : S_OK;
+            std::snprintf(message, sizeof(message), "[DX12] Present failed 0x%08X, device removed reason 0x%08X", static_cast<unsigned>(present_result), static_cast<unsigned>(removed_reason));
+            backlog::Post(message, backlog::LogLevel::Error);
+            return false;
+        }
+        return true;
     }
 
     void RHISwapchainDX12::SetVSync(bool enabled)

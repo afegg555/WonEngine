@@ -4,6 +4,7 @@
 #include "FileSystem.h"
 #include "GameData.h"
 #include "JobSystem.h"
+#include "Localization.h"
 #include "Plugin.h"
 #include "Entity.h"
 #include "Mesh.h"
@@ -70,6 +71,7 @@ namespace won::editor
 		void RegisterPluginExtensions(const std::shared_ptr<plugin::Plugin>& plugin, ecs::Scene& scene);
 		void SetPluginEnabled(Size plugin_index, bool enabled);
 		void InitImGui();
+		bool RebuildImGuiFont(bool wait_for_gpu);
 		void InitEditorGrid();
 		void DrawEditorGrid();
 		void CreateEditorCamera();
@@ -84,6 +86,11 @@ namespace won::editor
 		void EnterPlay();
 		void ExitPlay();
 		void DrawProjectSettingsWindow(bool* open);
+		void DrawLocalizationWindow(bool* open);
+		void InitializeEditorLanguage();
+		void DrawEditorPreferencesWindow(bool* open);
+		void ReloadLocalizationTables();
+		bool SaveLocalizationTables();
 		void RebindSceneResources();
 		void UpdateEntityList();
 		uint64 StartAssetImport(const String& path, bool add_to_scene);
@@ -110,6 +117,7 @@ namespace won::editor
 			Shader,
 			Font,
 			Script,
+			Sound,
 			Unknown,
 		};
 
@@ -218,6 +226,17 @@ namespace won::editor
 		std::vector<ecs::Entity> sorted_entities;
 		std::vector<EditorPluginInfo> plugins;
 
+		struct LocalizationEditorState
+		{
+			Vector<String> languages;
+			UnorderedMap<String, locale::Table> tables;
+			Vector<String> keys;
+			bool loaded = false;
+			bool dirty = false;
+			char new_key[256] = {};
+			char new_language[64] = {};
+		};
+
 		struct GameDataEditorState
 		{
 			game::GameData game_data;
@@ -240,6 +259,10 @@ namespace won::editor
 		ecs::Scene* play_scene = nullptr;
 		ecs::Entity edit_camera_entity = ecs::INVALID_ENTITY;
 		bool show_project_settings_window = false;
+		bool show_localization_window = false;
+		bool show_editor_preferences_window = false;
+		bool imgui_font_reload_pending = false;
+		LocalizationEditorState localization_editor = {};
 		GameDataEditorState game_data_editor = {};
 		EditorViewport editor_viewport;
 		EditorAssetImporter asset_importer;

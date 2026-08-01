@@ -150,6 +150,16 @@ namespace won::utils
         return output;
     }
 
+    inline String Capitalize(StringView input)
+    {
+        String output = ToLower(input);
+        if (!output.empty())
+        {
+            output[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(output[0])));
+        }
+        return output;
+    }
+
     inline bool StartsWith(StringView input, StringView prefix)
     {
         return input.size() >= prefix.size() && input.compare(0, prefix.size(), prefix) == 0;

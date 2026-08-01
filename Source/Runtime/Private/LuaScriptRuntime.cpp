@@ -8,6 +8,7 @@
 #include "Input.h"
 #include "ProjectSettings.h"
 #include "Scene.h"
+#include "Localization.h"
 #include "SceneManager.h"
 #include "View.h"
 #include "SceneComponents.h"
@@ -1513,6 +1514,49 @@ namespace won::script
         }
         agent->move_speed = speed;
         lua_pushboolean(state, 1);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaLocaleGetText(lua_State* state)
+    {
+        const String key = luaL_checkstring(state, 1);
+        const String value = locale::GetText(key);
+        lua_pushstring(state, value.c_str());
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaLocaleSetLanguage(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        const String code = luaL_checkstring(state, 1);
+        if (!locale::SetLanguage(code))
+        {
+            lua_pushboolean(state, 0);
+            return 1;
+        }
+        if (runtime && runtime->user_settings)
+        {
+            runtime->user_settings->language = code;
+        }
+        lua_pushboolean(state, 1);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaLocaleGetLanguage(lua_State* state)
+    {
+        lua_pushstring(state, locale::GetLanguage().c_str());
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaLocaleGetAvailableLanguages(lua_State* state)
+    {
+        const Vector<String>& languages = locale::GetAvailableLanguages();
+        lua_createtable(state, static_cast<int>(languages.size()), 0);
+        for (Size index = 0; index < languages.size(); ++index)
+        {
+            lua_pushstring(state, languages[index].c_str());
+            lua_rawseti(state, -2, static_cast<lua_Integer>(index + 1));
+        }
         return 1;
     }
 
@@ -4284,6 +4328,18 @@ namespace won::script
         lua_pushcclosure(lua_state, LuaSettingsSave, 1);
         lua_setfield(lua_state, -2, "save");
         lua_setfield(lua_state, -2, "settings");
+
+        lua_newtable(lua_state);
+        lua_pushcfunction(lua_state, LuaLocaleGetText);
+        lua_setfield(lua_state, -2, "get_text");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaLocaleSetLanguage, 1);
+        lua_setfield(lua_state, -2, "set_language");
+        lua_pushcfunction(lua_state, LuaLocaleGetLanguage);
+        lua_setfield(lua_state, -2, "get_language");
+        lua_pushcfunction(lua_state, LuaLocaleGetAvailableLanguages);
+        lua_setfield(lua_state, -2, "get_available_languages");
+        lua_setfield(lua_state, -2, "locale");
 
         lua_newtable(lua_state);
         lua_pushlightuserdata(lua_state, this);

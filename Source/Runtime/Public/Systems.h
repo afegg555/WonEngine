@@ -12,3 +12,4 @@
 #include "ScriptUpdateSystem.h"
 #include "ScriptEventDispatchSystem.h"
 #include "AudioUpdateSystem.h"
+#include "LocalizeTextSystem.h"

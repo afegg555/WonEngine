@@ -230,6 +230,10 @@ namespace won::script
         static int LuaSettingsGet(lua_State* state);
         static int LuaSettingsSet(lua_State* state);
         static int LuaSettingsSave(lua_State* state);
+        static int LuaLocaleGetText(lua_State* state);
+        static int LuaLocaleSetLanguage(lua_State* state);
+        static int LuaLocaleGetLanguage(lua_State* state);
+        static int LuaLocaleGetAvailableLanguages(lua_State* state);
 
         static int LuaEventSubscribe(lua_State* state);
         static int LuaEventPost(lua_State* state);

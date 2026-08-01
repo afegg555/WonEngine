@@ -121,6 +121,7 @@ namespace won::ecs
             AddSystem(std::make_unique<BehaviorTreeSystem>());
             AddSystem(std::make_unique<ScriptEventDispatchSystem>(desc.script_runtime));
         }
+        AddSystem(std::make_unique<LocalizeTextSystem>());
         AddSystem(std::make_unique<CameraUpdateSystem>());
         AddSystem(std::make_unique<LightUpdateSystem>());
         if (desc.enable_simulation)

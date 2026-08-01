@@ -1,4 +1,5 @@
 #include "SplashWindowWin32.h"
+#include "StringUtils.h"
 
 #if defined(_WIN32)
 #include <gdiplus.h>
@@ -142,13 +143,15 @@ namespace won::platform
         HFONT title_font = CreateFontA(-style.title_font_height, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH, font_name.c_str());
         HFONT old_font = static_cast<HFONT>(SelectObject(hdc, title_font));
         RECT title_rect = { style.horizontal_padding, style.title_top, width - style.horizontal_padding, style.title_top + style.title_height };
-        DrawTextA(hdc, title.c_str(), -1, &title_rect, DT_CENTER | DT_SINGLELINE | DT_VCENTER);
+        const WString title_wide = utils::DecodeUtf8(title);
+        DrawTextW(hdc, title_wide.c_str(), -1, &title_rect, DT_CENTER | DT_SINGLELINE | DT_VCENTER);
 
         SetTextColor(hdc, RGB(style.status_color.r, style.status_color.g, style.status_color.b));
         HFONT status_font = CreateFontA(-style.status_font_height, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH, font_name.c_str());
         SelectObject(hdc, status_font);
         RECT status_rect = { style.horizontal_padding, style.status_top, width - style.horizontal_padding, style.status_top + style.status_height };
-        DrawTextA(hdc, status.c_str(), -1, &status_rect, DT_CENTER | DT_SINGLELINE | DT_VCENTER);
+        const WString status_wide = utils::DecodeUtf8(status);
+        DrawTextW(hdc, status_wide.c_str(), -1, &status_rect, DT_CENTER | DT_SINGLELINE | DT_VCENTER);
 
         SelectObject(hdc, old_font);
         DeleteObject(status_font);
