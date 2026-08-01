@@ -2156,6 +2156,71 @@
             "source": "World Size Z",
             "text": "월드 크기 Z",
             "comment": "reflected component field"
+        },
+        "editor.label.collider_3d": {
+            "source": "Collider3D",
+            "text": "Collider3D",
+            "comment": "label"
+        },
+        "editor.label.contents": {
+            "source": "Contents",
+            "text": "콘텐츠",
+            "comment": "label"
+        },
+        "editor.action.animation_event_remove": {
+            "source": "-",
+            "text": "-",
+            "comment": "action"
+        },
+        "editor.label.animation_event_default_name": {
+            "source": "event",
+            "text": "이벤트",
+            "comment": "label"
+        },
+        "editor.label.near_plane": {
+            "source": "Near",
+            "text": "Near",
+            "comment": "label"
+        },
+        "editor.label.far_plane": {
+            "source": "Far",
+            "text": "Far",
+            "comment": "label"
+        },
+        "editor.label.ddgi": {
+            "source": "DDGI",
+            "text": "DDGI",
+            "comment": "label"
+        },
+        "editor.label.unlit": {
+            "source": "Unlit",
+            "text": "Unlit",
+            "comment": "label"
+        },
+        "editor.label.pbr": {
+            "source": "PBR",
+            "text": "PBR",
+            "comment": "label"
+        },
+        "editor.label.aa_fxaa": {
+            "source": "FXAA",
+            "text": "FXAA",
+            "comment": "label"
+        },
+        "editor.label.tonemap_reinhard": {
+            "source": "Reinhard",
+            "text": "Reinhard",
+            "comment": "label"
+        },
+        "editor.label.tonemap_aces": {
+            "source": "ACES",
+            "text": "ACES",
+            "comment": "label"
+        },
+        "editor.label.backend_directx12": {
+            "source": "DirectX12",
+            "text": "DirectX12",
+            "comment": "label"
         }
     }
 }

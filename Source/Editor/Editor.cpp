@@ -480,45 +480,113 @@ namespace won::editor
 			return remove_component;
 		}
 
-		bool AddImGuiFont(const std::string& font_folder_path, const std::string& font_file_name, bool merge_icon = true)
+		String GetEditorFontFolder(const String& language)
 		{
-			//PE: Add all lang.
-			static const ImWchar generic_ranges_everything[] =
+			const String normalized = locale::NormalizeLanguage(language);
+			String folder = "Noto_Sans";
+			if (normalized == "ko" || normalized.rfind("ko-", 0) == 0)
 			{
-			   0x0020, 0xFFFF, // Everything test.
-			   0,
-			};
-			static const ImWchar generic_ranges_most_needed[] =
+				folder = "Noto_Sans_KR";
+			}
+			else if (normalized == "ja" || normalized.rfind("ja-", 0) == 0)
 			{
-				0x0020, 0x00FF, // Basic Latin + Latin Supplement
-				0x0100, 0x017F,	//0100 - 017F  	Latin Extended-A
-				0x0180, 0x024F,	//0180 - 024F  	Latin Extended-B
+				folder = "Noto_Sans_JP";
+			}
+			else if (normalized == "zh" || normalized.rfind("zh-", 0) == 0)
+			{
+				folder = "Noto_Sans_SC";
+			}
+
+			return editor_contents_root_dir + "Fonts/" + folder + "/static";
+		}
+
+		String GetEditorFontFileName(const String& language)
+		{
+			const String normalized = locale::NormalizeLanguage(language);
+			if (normalized == "ko" || normalized.rfind("ko-", 0) == 0)
+			{
+				return "NotoSansKR-Regular.ttf";
+			}
+			if (normalized == "ja" || normalized.rfind("ja-", 0) == 0)
+			{
+				return "NotoSansJP-Regular.ttf";
+			}
+			if (normalized == "zh" || normalized.rfind("zh-", 0) == 0)
+			{
+				return "NotoSansSC-Regular.ttf";
+			}
+			return "NotoSans-Regular.ttf";
+		}
+
+		const ImWchar* GetEditorFontGlyphRanges(const String& language)
+		{
+			ImFontAtlas* font_atlas = ImGui::GetIO().Fonts;
+			static const ImWchar latin_ranges[] =
+			{
+				0x0020, 0x00FF,
+				0x0100, 0x024F,
+				0x2000, 0x206F,
+				0x20A0, 0x20CF,
 				0,
 			};
+			static const ImWchar editor_symbol_ranges[] =
+			{
+				0x2212, 0x2212,
+				0x25A0, 0x25FF,
+				0,
+			};
+			const String normalized = locale::NormalizeLanguage(language);
+			const ImWchar* language_ranges = latin_ranges;
+			if (normalized == "ko" || normalized.rfind("ko-", 0) == 0)
+			{
+				language_ranges = font_atlas->GetGlyphRangesKorean();
+			}
+			else if (normalized == "ja" || normalized.rfind("ja-", 0) == 0)
+			{
+				language_ranges = font_atlas->GetGlyphRangesJapanese();
+			}
+			else if (normalized == "zh" || normalized.rfind("zh-", 0) == 0)
+			{
+				language_ranges = font_atlas->GetGlyphRangesChineseSimplifiedCommon();
+			}
 
-			float FONTUPSCALE = 1.0; //Font upscaling.
-			float FontSize = 18.0f;
+			static ImVector<ImWchar> merged_ranges;
+			ImFontGlyphRangesBuilder builder;
+			builder.AddRanges(language_ranges);
+			if (language_ranges != latin_ranges)
+			{
+				builder.AddRanges(latin_ranges);
+			}
+			builder.AddRanges(editor_symbol_ranges);
+			merged_ranges.clear();
+			builder.BuildRanges(&merged_ranges);
+			return merged_ranges.Data;
+		}
+
+		bool AddImGuiFont(const std::string& font_folder_path, const std::string& font_file_name, const ImWchar* glyph_ranges, bool merge_icon = true)
+		{
+			constexpr float font_size = 18.0f;
 			ImGuiIO& io = ImGui::GetIO();
 			io.Fonts->Clear();
 
-			std::string font_file_path = font_folder_path + "/" + font_file_name;
-			ImFont* custom_font = io.Fonts->AddFontFromFileTTF(font_file_path.c_str(), FontSize * FONTUPSCALE, NULL, &generic_ranges_everything[0]); //Set as default font.
+			const std::string font_file_path = font_folder_path + "/" + font_file_name;
+			ImFont* custom_font = io.Fonts->AddFontFromFileTTF(font_file_path.c_str(), font_size, nullptr, glyph_ranges);
+			if (!custom_font)
+			{
+				custom_font = io.Fonts->AddFontDefault();
+			}
+
 			if (custom_font && merge_icon)
 			{
-				std::string font_icon_path = editor_contents_root_dir + "Fonts/MaterialIcons-Regular.ttf";
+				const std::string font_icon_path = editor_contents_root_dir + "Fonts/MaterialIcons-Regular.ttf";
 				ImFontConfig config;
 				config.MergeMode = true;
 				config.GlyphOffset = ImVec2(0, 3);
-				//config.GlyphMinAdvanceX = FontSize * FONTUPSCALE; // Use if you want to make the icon monospaced
 				static const ImWchar icon_ranges[] = { ICON_MIN_MD, ICON_MAX_16_MD, 0 };
-				io.Fonts->AddFontFromFileTTF(font_icon_path.c_str(), FontSize * FONTUPSCALE, &config, icon_ranges);
-
-				return true;
+				io.Fonts->AddFontFromFileTTF(font_icon_path.c_str(), font_size, &config, icon_ranges);
 			}
 
-			custom_font = io.Fonts->AddFontDefault();
-
-			return false;
+			return custom_font != nullptr;
 		}
 
 		void BuildDefaultDockLayout(ImGuiID dockspace_id, const ImVec2& size)
@@ -938,9 +1006,6 @@ namespace won::editor
 		ImGui_ImplWin32_Init(window->GetNativeHandle());
 #endif
 
-		std::string font_folder_path = editor_contents_root_dir + "Fonts";
-		AddImGuiFont(font_folder_path + "/Noto_Sans_KR/static", "NotoSansKR-Regular.ttf");
-
 		InitImGui();
 		InitEditorGrid();
 
@@ -1026,6 +1091,12 @@ namespace won::editor
 
 	void EditorApplication::Update(float dt)
 	{
+		if (imgui_font_reload_pending)
+		{
+			imgui_font_reload_pending = false;
+			RebuildImGuiFont(true);
+		}
+
 		if (request_play)
 		{
 			request_play = false;
@@ -2721,12 +2792,12 @@ namespace won::editor
 			}
 			ImGui::SameLine();
 			ImGui::SetCursorPosX(controls_pos_x);
-			if (ImGui::Button("\xE2\x88\x92", ImVec2(button_size, button_size)))
+			if (ImGui::Button(ICON_MD_MINIMIZE, ImVec2(button_size, button_size)))
 			{
 				window->Minimize();
 			}
 			ImGui::SameLine();
-			if (ImGui::Button(window->IsMaximized() ? "\xE2\x96\xA3" : "\xE2\x96\xA1", ImVec2(button_size, button_size)))
+			if (ImGui::Button(window->IsMaximized() ? ICON_MD_FILTER_NONE : ICON_MD_CROP_SQUARE, ImVec2(button_size, button_size)))
 			{
 				if (window->IsMaximized())
 				{
@@ -2738,7 +2809,7 @@ namespace won::editor
 				}
 			}
 			ImGui::SameLine();
-			if (ImGui::Button("\xC3\x97", ImVec2(button_size, button_size)))
+			if (ImGui::Button(ICON_MD_CLOSE, ImVec2(button_size, button_size)))
 			{
 				window->Close();
 			}
@@ -5116,7 +5187,7 @@ namespace won::editor
 							material_changed |= ImGui::SliderFloat(EditorText(editor_key::label_clearcoat), &material_slot.clearcoat, 0.0f, 1.0f);
 							material_changed |= ImGui::SliderFloat(EditorText(editor_key::label_clearcoat_roughness), &material_slot.clearcoat_roughness, 0.0f, 1.0f);
 
-							static const char* texture_slot_names[] = {
+							const char* texture_slot_names[] = {
 								EditorText(editor_key::label_base_color_map),
 								EditorText(editor_key::label_normal_map),
 								EditorText(editor_key::label_emissive_map),
@@ -5941,16 +6012,25 @@ namespace won::editor
 		Application::RenderUI();
 	}
 
-	void EditorApplication::InitImGui()
+	bool EditorApplication::RebuildImGuiFont(bool wait_for_gpu)
 	{
-		// Build texture atlas
-		ImGuiIO& io = ImGui::GetIO();
+		if (wait_for_gpu)
+		{
+			WaitIdle();
+		}
 
-		unsigned char* pixels;
-		int width, height;
+		ImGuiIO& io = ImGui::GetIO();
+		const String language = editor_locale.GetLanguage();
+		AddImGuiFont(
+			GetEditorFontFolder(language),
+			GetEditorFontFileName(language),
+			GetEditorFontGlyphRanges(language));
+
+		unsigned char* pixels = nullptr;
+		int width = 0;
+		int height = 0;
 		io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
 
-		// Upload texture to graphics system
 		rendering::RHITextureDesc texture_desc;
 		texture_desc.width = width;
 		texture_desc.height = height;
@@ -5959,19 +6039,37 @@ namespace won::editor
 		texture_desc.format = RHIFormat::R8G8B8A8Unorm;
 		texture_desc.bind_flags = RHIBindFlags::ShaderResource;
 
-		imgui_font = device->CreateTexture(texture_desc, (void*)pixels, width * height * 4);
+		std::unique_ptr<RHIResource> new_font = device->CreateTexture(texture_desc, pixels, width * height * 4);
+		if (!new_font)
+		{
+			return false;
+		}
+
 		RHISubresourceDesc subresource_desc;
 		subresource_desc.type = RHISubresourceType::ShaderResource;
-		device->CreateSubresource(*imgui_font, subresource_desc, &imgui_font_subresource);
+		RHISubresourceHandle new_font_subresource;
+		if (!device->CreateSubresource(*new_font, subresource_desc, &new_font_subresource))
+		{
+			return false;
+		}
+
+		std::shared_ptr<RHIResource> old_font = std::move(imgui_font);
+		imgui_font = std::move(new_font);
+		imgui_font_subresource = new_font_subresource;
+		io.Fonts->SetTexID((ImTextureID)imgui_font.get());
+		old_font.reset();
+		return true;
+	}
+
+	void EditorApplication::InitImGui()
+	{
+		RebuildImGuiFont(false);
 
 		RHISamplerDesc sampler_desc;
 		sampler_desc.address_u = RHIAddressMode::Wrap;
 		sampler_desc.address_v = RHIAddressMode::Wrap;
 		sampler_desc.address_w = RHIAddressMode::Wrap;
 		imgui_sampler = device->CreateSampler(sampler_desc);
-
-		// Store our identifier
-		io.Fonts->SetTexID((ImTextureID)imgui_font.get());
 
 		// Create pipeline
 		RHIGraphicsPipelineDesc pipeline_desc{};
@@ -6350,6 +6448,7 @@ namespace won::editor
 					{
 						editor_locale.SetLanguage(language);
 						editor_settings.editor_language = language;
+						imgui_font_reload_pending = true;
 						SaveEditorSettings();
 					}
 					if (selected)

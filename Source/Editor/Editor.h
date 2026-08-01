@@ -71,6 +71,7 @@ namespace won::editor
 		void RegisterPluginExtensions(const std::shared_ptr<plugin::Plugin>& plugin, ecs::Scene& scene);
 		void SetPluginEnabled(Size plugin_index, bool enabled);
 		void InitImGui();
+		bool RebuildImGuiFont(bool wait_for_gpu);
 		void InitEditorGrid();
 		void DrawEditorGrid();
 		void CreateEditorCamera();
@@ -260,6 +261,7 @@ namespace won::editor
 		bool show_project_settings_window = false;
 		bool show_localization_window = false;
 		bool show_editor_preferences_window = false;
+		bool imgui_font_reload_pending = false;
 		LocalizationEditorState localization_editor = {};
 		GameDataEditorState game_data_editor = {};
 		EditorViewport editor_viewport;
