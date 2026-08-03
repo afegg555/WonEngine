@@ -162,57 +162,45 @@ namespace won::rendering
             }
         }
 
-        void ExtractGeometries(const ecs::Scene& scene, Vector<ShaderGeometry>& shader_geometries)
+        void ExtractGeometries(ecs::Scene& scene, Vector<ShaderGeometry>& shader_geometries)
         {
-            struct GeometryBucket
-            {
-                UnorderedSet<resource::Mesh*> meshes;
-            };
-
             jobsystem::Context sub_ctx;
 
             const auto geometry_array = scene.GetComponentArray<GeometryComponent>().get();
 
-            const uint32 job_count = static_cast<uint32>(geometry_array->GetSize());
-            Vector<GeometryBucket> geometry_buckets(jobsystem::DispatchGroupCount(job_count, jobsystem::groupsize_light));
-
-            jobsystem::Dispatch(sub_ctx, job_count, jobsystem::groupsize_light, [&](jobsystem::JobArgs args) {
-                GeometryBucket& bucket = geometry_buckets[args.group_id];
-                const GeometryComponent& geometry_comp = geometry_array->data[args.job_index];
-
-                if (geometry_comp.mesh)
-                    bucket.meshes.insert(geometry_comp.mesh.get());
-            });
-
-            jobsystem::Wait(sub_ctx);
-
-            Vector<resource::Mesh*> unique_meshes;
+            Vector<std::pair<resource::Mesh*, uint32>> unique_meshes;
             Size unique_submesh_sum = 0;
             {
-                UnorderedSet<resource::Mesh*> merged;
-                for (GeometryBucket& bucket : geometry_buckets)
+                UnorderedMap<resource::Mesh*, uint32> offsets;
+                for (Size i = 0; i < geometry_array->GetSize(); ++i)
                 {
-                    for (resource::Mesh* mesh : bucket.meshes)
+                    GeometryComponent& geometry_comp = geometry_array->data[i];
+                    if (!geometry_comp.mesh)
                     {
-                        if (merged.insert(mesh).second)
-                        {
-                            mesh->geometry_offset = (uint32)unique_submesh_sum;
-                            unique_meshes.push_back(mesh);
-                            unique_submesh_sum += mesh->submeshes.size();
-                        }
+                        continue;
                     }
+
+                    resource::Mesh* mesh = geometry_comp.mesh.get();
+                    const uint32 offset = (uint32)unique_submesh_sum;
+                    auto [it, inserted] = offsets.try_emplace(mesh, offset);
+                    if (inserted)
+                    {
+                        unique_meshes.push_back({ mesh, offset });
+                        unique_submesh_sum += mesh->submeshes.size();
+                    }
+                    geometry_comp.geometry_offset = it->second;
                 }
             }
 
             shader_geometries.resize(unique_submesh_sum);
 
             jobsystem::Dispatch(sub_ctx, (uint32_t)unique_meshes.size(), jobsystem::groupsize_light, [&](jobsystem::JobArgs args) {
-                resource::Mesh* mesh = unique_meshes[args.job_index];
+                auto [mesh, geometry_offset] = unique_meshes[args.job_index];
                 const resource::Mesh::RenderData& mesh_render_data = mesh->render_data;
 
                 for (Size i = 0; i < mesh->submeshes.size(); ++i)
                 {
-                    ShaderGeometry& shader_geometry = shader_geometries[mesh->geometry_offset + i];
+                    ShaderGeometry& shader_geometry = shader_geometries[geometry_offset + i];
                     shader_geometry.Init();
                     shader_geometry.bounds_min = mesh->submeshes[i].local_bounds.min;
                     shader_geometry.bounds_max = mesh->submeshes[i].local_bounds.max;
@@ -241,63 +229,51 @@ namespace won::rendering
             jobsystem::Wait(sub_ctx);
         }
 
-        void ExtractMaterials(const ecs::Scene& scene, Vector<ShaderMaterial>& shader_materials)
+        void ExtractMaterials(ecs::Scene& scene, Vector<ShaderMaterial>& shader_materials)
         {
-            struct MaterialBucket
-            {
-                UnorderedSet<resource::Material*> materials;
-            };
-
             jobsystem::Context sub_ctx;
 
             const auto material_array = scene.GetComponentArray<MaterialComponent>().get();
 
-            const uint32 job_count = static_cast<uint32>(material_array->GetSize());
-            Vector<MaterialBucket> material_buckets(jobsystem::DispatchGroupCount(job_count, jobsystem::groupsize_light));
-
-            jobsystem::Dispatch(sub_ctx, job_count, jobsystem::groupsize_light, [&](jobsystem::JobArgs args) {
-                MaterialBucket& bucket = material_buckets[args.group_id];
-                const MaterialComponent& material_comp = material_array->data[args.job_index];
-
-                if (material_comp.material)
-                    bucket.materials.insert(material_comp.material.get());
-            });
-
-            jobsystem::Wait(sub_ctx);
-
-            Vector<resource::Material*> unique_materials;
+            Vector<std::pair<resource::Material*, uint32>> unique_materials;
             Size unique_slot_sum = 0;
             {
-                UnorderedSet<resource::Material*> merged;
-                for (MaterialBucket& bucket : material_buckets)
+                UnorderedMap<resource::Material*, uint32> offsets;
+                for (Size i = 0; i < material_array->GetSize(); ++i)
                 {
-                    for (resource::Material* material : bucket.materials)
+                    MaterialComponent& material_comp = material_array->data[i];
+                    if (!material_comp.material)
                     {
-                        if (merged.insert(material).second)
-                        {
-                            material->material_offset = (uint32)unique_slot_sum;
-                            unique_materials.push_back(material);
-                            unique_slot_sum += material->slots.size();
-                        }
+                        continue;
                     }
+
+                    resource::Material* material = material_comp.material.get();
+                    const uint32 offset = (uint32)unique_slot_sum;
+					auto [it, inserted] = offsets.try_emplace(material, offset);
+					if (inserted) // newly inserted, so this is a unique material
+                    {
+                        unique_materials.push_back({ material, offset });
+                        unique_slot_sum += material->slots.size();
+                    }
+                    material_comp.material_offset = it->second;
                 }
             }
 
             shader_materials.resize(unique_slot_sum);
 
             jobsystem::Dispatch(sub_ctx, (uint32_t)unique_materials.size(), jobsystem::groupsize_light, [&](jobsystem::JobArgs args) {
-                resource::Material* material = unique_materials[args.job_index];
+                auto [material, material_offset] = unique_materials[args.job_index];
 
                 for (Size i = 0; i < material->slots.size(); ++i)
                 {
                     const resource::MaterialSlot& material_slot = material->slots[i];
-                    ShaderMaterial& shader_material = shader_materials[material->material_offset + i];
+                    ShaderMaterial& shader_material = shader_materials[material_offset + i];
                     shader_material.Init();
                     shader_material.base_color = math::PackHalf4(material_slot.base_color);
                     shader_material.emissive_color_metallic = math::PackHalf4(0.f, 0.f, 0.f, material_slot.metallic);
                     shader_material.roughness_reflectance_refraction_padding = math::PackHalf4(material_slot.roughness, material_slot.reflectance, 0.f, 0.f);
                     shader_material.anisotropy_sheenroughness_clearcoat_clearcoatroughness = math::PackHalf4(material_slot.anisotropy, material_slot.sheen_roughness, material_slot.clearcoat, material_slot.clearcoat_roughness);
-                    shader_material.sheencolor_padding = math::PackHalf4(material_slot.sheen_color.x, material_slot.sheen_color.y, material_slot.sheen_color.z, 0.f);
+                    shader_material.sheencolor_alphacutoff = math::PackHalf4(material_slot.sheen_color.x, material_slot.sheen_color.y, material_slot.sheen_color.z, material_slot.alpha_cutoff);
                     uint32 gpu_flags = SHADER_MATERIAL_FLAG_NONE;
                     if (material_slot.double_sided) { gpu_flags |= SHADER_MATERIAL_FLAG_DOUBLE_SIDED; }
                     if (material_slot.use_vertex_colors) { gpu_flags |= SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS; }
@@ -460,8 +436,8 @@ namespace won::rendering
                         Renderable renderable = {};
                         ObjectPushConstants& push_constants = renderable.push_constants;
                         push_constants.Init();
-                        push_constants.geometry_index = geometry_comp.mesh->geometry_offset + (uint)i;
-                        push_constants.material_index = material_comp.material->material_offset + submesh.material_slot;
+                        push_constants.geometry_index = geometry_comp.geometry_offset + (uint)i;
+                        push_constants.material_index = material_comp.material_offset + submesh.material_slot;
                         push_constants.draw_offset = (uint)args.job_index;
 
                         renderable.index_buffer = mesh_render_data.buffer.get();
@@ -592,7 +568,7 @@ namespace won::rendering
                     const RectTransform2DComponent& rect = rect_transform_array->GetData(entity);
 
                     Sprite2DRenderable renderable = {};
-                    renderable.material_index = material.material->material_offset;
+                    renderable.material_index = material.material_offset;
                     renderable.anchor = { 0.0f, 0.0f };
                     renderable.position = rect.resolved_position;
                     renderable.size = rect.resolved_size;
@@ -629,7 +605,7 @@ namespace won::rendering
 
                     Sprite3DRenderable renderable = {};
                     renderable.instance_index = static_cast<uint32>(transform_array->entity_to_index.at(entity));
-                    renderable.material_index = material.material->material_offset;
+                    renderable.material_index = material.material_offset;
                     renderable.world_position = math::GetPosition(transform_array->GetData(entity).world_transform);
                     renderable.size = sprite.size;
                     renderable.pivot = sprite.pivot;
@@ -855,7 +831,7 @@ namespace won::rendering
                     const float glyph_top_y = baseline_y + glyph->offset.y;
                     Sprite2DRenderable renderable = {};
                     renderable.flags |= Sprite2DRenderable::Text;
-                    renderable.material_index = material_array->GetData(entity).material->material_offset;
+                    renderable.material_index = material_array->GetData(entity).material_offset;
                     renderable.font = text.font.get();
                     renderable.anchor = { 0.0f, 0.0f };
                     renderable.position = { text_anchor_point.x + glyph_visual_x, text_anchor_point.y + glyph_top_y };
@@ -977,7 +953,7 @@ namespace won::rendering
                         renderable.world_position = math::GetPosition(transform_array->GetData(entity).world_transform);
                         if (material_array && material_array->HasData(entity) && material_array->GetData(entity).GetMaterialSlotCount() > 0)
                         {
-                            renderable.material_index = material_array->GetData(entity).material->material_offset;
+                            renderable.material_index = material_array->GetData(entity).material_offset;
                         }
                         const float2 glyph_size = { glyph->size.x * glyph_world_scale, glyph->size.y * glyph_world_scale };
                         const float line_x = -line_widths[layout.line_index] * text.pivot.x;
@@ -1066,7 +1042,7 @@ namespace won::rendering
                 }
 
                 const float lifetime = emitter.lifetime > 0.0001f ? emitter.lifetime : 0.0001f;
-                const uint32 material_index = material.material->material_offset;
+                const uint32 material_index = material.material_offset;
                 const resource::MaterialBlendMode blend_mode = material.material->slots[0].blend_mode;
 
                 for (const ParticleEmitter3DComponent::Particle& particle : emitter.particles)
@@ -1166,7 +1142,7 @@ namespace won::rendering
                 shader_decal.Init();
                 XMStoreFloat4x4(&shader_decal.inv_world, XMMatrixInverse(nullptr, world));
                 shader_decal.instance_index = static_cast<uint32>(transform_array->entity_to_index.at(entity));
-                shader_decal.material_index = material.material->material_offset;
+                shader_decal.material_index = material.material_offset;
                 shader_decals.push_back(shader_decal);
             }
         }
@@ -1754,7 +1730,7 @@ namespace won::rendering
         return true;
     }
 
-    void GPUScene::Update(const ecs::Scene& scene, RHIDevice& device, RHICommandList& command_list, uint32 frame_slot)
+    void GPUScene::Update(ecs::Scene& scene, RHIDevice& device, RHICommandList& command_list, uint32 frame_slot)
     {
         auto cpu_range = profiler::ScopedRangeCPU("GPUScene::Update");
         auto gpu_range = profiler::ScopedRangeGPU("GPUScene::Update", command_list);

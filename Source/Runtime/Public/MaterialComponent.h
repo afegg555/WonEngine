@@ -20,6 +20,7 @@ namespace won::ecs
         // keep component lightweight: reference a shared material, which is owned by the resource layer
         std::shared_ptr<resource::Material> material;
         String material_asset_path;
+        uint32 material_offset = 0;
 
         void SetMaterial(const std::shared_ptr<resource::Material>& value)
         {
@@ -53,7 +54,7 @@ namespace won::ecs
             }
 
             material = std::make_shared<resource::Material>(*material);
-            material->material_offset = 0;
+            material_offset = 0;
             material_asset_path.clear();
             SetDirty();
         }

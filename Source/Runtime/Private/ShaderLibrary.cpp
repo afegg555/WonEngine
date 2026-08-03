@@ -1,6 +1,7 @@
 #include "ShaderLibrary.h"
 #include "ShaderLoader.h"
 #include "Backlog.h"
+#include "Material.h"
 #include "JobSystem.h"
 #include "ShaderInterop_Renderer.h"
 #include <atomic>
@@ -164,6 +165,45 @@ namespace won::resource
         pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
         graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
 
+        // Masked materials are skipped by the depth prepass, so they own their depth here.
+        pipeline_desc.vertex_shader = GetShader(ShaderId::VSObjectCommon);
+        pipeline_desc.pixel_shader = GetShader(ShaderId::PSObjectForwardMasked);
+        pipeline_desc.depth_stencil.depth_write = true;
+        pipeline_desc.depth_stencil.depth_compare = RHICompareOp::GreaterEqual;
+        pipeline_hash.storage.bits.shader_type = SHADER_MATERIAL_TYPE_PBR;
+        pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
+        pipeline_hash.storage.bits.blend_mode = static_cast<uint64>(MaterialBlendMode::Masked);
+        for (uint32 clustered = 0; clustered < 2; ++clustered)
+        {
+            pipeline_desc.pixel_shader = GetShader(clustered ? ShaderId::PSObjectForwardPlusMasked : ShaderId::PSObjectForwardMasked);
+            pipeline_hash.storage.bits.clustered = clustered;
+            pipeline_desc.raster.cull_mode = RHICullMode::Back;
+            pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::Back);
+            graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+            pipeline_desc.raster.cull_mode = RHICullMode::None;
+            pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
+            graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+        }
+        pipeline_hash.storage.bits.clustered = 0;
+
+        pipeline_desc.vertex_shader = GetShader(ShaderId::VSObjectSimple);
+        pipeline_desc.pixel_shader = GetShader(ShaderId::PSObjectUnlitMasked);
+        pipeline_hash.storage.bits.shader_type = SHADER_MATERIAL_TYPE_UNLIT;
+        pipeline_desc.raster.cull_mode = RHICullMode::Back;
+        pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::Back);
+        graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+        pipeline_desc.raster.cull_mode = RHICullMode::None;
+        pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
+        graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+
+        pipeline_hash.storage.bits.blend_mode = 0;
+        pipeline_desc.depth_stencil.depth_write = false;
+        pipeline_desc.depth_stencil.depth_compare = RHICompareOp::Equal;
+        pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::Equal);
+
+        pipeline_desc.vertex_shader = GetShader(ShaderId::VSObjectSimple);
+        pipeline_desc.pixel_shader = GetShader(ShaderId::PSObjectUnlit);
+        pipeline_hash.storage.bits.shader_type = SHADER_MATERIAL_TYPE_UNLIT;
         pipeline_desc.raster.fill_mode = RHIFillMode::Wireframe;
         pipeline_desc.depth_stencil.depth_compare = RHICompareOp::GreaterEqual;
         pipeline_desc.vertex_shader = GetShader(ShaderId::VSObjectSimple);
@@ -173,6 +213,15 @@ namespace won::resource
         pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
         pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::Back);
         pipeline_hash.storage.bits.shader_type = SHADER_MATERIAL_TYPE_UNLIT;
+        graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+        pipeline_desc.raster.cull_mode = RHICullMode::None;
+        pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
+        graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+
+        pipeline_desc.pixel_shader = GetShader(ShaderId::PSObjectUnlitMasked);
+        pipeline_hash.storage.bits.blend_mode = static_cast<uint64>(MaterialBlendMode::Masked);
+        pipeline_desc.raster.cull_mode = RHICullMode::Back;
+        pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::Back);
         graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
         pipeline_desc.raster.cull_mode = RHICullMode::None;
         pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
@@ -195,7 +244,7 @@ namespace won::resource
         pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
         pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::Always);
         pipeline_hash.storage.bits.shader_type = SHADER_MATERIAL_TYPE_PBR;
-        pipeline_hash.storage.bits.blend_mode = 2;
+        pipeline_hash.storage.bits.blend_mode = static_cast<uint64>(MaterialBlendMode::Additive);
         pipeline_desc.raster.cull_mode = RHICullMode::Back;
         pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::Back);
         graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
@@ -240,7 +289,7 @@ namespace won::resource
         pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
         pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
         pipeline_hash.storage.bits.shader_type = SHADER_MATERIAL_TYPE_PBR;
-        pipeline_hash.storage.bits.blend_mode = 1;
+        pipeline_hash.storage.bits.blend_mode = static_cast<uint64>(MaterialBlendMode::Transparent);
         pipeline_desc.raster.cull_mode = RHICullMode::Back;
         pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::Back);
         graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
@@ -338,9 +387,9 @@ namespace won::resource
         pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
 
         const struct { RHIBlendMode mode; uint64 hash_bits; } sprite_blend_variants[] = {
-            { RHIBlendMode::Alpha, 1 },
-            { RHIBlendMode::Additive, 2 },
-            { RHIBlendMode::Premultiplied, 3 },
+            { RHIBlendMode::Alpha, static_cast<uint64>(MaterialBlendMode::Transparent) },
+            { RHIBlendMode::Additive, static_cast<uint64>(MaterialBlendMode::Additive) },
+            { RHIBlendMode::Premultiplied, static_cast<uint64>(MaterialBlendMode::Premultiplied) },
         };
 
         for (const auto& variant : sprite_blend_variants)
@@ -360,7 +409,7 @@ namespace won::resource
         pipeline_desc.blend.mode = RHIBlendMode::Alpha;
         pipeline_desc.vertex_shader = GetShader(ShaderId::VSSprite3D);
         pipeline_desc.pixel_shader = GetShader(ShaderId::PSText3D);
-        pipeline_hash.storage.bits.blend_mode = 1;
+        pipeline_hash.storage.bits.blend_mode = static_cast<uint64>(MaterialBlendMode::Transparent);
         pipeline_hash.storage.bits.pass_mode = static_cast<uint64>(Sprite3DPassMode::Text);
         graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
 
@@ -382,7 +431,7 @@ namespace won::resource
         pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
         pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
         pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::Always);
-        pipeline_hash.storage.bits.blend_mode = 1;
+        pipeline_hash.storage.bits.blend_mode = static_cast<uint64>(MaterialBlendMode::Transparent);
         graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
 
         pipeline_desc = {};
@@ -421,7 +470,7 @@ namespace won::resource
         pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
         pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
         pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
-        pipeline_hash.storage.bits.blend_mode = 1;
+        pipeline_hash.storage.bits.blend_mode = static_cast<uint64>(MaterialBlendMode::Transparent);
         graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
 
         pipeline_desc = {};

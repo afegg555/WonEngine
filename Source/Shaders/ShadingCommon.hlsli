@@ -390,7 +390,7 @@ inline void LightSpotlight(in ShaderLight light, in Surface surface, inout Light
     lighting.direct.specular = mad(light_color, GetSpecularBRDF(surface, context), lighting.direct.specular);
 }
 
-inline void ForwardLighting(inout Surface surface, inout Lighting lighting, float2 pixel_position)
+inline void ForwardLighting(in Surface surface, inout Lighting lighting, float2 pixel_position)
 {
     for (uint d = 0; d < GetScene().directional_count; ++d)
     {
@@ -457,7 +457,7 @@ inline void ForwardLighting(inout Surface surface, inout Lighting lighting, floa
 #endif
 }
 
-inline void ApplyLighting(inout Surface surface, inout Lighting lighting, float2 pixel_position)
+inline void EvaluateDirectLighting(in Surface surface, inout Lighting lighting, float2 pixel_position)
 {
 #ifdef FORWARD
     ForwardLighting(surface, lighting, pixel_position);

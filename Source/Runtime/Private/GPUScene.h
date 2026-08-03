@@ -73,7 +73,7 @@ namespace won::rendering
         float2 pivot = { 0.5f, 0.5f };
         float4 uv_rect = { 0.0f, 0.0f, 1.0f, 1.0f };
         uint32 flags = None;
-        resource::MaterialBlendMode blend_mode = resource::MaterialBlendMode::Alpha;
+        resource::MaterialBlendMode blend_mode = resource::MaterialBlendMode::Transparent;
         uint32 layer_mask = 0xFFFFFFFF;
         // For particles: bindless descriptor of the per-frame float4 buffer holding
         // interleaved [position, color] pairs, indexed by instance_index.
@@ -221,7 +221,7 @@ namespace won::rendering
 
         uint64 synced_index = ~0ull;
 
-        void Update(const ecs::Scene& scene, RHIDevice& device, RHICommandList& command_list, uint32 frame_slot);
+        void Update(ecs::Scene& scene, RHIDevice& device, RHICommandList& command_list, uint32 frame_slot);
 
     private:
         void RetireResource(std::unique_ptr<RHIResource>& resource, uint32 frame_slot);

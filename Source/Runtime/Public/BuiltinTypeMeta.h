@@ -475,7 +475,8 @@ namespace won::reflection
 
     WON_REFLECT_ENUM(won::resource::MaterialBlendMode, "MaterialBlendMode")
         WON_REFLECT_ENUM_VALUE("Opaque", won::resource::MaterialBlendMode::Opaque)
-        WON_REFLECT_ENUM_VALUE("Alpha", won::resource::MaterialBlendMode::Alpha)
+        WON_REFLECT_ENUM_VALUE("Masked", won::resource::MaterialBlendMode::Masked)
+        WON_REFLECT_ENUM_VALUE("Transparent", won::resource::MaterialBlendMode::Transparent)
         WON_REFLECT_ENUM_VALUE("Additive", won::resource::MaterialBlendMode::Additive)
         WON_REFLECT_ENUM_VALUE("Premultiplied", won::resource::MaterialBlendMode::Premultiplied)
     WON_REFLECT_ENUM_END()

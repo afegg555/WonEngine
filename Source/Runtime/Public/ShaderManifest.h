@@ -22,6 +22,9 @@ namespace won::resource
         PSObjectForwardPlus,
         PSObjectUnlit,
         PSObjectPrepass,
+        PSObjectForwardMasked,
+        PSObjectForwardPlusMasked,
+        PSObjectUnlitMasked,
         PSSprite,
         PSText3D,
         PSComposite,
@@ -70,6 +73,9 @@ namespace won::resource
         case ShaderId::PSObjectForwardPlus: return "PSObjectForwardPlus";
         case ShaderId::PSObjectUnlit: return "PSObjectUnlit";
         case ShaderId::PSObjectPrepass: return "PSObjectPrepass";
+        case ShaderId::PSObjectForwardMasked: return "PSObjectForwardMasked";
+        case ShaderId::PSObjectForwardPlusMasked: return "PSObjectForwardPlusMasked";
+        case ShaderId::PSObjectUnlitMasked: return "PSObjectUnlitMasked";
         case ShaderId::PSSprite: return "PSSprite";
         case ShaderId::PSText3D: return "PSText3D";
         case ShaderId::PSComposite: return "PSComposite";

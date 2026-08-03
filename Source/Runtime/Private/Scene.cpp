@@ -656,8 +656,8 @@ namespace won::ecs
             shader_instance.blas_primitive_buffer = gpu_bvh.primitive_srv.descriptor_index;
             shader_instance.blas_node_count = gpu_bvh.node_count;
             shader_instance.blas_primitive_count = gpu_bvh.primitive_count;
-            shader_instance.geometry_offset = geometry.mesh ? geometry.mesh->geometry_offset : 0;
-            shader_instance.material_offset = material && material->material ? material->material->material_offset : 0;
+            shader_instance.geometry_offset = geometry.geometry_offset;
+            shader_instance.material_offset = material ? material->material_offset : 0;
             shader_instance.material_count = material ? static_cast<uint32>(material->GetMaterialSlotCount()) : 0;
 
             primitives.push_back(math::bvh::MakePrimitive(transform.world_bounds, static_cast<uint32>(source_instances.size())));

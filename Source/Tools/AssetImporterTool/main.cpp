@@ -11,6 +11,7 @@
 #include "assimp/scene.h"
 #include "assimp/postprocess.h"
 #include "assimp/anim.h"
+#include "assimp/GltfMaterial.h"
 
 #if defined(WON_TEXTURE_COMPRESS_GPU)
 // GPU path: include rendering headers and initialize device in Run()
@@ -399,6 +400,24 @@ struct COMInitializer
                 if (aiReturn_SUCCESS == aiGetMaterialFloat(ai_mat, AI_MATKEY_ANISOTROPY_FACTOR, &v))
                 {
                     slot.anisotropy = v;
+                }
+
+                aiString alpha_mode;
+                if (aiReturn_SUCCESS == ai_mat->Get(AI_MATKEY_GLTF_ALPHAMODE, alpha_mode))
+                {
+                    const std::string mode = alpha_mode.C_Str();
+                    if (mode == "MASK")
+                    {
+                        slot.blend_mode = resource::MaterialBlendMode::Masked;
+                    }
+                    else if (mode == "BLEND")
+                    {
+                        slot.blend_mode = resource::MaterialBlendMode::Transparent;
+                    }
+                }
+                if (aiReturn_SUCCESS == aiGetMaterialFloat(ai_mat, AI_MATKEY_GLTF_ALPHACUTOFF, &v))
+                {
+                    slot.alpha_cutoff = v;
                 }
 
                 // sheen

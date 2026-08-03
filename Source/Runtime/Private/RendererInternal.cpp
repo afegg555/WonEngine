@@ -1037,6 +1037,14 @@ namespace won::rendering
                     continue;
                 }
 
+                // The prepass has no alpha test, so masked materials write their own depth in the main pass.
+                if (pass == RenderPassType::DepthPrepass && renderable.blend_mode == resource::MaterialBlendMode::Masked)
+                {
+                    flush_batch(gpu_scene.opaque_renderables, view.sorted_opaque_indices, batch_start, batch_size);
+                    batch_size = 0;
+                    continue;
+                }
+
                 const bool can_extend = batch_size > 0
                     && renderable.push_constants.geometry_index == batch_geometry_index
                     && renderable.push_constants.material_index == batch_material_index;
@@ -1050,7 +1058,14 @@ namespace won::rendering
                     renderable_hash.storage.bits.cull_mode = static_cast<uint64>(
                         renderable.IsDoubleSided() ? RHICullMode::None : RHICullMode::Back);
                     if (pass == RenderPassType::MainPass)
+                    {
                         renderable_hash.storage.bits.shader_type = draw_wireframe ? SHADER_MATERIAL_TYPE_UNLIT : renderable.shader_type;
+                        renderable_hash.storage.bits.blend_mode = static_cast<uint64>(renderable.blend_mode);
+                        if (renderable.blend_mode == resource::MaterialBlendMode::Masked)
+                        {
+                            renderable_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
+                        }
+                    }
                     if (draw_overdraw)
                     {
                         renderable_hash.storage.bits.blend_mode = static_cast<uint64>(resource::MaterialBlendMode::Additive);
@@ -1198,7 +1213,7 @@ namespace won::rendering
             decal_pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
             decal_pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
             decal_pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::Always);
-            decal_pipeline_hash.storage.bits.blend_mode = 1;
+            decal_pipeline_hash.storage.bits.blend_mode = static_cast<uint64>(resource::MaterialBlendMode::Transparent);
             RHIPipeline* decal_pipeline = shader_library.GetPipeline(decal_pipeline_hash);
             if (decal_pipeline)
             {
@@ -1246,7 +1261,7 @@ namespace won::rendering
 
                 GraphicsPipelineHash renderable_hash = base_sprite_hash;
                 renderable_hash.storage.bits.pass_mode = static_cast<uint64>(pass_mode);
-                renderable_hash.storage.bits.blend_mode = pass_mode == Sprite3DPassMode::Text ? 1ull : static_cast<uint64>(renderable.blend_mode);
+                renderable_hash.storage.bits.blend_mode = pass_mode == Sprite3DPassMode::Text ? static_cast<uint64>(resource::MaterialBlendMode::Transparent) : static_cast<uint64>(renderable.blend_mode);
 
                 if (!has_active_pipeline || !(active_hash == renderable_hash))
                 {
@@ -1922,7 +1937,7 @@ namespace won::rendering
         debug_2d_pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
         debug_2d_pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
         debug_2d_pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
-        debug_2d_pipeline_hash.storage.bits.blend_mode = 1;
+        debug_2d_pipeline_hash.storage.bits.blend_mode = static_cast<uint64>(resource::MaterialBlendMode::Transparent);
         RHIPipeline* debug_2d_pipeline = shader_library.GetPipeline(debug_2d_pipeline_hash);
         if (!debug_2d_pipeline)
         {
