@@ -29,7 +29,7 @@ namespace won::resource
         constexpr uint32 mesh_binary_magic = 0x48534D57; // WMSH
         constexpr uint32 navmesh_binary_version = 1;
 		constexpr uint32 navmesh_binary_magic = 0x56414E57; // WNAV
-        constexpr uint32 material_binary_version = 2;
+        constexpr uint32 material_binary_version = 3;
         constexpr uint32 dds_magic = 0x20534444; // DDS
         constexpr uint32 dds_fourcc_dx10 = 0x30315844; // DX10
         constexpr uint32 dds_resource_dimension_texture2d = 3;
@@ -671,6 +671,7 @@ namespace won::resource
             uint32 blend_mode_value = static_cast<uint32>(slot.blend_mode);
             archive.Field("material_type", material_type_value);
             archive.Field("blend_mode", blend_mode_value);
+            archive.Field("alpha_cutoff", slot.alpha_cutoff);
             archive.Field("double_sided", slot.double_sided);
             archive.Field("use_vertex_colors", slot.use_vertex_colors);
             archive.Field("receive_shadow", slot.receive_shadow);
@@ -769,7 +770,7 @@ namespace won::resource
                         archive.Field("flags", flags);
                         archive.Field("shader_type", shader_type);
                         slot.material_type = static_cast<MaterialType>(shader_type);
-                        slot.blend_mode = (flags & (1u << 1)) ? MaterialBlendMode::Alpha : MaterialBlendMode::Opaque;
+                        slot.blend_mode = (flags & (1u << 1)) ? MaterialBlendMode::Transparent : MaterialBlendMode::Opaque;
                         slot.double_sided = (flags & SHADER_MATERIAL_FLAG_DOUBLE_SIDED) != 0;
                         slot.use_vertex_colors = (flags & SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS) != 0;
                         slot.receive_shadow = (flags & SHADER_MATERIAL_FLAG_RECEIVE_SHADOW) != 0;
@@ -781,7 +782,13 @@ namespace won::resource
                         archive.Field("material_type", material_type_value);
                         archive.Field("blend_mode", blend_mode_value);
                         slot.material_type = static_cast<MaterialType>(material_type_value);
+                        // Masked was inserted at index 1 in version 3, shifting the blended modes up by one.
+                        if (version < 3 && blend_mode_value > 0)
+                        {
+                            ++blend_mode_value;
+                        }
                         slot.blend_mode = static_cast<MaterialBlendMode>(blend_mode_value);
+                        archive.Field("alpha_cutoff", slot.alpha_cutoff);
                         archive.Field("double_sided", slot.double_sided);
                         archive.Field("use_vertex_colors", slot.use_vertex_colors);
                         archive.Field("receive_shadow", slot.receive_shadow);

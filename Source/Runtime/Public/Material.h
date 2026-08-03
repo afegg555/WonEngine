@@ -18,16 +18,18 @@ namespace won::resource
 
     enum class MaterialBlendMode : uint32
     {
-        Opaque,
-        Alpha,
-        Additive,
-        Premultiplied,
+        Opaque, // dst = src.rgb, blending off so alpha is unused
+        Masked, // dst = src.rgb after clip(alpha - cutoff), which disables early depth writes for the draw
+        Transparent, // dst = src.rgb * src.a + dst * (1 - src.a)
+        Additive, // dst = src.rgb * src.a + dst, order independent so no sorting
+        Premultiplied, // dst = src.rgb + dst * (1 - src.a), alpha already applied to rgb
     };
 
     struct MaterialSlot
     {
         MaterialType material_type = MaterialType::PBR;
         MaterialBlendMode blend_mode = MaterialBlendMode::Opaque;
+        float alpha_cutoff = 0.5f;
         bool double_sided = false;
         bool use_vertex_colors = false;
         bool receive_shadow = false;
@@ -57,13 +59,13 @@ namespace won::resource
         };
         TextureMap textures[TEXTURESLOT_COUNT];
 
-        bool IsTransparent() const { return blend_mode != MaterialBlendMode::Opaque; }
+        bool IsMasked() const { return blend_mode == MaterialBlendMode::Masked; }
+        bool IsTransparent() const { return blend_mode >= MaterialBlendMode::Transparent; }
     };
 
     struct Material : public Resource
     {
         Vector<MaterialSlot> slots;
-        uint32 material_offset = 0; // assigned by GPUScene material extraction, shared by all entities using this material
 
         bool IsValid() const override
         {

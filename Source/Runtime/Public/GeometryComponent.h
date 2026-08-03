@@ -20,6 +20,7 @@ namespace won::ecs
         // keep component lightweight: reference a shared mesh, which is owned by the resource layer
         std::shared_ptr<resource::Mesh> mesh;
         String mesh_asset_path;
+        uint32 geometry_offset = 0;
 
         math::AABB local_bounds = {};
 

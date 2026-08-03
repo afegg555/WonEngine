@@ -95,7 +95,6 @@ namespace won::resource
         math::bvh::BVH cpu_bvh; // local space bvh
         GPUBVH gpu_bvh = {}; // BLAS
         RenderData render_data = {};
-        uint32 geometry_offset = 0; // assigned on update
 
         bool IsValid() const override
         {

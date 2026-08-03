@@ -197,7 +197,7 @@ struct alignas(16) ShaderMaterial
     uint2 roughness_reflectance_refraction_padding;
     uint2 anisotropy_sheenroughness_clearcoat_clearcoatroughness;
 
-    uint2 sheencolor_padding;
+    uint2 sheencolor_alphacutoff;
     uint flags; // see SHADER_MATERIAL_FLAGS
     uint padding;
     
@@ -222,7 +222,8 @@ struct alignas(16) ShaderMaterial
     inline half GetSheenRoughness() { return UnpackHalf4(anisotropy_sheenroughness_clearcoat_clearcoatroughness).y; }
     inline half GetClearCoat() { return UnpackHalf4(anisotropy_sheenroughness_clearcoat_clearcoatroughness).z; }
     inline half GetClearCoatRoughness() { return UnpackHalf4(anisotropy_sheenroughness_clearcoat_clearcoatroughness).w; }
-    inline half3 GetSheenColor() { return UnpackHalf4(sheencolor_padding).xyz; }
+    inline half3 GetSheenColor() { return UnpackHalf4(sheencolor_alphacutoff).xyz; }
+    inline half GetAlphaCutoff() { return UnpackHalf4(sheencolor_alphacutoff).w; }
 
     inline bool IsDoubleSided() { return flags & SHADER_MATERIAL_FLAG_DOUBLE_SIDED; }
     inline bool IsUsingVertexColors() { return flags & SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS; }
