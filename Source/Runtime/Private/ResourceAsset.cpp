@@ -29,7 +29,7 @@ namespace won::resource
         constexpr uint32 mesh_binary_magic = 0x48534D57; // WMSH
         constexpr uint32 navmesh_binary_version = 1;
 		constexpr uint32 navmesh_binary_magic = 0x56414E57; // WNAV
-        constexpr uint32 material_binary_version = 3;
+        constexpr uint32 material_binary_version = 5;
         constexpr uint32 dds_magic = 0x20534444; // DDS
         constexpr uint32 dds_fourcc_dx10 = 0x30315844; // DX10
         constexpr uint32 dds_resource_dimension_texture2d = 3;
@@ -676,6 +676,8 @@ namespace won::resource
             archive.Field("use_vertex_colors", slot.use_vertex_colors);
             archive.Field("receive_shadow", slot.receive_shadow);
             archive.Field("base_color", slot.base_color);
+            archive.Field("emissive_color", slot.emissive_color);
+            archive.Field("emissive_intensity", slot.emissive_intensity);
             archive.Field("metallic", slot.metallic);
             archive.Field("roughness", slot.roughness);
             archive.Field("reflectance", slot.reflectance);
@@ -794,6 +796,14 @@ namespace won::resource
                         archive.Field("receive_shadow", slot.receive_shadow);
                     }
                     archive.Field("base_color", slot.base_color);
+                    if (version >= 4)
+                    {
+                        archive.Field("emissive_color", slot.emissive_color);
+                    }
+                    if (version >= 5)
+                    {
+                        archive.Field("emissive_intensity", slot.emissive_intensity);
+                    }
                     archive.Field("metallic", slot.metallic);
                     archive.Field("roughness", slot.roughness);
                     archive.Field("reflectance", slot.reflectance);

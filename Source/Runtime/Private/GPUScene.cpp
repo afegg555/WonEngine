@@ -294,7 +294,11 @@ namespace won::rendering
                     ShaderMaterial& shader_material = shader_materials[material_offset + i];
                     shader_material.Init();
                     shader_material.base_color = math::PackHalf4(material_slot.base_color);
-                    shader_material.emissive_color_metallic = math::PackHalf4(0.f, 0.f, 0.f, material_slot.metallic);
+                    shader_material.emissive_color_metallic = math::PackHalf4(
+                        material_slot.emissive_color.x * material_slot.emissive_intensity,
+                        material_slot.emissive_color.y * material_slot.emissive_intensity,
+                        material_slot.emissive_color.z * material_slot.emissive_intensity,
+                        material_slot.metallic);
                     shader_material.roughness_reflectance_refraction_padding = math::PackHalf4(material_slot.roughness, material_slot.reflectance, 0.f, 0.f);
                     shader_material.anisotropy_sheenroughness_clearcoat_clearcoatroughness = math::PackHalf4(material_slot.anisotropy, material_slot.sheen_roughness, material_slot.clearcoat, material_slot.clearcoat_roughness);
                     shader_material.sheencolor_alphacutoff = math::PackHalf4(material_slot.sheen_color.x, material_slot.sheen_color.y, material_slot.sheen_color.z, material_slot.alpha_cutoff);

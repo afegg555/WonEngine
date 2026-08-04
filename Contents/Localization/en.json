@@ -1687,6 +1687,16 @@
             "text": "Emissive Map",
             "comment": "label"
         },
+        "editor.label.emissive_color": {
+            "source": "Emissive Color",
+            "text": "Emissive Color",
+            "comment": "label"
+        },
+        "editor.label.emissive_intensity": {
+            "source": "Emissive Intensity",
+            "text": "Emissive Intensity",
+            "comment": "label"
+        },
         "editor.label.opacity_map": {
             "source": "Opacity Map",
             "text": "Opacity Map",

@@ -35,6 +35,8 @@ namespace won::resource
         bool receive_shadow = false;
 
         float4 base_color = { 1.0f, 1.0f, 1.0f, 1.0f };
+        float3 emissive_color = { 0.0f, 0.0f, 0.0f };
+        float emissive_intensity = 0.0f;
         float metallic = 0.3f;
         float roughness = 0.5f;
         float reflectance = 0.5f; // 0.5 is good enough for most dielectric materials (this means 0.04 F0)

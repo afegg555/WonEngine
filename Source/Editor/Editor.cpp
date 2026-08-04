@@ -5217,6 +5217,14 @@ namespace won::editor
 								material_changed = true;
 							}
 
+							float emissive_color[3] = { material_slot.emissive_color.x, material_slot.emissive_color.y, material_slot.emissive_color.z };
+							if (ImGui::ColorEdit3(EditorText(editor_key::label_emissive_color), emissive_color))
+							{
+								material_slot.emissive_color = { emissive_color[0], emissive_color[1], emissive_color[2] };
+								material_changed = true;
+							}
+							material_changed |= ImGui::DragFloat(EditorText(editor_key::label_emissive_intensity), &material_slot.emissive_intensity, 0.1f, 0.0f, 1000000.0f);
+
 							material_changed |= ImGui::SliderFloat(EditorText(editor_key::label_metallic), &material_slot.metallic, 0.0f, 1.0f);
 							material_changed |= ImGui::SliderFloat(EditorText(editor_key::label_roughness), &material_slot.roughness, 0.0f, 1.0f);
 							material_changed |= ImGui::SliderFloat(EditorText(editor_key::label_reflectance), &material_slot.reflectance, 0.0f, 1.0f);

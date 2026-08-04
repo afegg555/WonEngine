@@ -212,6 +212,8 @@ namespace won::editor::editor_key
     constexpr const char* label_duration_zero = "editor.label.duration_zero";
     constexpr const char* label_dynamic = "editor.label.dynamic";
     constexpr const char* label_edit_entity_command = "editor.label.edit_entity_command";
+    constexpr const char* label_emissive_color = "editor.label.emissive_color";
+    constexpr const char* label_emissive_intensity = "editor.label.emissive_intensity";
     constexpr const char* label_editor_grid = "editor.label.editor_grid";
     constexpr const char* label_emissive_map = "editor.label.emissive_map";
     constexpr const char* label_enable_profiler = "editor.label.enable_profiler";

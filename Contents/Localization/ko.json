@@ -1362,6 +1362,16 @@
             "text": "이미시브 맵",
             "comment": "label"
         },
+        "editor.label.emissive_color": {
+            "source": "Emissive Color",
+            "text": "이미시브 컬러",
+            "comment": "label"
+        },
+        "editor.label.emissive_intensity": {
+            "source": "Emissive Intensity",
+            "text": "이미시브 강도",
+            "comment": "label"
+        },
         "editor.label.entity_label": {
             "source": "Entity ",
             "text": "엔티티 ",
