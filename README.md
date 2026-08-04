@@ -16,6 +16,10 @@ WonEngine is a work-in-progress C++ rendering engine for experimenting with mode
     <td width="50%"><img src="Docs/ibl_capture.webp" width="100%" alt="Environment IBL"><br><sub><b>Environment IBL</b> — metallic × roughness matrix lit by a cubemap sky</sub></td>
   </tr>
   <tr>
+    <td width="50%"><img src="Docs/rectlight2.webp" width="100%" alt="Rect Area Light"><br><sub><b>Rect area light</b> — rectangular light source shading</sub></td>
+    <td width="50%"></td>
+  </tr>
+  <tr>
     <td width="50%"><video src="https://github.com/user-attachments/assets/204d38e9-62ba-43cb-8d11-6752cc7273bd" width="100%" controls muted>
       Your browser does not support the video tag —
       <a href="https://github.com/user-attachments/assets/204d38e9-62ba-43cb-8d11-6752cc7273bd">watch the showcase clip</a>.
