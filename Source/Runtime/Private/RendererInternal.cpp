@@ -2542,7 +2542,7 @@ namespace won::rendering
             command_list->TransitionResource(*scene_color_binding.resource, RHIResourceState::RenderTarget);
             command_list->TransitionResource(*depth_buffer_binding.resource, RHIResourceState::DepthWrite);
 
-            command_list->ClearRenderTarget(scene_color_binding, { OPTIMIZED_FAST_CLEAR_COLOR[0], OPTIMIZED_FAST_CLEAR_COLOR[1], OPTIMIZED_FAST_CLEAR_COLOR[2], OPTIMIZED_FAST_CLEAR_COLOR[3] });
+            command_list->ClearRenderTarget(scene_color_binding, clear_color);
 
             command_list->SetViewport(viewport);
             command_list->SetScissor(scissor);

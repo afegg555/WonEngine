@@ -6829,6 +6829,11 @@ namespace won::editor
 				ImGui::Checkbox("##Window Visible", &loaded_project_settings.window_visible);
 				draw_label("VSync");
 				ImGui::Checkbox("##VSync", &loaded_project_settings.vsync_enabled);
+				draw_label("Clear Color");
+				if (ImGui::ColorEdit3("##Clear Color", &loaded_project_settings.clear_color.r) && renderer)
+				{
+					renderer->SetClearColor(loaded_project_settings.clear_color);
+				}
 
 				const char* aa_items[] = { EditorText(editor_key::label_aa_none), EditorText(editor_key::label_aa_fxaa) };
 				int aa_index = static_cast<int>(loaded_project_settings.aa_mode);
