@@ -66,10 +66,14 @@ namespace won::resource
     struct Material : public Resource
     {
         Vector<MaterialSlot> slots;
+        bool dirty = false;
 
         bool IsValid() const override
         {
             return !slots.empty();
         }
+
+        void SetDirty(bool value = true) { dirty = value; }
+        bool IsDirty() const { return dirty; }
     };
 }

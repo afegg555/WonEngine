@@ -3583,7 +3583,7 @@ namespace won::editor
 					if (!remove_component && component_open)
 					{
 						float position[3] = { transform_comp->position.x, transform_comp->position.y, transform_comp->position.z };
-						if (ImGui::InputFloat3(EditorText(editor_key::label_position), position))
+						if (ImGui::DragFloat3(EditorText(editor_key::label_position), position, 0.01f))
 						{
 							transform_comp->position = { position[0], position[1], position[2] };
 							transform_comp->SetDirty();
@@ -3591,14 +3591,14 @@ namespace won::editor
 
 						float3 rotation_xyz = QuaternionToEulerXYZDegrees(transform_comp->rotation);
 						float rotation[3] = { rotation_xyz.x, rotation_xyz.y, rotation_xyz.z };
-						if (ImGui::InputFloat3(EditorText(editor_key::label_rotation_xyz), rotation))
+						if (ImGui::DragFloat3(EditorText(editor_key::label_rotation_xyz), rotation, 0.1f))
 						{
 							transform_comp->rotation = EulerXYZDegreesToQuaternion({ rotation[0], rotation[1], rotation[2] });
 							transform_comp->SetDirty();
 						}
 
 						float scale[3] = { transform_comp->scale.x, transform_comp->scale.y, transform_comp->scale.z };
-						if (ImGui::InputFloat3(EditorText(editor_key::label_scale), scale))
+						if (ImGui::DragFloat3(EditorText(editor_key::label_scale), scale, 0.01f))
 						{
 							transform_comp->scale = { scale[0], scale[1], scale[2] };
 							transform_comp->SetDirty();
@@ -3665,7 +3665,7 @@ namespace won::editor
 						}
 
 						float color[3] = { light_comp->color.x, light_comp->color.y, light_comp->color.z };
-						if (ImGui::InputFloat3(EditorText(editor_key::label_color), color))
+						if (ImGui::DragFloat3(EditorText(editor_key::label_color), color, 0.01f, 0.0f, 1.0f))
 						{
 							light_comp->color = { color[0], color[1], color[2] };
 							light_changed = true;
@@ -5154,6 +5154,7 @@ namespace won::editor
 						if (ImGui::Button(EditorText(editor_key::action_remove_slot)) && material_slot_count > 0)
 						{
 							material_comp->material->slots.erase(material_comp->material->slots.begin() + selected_material_slot);
+							material_comp->material->SetDirty();
 							material_comp->SetDirty();
 							editor_viewport.view->scene->MarkGpuDirty(ComponentMaskFromType<MaterialComponent>());
 							material_slot_count = static_cast<int>(material_comp->GetMaterialSlotCount());
@@ -5304,6 +5305,7 @@ namespace won::editor
 
 							if (material_changed)
 							{
+								material_comp->material->SetDirty();
 								material_comp->SetDirty();
 								editor_viewport.view->scene->MarkGpuDirty(ComponentMaskFromType<MaterialComponent>());
 							}
@@ -7124,6 +7126,37 @@ namespace won::editor
 		if (editor_viewport.view->camera_entity != ecs::INVALID_ENTITY)
 		{
 			excluded_entities.push_back(editor_viewport.view->camera_entity);
+		}
+
+		auto material_array = editor_viewport.view->scene->GetComponentArray<MaterialComponent>().get();
+		if (material_array)
+		{
+			UnorderedSet<resource::Material*> saved_materials;
+			for (Size material_index = 0; material_index < material_array->GetSize(); ++material_index)
+			{
+				MaterialComponent& material_component = material_array->data[material_index];
+				if (!material_component.material || !material_component.material->IsDirty())
+				{
+					continue;
+				}
+				if (material_component.material_asset_path.empty())
+				{
+					backlog::Post(EditorText(editor_key::message_save_scene_failed) + String("material has no asset path"), backlog::LogLevel::Warning);
+					return false;
+				}
+				if (!saved_materials.insert(material_component.material.get()).second)
+				{
+					continue;
+				}
+
+				const String material_path = project::ResolveProjectContentPath(contents_root_dir, material_component.material_asset_path);
+				if (!resource::SaveMaterialBinary(material_path, material_component.material))
+				{
+					backlog::Post(EditorText(editor_key::message_save_scene_failed) + material_path, backlog::LogLevel::Warning);
+					return false;
+				}
+				material_component.material->SetDirty(false);
+			}
 		}
 
 		won::serialize::JsonArchive archive(won::serialize::ArchiveMode::Write);

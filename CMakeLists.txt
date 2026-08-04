@@ -198,6 +198,7 @@ set(RUNTIME_RESOURCE
     Source/Runtime/Public/ResourceAsset.h
     Source/Runtime/Public/Font.h
     Source/Runtime/Public/Image.h
+    Source/Runtime/Public/Material.h
     Source/Runtime/Public/Sound.h
     Source/Runtime/Public/Mesh.h
     Source/Runtime/Public/TerrainGenerator.h
