@@ -93,6 +93,11 @@ namespace won::rendering
         RHISubresourceHandle brdf_lut_srv = {};
         RHISubresourceHandle brdf_lut_uav = {};
 
+        std::unique_ptr<RHIResource> ltc_matrix_lut;
+        RHISubresourceHandle ltc_matrix_lut_srv = {};
+        std::unique_ptr<RHIResource> ltc_fresnel_lut;
+        RHISubresourceHandle ltc_fresnel_lut_srv = {};
+
 #ifndef WON_SHIPPING
         std::unique_ptr<RHIResource> debug_3d_buffer;
         RHISubresourceHandle debug_3d_buffer_srv = {};

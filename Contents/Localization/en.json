@@ -702,6 +702,11 @@
             "text": "Cast Shadow",
             "comment": "label"
         },
+        "editor.label.two_sided": {
+            "source": "Two Sided",
+            "text": "Two Sided",
+            "comment": "label"
+        },
         "editor.label.orthographic": {
             "source": "Orthographic",
             "text": "Orthographic",
@@ -1012,6 +1017,11 @@
             "text": "Spot",
             "comment": "label"
         },
+        "editor.label.rect": {
+            "source": "Rect",
+            "text": "Rect",
+            "comment": "label"
+        },
         "editor.label.intensity": {
             "source": "Intensity",
             "text": "Intensity",
@@ -1030,6 +1040,11 @@
         "editor.label.inner_cone": {
             "source": "Inner Cone",
             "text": "Inner Cone",
+            "comment": "label"
+        },
+        "editor.label.area_size": {
+            "source": "Area Size",
+            "text": "Area Size",
             "comment": "label"
         },
         "editor.label.shadow_resolution": {
@@ -1095,6 +1110,11 @@
         "editor.label.auto_exposure": {
             "source": "Auto Exposure",
             "text": "Auto Exposure",
+            "comment": "label"
+        },
+        "editor.label.fixed_ev100": {
+            "source": "Fixed EV100",
+            "text": "Fixed EV100",
             "comment": "label"
         },
         "editor.format.exposure_multiplier_format": {
@@ -1665,6 +1685,16 @@
         "editor.label.emissive_map": {
             "source": "Emissive Map",
             "text": "Emissive Map",
+            "comment": "label"
+        },
+        "editor.label.emissive_color": {
+            "source": "Emissive Color",
+            "text": "Emissive Color",
+            "comment": "label"
+        },
+        "editor.label.emissive_intensity": {
+            "source": "Emissive Intensity",
+            "text": "Emissive Intensity",
             "comment": "label"
         },
         "editor.label.opacity_map": {

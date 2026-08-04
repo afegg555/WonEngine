@@ -8,6 +8,7 @@
 #include "BuiltinFont.h"
 #include "Console.h"
 #include "DebugDraw.h"
+#include "LTCLUTData.h"
 
 #include "Backlog.h"
 #include "Timer.h"
@@ -330,6 +331,8 @@ namespace won::rendering
         shader_frame.scene.instance_sort_buffer = view.instance_resources.sort_srv.descriptor_index;
         shader_frame.scene.bone_matrix_buffer = gpu_scene.bone_buffer.srv.descriptor_index;
         shader_frame.scene.debug_view_mode = static_cast<uint32>(view.view_mode);
+        shader_frame.scene.ltc_matrix_lut = ltc_matrix_lut ? static_cast<int>(ltc_matrix_lut_srv.descriptor_index) : -1;
+        shader_frame.scene.ltc_fresnel_lut = ltc_fresnel_lut ? static_cast<int>(ltc_fresnel_lut_srv.descriptor_index) : -1;
         shader_frame.environment = gpu_scene.shader_environment;
         shader_frame.environment.brdf_lut = brdf_lut ? static_cast<int>(brdf_lut_srv.descriptor_index) : -1;
         if (shader_frame.environment.diffuse_gi_mode == SHADER_DIFFUSE_GI_MODE_SKY)
@@ -2136,6 +2139,63 @@ namespace won::rendering
             }
         }
 
+        if (!ltc_matrix_lut || !ltc_fresnel_lut)
+        {
+            RHITextureDesc ltc_lut_desc = {};
+            ltc_lut_desc.width = ltc_lut_resolution;
+            ltc_lut_desc.height = ltc_lut_resolution;
+            ltc_lut_desc.depth = 1;
+            ltc_lut_desc.mip_levels = 1;
+            ltc_lut_desc.array_layers = 1;
+            ltc_lut_desc.sample_count = 1;
+            ltc_lut_desc.format = RHIFormat::R16G16B16A16Float;
+            ltc_lut_desc.usage = RHIResourceUsage::Default;
+            ltc_lut_desc.bind_flags = RHIBindFlags::ShaderResource;
+
+            Vector<uint16> ltc_matrix_half(ltc_lut_resolution * ltc_lut_resolution * 4);
+            for (Size i = 0; i < ltc_matrix_half.size(); ++i)
+            {
+                ltc_matrix_half[i] = XMConvertFloatToHalf(ltc_matrix_lut_data[i]);
+            }
+            ltc_matrix_lut = device->CreateTexture(ltc_lut_desc, ltc_matrix_half.data(), ltc_matrix_half.size() * sizeof(uint16));
+            if (ltc_matrix_lut)
+            {
+                ltc_matrix_lut->SetName("LTC Matrix LUT");
+
+                RHISubresourceDesc ltc_matrix_srv_desc = {};
+                ltc_matrix_srv_desc.type = RHISubresourceType::ShaderResource;
+                ltc_matrix_srv_desc.format = ltc_lut_desc.format;
+                ltc_matrix_srv_desc.first_mip = 0;
+                ltc_matrix_srv_desc.mip_count = 1;
+                ltc_matrix_srv_desc.first_slice = 0;
+                ltc_matrix_srv_desc.slice_count = 1;
+                device->CreateSubresource(*ltc_matrix_lut, ltc_matrix_srv_desc, &ltc_matrix_lut_srv);
+            }
+
+            Vector<uint16> ltc_fresnel_half(ltc_lut_resolution * ltc_lut_resolution * 4);
+            for (Size i = 0; i < ltc_fresnel_half.size(); ++i)
+            {
+                ltc_fresnel_half[i] = XMConvertFloatToHalf(ltc_fresnel_lut_data[i]);
+            }
+            ltc_fresnel_lut = device->CreateTexture(ltc_lut_desc, ltc_fresnel_half.data(), ltc_fresnel_half.size() * sizeof(uint16));
+            if (ltc_fresnel_lut)
+            {
+                ltc_fresnel_lut->SetName("LTC Fresnel LUT");
+
+                RHISubresourceDesc ltc_fresnel_srv_desc = {};
+                ltc_fresnel_srv_desc.type = RHISubresourceType::ShaderResource;
+                ltc_fresnel_srv_desc.format = ltc_lut_desc.format;
+                ltc_fresnel_srv_desc.first_mip = 0;
+                ltc_fresnel_srv_desc.mip_count = 1;
+                ltc_fresnel_srv_desc.first_slice = 0;
+                ltc_fresnel_srv_desc.slice_count = 1;
+                device->CreateSubresource(*ltc_fresnel_lut, ltc_fresnel_srv_desc, &ltc_fresnel_lut_srv);
+            }
+            wonlog("[Startup] ltc lut created: matrix=%d (srv=%d) fresnel=%d (srv=%d)",
+                ltc_matrix_lut ? 1 : 0, (int)ltc_matrix_lut_srv.descriptor_index,
+                ltc_fresnel_lut ? 1 : 0, (int)ltc_fresnel_lut_srv.descriptor_index);
+        }
+
         {
             auto frame_cpu_range = profiler::ScopedRangeCPU("Update Frame Constants");
             auto frame_gpu_range = profiler::ScopedRangeGPU("Update Frame Constants", *command_list);
@@ -2482,7 +2542,7 @@ namespace won::rendering
             command_list->TransitionResource(*scene_color_binding.resource, RHIResourceState::RenderTarget);
             command_list->TransitionResource(*depth_buffer_binding.resource, RHIResourceState::DepthWrite);
 
-            command_list->ClearRenderTarget(scene_color_binding, { OPTIMIZED_FAST_CLEAR_COLOR[0], OPTIMIZED_FAST_CLEAR_COLOR[1], OPTIMIZED_FAST_CLEAR_COLOR[2], OPTIMIZED_FAST_CLEAR_COLOR[3] });
+            command_list->ClearRenderTarget(scene_color_binding, clear_color);
 
             command_list->SetViewport(viewport);
             command_list->SetScissor(scissor);

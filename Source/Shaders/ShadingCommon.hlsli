@@ -390,6 +390,63 @@ inline void LightSpotlight(in ShaderLight light, in Surface surface, inout Light
     lighting.direct.specular = mad(light_color, GetSpecularBRDF(surface, context), lighting.direct.specular);
 }
 
+static const float ltc_lut_size = 64.0;
+static const float ltc_lut_scale = (ltc_lut_size - 1.0) / ltc_lut_size;
+static const float ltc_lut_bias = 0.5 / ltc_lut_size;
+
+inline void LightRect(in ShaderLight light, in Surface surface, inout Lighting lighting)
+{
+    const float3 L = light.position - surface.P;
+    const float dist2 = max(dot(L, L), 0.01);
+    const float range = (float)light.GetRange();
+    const float range2 = range * range;
+
+    if (dist2 > range2)
+        return;
+
+    if (GetScene().ltc_matrix_lut < 0 || GetScene().ltc_fresnel_lut < 0)
+        return;
+
+    const float3 N = surface.N;
+    const float3 V = surface.V;
+    const float3 T1 = normalize(V - N * dot(V, N));
+    const float3 T2 = cross(N, T1);
+
+    const float3 light_normal = (float3)light.GetDirection();
+    const float3 light_right = (float3)light.GetRight();
+    const float3 light_up = cross(light_normal, light_right);
+    const float2 half_extents = (float2)light.GetHalfExtents();
+
+    const float3 ex = half_extents.x * light_right;
+    const float3 ey = half_extents.y * light_up;
+
+    float3 points[4];
+    points[0] = light.position - ex - ey;
+    points[1] = light.position + ex - ey;
+    points[2] = light.position + ex + ey;
+    points[3] = light.position - ex + ey;
+
+    const bool two_sided = light.IsTwoSided();
+
+    const float perceptual_roughness = sqrt((float)surface.roughness);
+    const float2 lut_uv = float2(perceptual_roughness, sqrt(1.0 - (float)surface.NoV)) * ltc_lut_scale + ltc_lut_bias;
+    const float4 m_lut = bindless_textures[DescriptorIndex(GetScene().ltc_matrix_lut)].SampleLevel(sampler_linear_clamp, lut_uv, 0);
+    const float2 fresnel_lut = bindless_textures[DescriptorIndex(GetScene().ltc_fresnel_lut)].SampleLevel(sampler_linear_clamp, lut_uv, 0).xy;
+
+    const float spec_sum = LTCEvaluate(T1, T2, N, surface.P, m_lut, points, two_sided);
+    const float diff_sum = LTCEvaluate(T1, T2, N, surface.P, float4(1.0, 0.0, 0.0, 1.0), points, two_sided); // 1, 0, 0, 1 = identity matrix
+    //const float spec_sum = 0;
+    //const float diff_sum = 0;
+    
+    if (spec_sum <= 0.0 && diff_sum <= 0.0)
+        return;
+
+    const half3 light_color = (half3)(light.GetColor().rgb * GetCamera().exposure);
+
+    lighting.direct.specular += light_color * (half)spec_sum * ((half3)surface.f0 * (half)fresnel_lut.x + (1.0h - (half3)surface.f0) * (half)fresnel_lut.y);
+    lighting.direct.diffuse += light_color * (half)(diff_sum * PI);
+}
+
 inline void ForwardLighting(in Surface surface, inout Lighting lighting, float2 pixel_position)
 {
     for (uint d = 0; d < GetScene().directional_count; ++d)
@@ -428,6 +485,11 @@ inline void ForwardLighting(in Surface surface, inout Lighting lighting, float2 
                 LightSpotlight(light, surface, lighting);
             }
             break;
+            case SHADER_LIGHT_TYPE_RECT:
+            {
+                LightRect(light, surface, lighting);
+            }
+            break;
         }
     }
 #else
@@ -449,6 +511,11 @@ inline void ForwardLighting(in Surface surface, inout Lighting lighting, float2 
                 case SHADER_LIGHT_TYPE_SPOT:
                 {
                     LightSpotlight(light, surface, lighting);
+                }
+                break;
+                case SHADER_LIGHT_TYPE_RECT:
+                {
+                    LightRect(light, surface, lighting);
                 }
                 break;
             }

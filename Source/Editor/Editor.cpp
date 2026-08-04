@@ -3173,6 +3173,37 @@ namespace won::editor
 					}
 				}
 
+				ImGui::Separator();
+				bool auto_exposure = editor_settings.editor_camera_auto_exposure;
+				if (ImGui::Checkbox(EditorText(editor_key::label_auto_exposure), &auto_exposure))
+				{
+					editor_settings.editor_camera_auto_exposure = auto_exposure;
+					ApplyEditorCameraExposure();
+				}
+
+				ImGui::BeginDisabled(auto_exposure);
+				if (ImGui::DragFloat(EditorText(editor_key::label_fixed_ev100), &editor_settings.editor_camera_fixed_ev100, 0.1f, -10.0f, 20.0f))
+				{
+					ApplyEditorCameraExposure();
+				}
+				ImGui::EndDisabled();
+
+				if (ImGui::DragFloat(EditorText(editor_key::label_exposure_compensation), &editor_settings.editor_camera_exposure_compensation, 0.01f, -16.0f, 16.0f))
+				{
+					ApplyEditorCameraExposure();
+				}
+
+				ImGui::BeginDisabled(!auto_exposure);
+				bool auto_exposure_changed = false;
+				auto_exposure_changed |= ImGui::DragFloat(EditorText(editor_key::label_auto_exposure_min_ev), &editor_settings.editor_camera_auto_exposure_min_ev, 0.1f, -16.0f, 32.0f);
+				auto_exposure_changed |= ImGui::DragFloat(EditorText(editor_key::label_auto_exposure_max_ev), &editor_settings.editor_camera_auto_exposure_max_ev, 0.1f, -16.0f, 32.0f);
+				auto_exposure_changed |= ImGui::DragFloat(EditorText(editor_key::label_auto_exposure_speed), &editor_settings.editor_camera_auto_exposure_speed, 0.05f, 0.0f, 100.0f);
+				if (auto_exposure_changed)
+				{
+					ApplyEditorCameraExposure();
+				}
+				ImGui::EndDisabled();
+
 				if (ImGui::Button(EditorText(editor_key::action_reset_editor_camera)))
 				{
 					if (editor_viewport.view && editor_viewport.view->scene && editor_viewport.view->camera_entity != ecs::INVALID_ENTITY)
@@ -3552,7 +3583,7 @@ namespace won::editor
 					if (!remove_component && component_open)
 					{
 						float position[3] = { transform_comp->position.x, transform_comp->position.y, transform_comp->position.z };
-						if (ImGui::InputFloat3(EditorText(editor_key::label_position), position))
+						if (ImGui::DragFloat3(EditorText(editor_key::label_position), position, 0.01f))
 						{
 							transform_comp->position = { position[0], position[1], position[2] };
 							transform_comp->SetDirty();
@@ -3560,14 +3591,14 @@ namespace won::editor
 
 						float3 rotation_xyz = QuaternionToEulerXYZDegrees(transform_comp->rotation);
 						float rotation[3] = { rotation_xyz.x, rotation_xyz.y, rotation_xyz.z };
-						if (ImGui::InputFloat3(EditorText(editor_key::label_rotation_xyz), rotation))
+						if (ImGui::DragFloat3(EditorText(editor_key::label_rotation_xyz), rotation, 0.1f))
 						{
 							transform_comp->rotation = EulerXYZDegreesToQuaternion({ rotation[0], rotation[1], rotation[2] });
 							transform_comp->SetDirty();
 						}
 
 						float scale[3] = { transform_comp->scale.x, transform_comp->scale.y, transform_comp->scale.z };
-						if (ImGui::InputFloat3(EditorText(editor_key::label_scale), scale))
+						if (ImGui::DragFloat3(EditorText(editor_key::label_scale), scale, 0.01f))
 						{
 							transform_comp->scale = { scale[0], scale[1], scale[2] };
 							transform_comp->SetDirty();
@@ -3626,7 +3657,7 @@ namespace won::editor
 						bool light_changed = false;
 
 						int light_type = static_cast<int>(light_comp->type);
-						const char* light_type_items[] = { EditorText(editor_key::label_directional), EditorText(editor_key::label_point), EditorText(editor_key::label_spot) };
+						const char* light_type_items[] = { EditorText(editor_key::label_directional), EditorText(editor_key::label_point), EditorText(editor_key::label_spot), EditorText(editor_key::label_rect) };
 						if (ImGui::Combo(EditorText(editor_key::label_type), &light_type, light_type_items, IM_ARRAYSIZE(light_type_items)))
 						{
 							light_comp->type = static_cast<LightComponent::LightType>(light_type);
@@ -3634,7 +3665,7 @@ namespace won::editor
 						}
 
 						float color[3] = { light_comp->color.x, light_comp->color.y, light_comp->color.z };
-						if (ImGui::InputFloat3(EditorText(editor_key::label_color), color))
+						if (ImGui::DragFloat3(EditorText(editor_key::label_color), color, 0.01f, 0.0f, 1.0f))
 						{
 							light_comp->color = { color[0], color[1], color[2] };
 							light_changed = true;
@@ -3644,6 +3675,20 @@ namespace won::editor
 						light_changed |= ImGui::DragFloat(EditorText(editor_key::label_range), &light_comp->range, 0.1f, 0.0f, 100000.0f);
 						light_changed |= ImGui::DragFloat(EditorText(editor_key::label_outer_cone), &light_comp->outer_cone_angle, 0.01f, 0.0f, math::PI);
 						light_changed |= ImGui::DragFloat(EditorText(editor_key::label_inner_cone), &light_comp->inner_cone_angle, 0.01f, 0.0f, math::PI);
+
+						float area_size[2] = { light_comp->area_size.x, light_comp->area_size.y };
+						if (ImGui::DragFloat2(EditorText(editor_key::label_area_size), area_size, 0.1f, 0.01f, 1000.0f))
+						{
+							light_comp->area_size = { area_size[0], area_size[1] };
+							light_changed = true;
+						}
+
+						bool is_two_sided = light_comp->IsTwoSided();
+						if (ImGui::Checkbox(EditorText(editor_key::label_two_sided), &is_two_sided))
+						{
+							light_comp->SetTwoSided(is_two_sided);
+							light_changed = true;
+						}
 
 						int shadow_map_resolution = static_cast<int>(light_comp->shadow_map_resolution);
 						if (ImGui::InputInt(EditorText(editor_key::label_shadow_resolution), &shadow_map_resolution))
@@ -5109,6 +5154,7 @@ namespace won::editor
 						if (ImGui::Button(EditorText(editor_key::action_remove_slot)) && material_slot_count > 0)
 						{
 							material_comp->material->slots.erase(material_comp->material->slots.begin() + selected_material_slot);
+							material_comp->material->SetDirty();
 							material_comp->SetDirty();
 							editor_viewport.view->scene->MarkGpuDirty(ComponentMaskFromType<MaterialComponent>());
 							material_slot_count = static_cast<int>(material_comp->GetMaterialSlotCount());
@@ -5170,6 +5216,14 @@ namespace won::editor
 								material_slot.base_color = { base_color[0], base_color[1], base_color[2], base_color[3] };
 								material_changed = true;
 							}
+
+							float emissive_color[3] = { material_slot.emissive_color.x, material_slot.emissive_color.y, material_slot.emissive_color.z };
+							if (ImGui::ColorEdit3(EditorText(editor_key::label_emissive_color), emissive_color))
+							{
+								material_slot.emissive_color = { emissive_color[0], emissive_color[1], emissive_color[2] };
+								material_changed = true;
+							}
+							material_changed |= ImGui::DragFloat(EditorText(editor_key::label_emissive_intensity), &material_slot.emissive_intensity, 0.1f, 0.0f, 1000000.0f);
 
 							material_changed |= ImGui::SliderFloat(EditorText(editor_key::label_metallic), &material_slot.metallic, 0.0f, 1.0f);
 							material_changed |= ImGui::SliderFloat(EditorText(editor_key::label_roughness), &material_slot.roughness, 0.0f, 1.0f);
@@ -5259,6 +5313,7 @@ namespace won::editor
 
 							if (material_changed)
 							{
+								material_comp->material->SetDirty();
 								material_comp->SetDirty();
 								editor_viewport.view->scene->MarkGpuDirty(ComponentMaskFromType<MaterialComponent>());
 							}
@@ -6144,6 +6199,43 @@ namespace won::editor
 		{
 			name->value = "Editor Camera";
 		}
+
+		ApplyEditorCameraExposure();
+	}
+
+	void EditorApplication::ApplyEditorCameraExposure()
+	{
+		if (!editor_viewport.view || !editor_viewport.view->scene || editor_viewport.view->camera_entity == ecs::INVALID_ENTITY)
+		{
+			return;
+		}
+
+		auto camera = editor_viewport.view->scene->GetComponent<ecs::CameraComponent>(editor_viewport.view->camera_entity);
+		if (!camera)
+		{
+			return;
+		}
+
+		camera->SetAutoExposure(editor_settings.editor_camera_auto_exposure);
+		const float auto_exposure_min_ev = (std::min)(editor_settings.editor_camera_auto_exposure_min_ev, editor_settings.editor_camera_auto_exposure_max_ev);
+		const float auto_exposure_max_ev = (std::max)(editor_settings.editor_camera_auto_exposure_min_ev, editor_settings.editor_camera_auto_exposure_max_ev);
+		editor_settings.editor_camera_auto_exposure_min_ev = auto_exposure_min_ev;
+		editor_settings.editor_camera_auto_exposure_max_ev = auto_exposure_max_ev;
+		camera->auto_exposure_min_ev = auto_exposure_min_ev;
+		camera->auto_exposure_max_ev = auto_exposure_max_ev;
+		camera->auto_exposure_speed = (std::max)(0.0f, editor_settings.editor_camera_auto_exposure_speed);
+
+		if (camera->IsAutoExposure())
+		{
+			camera->exposure_compensation = editor_settings.editor_camera_exposure_compensation;
+		}
+		else
+		{
+			const float physical_exposure = camera->GetPhysicalExposure();
+			const float fixed_exposure = ecs::CameraComponent::ExposureFromEV100(editor_settings.editor_camera_fixed_ev100);
+			camera->exposure_multiplier = physical_exposure;
+			camera->exposure_compensation = std::log2(fixed_exposure / physical_exposure) + editor_settings.editor_camera_exposure_compensation;
+		}
 	}
 
 	void EditorApplication::CreateStartupScene()
@@ -6737,6 +6829,11 @@ namespace won::editor
 				ImGui::Checkbox("##Window Visible", &loaded_project_settings.window_visible);
 				draw_label("VSync");
 				ImGui::Checkbox("##VSync", &loaded_project_settings.vsync_enabled);
+				draw_label("Clear Color");
+				if (ImGui::ColorEdit3("##Clear Color", &loaded_project_settings.clear_color.r) && renderer)
+				{
+					renderer->SetClearColor(loaded_project_settings.clear_color);
+				}
 
 				const char* aa_items[] = { EditorText(editor_key::label_aa_none), EditorText(editor_key::label_aa_fxaa) };
 				int aa_index = static_cast<int>(loaded_project_settings.aa_mode);
@@ -7042,6 +7139,37 @@ namespace won::editor
 		if (editor_viewport.view->camera_entity != ecs::INVALID_ENTITY)
 		{
 			excluded_entities.push_back(editor_viewport.view->camera_entity);
+		}
+
+		auto material_array = editor_viewport.view->scene->GetComponentArray<MaterialComponent>().get();
+		if (material_array)
+		{
+			UnorderedSet<resource::Material*> saved_materials;
+			for (Size material_index = 0; material_index < material_array->GetSize(); ++material_index)
+			{
+				MaterialComponent& material_component = material_array->data[material_index];
+				if (!material_component.material || !material_component.material->IsDirty())
+				{
+					continue;
+				}
+				if (material_component.material_asset_path.empty())
+				{
+					backlog::Post(EditorText(editor_key::message_save_scene_failed) + String("material has no asset path"), backlog::LogLevel::Warning);
+					return false;
+				}
+				if (!saved_materials.insert(material_component.material.get()).second)
+				{
+					continue;
+				}
+
+				const String material_path = project::ResolveProjectContentPath(contents_root_dir, material_component.material_asset_path);
+				if (!resource::SaveMaterialBinary(material_path, material_component.material))
+				{
+					backlog::Post(EditorText(editor_key::message_save_scene_failed) + material_path, backlog::LogLevel::Warning);
+					return false;
+				}
+				material_component.material->SetDirty(false);
+			}
 		}
 
 		won::serialize::JsonArchive archive(won::serialize::ArchiveMode::Write);

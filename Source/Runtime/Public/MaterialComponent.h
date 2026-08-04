@@ -54,6 +54,7 @@ namespace won::ecs
             }
 
             material = std::make_shared<resource::Material>(*material);
+            material->SetDirty();
             material_offset = 0;
             material_asset_path.clear();
             SetDirty();
@@ -74,6 +75,7 @@ namespace won::ecs
             }
 
             material->slots.push_back({});
+            material->SetDirty();
             SetDirty();
             return material->slots.back();
         }

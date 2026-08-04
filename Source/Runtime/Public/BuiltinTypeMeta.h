@@ -77,6 +77,7 @@ namespace won::reflection
         WON_REFLECT_ENUM_VALUE("Directional", won::ecs::LightComponent::LightType::Directional)
         WON_REFLECT_ENUM_VALUE("Point", won::ecs::LightComponent::LightType::Point)
         WON_REFLECT_ENUM_VALUE("Spot", won::ecs::LightComponent::LightType::Spot)
+        WON_REFLECT_ENUM_VALUE("Rect", won::ecs::LightComponent::LightType::Rect)
     WON_REFLECT_ENUM_END()
 
     WON_REFLECT_ENUM(won::ecs::EnvironmentComponent::DiffuseGIMode, "DiffuseGIMode")
@@ -161,6 +162,7 @@ namespace won::reflection
         WON_REFLECT_FIELD(range, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(outer_cone_angle, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(inner_cone_angle, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(area_size, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(shadow_map_resolution, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(shadow_cascade_count, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(shadow_cascade_lambda, won::FieldFlagEditable | won::FieldFlagSerializable)

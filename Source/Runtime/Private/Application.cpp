@@ -181,6 +181,7 @@ namespace won
             renderer_desc.shader_bin_root_path = io::NormalizePath(io::CombinePath(io::GetExecutableDirectory(), "CompiledShaders"));
         }
         settings::LoadSettings(settings::GetUserSettingsPath(project_settings.project_name), user_settings);
+		renderer_desc.clear_color = project_settings.clear_color;
 		renderer_desc.vsync_enabled = user_settings.vsync.value_or(project_settings.vsync_enabled); // if user setting is not set, use project setting. note user setting is not changed
         renderer = rendering::CreateRenderer(renderer_desc);
         renderer->SetShadowResolutionScale(user_settings.shadow_resolution_scale.value_or(1.0f));

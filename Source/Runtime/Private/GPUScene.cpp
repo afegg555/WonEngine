@@ -126,11 +126,31 @@ namespace won::rendering
                 shader_light.Init();
                 shader_light.position = light.position;
                 shader_light.SetType(static_cast<uint32>(light.type));
-                shader_light.SetColor({ light.color.x * light.intensity, light.color.y * light.intensity, light.color.z * light.intensity, light.intensity });
-                shader_light.SetRange(light.range);
                 shader_light.SetDirection(light.direction);
-                shader_light.SetOuterConeAngleCos(std::cos(light.outer_cone_angle));
-                shader_light.SetInnerConeAngleCos(std::cos(light.inner_cone_angle));
+
+				float radiance_intensity = light.intensity; // in directional light, intensity is illuminance
+                float effective_range = light.range;
+                if (light.type == LightComponent::LightType::Point || light.type == LightComponent::LightType::Spot)
+                {
+					radiance_intensity = light.intensity / (4.0f * math::PI); // luminous power to luminous intensity
+
+                    shader_light.SetOuterConeAngleCos(std::cos(light.outer_cone_angle));
+                    shader_light.SetInnerConeAngleCos(std::cos(light.inner_cone_angle));
+                }
+                else if (light.type == LightComponent::LightType::Rect)
+                {
+                    const float area = std::max(light.area_size.x * light.area_size.y, 0.0001f);
+					radiance_intensity = light.intensity / (math::PI * area); // luminous power to luminance
+
+                    shader_light.SetRight(light.right);
+                    shader_light.SetHalfExtents({ light.area_size.x * 0.5f, light.area_size.y * 0.5f });
+                    const float half_diagonal = 0.5f * std::sqrt(light.area_size.x * light.area_size.x + light.area_size.y * light.area_size.y);
+                    effective_range = light.range + half_diagonal;
+                }
+
+                shader_light.SetColor({ light.color.x * radiance_intensity, light.color.y * radiance_intensity, light.color.z * radiance_intensity, radiance_intensity });
+                shader_light.SetRange(effective_range);
+
                 if (!light.IsDynamic())
                 {
                     shader_light.SetFlags(SHADER_LIGHT_FLAGS::LIGHT_FLAG_LIGHT_STATIC);
@@ -138,6 +158,10 @@ namespace won::rendering
                 if (light.IsCastShadow())
                 {
                     shader_light.SetFlags(SHADER_LIGHT_FLAGS::LIGHT_FLAG_LIGHT_CASTING_SHADOW);
+                }
+                if (light.IsTwoSided())
+                {
+                    shader_light.SetFlags(SHADER_LIGHT_FLAGS::LIGHT_FLAG_TWO_SIDED);
                 }
                 shader_lights.push_back(shader_light);
                 light_bounds.push_back(light.aabb);
@@ -270,7 +294,11 @@ namespace won::rendering
                     ShaderMaterial& shader_material = shader_materials[material_offset + i];
                     shader_material.Init();
                     shader_material.base_color = math::PackHalf4(material_slot.base_color);
-                    shader_material.emissive_color_metallic = math::PackHalf4(0.f, 0.f, 0.f, material_slot.metallic);
+                    shader_material.emissive_color_metallic = math::PackHalf4(
+                        material_slot.emissive_color.x * material_slot.emissive_intensity,
+                        material_slot.emissive_color.y * material_slot.emissive_intensity,
+                        material_slot.emissive_color.z * material_slot.emissive_intensity,
+                        material_slot.metallic);
                     shader_material.roughness_reflectance_refraction_padding = math::PackHalf4(material_slot.roughness, material_slot.reflectance, 0.f, 0.f);
                     shader_material.anisotropy_sheenroughness_clearcoat_clearcoatroughness = math::PackHalf4(material_slot.anisotropy, material_slot.sheen_roughness, material_slot.clearcoat, material_slot.clearcoat_roughness);
                     shader_material.sheencolor_alphacutoff = math::PackHalf4(material_slot.sheen_color.x, material_slot.sheen_color.y, material_slot.sheen_color.z, material_slot.alpha_cutoff);

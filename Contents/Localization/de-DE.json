@@ -336,6 +336,7 @@
         "editor.label.shutter_speed": { "source": "Shutter Speed", "text": "Belichtungszeit" },
         "editor.label.sensitivity": { "source": "Sensitivity", "text": "Empfindlichkeit" },
         "editor.label.auto_exposure": { "source": "Auto Exposure", "text": "Automatische Belichtung" },
+        "editor.label.fixed_ev100": { "source": "Fixed EV100", "text": "Festes EV100" },
         "editor.format.exposure_multiplier_format": { "source": "Exposure Multiplier: %.6f", "text": "Belichtungsmultiplikator: %.6f" },
         "editor.label.exposure_compensation": { "source": "Exposure Compensation (EV)", "text": "Belichtungskorrektur (EV)" },
         "editor.label.auto_exposure_min_ev": { "source": "Min EV100", "text": "Min. EV100" },

@@ -150,6 +150,7 @@ namespace won::editor::editor_key
     constexpr const char* label_anisotropy_map = "editor.label.anisotropy_map";
     constexpr const char* label_anti_aliasing = "editor.label.anti_aliasing";
     constexpr const char* label_aperture = "editor.label.aperture";
+    constexpr const char* label_area_size = "editor.label.area_size";
     constexpr const char* label_asset = "editor.label.asset";
     constexpr const char* label_asset_font = "editor.label.asset_font";
     constexpr const char* label_asset_material = "editor.label.asset_material";
@@ -211,12 +212,15 @@ namespace won::editor::editor_key
     constexpr const char* label_duration_zero = "editor.label.duration_zero";
     constexpr const char* label_dynamic = "editor.label.dynamic";
     constexpr const char* label_edit_entity_command = "editor.label.edit_entity_command";
+    constexpr const char* label_emissive_color = "editor.label.emissive_color";
+    constexpr const char* label_emissive_intensity = "editor.label.emissive_intensity";
     constexpr const char* label_editor_grid = "editor.label.editor_grid";
     constexpr const char* label_emissive_map = "editor.label.emissive_map";
     constexpr const char* label_enable_profiler = "editor.label.enable_profiler";
     constexpr const char* label_enabled = "editor.label.enabled";
     constexpr const char* label_entity_label = "editor.label.entity_label";
     constexpr const char* label_exposure_compensation = "editor.label.exposure_compensation";
+    constexpr const char* label_fixed_ev100 = "editor.label.fixed_ev100";
     constexpr const char* label_far_plane = "editor.label.far_plane";
     constexpr const char* label_file_name = "editor.label.file_name";
     constexpr const char* label_folder = "editor.label.folder";
@@ -305,6 +309,7 @@ namespace won::editor::editor_key
     constexpr const char* label_range = "editor.label.range";
     constexpr const char* label_rayleigh_coefficient = "editor.label.rayleigh_coefficient";
     constexpr const char* label_receive_shadow = "editor.label.receive_shadow";
+    constexpr const char* label_rect = "editor.label.rect";
     constexpr const char* label_redo = "editor.label.redo";
     constexpr const char* label_reflectance = "editor.label.reflectance";
     constexpr const char* label_reflection_mode = "editor.label.reflection_mode";
@@ -358,6 +363,7 @@ namespace won::editor::editor_key
     constexpr const char* label_tonemap_reinhard = "editor.label.tonemap_reinhard";
     constexpr const char* label_trigger = "editor.label.trigger";
     constexpr const char* label_turbidity = "editor.label.turbidity";
+    constexpr const char* label_two_sided = "editor.label.two_sided";
     constexpr const char* label_type = "editor.label.type";
     constexpr const char* label_undo = "editor.label.undo";
     constexpr const char* label_unknown = "editor.label.unknown";
