@@ -161,4 +161,175 @@ float3 EnvBRDF(int brdf_lut_descriptor, float3 f0, float perceptual_roughness, f
     return f0 * brdf.x + brdf.y;
 }
 
+// Linearly Transformed Cosines (LTC) rect light integration.
+// Source: Heitz, Dupuy, Hill, Neubelt, "Real-Time Polygonal-Light Shading with Linearly
+// Transformed Cosines", ACM SIGGRAPH 2016. https://github.com/selfshadow/ltc_code (webgl/shaders/ltc/ltc_quad.fs)
+float3 LTCIntegrateEdgeVec(float3 v1, float3 v2)
+{
+    float x = dot(v1, v2);
+    float y = abs(x);
+
+    float a = 0.8543985 + (0.4965155 + 0.0145206 * y) * y;
+    float b = 3.4175940 + (4.1616724 + y) * y;
+    float v = a / b;
+
+    float theta_sintheta = (x > 0.0) ? v : 0.5 * rsqrt(max(1.0 - x * x, 1e-7)) - v;
+
+    return cross(v1, v2) * theta_sintheta;
+}
+
+void LTCClipQuadToHorizon(inout float3 L[5], out int n)
+{
+    int config = 0; // 4-bit
+    if (L[0].z > 0.0) config += 1;
+    if (L[1].z > 0.0) config += 2;
+    if (L[2].z > 0.0) config += 4;
+    if (L[3].z > 0.0) config += 8;
+
+    n = 0;
+
+    if (config == 0)
+    {
+    }
+    else if (config == 1)
+    {
+        n = 3;
+        L[1] = -L[1].z * L[0] + L[0].z * L[1];
+        L[2] = -L[3].z * L[0] + L[0].z * L[3];
+    }
+    else if (config == 2)
+    {
+        n = 3;
+        L[0] = -L[0].z * L[1] + L[1].z * L[0];
+        L[2] = -L[2].z * L[1] + L[1].z * L[2];
+    }
+    else if (config == 3)
+    {
+        n = 4;
+        L[2] = -L[2].z * L[1] + L[1].z * L[2];
+        L[3] = -L[3].z * L[0] + L[0].z * L[3];
+    }
+    else if (config == 4)
+    {
+        n = 3;
+        L[0] = -L[3].z * L[2] + L[2].z * L[3];
+        L[1] = -L[1].z * L[2] + L[2].z * L[1];
+    }
+    else if (config == 5)
+    {
+        n = 0;
+    }
+    else if (config == 6)
+    {
+        n = 4;
+        L[0] = -L[0].z * L[1] + L[1].z * L[0];
+        L[3] = -L[3].z * L[2] + L[2].z * L[3];
+    }
+    else if (config == 7)
+    {
+        n = 5;
+        L[4] = -L[3].z * L[0] + L[0].z * L[3];
+        L[3] = -L[3].z * L[2] + L[2].z * L[3];
+    }
+    else if (config == 8)
+    {
+        n = 3;
+        L[0] = -L[0].z * L[3] + L[3].z * L[0];
+        L[1] = -L[2].z * L[3] + L[3].z * L[2];
+        L[2] = L[3];
+    }
+    else if (config == 9)
+    {
+        n = 4;
+        L[1] = -L[1].z * L[0] + L[0].z * L[1];
+        L[2] = -L[2].z * L[3] + L[3].z * L[2];
+    }
+    else if (config == 10)
+    {
+        n = 0;
+    }
+    else if (config == 11)
+    {
+        n = 5;
+        L[4] = L[3];
+        L[3] = -L[2].z * L[3] + L[3].z * L[2];
+        L[2] = -L[2].z * L[1] + L[1].z * L[2];
+    }
+    else if (config == 12)
+    {
+        n = 4;
+        L[1] = -L[1].z * L[2] + L[2].z * L[1];
+        L[0] = -L[0].z * L[3] + L[3].z * L[0];
+    }
+    else if (config == 13)
+    {
+        n = 5;
+        L[4] = L[3];
+        L[3] = L[2];
+        L[2] = -L[1].z * L[2] + L[2].z * L[1];
+        L[1] = -L[1].z * L[0] + L[0].z * L[1];
+    }
+    else if (config == 14)
+    {
+        n = 5;
+        L[4] = -L[0].z * L[3] + L[3].z * L[0];
+        L[0] = -L[0].z * L[1] + L[1].z * L[0];
+    }
+    else if (config == 15)
+    {
+        n = 4;
+    }
+
+    if (n == 3)
+        L[3] = L[0];
+    if (n == 4)
+        L[4] = L[0];
+}
+
+float LTCEvaluate(float3 T1, float3 T2, float3 N, float3 P, float4 minv, float3 points[4], bool two_sided)
+{
+    float3 L[5];
+    [unroll]
+    for (uint i = 0; i < 4; ++i)
+    {
+        float3 d = points[i] - P;
+        float3 local = float3(dot(d, T1), dot(d, T2), dot(d, N));
+        // [ minv.x   0   minv.z ]
+        // [   0      1     0    ] * local
+        // [ minv.y   0   minv.w ]
+        L[i] = float3(minv.x * local.x + minv.z * local.z, local.y, minv.y * local.x + minv.w * local.z);
+    }
+
+    int n; // number of vertices in the clipped polygon
+    LTCClipQuadToHorizon(L, n); // clip the polygon to the horizon plane(z > 0)
+    if (n == 0)
+    {
+        return 0.0;
+    }
+
+    L[0] = normalize(L[0]);
+    L[1] = normalize(L[1]);
+    L[2] = normalize(L[2]);
+    L[3] = normalize(L[3]);
+    L[4] = normalize(L[4]); // can be used for n == 5 case
+    // L is now on the hemisphere, normalized
+    
+    float sum = 0.0;              
+    // the integral of the cosine-weighted hemisphere over a polygon can be computed as the sum of the integrals over its edges
+    // computation codes are from the original LTC paper's implementation
+    sum += LTCIntegrateEdgeVec(L[0], L[1]).z;
+    sum += LTCIntegrateEdgeVec(L[1], L[2]).z;
+    sum += LTCIntegrateEdgeVec(L[2], L[3]).z;
+    if (n >= 4)
+    {
+        sum += LTCIntegrateEdgeVec(L[3], L[4]).z;
+    }
+    if (n == 5)
+    {
+        sum += LTCIntegrateEdgeVec(L[4], L[0]).z;
+    }
+
+    return two_sided ? abs(sum) : max(0.0, sum);
+}
+
 #endif

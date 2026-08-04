@@ -3173,6 +3173,37 @@ namespace won::editor
 					}
 				}
 
+				ImGui::Separator();
+				bool auto_exposure = editor_settings.editor_camera_auto_exposure;
+				if (ImGui::Checkbox(EditorText(editor_key::label_auto_exposure), &auto_exposure))
+				{
+					editor_settings.editor_camera_auto_exposure = auto_exposure;
+					ApplyEditorCameraExposure();
+				}
+
+				ImGui::BeginDisabled(auto_exposure);
+				if (ImGui::DragFloat(EditorText(editor_key::label_fixed_ev100), &editor_settings.editor_camera_fixed_ev100, 0.1f, -10.0f, 20.0f))
+				{
+					ApplyEditorCameraExposure();
+				}
+				ImGui::EndDisabled();
+
+				if (ImGui::DragFloat(EditorText(editor_key::label_exposure_compensation), &editor_settings.editor_camera_exposure_compensation, 0.01f, -16.0f, 16.0f))
+				{
+					ApplyEditorCameraExposure();
+				}
+
+				ImGui::BeginDisabled(!auto_exposure);
+				bool auto_exposure_changed = false;
+				auto_exposure_changed |= ImGui::DragFloat(EditorText(editor_key::label_auto_exposure_min_ev), &editor_settings.editor_camera_auto_exposure_min_ev, 0.1f, -16.0f, 32.0f);
+				auto_exposure_changed |= ImGui::DragFloat(EditorText(editor_key::label_auto_exposure_max_ev), &editor_settings.editor_camera_auto_exposure_max_ev, 0.1f, -16.0f, 32.0f);
+				auto_exposure_changed |= ImGui::DragFloat(EditorText(editor_key::label_auto_exposure_speed), &editor_settings.editor_camera_auto_exposure_speed, 0.05f, 0.0f, 100.0f);
+				if (auto_exposure_changed)
+				{
+					ApplyEditorCameraExposure();
+				}
+				ImGui::EndDisabled();
+
 				if (ImGui::Button(EditorText(editor_key::action_reset_editor_camera)))
 				{
 					if (editor_viewport.view && editor_viewport.view->scene && editor_viewport.view->camera_entity != ecs::INVALID_ENTITY)
@@ -3626,7 +3657,7 @@ namespace won::editor
 						bool light_changed = false;
 
 						int light_type = static_cast<int>(light_comp->type);
-						const char* light_type_items[] = { EditorText(editor_key::label_directional), EditorText(editor_key::label_point), EditorText(editor_key::label_spot) };
+						const char* light_type_items[] = { EditorText(editor_key::label_directional), EditorText(editor_key::label_point), EditorText(editor_key::label_spot), EditorText(editor_key::label_rect) };
 						if (ImGui::Combo(EditorText(editor_key::label_type), &light_type, light_type_items, IM_ARRAYSIZE(light_type_items)))
 						{
 							light_comp->type = static_cast<LightComponent::LightType>(light_type);
@@ -3644,6 +3675,20 @@ namespace won::editor
 						light_changed |= ImGui::DragFloat(EditorText(editor_key::label_range), &light_comp->range, 0.1f, 0.0f, 100000.0f);
 						light_changed |= ImGui::DragFloat(EditorText(editor_key::label_outer_cone), &light_comp->outer_cone_angle, 0.01f, 0.0f, math::PI);
 						light_changed |= ImGui::DragFloat(EditorText(editor_key::label_inner_cone), &light_comp->inner_cone_angle, 0.01f, 0.0f, math::PI);
+
+						float area_size[2] = { light_comp->area_size.x, light_comp->area_size.y };
+						if (ImGui::DragFloat2(EditorText(editor_key::label_area_size), area_size, 0.1f, 0.01f, 1000.0f))
+						{
+							light_comp->area_size = { area_size[0], area_size[1] };
+							light_changed = true;
+						}
+
+						bool is_two_sided = light_comp->IsTwoSided();
+						if (ImGui::Checkbox(EditorText(editor_key::label_two_sided), &is_two_sided))
+						{
+							light_comp->SetTwoSided(is_two_sided);
+							light_changed = true;
+						}
 
 						int shadow_map_resolution = static_cast<int>(light_comp->shadow_map_resolution);
 						if (ImGui::InputInt(EditorText(editor_key::label_shadow_resolution), &shadow_map_resolution))
@@ -6143,6 +6188,43 @@ namespace won::editor
 		if (auto name = editor_viewport.view->scene->AddComponent<ecs::NameComponent>(editor_viewport.view->camera_entity))
 		{
 			name->value = "Editor Camera";
+		}
+
+		ApplyEditorCameraExposure();
+	}
+
+	void EditorApplication::ApplyEditorCameraExposure()
+	{
+		if (!editor_viewport.view || !editor_viewport.view->scene || editor_viewport.view->camera_entity == ecs::INVALID_ENTITY)
+		{
+			return;
+		}
+
+		auto camera = editor_viewport.view->scene->GetComponent<ecs::CameraComponent>(editor_viewport.view->camera_entity);
+		if (!camera)
+		{
+			return;
+		}
+
+		camera->SetAutoExposure(editor_settings.editor_camera_auto_exposure);
+		const float auto_exposure_min_ev = (std::min)(editor_settings.editor_camera_auto_exposure_min_ev, editor_settings.editor_camera_auto_exposure_max_ev);
+		const float auto_exposure_max_ev = (std::max)(editor_settings.editor_camera_auto_exposure_min_ev, editor_settings.editor_camera_auto_exposure_max_ev);
+		editor_settings.editor_camera_auto_exposure_min_ev = auto_exposure_min_ev;
+		editor_settings.editor_camera_auto_exposure_max_ev = auto_exposure_max_ev;
+		camera->auto_exposure_min_ev = auto_exposure_min_ev;
+		camera->auto_exposure_max_ev = auto_exposure_max_ev;
+		camera->auto_exposure_speed = (std::max)(0.0f, editor_settings.editor_camera_auto_exposure_speed);
+
+		if (camera->IsAutoExposure())
+		{
+			camera->exposure_compensation = editor_settings.editor_camera_exposure_compensation;
+		}
+		else
+		{
+			const float physical_exposure = camera->GetPhysicalExposure();
+			const float fixed_exposure = ecs::CameraComponent::ExposureFromEV100(editor_settings.editor_camera_fixed_ev100);
+			camera->exposure_multiplier = physical_exposure;
+			camera->exposure_compensation = std::log2(fixed_exposure / physical_exposure) + editor_settings.editor_camera_exposure_compensation;
 		}
 	}
 

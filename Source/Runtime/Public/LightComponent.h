@@ -15,6 +15,7 @@ namespace won::ecs
 			Active = 1 << 0,
 			Dynamic = 1 << 1,
 			CastShadow = 1 << 2,
+			TwoSided = 1 << 3, // for area light
 		};
 		uint32_t flags = Active | Dynamic | CastShadow;
 
@@ -23,6 +24,7 @@ namespace won::ecs
 			Directional,
 			Point,
 			Spot,
+			Rect,
 
 			LIGHTTYPE_COUNT,
 		};
@@ -32,10 +34,13 @@ namespace won::ecs
 		// Brightness of light in. The units that this is defined in depend on the type of light.
 		// Point and spot lights : luminous power lumen (800 lumen for a household light bulb)
 		// Directional lights : Illuminance lux (lm/m2). (120,000 lux for daylight sky and sun) https://google.github.io/filament/Filament.md.html#table_sunskyilluminance
+		// Rect lights : luminous power lumen
 		float intensity = 100000.0f;
 		float range = 10.0f;
 		float outer_cone_angle = XM_PIDIV4;
 		float inner_cone_angle = 0; // default value is 0, means only outer cone angle is used
+
+		float2 area_size = float2(1.0f, 1.0f);
 
         uint32 shadow_map_resolution = 1024;
 		uint32 shadow_cascade_count = 4;
@@ -46,6 +51,7 @@ namespace won::ecs
 		// you can use TransformComponent for manipulation !!
 		float3 position = { 0, 0, 0 }; // vec(0, 0, 0) * transform_matrix
 		float3 direction = { 0, 0, 1 }; // vec(0, 0, 1) * transform_matrix
+		float3 right = { 1, 0, 0 }; // vec(1, 0, 0) * transform_matrix
 		math::AABB aabb = {};
 
 		constexpr void SetActive(bool value = true) { if (value) { flags |= Active; } else { flags &= ~Active; } }
@@ -55,5 +61,7 @@ namespace won::ecs
 		constexpr bool IsCastShadow() const { return flags & CastShadow; }
 		constexpr void SetDynamic(bool value = true) { if (value) { flags |= Dynamic; } else { flags &= ~Dynamic; } }
 		constexpr bool IsDynamic() const { return flags & Dynamic; }
+		constexpr void SetTwoSided(bool value = true) { if (value) { flags |= TwoSided; } else { flags &= ~TwoSided; } }
+		constexpr bool IsTwoSided() const { return flags & TwoSided; }
     };
 }

@@ -21,6 +21,12 @@ namespace won::editor
         bool viewport_show_bvh_debug = false;
         bool viewport_show_ddgi_overlay = false;
         float camera_speed = 5.0f;
+        bool editor_camera_auto_exposure = false;
+        float editor_camera_fixed_ev100 = 10.965784f;
+        float editor_camera_exposure_compensation = 0.0f;
+        float editor_camera_auto_exposure_min_ev = -6.0f;
+        float editor_camera_auto_exposure_max_ev = 16.0f;
+        float editor_camera_auto_exposure_speed = 2.0f;
         String last_scene_path;
         String editor_language;
     };
@@ -77,6 +83,30 @@ namespace won::editor
         {
             settings.camera_speed = float_value;
         }
+        if (configuration.GetBool("editor.camera.auto_exposure", bool_value))
+        {
+            settings.editor_camera_auto_exposure = bool_value;
+        }
+        if (configuration.GetFloat("editor.camera.fixed_ev100", float_value))
+        {
+            settings.editor_camera_fixed_ev100 = float_value;
+        }
+        if (configuration.GetFloat("editor.camera.exposure_compensation", float_value))
+        {
+            settings.editor_camera_exposure_compensation = float_value;
+        }
+        if (configuration.GetFloat("editor.camera.auto_exposure_min_ev", float_value))
+        {
+            settings.editor_camera_auto_exposure_min_ev = float_value;
+        }
+        if (configuration.GetFloat("editor.camera.auto_exposure_max_ev", float_value))
+        {
+            settings.editor_camera_auto_exposure_max_ev = float_value;
+        }
+        if (configuration.GetFloat("editor.camera.auto_exposure_speed", float_value))
+        {
+            settings.editor_camera_auto_exposure_speed = float_value;
+        }
         if (const char* string_value = configuration.GetString("editor.scene.last_path"))
         {
             settings.last_scene_path = string_value;
@@ -102,6 +132,12 @@ namespace won::editor
         configuration.SetBool("editor.viewport.show_bvh_debug", settings.viewport_show_bvh_debug);
         configuration.SetBool("editor.viewport.show_ddgi_overlay", settings.viewport_show_ddgi_overlay);
         configuration.SetFloat("editor.camera.speed", settings.camera_speed);
+        configuration.SetBool("editor.camera.auto_exposure", settings.editor_camera_auto_exposure);
+        configuration.SetFloat("editor.camera.fixed_ev100", settings.editor_camera_fixed_ev100);
+        configuration.SetFloat("editor.camera.exposure_compensation", settings.editor_camera_exposure_compensation);
+        configuration.SetFloat("editor.camera.auto_exposure_min_ev", settings.editor_camera_auto_exposure_min_ev);
+        configuration.SetFloat("editor.camera.auto_exposure_max_ev", settings.editor_camera_auto_exposure_max_ev);
+        configuration.SetFloat("editor.camera.auto_exposure_speed", settings.editor_camera_auto_exposure_speed);
         configuration.SetString("editor.scene.last_path", settings.last_scene_path.c_str());
         configuration.SetString("editor.language", settings.editor_language.c_str());
         return configuration.SaveToFile(path.c_str());

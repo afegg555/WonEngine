@@ -75,6 +75,7 @@ namespace won::editor
 		void InitEditorGrid();
 		void DrawEditorGrid();
 		void CreateEditorCamera();
+		void ApplyEditorCameraExposure();
 		void CreateStartupScene();
 		bool NewProject(const String& path);
 		bool LoadProject(const String& path);

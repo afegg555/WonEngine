@@ -1172,9 +1172,19 @@
             "text": "조리개",
             "comment": "label"
         },
+        "editor.label.area_size": {
+            "source": "Area Size",
+            "text": "면적 크기",
+            "comment": "label"
+        },
         "editor.label.auto_exposure": {
             "source": "Auto Exposure",
             "text": "자동 노출",
+            "comment": "label"
+        },
+        "editor.label.fixed_ev100": {
+            "source": "Fixed EV100",
+            "text": "고정 EV100",
             "comment": "label"
         },
         "editor.label.auto_exposure_max_ev": {
@@ -1597,6 +1607,11 @@
             "text": "그림자 받기",
             "comment": "label"
         },
+        "editor.label.rect": {
+            "source": "Rect",
+            "text": "사각형",
+            "comment": "label"
+        },
         "editor.label.reflectance": {
             "source": "Reflectance",
             "text": "반사율(F0)",
@@ -1745,6 +1760,11 @@
         "editor.label.turbidity": {
             "source": "Turbidity",
             "text": "대기 혼탁도",
+            "comment": "label"
+        },
+        "editor.label.two_sided": {
+            "source": "Two Sided",
+            "text": "양면 발광",
             "comment": "label"
         },
         "editor.label.use_vertex_colors": {

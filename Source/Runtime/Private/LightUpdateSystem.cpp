@@ -31,9 +31,11 @@ namespace won::ecs
             const TransformComponent& transform = transform_array->GetData(entity);
             const float3 new_position = math::GetPosition(transform.world_transform);
             const float3 new_direction = math::GetForward(transform.world_transform);
+            const float3 new_right = math::GetRight(transform.world_transform);
 
             const bool moved = new_position.x != light.position.x || new_position.y != light.position.y || new_position.z != light.position.z
-                || new_direction.x != light.direction.x || new_direction.y != light.direction.y || new_direction.z != light.direction.z;
+                || new_direction.x != light.direction.x || new_direction.y != light.direction.y || new_direction.z != light.direction.z
+                || new_right.x != light.right.x || new_right.y != light.right.y || new_right.z != light.right.z;
             if (moved)
             {
                 any_dirty.store(true, std::memory_order_relaxed);
@@ -41,6 +43,7 @@ namespace won::ecs
 
             light.position = new_position;
             light.direction = new_direction;
+            light.right = new_right;
 
             switch (light.type)
             {
@@ -53,6 +56,13 @@ namespace won::ecs
             case LightComponent::LightType::Point:
                 light.aabb.CreateFromHalfWidth(light.position, float3(light.range, light.range, light.range));
                 break;
+            case LightComponent::LightType::Rect:
+            {
+                const float half_diagonal_length = 0.5f * std::sqrt(light.area_size.x * light.area_size.x + light.area_size.y * light.area_size.y); // 
+				const float culling_radius = light.range + half_diagonal_length; // (center to corner) + range
+                light.aabb.CreateFromHalfWidth(light.position, float3(culling_radius, culling_radius, culling_radius));
+                break;
+            }
             default:
                 light.aabb.CreateFromHalfWidth(float3(0, 0, 0), float3(0, 0, 0));
                 break;

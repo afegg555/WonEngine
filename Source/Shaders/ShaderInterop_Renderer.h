@@ -55,6 +55,7 @@ enum SHADER_LIGHT_TYPE
     SHADER_LIGHT_TYPE_DIRECTIONAL,
     SHADER_LIGHT_TYPE_POINT,
     SHADER_LIGHT_TYPE_SPOT,
+    SHADER_LIGHT_TYPE_RECT,
 
     SHADER_LIGHT_TYPE_COUNT
 };
@@ -63,6 +64,7 @@ enum SHADER_LIGHT_FLAGS
 {
     LIGHT_FLAG_LIGHT_STATIC = 1 << 0,
     LIGHT_FLAG_LIGHT_CASTING_SHADOW = 1 << 1,
+    LIGHT_FLAG_TWO_SIDED = 1 << 2,
 };
 
 enum SHADER_DDGI_FLAGS
@@ -291,6 +293,10 @@ struct alignas(16) ShaderScene
     uint cluster_depth_slices;
     int cluster_light_offset_buffer;
     uint debug_view_mode;
+
+    int ltc_matrix_lut;
+    int ltc_fresnel_lut;
+    uint2 ltc_lut_padding;
 #ifdef __cplusplus
     inline void Init()
     {
@@ -321,6 +327,10 @@ struct alignas(16) ShaderScene
 
         light_shadow_slice_buffer = -1;
         debug_view_mode = DEBUG_VIEW_MODE_NONE;
+
+        ltc_matrix_lut = -1;
+        ltc_fresnel_lut = -1;
+        ltc_lut_padding = { 0, 0 };
     }
 #endif
 };
@@ -688,6 +698,10 @@ struct alignas(16) ShaderLight
     uint2 direction_outer_cone_angle_cos; // direction 3 cos_outer_cone 1
     uint inner_cone_angle_cos_padding; // cos_inner_cone 1 padding 1
     uint shadow_slice16_count16; // offset [0:15] count [16:31]
+
+    uint2 right_half_extent_x; // right 3 half + half_extent.x 1 half (Rect light only)
+    uint half_extent_y_padding16; // half_extent.y 1 half + padding 1 half (Rect light only)
+    uint padding0;
 #ifdef __cplusplus
     inline void Init()
     {
@@ -698,6 +712,10 @@ struct alignas(16) ShaderLight
         direction_outer_cone_angle_cos = { 0,0 };
         inner_cone_angle_cos_padding = 0;
         shadow_slice16_count16 = 0;
+
+        right_half_extent_x = { 0,0 };
+        half_extent_y_padding16 = 0;
+        padding0 = 0;
     }
     inline void SetType(uint type)
     {
@@ -736,6 +754,17 @@ struct alignas(16) ShaderLight
     inline void SetShadowSliceCount(uint value)
     {
         shadow_slice16_count16 |= (value & 0xFFFFu) << 16u;
+    }
+    inline void SetRight(float3 value)
+    {
+        right_half_extent_x.x |= XMConvertFloatToHalf(value.x);
+        right_half_extent_x.x |= XMConvertFloatToHalf(value.y) << 16u;
+        right_half_extent_x.y |= XMConvertFloatToHalf(value.z);
+    }
+    inline void SetHalfExtents(float2 value)
+    {
+        right_half_extent_x.y |= XMConvertFloatToHalf(value.x) << 16u;
+        half_extent_y_padding16 |= XMConvertFloatToHalf(value.y);
     }
 #else
     inline min16uint GetType()
@@ -789,6 +818,25 @@ struct alignas(16) ShaderLight
     inline bool HasShadowSlices()
     {
         return GetShadowSliceCount() > 0;
+    }
+    inline bool IsTwoSided()
+    {
+        return GetFlags() & LIGHT_FLAG_TWO_SIDED;
+    }
+    inline half3 GetRight()
+    {
+        return normalize(half3(
+            (half)f16tof32(right_half_extent_x.x),
+            (half)f16tof32(right_half_extent_x.x >> 16u),
+            (half)f16tof32(right_half_extent_x.y)
+        ));
+    }
+    inline half2 GetHalfExtents()
+    {
+        return half2(
+            (half)f16tof32(right_half_extent_x.y >> 16u),
+            (half)f16tof32(half_extent_y_padding16)
+        );
     }
 #endif // __cplusplus
 };
@@ -870,13 +918,13 @@ PUSHCONSTANT(push, ObjectPushConstants);
 static_assert(sizeof(ShaderTextureSlot) == 16, "ShaderTextureSlot layout mismatch");
 static_assert(sizeof(ShaderGeometry) == 80, "ShaderGeometry layout mismatch");
 static_assert(sizeof(ShaderMaterial) == 272, "ShaderMaterial layout mismatch");
-static_assert(sizeof(ShaderScene) == 96, "ShaderScene layout mismatch");
+static_assert(sizeof(ShaderScene) == 112, "ShaderScene layout mismatch");
 static_assert(sizeof(ShaderEnvironment) == 192, "ShaderEnvironment layout mismatch");
 static_assert(sizeof(ShaderDDGIVolume) == 112, "ShaderDDGIVolume layout mismatch");
 static_assert(sizeof(ShaderReflectionProbe) == 32, "ShaderReflectionProbe layout mismatch");
-static_assert(sizeof(ShaderFrame) == 432, "ShaderFrame layout mismatch");
+static_assert(sizeof(ShaderFrame) == 448, "ShaderFrame layout mismatch");
 static_assert(sizeof(ShaderCamera) == 336, "ShaderCamera layout mismatch");
-static_assert(sizeof(ShaderLight) == 48, "ShaderLight layout mismatch");
+static_assert(sizeof(ShaderLight) == 64, "ShaderLight layout mismatch");
 static_assert(sizeof(ShaderShadowCascade) == 96, "ShaderShadowCascade layout mismatch");
 static_assert(sizeof(ObjectPushConstants) == 16, "ObjectPushConstants layout mismatch");
 static_assert(sizeof(ShaderInstance) == 112, "ShaderInstance layout mismatch");
