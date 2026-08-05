@@ -1,0 +1,33 @@
+{
+    "version": 1,
+    "name": "FreeCamera",
+    "actions": [
+        { "name": "Move", "type": "AXIS2D" },
+        { "name": "Look", "type": "AXIS2D" },
+        { "name": "Vertical", "type": "AXIS1D" },
+        { "name": "Fast", "type": "BUTTON" }
+    ],
+    "bindings": [
+        { "action": "Move", "path": "KEYBOARD/D", "axis": "X", "scale": 1.0 },
+        { "action": "Move", "path": "KEYBOARD/A", "axis": "X", "scale": -1.0 },
+        { "action": "Move", "path": "KEYBOARD/W", "axis": "Y", "scale": 1.0 },
+        { "action": "Move", "path": "KEYBOARD/S", "axis": "Y", "scale": -1.0 },
+        { "action": "Move", "path": "GAMEPAD/LEFTSTICKX", "axis": "X", "scale": 1.0 },
+        { "action": "Move", "path": "GAMEPAD/LEFTSTICKY", "axis": "Y", "scale": 1.0 },
+
+        { "action": "Look", "path": "KEYBOARD/RIGHT", "axis": "X", "scale": 1.0 },
+        { "action": "Look", "path": "KEYBOARD/LEFT", "axis": "X", "scale": -1.0 },
+        { "action": "Look", "path": "KEYBOARD/DOWN", "axis": "Y", "scale": 1.0 },
+        { "action": "Look", "path": "KEYBOARD/UP", "axis": "Y", "scale": -1.0 },
+        { "action": "Look", "path": "GAMEPAD/RIGHTSTICKX", "axis": "X", "scale": 1.0 },
+        { "action": "Look", "path": "GAMEPAD/RIGHTSTICKY", "axis": "Y", "scale": -1.0 },
+
+        { "action": "Vertical", "path": "KEYBOARD/E", "scale": 1.0 },
+        { "action": "Vertical", "path": "KEYBOARD/Q", "scale": -1.0 },
+        { "action": "Vertical", "path": "GAMEPAD/RIGHTTRIGGER", "scale": 1.0 },
+        { "action": "Vertical", "path": "GAMEPAD/LEFTTRIGGER", "scale": -1.0 },
+
+        { "action": "Fast", "path": "KEYBOARD/SHIFT", "scale": 1.0 },
+        { "action": "Fast", "path": "GAMEPAD/RIGHTSHOULDER", "scale": 1.0 }
+    ]
+}
