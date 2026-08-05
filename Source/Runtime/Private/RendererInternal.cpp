@@ -2926,6 +2926,31 @@ namespace won::rendering
             view_output_binding.resource = targets.color[src].get();
             view_output_binding.subresource = targets.color_rtv[src];
 
+            if ((view.show_flags & Show_Grid) != 0)
+            {
+                GraphicsPipelineHash grid_pipeline_hash = {};
+                grid_pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::GridPass);
+                grid_pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
+                grid_pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
+                grid_pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
+                grid_pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
+                grid_pipeline_hash.storage.bits.blend_mode = static_cast<uint64>(resource::MaterialBlendMode::Transparent);
+                if (RHIPipeline* grid_pipeline = shader_library.GetPipeline(grid_pipeline_hash))
+                {
+                    auto gpu_range = profiler::ScopedRangeGPU("Grid Pass", *command_list);
+                    command_list->BeginEvent("Grid Pass");
+
+                    command_list->SetViewport(viewport);
+                    command_list->SetScissor(scissor);
+                    command_list->SetRenderTargets({ view_output_binding }, &depth_buffer_binding);
+                    command_list->SetGraphicsPipeline(*grid_pipeline);
+                    command_list->SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
+                    command_list->Draw(3, 1, 0, 0);
+
+                    command_list->EndEvent();
+                }
+            }
+
             // primitive (line/point) pass: depth-tested against the scene
             {
                 auto gpu_range = profiler::ScopedRangeGPU("Primitive Pass", *command_list);

@@ -16,6 +16,7 @@ namespace won::resource
             { ShaderId::VSDebugDraw2D, { rendering::RHIShaderStage::Vertex, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "DebugDraw2DVS.hlsl", "main" } },
             { ShaderId::VSDebugDraw3D, { rendering::RHIShaderStage::Vertex, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "DebugDraw3DVS.hlsl", "main" } },
 #endif
+            { ShaderId::VSGrid, { rendering::RHIShaderStage::Vertex, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "GridVS.hlsl", "main" } },
             { ShaderId::PSSky, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "SkyPS.hlsl", "main" } },
             { ShaderId::PSObjectForward, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "ObjectPS_forward.hlsl", "main" } },
             { ShaderId::PSObjectForwardPlus, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "ObjectPS_forwardplus.hlsl", "main" } },
@@ -32,6 +33,7 @@ namespace won::resource
             { ShaderId::PSDebugDraw2D, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "DebugDraw2DPS.hlsl", "main" } },
             { ShaderId::PSDebugDraw3D, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "DebugDraw3DPS.hlsl", "main" } },
 #endif
+            { ShaderId::PSGrid, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "GridPS.hlsl", "main" } },
             { ShaderId::CSFXAA, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "FXAACS.hlsl", "main" } },
             { ShaderId::CSTonemap, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TonemapCS.hlsl", "main" } },
             { ShaderId::CSLuminanceReduce, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "LuminanceReduceCS.hlsl", "main" } },

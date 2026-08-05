@@ -19,6 +19,7 @@ namespace won::resource
         Sprite3DPass,
         DecalPass,
         CompositePass,
+        GridPass,
         DebugDraw2DPass,
         DebugDraw3DPass,
         Count

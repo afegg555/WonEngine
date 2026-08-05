@@ -49,6 +49,7 @@ namespace won::rendering
         Show_BVH = 1 << 6,
         Show_DDGI = 1 << 7,
         Show_Colliders = 1 << 8,
+        Show_Grid = 1 << 9,
 
         Show_Default = Show_Shadows | Show_Transparent | Show_Decals | Show_Particles | Show_Sprites3D | Show_Sprites2D,
     };

@@ -478,6 +478,8 @@ set(SHADERS_HLSL
     Source/Shaders/DebugDraw2DPS.hlsl
     Source/Shaders/DebugDraw3DVS.hlsl
     Source/Shaders/DebugDraw3DPS.hlsl
+    Source/Shaders/GridVS.hlsl
+    Source/Shaders/GridPS.hlsl
     Source/Shaders/ShadingCommon.hlsli
     Source/Shaders/BRDFCommon.hlsli
     Source/Shaders/FogCommon.hlsli

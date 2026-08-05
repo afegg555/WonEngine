@@ -16,6 +16,7 @@ namespace won::resource
         VSDecal,
         VSDebugDraw2D,
         VSDebugDraw3D,
+        VSGrid,
 
         PSSky,
         PSObjectForward,
@@ -31,6 +32,7 @@ namespace won::resource
         PSDecal,
         PSDebugDraw2D,
         PSDebugDraw3D,
+        PSGrid,
 
         CSFXAA,
         CSTonemap,
@@ -68,6 +70,7 @@ namespace won::resource
         case ShaderId::VSDecal: return "VSDecal";
         case ShaderId::VSDebugDraw2D: return "VSDebugDraw2D";
         case ShaderId::VSDebugDraw3D: return "VSDebugDraw3D";
+        case ShaderId::VSGrid: return "VSGrid";
         case ShaderId::PSSky: return "PSSky";
         case ShaderId::PSObjectForward: return "PSObjectForward";
         case ShaderId::PSObjectForwardPlus: return "PSObjectForwardPlus";
@@ -82,6 +85,7 @@ namespace won::resource
         case ShaderId::PSDecal: return "PSDecal";
         case ShaderId::PSDebugDraw2D: return "PSDebugDraw2D";
         case ShaderId::PSDebugDraw3D: return "PSDebugDraw3D";
+        case ShaderId::PSGrid: return "PSGrid";
         case ShaderId::CSFXAA: return "CSFXAA";
         case ShaderId::CSTonemap: return "CSTonemap";
         case ShaderId::CSLuminanceReduce: return "CSLuminanceReduce";

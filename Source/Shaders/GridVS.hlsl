@@ -1,3 +1,5 @@
+#include "Common.hlsli"
+
 struct VertexOutput
 {
     float4 position : SV_Position;
@@ -5,23 +7,12 @@ struct VertexOutput
     float3 far_point : FARPOINT;
 };
 
-cbuffer EditorGridConstants : register(b0)
-{
-    float4x4 view_projection;
-    float4x4 inv_view_projection;
-    float4 camera_position;
-    float4 editor_grid_color;
-    float4 editor_grid_axis_x_color;
-    float4 editor_grid_axis_z_color;
-};
-
 float3 UnprojectPoint(float2 ndc, float depth)
 {
-    float4 world_position = mul(inv_view_projection, float4(ndc, depth, 1.0f));
+    float4 world_position = mul(GetCamera().inv_view_projection, float4(ndc, depth, 1.0f));
     return world_position.xyz / max(abs(world_position.w), 0.000001f);
 }
 
-[RootSignature("CBV(b0)")]
 VertexOutput main(uint vertex_id : SV_VertexID)
 {
     float2 vertices[3] = {

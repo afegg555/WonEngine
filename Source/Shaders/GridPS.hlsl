@@ -1,3 +1,5 @@
+#include "Common.hlsli"
+
 struct PixelInput
 {
     float4 position : SV_Position;
@@ -11,15 +13,9 @@ struct PixelOutput
     float depth : SV_Depth;
 };
 
-cbuffer EditorGridConstants : register(b0)
-{
-    float4x4 view_projection;
-    float4x4 inv_view_projection;
-    float4 camera_position;
-    float4 editor_grid_color;
-    float4 editor_grid_axis_x_color;
-    float4 editor_grid_axis_z_color;
-};
+static const float4 grid_color = float4(0.32f, 0.32f, 0.34f, 0.55f);
+static const float4 grid_axis_x_color = float4(0.82f, 0.24f, 0.24f, 0.85f);
+static const float4 grid_axis_z_color = float4(0.24f, 0.42f, 0.88f, 0.85f);
 
 float GridLine(float2 world_xz, float spacing)
 {
@@ -35,7 +31,6 @@ float AxisLine(float value)
     return 1.0f - saturate(abs(value) / width);
 }
 
-[RootSignature("CBV(b0)")]
 PixelOutput main(PixelInput input)
 {
     float ray_y = input.far_point.y - input.near_point.y;
@@ -51,7 +46,7 @@ PixelOutput main(PixelInput input)
     }
 
     float3 world_position = input.near_point + plane_t * (input.far_point - input.near_point);
-    float4 clip_position = mul(view_projection, float4(world_position, 1.0f));
+    float4 clip_position = mul(GetCamera().view_projection, float4(world_position, 1.0f));
     float depth = clip_position.z / max(abs(clip_position.w), 0.000001f);
     if (depth < 0.0f || depth > 1.0f)
     {
@@ -63,25 +58,25 @@ PixelOutput main(PixelInput input)
     float x_axis = AxisLine(world_position.z);
     float z_axis = AxisLine(world_position.x);
 
-    float3 color = editor_grid_color.rgb;
-    float alpha = minor_line * editor_grid_color.a;
+    float3 color = grid_color.rgb;
+    float alpha = minor_line * grid_color.a;
     if (major_line > minor_line)
     {
-        color = saturate(editor_grid_color.rgb + 0.10f);
-        alpha = max(alpha, major_line * saturate(editor_grid_color.a + 0.12f));
+        color = saturate(grid_color.rgb + 0.10f);
+        alpha = max(alpha, major_line * saturate(grid_color.a + 0.12f));
     }
     if (x_axis > max(minor_line, major_line))
     {
-        color = editor_grid_axis_x_color.rgb;
-        alpha = max(alpha, x_axis * editor_grid_axis_x_color.a);
+        color = grid_axis_x_color.rgb;
+        alpha = max(alpha, x_axis * grid_axis_x_color.a);
     }
     if (z_axis > max(max(minor_line, major_line), x_axis))
     {
-        color = editor_grid_axis_z_color.rgb;
-        alpha = max(alpha, z_axis * editor_grid_axis_z_color.a);
+        color = grid_axis_z_color.rgb;
+        alpha = max(alpha, z_axis * grid_axis_z_color.a);
     }
 
-    float camera_distance = length(world_position - camera_position.xyz);
+    float camera_distance = length(world_position - GetCamera().position);
     alpha *= 1.0f - smoothstep(80.0f, 160.0f, camera_distance);
     if (alpha <= 0.001f)
     {
