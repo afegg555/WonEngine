@@ -49,6 +49,7 @@ namespace won::ecs
             case reflection::TypeMeta<LayoutComponent>::type_id: return layout_component_mask;
             case reflection::TypeMeta<BehaviorTreeComponent>::type_id: return behavior_tree_component_mask;
             case reflection::TypeMeta<NavAgentComponent>::type_id: return nav_agent_component_mask;
+            case reflection::TypeMeta<SequenceComponent>::type_id: return sequence_component_mask;
             default: return none_component_mask;
             }
         }
@@ -102,6 +103,7 @@ namespace won::ecs
         component_manager.RegisterComponent<DecalComponent>();
         component_manager.RegisterComponent<BehaviorTreeComponent>();
         component_manager.RegisterComponent<NavAgentComponent>();
+        component_manager.RegisterComponent<SequenceComponent>();
 
         if (desc.script_runtime && desc.enable_simulation)
         {
@@ -110,6 +112,7 @@ namespace won::ecs
         if (desc.enable_simulation)
         {
             AddSystem(std::make_unique<NavAgentSystem>());
+            AddSystem(std::make_unique<SequenceSystem>());
         }
         AddSystem(std::make_unique<TransformUpdateSystem>());
         if (desc.enable_simulation)
@@ -419,6 +422,7 @@ namespace won::ecs
         nav_mesh.reset();
         prefab_spawn_queue.clear();
         animation_event_queue.clear();
+        sequence_event_queue.clear();
         next_entity = INVALID_ENTITY + 1;
         SetBVHDirty();
         MarkGpuDirty(~0ull);
@@ -433,6 +437,7 @@ namespace won::ecs
         std::swap(scene_bvh_entities, other.scene_bvh_entities);
         std::swap(ui_click_queue, other.ui_click_queue);
         std::swap(animation_event_queue, other.animation_event_queue);
+        std::swap(sequence_event_queue, other.sequence_event_queue);
         std::swap(prefab_spawn_queue, other.prefab_spawn_queue);
         std::swap(nav_mesh, other.nav_mesh);
 

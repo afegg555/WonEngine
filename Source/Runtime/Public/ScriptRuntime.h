@@ -96,6 +96,7 @@ namespace won::script
         OnTriggerExit3D,
         OnClick,
         OnAnimationEvent,
+        OnSequenceEvent,
         OnBehaviorAction,
         OnBehaviorAbort,
 

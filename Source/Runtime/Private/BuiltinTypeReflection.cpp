@@ -44,6 +44,7 @@ namespace won::reflection
         RegisterType(TypeMeta<ecs::JointComponent::JointType>::Get());
         RegisterType(TypeMeta<ecs::AnimationParameter::Type>::Get());
         RegisterType(TypeMeta<ecs::TransitionCondition::Op>::Get());
+        RegisterType(TypeMeta<ecs::SequenceTrackType>::Get());
 
         RegisterType(TypeMeta<ecs::NameComponent>::Get());
         RegisterType(TypeMeta<ecs::TransformComponent>::Get());
@@ -74,6 +75,9 @@ namespace won::reflection
         RegisterType(TypeMeta<ecs::JointComponent>::Get());
         RegisterType(TypeMeta<ecs::BehaviorTreeComponent>::Get());
         RegisterType(TypeMeta<ecs::NavAgentComponent>::Get());
+        RegisterType(TypeMeta<ecs::SequenceKey>::Get());
+        RegisterType(TypeMeta<ecs::SequenceTrack>::Get());
+        RegisterType(TypeMeta<ecs::SequenceComponent>::Get());
         RegisterType(TypeMeta<ecs::AudioSourceComponent>::Get());
         RegisterType(TypeMeta<ecs::AudioListenerComponent>::Get());
         RegisterType(TypeMeta<ecs::VisibilityLayerComponent>::Get());

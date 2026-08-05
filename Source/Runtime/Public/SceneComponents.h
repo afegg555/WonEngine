@@ -37,6 +37,7 @@
 #include "LayoutComponent.h"
 #include "BehaviorTreeComponent.h"
 #include "NavAgentComponent.h"
+#include "SequenceComponent.h"
 
 namespace won::ecs
 {
@@ -84,7 +85,8 @@ namespace won::ecs
         ReflectionProbe,
         Joint,
         BehaviorTree,
-        NavAgent
+        NavAgent,
+        Sequence
     };
 
     constexpr ComponentMask ComponentMaskFromBit(SceneComponentBit bit)
@@ -127,6 +129,7 @@ namespace won::ecs
     inline constexpr ComponentMask joint_component_mask = ComponentMaskFromBit(SceneComponentBit::Joint);
     inline constexpr ComponentMask behavior_tree_component_mask = ComponentMaskFromBit(SceneComponentBit::BehaviorTree);
     inline constexpr ComponentMask nav_agent_component_mask = ComponentMaskFromBit(SceneComponentBit::NavAgent);
+    inline constexpr ComponentMask sequence_component_mask = ComponentMaskFromBit(SceneComponentBit::Sequence);
 
     template <typename Component>
     constexpr ComponentMask ComponentMaskFromType()
@@ -165,6 +168,7 @@ namespace won::ecs
         else if constexpr (std::is_same_v<Component, LayoutComponent>) { return layout_component_mask; }
         else if constexpr (std::is_same_v<Component, BehaviorTreeComponent>) { return behavior_tree_component_mask; }
         else if constexpr (std::is_same_v<Component, NavAgentComponent>) { return nav_agent_component_mask; }
+        else if constexpr (std::is_same_v<Component, SequenceComponent>) { return sequence_component_mask; }
         else { return none_component_mask; }
     }
 }

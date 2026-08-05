@@ -357,6 +357,7 @@ set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/AnimationStateMachineComponent.h
     Source/Runtime/Public/BehaviorTreeComponent.h
     Source/Runtime/Public/NavAgentComponent.h
+    Source/Runtime/Public/SequenceComponent.h
     Source/Runtime/Public/ScriptComponent.h
     Source/Runtime/Public/Collider3DComponent.h
     Source/Runtime/Public/Rigidbody3DComponent.h
@@ -391,6 +392,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Public/AnimationStateMachineSystem.h
     Source/Runtime/Public/BehaviorTreeSystem.h
     Source/Runtime/Public/NavAgentSystem.h
+    Source/Runtime/Public/SequenceSystem.h
     Source/Runtime/Public/TransformUpdateSystem.h
     Source/Runtime/Public/ParticleUpdateSystem.h
     Source/Runtime/Public/ScriptUpdateSystem.h
@@ -404,6 +406,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Private/AnimationStateMachineSystem.cpp
     Source/Runtime/Private/BehaviorTreeSystem.cpp
     Source/Runtime/Private/NavAgentSystem.cpp
+    Source/Runtime/Private/SequenceSystem.cpp
     Source/Runtime/Private/TransformUpdateSystem.cpp
     Source/Runtime/Private/ParticleUpdateSystem.cpp
     Source/Runtime/Private/ScriptUpdateSystem.cpp

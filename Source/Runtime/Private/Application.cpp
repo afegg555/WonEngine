@@ -259,25 +259,11 @@ namespace won
         is_running = true;
     }
 
-    void Application::RebindViewCameras(ecs::Scene& scene)
-    {
-        for (const std::unique_ptr<rendering::View>& view_ptr : views)
-        {
-            if (view_ptr && view_ptr->scene == &scene)
-            {
-                view_ptr->camera_entity = view_ptr->FindSceneCamera();
-            }
-        }
-    }
-
     void Application::ProcessSceneLifecycle()
     {
         scene_manager->FlushQueuedSceneLoads();
 
-        for (ecs::Scene* activated : scene_manager->FlushCompletedSceneLoads())
-        {
-            RebindViewCameras(*activated);
-        }
+        scene_manager->FlushCompletedSceneLoads();
         scene_manager->FlushDeferredSceneRemovals();
 
         scene_manager->FlushPrefabSpawns();
@@ -440,6 +426,8 @@ namespace won
                 scene->Update(dt);
             }
             scene->SetUpdateIndex(update_index);
+
+            view.camera_entity = view.ResolveCamera();
         }
         profiler::EndRange(range);
     }
@@ -552,9 +540,11 @@ namespace won
     uint32 Application::AddView(rendering::View&& view)
     {
         views.push_back(std::make_unique<rendering::View>(std::move(view)));
+        const uint32 view_index = static_cast<uint32>(views.size() - 1);
+        views.back()->viewer_index = view_index;
         views.back()->options.aa_mode = user_settings.aa_mode.value_or(project_settings.aa_mode);
         views.back()->options.tonemap_mode = project_settings.tonemap_mode;
-        return static_cast<uint32>(views.size() - 1);
+        return view_index;
     }
 
     void Application::ApplyUserSettings()

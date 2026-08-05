@@ -939,6 +939,7 @@ namespace won::editor
 		edit_scene = &editor_scene;
 		rendering::View editor_view = {};
 		editor_view.scene = &editor_scene;
+		editor_view.manual_camera = true;
 		editor_view.options.resize_policy = rendering::ViewResizePolicy::Manual;
 		editor_view.options.update_camera_aspect = false;
 		editor_view.viewport.width = project_settings.window_width;
@@ -7585,14 +7586,7 @@ namespace won::editor
 		edit_camera_entity = editor_viewport.view->camera_entity;
 		editor_viewport.view->scene = play_scene;
 		editor_viewport.view->camera_entity = ecs::INVALID_ENTITY;
-		for (ecs::Entity entity : play_scene->GetEntities())
-		{
-			if (play_scene->GetComponent<ecs::CameraComponent>(entity))
-			{
-				editor_viewport.view->camera_entity = entity;
-				break;
-			}
-		}
+		editor_viewport.view->manual_camera = false;
 
 		editor_viewport.picked_entity = ecs::INVALID_ENTITY;
 		is_paused = false;
@@ -7613,6 +7607,7 @@ namespace won::editor
 		{
 			editor_viewport.view->scene = edit_scene;
 			editor_viewport.view->camera_entity = edit_camera_entity;
+			editor_viewport.view->manual_camera = true;
 		}
 		GetSceneManager()->DestroyScene(play_scene);
 		play_scene = nullptr;

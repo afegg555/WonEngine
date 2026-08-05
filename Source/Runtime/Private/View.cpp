@@ -321,15 +321,34 @@ namespace won::rendering
         jobsystem::Wait(ctx);
     }
 
-    ecs::Entity View::FindSceneCamera() const
+    ecs::Entity View::ResolveCamera() const
     {
-        if (!scene)
+        if (manual_camera || !scene)
         {
-            return ecs::INVALID_ENTITY;
+            return camera_entity;
         }
+
+        if (auto sequence_array = scene->GetComponentArray<ecs::SequenceComponent>())
+        {
+            for (Size i = 0; i < sequence_array->GetSize(); ++i)
+            {
+                const ecs::Entity cut_camera = sequence_array->data[i].cut_camera;
+                if (cut_camera == ecs::INVALID_ENTITY)
+                {
+                    continue;
+                }
+                const ecs::CameraComponent* camera = scene->GetComponent<ecs::CameraComponent>(cut_camera);
+                if (camera && camera->viewer_index == viewer_index)
+                {
+                    return cut_camera;
+                }
+            }
+        }
+
         for (ecs::Entity entity : scene->GetEntities())
         {
-            if (scene->GetComponent<ecs::CameraComponent>(entity))
+            const ecs::CameraComponent* camera = scene->GetComponent<ecs::CameraComponent>(entity);
+            if (camera && camera->IsActive() && camera->viewer_index == viewer_index)
             {
                 return entity;
             }

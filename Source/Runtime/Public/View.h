@@ -92,6 +92,8 @@ namespace won::rendering
         };
 
         ecs::Entity camera_entity = {};
+        uint32 viewer_index = 0;
+        bool manual_camera = false;
         ecs::Scene* scene = nullptr;
         RenderPathType render_path_type = RenderPathType::ForwardPlus; // pipeline-level selection, not a lightweight ViewOption
         ViewMode view_mode = ViewMode::Lit;
@@ -113,7 +115,7 @@ namespace won::rendering
 
         void UpdateUIInteraction();
         void BuildSortedIndices();
-        ecs::Entity FindSceneCamera() const;
+        ecs::Entity ResolveCamera() const;
         bool RayCast(float2 screen_position, ecs::RayCastHit& out_hit, bool use_local_bvh = true, uint32 layer_mask = 0xFFFFFFFF) const;
         bool ScreenToRay(float2 screen_position, math::Ray& out_ray) const;
 

@@ -64,6 +64,8 @@ namespace won::script
                 return "OnClick";
             case ScriptCallType::OnAnimationEvent:
                 return "OnAnimationEvent";
+            case ScriptCallType::OnSequenceEvent:
+                return "OnSequenceEvent";
             case ScriptCallType::OnBehaviorAction:
                 return "OnBehaviorAction";
             case ScriptCallType::OnBehaviorAbort:
@@ -2729,6 +2731,258 @@ namespace won::script
         return 1;
     }
 
+    ecs::SequenceComponent* LuaScriptRuntime::GetSequence(LuaScriptRuntime* runtime, lua_State* state, int entity_arg)
+    {
+        if (!runtime || !runtime->current_context.scene)
+        {
+            return nullptr;
+        }
+        const ecs::Entity entity = lua_gettop(state) >= entity_arg ? static_cast<ecs::Entity>(luaL_checkinteger(state, entity_arg)) : runtime->current_context.entity;
+        return runtime->current_context.scene->GetComponent<ecs::SequenceComponent>(entity);
+    }
+
+    int LuaScriptRuntime::LuaSequenceHas(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        lua_pushboolean(state, GetSequence(runtime, state, 1) != nullptr);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaSequenceAdd(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        lua_pushboolean(state, runtime->current_context.scene->AddComponent<ecs::SequenceComponent>(entity) != nullptr);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaSequenceAddTrack(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        luaL_checktype(state, 2, LUA_TTABLE);
+
+        ecs::SequenceComponent* sequence = GetSequence(runtime, state, 1);
+        if (!sequence)
+        {
+            lua_pushinteger(state, -1);
+            return 1;
+        }
+
+        ecs::SequenceTrack track = {};
+
+        lua_getfield(state, 2, "target");
+        track.target = lua_isnumber(state, -1) ? static_cast<ecs::Entity>(lua_tointeger(state, -1)) : ecs::INVALID_ENTITY;
+        lua_pop(state, 1);
+
+        lua_getfield(state, 2, "type");
+        const char* type_name = lua_tostring(state, -1);
+        bool valid_type = true;
+        if (!type_name || std::strcmp(type_name, "position") == 0)
+        {
+            track.type = ecs::SequenceTrackType::Position;
+        }
+        else if (std::strcmp(type_name, "rotation") == 0)
+        {
+            track.type = ecs::SequenceTrackType::Rotation;
+        }
+        else if (std::strcmp(type_name, "camera_fov") == 0)
+        {
+            track.type = ecs::SequenceTrackType::CameraFov;
+        }
+        else if (std::strcmp(type_name, "camera_switch") == 0)
+        {
+            track.type = ecs::SequenceTrackType::CameraSwitch;
+        }
+        else if (std::strcmp(type_name, "event") == 0)
+        {
+            track.type = ecs::SequenceTrackType::Event;
+        }
+        else
+        {
+            valid_type = false;
+            backlog::Post(String("[Sequence] unknown track type: ") + type_name, backlog::LogLevel::Warning);
+        }
+        lua_pop(state, 1);
+        if (!valid_type)
+        {
+            lua_pushinteger(state, -1);
+            return 1;
+        }
+
+        lua_getfield(state, 2, "keys");
+        const int32 key_count = lua_istable(state, -1) ? static_cast<int32>(lua_rawlen(state, -1)) : 0;
+        track.keys.reserve(static_cast<Size>(key_count));
+        for (int32 key_index = 0; key_index < key_count; ++key_index)
+        {
+            lua_rawgeti(state, -1, key_index + 1);
+            if (!lua_istable(state, -1))
+            {
+                lua_pop(state, 1);
+                continue;
+            }
+
+            ecs::SequenceKey key = {};
+            lua_getfield(state, -1, "time");
+            key.time = static_cast<float>(lua_tonumber(state, -1));
+            lua_pop(state, 1);
+
+            switch (track.type)
+            {
+            case ecs::SequenceTrackType::Position:
+            {
+                lua_getfield(state, -1, "x");
+                key.value.x = static_cast<float>(lua_tonumber(state, -1));
+                lua_pop(state, 1);
+                lua_getfield(state, -1, "y");
+                key.value.y = static_cast<float>(lua_tonumber(state, -1));
+                lua_pop(state, 1);
+                lua_getfield(state, -1, "z");
+                key.value.z = static_cast<float>(lua_tonumber(state, -1));
+                lua_pop(state, 1);
+                break;
+            }
+            case ecs::SequenceTrackType::Rotation:
+            {
+                lua_getfield(state, -1, "pitch");
+                const float pitch = static_cast<float>(lua_tonumber(state, -1));
+                lua_pop(state, 1);
+                lua_getfield(state, -1, "yaw");
+                const float yaw = static_cast<float>(lua_tonumber(state, -1));
+                lua_pop(state, 1);
+                lua_getfield(state, -1, "roll");
+                const float roll = static_cast<float>(lua_tonumber(state, -1));
+                lua_pop(state, 1);
+                XMStoreFloat4(&key.value, XMQuaternionNormalize(XMQuaternionRotationRollPitchYaw(pitch, yaw, roll)));
+                break;
+            }
+            case ecs::SequenceTrackType::CameraFov:
+            {
+                lua_getfield(state, -1, "value");
+                key.value.x = static_cast<float>(lua_tonumber(state, -1));
+                lua_pop(state, 1);
+                break;
+            }
+            case ecs::SequenceTrackType::CameraSwitch:
+            {
+                lua_getfield(state, -1, "camera");
+                key.camera = lua_isnumber(state, -1) ? static_cast<ecs::Entity>(lua_tointeger(state, -1)) : ecs::INVALID_ENTITY;
+                lua_pop(state, 1);
+                break;
+            }
+            case ecs::SequenceTrackType::Event:
+            {
+                lua_getfield(state, -1, "name");
+                if (const char* event_name = lua_tostring(state, -1))
+                {
+                    key.event_name = event_name;
+                }
+                lua_pop(state, 1);
+                break;
+            }
+            default:
+                break;
+            }
+
+            track.keys.push_back(std::move(key));
+            lua_pop(state, 1);
+        }
+        lua_pop(state, 1);
+
+        std::sort(track.keys.begin(), track.keys.end(), [](const ecs::SequenceKey& lhs, const ecs::SequenceKey& rhs) { return lhs.time < rhs.time; });
+        sequence->tracks.push_back(std::move(track));
+        lua_pushinteger(state, static_cast<lua_Integer>(sequence->tracks.size() - 1));
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaSequencePlay(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        ecs::SequenceComponent* sequence = GetSequence(runtime, state, 1);
+        if (!sequence)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+        sequence->time = 0.0f;
+        sequence->event_scan_time = -1.0f;
+        sequence->started = true;
+        sequence->SetPlaying(true);
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaSequenceStop(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        ecs::SequenceComponent* sequence = GetSequence(runtime, state, 1);
+        if (!sequence)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+        sequence->SetPlaying(false);
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaSequenceSetTime(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        ecs::SequenceComponent* sequence = GetSequence(runtime, state, 1);
+        if (!sequence)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+        const float time = static_cast<float>(luaL_checknumber(state, 2));
+        sequence->time = time;
+        sequence->event_scan_time = time;
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaSequenceSetLoop(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        ecs::SequenceComponent* sequence = GetSequence(runtime, state, 1);
+        if (!sequence)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+        sequence->SetLoop(lua_toboolean(state, 2) != 0);
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaSequenceSetDuration(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        ecs::SequenceComponent* sequence = GetSequence(runtime, state, 1);
+        if (!sequence)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+        sequence->duration = static_cast<float>(luaL_checknumber(state, 2));
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaSequenceIsPlaying(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        const ecs::SequenceComponent* sequence = GetSequence(runtime, state, 1);
+        lua_pushboolean(state, sequence && sequence->IsPlaying());
+        return 1;
+    }
+
     int LuaScriptRuntime::LuaAnimationHas(lua_State* state)
     {
         LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
@@ -4119,6 +4373,36 @@ namespace won::script
         lua_pushcclosure(lua_state, LuaAnimationSMSetDefaultState, 1);
         lua_setfield(lua_state, -2, "sm_set_default_state");
         lua_setfield(lua_state, -2, "animation");
+
+        lua_newtable(lua_state);
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaSequenceHas, 1);
+        lua_setfield(lua_state, -2, "has");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaSequenceAdd, 1);
+        lua_setfield(lua_state, -2, "add");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaSequenceAddTrack, 1);
+        lua_setfield(lua_state, -2, "add_track");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaSequencePlay, 1);
+        lua_setfield(lua_state, -2, "play");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaSequenceStop, 1);
+        lua_setfield(lua_state, -2, "stop");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaSequenceSetTime, 1);
+        lua_setfield(lua_state, -2, "set_time");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaSequenceSetLoop, 1);
+        lua_setfield(lua_state, -2, "set_loop");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaSequenceSetDuration, 1);
+        lua_setfield(lua_state, -2, "set_duration");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaSequenceIsPlaying, 1);
+        lua_setfield(lua_state, -2, "is_playing");
+        lua_setfield(lua_state, -2, "sequence");
 
         lua_newtable(lua_state);
         lua_pushcfunction(lua_state, LuaInputIsKeyDown);
