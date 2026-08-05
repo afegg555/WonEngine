@@ -27,7 +27,6 @@ namespace won::rendering
         void SetVSync(bool enabled) override;
         void SetShadowResolutionScale(float scale) override;
         bool GetCurrentBackBufferBinding(RHISubresourceBinding& out_binding) const override;
-        bool GetCurrentDepthBufferBinding(RHISubresourceBinding& out_binding) const override;
     private:
         
         enum DrawSceneFlags : uint32
@@ -41,7 +40,7 @@ namespace won::rendering
         };
 
         // resource creation
-        bool CreateRenderTargetResources(FrameContext& frame_context);
+        bool CreateBackBufferSubresources();
 
         // gpu call
         bool BuildViewResources(FrameContext& frame_context, View& view, RHICommandList& command_list);
@@ -53,7 +52,7 @@ namespace won::rendering
         // debug draw
 #ifndef WON_SHIPPING
         void BuildDebug3D(const View& view);
-        void DrawDebug3D(RHICommandList& command_list);
+        void DrawDebug3D(const View& view, RHICommandList& command_list);
         void DrawDebug2D(RHICommandList& command_list);
 #endif
 
@@ -68,26 +67,6 @@ namespace won::rendering
         std::unique_ptr<RHIResource> shader_frame_buffer;
         RHISubresourceHandle shader_frame_buffer_cbv = {};
 
-        std::unique_ptr<RHIResource> shader_camera_buffer;
-        RHISubresourceHandle shader_camera_buffer_cbv = {};
-
-        std::unique_ptr<RHIResource> depth_buffer;
-        RHISubresourceHandle depth_buffer_dsv = {};
-        RHISubresourceHandle depth_buffer_srv = {};
-
-        // Offscreen HDR color ping-pong buffers. The scene always renders into color_buffer[0];
-        // the post chain ping-pongs between the two and the result is composited to the backbuffer.
-        std::unique_ptr<RHIResource> color_buffer[2];
-        RHISubresourceHandle color_buffer_rtv[2] = {};
-        RHISubresourceHandle color_buffer_srv[2] = {};
-        RHISubresourceHandle color_buffer_uav[2] = {};
-
-        std::unique_ptr<RHIResource> luminance_partial_buffer;
-        RHISubresourceHandle luminance_partial_buffer_uav = {};
-        RHISubresourceHandle luminance_partial_buffer_srv = {};
-        std::unique_ptr<RHIResource> luminance_buffer;
-        RHISubresourceHandle luminance_buffer_uav = {};
-        std::unique_ptr<RHIResource> luminance_readback_buffer;
 
         std::unique_ptr<RHIResource> brdf_lut;
         RHISubresourceHandle brdf_lut_srv = {};

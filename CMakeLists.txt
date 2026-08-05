@@ -636,6 +636,10 @@ set(HELLO_TRIANGLE_SOURCES
     Source/Samples/HelloTriangle/main.cpp
 )
 
+set(MULTI_VIEW_SOURCES
+    Source/Samples/MultiView/main.cpp
+)
+
 set(PLAYER_SOURCES
     Source/Player/main.cpp
 )
@@ -693,6 +697,10 @@ set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT Editor)
 
 add_executable(HelloTriangle
     ${HELLO_TRIANGLE_SOURCES}
+)
+
+add_executable(MultiView
+    ${MULTI_VIEW_SOURCES}
 )
 
 add_executable(Player
@@ -754,6 +762,7 @@ target_link_libraries(Runtime PRIVATE RecastNavigation)
 
 target_link_libraries(Editor PRIVATE Runtime)
 target_link_libraries(HelloTriangle PRIVATE Runtime)
+target_link_libraries(MultiView PRIVATE Runtime)
 target_link_libraries(Player PRIVATE Runtime)
 target_link_libraries(ShaderOfflineCompiler PRIVATE Runtime)
 target_link_libraries(PackageTool PRIVATE Runtime)
@@ -821,6 +830,15 @@ set_target_properties(HelloTriangle PROPERTIES
     FOLDER "Samples (Native)"
 )
 
+set_target_properties(MultiView PROPERTIES
+    FOLDER "Samples (Native)"
+)
+
+target_compile_definitions(MultiView
+    PRIVATE
+        PROJECTS_ROOT_DIR="${PROJECTS_ROOT_DIR}"
+)
+
 set_target_properties(Editor PROPERTIES
     WIN32_EXECUTABLE TRUE
 )
@@ -883,6 +901,7 @@ if(WIN32)
     target_link_libraries(Runtime PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler dwmapi gdiplus ole32 shell32 uuid xaudio2)
     target_link_libraries(Editor PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler)
     target_link_libraries(HelloTriangle PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler)
+    target_link_libraries(MultiView PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler)
     target_link_libraries(Player PRIVATE d3d12 dxgi dxguid d3dcompiler dxcompiler)
 
     add_custom_command(TARGET Runtime POST_BUILD

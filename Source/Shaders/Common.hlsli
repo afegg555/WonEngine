@@ -293,9 +293,14 @@ inline ShaderReflectionProbe GetReflectionProbe()
     return g_frame.reflection_probe;
 }
 
+inline ShaderView GetView()
+{
+    return g_view;
+}
+
 inline ShaderCamera GetCamera()
 {
-    return g_camera;
+    return g_view.camera;
 }
 
 inline ShaderInstance GetInstance(uint instance_index)
@@ -361,7 +366,7 @@ inline ShaderLight GetLight(uint light_index)
 
 inline ShaderShadowCascade GetShadowCascade(uint cascade_index)
 {
-    return bindless_structured_shadow_cascade[DescriptorIndex(GetScene().shadow_cascade_buffer)][cascade_index];
+    return bindless_structured_shadow_cascade[DescriptorIndex(GetView().shadow_cascade_buffer)][cascade_index];
 }
 
 inline float3 UnprojectRay(float2 ndc)

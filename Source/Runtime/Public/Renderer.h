@@ -49,7 +49,6 @@ namespace won::rendering
         virtual void SetVSync(bool enabled) = 0;
         virtual void SetShadowResolutionScale(float scale) = 0;
         virtual bool GetCurrentBackBufferBinding(RHISubresourceBinding& out_binding) const = 0;
-        virtual bool GetCurrentDepthBufferBinding(RHISubresourceBinding& out_binding) const = 0;
 
         struct FrameCommandList
         {
@@ -206,7 +205,6 @@ namespace won::rendering
             std::mutex frame_upload_mutex;
             std::mutex deferred_res_removal_mutex;
             std::unique_ptr<RHIFence> fence;
-            std::unique_ptr<RHIResource> shader_instance_sort_upload_buffer;
             std::unique_ptr<RHIResource> frame_upload_buffer;
             Size frame_upload_offset = 0;
             uint64 fence_value = 0;

@@ -3,6 +3,7 @@
 #include "ViewOptionEnums.h"
 #include "Types.h"
 #include "RHIResource.h"
+#include "RHISwapchain.h"
 
 namespace won::rendering
 {
@@ -83,12 +84,45 @@ namespace won::rendering
         {
             std::unique_ptr<RHIResource> sort_buffer;
             RHISubresourceHandle sort_srv = {};
+
+            std::array<std::unique_ptr<RHIResource>, max_frames_in_flight> sort_upload_buffers;
         };
 
         struct DDGIDebugResources
         {
             std::unique_ptr<RHIResource> probe_data_readback_buffer;
             bool probe_data_readback_valid = false;
+        };
+
+        struct RenderTargets
+        {
+            std::unique_ptr<RHIResource> color[2];
+            RHISubresourceHandle color_rtv[2] = {};
+            RHISubresourceHandle color_srv[2] = {};
+            RHISubresourceHandle color_uav[2] = {};
+
+            std::unique_ptr<RHIResource> depth;
+            RHISubresourceHandle depth_dsv = {};
+            RHISubresourceHandle depth_srv = {};
+
+            uint32 width = 0;
+            uint32 height = 0;
+        };
+
+        struct ViewConstants
+        {
+            std::unique_ptr<RHIResource> buffer;
+            RHISubresourceHandle cbv = {};
+        };
+
+        struct ExposureResources
+        {
+            std::unique_ptr<RHIResource> luminance_partial_buffer;
+            RHISubresourceHandle luminance_partial_buffer_uav = {};
+            RHISubresourceHandle luminance_partial_buffer_srv = {};
+            std::unique_ptr<RHIResource> luminance_buffer;
+            RHISubresourceHandle luminance_buffer_uav = {};
+            std::unique_ptr<RHIResource> luminance_readback_buffer;
         };
 
         ecs::Entity camera_entity = {};
@@ -100,6 +134,9 @@ namespace won::rendering
         uint32 show_flags = Show_Default;
         bool freeze_culling = false;
         Options options = {};
+        RenderTargets render_targets = {};
+        ViewConstants view_constants = {};
+        ExposureResources exposure_resources = {};
         LightResources light_resources = {};
         ShadowResources shadow_resources = {};
         InstanceResources instance_resources = {};

@@ -179,13 +179,13 @@ inline float SampleDirectionalShadowCascade(in ShaderShadowCascade cascade, in f
     float2 atlas_uv = shadow_uv * cascade.shadow_atlas_scale_bias.xy + cascade.shadow_atlas_scale_bias.zw;
     uint atlas_width = 0;
     uint atlas_height = 0;
-    bindless_textures[DescriptorIndex(GetScene().shadow_atlas)].GetDimensions(atlas_width, atlas_height);
+    bindless_textures[DescriptorIndex(GetView().shadow_atlas)].GetDimensions(atlas_width, atlas_height);
     float2 atlas_texel = 1.0f / float2(atlas_width, atlas_height);
     float2 atlas_uv_min = cascade.shadow_atlas_scale_bias.zw;
     float2 atlas_uv_max = cascade.shadow_atlas_scale_bias.xy + cascade.shadow_atlas_scale_bias.zw;
     float shadow_bias = max(0.0005f * (1.0f - NoL), 0.00005f);
     float visibility = 0.0f;
-    Texture2D shadow_map = bindless_textures[DescriptorIndex(GetScene().shadow_atlas)];
+    Texture2D shadow_map = bindless_textures[DescriptorIndex(GetView().shadow_atlas)];
     float2 filter_step = atlas_texel;
 
 #ifdef PCSS_SHADOW
@@ -248,12 +248,12 @@ inline void LightDirectional(in ShaderLight light, uint light_index, float3 radi
 	[branch]
     if (light.IsCastingShadow() && GetMaterial().IsReceiveShadow())
     {
-        uint shadow_slice = (GetScene().light_shadow_slice_buffer >= 0)
-            ? bindless_buffers_uint[DescriptorIndex(GetScene().light_shadow_slice_buffer)][light_index] : 0u;
+        uint shadow_slice = (GetView().light_shadow_slice_buffer >= 0)
+            ? bindless_buffers_uint[DescriptorIndex(GetView().light_shadow_slice_buffer)][light_index] : 0u;
         uint shadow_slice_offset = shadow_slice & 0xFFFFu;
         uint shadow_slice_count = (shadow_slice >> 16u) & 0xFFFFu;
 
-        if (GetScene().shadow_atlas >= 0 && GetScene().shadow_cascade_buffer >= 0 && shadow_slice_count > 0)
+        if (GetView().shadow_atlas >= 0 && GetView().shadow_cascade_buffer >= 0 && shadow_slice_count > 0)
         {
             ShaderCamera camera = GetCamera();
             float linear_depth = max(0.0f, dot(surface.P - camera.position, camera.forward));
@@ -463,15 +463,15 @@ inline void ForwardLighting(in Surface surface, inout Lighting lighting, float2 
 #ifdef CLUSTERED
     const uint2 tile = (uint2)(pixel_position / LIGHTCULL_TILE_SIZE);
     const float cluster_view_z = max(0.0f, dot(surface.P - GetCamera().position, GetCamera().forward));
-    const uint cluster_slice = ClusterSliceFromViewZ(cluster_view_z, GetCamera().z_near, GetCamera().z_far, GetScene().cluster_depth_slices);
-    const uint cluster_tiles = GetScene().cluster_count.x * GetScene().cluster_count.y;
-    const uint cluster_index = cluster_slice * cluster_tiles + tile.y * GetScene().cluster_count.x + tile.x;
-    const uint cluster_light_count = bindless_buffers_uint[DescriptorIndex(GetScene().cluster_light_count_buffer)][cluster_index];
-    const uint cluster_light_base = bindless_buffers_uint[DescriptorIndex(GetScene().cluster_light_offset_buffer)][cluster_index];
+    const uint cluster_slice = ClusterSliceFromViewZ(cluster_view_z, GetCamera().z_near, GetCamera().z_far, GetView().cluster_depth_slices);
+    const uint cluster_tiles = GetView().cluster_count.x * GetView().cluster_count.y;
+    const uint cluster_index = cluster_slice * cluster_tiles + tile.y * GetView().cluster_count.x + tile.x;
+    const uint cluster_light_count = bindless_buffers_uint[DescriptorIndex(GetView().cluster_light_count_buffer)][cluster_index];
+    const uint cluster_light_base = bindless_buffers_uint[DescriptorIndex(GetView().cluster_light_offset_buffer)][cluster_index];
     [loop]
     for (uint t = 0; t < cluster_light_count; ++t)
     {
-        const uint light_index = bindless_buffers_uint[DescriptorIndex(GetScene().cluster_light_index_buffer)][cluster_light_base + t];
+        const uint light_index = bindless_buffers_uint[DescriptorIndex(GetView().cluster_light_index_buffer)][cluster_light_base + t];
         ShaderLight light = GetLight(light_index);
         switch (light.GetType())
         {
@@ -493,13 +493,13 @@ inline void ForwardLighting(in Surface surface, inout Lighting lighting, float2 
         }
     }
 #else
-    if (GetScene().forward_light_index_buffer >= 0)
+    if (GetView().forward_light_index_buffer >= 0)
     {
-        const uint forward_light_count = GetScene().forward_light_count;
+        const uint forward_light_count = GetView().forward_light_count;
         [loop]
         for (uint t = 0; t < forward_light_count; ++t)
         {
-            const uint light_index = bindless_buffers_uint[DescriptorIndex(GetScene().forward_light_index_buffer)][t];
+            const uint light_index = bindless_buffers_uint[DescriptorIndex(GetView().forward_light_index_buffer)][t];
             ShaderLight light = GetLight(light_index);
             switch (light.GetType())
             {
@@ -550,17 +550,17 @@ inline uint GetDebugLightCount(in float3 world_position, in float2 pixel_positio
 #ifdef CLUSTERED
     const uint2 tile = (uint2)(pixel_position / LIGHTCULL_TILE_SIZE);
     const float cluster_view_z = max(0.0f, dot(world_position - GetCamera().position, GetCamera().forward));
-    const uint cluster_slice = ClusterSliceFromViewZ(cluster_view_z, GetCamera().z_near, GetCamera().z_far, GetScene().cluster_depth_slices);
-    const uint cluster_tiles = GetScene().cluster_count.x * GetScene().cluster_count.y;
-    const uint cluster_index = cluster_slice * cluster_tiles + tile.y * GetScene().cluster_count.x + tile.x;
-    if (GetScene().cluster_light_count_buffer >= 0)
+    const uint cluster_slice = ClusterSliceFromViewZ(cluster_view_z, GetCamera().z_near, GetCamera().z_far, GetView().cluster_depth_slices);
+    const uint cluster_tiles = GetView().cluster_count.x * GetView().cluster_count.y;
+    const uint cluster_index = cluster_slice * cluster_tiles + tile.y * GetView().cluster_count.x + tile.x;
+    if (GetView().cluster_light_count_buffer >= 0)
     {
-        light_count += bindless_buffers_uint[DescriptorIndex(GetScene().cluster_light_count_buffer)][cluster_index];
+        light_count += bindless_buffers_uint[DescriptorIndex(GetView().cluster_light_count_buffer)][cluster_index];
     }
 #else
-    if (GetScene().forward_light_index_buffer >= 0)
+    if (GetView().forward_light_index_buffer >= 0)
     {
-        light_count += GetScene().forward_light_count;
+        light_count += GetView().forward_light_count;
     }
 #endif
     return light_count;
@@ -578,7 +578,7 @@ inline float3 GetDebugLightComplexityColor(in uint light_count)
 
 inline int GetDebugShadowCascadeIndex(in float3 world_position)
 {
-    if (GetScene().shadow_cascade_buffer < 0 || GetScene().light_shadow_slice_buffer < 0)
+    if (GetView().shadow_cascade_buffer < 0 || GetView().light_shadow_slice_buffer < 0)
     {
         return -1;
     }
@@ -591,7 +591,7 @@ inline int GetDebugShadowCascadeIndex(in float3 world_position)
             continue;
         }
 
-        const uint shadow_slice = bindless_buffers_uint[DescriptorIndex(GetScene().light_shadow_slice_buffer)][d];
+        const uint shadow_slice = bindless_buffers_uint[DescriptorIndex(GetView().light_shadow_slice_buffer)][d];
         const uint shadow_slice_offset = shadow_slice & 0xFFFFu;
         const uint shadow_slice_count = (shadow_slice >> 16u) & 0xFFFFu;
         if (shadow_slice_count == 0)
@@ -625,7 +625,7 @@ inline int GetDebugShadowCascadeIndex(in float3 world_position)
 
 inline half4 ApplyDebugViewMode(in half4 lit_color, in Surface surface, in half4 base_color, in half metallic, in float2 pixel_position)
 {
-    const uint debug_view_mode = GetScene().debug_view_mode;
+    const uint debug_view_mode = GetView().debug_view_mode;
     if (debug_view_mode == DEBUG_VIEW_MODE_NONE || debug_view_mode == DEBUG_VIEW_MODE_WIREFRAME)
     {
         return lit_color;

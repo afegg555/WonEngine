@@ -270,33 +270,20 @@ struct alignas(16) ShaderScene
     int materialbuffer;
     int lightbuffer;
 
-    int shadow_atlas;
-    int shadow_cascade_buffer;
     int bvh_node_buffer;
     int bvh_instance_buffer;
-
     uint bvh_node_count;
     uint bvh_instance_count;
-    int instance_sort_buffer;
-    int bone_matrix_buffer;
 
-    int forward_light_index_buffer;
-    uint forward_light_count;
+    int bone_matrix_buffer;
     uint directional_count;
     uint light_count;
-
-    int cluster_light_count_buffer;
-    int cluster_light_index_buffer;
-    uint2 cluster_count;
-
-    int light_shadow_slice_buffer;
-    uint cluster_depth_slices;
-    int cluster_light_offset_buffer;
-    uint debug_view_mode;
-
     int ltc_matrix_lut;
+
     int ltc_fresnel_lut;
-    uint2 ltc_lut_padding;
+    int _scene_padding0;
+    int _scene_padding1;
+    int _scene_padding2;
 #ifdef __cplusplus
     inline void Init()
     {
@@ -305,32 +292,20 @@ struct alignas(16) ShaderScene
         materialbuffer = -1;
         lightbuffer = -1;
 
-        shadow_atlas = -1;
-        shadow_cascade_buffer = -1;
         bvh_node_buffer = -1;
         bvh_instance_buffer = -1;
         bvh_node_count = 0;
         bvh_instance_count = 0;
-        instance_sort_buffer = -1;
-        bone_matrix_buffer = -1;
 
-        forward_light_index_buffer = -1;
-        forward_light_count = 0;
+        bone_matrix_buffer = -1;
         directional_count = 0;
         light_count = 0;
-
-        cluster_light_count_buffer = -1;
-        cluster_light_offset_buffer = -1;
-        cluster_light_index_buffer = -1;
-        cluster_count = { 0,0 };
-        cluster_depth_slices = 1;
-
-        light_shadow_slice_buffer = -1;
-        debug_view_mode = DEBUG_VIEW_MODE_NONE;
-
         ltc_matrix_lut = -1;
+
         ltc_fresnel_lut = -1;
-        ltc_lut_padding = { 0, 0 };
+        _scene_padding0 = 0;
+        _scene_padding1 = 0;
+        _scene_padding2 = 0;
     }
 #endif
 };
@@ -638,6 +613,56 @@ struct alignas(16) ShaderCamera
         exposure = 1.0f;
         _camera_padding0 = 0.0f;
         viewport_offset = { 0, 0 };
+
+    }
+#endif
+};
+
+struct alignas(16) ShaderView
+{
+    ShaderCamera camera;
+
+    int instance_sort_buffer;
+    int forward_light_index_buffer;
+    uint forward_light_count;
+    uint debug_view_mode;
+
+    int shadow_atlas;
+    int shadow_cascade_buffer;
+    int light_shadow_slice_buffer;
+    int cluster_light_count_buffer;
+
+    int cluster_light_index_buffer;
+    int cluster_light_offset_buffer;
+    uint2 cluster_count;
+
+    uint cluster_depth_slices;
+    uint _view_padding0;
+    uint _view_padding1;
+    uint _view_padding2;
+#ifdef __cplusplus
+    inline void Init()
+    {
+        camera.Init();
+
+        instance_sort_buffer = -1;
+        forward_light_index_buffer = -1;
+        forward_light_count = 0;
+        debug_view_mode = DEBUG_VIEW_MODE_NONE;
+
+        shadow_atlas = -1;
+        shadow_cascade_buffer = -1;
+        light_shadow_slice_buffer = -1;
+        cluster_light_count_buffer = -1;
+
+        cluster_light_index_buffer = -1;
+        cluster_light_offset_buffer = -1;
+        cluster_count = { 0, 0 };
+
+        cluster_depth_slices = 1;
+        _view_padding0 = 0;
+        _view_padding1 = 0;
+        _view_padding2 = 0;
     }
 #endif
 };
@@ -903,7 +928,7 @@ struct alignas(16) ShaderInstance
 };
 
 CONSTANTBUFFER(g_frame, ShaderFrame, CBSLOT_RENDERER_FRAME);
-CONSTANTBUFFER(g_camera, ShaderCamera, CBSLOT_RENDERER_CAMERA);
+CONSTANTBUFFER(g_view, ShaderView, CBSLOT_RENDERER_CAMERA);
 
 #ifndef WON_DISABLE_RENDERER_PUSHCONSTANT
 PUSHCONSTANT(push, ObjectPushConstants);
@@ -918,12 +943,13 @@ PUSHCONSTANT(push, ObjectPushConstants);
 static_assert(sizeof(ShaderTextureSlot) == 16, "ShaderTextureSlot layout mismatch");
 static_assert(sizeof(ShaderGeometry) == 80, "ShaderGeometry layout mismatch");
 static_assert(sizeof(ShaderMaterial) == 272, "ShaderMaterial layout mismatch");
-static_assert(sizeof(ShaderScene) == 112, "ShaderScene layout mismatch");
+static_assert(sizeof(ShaderScene) == 64, "ShaderScene layout mismatch");
 static_assert(sizeof(ShaderEnvironment) == 192, "ShaderEnvironment layout mismatch");
 static_assert(sizeof(ShaderDDGIVolume) == 112, "ShaderDDGIVolume layout mismatch");
 static_assert(sizeof(ShaderReflectionProbe) == 32, "ShaderReflectionProbe layout mismatch");
-static_assert(sizeof(ShaderFrame) == 448, "ShaderFrame layout mismatch");
+static_assert(sizeof(ShaderFrame) == 400, "ShaderFrame layout mismatch");
 static_assert(sizeof(ShaderCamera) == 336, "ShaderCamera layout mismatch");
+static_assert(sizeof(ShaderView) == 400, "ShaderView layout mismatch");
 static_assert(sizeof(ShaderLight) == 64, "ShaderLight layout mismatch");
 static_assert(sizeof(ShaderShadowCascade) == 96, "ShaderShadowCascade layout mismatch");
 static_assert(sizeof(ObjectPushConstants) == 16, "ObjectPushConstants layout mismatch");
