@@ -807,7 +807,7 @@ namespace won::rendering
         }
         // per-view instance sort buffer
         {
-            rendering::GPUScene& gpu_scene = view.scene->GetGPUScene();
+            //rendering::GPUScene& gpu_scene = view.scene->GetGPUScene();
             const auto& opaque = gpu_scene.opaque_renderables;
             const auto& transparent = gpu_scene.transparent_renderables;
             const uint32 opaque_count = static_cast<uint32>(view.sorted_opaque_indices.size());
@@ -2077,11 +2077,13 @@ namespace won::rendering
             gpu_scene.synced_index = scene.GetUpdateIndex();
         }
 
-        auto cpu_range = profiler::ScopedRangeCPU("Build View Resources");
-        auto gpu_range = profiler::ScopedRangeGPU("Build View Resources", *command_list);
-        if (!BuildViewResources(frame_context, view, *command_list))
         {
-            return false;
+            auto cpu_range = profiler::ScopedRangeCPU("Build View Resources");
+            auto gpu_range = profiler::ScopedRangeGPU("Build View Resources", *command_list);
+            if (!BuildViewResources(frame_context, view, *command_list))
+            {
+                return false;
+            }
         }
 
         if (!brdf_lut)
@@ -2468,7 +2470,7 @@ namespace won::rendering
 
         FrameContext& frame_context = GetFrameContext();
 
-        rendering::GPUScene& gpu_scene = view.scene->GetGPUScene();
+        //rendering::GPUScene& gpu_scene = view.scene->GetGPUScene();
 
         if (enqueued_work_fence_value > 0 && enqueued_work_fence->GetCompletedValue() >= enqueued_work_fence_value)
         {
