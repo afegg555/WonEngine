@@ -54,8 +54,6 @@ namespace won::editor
 
 	static RHIShader imgui_vs;
 	static RHIShader imgui_ps;
-	static RHIShader editor_grid_vs;
-	static RHIShader editor_grid_ps;
 	static String contents_root_dir;
 	static String editor_contents_root_dir;
 	static String imgui_layout_path;
@@ -939,6 +937,7 @@ namespace won::editor
 		edit_scene = &editor_scene;
 		rendering::View editor_view = {};
 		editor_view.scene = &editor_scene;
+		editor_view.manual_camera = true;
 		editor_view.options.resize_policy = rendering::ViewResizePolicy::Manual;
 		editor_view.options.update_camera_aspect = false;
 		editor_view.viewport.width = project_settings.window_width;
@@ -966,18 +965,6 @@ namespace won::editor
 			compile_result = compiler->Compile(compile_desc);
 
 			imgui_ps = { RHIShaderStage::Pixel, compile_result.bytecode.data(), compile_result.bytecode.size() };
-
-			compile_desc.stage = RHIShaderStage::Vertex;
-			compile_desc.source_file_name = "EditorGridVS.hlsl";
-			compile_result = compiler->Compile(compile_desc);
-
-			editor_grid_vs = { RHIShaderStage::Vertex, compile_result.bytecode.data(), compile_result.bytecode.size() };
-
-			compile_desc.stage = RHIShaderStage::Pixel;
-			compile_desc.source_file_name = "EditorGridPS.hlsl";
-			compile_result = compiler->Compile(compile_desc);
-
-			editor_grid_ps = { RHIShaderStage::Pixel, compile_result.bytecode.data(), compile_result.bytecode.size() };
 		}
 
 		
@@ -1007,7 +994,6 @@ namespace won::editor
 #endif
 
 		InitImGui();
-		InitEditorGrid();
 
 		if (splash)
 		{
@@ -1060,7 +1046,6 @@ namespace won::editor
 		WaitIdle();
 
 		imgui_pso.reset();
-		editor_grid_pso.reset();
 		imgui_font.reset();
 		imgui_font_subresource = {};
 		imgui_sampler.reset();
@@ -1295,6 +1280,14 @@ namespace won::editor
 			else
 			{
 				editor_viewport.view->show_flags &= ~rendering::Show_Colliders;
+			}
+			if (editor_viewport.debug_settings.show_grid)
+			{
+				editor_viewport.view->show_flags |= rendering::Show_Grid;
+			}
+			else
+			{
+				editor_viewport.view->show_flags &= ~rendering::Show_Grid;
 			}
 			editor_viewport.view->view_mode = editor_viewport.debug_settings.use_wireframe ? rendering::ViewMode::Wireframe : rendering::ViewMode::Lit;
 		}
@@ -2390,110 +2383,6 @@ namespace won::editor
 			}
 			ImGui::EndPopup();
 		}
-	}
-
-	void EditorApplication::DrawEditorGrid()
-	{
-		if (!editor_viewport.debug_settings.show_grid || !editor_grid_pso || !renderer)
-		{
-			return;
-		}
-
-		const ecs::CameraComponent* camera = editor_viewport.view->scene->GetComponent<ecs::CameraComponent>(editor_viewport.view->camera_entity);
-		if (!camera)
-		{
-			return;
-		}
-
-		struct EditorGridConstants
-		{
-			float4x4 view_projection = {};
-			float4x4 inv_view_projection = {};
-			float4 camera_position = {};
-			float4 grid_color = {};
-			float4 axis_x_color = {};
-			float4 axis_z_color = {};
-		};
-
-		EditorGridConstants constants = {};
-		constants.view_projection = camera->view_projection;
-		constants.inv_view_projection = camera->inv_view_projection;
-		constants.camera_position = { camera->eye.x, camera->eye.y, camera->eye.z, 1.0f };
-		constants.grid_color = theme::editor_grid_color;
-		constants.axis_x_color = theme::editor_grid_axis_x_color;
-		constants.axis_z_color = theme::editor_grid_axis_z_color;
-
-		Renderer::FrameContext& frame_context = renderer->GetFrameContext();
-		RHICommandList* command_list = frame_context.BeginCommandList(*device);
-		if (!command_list)
-		{
-			return;
-		}
-
-		jobsystem::Execute(renderer->GetRenderingWorkContext(), [this, command_list, constants](jobsystem::JobArgs args) {
-			Renderer::FrameContext& frame_context = renderer->GetFrameContext();
-
-			RHISubresourceBinding back_buffer_binding = {};
-			RHISubresourceBinding depth_buffer_binding = {};
-			if (!renderer->GetCurrentBackBufferBinding(back_buffer_binding) ||
-				!renderer->GetCurrentDepthBufferBinding(depth_buffer_binding))
-			{
-				return;
-			}
-
-			RHIBufferDesc buffer_desc = {};
-			buffer_desc.bind_flags = RHIBindFlags::ConstantBuffer;
-			Renderer::FrameUploadAllocation allocation = {};
-			if (!frame_context.AllocateFrameUpload(*device, sizeof(EditorGridConstants), device->GetMinOffsetAlignment(buffer_desc), allocation))
-			{
-				return;
-			}
-			std::memcpy(allocation.mapped_data, &constants, sizeof(EditorGridConstants));
-
-			RHISubresourceHandle constants_subresource = {};
-			RHISubresourceDesc subresource_desc = {};
-			subresource_desc.type = RHISubresourceType::ConstantBuffer;
-			subresource_desc.buffer_offset = allocation.buffer_offset;
-			subresource_desc.buffer_size = sizeof(EditorGridConstants);
-			subresource_desc.buffer_stride = sizeof(EditorGridConstants);
-			if (!device->CreateSubresource(*allocation.buffer, subresource_desc, &constants_subresource))
-			{
-				return;
-			}
-
-			RHISubresourceBinding constants_binding = {};
-			constants_binding.resource = allocation.buffer;
-			constants_binding.subresource = constants_subresource;
-
-			RHIViewport viewport = {};
-			viewport.x = static_cast<float>(editor_viewport.view->viewport.x);
-			viewport.y = static_cast<float>(editor_viewport.view->viewport.y);
-			viewport.width = static_cast<float>(editor_viewport.view->viewport.width);
-			viewport.height = static_cast<float>(editor_viewport.view->viewport.height);
-			viewport.min_depth = 0.0f;
-			viewport.max_depth = 1.0f;
-
-			RHIRect scissor = {};
-			scissor.x = editor_viewport.view->scissor.x;
-			scissor.y = editor_viewport.view->scissor.y;
-			scissor.width = editor_viewport.view->scissor.width;
-			scissor.height = editor_viewport.view->scissor.height;
-
-			Vector<RHISubresourceBinding> color_targets = { back_buffer_binding };
-			auto gpu_range = profiler::ScopedRangeGPU("Editor Grid Pass", *command_list);
-			command_list->BeginEvent("Editor Grid Pass");
-			command_list->TransitionResource(*back_buffer_binding.resource, RHIResourceState::RenderTarget);
-			command_list->TransitionResource(*depth_buffer_binding.resource, RHIResourceState::DepthWrite);
-			command_list->SetRenderTargets(color_targets, &depth_buffer_binding);
-			command_list->SetViewport(viewport);
-			command_list->SetScissor(scissor);
-			command_list->SetGraphicsPipeline(*editor_grid_pso);
-			command_list->SetConstantBuffer(RHIShaderStage::Vertex, 0, constants_binding);
-			command_list->SetConstantBuffer(RHIShaderStage::Pixel, 0, constants_binding);
-			command_list->SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
-			command_list->Draw(3, 1, 0, 0);
-			command_list->EndEvent();
-		});
 	}
 
 	void EditorApplication::RenderUI()
@@ -5894,7 +5783,6 @@ namespace won::editor
 		if (fb_width <= 0 || fb_height <= 0)
 			return;
 
-		DrawEditorGrid();
 
 		Renderer::FrameContext& frame_context = renderer->GetFrameContext();
 		RHICommandList* command_list = frame_context.BeginCommandList(*device);
@@ -6145,23 +6033,6 @@ namespace won::editor
 		imgui_pso = device->CreateGraphicsPipeline(pipeline_desc);
 
 		return;
-	}
-
-	void EditorApplication::InitEditorGrid()
-	{
-		RHIGraphicsPipelineDesc pipeline_desc = {};
-		pipeline_desc.vertex_shader = &editor_grid_vs;
-		pipeline_desc.pixel_shader = &editor_grid_ps;
-		pipeline_desc.depth_stencil.depth_test = true;
-		pipeline_desc.depth_stencil.depth_write = false;
-		pipeline_desc.depth_stencil.depth_compare = RHICompareOp::GreaterEqual;
-		pipeline_desc.render_target_formats = { RENDERTARGET_BUFFER_FORMAT };
-		pipeline_desc.depth_stencil_format = DEPTH_BUFFER_FORMAT;
-		pipeline_desc.raster.cull_mode = RHICullMode::None;
-		pipeline_desc.blend.enable = true;
-		pipeline_desc.topology = RHIPrimitiveTopology::TriangleList;
-
-		editor_grid_pso = device->CreateGraphicsPipeline(pipeline_desc);
 	}
 
 	void EditorApplication::CreateEditorCamera()
@@ -7585,14 +7456,7 @@ namespace won::editor
 		edit_camera_entity = editor_viewport.view->camera_entity;
 		editor_viewport.view->scene = play_scene;
 		editor_viewport.view->camera_entity = ecs::INVALID_ENTITY;
-		for (ecs::Entity entity : play_scene->GetEntities())
-		{
-			if (play_scene->GetComponent<ecs::CameraComponent>(entity))
-			{
-				editor_viewport.view->camera_entity = entity;
-				break;
-			}
-		}
+		editor_viewport.view->manual_camera = false;
 
 		editor_viewport.picked_entity = ecs::INVALID_ENTITY;
 		is_paused = false;
@@ -7613,6 +7477,7 @@ namespace won::editor
 		{
 			editor_viewport.view->scene = edit_scene;
 			editor_viewport.view->camera_entity = edit_camera_entity;
+			editor_viewport.view->manual_camera = true;
 		}
 		GetSceneManager()->DestroyScene(play_scene);
 		play_scene = nullptr;

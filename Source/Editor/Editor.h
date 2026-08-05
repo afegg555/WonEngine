@@ -72,8 +72,6 @@ namespace won::editor
 		void SetPluginEnabled(Size plugin_index, bool enabled);
 		void InitImGui();
 		bool RebuildImGuiFont(bool wait_for_gpu);
-		void InitEditorGrid();
-		void DrawEditorGrid();
 		void CreateEditorCamera();
 		void ApplyEditorCameraExposure();
 		void CreateStartupScene();
@@ -222,7 +220,6 @@ namespace won::editor
 		std::shared_ptr<RHIResource> imgui_font;
 		RHISubresourceHandle imgui_font_subresource;
 		std::shared_ptr<RHISampler> imgui_sampler;
-		std::shared_ptr<RHIPipeline> editor_grid_pso;
 
 		std::vector<ecs::Entity> sorted_entities;
 		std::vector<EditorPluginInfo> plugins;

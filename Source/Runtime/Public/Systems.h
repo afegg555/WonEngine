@@ -8,6 +8,7 @@
 #include "AnimationStateMachineSystem.h"
 #include "BehaviorTreeSystem.h"
 #include "NavAgentSystem.h"
+#include "SequenceSystem.h"
 #include "ParticleUpdateSystem.h"
 #include "ScriptUpdateSystem.h"
 #include "ScriptEventDispatchSystem.h"

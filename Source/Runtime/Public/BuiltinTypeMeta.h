@@ -139,6 +139,7 @@ namespace won::reflection
 
     WON_REFLECT_STRUCT(won::ecs::CameraComponent, "CameraComponent")
         WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(viewer_index, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(near_plane, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(far_plane, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(aspect_ratio, won::FieldFlagNone)
@@ -390,6 +391,34 @@ namespace won::reflection
     WON_REFLECT_STRUCT(won::ecs::BehaviorTreeComponent, "BehaviorTreeComponent")
         WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(tree_asset_path, won::FieldFlagEditable | won::FieldFlagSerializable)
+    WON_REFLECT_STRUCT_END()
+
+    WON_REFLECT_ENUM(won::ecs::SequenceTrackType, "SequenceTrackType")
+        WON_REFLECT_ENUM_VALUE("Position", won::ecs::SequenceTrackType::Position)
+        WON_REFLECT_ENUM_VALUE("Rotation", won::ecs::SequenceTrackType::Rotation)
+        WON_REFLECT_ENUM_VALUE("CameraFov", won::ecs::SequenceTrackType::CameraFov)
+        WON_REFLECT_ENUM_VALUE("CameraSwitch", won::ecs::SequenceTrackType::CameraSwitch)
+        WON_REFLECT_ENUM_VALUE("Event", won::ecs::SequenceTrackType::Event)
+    WON_REFLECT_ENUM_END()
+
+    WON_REFLECT_STRUCT(won::ecs::SequenceKey, "SequenceKey")
+        WON_REFLECT_FIELD(time, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(value, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(event_name, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(camera, won::FieldFlagEditable | won::FieldFlagSerializable | won::FieldFlagEntityRef)
+    WON_REFLECT_STRUCT_END()
+
+    WON_REFLECT_STRUCT(won::ecs::SequenceTrack, "SequenceTrack")
+        WON_REFLECT_FIELD(target, won::FieldFlagEditable | won::FieldFlagSerializable | won::FieldFlagEntityRef)
+        WON_REFLECT_FIELD(type, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(keys, won::FieldFlagSerializable)
+    WON_REFLECT_STRUCT_END()
+
+    WON_REFLECT_STRUCT(won::ecs::SequenceComponent, "SequenceComponent")
+        WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(tracks, won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(time, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(duration, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::NavAgentComponent, "NavAgentComponent")

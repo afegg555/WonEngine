@@ -23,36 +23,77 @@ namespace won::serialize
             RawId, // entity references are encoded as raw entity IDs (uint64)
         };
 
-        void WriteReflectedData(JsonArchive& archive, won::ValueType value_type, const won::TypeDesc* type_desc, uint32 value_size, const won::ArrayDesc* array_desc, const void* value)
+        struct EntityRefContext
         {
-            if (!value)
+            EntityRefEncoding encoding = EntityRefEncoding::FileIndex;
+            const UnorderedMap<ecs::Entity, uint64>* entity_to_index = nullptr;
+            const Vector<ecs::Entity>* entities = nullptr;
+        };
+
+        bool SerializeReflectedValue(JsonArchive& archive, won::ValueType value_type, uint32 value_size, void* value)
+        {
+            switch (value_type)
+            {
+            case won::ValueType::Bool: Serialize(archive, *static_cast<bool*>(value)); return true;
+            case won::ValueType::Int8: Serialize(archive, *static_cast<int8*>(value)); return true;
+            case won::ValueType::UInt8: Serialize(archive, *static_cast<uint8*>(value)); return true;
+            case won::ValueType::Int16: Serialize(archive, *static_cast<int16*>(value)); return true;
+            case won::ValueType::UInt16: Serialize(archive, *static_cast<uint16*>(value)); return true;
+            case won::ValueType::Int32: Serialize(archive, *static_cast<int32*>(value)); return true;
+            case won::ValueType::UInt32: Serialize(archive, *static_cast<uint32*>(value)); return true;
+            case won::ValueType::Int64: Serialize(archive, *static_cast<int64*>(value)); return true;
+            case won::ValueType::UInt64: Serialize(archive, *static_cast<uint64*>(value)); return true;
+            case won::ValueType::Float32: Serialize(archive, *static_cast<float*>(value)); return true;
+            case won::ValueType::Float64: Serialize(archive, *static_cast<double*>(value)); return true;
+            case won::ValueType::Int32x2: Serialize(archive, *static_cast<int2*>(value)); return true;
+            case won::ValueType::Int32x3: Serialize(archive, *static_cast<int3*>(value)); return true;
+            case won::ValueType::Int32x4: Serialize(archive, *static_cast<int4*>(value)); return true;
+            case won::ValueType::UInt32x2: Serialize(archive, *static_cast<uint2*>(value)); return true;
+            case won::ValueType::UInt32x3: Serialize(archive, *static_cast<uint3*>(value)); return true;
+            case won::ValueType::UInt32x4: Serialize(archive, *static_cast<uint4*>(value)); return true;
+            case won::ValueType::Float32x2: Serialize(archive, *static_cast<float2*>(value)); return true;
+            case won::ValueType::Float32x3: Serialize(archive, *static_cast<float3*>(value)); return true;
+            case won::ValueType::Float32x4: Serialize(archive, *static_cast<float4*>(value)); return true;
+            case won::ValueType::String: Serialize(archive, *static_cast<String*>(value)); return true;
+            case won::ValueType::Enum:
+            {
+                int64 copy = 0;
+                switch (value_size)
+                {
+                case 1: copy = *static_cast<int8*>(value); break;
+                case 2: copy = *static_cast<int16*>(value); break;
+                case 4: copy = *static_cast<int32*>(value); break;
+                case 8: copy = *static_cast<int64*>(value); break;
+                default: break;
+                }
+                Serialize(archive, copy);
+                if (archive.IsReadMode())
+                {
+                    switch (value_size)
+                    {
+                    case 1: *static_cast<int8*>(value) = static_cast<int8>(copy); break;
+                    case 2: *static_cast<int16*>(value) = static_cast<int16>(copy); break;
+                    case 4: *static_cast<int32*>(value) = static_cast<int32>(copy); break;
+                    case 8: *static_cast<int64*>(value) = static_cast<int64>(copy); break;
+                    default: break;
+                    }
+                }
+                return true;
+            }
+            default:
+                return false;
+            }
+        }
+
+        void WriteReflectedData(JsonArchive& archive, won::ValueType value_type, const won::TypeDesc* type_desc, uint32 value_size, const won::ArrayDesc* array_desc, const void* value, const EntityRefContext* entity_refs = nullptr)
+        {
+            if (!value || SerializeReflectedValue(archive, value_type, value_size, const_cast<void*>(value)))
             {
                 return;
             }
 
             switch (value_type)
             {
-            case won::ValueType::Bool: { bool copy = *static_cast<const bool*>(value); archive.Value(copy); break; }
-            case won::ValueType::Int8: { int8 copy = *static_cast<const int8*>(value); archive.Value(copy); break; }
-            case won::ValueType::UInt8: { uint8 copy = *static_cast<const uint8*>(value); archive.Value(copy); break; }
-            case won::ValueType::Int16: { int16 copy = *static_cast<const int16*>(value); archive.Value(copy); break; }
-            case won::ValueType::UInt16: { uint16 copy = *static_cast<const uint16*>(value); archive.Value(copy); break; }
-            case won::ValueType::Int32: { int32 copy = *static_cast<const int32*>(value); archive.Value(copy); break; }
-            case won::ValueType::UInt32: { uint32 copy = *static_cast<const uint32*>(value); archive.Value(copy); break; }
-            case won::ValueType::Int64: { int64 copy = *static_cast<const int64*>(value); archive.Value(copy); break; }
-            case won::ValueType::UInt64: { uint64 copy = *static_cast<const uint64*>(value); archive.Value(copy); break; }
-            case won::ValueType::Float32: { float copy = *static_cast<const float*>(value); archive.Value(copy); break; }
-            case won::ValueType::Float64: { double copy = *static_cast<const double*>(value); archive.Value(copy); break; }
-            case won::ValueType::Int32x2: { int2 copy = *static_cast<const int2*>(value); Serialize(archive, copy); break; }
-            case won::ValueType::Int32x3: { int3 copy = *static_cast<const int3*>(value); Serialize(archive, copy); break; }
-            case won::ValueType::Int32x4: { int4 copy = *static_cast<const int4*>(value); Serialize(archive, copy); break; }
-            case won::ValueType::UInt32x2: { uint2 copy = *static_cast<const uint2*>(value); Serialize(archive, copy); break; }
-            case won::ValueType::UInt32x3: { uint3 copy = *static_cast<const uint3*>(value); Serialize(archive, copy); break; }
-            case won::ValueType::UInt32x4: { uint4 copy = *static_cast<const uint4*>(value); Serialize(archive, copy); break; }
-            case won::ValueType::Float32x2: { float2 copy = *static_cast<const float2*>(value); Serialize(archive, copy); break; }
-            case won::ValueType::Float32x3: { float3 copy = *static_cast<const float3*>(value); Serialize(archive, copy); break; }
-            case won::ValueType::Float32x4: { float4 copy = *static_cast<const float4*>(value); Serialize(archive, copy); break; }
-            case won::ValueType::String: { String copy = *static_cast<const String*>(value); archive.Value(copy); break; }
             case won::ValueType::CustomStruct:
             {
                 if (!type_desc)
@@ -79,7 +120,28 @@ namespace won::serialize
                     const void* field_value = static_cast<const uint8*>(value) + field.offset;
                     if (archive.BeginField(field_key.c_str()))
                     {
-                        WriteReflectedData(archive, field.value_type, nullptr, field.size, field.array_desc, field_value);
+                        if ((field.flags & won::FieldFlagEntityRef) != 0 && entity_refs)
+                        {
+                            const ecs::Entity referenced = *static_cast<const ecs::Entity*>(field_value);
+                            uint64 encoded = referenced;
+                            if (entity_refs->encoding == EntityRefEncoding::FileIndex)
+                            {
+                                encoded = invalid_entity_index;
+                                if (entity_refs->entity_to_index)
+                                {
+                                    auto referenced_index_it = entity_refs->entity_to_index->find(referenced);
+                                    if (referenced_index_it != entity_refs->entity_to_index->end())
+                                    {
+                                        encoded = referenced_index_it->second;
+                                    }
+                                }
+                            }
+                            archive.Value(encoded);
+                        }
+                        else
+                        {
+                            WriteReflectedData(archive, field.value_type, nullptr, field.size, field.array_desc, field_value, entity_refs);
+                        }
                         archive.EndField();
                     }
                 }
@@ -107,24 +169,10 @@ namespace won::serialize
                 {
                     const void* element = array_desc->GetConstElement(value, index);
                     archive.BeginItem();
-                    WriteReflectedData(archive, element_type->value_type, element_type, element_type->size, nullptr, element);
+                    WriteReflectedData(archive, element_type->value_type, element_type, element_type->size, nullptr, element, entity_refs);
                     archive.EndItem();
                 }
                 archive.EndArray();
-                break;
-            }
-            case won::ValueType::Enum:
-            {
-                int64 copy = 0;
-                switch (value_size)
-                {
-                case 1: copy = *static_cast<const int8*>(value); break;
-                case 2: copy = *static_cast<const int16*>(value); break;
-                case 4: copy = *static_cast<const int32*>(value); break;
-                case 8: copy = *static_cast<const int64*>(value); break;
-                default: break;
-                }
-                archive.Value(copy);
                 break;
             }
             default:
@@ -132,36 +180,15 @@ namespace won::serialize
             }
         }
 
-        void ReadReflectedData(JsonArchive& archive, won::ValueType value_type, const won::TypeDesc* type_desc, uint32 value_size, const won::ArrayDesc* array_desc, void* value)
+        void ReadReflectedData(JsonArchive& archive, won::ValueType value_type, const won::TypeDesc* type_desc, uint32 value_size, const won::ArrayDesc* array_desc, void* value, const EntityRefContext* entity_refs = nullptr)
         {
-            if (!value)
+            if (!value || SerializeReflectedValue(archive, value_type, value_size, value))
             {
                 return;
             }
 
             switch (value_type)
             {
-            case won::ValueType::Bool: archive.Value(*static_cast<bool*>(value)); break;
-            case won::ValueType::Int8: archive.Value(*static_cast<int8*>(value)); break;
-            case won::ValueType::UInt8: archive.Value(*static_cast<uint8*>(value)); break;
-            case won::ValueType::Int16: archive.Value(*static_cast<int16*>(value)); break;
-            case won::ValueType::UInt16: archive.Value(*static_cast<uint16*>(value)); break;
-            case won::ValueType::Int32: archive.Value(*static_cast<int32*>(value)); break;
-            case won::ValueType::UInt32: archive.Value(*static_cast<uint32*>(value)); break;
-            case won::ValueType::Int64: archive.Value(*static_cast<int64*>(value)); break;
-            case won::ValueType::UInt64: archive.Value(*static_cast<uint64*>(value)); break;
-            case won::ValueType::Float32: archive.Value(*static_cast<float*>(value)); break;
-            case won::ValueType::Float64: archive.Value(*static_cast<double*>(value)); break;
-            case won::ValueType::Int32x2: Serialize(archive, *static_cast<int2*>(value)); break;
-            case won::ValueType::Int32x3: Serialize(archive, *static_cast<int3*>(value)); break;
-            case won::ValueType::Int32x4: Serialize(archive, *static_cast<int4*>(value)); break;
-            case won::ValueType::UInt32x2: Serialize(archive, *static_cast<uint2*>(value)); break;
-            case won::ValueType::UInt32x3: Serialize(archive, *static_cast<uint3*>(value)); break;
-            case won::ValueType::UInt32x4: Serialize(archive, *static_cast<uint4*>(value)); break;
-            case won::ValueType::Float32x2: Serialize(archive, *static_cast<float2*>(value)); break;
-            case won::ValueType::Float32x3: Serialize(archive, *static_cast<float3*>(value)); break;
-            case won::ValueType::Float32x4: Serialize(archive, *static_cast<float4*>(value)); break;
-            case won::ValueType::String: archive.Value(*static_cast<String*>(value)); break;
             case won::ValueType::CustomStruct:
             {
                 if (!type_desc || !archive.BeginObject())
@@ -196,7 +223,24 @@ namespace won::serialize
                     void* field_value = static_cast<uint8*>(value) + field->offset;
                     if (archive.BeginField(field_key.c_str()))
                     {
-                        ReadReflectedData(archive, field->value_type, nullptr, field->size, field->array_desc, field_value);
+                        if ((field->flags & won::FieldFlagEntityRef) != 0 && entity_refs)
+                        {
+                            uint64 encoded = invalid_entity_index;
+                            archive.Value(encoded);
+                            if (entity_refs->encoding == EntityRefEncoding::RawId)
+                            {
+                                *static_cast<ecs::Entity*>(field_value) = static_cast<ecs::Entity>(encoded);
+                            }
+                            else
+                            {
+                                const Vector<ecs::Entity>* entities = entity_refs->entities;
+                                *static_cast<ecs::Entity*>(field_value) = (entities && encoded < entities->size()) ? (*entities)[static_cast<Size>(encoded)] : ecs::INVALID_ENTITY;
+                            }
+                        }
+                        else
+                        {
+                            ReadReflectedData(archive, field->value_type, nullptr, field->size, field->array_desc, field_value, entity_refs);
+                        }
                         archive.EndField();
                     }
                 }
@@ -234,26 +278,12 @@ namespace won::serialize
                     if (index < count)
                     {
                         void* element = array_desc->GetElement(value, static_cast<uint32>(index));
-                        ReadReflectedData(archive, element_type->value_type, element_type, element_type->size, nullptr, element);
+                        ReadReflectedData(archive, element_type->value_type, element_type, element_type->size, nullptr, element, entity_refs);
                     }
 
                     archive.EndItem();
                 }
                 archive.EndArray();
-                break;
-            }
-            case won::ValueType::Enum:
-            {
-                int64 copy = 0;
-                archive.Value(copy);
-                switch (value_size)
-                {
-                case 1: *static_cast<int8*>(value) = static_cast<int8>(copy); break;
-                case 2: *static_cast<int16*>(value) = static_cast<int16>(copy); break;
-                case 4: *static_cast<int32*>(value) = static_cast<int32>(copy); break;
-                case 8: *static_cast<int64*>(value) = static_cast<int64>(copy); break;
-                default: break;
-                }
                 break;
             }
             default:
@@ -381,7 +411,9 @@ namespace won::serialize
                 }
 
                 Vector<ecs::Entity> component_entities;
+                Vector<const void*> component_pointers;
                 component_entities.reserve(component_array->GetSize());
+                component_pointers.reserve(component_array->GetSize());
 
                 for (Size component_index = 0; component_index < component_array->GetSize(); ++component_index)
                 {
@@ -391,7 +423,14 @@ namespace won::serialize
                         continue;
                     }
 
+                    const void* component = component_array->GetRawData(entity);
+                    if (!component)
+                    {
+                        continue;
+                    }
+
                     component_entities.push_back(entity);
+                    component_pointers.push_back(component);
                 }
 
                 if (component_entities.empty())
@@ -440,14 +479,8 @@ namespace won::serialize
                     // archive.Field("name", field_name);  // might be removed?
                     archive.BeginArray("values");
 
-                    for (ecs::Entity entity : component_entities)
+                    for (const void* component : component_pointers)
                     {
-                        const void* component = scene.GetComponent(entity, type_desc->type_id);
-                        if (!component)
-                        {
-                            continue;
-                        }
-
                         const void* field_value = static_cast<const uint8*>(component) + field.offset;
                         if ((field.flags & FieldFlagEntityRef) != 0)
                         {
@@ -635,7 +668,10 @@ namespace won::serialize
                         }
                         else
                         {
-                            WriteReflectedData(archive, field.value_type, nullptr, field.size, field.array_desc, field_value);
+                            EntityRefContext entity_refs = {};
+                            entity_refs.encoding = entity_ref_encoding;
+                            entity_refs.entity_to_index = &entity_to_index;
+                            WriteReflectedData(archive, field.value_type, nullptr, field.size, field.array_desc, field_value, &entity_refs);
                         }
                         archive.EndItem();
                     }
@@ -687,7 +723,7 @@ namespace won::serialize
 
             uint32 version = 0;
             archive.Field("version", version);
-            if (version != scene_format_version)
+            if (version > scene_format_version)
             {
                 wonlog_warning("Scene format version mismatch: file=%u runtime=%u", static_cast<unsigned>(version), static_cast<unsigned>(scene_format_version));
                 return false;
@@ -853,6 +889,13 @@ namespace won::serialize
                         continue;
                     }
 
+                    Vector<void*> component_pointers;
+                    component_pointers.reserve(component_entities.size());
+                    for (ecs::Entity entity : component_entities)
+                    {
+                        component_pointers.push_back(entity != ecs::INVALID_ENTITY ? scene.GetComponent(entity, type_desc->type_id) : nullptr);
+                    }
+
                     if (archive.BeginObject("fields"))
                     {
                         Vector<String> field_keys = archive.GetObjectKeys();
@@ -863,8 +906,8 @@ namespace won::serialize
                                 continue;
                             }
 
-                            String field_name;
-                            archive.Field("name", field_name);  // might be removed?
+                            //String field_name;
+                            //archive.Field("name", field_name);  // might be removed?
                             const won::FieldId field_id = static_cast<won::FieldId>(std::strtoull(field_key.c_str(), nullptr, 0));
                             const won::FieldDesc* field = nullptr;
 
@@ -892,10 +935,9 @@ namespace won::serialize
                                         continue;
                                     }
 
-                                    if (field && value_index < component_entities.size())
+                                    if (field && value_index < component_pointers.size())
                                     {
-                                        const ecs::Entity entity = component_entities[value_index];
-                                        void* component = scene.GetComponent(entity, type_desc->type_id);
+                                        void* component = component_pointers[value_index];
                                         if (component && field->offset <= type_desc->size && field->size <= type_desc->size - field->offset)
                                         {
                                             void* field_value = static_cast<uint8*>(component) + field->offset;
@@ -1058,7 +1100,10 @@ namespace won::serialize
                                             }
                                             else
                                             {
-                                                ReadReflectedData(archive, field->value_type, nullptr, field->size, field->array_desc, field_value);
+                                                EntityRefContext entity_refs = {};
+                                                entity_refs.encoding = entity_ref_encoding;
+                                                entity_refs.entities = &entities;
+                                                ReadReflectedData(archive, field->value_type, nullptr, field->size, field->array_desc, field_value, &entity_refs);
                                             }
                                         }
                                     }
@@ -1082,6 +1127,20 @@ namespace won::serialize
                 if (ecs::TransformComponent* transform = scene.GetComponent<ecs::TransformComponent>(entity))
                 {
                     transform->SetDirty();
+                }
+                if (version < 4)
+                {
+                    if (ecs::CameraComponent* camera = scene.GetComponent<ecs::CameraComponent>(entity))
+                    {
+                        camera->SetActive(true);
+                    }
+                }
+                if (ecs::SequenceComponent* sequence = scene.GetComponent<ecs::SequenceComponent>(entity))
+                {
+                    for (ecs::SequenceTrack& track : sequence->tracks)
+                    {
+                        std::sort(track.keys.begin(), track.keys.end(), [](const ecs::SequenceKey& lhs, const ecs::SequenceKey& rhs) { return lhs.time < rhs.time; });
+                    }
                 }
                 if (ecs::GeometryComponent* geometry = scene.GetComponent<ecs::GeometryComponent>(entity))
                 {

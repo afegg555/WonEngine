@@ -39,6 +39,13 @@ WonEngine is a work-in-progress C++ rendering engine for experimenting with mode
       <a href="https://github.com/user-attachments/assets/c6f08053-36e4-4938-9947-20f2ca3d9020">watch the clip</a>.
     </video><br><sub><b>Physically based sky</b> — real-time Rayleigh/Mie atmospheric scattering</sub></td>
   </tr>
+  <tr>
+    <td width="50%"><video src="https://github.com/user-attachments/assets/79dd0a48-8570-4e6a-9227-c94a0c804ca8" width="100%" controls muted>
+      Your browser does not support the video tag —
+      <a href="https://github.com/user-attachments/assets/79dd0a48-8570-4e6a-9227-c94a0c804ca8">watch the clip</a>.
+    </video><br><sub><b>Multi-view rendering</b> — cinematic camera sequence across multiple views</sub></td>
+    <td width="50%"></td>
+  </tr>
 </table>
 
 > More screenshots and videos will be added as the renderer and editor become more stable.

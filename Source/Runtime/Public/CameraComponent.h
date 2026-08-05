@@ -15,9 +15,11 @@ namespace won::ecs
             Dirty = 1 << 0,
             IsOrthographic = 1 << 1,
             AutoExposure = 1 << 2,
+            Active = 1 << 3,
         };
 
-        uint32 flags = Empty;
+        uint32 flags = Active;
+        uint32 viewer_index = 0;
 
         // These values are updated by CameraUpdateSystem.
         // Use TransformComponent for manipulation.
@@ -63,6 +65,9 @@ namespace won::ecs
 
         constexpr void SetAutoExposure(bool value = true) { if (value) { flags |= AutoExposure; } else { flags &= ~AutoExposure; } }
         constexpr bool IsAutoExposure() const { return flags & AutoExposure; }
+
+        constexpr void SetActive(bool value = true) { if (value) { flags |= Active; } else { flags &= ~Active; } }
+        constexpr bool IsActive() const { return (flags & Active) != 0; }
 
         constexpr void SetNearFar(float near_value, float far_value) { near_plane = near_value; far_plane = far_value; SetDirty(); }
         constexpr void SetAspectRatio(float value) { aspect_ratio = value; SetDirty(); }

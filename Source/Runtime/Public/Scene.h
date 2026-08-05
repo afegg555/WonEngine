@@ -301,6 +301,21 @@ namespace won::ecs
             animation_event_queue.clear();
         }
 
+        void QueueSequenceEvent(Entity entity, const String& name)
+        {
+            sequence_event_queue.push_back({ entity, name });
+        }
+
+        const Vector<std::pair<Entity, String>>& GetSequenceEvents() const
+        {
+            return sequence_event_queue;
+        }
+
+        void ClearSequenceEvents()
+        {
+            sequence_event_queue.clear();
+        }
+
         void QueuePrefabSpawn(const PrefabSpawnRequest& request)
         {
             prefab_spawn_queue.push_back(request);
@@ -352,6 +367,7 @@ namespace won::ecs
         std::unique_ptr<rendering::GPUScene> gpu_scene;
         Vector<Entity> ui_click_queue;
         Vector<std::pair<Entity, String>> animation_event_queue;
+        Vector<std::pair<Entity, String>> sequence_event_queue;
         Vector<PrefabSpawnRequest> prefab_spawn_queue;
     };
 }

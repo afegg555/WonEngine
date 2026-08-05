@@ -47,11 +47,11 @@ namespace won::resource
         return load_succeeded.load();
     }
 
-    bool ShaderLibrary::BuildAllGraphicsPipelines(RHIFormat hdr_rtv_format, RHIFormat ldr_rtv_format, RHIFormat dsv_format, uint32 sample_count)
+    bool ShaderLibrary::BuildAllPipelines(RHIFormat hdr_rtv_format, RHIFormat ldr_rtv_format, RHIFormat dsv_format, uint32 sample_count)
     {
         if (!device)
         {
-            backlog::Post("BuildAllGraphicsPipelines failed: device is null", backlog::LogLevel::Error);
+            backlog::Post("BuildAllPipelines failed: device is null", backlog::LogLevel::Error);
             return false;
         }
 
@@ -327,7 +327,7 @@ namespace won::resource
         pipeline_desc.depth_stencil.depth_compare = RHICompareOp::GreaterEqual;
         pipeline_desc.blend.enable = true;
         pipeline_desc.raster.cull_mode = RHICullMode::None;
-        pipeline_desc.render_target_formats = { ldr_rtv_format };
+        pipeline_desc.render_target_formats = { hdr_rtv_format };
         pipeline_desc.topology = RHIPrimitiveTopology::LineList;
         pipeline_hash = {};
         pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::PrimitivePass);
@@ -352,7 +352,7 @@ namespace won::resource
         pipeline_desc.depth_stencil.depth_compare = RHICompareOp::Always;
         pipeline_desc.blend.enable = true;
         pipeline_desc.raster.cull_mode = RHICullMode::None;
-        pipeline_desc.render_target_formats = { ldr_rtv_format };
+        pipeline_desc.render_target_formats = { hdr_rtv_format };
         pipeline_desc.topology = RHIPrimitiveTopology::TriangleList;
         pipeline_hash = {};
         pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::Sprite2DPass);
@@ -377,7 +377,7 @@ namespace won::resource
         pipeline_desc.depth_stencil.depth_compare = RHICompareOp::GreaterEqual;
         pipeline_desc.blend.enable = true;
         pipeline_desc.raster.cull_mode = RHICullMode::None;
-        pipeline_desc.render_target_formats = { ldr_rtv_format };
+        pipeline_desc.render_target_formats = { hdr_rtv_format };
         pipeline_desc.topology = RHIPrimitiveTopology::TriangleList;
         pipeline_hash = {};
         pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::Sprite3DPass);
@@ -452,6 +452,28 @@ namespace won::resource
         pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
         graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
 
+        pipeline_desc = {};
+        pipeline_desc.vertex_shader = GetShader(ShaderId::VSGrid);
+        pipeline_desc.pixel_shader = GetShader(ShaderId::PSGrid);
+        pipeline_desc.sample_count = sample_count;
+        pipeline_desc.depth_stencil_format = dsv_format;
+        pipeline_desc.depth_stencil.depth_test = true;
+        pipeline_desc.depth_stencil.depth_write = false;
+        pipeline_desc.depth_stencil.depth_compare = RHICompareOp::GreaterEqual;
+        pipeline_desc.blend.enable = true;
+        pipeline_desc.blend.mode = RHIBlendMode::Alpha;
+        pipeline_desc.raster.cull_mode = RHICullMode::None;
+        pipeline_desc.render_target_formats = { hdr_rtv_format };
+        pipeline_desc.topology = RHIPrimitiveTopology::TriangleList;
+        pipeline_hash = {};
+        pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::GridPass);
+        pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
+        pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
+        pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
+        pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
+        pipeline_hash.storage.bits.blend_mode = static_cast<uint64>(MaterialBlendMode::Transparent);
+        graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+
 #ifndef WON_SHIPPING
         pipeline_desc = {};
         pipeline_desc.vertex_shader = GetShader(ShaderId::VSDebugDraw2D);
@@ -483,7 +505,7 @@ namespace won::resource
         pipeline_desc.depth_stencil.depth_compare = RHICompareOp::GreaterEqual;
         pipeline_desc.blend.enable = false;
         pipeline_desc.raster.cull_mode = RHICullMode::None;
-        pipeline_desc.render_target_formats = { ldr_rtv_format };
+        pipeline_desc.render_target_formats = { hdr_rtv_format };
         pipeline_desc.topology = RHIPrimitiveTopology::LineList;
         pipeline_hash = {};
         pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::DebugDraw3DPass);
@@ -493,6 +515,28 @@ namespace won::resource
         pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
         graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
 #endif
+
+        for (Size shader_index = 0; shader_index < shaders.size(); ++shader_index)
+        {
+            rendering::RHIShader* shader = shaders[shader_index].get();
+            if (!shader || shader->GetStage() != RHIShaderStage::Compute)
+            {
+                continue;
+            }
+
+            const ShaderId shader_id = static_cast<ShaderId>(shader_index);
+            rendering::RHIComputePipelineDesc compute_pipeline_desc = {};
+            compute_pipeline_desc.compute_shader = shader;
+            std::shared_ptr<rendering::RHIPipeline> compute_pipeline = device->CreateComputePipeline(compute_pipeline_desc);
+            if (!compute_pipeline)
+            {
+                backlog::Post(String("failed to create compute pipeline: ") + ToString(shader_id), backlog::LogLevel::Error);
+                return false;
+            }
+
+            compute_pipeline->SetName(ToString(shader_id));
+            compute_pipeline_cache[ComputePipelineHash(shader_id).storage.value] = compute_pipeline;
+        }
 
         return true;
     }
@@ -533,32 +577,15 @@ namespace won::resource
         return it->second.get();
     }
 
-    rendering::RHIPipeline* ShaderLibrary::GetPipeline(ComputePipelineHash pipeline_hash)
+    rendering::RHIPipeline* ShaderLibrary::GetPipeline(ComputePipelineHash pipeline_hash) const
     {
         auto it = compute_pipeline_cache.find(pipeline_hash.storage.value);
-        if (it != compute_pipeline_cache.end())
-        {
-            return it->second.get();
-        }
-
-        const ShaderId shader_id = static_cast<ShaderId>(pipeline_hash.storage.bits.compute_shader);
-        rendering::RHIShader* shader = GetShader(shader_id);
-        if (!device || !shader)
+        if (it == compute_pipeline_cache.end())
         {
             return nullptr;
         }
 
-        rendering::RHIComputePipelineDesc pipeline_desc = {};
-        pipeline_desc.compute_shader = shader;
-        std::shared_ptr<rendering::RHIPipeline> pipeline = device->CreateComputePipeline(pipeline_desc);
-        if (!pipeline)
-        {
-            return nullptr;
-        }
-
-        pipeline->SetName(ToString(shader_id));
-        compute_pipeline_cache[pipeline_hash.storage.value] = pipeline;
-        return pipeline.get();
+        return it->second.get();
     }
 
     void ShaderLibrary::ClearPipelines()

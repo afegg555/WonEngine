@@ -238,6 +238,48 @@ namespace won::rendering
 
         jobsystem::Execute(ctx, [&](jobsystem::JobArgs)
         {
+            const auto& renderables = gpu_scene.opaque_renderables;
+            sorted_shadow_caster_indices.clear();
+            for (uint32 i = 0; i < static_cast<uint32>(renderables.size()); ++i)
+            {
+                const auto& r = renderables[i];
+                if ((culling_mask & r.layer_mask) == 0)
+                    continue;
+                if (!r.IsCastShadow())
+                    continue;
+                if (options.enable_frustum_culling && r.aabb.IsValid())
+                {
+                    bool lit_by_any_slice = false;
+                    for (const RenderShadowSlice& shadow_slice : shadow_resources.render_shadow_slices)
+                    {
+                        if (r.aabb.IntersectFrustum(shadow_slice.casting_frustum))
+                        {
+                            lit_by_any_slice = true;
+                            break;
+                        }
+                    }
+                    if (!lit_by_any_slice)
+                        continue;
+                }
+                sorted_shadow_caster_indices.push_back(i);
+            }
+            std::sort(sorted_shadow_caster_indices.begin(), sorted_shadow_caster_indices.end(),
+                [&](uint32 a, uint32 b)
+                {
+                    const auto& ra = renderables[a];
+                    const auto& rb = renderables[b];
+                    if (ra.push_constants.geometry_index != rb.push_constants.geometry_index)
+                        return ra.push_constants.geometry_index < rb.push_constants.geometry_index;
+                    if (ra.push_constants.material_index != rb.push_constants.material_index)
+                        return ra.push_constants.material_index < rb.push_constants.material_index;
+                    if (ra.IsDoubleSided() != rb.IsDoubleSided())
+                        return ra.IsDoubleSided() < rb.IsDoubleSided();
+                    return ra.primitive_topology < rb.primitive_topology;
+                });
+        });
+
+        jobsystem::Execute(ctx, [&](jobsystem::JobArgs)
+        {
             const auto& renderables = gpu_scene.transparent_renderables;
             sorted_transparent_indices.clear();
             for (uint32 i = 0; i < static_cast<uint32>(renderables.size()); ++i)
@@ -321,15 +363,34 @@ namespace won::rendering
         jobsystem::Wait(ctx);
     }
 
-    ecs::Entity View::FindSceneCamera() const
+    ecs::Entity View::ResolveCamera() const
     {
-        if (!scene)
+        if (manual_camera || !scene)
         {
-            return ecs::INVALID_ENTITY;
+            return camera_entity;
         }
+
+        if (auto sequence_array = scene->GetComponentArray<ecs::SequenceComponent>())
+        {
+            for (Size i = 0; i < sequence_array->GetSize(); ++i)
+            {
+                const ecs::Entity cut_camera = sequence_array->data[i].cut_camera;
+                if (cut_camera == ecs::INVALID_ENTITY)
+                {
+                    continue;
+                }
+                const ecs::CameraComponent* camera = scene->GetComponent<ecs::CameraComponent>(cut_camera);
+                if (camera && camera->viewer_index == viewer_index)
+                {
+                    return cut_camera;
+                }
+            }
+        }
+
         for (ecs::Entity entity : scene->GetEntities())
         {
-            if (scene->GetComponent<ecs::CameraComponent>(entity))
+            const ecs::CameraComponent* camera = scene->GetComponent<ecs::CameraComponent>(entity);
+            if (camera && camera->IsActive() && camera->viewer_index == viewer_index)
             {
                 return entity;
             }

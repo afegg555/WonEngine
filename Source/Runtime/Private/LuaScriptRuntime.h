@@ -17,6 +17,7 @@ namespace won::ecs
     struct AnimationStateMachineComponent;
     struct BehaviorTreeComponent;
     struct NavAgentComponent;
+    struct SequenceComponent;
 }
 
 namespace won::script
@@ -148,6 +149,17 @@ namespace won::script
         static int LuaAnimationSMSetDefaultState(lua_State* state);
         static ecs::AnimationComponent* GetSelfAnimation(LuaScriptRuntime* runtime);
         static ecs::AnimationStateMachineComponent* GetSelfStateMachine(LuaScriptRuntime* runtime);
+
+        static int LuaSequenceHas(lua_State* state);
+        static int LuaSequenceAdd(lua_State* state);
+        static int LuaSequenceAddTrack(lua_State* state);
+        static int LuaSequencePlay(lua_State* state);
+        static int LuaSequenceStop(lua_State* state);
+        static int LuaSequenceSetTime(lua_State* state);
+        static int LuaSequenceSetLoop(lua_State* state);
+        static int LuaSequenceSetDuration(lua_State* state);
+        static int LuaSequenceIsPlaying(lua_State* state);
+        static ecs::SequenceComponent* GetSequence(LuaScriptRuntime* runtime, lua_State* state, int entity_arg);
 
         static int LuaColliderHas(lua_State* state);
         static int LuaColliderAdd(lua_State* state);

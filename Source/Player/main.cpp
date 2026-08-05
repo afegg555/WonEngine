@@ -115,7 +115,6 @@ int main(int argc, char** argv)
 
         won::rendering::View game_view = {};
         game_view.scene = &game_scene;
-        game_view.camera_entity = game_view.FindSceneCamera();
         game_view.viewport.width = app_desc.project_settings.window_width;
         game_view.viewport.height = app_desc.project_settings.window_height;
         game_view.scissor.width = app_desc.project_settings.window_width;

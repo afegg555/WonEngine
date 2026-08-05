@@ -139,7 +139,43 @@ namespace won::ecs
                 script_runtime->Call(script_slot.instance, call_desc, call_error);
             }
         }
+        for (const std::pair<Entity, String>& sequence_event : scene.GetSequenceEvents())
+        {
+            ScriptComponent* script_component = scene.GetComponent<ScriptComponent>(sequence_event.first);
+            if (!script_component || !script_component->enabled)
+            {
+                continue;
+            }
+
+            script::ScriptCallContext context = {};
+            context.scene = &scene;
+            context.entity = sequence_event.first;
+
+            for (const ScriptSlot& script_slot : script_component->scripts)
+            {
+                if (!script_slot.enabled || script_slot.script_path.empty())
+                {
+                    continue;
+                }
+                if (!script_slot.initialized || !script_slot.instance.IsValid())
+                {
+                    continue;
+                }
+
+                won::function::Value inputs[1] = {};
+                inputs[0].type = won::ValueType::String;
+                inputs[0].string_value = sequence_event.second.c_str();
+                won::function::Call call = { inputs, 1, nullptr, 0, nullptr };
+                script::ScriptCallDesc call_desc = {};
+                call_desc.context = context;
+                call_desc.type = script::ScriptCallType::OnSequenceEvent;
+                call_desc.call = &call;
+                String call_error;
+                script_runtime->Call(script_slot.instance, call_desc, call_error);
+            }
+        }
         scene.ClearAnimationEvents();
+        scene.ClearSequenceEvents();
         scene.ClearUIClickEvents();
 
         if (auto tree_array = scene.GetComponentArray<BehaviorTreeComponent>())

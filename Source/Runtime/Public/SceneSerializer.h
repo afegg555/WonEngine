@@ -14,7 +14,7 @@ namespace won::serialize
 {
     // v3: MaterialComponent serializes material_asset_path (shared ref / inline fork) instead of
     //     inline material_slots, and scenes carry a "materials" resource array.
-    inline constexpr uint32 scene_format_version = 3;
+    inline constexpr uint32 scene_format_version = 4;
 
     struct SaveSceneDesc
     {

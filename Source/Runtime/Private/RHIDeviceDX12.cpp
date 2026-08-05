@@ -841,10 +841,10 @@ namespace won::rendering
         else if (HasBindFlag(desc.bind_flags, RHIBindFlags::RenderTarget))
         {
             optimized_clear_value.Format = ToDXGIResourceFormat(desc.format);
-            optimized_clear_value.Color[0] = OPTIMIZED_FAST_CLEAR_COLOR[0];
-            optimized_clear_value.Color[1] = OPTIMIZED_FAST_CLEAR_COLOR[1];
-            optimized_clear_value.Color[2] = OPTIMIZED_FAST_CLEAR_COLOR[2];
-            optimized_clear_value.Color[3] = OPTIMIZED_FAST_CLEAR_COLOR[3];
+            optimized_clear_value.Color[0] = desc.clear_color[0];
+            optimized_clear_value.Color[1] = desc.clear_color[1];
+            optimized_clear_value.Color[2] = desc.clear_color[2];
+            optimized_clear_value.Color[3] = desc.clear_color[3];
             optimized_clear_value_ptr = &optimized_clear_value;
         }
 
