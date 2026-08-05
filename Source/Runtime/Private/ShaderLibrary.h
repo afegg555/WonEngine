@@ -124,12 +124,12 @@ namespace won::resource
     public:
         explicit ShaderLibrary(rendering::RHIDevice* device = nullptr, const ShaderCompilerOptions& options = {});
         bool LoadManifest(const ShaderManifest& manifest);
-        bool BuildAllGraphicsPipelines(rendering::RHIFormat hdr_rtv_format, rendering::RHIFormat ldr_rtv_format, rendering::RHIFormat dsv_format, uint32 sample_count);
+        bool BuildAllPipelines(rendering::RHIFormat hdr_rtv_format, rendering::RHIFormat ldr_rtv_format, rendering::RHIFormat dsv_format, uint32 sample_count);
         void SetShader(ShaderId shader_id, const std::shared_ptr<rendering::RHIShader>& shader);
 
         rendering::RHIShader* GetShader(ShaderId shader_id) const;
         rendering::RHIPipeline* GetPipeline(GraphicsPipelineHash pipeline_hash) const;
-        rendering::RHIPipeline* GetPipeline(ComputePipelineHash pipeline_hash);
+        rendering::RHIPipeline* GetPipeline(ComputePipelineHash pipeline_hash) const;
         void ClearPipelines();
         void ClearShaders();
         void ClearAll();

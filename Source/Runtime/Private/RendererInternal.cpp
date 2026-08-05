@@ -1481,7 +1481,7 @@ namespace won::rendering
             return false;
         }
 
-        return shader_library.BuildAllGraphicsPipelines(HDR_COLOR_BUFFER_FORMAT, RENDERTARGET_BUFFER_FORMAT, DEPTH_BUFFER_FORMAT, 1u);
+        return shader_library.BuildAllPipelines(HDR_COLOR_BUFFER_FORMAT, RENDERTARGET_BUFFER_FORMAT, DEPTH_BUFFER_FORMAT, 1u);
     }
 
     RHIShader* RendererInternal::GetShader(resource::ShaderId shader_id) const
