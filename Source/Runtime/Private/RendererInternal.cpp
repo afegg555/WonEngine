@@ -89,13 +89,13 @@ namespace won::rendering
         }
 
         const uint32 back_buffer_index = swapchain->GetCurrentBackBufferIndex();
-        std::shared_ptr<RHIResource> back_buffer = swapchain->GetCurrentBackBuffer();
+        RHIResource* back_buffer = swapchain->GetCurrentBackBuffer();
         if (!back_buffer || back_buffer_index >= back_buffers_rtv.size() || !back_buffers_rtv[back_buffer_index].IsValid())
         {
             return false;
         }
 
-        out_binding.resource = back_buffer.get();
+        out_binding.resource = back_buffer;
         out_binding.subresource = back_buffers_rtv[back_buffer_index];
         return true;
     }
@@ -128,13 +128,6 @@ namespace won::rendering
             current_window->SetRHISwapchain(std::move(created_swapchain));
         }
 
-        std::shared_ptr<RHIResource> back_buffer = swapchain->GetCurrentBackBuffer();
-        if (!back_buffer)
-        {
-            backlog::Post("failed to get swapchain back buffer", backlog::LogLevel::Error);
-            return false;
-        }
-
         for (uint32 i = 0; i < swapchain->GetBackBufferCount() && i < static_cast<uint32>(back_buffers_rtv.size()); ++i)
         {
             if (back_buffers_rtv[i].IsValid())
@@ -142,7 +135,7 @@ namespace won::rendering
                 continue;
             }
 
-            std::shared_ptr<RHIResource> swapchain_back_buffer = swapchain->GetBackBuffer(i);
+            RHIResource* swapchain_back_buffer = swapchain->GetBackBuffer(i);
             if (!swapchain_back_buffer)
             {
                 backlog::Post("failed to get swapchain back buffer for RTV creation", backlog::LogLevel::Error);

@@ -76,21 +76,21 @@ namespace won::rendering
         return max_frames_in_flight;
     }
 
-    std::shared_ptr<RHIResource> RHISwapchainDX12::GetCurrentBackBuffer()
+    RHIResource* RHISwapchainDX12::GetCurrentBackBuffer()
     {
         const uint32 index = GetCurrentBackBufferIndex();
 
         return GetBackBuffer(index);
     }
 
-    std::shared_ptr<RHIResource> RHISwapchainDX12::GetBackBuffer(uint32 index)
+    RHIResource* RHISwapchainDX12::GetBackBuffer(uint32 index)
     {
         if (index >= back_buffers.size())
         {
             return nullptr;
         }
 
-        return back_buffers[index];
+        return back_buffers[index].get();
     }
 
     bool RHISwapchainDX12::Resize(uint32 width, uint32 height)
@@ -167,9 +167,9 @@ namespace won::rendering
             desc.texture_desc.format = RHIFormat::R8G8B8A8Unorm;
             desc.texture_desc.bind_flags = RHIBindFlags::RenderTarget;
 
-            auto resource = std::make_shared<RHIResourceDX12>(desc, std::move(back_buffer), nullptr, descriptor_allocator);
+            auto resource = std::make_unique<RHIResourceDX12>(desc, std::move(back_buffer), nullptr, descriptor_allocator);
             resource->SetCurrentState(D3D12_RESOURCE_STATE_PRESENT);
-            back_buffers[i] = resource;
+            back_buffers[i] = std::move(resource);
         }
 
         return true;
