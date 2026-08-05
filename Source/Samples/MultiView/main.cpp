@@ -1,4 +1,4 @@
-// Native sample: one scene, two views. Each view resolves its own camera through CameraComponent::viewer_index,
+// Native sample: one scene, four views. Each view resolves its own camera through CameraComponent::viewer_index,
 // and a per-view sequence drives its cinematic camera independently.
 
 #include "Application.h"
@@ -18,6 +18,7 @@ namespace
         view.scene = &scene;
         view.options.resize_policy = won::rendering::ViewResizePolicy::Manual;
         view.options.update_camera_aspect = false;
+        view.options.aa_mode = won::rendering::AntiAliasingMode::FXAA;
         view.viewport = viewport;
         view.scissor = viewport;
         view.ui_layer_mask = ui_layer_mask;
@@ -58,14 +59,22 @@ int main(int argc, char** argv)
         }
 
         const won::int32 window_width = (std::max)(2, app_desc.project_settings.window_width);
-        const won::int32 window_height = (std::max)(1, app_desc.project_settings.window_height);
+        const won::int32 window_height = (std::max)(2, app_desc.project_settings.window_height);
         const won::int32 split_width = window_width / 2;
+        const won::int32 split_height = window_height / 2;
         const won::int32 gutter = 2;
 
-        AddSplitView(app, scene, { 0, 0, split_width - gutter, window_height }, 1);
-        AddSplitView(app, scene, { split_width + gutter, 0, window_width - split_width - gutter, window_height }, 2);
+        const won::int32 right_x = split_width + gutter;
+        const won::int32 right_width = window_width - right_x;
+        const won::int32 bottom_y = split_height + gutter;
+        const won::int32 bottom_height = window_height - bottom_y;
 
-        const float split_aspect = static_cast<float>(split_width) / static_cast<float>(window_height);
+        AddSplitView(app, scene, { 0, 0, split_width - gutter, split_height - gutter }, 1);
+        AddSplitView(app, scene, { right_x, 0, right_width, split_height - gutter }, 2);
+        AddSplitView(app, scene, { 0, bottom_y, split_width - gutter, bottom_height }, 4);
+        AddSplitView(app, scene, { right_x, bottom_y, right_width, bottom_height }, 8);
+
+        const float split_aspect = static_cast<float>(split_width) / static_cast<float>(split_height);
         if (auto camera_array = scene.GetComponentArray<won::ecs::CameraComponent>())
         {
             for (won::Size i = 0; i < camera_array->GetSize(); ++i)
