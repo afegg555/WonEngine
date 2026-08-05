@@ -204,6 +204,7 @@ namespace won::rendering
         RHIResourceUsage usage = RHIResourceUsage::Default;
         RHIBindFlags bind_flags = RHIBindFlags::None;
         RHIMiscFlags misc_flags = RHIMiscFlags::None;
+        float clear_color[4] = { OPTIMIZED_FAST_CLEAR_COLOR[0], OPTIMIZED_FAST_CLEAR_COLOR[1], OPTIMIZED_FAST_CLEAR_COLOR[2], OPTIMIZED_FAST_CLEAR_COLOR[3] };
     };
 
     struct RHIResourceDesc

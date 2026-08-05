@@ -348,6 +348,10 @@ namespace won::rendering
             color_desc.format = HDR_COLOR_BUFFER_FORMAT;
             color_desc.usage = RHIResourceUsage::Default;
             color_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess | RHIBindFlags::RenderTarget;
+            color_desc.clear_color[0] = clear_color.r;
+            color_desc.clear_color[1] = clear_color.g;
+            color_desc.clear_color[2] = clear_color.b;
+            color_desc.clear_color[3] = clear_color.a;
             targets.color[i] = device->CreateTexture(color_desc);
             if (!targets.color[i])
             {
@@ -393,6 +397,12 @@ namespace won::rendering
                 backlog::Post("failed to create view color RTV", backlog::LogLevel::Error);
                 return false;
             }
+
+            RHISubresourceBinding color_binding = {};
+            color_binding.resource = targets.color[i].get();
+            color_binding.subresource = targets.color_rtv[i];
+            command_list.TransitionResource(*targets.color[i], RHIResourceState::RenderTarget);
+            command_list.ClearRenderTarget(color_binding, clear_color);
         }
         }
 
