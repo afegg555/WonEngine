@@ -21,7 +21,7 @@ namespace won::editor
         bool viewport_show_bvh_debug = false;
         bool viewport_show_ddgi_overlay = false;
         float camera_speed = 5.0f;
-        bool editor_camera_auto_exposure = false;
+        bool editor_camera_auto_exposure = true;
         float editor_camera_fixed_ev100 = 10.965784f;
         float editor_camera_exposure_compensation = 0.0f;
         float editor_camera_auto_exposure_min_ev = -6.0f;
