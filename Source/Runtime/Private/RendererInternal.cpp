@@ -396,11 +396,6 @@ namespace won::rendering
         }
         }
 
-        {
-            auto cpu_range = profiler::ScopedRangeCPU("Build Sorted Indices");
-            view.BuildSortedIndices();
-        }
-
         view.shadow_resources.shader_shadow_cascades.clear();
         view.shadow_resources.render_shadow_slices.clear();
         view.shadow_resources.shadow_map_atlas_size = { 0, 0 };
@@ -591,6 +586,7 @@ namespace won::rendering
                     View::RenderShadowSlice render_shadow_slice = {};
                     render_shadow_slice.light_index = light_index;
                     render_shadow_slice.view_projection = shader_shadow_cascade.shadow_view_projection;
+                    render_shadow_slice.casting_frustum.FromVPMatrix(render_shadow_slice.view_projection);
                     view.shadow_resources.render_shadow_slices.push_back(render_shadow_slice);
 
                     rectpacker::Rect rect = {};
@@ -633,6 +629,12 @@ namespace won::rendering
                     render_shadow_slice.shadow_map_atlas_rect = { rect.x, rect.y, rect.w, rect.h };
                 }
             }
+        }
+
+        // after the shadow slices exist: the caster list is culled against them
+        {
+            auto cpu_range = profiler::ScopedRangeCPU("Build Sorted Indices");
+            view.BuildSortedIndices();
         }
 
 
@@ -795,7 +797,8 @@ namespace won::rendering
             const auto& transparent = gpu_scene.transparent_renderables;
             const uint32 opaque_count = static_cast<uint32>(view.sorted_opaque_indices.size());
             const uint32 transparent_count = static_cast<uint32>(view.sorted_transparent_indices.size());
-            const Size required_sort_buffer_size = (opaque_count + transparent_count) * sizeof(uint32);
+            const uint32 shadow_caster_count = static_cast<uint32>(view.sorted_shadow_caster_indices.size());
+            const Size required_sort_buffer_size = (opaque_count + transparent_count + shadow_caster_count) * sizeof(uint32);
 
             if (required_sort_buffer_size == 0)
             {
@@ -865,6 +868,8 @@ namespace won::rendering
                     mapped[i] = opaque[view.sorted_opaque_indices[i]].push_constants.draw_offset;
                 for (uint32 i = 0; i < transparent_count; ++i)
                     mapped[opaque_count + i] = transparent[view.sorted_transparent_indices[i]].push_constants.draw_offset;
+                for (uint32 i = 0; i < shadow_caster_count; ++i)
+                    mapped[opaque_count + transparent_count + i] = opaque[view.sorted_shadow_caster_indices[i]].push_constants.draw_offset;
 
                 command_list.TransitionResource(*view.instance_resources.sort_buffer, RHIResourceState::CopyDest);
                 command_list.CopyBuffer(*view.instance_resources.sort_buffer, 0, *sort_upload_buffer, 0, required_sort_buffer_size);
@@ -990,13 +995,13 @@ namespace won::rendering
         shader_view_binding.resource = view.view_constants.buffer.get();
         shader_view_binding.subresource = view.view_constants.cbv;
 
-        auto flush_batch = [&](const Vector<Renderable>& renderables, const Vector<uint32>& sort_indices, uint32 start, uint32 size)
+        auto flush_batch = [&](const Vector<Renderable>& renderables, const Vector<uint32>& sort_indices, uint32 sort_buffer_base, uint32 start, uint32 size)
         {
             if (size == 0)
                 return;
             const auto& first = renderables[sort_indices[start]];
             ObjectPushConstants push = first.push_constants;
-            push.draw_offset = start; // starting offset of sort_indices
+            push.draw_offset = sort_buffer_base + start; // starting offset of sort_indices
             command_list.SetIndexBuffer(*first.index_buffer, sizeof(uint32), first.index_offset, first.index_count * sizeof(uint32));
             command_list.SetPrimitiveTopology(ToRHIPrimitiveTopology(first.primitive_topology));
             command_list.PushConstants(RHIShaderStage::Vertex, &push, sizeof(ObjectPushConstants), 0);
@@ -1005,6 +1010,13 @@ namespace won::rendering
 
         if ((flags & DrawScene_Opaque) != 0 && !gpu_scene.opaque_renderables.empty())
         {
+            // The shadow pass draws casters visible to the light, not to the camera, so it walks its own list.
+            const bool shadow_pass = pass == RenderPassType::ShadowPass;
+            const Vector<uint32>& opaque_sort_indices = shadow_pass ? view.sorted_shadow_caster_indices : view.sorted_opaque_indices;
+            const uint32 opaque_sort_buffer_base = shadow_pass
+                ? static_cast<uint32>(view.sorted_opaque_indices.size() + view.sorted_transparent_indices.size())
+                : 0u;
+
             uint32 batch_geometry_index = 0;
             uint32 batch_material_index = 0;
             uint32 batch_start = 0;
@@ -1012,21 +1024,14 @@ namespace won::rendering
             GraphicsPipelineHash current_hash = {};
             bool has_pipeline = false;
 
-            for (uint32 i = 0; i < static_cast<uint32>(view.sorted_opaque_indices.size()); ++i)
+            for (uint32 i = 0; i < static_cast<uint32>(opaque_sort_indices.size()); ++i)
             {
-                const Renderable& renderable = gpu_scene.opaque_renderables[view.sorted_opaque_indices[i]];
-
-                if (pass == RenderPassType::ShadowPass && !renderable.IsCastShadow())
-                {
-                    flush_batch(gpu_scene.opaque_renderables, view.sorted_opaque_indices, batch_start, batch_size);
-                    batch_size = 0;
-                    continue;
-                }
+                const Renderable& renderable = gpu_scene.opaque_renderables[opaque_sort_indices[i]];
 
                 // The prepass has no alpha test, so masked materials write their own depth in the main pass.
                 if (pass == RenderPassType::DepthPrepass && renderable.blend_mode == resource::MaterialBlendMode::Masked)
                 {
-                    flush_batch(gpu_scene.opaque_renderables, view.sorted_opaque_indices, batch_start, batch_size);
+                    flush_batch(gpu_scene.opaque_renderables, opaque_sort_indices, opaque_sort_buffer_base, batch_start, batch_size);
                     batch_size = 0;
                     continue;
                 }
@@ -1037,7 +1042,7 @@ namespace won::rendering
 
                 if (!can_extend)
                 {
-                    flush_batch(gpu_scene.opaque_renderables, view.sorted_opaque_indices, batch_start, batch_size);
+                    flush_batch(gpu_scene.opaque_renderables, opaque_sort_indices, opaque_sort_buffer_base, batch_start, batch_size);
                     batch_size = 0;
 
                     GraphicsPipelineHash renderable_hash = pipeline_hash;
@@ -1085,7 +1090,7 @@ namespace won::rendering
                     ++batch_size;
                 }
             }
-            flush_batch(gpu_scene.opaque_renderables, view.sorted_opaque_indices, batch_start, batch_size);
+            flush_batch(gpu_scene.opaque_renderables, opaque_sort_indices, opaque_sort_buffer_base, batch_start, batch_size);
         }
 
         if ((flags & DrawScene_Transparent) != 0 && !gpu_scene.transparent_renderables.empty())

@@ -58,6 +58,7 @@ namespace won::rendering
         {
             uint32 light_index = 0;
             float4x4 view_projection = math::IDENTITY_MATRIX;
+            math::Frustum casting_frustum = {};
             int4 shadow_map_atlas_rect = { -1, -1, 0, 0 };
 
             bool HasShadowMapAtlasRect() const { return shadow_map_atlas_rect.z > 0 && shadow_map_atlas_rect.w > 0; }
@@ -145,6 +146,7 @@ namespace won::rendering
         Rect scissor = {};
         uint32 ui_layer_mask = 0xFFFFFFFF;
 
+        Vector<uint32> sorted_shadow_caster_indices; // batch-key order, culled against the shadow slices
         Vector<uint32> sorted_opaque_indices;       // batch-key order
         Vector<uint32> sorted_transparent_indices;  // back-to-front
         Vector<uint32> sorted_sprite_3d_indices;    // back-to-front
