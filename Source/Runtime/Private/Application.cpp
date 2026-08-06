@@ -326,7 +326,7 @@ namespace won
 
         profiler::BeginFrame();
         Update(dt);
-        Render();
+        Render(dt);
         profiler::EndFrame();
     }
     
@@ -432,7 +432,7 @@ namespace won
         profiler::EndRange(range);
     }
 
-    void Application::Render()
+    void Application::Render(float dt)
     {
         if (!renderer || !window)
         {
@@ -445,7 +445,7 @@ namespace won
         }
 
         //auto range = profiler::BeginRangeCPU("Render");
-        renderer->BeginFrame(*window);
+        renderer->BeginFrame(*window, dt);
         RenderScene();
         RenderUI();
         renderer->EndFrame();

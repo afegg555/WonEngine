@@ -33,7 +33,7 @@ namespace won::rendering
         virtual ~Renderer() = default;
 
         virtual void Initialize(const RendererDesc& desc) = 0;
-        virtual void BeginFrame(platform::Window& window) = 0;
+        virtual void BeginFrame(platform::Window& window, float delta_time) = 0;
         virtual void OnResize(platform::Window& window, uint32 width, uint32 height) = 0;
         virtual void Render(View& view) = 0;
 #ifndef WON_SHIPPING

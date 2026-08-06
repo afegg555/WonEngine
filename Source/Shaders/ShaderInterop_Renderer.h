@@ -569,6 +569,11 @@ struct alignas(16) ShaderFrame
     ShaderDDGIVolume ddgi_volume;
     ShaderReflectionProbe reflection_probe;
 
+    float time;
+    float _frame_padding0;
+    float _frame_padding1;
+    float _frame_padding2;
+
 #ifdef __cplusplus
     inline void Init()
     {
@@ -576,6 +581,7 @@ struct alignas(16) ShaderFrame
         environment.Init();
         ddgi_volume.Init();
         reflection_probe.Init();
+        time = 0.0f;
     }
 #endif
 };
@@ -947,7 +953,7 @@ static_assert(sizeof(ShaderScene) == 64, "ShaderScene layout mismatch");
 static_assert(sizeof(ShaderEnvironment) == 192, "ShaderEnvironment layout mismatch");
 static_assert(sizeof(ShaderDDGIVolume) == 112, "ShaderDDGIVolume layout mismatch");
 static_assert(sizeof(ShaderReflectionProbe) == 32, "ShaderReflectionProbe layout mismatch");
-static_assert(sizeof(ShaderFrame) == 400, "ShaderFrame layout mismatch");
+static_assert(sizeof(ShaderFrame) == 448, "ShaderFrame layout mismatch");
 static_assert(sizeof(ShaderCamera) == 336, "ShaderCamera layout mismatch");
 static_assert(sizeof(ShaderView) == 400, "ShaderView layout mismatch");
 static_assert(sizeof(ShaderLight) == 64, "ShaderLight layout mismatch");

@@ -11,7 +11,7 @@ namespace won::rendering
     {
     public:
         void Initialize(const RendererDesc& desc) override;
-        void BeginFrame(platform::Window& window) override;
+        void BeginFrame(platform::Window& window, float delta_time) override;
         void OnResize(platform::Window& window, uint32 width, uint32 height) override;
         void Render(View& view) override;
 #ifndef WON_SHIPPING
@@ -93,6 +93,7 @@ namespace won::rendering
         bool vsync_enabled = true;
         bool vsync_requested = true;
         float shadow_resolution_scale = 1.0f;
+        double frame_time_seconds = 0.0;
 
         std::array<RHISubresourceHandle, max_frames_in_flight> back_buffers_rtv = {};
 

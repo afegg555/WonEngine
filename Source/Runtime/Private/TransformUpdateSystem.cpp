@@ -139,7 +139,7 @@ namespace won::ecs
                     {
                         const LayoutComponent& layout = layout_array->GetData(entity);
                         const Vector<Entity>& children = layout_it->second;
-                        const bool horizontal = layout.type == static_cast<uint32>(LayoutComponent::Type::Horizontal);
+                        const bool horizontal = layout.type == LayoutComponent::Type::Horizontal;
                         const float2 inner_min = { rect.resolved_position.x + layout.padding_min.x, rect.resolved_position.y + layout.padding_min.y };
                         float2 inner_size = { rect.resolved_size.x - layout.padding_min.x - layout.padding_max.x, rect.resolved_size.y - layout.padding_min.y - layout.padding_max.y };
                         if (inner_size.x < 0.0f) { inner_size.x = 0.0f; }
@@ -160,7 +160,7 @@ namespace won::ecs
                             const float own_cross = horizontal ? child.size.y : child.size.x;
                             float child_cross = own_cross;
                             float cross_off = 0.0f;
-                            switch (static_cast<LayoutComponent::CrossAlign>(layout.cross_align))
+                            switch (layout.cross_align)
                             {
                             case LayoutComponent::CrossAlign::Stretch: child_cross = inner_cross; break;
                             case LayoutComponent::CrossAlign::Center:  cross_off = (inner_cross - own_cross) * 0.5f; break;

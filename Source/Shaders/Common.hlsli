@@ -278,6 +278,11 @@ inline ShaderScene GetScene()
     return g_frame.scene;
 }
 
+inline float GetTime()
+{
+    return g_frame.time;
+}
+
 inline ShaderEnvironment GetEnvironment()
 {
     return g_frame.environment;
