@@ -1,6 +1,7 @@
 #pragma once
 #include "TypeMeta.h"
 #include "SceneComponents.h"
+#include "ViewOptionEnums.h"
 
 namespace won::reflection
 {
@@ -85,22 +86,48 @@ namespace won::reflection
         WON_REFLECT_ENUM_VALUE("Ambient", won::ecs::EnvironmentComponent::DiffuseGIMode::Ambient)
         WON_REFLECT_ENUM_VALUE("DDGI", won::ecs::EnvironmentComponent::DiffuseGIMode::DDGI)
         WON_REFLECT_ENUM_VALUE("Cubemap", won::ecs::EnvironmentComponent::DiffuseGIMode::Cubemap)
+        WON_REFLECT_ENUM_VALUE("Sky", won::ecs::EnvironmentComponent::DiffuseGIMode::Sky)
     WON_REFLECT_ENUM_END()
 
     WON_REFLECT_ENUM(won::ecs::EnvironmentComponent::ReflectionMode, "ReflectionMode")
         WON_REFLECT_ENUM_VALUE("None", won::ecs::EnvironmentComponent::ReflectionMode::None)
         WON_REFLECT_ENUM_VALUE("Cubemap", won::ecs::EnvironmentComponent::ReflectionMode::Cubemap)
+        WON_REFLECT_ENUM_VALUE("Sky", won::ecs::EnvironmentComponent::ReflectionMode::Sky)
     WON_REFLECT_ENUM_END()
 
     WON_REFLECT_ENUM(won::ecs::EnvironmentComponent::SkyType, "SkyType")
         WON_REFLECT_ENUM_VALUE("None", won::ecs::EnvironmentComponent::SkyType::None)
         WON_REFLECT_ENUM_VALUE("Procedural", won::ecs::EnvironmentComponent::SkyType::Procedural)
         WON_REFLECT_ENUM_VALUE("Cubemap", won::ecs::EnvironmentComponent::SkyType::Cubemap)
+        WON_REFLECT_ENUM_VALUE("PhysicallyBased", won::ecs::EnvironmentComponent::SkyType::PhysicallyBased)
     WON_REFLECT_ENUM_END()
 
     WON_REFLECT_ENUM(won::ecs::Collider3DComponent::ShapeType, "Collider3DShapeType")
         WON_REFLECT_ENUM_VALUE("Box", won::ecs::Collider3DComponent::ShapeType::Box)
         WON_REFLECT_ENUM_VALUE("Sphere", won::ecs::Collider3DComponent::ShapeType::Sphere)
+        WON_REFLECT_ENUM_VALUE("HeightField", won::ecs::Collider3DComponent::ShapeType::HeightField)
+    WON_REFLECT_ENUM_END()
+
+    WON_REFLECT_ENUM(won::ecs::LayoutComponent::Type, "LayoutType")
+        WON_REFLECT_ENUM_VALUE("Horizontal", won::ecs::LayoutComponent::Type::Horizontal)
+        WON_REFLECT_ENUM_VALUE("Vertical", won::ecs::LayoutComponent::Type::Vertical)
+    WON_REFLECT_ENUM_END()
+
+    WON_REFLECT_ENUM(won::ecs::LayoutComponent::CrossAlign, "LayoutCrossAlign")
+        WON_REFLECT_ENUM_VALUE("Start", won::ecs::LayoutComponent::CrossAlign::Start)
+        WON_REFLECT_ENUM_VALUE("Center", won::ecs::LayoutComponent::CrossAlign::Center)
+        WON_REFLECT_ENUM_VALUE("End", won::ecs::LayoutComponent::CrossAlign::End)
+        WON_REFLECT_ENUM_VALUE("Stretch", won::ecs::LayoutComponent::CrossAlign::Stretch)
+    WON_REFLECT_ENUM_END()
+
+    WON_REFLECT_ENUM(won::rendering::AntiAliasingMode, "AntiAliasingMode")
+        WON_REFLECT_ENUM_VALUE("None", won::rendering::AntiAliasingMode::None)
+        WON_REFLECT_ENUM_VALUE("FXAA", won::rendering::AntiAliasingMode::FXAA)
+    WON_REFLECT_ENUM_END()
+
+    WON_REFLECT_ENUM(won::rendering::TonemapMode, "TonemapMode")
+        WON_REFLECT_ENUM_VALUE("Reinhard", won::rendering::TonemapMode::Reinhard)
+        WON_REFLECT_ENUM_VALUE("ACES", won::rendering::TonemapMode::ACES)
     WON_REFLECT_ENUM_END()
 
     WON_REFLECT_ENUM(won::ecs::UIScaleMode, "UIScaleMode")
