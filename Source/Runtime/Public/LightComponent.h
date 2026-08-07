@@ -46,6 +46,7 @@ namespace won::ecs
 		uint32 shadow_cascade_count = 4;
 		float shadow_cascade_lambda = 0.95f; // 0: uniform split, 1: logarithmic split(more precision for near area)
 		float shadow_cascade_blend = 0.1f;
+		float shadow_distance = 0.0f; // 0: use the camera far plane
 
 		// these value will be updated on LightUpdateSystem
 		// you can use TransformComponent for manipulation !!

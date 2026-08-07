@@ -66,9 +66,10 @@ namespace won::rendering
 
         struct ShadowResources
         {
-            Vector<ShaderShadowCascade> shader_shadow_cascades;
-            Vector<RenderShadowSlice> render_shadow_slices;
-            Vector<uint32> light_shadow_slices;
+			Vector<ShaderShadowCascade> shader_shadow_cascades; // for gpu
+            Vector<RenderShadowSlice> render_shadow_slices; // for cpu, SetViewport, SetScissor, etc.
+			Vector<uint32> light_shadow_slices; // cascade offset(16bit) and cascade count(16bit) per light
+            Vector<uint2> caster_slice_ranges; // per slice {offset, count} into sorted_shadow_caster_indices
             uint2 shadow_map_atlas_size = { 0, 0 };
 
             std::unique_ptr<RHIResource> atlas;
@@ -146,7 +147,7 @@ namespace won::rendering
         Rect scissor = {};
         uint32 ui_layer_mask = 0xFFFFFFFF;
 
-        Vector<uint32> sorted_shadow_caster_indices; // batch-key order, culled against the shadow slices
+        Vector<uint32> sorted_shadow_caster_indices; // per shadow slice, concatenated in slice order; each range is in batch-key order
         Vector<uint32> sorted_opaque_indices;       // batch-key order
         Vector<uint32> sorted_transparent_indices;  // back-to-front
         Vector<uint32> sorted_sprite_3d_indices;    // back-to-front

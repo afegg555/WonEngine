@@ -472,16 +472,22 @@ namespace won::rendering
                 const uint32 cascade_offset = static_cast<uint32>(view.shadow_resources.shader_shadow_cascades.size());
                 view.shadow_resources.light_shadow_slices[slice_index] = (cascade_offset & 0xFFFFu) | ((cascade_count & 0xFFFFu) << 16u);
 
+                float shadow_far = camera->far_plane;
+                if (light.shadow_distance > 0.0f)
+                {
+                    shadow_far = math::Clamp(light.shadow_distance, camera->near_plane, camera->far_plane);
+                }
+
                 float split_distances[SHADOW_CASCADE_COUNT_MAX + 1] = {};
                 split_distances[0] = camera->near_plane;
                 for (uint32 cascade_index = 1; cascade_index <= cascade_count; ++cascade_index)
                 {
                     const float t = static_cast<float>(cascade_index) / static_cast<float>(cascade_count);
-                    const float uniform_split = math::Lerp(camera->near_plane, camera->far_plane, t);
-                    const float log_split = camera->near_plane * std::pow(camera->far_plane / camera->near_plane, t);
+                    const float uniform_split = math::Lerp(camera->near_plane, shadow_far, t);
+                    const float log_split = camera->near_plane * std::pow(shadow_far / camera->near_plane, t);
                     split_distances[cascade_index] = math::Lerp(uniform_split, log_split, light.shadow_cascade_lambda);
                 }
-                split_distances[cascade_count] = camera->far_plane;
+				split_distances[cascade_count] = shadow_far; // to avoid floating point precision issue
 
                 XMVECTOR light_direction = XMVector3Normalize(XMLoadFloat3(&light.direction));
                 XMVECTOR light_up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
@@ -531,16 +537,32 @@ namespace won::rendering
                     const XMVECTOR shadow_eye = xcenter - light_direction * camera->far_plane;
                     const XMMATRIX shadow_view = XMMatrixLookToLH(shadow_eye, light_direction, light_up);
 
-                    math::AABB frustum_light_bound = {};
-                    frustum_light_bound.Invalidate();
-                    for (const float3& corner : frustum_corners)
+                    // a sphere bound keeps its radius as the camera rotates, so the texel size below stays constant
+                    std::array<float3, 8> corners_light_space = {};
+                    float3 cascade_center_ls = {};
+                    for (uint32 corner_index = 0; corner_index < 8; ++corner_index)
                     {
-                        float3 transformed_corner = {};
-                        XMStoreFloat3(&transformed_corner, XMVector3TransformCoord(XMLoadFloat3(&corner), shadow_view));
+                        XMStoreFloat3(&corners_light_space[corner_index], XMVector3TransformCoord(XMLoadFloat3(&frustum_corners[corner_index]), shadow_view));
 
-                        frustum_light_bound.min = math::Min(frustum_light_bound.min, transformed_corner);
-                        frustum_light_bound.max = math::Max(frustum_light_bound.max, transformed_corner);
+                        cascade_center_ls.x += corners_light_space[corner_index].x;
+                        cascade_center_ls.y += corners_light_space[corner_index].y;
+                        cascade_center_ls.z += corners_light_space[corner_index].z;
                     }
+                    cascade_center_ls.x /= 8.0f;
+                    cascade_center_ls.y /= 8.0f;
+                    cascade_center_ls.z /= 8.0f;
+
+                    float cascade_radius_squared = 0.0f;
+                    for (const float3& corner_light_space : corners_light_space)
+                    {
+                        const float3 center_to_corner = {
+                            corner_light_space.x - cascade_center_ls.x,
+                            corner_light_space.y - cascade_center_ls.y,
+                            corner_light_space.z - cascade_center_ls.z
+                        };
+                        cascade_radius_squared = (std::max)(cascade_radius_squared, math::LengthSquared(center_to_corner));
+                    }
+                    const float cascade_radius = (std::max)(std::sqrt(cascade_radius_squared), 0.001f);
 
                     math::AABB caster_light_bound = {};
                     caster_light_bound.Invalidate();
@@ -549,25 +571,20 @@ namespace won::rendering
                         caster_light_bound = gpu_scene.shadow_caster_world_bound.TransformAABB(shadow_view);
                     }
 
-                    float3 cascade_center_ls = frustum_light_bound.GetCenter();
-                    float3 cascade_extent_ls = frustum_light_bound.GetExtent();
-
                     const uint32 shadow_resolution = (std::max)(1u, static_cast<uint32>(light.shadow_map_resolution * shadow_resolution_scale));
-                    const float cascade_width = (std::max)(cascade_extent_ls.x * 2.0f, 0.001f);
-                    const float cascade_height = (std::max)(cascade_extent_ls.y * 2.0f, 0.001f);
-                    const float texel_size_x = cascade_width / static_cast<float>(shadow_resolution);
-                    const float texel_size_y = cascade_height / static_cast<float>(shadow_resolution);
+                    const float texel_size = (cascade_radius * 2.0f) / static_cast<float>(shadow_resolution);
 
-                    cascade_center_ls.x = std::floor(cascade_center_ls.x / texel_size_x) * texel_size_x;
-                    cascade_center_ls.y = std::floor(cascade_center_ls.y / texel_size_y) * texel_size_y;
+					// snap the cascade center to the nearest texel to avoid shimmering
+                    cascade_center_ls.x = std::floor(cascade_center_ls.x / texel_size) * texel_size;
+                    cascade_center_ls.y = std::floor(cascade_center_ls.y / texel_size) * texel_size;
 
-                    const float min_x = cascade_center_ls.x - cascade_extent_ls.x;
-                    const float max_x = cascade_center_ls.x + cascade_extent_ls.x;
-                    const float min_y = cascade_center_ls.y - cascade_extent_ls.y;
-                    const float max_y = cascade_center_ls.y + cascade_extent_ls.y;
+                    const float min_x = cascade_center_ls.x - cascade_radius;
+                    const float max_x = cascade_center_ls.x + cascade_radius;
+                    const float min_y = cascade_center_ls.y - cascade_radius;
+                    const float max_y = cascade_center_ls.y + cascade_radius;
 
-                    float near_z = frustum_light_bound.max.z + 10.0f;
-                    float far_z = frustum_light_bound.min.z - 10.0f;
+                    float near_z = cascade_center_ls.z + cascade_radius + 10.0f;
+                    float far_z = cascade_center_ls.z - cascade_radius - 10.0f;
                     if (caster_light_bound.IsValid())
                     {
                         near_z = caster_light_bound.max.z + 10.0f;
@@ -591,7 +608,7 @@ namespace won::rendering
                     XMStoreFloat4x4(&shader_shadow_cascade.shadow_view_projection, shadow_view * shadow_projection);
                     shader_shadow_cascade.split_far = split_far;
                     shader_shadow_cascade.blend_band = light.shadow_cascade_blend;
-                    shader_shadow_cascade.texel_world_size = (std::max)(texel_size_x, texel_size_y);
+                    shader_shadow_cascade.texel_world_size = texel_size;
                     view.shadow_resources.shader_shadow_cascades.push_back(shader_shadow_cascade);
 
                     View::RenderShadowSlice render_shadow_slice = {};
@@ -978,7 +995,7 @@ namespace won::rendering
     }
 
 
-    bool RendererInternal::DrawScene(const FrameContext& frame_context, const View& view, RenderPassType pass, uint32 flags, RHICommandList& command_list)
+    bool RendererInternal::DrawScene(const FrameContext& frame_context, const View& view, RenderPassType pass, uint32 flags, RHICommandList& command_list, uint32 shadow_slice_index)
     {
         rendering::GPUScene& gpu_scene = view.scene->GetGPUScene();
 
@@ -1024,12 +1041,22 @@ namespace won::rendering
 
         if ((flags & DrawScene_Opaque) != 0 && !gpu_scene.opaque_renderables.empty())
         {
-            // The shadow pass draws casters visible to the light, not to the camera, so it walks its own list.
+            // The shadow pass draws casters visible to the light, not to the camera, so it walks the range its cascade owns.
             const bool shadow_pass = pass == RenderPassType::ShadowPass;
             const Vector<uint32>& opaque_sort_indices = shadow_pass ? view.sorted_shadow_caster_indices : view.sorted_opaque_indices;
-            const uint32 opaque_sort_buffer_base = shadow_pass
-                ? static_cast<uint32>(view.sorted_opaque_indices.size() + view.sorted_transparent_indices.size())
-                : 0u;
+            uint32 opaque_sort_buffer_base = 0;
+            uint32 sort_begin = 0;
+            uint32 sort_end = static_cast<uint32>(opaque_sort_indices.size());
+            if (shadow_pass)
+            {
+                if (shadow_slice_index >= view.shadow_resources.caster_slice_ranges.size())
+                    return true;
+
+                const uint2 slice_range = view.shadow_resources.caster_slice_ranges[shadow_slice_index];
+                opaque_sort_buffer_base = static_cast<uint32>(view.sorted_opaque_indices.size() + view.sorted_transparent_indices.size());
+                sort_begin = slice_range.x;
+                sort_end = slice_range.x + slice_range.y;
+            }
 
             uint32 batch_geometry_index = 0;
             uint32 batch_material_index = 0;
@@ -1038,7 +1065,7 @@ namespace won::rendering
             GraphicsPipelineHash current_hash = {};
             bool has_pipeline = false;
 
-            for (uint32 i = 0; i < static_cast<uint32>(opaque_sort_indices.size()); ++i)
+            for (uint32 i = sort_begin; i < sort_end; ++i)
             {
                 const Renderable& renderable = gpu_scene.opaque_renderables[opaque_sort_indices[i]];
 
@@ -2576,8 +2603,9 @@ namespace won::rendering
                 command_list->ClearDepthStencil(shadow_map_atlas_binding, 0.0f, 0u);
                 command_list->SetRenderTargets({}, &shadow_map_atlas_binding);
 
-                for (const auto& shadow_slice : view.shadow_resources.render_shadow_slices)
+                for (uint32 slice_index = 0; slice_index < static_cast<uint32>(view.shadow_resources.render_shadow_slices.size()); ++slice_index)
                 {
+                    const View::RenderShadowSlice& shadow_slice = view.shadow_resources.render_shadow_slices[slice_index];
                     if (!shadow_slice.HasShadowMapAtlasRect())
                     {
                         continue;
@@ -2609,7 +2637,7 @@ namespace won::rendering
                     shadow_scissor.height = shadow_slice.shadow_map_atlas_rect.w;
                     command_list->SetScissor(shadow_scissor);
 
-                    DrawScene(frame_context, view, RenderPassType::ShadowPass, DrawScene_Opaque, *command_list);
+                    DrawScene(frame_context, view, RenderPassType::ShadowPass, DrawScene_Opaque, *command_list, slice_index);
                 }
                 command_list->TransitionResource(*view.shadow_resources.atlas, RHIResourceState::ShaderRead);
                 command_list->EndEvent();

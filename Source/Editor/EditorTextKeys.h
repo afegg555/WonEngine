@@ -305,6 +305,7 @@ namespace won::editor::editor_key
     constexpr const char* label_selected_slot = "editor.label.selected_slot";
     constexpr const char* label_sensitivity = "editor.label.sensitivity";
     constexpr const char* label_shader_type = "editor.label.shader_type";
+    constexpr const char* label_shadow_distance = "editor.label.shadow_distance";
     constexpr const char* label_shadow_resolution = "editor.label.shadow_resolution";
     constexpr const char* label_sheen_color = "editor.label.sheen_color";
     constexpr const char* label_sheen_color_map = "editor.label.sheen_color_map";

@@ -239,43 +239,45 @@ namespace won::rendering
         jobsystem::Execute(ctx, [&](jobsystem::JobArgs)
         {
             const auto& renderables = gpu_scene.opaque_renderables;
+            const Size slice_count = shadow_resources.render_shadow_slices.size();
             sorted_shadow_caster_indices.clear();
-            for (uint32 i = 0; i < static_cast<uint32>(renderables.size()); ++i)
+            shadow_resources.caster_slice_ranges.assign(slice_count, uint2{ 0, 0 });
+
+            for (Size slice_index = 0; slice_index < slice_count; ++slice_index)
             {
-                const auto& r = renderables[i];
-                if ((culling_mask & r.layer_mask) == 0)
+                const RenderShadowSlice& shadow_slice = shadow_resources.render_shadow_slices[slice_index];
+                if (!shadow_slice.HasShadowMapAtlasRect())
                     continue;
-                if (!r.IsCastShadow())
-                    continue;
-                if (options.enable_frustum_culling && r.aabb.IsValid())
+
+                const uint32 range_begin = static_cast<uint32>(sorted_shadow_caster_indices.size());
+                for (uint32 i = 0; i < static_cast<uint32>(renderables.size()); ++i)
                 {
-                    bool lit_by_any_slice = false;
-                    for (const RenderShadowSlice& shadow_slice : shadow_resources.render_shadow_slices)
-                    {
-                        if (r.aabb.IntersectFrustum(shadow_slice.casting_frustum))
-                        {
-                            lit_by_any_slice = true;
-                            break;
-                        }
-                    }
-                    if (!lit_by_any_slice)
+                    const auto& r = renderables[i];
+                    if ((culling_mask & r.layer_mask) == 0)
                         continue;
+                    if (!r.IsCastShadow())
+                        continue;
+                    if (options.enable_frustum_culling && r.aabb.IsValid() && !r.aabb.IntersectFrustum(shadow_slice.casting_frustum))
+                        continue;
+                    sorted_shadow_caster_indices.push_back(i);
                 }
-                sorted_shadow_caster_indices.push_back(i);
+
+                std::sort(sorted_shadow_caster_indices.begin() + range_begin, sorted_shadow_caster_indices.end(),
+                    [&](uint32 a, uint32 b)
+                    {
+                        const auto& ra = renderables[a];
+                        const auto& rb = renderables[b];
+                        if (ra.push_constants.geometry_index != rb.push_constants.geometry_index)
+                            return ra.push_constants.geometry_index < rb.push_constants.geometry_index;
+                        if (ra.push_constants.material_index != rb.push_constants.material_index)
+                            return ra.push_constants.material_index < rb.push_constants.material_index;
+                        if (ra.IsDoubleSided() != rb.IsDoubleSided())
+                            return ra.IsDoubleSided() < rb.IsDoubleSided();
+                        return ra.primitive_topology < rb.primitive_topology;
+                    });
+
+                shadow_resources.caster_slice_ranges[slice_index] = { range_begin, static_cast<uint32>(sorted_shadow_caster_indices.size()) - range_begin };
             }
-            std::sort(sorted_shadow_caster_indices.begin(), sorted_shadow_caster_indices.end(),
-                [&](uint32 a, uint32 b)
-                {
-                    const auto& ra = renderables[a];
-                    const auto& rb = renderables[b];
-                    if (ra.push_constants.geometry_index != rb.push_constants.geometry_index)
-                        return ra.push_constants.geometry_index < rb.push_constants.geometry_index;
-                    if (ra.push_constants.material_index != rb.push_constants.material_index)
-                        return ra.push_constants.material_index < rb.push_constants.material_index;
-                    if (ra.IsDoubleSided() != rb.IsDoubleSided())
-                        return ra.IsDoubleSided() < rb.IsDoubleSided();
-                    return ra.primitive_topology < rb.primitive_topology;
-                });
         });
 
         jobsystem::Execute(ctx, [&](jobsystem::JobArgs)

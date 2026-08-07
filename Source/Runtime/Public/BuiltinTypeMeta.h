@@ -208,6 +208,7 @@ namespace won::reflection
         WON_REFLECT_FIELD(shadow_cascade_count, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(shadow_cascade_lambda, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(shadow_cascade_blend, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(shadow_distance, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::EnvironmentComponent, "EnvironmentComponent")

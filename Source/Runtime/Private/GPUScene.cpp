@@ -472,7 +472,9 @@ namespace won::rendering
                         renderable.index_offset = mesh_render_data.indices.offset + submesh.first_index * sizeof(uint32);
                         renderable.index_count = submesh.index_count;
                         renderable.world_position = world_position;
-                        renderable.aabb = world_aabb;
+                        renderable.aabb = submesh.local_bounds.IsValid()
+                            ? submesh.local_bounds.TransformAABB(transform.world_transform)
+                            : world_aabb;
                         renderable.primitive_topology = submesh.primitive_topology;
                         renderable.shader_type = static_cast<uint32>(material_slot.material_type);
                         renderable.blend_mode = material_slot.blend_mode;

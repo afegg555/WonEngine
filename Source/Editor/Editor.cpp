@@ -3607,6 +3607,12 @@ namespace won::editor
 						light_changed |= ImGui::SliderFloat(EditorText(editor_key::label_cascade_lambda), &light_comp->shadow_cascade_lambda, 0.0f, 1.0f);
 						light_changed |= ImGui::SliderFloat(EditorText(editor_key::label_cascade_blend), &light_comp->shadow_cascade_blend, 0.0f, 0.3f);
 
+						if (ImGui::DragFloat(EditorText(editor_key::label_shadow_distance), &light_comp->shadow_distance, 1.0f, 0.0f, 100000.0f))
+						{
+							light_comp->shadow_distance = (std::max)(0.0f, light_comp->shadow_distance);
+							light_changed = true;
+						}
+
 						bool is_active = light_comp->IsActive();
 						if (ImGui::Checkbox(EditorText(editor_key::label_active), &is_active))
 						{
