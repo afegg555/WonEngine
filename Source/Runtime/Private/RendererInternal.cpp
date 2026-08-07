@@ -2714,7 +2714,11 @@ namespace won::rendering
                 command_list->SetRenderTargets(color_targets, &depth_buffer_binding);
                 {
                     auto cpu_range = profiler::ScopedRangeCPU("Draw Main Pass");
-                    uint32 main_pass_flags = DrawScene_Opaque;
+                    uint32 main_pass_flags = 0;
+                    if ((view.show_flags & Show_Opaque) != 0)
+                    {
+                        main_pass_flags |= DrawScene_Opaque;
+                    }
                     if ((view.show_flags & Show_Transparent) != 0)
                     {
                         main_pass_flags |= DrawScene_Transparent;

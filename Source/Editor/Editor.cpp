@@ -1296,39 +1296,8 @@ namespace won::editor
 
 		if (editor_viewport.view)
 		{
-			if (editor_viewport.debug_settings.show_ddgi_overlay)
-			{
-				editor_viewport.view->show_flags |= rendering::Show_DDGI;
-			}
-			else
-			{
-				editor_viewport.view->show_flags &= ~rendering::Show_DDGI;
-			}
-			if (editor_viewport.debug_settings.show_bvh_debug)
-			{
-				editor_viewport.view->show_flags |= rendering::Show_BVH;
-			}
-			else
-			{
-				editor_viewport.view->show_flags &= ~rendering::Show_BVH;
-			}
-			if (editor_viewport.debug_settings.show_colliders)
-			{
-				editor_viewport.view->show_flags |= rendering::Show_Colliders;
-			}
-			else
-			{
-				editor_viewport.view->show_flags &= ~rendering::Show_Colliders;
-			}
-			if (editor_viewport.debug_settings.show_grid)
-			{
-				editor_viewport.view->show_flags |= rendering::Show_Grid;
-			}
-			else
-			{
-				editor_viewport.view->show_flags &= ~rendering::Show_Grid;
-			}
-			editor_viewport.view->view_mode = editor_viewport.debug_settings.use_wireframe ? rendering::ViewMode::Wireframe : rendering::ViewMode::Lit;
+			editor_viewport.view->show_flags = editor_viewport.debug_settings.show_flags;
+			editor_viewport.view->view_mode = editor_viewport.debug_settings.view_mode;
 		}
 		if (won::io::IsPressed(io::Button('R')))
 		{
@@ -1753,11 +1722,8 @@ namespace won::editor
 		content_browser.current_folder = editor_settings.content_current_folder;
 		content_browser.type_filter = static_cast<ContentAssetType>(editor_settings.content_type_filter);
 		content_browser.tile_size = (std::max)(48.0f, (std::min)(128.0f, editor_settings.content_tile_size));
-		editor_viewport.debug_settings.show_grid = editor_settings.viewport_show_grid;
-		editor_viewport.debug_settings.show_colliders = editor_settings.viewport_show_colliders;
-		editor_viewport.debug_settings.use_wireframe = editor_settings.viewport_use_wireframe;
-		editor_viewport.debug_settings.show_bvh_debug = editor_settings.viewport_show_bvh_debug;
-		editor_viewport.debug_settings.show_ddgi_overlay = editor_settings.viewport_show_ddgi_overlay;
+		editor_viewport.debug_settings.show_flags = editor_settings.viewport_show_flags;
+		editor_viewport.debug_settings.view_mode = static_cast<rendering::ViewMode>((std::max)(0, (std::min)(editor_settings.viewport_view_mode, static_cast<int>(rendering::ViewMode::VIEWMODE_COUNT) - 1)));
 		editor_camera_speed = (std::max)(0.1f, editor_settings.camera_speed);
 	}
 
@@ -1766,11 +1732,8 @@ namespace won::editor
 		editor_settings.content_current_folder = content_browser.current_folder;
 		editor_settings.content_type_filter = static_cast<int>(content_browser.type_filter);
 		editor_settings.content_tile_size = content_browser.tile_size;
-		editor_settings.viewport_show_grid = editor_viewport.debug_settings.show_grid;
-		editor_settings.viewport_show_colliders = editor_viewport.debug_settings.show_colliders;
-		editor_settings.viewport_use_wireframe = editor_viewport.debug_settings.use_wireframe;
-		editor_settings.viewport_show_bvh_debug = editor_viewport.debug_settings.show_bvh_debug;
-		editor_settings.viewport_show_ddgi_overlay = editor_viewport.debug_settings.show_ddgi_overlay;
+		editor_settings.viewport_show_flags = editor_viewport.debug_settings.show_flags;
+		editor_settings.viewport_view_mode = static_cast<int>(editor_viewport.debug_settings.view_mode);
 		editor_settings.camera_speed = editor_camera_speed;
 		if (!current_scene_path.empty())
 		{
@@ -3064,7 +3027,8 @@ namespace won::editor
 			ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(500, 500));
 			if (ImGui::BeginPopup(editor_popup_id::options))
 			{
-				ImGui::Checkbox(EditorText(editor_key::label_wireframe), &editor_viewport.debug_settings.use_wireframe);
+				ImGui::SetNextItemWidth(160.0f);
+				DrawEnumCombo(EditorText(editor_key::label_view_mode), editor_viewport.debug_settings.view_mode);
 
 				if (window)
 				{
@@ -3150,11 +3114,34 @@ namespace won::editor
 				}
 
 				ImGui::Separator();
-				ImGui::Checkbox(EditorText(editor_key::label_editor_grid), &editor_viewport.debug_settings.show_grid);
-				ImGui::Checkbox(EditorText(editor_key::label_collider_3d), &editor_viewport.debug_settings.show_colliders);
-				ImGui::Separator();
-				ImGui::Checkbox(EditorText(editor_key::label_bvh_debug), &editor_viewport.debug_settings.show_bvh_debug);
-				ImGui::Checkbox(EditorText(editor_key::label_ddgi_debug_overlay), &editor_viewport.debug_settings.show_ddgi_overlay);
+				static const struct { uint32 flag; const char* text_key; } show_flag_items[] = {
+					{ rendering::Show_Opaque,      editor_key::label_show_opaque },
+					{ rendering::Show_Transparent, editor_key::label_show_transparent },
+					{ rendering::Show_Decals,      editor_key::label_show_decals },
+					{ rendering::Show_Particles,   editor_key::label_show_particles },
+					{ rendering::Show_Sprites3D,   editor_key::label_show_sprites_3d },
+					{ rendering::Show_Sprites2D,   editor_key::label_show_sprites_2d },
+					{ rendering::Show_Shadows,     editor_key::label_show_shadows },
+					{ rendering::Show_Grid,        editor_key::label_show_grid },
+					{ rendering::Show_Colliders,   editor_key::label_show_colliders },
+					{ rendering::Show_BVH,         editor_key::label_show_bvh },
+					{ rendering::Show_DDGI,        editor_key::label_show_ddgi },
+				};
+				for (const auto& item : show_flag_items)
+				{
+					bool flag_enabled = (editor_viewport.debug_settings.show_flags & item.flag) != 0;
+					if (ImGui::Checkbox(EditorText(item.text_key), &flag_enabled))
+					{
+						if (flag_enabled)
+						{
+							editor_viewport.debug_settings.show_flags |= item.flag;
+						}
+						else
+						{
+							editor_viewport.debug_settings.show_flags &= ~item.flag;
+						}
+					}
+				}
 
 				ImGui::Separator();
 				if (ImGui::Button(EditorText(editor_key::action_close))) ImGui::CloseCurrentPopup();

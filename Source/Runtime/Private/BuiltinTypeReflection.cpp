@@ -49,6 +49,7 @@ namespace won::reflection
         RegisterType(TypeMeta<ecs::LayoutComponent::CrossAlign>::Get());
         RegisterType(TypeMeta<rendering::AntiAliasingMode>::Get());
         RegisterType(TypeMeta<rendering::TonemapMode>::Get());
+        RegisterType(TypeMeta<rendering::ViewMode>::Get());
 
         RegisterType(TypeMeta<ecs::NameComponent>::Get());
         RegisterType(TypeMeta<ecs::TransformComponent>::Get());

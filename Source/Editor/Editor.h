@@ -165,11 +165,8 @@ namespace won::editor
 
 		struct ViewportDebugSettings
 		{
-			bool show_grid = false;
-			bool show_colliders = true;
-			bool use_wireframe = false;
-			bool show_ddgi_overlay = false;
-			bool show_bvh_debug = false;
+			rendering::ViewMode view_mode = rendering::ViewMode::Lit;
+			uint32 show_flags = rendering::Show_Default | rendering::Show_Colliders;
 		};
 
 		struct EditorViewport

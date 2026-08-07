@@ -163,7 +163,6 @@ namespace won::editor::editor_key
     constexpr const char* label_base_color_map = "editor.label.base_color_map";
     constexpr const char* label_billboard = "editor.label.billboard";
     constexpr const char* label_blend_mode = "editor.label.blend_mode";
-    constexpr const char* label_bvh_debug = "editor.label.bvh_debug";
     constexpr const char* label_cascade_blend = "editor.label.cascade_blend";
     constexpr const char* label_cascade_count = "editor.label.cascade_count";
     constexpr const char* label_cascade_lambda = "editor.label.cascade_lambda";
@@ -180,7 +179,6 @@ namespace won::editor::editor_key
     constexpr const char* label_cloud_direction = "editor.label.cloud_direction";
     constexpr const char* label_cloud_frequency = "editor.label.cloud_frequency";
     constexpr const char* label_cloud_speed = "editor.label.cloud_speed";
-    constexpr const char* label_collider_3d = "editor.label.collider_3d";
     constexpr const char* label_color = "editor.label.color";
     constexpr const char* label_column_default = "editor.label.column_default";
     constexpr const char* label_column_label = "editor.label.column_label";
@@ -190,7 +188,6 @@ namespace won::editor::editor_key
     constexpr const char* label_contents = "editor.label.contents";
     constexpr const char* label_create_entity_command = "editor.label.create_entity_command";
     constexpr const char* label_cross_align = "editor.label.cross_align";
-    constexpr const char* label_ddgi_debug_overlay = "editor.label.ddgi_debug_overlay";
     constexpr const char* label_default_language = "editor.label.default_language";
     constexpr const char* label_delete_entity_children_warning = "editor.label.delete_entity_children_warning";
     constexpr const char* label_delete_entity_command = "editor.label.delete_entity_command";
@@ -207,7 +204,6 @@ namespace won::editor::editor_key
     constexpr const char* label_edit_entity_command = "editor.label.edit_entity_command";
     constexpr const char* label_emissive_color = "editor.label.emissive_color";
     constexpr const char* label_emissive_intensity = "editor.label.emissive_intensity";
-    constexpr const char* label_editor_grid = "editor.label.editor_grid";
     constexpr const char* label_emissive_map = "editor.label.emissive_map";
     constexpr const char* label_enable_profiler = "editor.label.enable_profiler";
     constexpr const char* label_enabled = "editor.label.enabled";
@@ -350,8 +346,19 @@ namespace won::editor::editor_key
     constexpr const char* label_view_bias = "editor.label.view_bias";
     constexpr const char* label_volume = "editor.label.volume";
     constexpr const char* label_volume_offset = "editor.label.volume_offset";
+    constexpr const char* label_show_shadows = "editor.label.show_shadows";
+    constexpr const char* label_show_opaque = "editor.label.show_opaque";
+    constexpr const char* label_show_transparent = "editor.label.show_transparent";
+    constexpr const char* label_show_decals = "editor.label.show_decals";
+    constexpr const char* label_show_particles = "editor.label.show_particles";
+    constexpr const char* label_show_sprites_3d = "editor.label.show_sprites_3d";
+    constexpr const char* label_show_sprites_2d = "editor.label.show_sprites_2d";
+    constexpr const char* label_show_colliders = "editor.label.show_colliders";
+    constexpr const char* label_show_grid = "editor.label.show_grid";
+    constexpr const char* label_show_bvh = "editor.label.show_bvh";
+    constexpr const char* label_show_ddgi = "editor.label.show_ddgi";
+    constexpr const char* label_view_mode = "editor.label.view_mode";
     constexpr const char* label_vsync = "editor.label.vsync";
-    constexpr const char* label_wireframe = "editor.label.wireframe";
     constexpr const char* label_won_material_file = "editor.label.won_material_file";
     constexpr const char* label_won_prefab_file = "editor.label.won_prefab_file";
     constexpr const char* label_won_project_file = "editor.label.won_project_file";

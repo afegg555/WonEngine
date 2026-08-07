@@ -27,10 +27,10 @@
 namespace won
 {
 #ifndef WON_SHIPPING
-    static console::ConsoleVariable r_debug_viewmode("r.debug.viewmode", 0, "exclusive debug view mode: 0=Lit 1=Unlit 2=BaseColor 3=WorldNormal 4=Roughness 5=Metallic 6=LightComplexity 7=ShadowCascades 8=Wireframe 9=Overdraw", console::ConsoleVariableFlagNone);
-    static console::ConsoleVariable r_debug_show_bvh("r.debug.show.bvh", false, "overlay scene BVH bounds", console::ConsoleVariableFlagNone);
-    static console::ConsoleVariable r_debug_show_ddgi("r.debug.show.ddgi", false, "overlay DDGI volume and probes", console::ConsoleVariableFlagNone);
-    static console::ConsoleVariable r_debug_show_colliders("r.debug.show.colliders", false, "overlay physics collider bounds", console::ConsoleVariableFlagNone);
+    static console::ConsoleVariable r_debug_viewmode("r.debug.viewmode", -1, "override the view mode of every view: -1=off 0=Lit 1=Unlit 2=BaseColor 3=WorldNormal 4=Roughness 5=Metallic 6=LightComplexity 7=ShadowCascades 8=Wireframe 9=Overdraw", console::ConsoleVariableFlagNone);
+    static console::ConsoleVariable r_debug_show_bvh("r.debug.show.bvh", -1, "override the scene BVH overlay of every view: -1=off 0=hide 1=show", console::ConsoleVariableFlagNone);
+    static console::ConsoleVariable r_debug_show_ddgi("r.debug.show.ddgi", -1, "override the DDGI volume and probe overlay of every view: -1=off 0=hide 1=show", console::ConsoleVariableFlagNone);
+    static console::ConsoleVariable r_debug_show_colliders("r.debug.show.colliders", -1, "override the physics collider overlay of every view: -1=off 0=hide 1=show", console::ConsoleVariableFlagNone);
     static console::ConsoleVariable r_debug_freeze_culling("r.debug.freeze_culling", false, "freeze the culling frustum at its current state", console::ConsoleVariableFlagNone);
 #endif
 
@@ -504,29 +504,22 @@ namespace won
                     {
                         view_ptr->view_mode = static_cast<rendering::ViewMode>(view_mode);
                     }
-                    if (r_debug_show_bvh.GetBool())
+                    const struct { const console::ConsoleVariable& variable; uint32 flag; } show_flag_overrides[] = {
+                        { r_debug_show_bvh, rendering::Show_BVH },
+                        { r_debug_show_ddgi, rendering::Show_DDGI },
+                        { r_debug_show_colliders, rendering::Show_Colliders },
+                    };
+                    for (const auto& override_entry : show_flag_overrides)
                     {
-                        view_ptr->show_flags |= rendering::Show_BVH;
-                    }
-                    else
-                    {
-                        view_ptr->show_flags &= ~rendering::Show_BVH;
-                    }
-                    if (r_debug_show_ddgi.GetBool())
-                    {
-                        view_ptr->show_flags |= rendering::Show_DDGI;
-                    }
-                    else
-                    {
-                        view_ptr->show_flags &= ~rendering::Show_DDGI;
-                    }
-                    if (r_debug_show_colliders.GetBool())
-                    {
-                        view_ptr->show_flags |= rendering::Show_Colliders;
-                    }
-                    else
-                    {
-                        view_ptr->show_flags &= ~rendering::Show_Colliders;
+                        const int show = override_entry.variable.GetInt();
+                        if (show > 0)
+                        {
+                            view_ptr->show_flags |= override_entry.flag;
+                        }
+                        else if (show == 0)
+                        {
+                            view_ptr->show_flags &= ~override_entry.flag;
+                        }
                     }
                     view_ptr->freeze_culling = r_debug_freeze_culling.GetBool();
 #endif
