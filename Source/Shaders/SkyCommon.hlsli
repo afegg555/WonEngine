@@ -2,6 +2,7 @@
 #define SKY_COMMON
 
 #include "Common.hlsli"
+#include "NoiseCommon.hlsli"
 
 inline float3 EvaluateProceduralSky(ShaderEnvironment sky, float3 direction)
 {
@@ -105,6 +106,70 @@ inline float3 EvaluatePhysicalSkySunDisk(ShaderEnvironment sky, float3 direction
 inline float3 EvaluatePhysicallyBasedSky(ShaderEnvironment sky, float3 direction)
 {
     return EvaluatePhysicalSkyAtmosphere(sky, direction) + EvaluatePhysicalSkySunDisk(sky, direction);
+}
+
+static const uint cloud_fbm_octave_count = 5;
+static const float cloud_fbm_lacunarity = 2.03f;
+static const float cloud_fbm_persistence = 0.4f;
+static const float cloud_layer_warp = 1.0f; // how far each layer displaces the next lookup
+static const float2 cloud_layer_drift = float2(0.92f, 0.8f); // per layer scroll rate; the gap between them is how fast the shape evolves while it drifts
+static const float cloud_cutoff_clear = 0.59f;
+static const float cloud_cutoff_overcast = 0.04f;
+static const float cloud_fuzziness = 0.1f; // smoothstep width above the cutoff, sets how crisp the silhouette is
+static const float cloud_extinction = 5.5f;
+static const float cloud_edge_darkening = 0.1f;
+static const float cloud_backlit_floor = 0.15f;
+static const float cloud_silver_lining_power = 64.0f; // half width of the glow around the sun, 64 is about 8.4 degrees
+static const float cloud_silver_lining_scale = 2.f;
+static const float cloud_sky_light_scale = 1.0f;
+
+inline float CloudNoise(float2 position)
+{
+    return FBMValueNoise(position, cloud_fbm_octave_count, cloud_fbm_lacunarity, cloud_fbm_persistence);
+}
+
+inline float3 CompositeCloudLayer(ShaderEnvironment sky, float3 direction, float3 sky_color, float time)
+{
+    if (!sky.HasCloud() || sky.GetSkyType() == SHADER_SKY_TYPE_CUBEMAP || direction.y <= 0.0f)
+    {
+        return sky_color;
+    }
+
+    float2 plane_uv = (direction.xz / max(direction.y, 0.02f)) * max(sky.GetCloudFrequency(), 0.0001f); // project direction to y = 1 plane
+    float2 movement = normalize(sky.GetCloudDirection() + float2(1e-6f, 1e-6f)) * (time * sky.GetCloudSpeed());
+
+    // each layer displaces the lookup of the next one
+    float base = CloudNoise(plane_uv + movement);
+    float layer1 = CloudNoise(plane_uv + base * cloud_layer_warp + movement * cloud_layer_drift.x);
+    float layer2 = CloudNoise(plane_uv + layer1 * cloud_layer_warp + movement * cloud_layer_drift.y);
+    float density = saturate(layer1 * layer2); // we use product than additive sum to get isolated cloud shapes
+
+    float coverage = saturate(sky.GetCloudCoverage());
+    float cutoff = lerp(cloud_cutoff_clear, cloud_cutoff_overcast, coverage); // coverage 0 -> cutoff 0.59, coverage 1 -> cutoff 0.04
+    float cloud = smoothstep(cutoff, cutoff + cloud_fuzziness, density);
+
+    float horizon_fade = smoothstep(0.0f, 0.5f, direction.y);
+    float alpha = cloud * max(sky.GetCloudDensity(), 0.0f) * horizon_fade;
+    if (alpha <= 0.0f)
+    {
+        return sky_color;
+    }
+
+    float3 sun_direction = normalize(sky.GetSunDirection());
+    float optical_depth = max(density - cutoff, 0.0f) * cloud_extinction;
+    float transmittance = saturate(1.0f - optical_depth); // first order approximation of exp(-optical_depth)
+    //float transmittance = exp(-optical_depth);
+
+    float cos_theta = dot(direction, sun_direction);
+    float lit = lerp(cloud_edge_darkening, 1.0f, 1.0f - transmittance) // high density : low_transmittance : more lit
+              * lerp(cloud_backlit_floor, 1.0f, 0.5f * (1.0f - cos_theta)); // 0.5 * (1 - cos_theta) is sin(theta/2)^2, it reaches 0 if we see sun directly (backlit)
+    float thin_rim = transmittance * transmittance;
+    float silver_lining = pow(saturate(cos_theta), cloud_silver_lining_power) * thin_rim; // add rim effect to edge
+    
+    float3 sun_light = sky.GetSunColor() * sky.GetSunIntensity() * ((saturate(sun_direction.y) * lit + silver_lining * cloud_silver_lining_scale) / PI);
+    float3 cloud_radiance = sky.GetCloudColor() * (sun_light + sky_color * cloud_sky_light_scale);
+
+    return min(lerp(sky_color, cloud_radiance, alpha), MEDIUMP_FLT_MAX);
 }
 
 #endif

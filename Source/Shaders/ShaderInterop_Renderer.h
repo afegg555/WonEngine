@@ -342,8 +342,11 @@ struct alignas(16) ShaderEnvironment
 
     float mie_coefficient;
     uint derived_sun_index;
-    uint _padding1;
-    uint _padding2;
+    float cloud_coverage;
+    float cloud_density;
+
+    float4 cloud_color_cloud_frequency;     // xyz color, w frequency
+    float4 cloud_direction_cloud_speed;     // xy scroll direction, z speed, w unused
 
 #ifdef __cplusplus
     inline void Init()
@@ -373,8 +376,10 @@ struct alignas(16) ShaderEnvironment
         rayleigh_coefficient = 0.0f;
         mie_coefficient = 0.0f;
         derived_sun_index = ~0u;
-        _padding1 = 0;
-        _padding2 = 0;
+        cloud_coverage = 0.0f;
+        cloud_density = 0.0f;
+        cloud_color_cloud_frequency = { 0,0,0,0 };
+        cloud_direction_cloud_speed = { 0,0,0,0 };
     }
 
     inline void SetSunDirection(const float3& value)
@@ -430,6 +435,14 @@ struct alignas(16) ShaderEnvironment
         mie_coefficient = mie_coefficient_in;
     }
 
+    inline void SetCloud(float coverage, float density, const float3& color, float frequency, const float2& direction, float speed)
+    {
+        cloud_coverage = coverage;
+        cloud_density = density;
+        cloud_color_cloud_frequency = float4(color.x, color.y, color.z, frequency);
+        cloud_direction_cloud_speed = float4(direction.x, direction.y, speed, 0);
+    }
+
 #else
     inline uint GetSkyType() { return sky_type; }
     inline uint GetDiffuseGIMode() { return diffuse_gi_mode; }
@@ -461,6 +474,13 @@ struct alignas(16) ShaderEnvironment
     inline float GetAmbientIntensity() { return ambient_color_ambient_intensity.w; }
     inline float GetIndirectDiffuseScale() { return indirect_diffuse_specular_scale.x; }
     inline float GetIndirectSpecularScale() { return indirect_diffuse_specular_scale.y; }
+    inline float GetCloudCoverage() { return cloud_coverage; }
+    inline float GetCloudDensity() { return cloud_density; }
+    inline float3 GetCloudColor() { return cloud_color_cloud_frequency.xyz; }
+    inline float GetCloudFrequency() { return cloud_color_cloud_frequency.w; }
+    inline float2 GetCloudDirection() { return cloud_direction_cloud_speed.xy; }
+    inline float GetCloudSpeed() { return cloud_direction_cloud_speed.z; }
+    inline bool HasCloud() { return cloud_coverage > 0.0f; }
 #endif
 };
 
@@ -950,7 +970,7 @@ static_assert(sizeof(ShaderTextureSlot) == 16, "ShaderTextureSlot layout mismatc
 static_assert(sizeof(ShaderGeometry) == 80, "ShaderGeometry layout mismatch");
 static_assert(sizeof(ShaderMaterial) == 272, "ShaderMaterial layout mismatch");
 static_assert(sizeof(ShaderScene) == 64, "ShaderScene layout mismatch");
-static_assert(sizeof(ShaderEnvironment) == 192, "ShaderEnvironment layout mismatch");
+static_assert(sizeof(ShaderEnvironment) == 224, "ShaderEnvironment layout mismatch");
 static_assert(sizeof(ShaderDDGIVolume) == 112, "ShaderDDGIVolume layout mismatch");
 static_assert(sizeof(ShaderReflectionProbe) == 32, "ShaderReflectionProbe layout mismatch");
 static_assert(sizeof(ShaderFrame) == 448, "ShaderFrame layout mismatch");

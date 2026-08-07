@@ -3876,7 +3876,24 @@ namespace won::editor
 							ImGui::DragFloat(EditorText(editor_key::label_ground_falloff), &environment_comp->ground_falloff, 0.01f, 0.0f, 1000.0f);
 						}
 
+						if (sky_uses_sun)
 						{
+							ImGui::SliderFloat(EditorText(editor_key::label_cloud_coverage), &environment_comp->cloud_coverage, 0.0f, 1.0f);
+							ImGui::SliderFloat(EditorText(editor_key::label_cloud_density), &environment_comp->cloud_density, 0.0f, 1.0f);
+							ImGui::DragFloat(EditorText(editor_key::label_cloud_frequency), &environment_comp->cloud_frequency, 0.01f, 0.01f, 100.0f);
+							ImGui::DragFloat(EditorText(editor_key::label_cloud_speed), &environment_comp->cloud_speed, 0.001f, 0.0f, 10.0f);
+
+							float cloud_color[3] = { environment_comp->cloud_color.x, environment_comp->cloud_color.y, environment_comp->cloud_color.z };
+							if (ImGui::InputFloat3(EditorText(editor_key::label_cloud_color), cloud_color))
+							{
+								environment_comp->cloud_color = { cloud_color[0], cloud_color[1], cloud_color[2] };
+							}
+
+							float cloud_direction[2] = { environment_comp->cloud_direction.x, environment_comp->cloud_direction.y };
+							if (ImGui::InputFloat2(EditorText(editor_key::label_cloud_direction), cloud_direction))
+							{
+								environment_comp->cloud_direction = { cloud_direction[0], cloud_direction[1] };
+							}
 						}
 
 						DrawEnumCombo(EditorText(editor_key::label_gi_mode), environment_comp->diffuse_gi_mode);

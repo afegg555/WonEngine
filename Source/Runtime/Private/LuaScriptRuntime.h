@@ -112,6 +112,9 @@ namespace won::script
         static int LuaEnvironmentSetDirectSunActive(lua_State* state);
         static int LuaEnvironmentSetAtmosphere(lua_State* state);
         static int LuaEnvironmentSetScatteringCoefficients(lua_State* state);
+        static int LuaEnvironmentSetCloud(lua_State* state);
+        static int LuaEnvironmentSetCloudColor(lua_State* state);
+        static int LuaEnvironmentSetCloudMotion(lua_State* state);
 
         static int LuaParticleEmitter3DAdd(lua_State* state);
         static int LuaParticleEmitter3DHas(lua_State* state);
