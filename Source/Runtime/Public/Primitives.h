@@ -110,37 +110,19 @@ namespace won::math
                 return transformed_aabb;
             }
 
-            const float3 corners[8] = {
-                { min.x, min.y, min.z },
-                { max.x, min.y, min.z },
-                { min.x, max.y, min.z },
-                { max.x, max.y, min.z },
-                { min.x, min.y, max.z },
-                { max.x, min.y, max.z },
-                { min.x, max.y, max.z },
-                { max.x, max.y, max.z }
-            };
+            // affine transforms only: the extent is rotated by the absolute value of the linear part
+            const float3 center = GetCenter();
+            const float3 extent = GetExtent();
 
-            for (const float3& corner : corners)
-            {
-                const XMVECTOR world_corner = XMVector3TransformCoord(XMLoadFloat3(&corner), transform);
-                float3 transformed_corner = {};
-                XMStoreFloat3(&transformed_corner, world_corner);
+            const XMVECTOR transformed_center = XMVector3TransformCoord(XMLoadFloat3(&center), transform);
+            const XMVECTOR transformed_extent = XMVectorAdd(
+                XMVectorAdd(
+                    XMVectorScale(XMVectorAbs(transform.r[0]), extent.x),
+                    XMVectorScale(XMVectorAbs(transform.r[1]), extent.y)),
+                XMVectorScale(XMVectorAbs(transform.r[2]), extent.z));
 
-                if (!transformed_aabb.IsValid())
-                {
-                    transformed_aabb.min = transformed_corner;
-                    transformed_aabb.max = transformed_corner;
-                    continue;
-                }
-
-                transformed_aabb.min.x = (std::min)(transformed_aabb.min.x, transformed_corner.x);
-                transformed_aabb.min.y = (std::min)(transformed_aabb.min.y, transformed_corner.y);
-                transformed_aabb.min.z = (std::min)(transformed_aabb.min.z, transformed_corner.z);
-                transformed_aabb.max.x = (std::max)(transformed_aabb.max.x, transformed_corner.x);
-                transformed_aabb.max.y = (std::max)(transformed_aabb.max.y, transformed_corner.y);
-                transformed_aabb.max.z = (std::max)(transformed_aabb.max.z, transformed_corner.z);
-            }
+            XMStoreFloat3(&transformed_aabb.min, XMVectorSubtract(transformed_center, transformed_extent));
+            XMStoreFloat3(&transformed_aabb.max, XMVectorAdd(transformed_center, transformed_extent));
 
             return transformed_aabb;
         }
