@@ -469,7 +469,9 @@ namespace won::rendering
                         push_constants.draw_offset = (uint)args.job_index;
 
                         renderable.index_buffer = mesh_render_data.buffer.get();
-                        renderable.index_offset = mesh_render_data.indices.offset + submesh.first_index * sizeof(uint32);
+                        renderable.index_buffer_offset = mesh_render_data.indices.offset;
+                        renderable.index_buffer_size = mesh_render_data.indices.size;
+                        renderable.first_index = submesh.first_index;
                         renderable.index_count = submesh.index_count;
                         renderable.world_position = world_position;
                         renderable.aabb = submesh.local_bounds.IsValid()

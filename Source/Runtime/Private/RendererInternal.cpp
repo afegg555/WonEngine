@@ -1027,6 +1027,11 @@ namespace won::rendering
         shader_view_binding.resource = view.view_constants.buffer.get();
         shader_view_binding.subresource = view.view_constants.cbv;
 
+        RHIResource* bound_index_buffer = nullptr;
+        uint32 bound_index_buffer_offset = 0;
+        RHIPrimitiveTopology bound_topology = RHIPrimitiveTopology::TriangleList;
+        bool has_bound_topology = false;
+
         auto flush_batch = [&](const Vector<Renderable>& renderables, const Vector<uint32>& sort_indices, uint32 sort_buffer_base, uint32 start, uint32 size)
         {
             if (size == 0)
@@ -1034,10 +1039,24 @@ namespace won::rendering
             const auto& first = renderables[sort_indices[start]];
             ObjectPushConstants push = first.push_constants;
             push.draw_offset = sort_buffer_base + start; // starting offset of sort_indices
-            command_list.SetIndexBuffer(*first.index_buffer, sizeof(uint32), first.index_offset, first.index_count * sizeof(uint32));
-            command_list.SetPrimitiveTopology(ToRHIPrimitiveTopology(first.primitive_topology));
+
+            if (bound_index_buffer != first.index_buffer || bound_index_buffer_offset != first.index_buffer_offset)
+            {
+                command_list.SetIndexBuffer(*first.index_buffer, sizeof(uint32), first.index_buffer_offset, first.index_buffer_size);
+                bound_index_buffer = first.index_buffer;
+                bound_index_buffer_offset = first.index_buffer_offset;
+            }
+
+            const RHIPrimitiveTopology topology = ToRHIPrimitiveTopology(first.primitive_topology);
+            if (!has_bound_topology || bound_topology != topology)
+            {
+                command_list.SetPrimitiveTopology(topology);
+                bound_topology = topology;
+                has_bound_topology = true;
+            }
+
             command_list.PushConstants(RHIShaderStage::Vertex, &push, sizeof(ObjectPushConstants), 0);
-            command_list.DrawIndexed(first.index_count, size, 0, 0, 0);
+            command_list.DrawIndexed(first.index_count, size, first.first_index, 0, 0);
         };
 
         if ((flags & DrawScene_Opaque) != 0 && !gpu_scene.opaque_renderables.empty())
@@ -1177,12 +1196,7 @@ namespace won::rendering
                     has_pipeline = true;
                 }
 
-                ObjectPushConstants push = renderable.push_constants;
-                push.draw_offset = sort_buffer_base + i;
-                command_list.SetIndexBuffer(*renderable.index_buffer, sizeof(uint32), renderable.index_offset, renderable.index_count * sizeof(uint32));
-                command_list.SetPrimitiveTopology(ToRHIPrimitiveTopology(renderable.primitive_topology));
-                command_list.PushConstants(RHIShaderStage::Vertex, &push, sizeof(ObjectPushConstants), 0);
-                command_list.DrawIndexed(renderable.index_count, 1, 0, 0, 0);
+                flush_batch(gpu_scene.transparent_renderables, view.sorted_transparent_indices, sort_buffer_base, i, 1);
             }
         }
 
@@ -1205,10 +1219,10 @@ namespace won::rendering
 
                 for (const auto& renderable : gpu_scene.line_renderables)
                 {
-                    command_list.SetIndexBuffer(*renderable.index_buffer, sizeof(uint32), renderable.index_offset, renderable.index_count * sizeof(uint32));
+                    command_list.SetIndexBuffer(*renderable.index_buffer, sizeof(uint32), renderable.index_buffer_offset, renderable.index_buffer_size);
                     command_list.SetPrimitiveTopology(ToRHIPrimitiveTopology(renderable.primitive_topology));
                     command_list.PushConstants(RHIShaderStage::Vertex, &renderable.push_constants, sizeof(ObjectPushConstants), 0);
-                    command_list.DrawIndexed(renderable.index_count, 1, 0, 0, 0);
+                    command_list.DrawIndexed(renderable.index_count, 1, renderable.first_index, 0, 0);
                 }
             }
 
@@ -1229,10 +1243,10 @@ namespace won::rendering
 
                 for (const auto& renderable : gpu_scene.point_renderables)
                 {
-                    command_list.SetIndexBuffer(*renderable.index_buffer, sizeof(uint32), renderable.index_offset, renderable.index_count * sizeof(uint32));
+                    command_list.SetIndexBuffer(*renderable.index_buffer, sizeof(uint32), renderable.index_buffer_offset, renderable.index_buffer_size);
                     command_list.SetPrimitiveTopology(ToRHIPrimitiveTopology(renderable.primitive_topology));
                     command_list.PushConstants(RHIShaderStage::Vertex, &renderable.push_constants, sizeof(ObjectPushConstants), 0);
-                    command_list.DrawIndexed(renderable.index_count, 1, 0, 0, 0);
+                    command_list.DrawIndexed(renderable.index_count, 1, renderable.first_index, 0, 0);
                 }
             }
         }

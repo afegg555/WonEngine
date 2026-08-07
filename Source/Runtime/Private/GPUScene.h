@@ -41,7 +41,9 @@ namespace won::rendering
         RHIResource* index_buffer = nullptr;
         float3 world_position = {};
         math::AABB aabb = {};
-        uint32 index_offset = 0;
+        uint32 index_buffer_offset = 0; // byte offset of the whole index range the mesh owns
+        uint32 index_buffer_size = 0;
+        uint32 first_index = 0; // index of the submesh inside that range
         uint32 index_count = 0;
         uint32 flags = None;
         uint32 shader_type = SHADER_MATERIAL_TYPE_PBR;
