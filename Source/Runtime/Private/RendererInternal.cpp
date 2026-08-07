@@ -425,7 +425,7 @@ namespace won::rendering
             if (gpu_scene.has_derived_sun)
             {
                 derived_sun_light.flags = ecs::LightComponent::Active | ecs::LightComponent::Dynamic;
-                if (gpu_scene.direct_sun_cast_shadow)
+                if (gpu_scene.direct_sun_shadow.cast_shadow)
                 {
                     derived_sun_light.flags |= ecs::LightComponent::CastShadow;
                 }
@@ -435,10 +435,11 @@ namespace won::rendering
                     -gpu_scene.shader_environment.sun_direction.y,
                     -gpu_scene.shader_environment.sun_direction.z
                 };
-                derived_sun_light.shadow_map_resolution = gpu_scene.direct_sun_shadow_resolution;
-                derived_sun_light.shadow_cascade_count = gpu_scene.direct_sun_cascade_count;
-                derived_sun_light.shadow_cascade_lambda = gpu_scene.direct_sun_cascade_lambda;
-                derived_sun_light.shadow_cascade_blend = gpu_scene.direct_sun_cascade_blend;
+                derived_sun_light.shadow_map_resolution = gpu_scene.direct_sun_shadow.shadow_resolution;
+                derived_sun_light.shadow_cascade_count = gpu_scene.direct_sun_shadow.cascade_count;
+                derived_sun_light.shadow_cascade_lambda = gpu_scene.direct_sun_shadow.cascade_lambda;
+                derived_sun_light.shadow_cascade_blend = gpu_scene.direct_sun_shadow.cascade_blend;
+                derived_sun_light.shadow_distance = gpu_scene.direct_sun_shadow.shadow_distance;
             }
 
             for (uint32 light_index = 0u; light_index <= total_light_count; ++light_index)

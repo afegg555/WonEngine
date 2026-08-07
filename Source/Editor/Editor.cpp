@@ -3826,6 +3826,10 @@ namespace won::editor
 							}
 							ImGui::SliderFloat(EditorText(editor_key::label_direct_sun_cascade_lambda), &environment_comp->direct_sun_cascade_lambda, 0.0f, 1.0f);
 							ImGui::SliderFloat(EditorText(editor_key::label_direct_sun_cascade_blend), &environment_comp->direct_sun_cascade_blend, 0.0f, 0.3f);
+							if (ImGui::DragFloat(EditorText(editor_key::label_direct_sun_shadow_distance), &environment_comp->direct_sun_shadow_distance, 1.0f, 0.0f, 100000.0f))
+							{
+								environment_comp->direct_sun_shadow_distance = (std::max)(0.0f, environment_comp->direct_sun_shadow_distance);
+							}
 						}
 
 						if (sky_uses_cubemap)

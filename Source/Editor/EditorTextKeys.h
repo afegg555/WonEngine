@@ -196,6 +196,7 @@ namespace won::editor::editor_key
     constexpr const char* label_direct_sun_cascade_count = "editor.label.direct_sun_cascade_count";
     constexpr const char* label_direct_sun_cascade_lambda = "editor.label.direct_sun_cascade_lambda";
     constexpr const char* label_direct_sun_cast_shadow = "editor.label.direct_sun_cast_shadow";
+    constexpr const char* label_direct_sun_shadow_distance = "editor.label.direct_sun_shadow_distance";
     constexpr const char* label_direct_sun_shadow_resolution = "editor.label.direct_sun_shadow_resolution";
     constexpr const char* label_displacement_map = "editor.label.displacement_map";
     constexpr const char* label_double_sided = "editor.label.double_sided";

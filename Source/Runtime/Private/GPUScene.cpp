@@ -1177,7 +1177,7 @@ namespace won::rendering
             }
         }
 
-        void ExtractEnvironment(const ecs::Scene& scene, ShaderEnvironment& shader_environment, ShaderDDGIVolume& shader_ddgi_volume, ShaderReflectionProbe& shader_reflection_probe, Entity& ddgi_volume_entity, ShaderLight& derived_sun, bool& has_derived_sun, bool& direct_sun_cast_shadow, uint32& direct_sun_shadow_resolution, uint32& direct_sun_cascade_count, float& direct_sun_cascade_lambda, float& direct_sun_cascade_blend)
+        void ExtractEnvironment(const ecs::Scene& scene, ShaderEnvironment& shader_environment, ShaderDDGIVolume& shader_ddgi_volume, ShaderReflectionProbe& shader_reflection_probe, Entity& ddgi_volume_entity, ShaderLight& derived_sun, bool& has_derived_sun, DirectSunShadowSettings& direct_sun_shadow)
         {
             shader_environment.Init();
             shader_ddgi_volume.Init();
@@ -1185,7 +1185,7 @@ namespace won::rendering
             ddgi_volume_entity = INVALID_ENTITY;
             derived_sun.Init();
             has_derived_sun = false;
-            direct_sun_cast_shadow = false;
+            direct_sun_shadow = {};
 
             const auto environment_array = scene.GetComponentArray<EnvironmentComponent>().get();
             const auto transform_array = scene.GetComponentArray<TransformComponent>().get();
@@ -1230,11 +1230,12 @@ namespace won::rendering
                             derived_sun.SetFlags(SHADER_LIGHT_FLAGS::LIGHT_FLAG_LIGHT_CASTING_SHADOW);
                         }
                         has_derived_sun = true;
-                        direct_sun_cast_shadow = environment.direct_sun_cast_shadow;
-                        direct_sun_shadow_resolution = environment.direct_sun_shadow_resolution;
-                        direct_sun_cascade_count = environment.direct_sun_cascade_count;
-                        direct_sun_cascade_lambda = environment.direct_sun_cascade_lambda;
-                        direct_sun_cascade_blend = environment.direct_sun_cascade_blend;
+                        direct_sun_shadow.cast_shadow = environment.direct_sun_cast_shadow;
+                        direct_sun_shadow.shadow_resolution = environment.direct_sun_shadow_resolution;
+                        direct_sun_shadow.cascade_count = environment.direct_sun_cascade_count;
+                        direct_sun_shadow.cascade_lambda = environment.direct_sun_cascade_lambda;
+                        direct_sun_shadow.cascade_blend = environment.direct_sun_cascade_blend;
+                        direct_sun_shadow.shadow_distance = environment.direct_sun_shadow_distance;
                     }
 
                     shader_environment.diffuse_gi_mode = static_cast<uint32>(environment.diffuse_gi_mode);
@@ -1812,7 +1813,7 @@ namespace won::rendering
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractText(scene, text_sprite_2d, text_sprite_3d, glyph_requests); });
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractParticles(scene, particle_instances, particle_sprite_3d); });
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractDecals(scene, shader_decals); });
-        jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractEnvironment(scene, shader_environment, shader_ddgi_volume, shader_reflection_probe, ddgi_volume_entity, derived_sun, has_derived_sun, direct_sun_cast_shadow, direct_sun_shadow_resolution, direct_sun_cascade_count, direct_sun_cascade_lambda, direct_sun_cascade_blend); });
+        jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractEnvironment(scene, shader_environment, shader_ddgi_volume, shader_reflection_probe, ddgi_volume_entity, derived_sun, has_derived_sun, direct_sun_shadow); });
         jobsystem::Wait(project_ctx);
 
         if (has_derived_sun)

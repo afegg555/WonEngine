@@ -787,6 +787,11 @@
             "text": "Direct Sun Cast Shadow",
             "comment": "label"
         },
+        "editor.label.direct_sun_shadow_distance": {
+            "source": "Sun Shadow Distance",
+            "text": "Sun Shadow Distance",
+            "comment": "label"
+        },
         "editor.label.direct_sun_shadow_resolution": {
             "source": "Direct Sun Shadow Resolution",
             "text": "Direct Sun Shadow Resolution",

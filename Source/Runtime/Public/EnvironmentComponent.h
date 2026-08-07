@@ -71,6 +71,7 @@ namespace won::ecs
         uint32 direct_sun_cascade_count = 4;
         float direct_sun_cascade_lambda = 0.95f;
         float direct_sun_cascade_blend = 0.1f;
+        float direct_sun_shadow_distance = 0.0f; // 0: use the camera far plane
 
         // Cloud layer
 		float cloud_coverage = 0.55f; // 0.0 = clear sky, 1.0 = almost fully covered

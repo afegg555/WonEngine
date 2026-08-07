@@ -110,6 +110,16 @@ namespace won::rendering
         bool IsText() const { return (flags & Text) != 0; }
     };
 
+    struct DirectSunShadowSettings
+    {
+        bool cast_shadow = false;
+        uint32 shadow_resolution = 1024;
+        uint32 cascade_count = 4;
+        float cascade_lambda = 0.95f;
+        float cascade_blend = 0.1f;
+        float shadow_distance = 0.0f;
+    };
+
     // this class is not exported
     struct GPUScene
     {
@@ -119,11 +129,7 @@ namespace won::rendering
         ShaderLight derived_sun;
         uint32 derived_sun_index = std::numeric_limits<uint32>::max();
         bool has_derived_sun = false;
-        bool direct_sun_cast_shadow = false;
-        uint32 direct_sun_shadow_resolution = 1024;
-        uint32 direct_sun_cascade_count = 4;
-        float direct_sun_cascade_lambda = 0.95f;
-        float direct_sun_cascade_blend = 0.1f;
+        DirectSunShadowSettings direct_sun_shadow = {};
 
         GPUBuffer light_buffer;
 

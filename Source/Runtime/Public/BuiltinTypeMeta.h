@@ -242,6 +242,7 @@ namespace won::reflection
         WON_REFLECT_FIELD(direct_sun_cascade_count, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(direct_sun_cascade_lambda, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(direct_sun_cascade_blend, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(direct_sun_shadow_distance, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(indirect_diffuse_scale, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(indirect_specular_scale, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(cloud_coverage, won::FieldFlagEditable | won::FieldFlagSerializable)
