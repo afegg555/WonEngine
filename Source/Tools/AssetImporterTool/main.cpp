@@ -939,30 +939,53 @@ struct COMInitializer
                     }
                     else
                     {
-                        std::shared_ptr<resource::Image> image = resource::LoadImageFile(source_texture_full_path, 4);
-                        if (image && image->IsValid())
+                        const String texture_file_name = std::to_string(utils::Hash(texture_asset_key)) + "." + resource::texture_binary_extension;
+                        const String candidate_asset_path = embedded_texture_directory + "/" + texture_file_name;
+                        const String texture_full_path = io::CombinePath(content_root, candidate_asset_path);
+                        const String source_extension = utils::ToLower(io::GetExtension(source_texture_full_path));
+
+                        if (source_extension == "dds")
                         {
-                            const String texture_file_name = std::to_string(utils::Hash(texture_asset_key)) + "." + resource::texture_binary_extension;
-                            texture_asset_path = embedded_texture_directory + "/" + texture_file_name;
-                            const String texture_full_path = io::CombinePath(content_root, texture_asset_path);
-
-                            resource::TextureImportSettings settings;
-                            settings.is_srgb = color_texture;
-                            settings.generate_mipmaps = true;
-
-                            resource::AssetMeta texture_meta;
-                            if (resource::LoadAssetMeta(resource::GetAssetMetaPath(source_texture_full_path), texture_meta))
+                            // the texture binary is a dds container, so a referenced dds only needs to be copied
+                            if (io::CreateDirectories(io::GetDirectoryFromPath(texture_full_path))
+                                && io::CopyFileTo(source_texture_full_path, texture_full_path, true))
                             {
-                                settings = texture_meta.texture;
-                            }
-
-                            if (!SaveTexture(*image, texture_full_path, settings))
-                            {
-                                texture_asset_path.clear();
+                                texture_asset_path = candidate_asset_path;
+                                saved_texture_paths[texture_asset_key] = texture_asset_path;
                             }
                             else
                             {
-                                saved_texture_paths[texture_asset_key] = texture_asset_path;
+                                std::cout << "WARNING: failed to copy dds texture: " << source_texture_full_path << "\n";
+                            }
+                        }
+                        else
+                        {
+                            std::shared_ptr<resource::Image> image = resource::LoadImageFile(source_texture_full_path, 4);
+                            if (image && image->IsValid())
+                            {
+                                resource::TextureImportSettings settings;
+                                settings.is_srgb = color_texture;
+                                settings.generate_mipmaps = true;
+
+                                resource::AssetMeta texture_meta;
+                                if (resource::LoadAssetMeta(resource::GetAssetMetaPath(source_texture_full_path), texture_meta))
+                                {
+                                    settings = texture_meta.texture;
+                                }
+
+                                if (SaveTexture(*image, texture_full_path, settings))
+                                {
+                                    texture_asset_path = candidate_asset_path;
+                                    saved_texture_paths[texture_asset_key] = texture_asset_path;
+                                }
+                                else
+                                {
+                                    std::cout << "WARNING: failed to save texture: " << source_texture_full_path << "\n";
+                                }
+                            }
+                            else
+                            {
+                                std::cout << "WARNING: failed to decode texture: " << source_texture_full_path << "\n";
                             }
                         }
                     }
