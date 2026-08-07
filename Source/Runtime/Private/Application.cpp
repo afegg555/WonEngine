@@ -389,7 +389,7 @@ namespace won
 
     void Application::Update(float dt)
     {
-        auto range = profiler::BeginRangeCPU("Update");
+        auto range = profiler::BeginRangeCPU("Update Game");
         if (window->IsFocused())
         {
             io::Update((WindowType)window->GetNativeHandle());
@@ -444,12 +444,22 @@ namespace won
             return;
         }
 
-        //auto range = profiler::BeginRangeCPU("Render");
-        renderer->BeginFrame(*window, dt);
-        RenderScene();
-        RenderUI();
-        renderer->EndFrame();
-        //profiler::EndRange(range);
+        {
+            auto range = profiler::ScopedRangeCPU("Begin Frame");
+            renderer->BeginFrame(*window, dt);
+        }
+        {
+            auto range = profiler::ScopedRangeCPU("Render Scene");
+            RenderScene();
+        }
+        {
+            auto range = profiler::ScopedRangeCPU("Render UI");
+            RenderUI();
+        }
+        {
+            auto range = profiler::ScopedRangeCPU("End Frame");
+            renderer->EndFrame();
+        }
     }
 
     void Application::WaitIdle()

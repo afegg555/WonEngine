@@ -1115,6 +1115,8 @@ namespace won::editor
 
 	void EditorApplication::Update(float dt)
 	{
+		auto editor_update_range = profiler::ScopedRangeCPU("Update Editor");
+
 		if (imgui_font_reload_pending)
 		{
 			imgui_font_reload_pending = false;
@@ -1209,7 +1211,6 @@ namespace won::editor
 		{
 			UpdateEntityList();
 		}
-
 		contents_watcher_poll_timer -= dt;
 		if (contents_watcher && contents_watcher_poll_timer <= 0.0f)
 		{
@@ -5785,7 +5786,7 @@ namespace won::editor
 			Vector<RHISubresourceBinding> color_targets = { back_buffer_binding };
 
 			Renderer::FrameUploadAllocation allocation{};
-			auto gpu_range = profiler::ScopedRangeGPU("ImGui", *command_list);
+			auto gpu_range = profiler::ScopedRangeGPU("Draw ImGui", *command_list);
 
 			// Setup orthographic projection matrix into our constant buffer
 			struct ImGuiConstants

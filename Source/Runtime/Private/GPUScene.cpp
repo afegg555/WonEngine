@@ -1761,8 +1761,8 @@ namespace won::rendering
 
     void GPUScene::Update(ecs::Scene& scene, RHIDevice& device, RHICommandList& command_list, uint32 frame_slot)
     {
-        auto cpu_range = profiler::ScopedRangeCPU("GPUScene::Update");
-        auto gpu_range = profiler::ScopedRangeGPU("GPUScene::Update", command_list);
+        auto cpu_range = profiler::ScopedRangeCPU("Update GPU Scene");
+        auto gpu_range = profiler::ScopedRangeGPU("Update GPU Scene", command_list);
 
         retired[frame_slot].clear();
 

@@ -69,7 +69,7 @@ namespace won::rendering
             {
                 if (fence_value > 0)
                 {
-                    profiler::ScopedRangeCPU wait_range("Frame Context Fence Wait");
+                    profiler::ScopedRangeCPU wait_range("Wait GPU Fence");
                     fence->Wait(fence_value);
                     fence_value = 0;
                 }

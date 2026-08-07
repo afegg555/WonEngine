@@ -1542,7 +1542,10 @@ namespace won::rendering
 
         device->BeginFrame(frame_slot);
 
-        utils::FlushEnqueuedResourceUploads(*device, static_cast<uint32>(r_upload_budget.GetInt()));
+        {
+            auto cpu_range = profiler::ScopedRangeCPU("Flush Resource Uploads");
+            utils::FlushEnqueuedResourceUploads(*device, static_cast<uint32>(r_upload_budget.GetInt()));
+        }
 
         CreateBackBufferSubresources();
 
@@ -1624,8 +1627,8 @@ namespace won::rendering
             1
         };
 
-        auto gpu_range = profiler::ScopedRangeGPU("DDGI Probe Update", command_list);
-        command_list.BeginEvent("DDGI Probe Update");
+        auto gpu_range = profiler::ScopedRangeGPU("Update DDGI Probes", command_list);
+        command_list.BeginEvent("Update DDGI Probes");
         command_list.TransitionResource(*gpu_scene.ddgi.irradiance_texture, RHIResourceState::ShaderWrite);
         command_list.TransitionResource(*gpu_scene.ddgi.visibility_texture, RHIResourceState::ShaderWrite);
         command_list.TransitionResource(*gpu_scene.ddgi.probe_data_buffer, RHIResourceState::ShaderWrite);
@@ -2061,7 +2064,10 @@ namespace won::rendering
 
         if (scene.GetUpdateIndex() != gpu_scene.synced_index)
         {
-            scene.BuildGPUBVH();
+            {
+                auto cpu_range = profiler::ScopedRangeCPU("Build GPU BVH");
+                scene.BuildGPUBVH();
+            }
             gpu_scene.Update(scene, *device, *command_list, current_frame_slot);
             gpu_scene.synced_index = scene.GetUpdateIndex();
         }
@@ -2113,8 +2119,8 @@ namespace won::rendering
                 brdf_lut_uav_desc.slice_count = 1;
                 device->CreateSubresource(*brdf_lut, brdf_lut_uav_desc, &brdf_lut_uav);
 
-                auto gpu_range = profiler::ScopedRangeGPU("BRDF Integration", *command_list);
-                command_list->BeginEvent("BRDF Integration");
+                auto gpu_range = profiler::ScopedRangeGPU("Integrate BRDF", *command_list);
+                command_list->BeginEvent("Integrate BRDF");
                 command_list->TransitionResource(*brdf_lut, RHIResourceState::ShaderWrite);
                 command_list->SetComputePipeline(*brdf_integration_pipeline);
                 BRDFIntegrationPushConstants brdf_push = {};
@@ -2188,7 +2194,6 @@ namespace won::rendering
         }
 
         {
-            auto frame_cpu_range = profiler::ScopedRangeCPU("Update Frame Constants");
             auto frame_gpu_range = profiler::ScopedRangeGPU("Update Frame Constants", *command_list);
             if (!UpdateFrameConstants(frame_context, view, *command_list))
             {
@@ -2254,8 +2259,8 @@ namespace won::rendering
         shader_frame_binding.resource = shader_frame_buffer.get();
         shader_frame_binding.subresource = shader_frame_buffer_cbv;
 
-        auto gpu_range = profiler::ScopedRangeGPU("Sky Capture", command_list);
-        command_list.BeginEvent("Sky Capture");
+        auto gpu_range = profiler::ScopedRangeGPU("Capture Sky", command_list);
+        command_list.BeginEvent("Capture Sky");
 
         if (needs_capture)
         {
@@ -2452,8 +2457,6 @@ namespace won::rendering
 
     void RendererInternal::RenderForwardPath(View& view)
     {
-        auto render_cpu_range = profiler::ScopedRangeCPU("RendererInternal::RenderForwardPath");
-
         if (!view.scene || view.camera_entity == ecs::INVALID_ENTITY || !current_window)
             return;
 
@@ -2519,7 +2522,7 @@ namespace won::rendering
             scissor.height = targets.height;
 
             {
-                auto cpu_range = profiler::ScopedRangeCPU("DDGI Probe Update");
+                auto cpu_range = profiler::ScopedRangeCPU("Update DDGI Probes");
                 UpdateDDGIProbe(frame_context, view, *command_list);
             }
 
@@ -2659,7 +2662,7 @@ namespace won::rendering
                 command_list->BeginEvent("Prepass");
                 command_list->SetRenderTargets({}, & depth_buffer_binding);
                 {
-                    auto cpu_range = profiler::ScopedRangeCPU("Draw Prepass");
+                    auto cpu_range = profiler::ScopedRangeCPU("Prepass");
                     DrawScene(frame_context, view, RenderPassType::DepthPrepass, DrawScene_Opaque, *command_list);
                 }
                 command_list->EndEvent();
@@ -2671,8 +2674,8 @@ namespace won::rendering
                 RHIPipeline* light_cull_pipeline = shader_library.GetPipeline(ComputePipelineHash(ShaderId::CSLightCull));
                 if (light_cull_pipeline)
                 {
-                    auto gpu_range = profiler::ScopedRangeGPU("Light Cull", *command_list);
-                    command_list->BeginEvent("Light Cull");
+                    auto gpu_range = profiler::ScopedRangeGPU("Cull Lights", *command_list);
+                    command_list->BeginEvent("Cull Lights");
                     command_list->TransitionResource(*view.light_resources.cluster_light_count_buffer, RHIResourceState::ShaderWrite);
                     command_list->TransitionResource(*view.light_resources.cluster_light_offset_buffer, RHIResourceState::ShaderWrite);
                     command_list->TransitionResource(*view.light_resources.cluster_light_index_buffer, RHIResourceState::ShaderWrite);
@@ -2716,7 +2719,7 @@ namespace won::rendering
 
                 command_list->SetRenderTargets(color_targets, &depth_buffer_binding);
                 {
-                    auto cpu_range = profiler::ScopedRangeCPU("Draw Main Pass");
+                    auto cpu_range = profiler::ScopedRangeCPU("Main Pass");
                     uint32 main_pass_flags = 0;
                     if ((view.show_flags & Show_Opaque) != 0)
                     {
@@ -2760,8 +2763,8 @@ namespace won::rendering
 
             // Post chain + resolve
             {
-                auto gpu_range = profiler::ScopedRangeGPU("Post Resolve", *command_list);
-                command_list->BeginEvent("Post Resolve");
+                auto gpu_range = profiler::ScopedRangeGPU("Resolve Post Process", *command_list);
+                command_list->BeginEvent("Resolve Post Process");
 
                 const RHITextureDesc& color_desc = targets.color[0]->GetDesc().texture_desc;
                 const uint32 width = color_desc.width;
@@ -2834,7 +2837,7 @@ namespace won::rendering
 
                 if (auto_exposure_active && luminance_reduce_pipeline && luminance_resolve_pipeline && exposure.luminance_partial_buffer && exposure.luminance_buffer && exposure.luminance_readback_buffer)
                 {
-                    command_list->BeginEvent("Luminance Reduce");
+                    command_list->BeginEvent("Reduce Luminance");
                     command_list->TransitionResource(*targets.color[src], RHIResourceState::ShaderRead);
                     command_list->TransitionResource(*exposure.luminance_partial_buffer, RHIResourceState::ShaderWrite);
                     command_list->SetComputePipeline(*luminance_reduce_pipeline);
@@ -2850,7 +2853,7 @@ namespace won::rendering
                     command_list->TransitionResource(*exposure.luminance_partial_buffer, RHIResourceState::ShaderRead);
                     command_list->EndEvent();
 
-                    command_list->BeginEvent("Luminance Resolve");
+                    command_list->BeginEvent("Resolve Luminance");
                     command_list->TransitionResource(*exposure.luminance_buffer, RHIResourceState::ShaderWrite);
                     command_list->SetComputePipeline(*luminance_resolve_pipeline);
                     LuminanceReducePushConstants resolve_push = {};
@@ -2983,7 +2986,7 @@ namespace won::rendering
                 command_list->SetScissor(scissor);
                 command_list->SetRenderTargets({ view_output_binding }, &depth_buffer_binding);
                 {
-                    auto cpu_range = profiler::ScopedRangeCPU("Draw Primitive Pass");
+                    auto cpu_range = profiler::ScopedRangeCPU("Primitive Pass");
                     DrawScene(frame_context, view, RenderPassType::PrimitivePass, DrawScene_Primitive, *command_list);
                 }
                 command_list->EndEvent();
@@ -2997,7 +3000,7 @@ namespace won::rendering
                 command_list->SetRenderTargets({ view_output_binding }, &depth_buffer_binding);
                 if ((view.show_flags & Show_Sprites3D) != 0)
                 {
-                    auto cpu_range = profiler::ScopedRangeCPU("Draw Sprite/Text3D Pass");
+                    auto cpu_range = profiler::ScopedRangeCPU("Sprite/Text3D Pass");
                     DrawScene(frame_context, view, RenderPassType::Sprite3DPass, DrawScene_3DSprite, *command_list);
                 }
                 command_list->EndEvent();
@@ -3025,7 +3028,7 @@ namespace won::rendering
                 command_list->SetRenderTargets({ view_output_binding }, nullptr);
                 if ((view.show_flags & Show_Sprites2D) != 0)
                 {
-                    auto cpu_range = profiler::ScopedRangeCPU("Draw Sprite2D Pass");
+                    auto cpu_range = profiler::ScopedRangeCPU("Sprite2D Pass");
                     DrawScene(frame_context, view, RenderPassType::Sprite2DPass, DrawScene_2DSprite, *command_list);
                 }
                 command_list->EndEvent();
@@ -3087,14 +3090,20 @@ namespace won::rendering
             return;
         }
 
-        jobsystem::Wait(GetRenderingWorkContext());
+        {
+            auto cpu_range = profiler::ScopedRangeCPU("Wait Render Job");
+            jobsystem::Wait(GetRenderingWorkContext());
+        }
         RHICommandList* final_command_list = frame_context.BeginCommandList(*device);
 
         profiler::EndFrameGPU(*final_command_list);
         final_command_list->TransitionResource(*back_buffer_binding.resource, RHIResourceState::Present);
 
         RHIContext* graphics_context = device->GetContext(RHIQueueType::Graphics);
-        frame_context.SubmitCommandLists(*graphics_context);
+        {
+            auto cpu_range = profiler::ScopedRangeCPU("Submit Command Lists");
+            frame_context.SubmitCommandLists(*graphics_context);
+        }
 
         if (vsync_requested != vsync_enabled)
         {
@@ -3102,10 +3111,13 @@ namespace won::rendering
             swapchain->SetVSync(vsync_enabled);
         }
 
-        if (!swapchain->Present())
         {
-            backlog::Post("failed to present swapchain", backlog::LogLevel::Error);
-            return;
+            auto cpu_range = profiler::ScopedRangeCPU("Present");
+            if (!swapchain->Present())
+            {
+                backlog::Post("failed to present swapchain", backlog::LogLevel::Error);
+                return;
+            }
         }
 
         ++frame_count;
