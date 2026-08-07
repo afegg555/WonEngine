@@ -485,6 +485,7 @@ set(SHADERS_HLSL
     Source/Shaders/FogCommon.hlsli
     Source/Shaders/RayTraceCommon.hlsli
     Source/Shaders/DDGICommon.hlsli
+    Source/Shaders/NoiseCommon.hlsli
     Source/Shaders/SkyCommon.hlsli
     Source/Shaders/ObjectCommon.hlsli
     Source/Shaders/ObjectVS.hlsli

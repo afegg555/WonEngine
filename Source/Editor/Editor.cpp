@@ -60,6 +60,7 @@ namespace won::editor
 	static locale::LocaleDomain editor_locale;
 	static UnorderedMap<String, String> editor_window_titles;
 	static UnorderedMap<String, String> editor_field_labels;
+	static UnorderedMap<String, String> editor_enum_labels;
 	static uint32 editor_window_title_revision = 0;
 
 	static const char* EditorText(const char* key)
@@ -79,6 +80,44 @@ namespace won::editor
 			it = editor_field_labels.emplace(field_name, String("editor.field.") + field_name).first;
 		}
 		return editor_locale.GetText(it->second).c_str();
+	}
+
+	static const char* EditorEnumText(const char* type_display_name, const char* value_name)
+	{
+		String lookup = String("editor.enum.") + type_display_name + "." + value_name;
+		auto it = editor_enum_labels.find(lookup);
+		if (it == editor_enum_labels.end())
+		{
+			it = editor_enum_labels.emplace(std::move(lookup), String()).first;
+			it->second = it->first;
+		}
+		return editor_locale.GetText(it->second).c_str();
+	}
+
+	template <typename EnumType>
+	static bool DrawEnumCombo(const char* label, EnumType& value)
+	{
+		const won::TypeDesc* type_desc = reflection::TypeMeta<EnumType>::Get();
+		Vector<const char*> items;
+		items.reserve(type_desc->enum_value_count);
+		int current_index = -1;
+		for (uint32 i = 0; i < type_desc->enum_value_count; ++i)
+		{
+			const won::EnumValueDesc& enum_value = type_desc->enum_values[i];
+			items.push_back(EditorEnumText(type_desc->display_name, enum_value.name));
+			if (static_cast<int64>(value) == enum_value.value)
+			{
+				current_index = static_cast<int>(i);
+			}
+		}
+
+		if (!ImGui::Combo(label, &current_index, items.data(), static_cast<int>(items.size())))
+		{
+			return false;
+		}
+
+		value = static_cast<EnumType>(type_desc->enum_values[current_index].value);
+		return true;
 	}
 
 	static const char* EditorLabel(const char* key, const char* stable_id)
@@ -3045,21 +3084,11 @@ namespace won::editor
 				// the persisted default lives in Project Settings).
 				if (editor_viewport.view)
 				{
-					const char* aa_items[] = { EditorText(editor_key::label_aa_none), EditorText(editor_key::label_aa_fxaa) };
-					int aa_index = static_cast<int>(editor_viewport.view->options.aa_mode);
 					ImGui::SetNextItemWidth(120.0f);
-					if (ImGui::Combo(EditorText(editor_key::label_anti_aliasing), &aa_index, aa_items, IM_ARRAYSIZE(aa_items)))
-					{
-						editor_viewport.view->options.aa_mode = static_cast<rendering::AntiAliasingMode>(aa_index);
-					}
+					DrawEnumCombo(EditorText(editor_key::label_anti_aliasing), editor_viewport.view->options.aa_mode);
 
-					const char* tonemap_items[] = { EditorText(editor_key::label_tonemap_reinhard), EditorText(editor_key::label_tonemap_aces) };
-					int tonemap_index = static_cast<int>(editor_viewport.view->options.tonemap_mode);
 					ImGui::SetNextItemWidth(120.0f);
-					if (ImGui::Combo(EditorText(editor_key::label_tonemap_mode), &tonemap_index, tonemap_items, IM_ARRAYSIZE(tonemap_items)))
-					{
-						editor_viewport.view->options.tonemap_mode = static_cast<rendering::TonemapMode>(tonemap_index);
-					}
+					DrawEnumCombo(EditorText(editor_key::label_tonemap_mode), editor_viewport.view->options.tonemap_mode);
 				}
 
 				ImGui::Separator();
@@ -3545,13 +3574,7 @@ namespace won::editor
 						// TODO: enum is hard coded
 						bool light_changed = false;
 
-						int light_type = static_cast<int>(light_comp->type);
-						const char* light_type_items[] = { EditorText(editor_key::label_directional), EditorText(editor_key::label_point), EditorText(editor_key::label_spot), EditorText(editor_key::label_rect) };
-						if (ImGui::Combo(EditorText(editor_key::label_type), &light_type, light_type_items, IM_ARRAYSIZE(light_type_items)))
-						{
-							light_comp->type = static_cast<LightComponent::LightType>(light_type);
-							light_changed = true;
-						}
+						light_changed |= DrawEnumCombo(EditorText(editor_key::label_type), light_comp->type);
 
 						float color[3] = { light_comp->color.x, light_comp->color.y, light_comp->color.z };
 						if (ImGui::DragFloat3(EditorText(editor_key::label_color), color, 0.01f, 0.0f, 1.0f))
@@ -3732,13 +3755,7 @@ namespace won::editor
 							environment_comp->SetActive(is_active);
 						}
 
-						int sky_type = static_cast<int>(environment_comp->sky_type);
-						const char* sky_type_items[] = { EditorText(editor_key::label_none), EditorText(editor_key::label_procedural), EditorText(editor_key::label_cubemap), EditorText(editor_key::label_physically_based) };
-						static_assert(static_cast<int>(EnvironmentComponent::SkyType::PhysicallyBased) == 3, "sky_type_items must list every SkyType value");
-						if (ImGui::Combo(EditorText(editor_key::label_sky_type), &sky_type, sky_type_items, IM_ARRAYSIZE(sky_type_items)))
-						{
-							environment_comp->sky_type = static_cast<EnvironmentComponent::SkyType>(sky_type);
-						}
+						DrawEnumCombo(EditorText(editor_key::label_sky_type), environment_comp->sky_type);
 
 						const EnvironmentComponent::SkyType active_sky_type = environment_comp->sky_type;
 						const bool sky_uses_sun = active_sky_type == EnvironmentComponent::SkyType::Procedural
@@ -3859,13 +3876,27 @@ namespace won::editor
 							ImGui::DragFloat(EditorText(editor_key::label_ground_falloff), &environment_comp->ground_falloff, 0.01f, 0.0f, 1000.0f);
 						}
 
-						int gi_mode = static_cast<int>(environment_comp->diffuse_gi_mode);
-						const char* gi_mode_items[] = { EditorText(editor_key::label_none), EditorText(editor_key::label_ambient), EditorText(editor_key::label_ddgi), EditorText(editor_key::label_cubemap), EditorText(editor_key::label_sky) };
-						static_assert(static_cast<int>(EnvironmentComponent::DiffuseGIMode::Sky) == 4, "gi_mode_items must list every DiffuseGIMode value");
-						if (ImGui::Combo(EditorText(editor_key::label_gi_mode), &gi_mode, gi_mode_items, IM_ARRAYSIZE(gi_mode_items)))
+						if (sky_uses_sun)
 						{
-							environment_comp->diffuse_gi_mode = static_cast<EnvironmentComponent::DiffuseGIMode>(gi_mode);
+							ImGui::SliderFloat(EditorText(editor_key::label_cloud_coverage), &environment_comp->cloud_coverage, 0.0f, 1.0f);
+							ImGui::SliderFloat(EditorText(editor_key::label_cloud_density), &environment_comp->cloud_density, 0.0f, 1.0f);
+							ImGui::DragFloat(EditorText(editor_key::label_cloud_frequency), &environment_comp->cloud_frequency, 0.01f, 0.01f, 100.0f);
+							ImGui::DragFloat(EditorText(editor_key::label_cloud_speed), &environment_comp->cloud_speed, 0.001f, 0.0f, 10.0f);
+
+							float cloud_color[3] = { environment_comp->cloud_color.x, environment_comp->cloud_color.y, environment_comp->cloud_color.z };
+							if (ImGui::InputFloat3(EditorText(editor_key::label_cloud_color), cloud_color))
+							{
+								environment_comp->cloud_color = { cloud_color[0], cloud_color[1], cloud_color[2] };
+							}
+
+							float cloud_direction[2] = { environment_comp->cloud_direction.x, environment_comp->cloud_direction.y };
+							if (ImGui::InputFloat2(EditorText(editor_key::label_cloud_direction), cloud_direction))
+							{
+								environment_comp->cloud_direction = { cloud_direction[0], cloud_direction[1] };
+							}
 						}
+
+						DrawEnumCombo(EditorText(editor_key::label_gi_mode), environment_comp->diffuse_gi_mode);
 
 						if (environment_comp->diffuse_gi_mode == EnvironmentComponent::DiffuseGIMode::Ambient)
 						{
@@ -3888,13 +3919,7 @@ namespace won::editor
 							}
 						}
 
-						int reflection_mode = static_cast<int>(environment_comp->reflection_mode);
-						const char* reflection_mode_items[] = { EditorText(editor_key::label_none), EditorText(editor_key::label_cubemap), EditorText(editor_key::label_sky) };
-						static_assert(static_cast<int>(EnvironmentComponent::ReflectionMode::Sky) == 2, "reflection_mode_items must list every ReflectionMode value");
-						if (ImGui::Combo(EditorText(editor_key::label_reflection_mode), &reflection_mode, reflection_mode_items, IM_ARRAYSIZE(reflection_mode_items)))
-						{
-							environment_comp->reflection_mode = static_cast<EnvironmentComponent::ReflectionMode>(reflection_mode);
-						}
+						DrawEnumCombo(EditorText(editor_key::label_reflection_mode), environment_comp->reflection_mode);
 
 						if (environment_comp->reflection_mode == EnvironmentComponent::ReflectionMode::Cubemap)
 						{
@@ -4154,11 +4179,8 @@ namespace won::editor
 
 					if (!remove_component && component_open)
 					{
-						int shape_type = static_cast<int>(collider_3d_comp->shape_type);
-						const char* shape_type_items[] = { EditorText(editor_key::label_box), EditorText(editor_key::label_sphere), EditorText(editor_key::label_height_field) };
-						if (ImGui::Combo(EditorText(editor_key::label_type), &shape_type, shape_type_items, arraysize(shape_type_items)))
+						if (DrawEnumCombo(EditorText(editor_key::label_type), collider_3d_comp->shape_type))
 						{
-							collider_3d_comp->shape_type = static_cast<Collider3DComponent::ShapeType>(shape_type);
 							collider_3d_comp->SetDirty();
 						}
 
@@ -4231,11 +4253,8 @@ namespace won::editor
 
 					if (!remove_component && component_open)
 					{
-						int motion_type = static_cast<int>(rigidbody_3d_comp->motion_type);
-						const char* motion_type_items[] = { EditorText(editor_key::label_static_str), EditorText(editor_key::label_kinematic), EditorText(editor_key::label_dynamic) };
-						if (ImGui::Combo(EditorText(editor_key::label_motion_type), &motion_type, motion_type_items, arraysize(motion_type_items)))
+						if (DrawEnumCombo(EditorText(editor_key::label_motion_type), rigidbody_3d_comp->motion_type))
 						{
-							rigidbody_3d_comp->motion_type = static_cast<Rigidbody3DComponent::MotionType>(motion_type);
 							rigidbody_3d_comp->SetDirty();
 						}
 
@@ -4491,12 +4510,7 @@ namespace won::editor
 
 					if (!remove_component && component_open)
 					{
-						const char* layout_type_items[] = { EditorText(editor_key::label_layout_horizontal), EditorText(editor_key::label_layout_vertical) };
-						int layout_type = static_cast<int>(layout_comp->type);
-						if (ImGui::Combo(EditorText(editor_key::label_type), &layout_type, layout_type_items, IM_ARRAYSIZE(layout_type_items)))
-						{
-							layout_comp->type = static_cast<uint32>(layout_type);
-						}
+						DrawEnumCombo(EditorText(editor_key::label_type), layout_comp->type);
 
 						float padding_min[2] = { layout_comp->padding_min.x, layout_comp->padding_min.y };
 						if (ImGui::InputFloat2(EditorText(editor_key::label_padding_min), padding_min))
@@ -4512,12 +4526,7 @@ namespace won::editor
 
 						ImGui::InputFloat(EditorText(editor_key::label_spacing), &layout_comp->spacing);
 
-						const char* cross_align_items[] = { EditorText(editor_key::label_align_start), EditorText(editor_key::label_align_center), EditorText(editor_key::label_align_end), EditorText(editor_key::label_align_stretch) };
-						int cross_align = static_cast<int>(layout_comp->cross_align);
-						if (ImGui::Combo(EditorText(editor_key::label_cross_align), &cross_align, cross_align_items, IM_ARRAYSIZE(cross_align_items)))
-						{
-							layout_comp->cross_align = static_cast<uint32>(cross_align);
-						}
+						DrawEnumCombo(EditorText(editor_key::label_cross_align), layout_comp->cross_align);
 
 						ImGui::Checkbox(EditorText(editor_key::label_reverse), &layout_comp->reverse);
 					}
@@ -5079,21 +5088,8 @@ namespace won::editor
 
 							resource::MaterialSlot& material_slot = material_comp->GetMaterialSlot(static_cast<uint32>(selected_material_slot));
 							bool material_changed = false;
-							const char* material_type_items[] = { EditorText(editor_key::label_unlit), EditorText(editor_key::label_pbr) };
-							int material_type = static_cast<int>(material_slot.material_type);
-							if (ImGui::Combo(EditorText(editor_key::label_shader_type), &material_type, material_type_items, IM_ARRAYSIZE(material_type_items)))
-							{
-								material_slot.material_type = static_cast<resource::MaterialType>(material_type);
-								material_changed = true;
-							}
-
-							const char* blend_mode_items[] = { EditorText(editor_key::label_opaque), EditorText(editor_key::label_alpha), EditorText(editor_key::label_additive), EditorText(editor_key::label_premultiplied) };
-							int blend_mode = static_cast<int>(material_slot.blend_mode);
-							if (ImGui::Combo(EditorText(editor_key::label_blend_mode), &blend_mode, blend_mode_items, IM_ARRAYSIZE(blend_mode_items)))
-							{
-								material_slot.blend_mode = static_cast<resource::MaterialBlendMode>(blend_mode);
-								material_changed = true;
-							}
+							material_changed |= DrawEnumCombo(EditorText(editor_key::label_shader_type), material_slot.material_type);
+							material_changed |= DrawEnumCombo(EditorText(editor_key::label_blend_mode), material_slot.blend_mode);
 
 							material_changed |= ImGui::Checkbox(EditorText(editor_key::label_double_sided), &material_slot.double_sided);
 							material_changed |= ImGui::Checkbox(EditorText(editor_key::label_use_vertex_colors), &material_slot.use_vertex_colors);
@@ -6706,24 +6702,18 @@ namespace won::editor
 					renderer->SetClearColor(loaded_project_settings.clear_color);
 				}
 
-				const char* aa_items[] = { EditorText(editor_key::label_aa_none), EditorText(editor_key::label_aa_fxaa) };
-				int aa_index = static_cast<int>(loaded_project_settings.aa_mode);
 				draw_label("Anti-Aliasing");
-				if (ImGui::Combo("##Anti-Aliasing", &aa_index, aa_items, IM_ARRAYSIZE(aa_items)))
+				if (DrawEnumCombo("##Anti-Aliasing", loaded_project_settings.aa_mode))
 				{
-					loaded_project_settings.aa_mode = static_cast<rendering::AntiAliasingMode>(aa_index);
 					if (editor_viewport.view)
 					{
 						editor_viewport.view->options.aa_mode = loaded_project_settings.aa_mode;
 					}
 				}
 
-				const char* tonemap_items[] = { EditorText(editor_key::label_tonemap_reinhard), EditorText(editor_key::label_tonemap_aces) };
-				int tonemap_index = static_cast<int>(loaded_project_settings.tonemap_mode);
 				draw_label("Tonemap Mode");
-				if (ImGui::Combo("##Tonemap Mode", &tonemap_index, tonemap_items, IM_ARRAYSIZE(tonemap_items)))
+				if (DrawEnumCombo("##Tonemap Mode", loaded_project_settings.tonemap_mode))
 				{
-					loaded_project_settings.tonemap_mode = static_cast<rendering::TonemapMode>(tonemap_index);
 					if (editor_viewport.view)
 					{
 						editor_viewport.view->options.tonemap_mode = loaded_project_settings.tonemap_mode;

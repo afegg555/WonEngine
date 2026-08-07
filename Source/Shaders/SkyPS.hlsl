@@ -33,6 +33,8 @@ float4 main(VertexOutput input) : SV_Target
         color = EvaluateProceduralSky(sky, ray_direction);
     }
 
+    color = CompositeCloudLayer(sky, ray_direction, color, GetTime());
+
     color *= camera.exposure;
     color = saturateMediump(color);
 

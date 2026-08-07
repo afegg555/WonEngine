@@ -46,7 +46,7 @@ namespace won
         virtual void Initialize(const ApplicationDesc& desc);
         virtual void Shutdown();
         virtual void Update(float dt);
-        virtual void Render();
+        virtual void Render(float dt);
 
         rendering::RHIDevice* GetDevice();
         script::ScriptRuntime* GetScriptRuntime();

@@ -2,450 +2,1845 @@
     "version": 1,
     "language": "ja-JP",
     "entries": {
-        "editor.menu.file": { "source": "File", "text": "ファイル" },
-        "editor.menu.edit": { "source": "Edit", "text": "編集" },
-        "editor.menu.build": { "source": "Build", "text": "ビルド" },
-        "editor.menu.window": { "source": "Window", "text": "ウィンドウ" },
-        "editor.menu.plugins": { "source": "Plugins", "text": "プラグイン" },
-        "editor.window.viewport": { "source": "Viewport", "text": "ビューポート" },
-        "editor.window.entity_list": { "source": "Entity List", "text": "エンティティ一覧" },
-        "editor.window.inspector": { "source": "Inspector", "text": "インスペクター" },
-        "editor.window.log": { "source": "Log", "text": "ログ" },
-        "editor.window.profiler": { "source": "Profiler", "text": "プロファイラー" },
-        "editor.window.contents_browser": { "source": "Contents Browser", "text": "コンテンツブラウザー" },
-        "editor.window.project_settings": { "source": "Project Settings", "text": "プロジェクト設定" },
-        "editor.window.localization": { "source": "Localization", "text": "ローカライズ" },
-        "editor.window.preferences": { "source": "Editor Preferences", "text": "エディター設定" },
-        "editor.window.project_localization": { "source": "Project Localization", "text": "プロジェクトのローカライズ" },
-        "editor.action.save": { "source": "Save", "text": "保存" },
-        "editor.action.reload": { "source": "Reload", "text": "再読み込み" },
-        "editor.action.add_key": { "source": "Add Key", "text": "キーを追加" },
-        "editor.action.remove_key": { "source": "Remove Key", "text": "キーを削除" },
-        "editor.action.add_language": { "source": "Add Language", "text": "言語を追加" },
-        "editor.action.close": { "source": "Close", "text": "閉じる" },
-        "editor.action.copy_to_clipboard": { "source": "Copy to Clipboard", "text": "クリップボードにコピー" },
-        "editor.action.clear": { "source": "Clear", "text": "クリア" },
-        "editor.action.add_component": { "source": "Add Component", "text": "コンポーネントを追加" },
-        "editor.action.add_script": { "source": "Add Script", "text": "スクリプトを追加" },
-        "editor.action.add_slot": { "source": "Add Slot", "text": "スロットを追加" },
-        "editor.action.remove_slot": { "source": "Remove Slot", "text": "スロットを削除" },
-        "editor.action.up": { "source": "Up", "text": "上へ" },
-        "editor.action.down": { "source": "Down", "text": "下へ" },
-        "editor.action.delete_button": { "source": "Delete", "text": "削除" },
-        "editor.action.reset_editor_camera": { "source": "Reset Editor Camera", "text": "エディターカメラをリセット" },
-        "editor.action.play": { "source": "Play", "text": "再生" },
-        "editor.action.pause": { "source": "Pause", "text": "一時停止" },
-        "editor.label.key": { "source": "Key", "text": "キー" },
-        "editor.label.comment": { "source": "Comment", "text": "コメント" },
-        "editor.label.language": { "source": "Language", "text": "言語" },
-        "editor.label.default_language": { "source": "Default Language", "text": "既定の言語" },
-        "editor.label.packaged_languages": { "source": "Packaged Languages", "text": "パッケージ言語" },
-        "editor.label.path": { "source": "Path", "text": "パス" },
-        "editor.label.path_label": { "source": "Path:", "text": "パス:" },
-        "editor.label.value": { "source": "Value", "text": "値" },
-        "editor.label.no_project": { "source": "No Project", "text": "プロジェクトなし" },
-        "editor.label.unknown": { "source": "Unknown", "text": "不明" },
-        "editor.label.active": { "source": "Active", "text": "有効" },
-        "editor.label.dynamic": { "source": "Dynamic", "text": "動的" },
-        "editor.label.cast_shadow": { "source": "Cast Shadow", "text": "影を投影" },
-        "editor.label.enabled": { "source": "Enabled", "text": "有効" },
-        "editor.label.script_enabled": { "source": "Script Enabled", "text": "スクリプトを有効化" },
-        "editor.label.none": { "source": "None", "text": "なし" },
-        "editor.label.assigned": { "source": "Assigned", "text": "割り当て済み" },
-        "editor.label.all_types": { "source": "All Types", "text": "すべての種類" },
-        "editor.label.contents": { "source": "Contents", "text": "コンテンツ" },
-        "editor.label.folder": { "source": "Folder", "text": "フォルダー" },
-        "editor.label.folder_empty": { "source": "Folder is empty.", "text": "フォルダーは空です。" },
-        "editor.label.entity_label": { "source": "Entity ", "text": "エンティティ " },
-        "editor.label.parent": { "source": "Parent", "text": "親" },
-        "editor.label.position": { "source": "Position", "text": "位置" },
-        "editor.label.rotation_xyz": { "source": "Rotation XYZ", "text": "回転 XYZ" },
-        "editor.label.scale": { "source": "Scale", "text": "スケール" },
-        "editor.label.type": { "source": "Type", "text": "種類" },
-        "editor.label.color": { "source": "Color", "text": "カラー" },
-        "editor.label.intensity": { "source": "Intensity", "text": "強度" },
-        "editor.label.range": { "source": "Range", "text": "範囲" },
-        "editor.label.directional": { "source": "Directional", "text": "ディレクショナル" },
-        "editor.label.point": { "source": "Point", "text": "ポイント" },
-        "editor.label.spot": { "source": "Spot", "text": "スポット" },
-        "editor.label.shadow_resolution": { "source": "Shadow Resolution", "text": "影の解像度" },
-        "editor.label.cascade_count": { "source": "Cascade Count", "text": "カスケード数" },
-        "editor.label.cascade_lambda": { "source": "Cascade Lambda", "text": "カスケード Lambda" },
-        "editor.label.cascade_blend": { "source": "Cascade Blend", "text": "カスケードブレンド" },
-        "editor.label.sky_type": { "source": "Sky Type", "text": "空の種類" },
-        "editor.label.procedural": { "source": "Procedural", "text": "プロシージャル" },
-        "editor.label.physically_based": { "source": "Physically Based", "text": "物理ベース" },
-        "editor.label.sky": { "source": "Sky", "text": "空" },
-        "editor.label.turbidity": { "source": "Turbidity", "text": "濁度" },
-        "editor.label.mie_eccentricity": { "source": "Mie Eccentricity", "text": "Mie 偏心率" },
-        "editor.label.rayleigh_coefficient": { "source": "Rayleigh Coefficient", "text": "Rayleigh 係数" },
-        "editor.label.mie_coefficient": { "source": "Mie Coefficient", "text": "Mie 係数" },
-        "editor.label.direct_sun_active": { "source": "Direct Sun Active", "text": "太陽の直接光を有効化" },
-        "editor.label.direct_sun_cast_shadow": { "source": "Direct Sun Cast Shadow", "text": "太陽の直接光で影を投影" },
-        "editor.label.direct_sun_shadow_resolution": { "source": "Direct Sun Shadow Resolution", "text": "太陽の影の解像度" },
-        "editor.label.direct_sun_cascade_count": { "source": "Direct Sun Cascade Count", "text": "太陽カスケード数" },
-        "editor.label.direct_sun_cascade_lambda": { "source": "Direct Sun Cascade Lambda", "text": "太陽カスケード Lambda" },
-        "editor.label.direct_sun_cascade_blend": { "source": "Direct Sun Cascade Blend", "text": "太陽カスケードブレンド" },
-        "editor.label.sun_direction": { "source": "Sun Direction", "text": "太陽の方向" },
-        "editor.label.sun_color": { "source": "Sun Color", "text": "太陽の色" },
-        "editor.label.sun_intensity": { "source": "Sun Intensity", "text": "太陽の強度" },
-        "editor.label.sun_angular_radius": { "source": "Sun Angular Radius", "text": "太陽の角半径" },
-        "editor.label.sky_intensity": { "source": "Sky Intensity", "text": "空の強度" },
-        "editor.label.ground_intensity": { "source": "Ground Intensity", "text": "地面の強度" },
-        "editor.label.gi_mode": { "source": "Diffuse GI Mode", "text": "拡散 GI モード" },
-        "editor.label.ambient": { "source": "Ambient", "text": "環境光" },
-        "editor.label.ddgi": { "source": "DDGI", "text": "DDGI" },
-        "editor.label.reflection_mode": { "source": "Reflection Mode", "text": "反射モード" },
-        "editor.label.cubemap": { "source": "Cubemap", "text": "キューブマップ" },
-        "editor.label.asset": { "source": "Asset", "text": "アセット" },
-        "editor.label.asset_texture": { "source": "Texture", "text": "テクスチャ" },
-        "editor.label.asset_material": { "source": "Material", "text": "マテリアル" },
-        "editor.label.asset_mesh": { "source": "Mesh", "text": "メッシュ" },
-        "editor.label.asset_scene": { "source": "Scene", "text": "シーン" },
-        "editor.label.asset_shader": { "source": "Shader", "text": "シェーダー" },
-        "editor.label.asset_font": { "source": "Font", "text": "フォント" },
-        "editor.label.asset_script": { "source": "Script", "text": "スクリプト" },
-        "editor.label.asset_prefab": { "source": "Prefab", "text": "プレハブ" },
-        "editor.menu.import": { "source": "Import", "text": "インポート" },
-        "editor.menu.import_to_scene": { "source": "Import to Scene", "text": "シーンにインポート" },
-        "editor.menu.add_to_scene": { "source": "Add to Scene", "text": "シーンに追加" },
-        "editor.menu.reimport": { "source": "Reimport", "text": "再インポート" },
-        "editor.menu.show_in_explorer": { "source": "Show in Explorer", "text": "エクスプローラーで表示" },
-        "editor.menu.copy_disk_path": { "source": "Copy Disk Path", "text": "ディスクパスをコピー" },
-        "editor.menu.copy_virtual_path": { "source": "Copy Virtual Path", "text": "仮想パスをコピー" },
-        "editor.label.material_asset": { "source": "Material Asset", "text": "マテリアルアセット" },
-        "editor.label.metallic": { "source": "Metallic", "text": "メタリック" },
-        "editor.label.roughness": { "source": "Roughness", "text": "ラフネス" },
-        "editor.label.reflectance": { "source": "Reflectance", "text": "反射率" },
-        "editor.label.base_color": { "source": "Base Color", "text": "ベースカラー" },
-        "editor.label.normal_map": { "source": "Normal Map", "text": "法線マップ" },
-        "editor.label.emissive_map": { "source": "Emissive Map", "text": "発光マップ" },
-        "editor.label.roughness_map": { "source": "Roughness Map", "text": "ラフネスマップ" },
-        "editor.label.metallic_map": { "source": "Metallic Map", "text": "メタリックマップ" },
-        "editor.label.anti_aliasing": { "source": "Anti-Aliasing", "text": "アンチエイリアス" },
-        "editor.label.tonemap_mode": { "source": "Tonemap Mode", "text": "トーンマップモード" },
-        "editor.label.vsync": { "source": "VSync", "text": "垂直同期" },
-        "editor.action.dont_save": { "source": "Don't Save", "text": "保存しない" },
-        "editor.action.cancel": { "source": "Cancel", "text": "キャンセル" },
-        "editor.label.save_current_scene_message": { "source": "Save current scene?", "text": "現在のシーンを保存しますか？" },
-        "editor.label.unsaved_scene": { "source": "Unsaved Scene", "text": "未保存のシーン" },
-        "editor.label.won_project_file": { "source": "Won Project", "text": "Won プロジェクト" },
-        "editor.label.won_scene_file": { "source": "Won Scene", "text": "Won シーン" },
-        "editor.label.won_prefab_file": { "source": "Won Prefab", "text": "Won プレハブ" },
-        "editor.hint.new_key": { "source": "new key", "text": "新しいキー" },
-        "editor.hint.new_language": { "source": "new language", "text": "新しい言語" },
-        "editor.message.no_languages": { "source": "no languages declared - add one above", "text": "言語が登録されていません - 上で追加してください" },
-        "editor.menu.edit.preferences": { "source": "Editor Preferences", "text": "エディター設定" },
-        "editor.menu.edit.project_localization": { "source": "Project Localization", "text": "プロジェクトのローカライズ" },
-        "editor.menu.window.reset_layout": { "source": "Reset Layout", "text": "レイアウトをリセット" },
-        "editor.menu.package_project": { "source": "Package Project", "text": "プロジェクトをパッケージ化" },
-        "editor.menu.new_project": { "source": "New Project", "text": "新規プロジェクト" },
-        "editor.menu.load_project": { "source": "Load Project", "text": "プロジェクトを開く" },
-        "editor.menu.save_project": { "source": "Save Project", "text": "プロジェクトを保存" },
-        "editor.menu.new_scene": { "source": "New Scene", "text": "新規シーン" },
-        "editor.menu.save_scene": { "source": "Save Scene", "text": "シーンを保存" },
-        "editor.menu.save_scene_as": { "source": "Save Scene As...", "text": "シーンを別名で保存..." },
-        "editor.menu.load_scene": { "source": "Load Scene", "text": "シーンを開く" },
-        "editor.menu.save_as_prefab": { "source": "Save as Prefab...", "text": "プレハブとして保存..." },
-        "editor.label.no_plugins_found": { "source": "No plugins found", "text": "プラグインが見つかりません" },
-        "editor.label.wireframe": { "source": "WireFrame", "text": "ワイヤーフレーム" },
-        "editor.label.editor_grid": { "source": "Editor Grid", "text": "エディターグリッド" },
-        "editor.label.collider_3d": { "source": "Collider3D", "text": "Collider3D" },
-        "editor.label.bvh_debug": { "source": "BVH Debug", "text": "BVH デバッグ" },
-        "editor.label.ddgi_debug_overlay": { "source": "DDGI Debug Overlay", "text": "DDGI デバッグオーバーレイ" },
-        "editor.menu.delete_entity": { "source": "Delete Entity", "text": "エンティティを削除" },
-        "editor.label.delete_entity_children_warning": { "source": "Children and components will also be removed.", "text": "子エンティティとコンポーネントも削除されます。" },
-        "editor.label.importing_asset": { "source": "Importing asset", "text": "アセットをインポート中" },
-        "editor.label.importing_assets": { "source": "Importing assets (", "text": "アセットをインポート中（" },
-        "editor.label.refresh": { "source": "Refresh", "text": "更新" },
-        "editor.label.import_content_asset_message": { "source": "Import this asset to Scene?", "text": "このアセットをシーンにインポートしますか？" },
-        "editor.action.remove": { "source": "Remove", "text": "削除" },
-        "editor.label.action_cannot_be_undone": { "source": "This action cannot be undone.", "text": "この操作は元に戻せません。" },
-        "editor.label.no_components_available": { "source": "No components available", "text": "利用可能なコンポーネントはありません" },
-        "editor.label.edit_entity_command": { "source": "Edit Entity", "text": "エンティティを編集" },
-        "editor.label.create_entity_command": { "source": "Create Entity", "text": "エンティティを作成" },
-        "editor.label.delete_entity_command": { "source": "Delete Entity", "text": "エンティティを削除" },
-        "editor.label.instantiate_prefab_command": { "source": "Instantiate Prefab", "text": "プレハブをインスタンス化" },
-        "editor.action.update_scene_gpubvh": { "source": "Update Scene GPUBVH", "text": "シーン GPUBVH を更新" },
-        "editor.action.regenerate_terrain": { "source": "Regenerate Terrain", "text": "地形を再生成" },
-        "editor.action.bake_navmesh": { "source": "Bake NavMesh", "text": "NavMesh をベイク" },
-        "editor.label.orthographic": { "source": "Orthographic", "text": "正投影" },
-        "editor.label.billboard": { "source": "Billboard", "text": "ビルボード" },
-        "editor.label.loop": { "source": "Loop", "text": "ループ" },
-        "editor.label.double_sided": { "source": "Double Sided", "text": "両面" },
-        "editor.label.receive_shadow": { "source": "Receive Shadow", "text": "影を受ける" },
-        "editor.label.script": { "source": "Script", "text": "スクリプト" },
-        "editor.label.text": { "source": "Text", "text": "テキスト" },
-        "editor.label.textures": { "source": "Textures", "text": "テクスチャ" },
-        "editor.label.font": { "source": "Font", "text": "フォント" },
-        "editor.message.preferences_scope": { "source": "These settings are per-machine and are not shared with the project.", "text": "これらの設定はこのマシン固有で、プロジェクトとは共有されません。" },
-        "editor.message.package_project_started": { "source": "Packaging project: ", "text": "プロジェクトをパッケージ化中： " },
-        "editor.message.package_project_failed": { "source": "Package failed.", "text": "パッケージ化に失敗しました。" },
-        "editor.message.package_project_missing_settings": { "source": "Project settings path is empty.", "text": "プロジェクト設定のパスが空です。" },
-        "editor.message.package_tool_not_found": { "source": "PackageTool not found: ", "text": "PackageTool が見つかりません： " },
-        "editor.message.splash_starting_renderer": { "source": "Starting renderer...", "text": "レンダラーを起動中…" },
-        "editor.message.splash_loading_editor_settings": { "source": "Loading editor settings...", "text": "エディター設定を読み込み中…" },
-        "editor.message.splash_loading_plugins": { "source": "Loading plugins...", "text": "プラグインを読み込み中…" },
-        "editor.message.splash_loading_startup_scene": { "source": "Loading startup scene...", "text": "起動シーンを読み込み中…" },
-        "editor.action.save_as": { "source": "Save As", "text": "名前を付けて保存" },
-        "editor.message.plugin_loaded": { "source": "Loaded", "text": "読み込み済み" },
-        "editor.message.plugin_not_loaded": { "source": "Not loaded", "text": "未読み込み" },
-        "editor.format.delete_confirm_format": { "source": "Delete %s?", "text": "%sを削除しますか？" },
-        "editor.label.enable_profiler": { "source": "Enable Profiler", "text": "プロファイラーを有効化" },
-        "editor.label.profiler_starting": { "source": "Profiler starting...", "text": "プロファイラーを起動中…" },
-        "editor.label.profiler_warning": { "source": "Profiler Turned On! Performance may be reduced!", "text": "プロファイラーを有効にしました。パフォーマンスが低下する場合があります。" },
-        "editor.message.asset_binary_missing": { "source": "Imported binary missing (needs import)", "text": "インポート済みバイナリがありません（再インポートが必要です）" },
-        "editor.message.asset_source_missing": { "source": "Source file missing", "text": "ソースファイルがありません" },
-        "editor.message.asset_texture_missing": { "source": "Missing texture: ", "text": "テクスチャがありません： " },
-        "editor.label.asset_needs_reimport": { "source": "Source changed since last import", "text": "前回のインポート後にソースが変更されました" },
-        "editor.format.size_format": { "source": "Size %.0f", "text": "サイズ %.0f" },
-        "editor.format.remove_tooltip_format": { "source": "Remove %s", "text": "%sを削除" },
-        "editor.format.remove_confirm_format": { "source": "Remove %s?", "text": "%sを削除しますか？" },
-        "editor.format.unsupported_format": { "source": "%s: unsupported", "text": "%s：サポートされていません" },
-        "editor.label.undo": { "source": "Undo", "text": "元に戻す" },
-        "editor.label.redo": { "source": "Redo", "text": "やり直す" },
-        "editor.label.use_vertex_colors": { "source": "Use Vertex Colors", "text": "頂点カラーを使用" },
-        "editor.label.duration_zero": { "source": "Duration: 0.000s", "text": "時間：0.000秒" },
-        "editor.label.no_animation_clips": { "source": "No animation clips", "text": "アニメーションクリップがありません" },
-        "editor.label.sky_cubemap_asset_path": { "source": "Sky Cubemap Path", "text": "空のキューブマップパス" },
-        "editor.label.irradiance_cubemap_asset_path": { "source": "Irradiance Cubemap Path", "text": "放射照度キューブマップパス" },
-        "editor.label.specular_cubemap_asset_path": { "source": "Specular Cubemap Path", "text": "スペキュラキューブマップパス" },
-        "editor.label.motion_type": { "source": "Motion Type", "text": "モーションタイプ" },
-        "editor.label.static_str": { "source": "Static", "text": "静的" },
-        "editor.label.kinematic": { "source": "Kinematic", "text": "キネマティック" },
-        "editor.label.mass": { "source": "Mass", "text": "質量" },
-        "editor.label.friction": { "source": "Friction", "text": "摩擦" },
-        "editor.label.restitution": { "source": "Restitution", "text": "反発係数" },
-        "editor.label.gravity_factor": { "source": "Gravity Factor", "text": "重力係数" },
-        "editor.label.linear_velocity": { "source": "Linear Velocity", "text": "線速度" },
-        "editor.label.angular_velocity": { "source": "Angular Velocity", "text": "角速度" },
-        "editor.label.animation_events": { "source": "Animation Events", "text": "アニメーションイベント" },
-        "editor.action.animation_event_add": { "source": "Add Event", "text": "イベントを追加" },
-        "editor.action.animation_event_save": { "source": "Save Events", "text": "イベントを保存" },
-        "editor.action.animation_event_remove": { "source": "-", "text": "-" },
-        "editor.label.animation_event_default_name": { "source": "event", "text": "イベント" },
-        "editor.message.animation_events_saved": { "source": "Animation events saved: ", "text": "アニメーションイベントを保存しました： " },
-        "editor.message.animation_events_save_failed": { "source": "Failed to save animation events.", "text": "アニメーションイベントの保存に失敗しました。" },
-        "editor.message.animation_events_no_mesh": { "source": "No mesh asset to save animation events.", "text": "アニメーションイベントを保存するメッシュアセットがありません。" },
-        "editor.label.none_placeholder": { "source": "<none>", "text": "\u003cなし\u003e" },
-        "editor.label.script_already_exists": { "source": "script already exists on this component", "text": "このコンポーネントにはすでにスクリプトがあります" },
-        "editor.format.last_error_format": { "source": "Last Error: %s", "text": "最後のエラー：%s" },
-        "editor.label.padding_min": { "source": "Padding Min", "text": "最小パディング" },
-        "editor.label.padding_max": { "source": "Padding Max", "text": "最大パディング" },
-        "editor.label.spacing": { "source": "Spacing", "text": "間隔" },
-        "editor.label.cross_align": { "source": "Cross Align", "text": "交差方向の整列" },
-        "editor.label.reverse": { "source": "Reverse", "text": "反転" },
-        "editor.label.outer_cone": { "source": "Outer Cone", "text": "外側コーン" },
-        "editor.label.inner_cone": { "source": "Inner Cone", "text": "内側コーン" },
-        "editor.label.near_plane": { "source": "Near", "text": "近接" },
-        "editor.label.far_plane": { "source": "Far", "text": "遠方" },
-        "editor.label.fov_y": { "source": "FOV Y", "text": "垂直視野角" },
-        "editor.label.ortho_size": { "source": "Ortho Size", "text": "正投影サイズ" },
-        "editor.format.aspect_ratio_format": { "source": "Aspect Ratio: %.3f", "text": "アスペクト比：%.3f" },
-        "editor.label.aperture": { "source": "Aperture", "text": "絞り" },
-        "editor.label.shutter_speed": { "source": "Shutter Speed", "text": "シャッター速度" },
-        "editor.label.sensitivity": { "source": "Sensitivity", "text": "感度" },
-        "editor.label.auto_exposure": { "source": "Auto Exposure", "text": "自動露出" },
-        "editor.label.fixed_ev100": { "source": "Fixed EV100", "text": "固定 EV100" },
-        "editor.format.exposure_multiplier_format": { "source": "Exposure Multiplier: %.6f", "text": "露出倍率：%.6f" },
-        "editor.label.exposure_compensation": { "source": "Exposure Compensation (EV)", "text": "露出補正（EV）" },
-        "editor.label.auto_exposure_min_ev": { "source": "Min EV100", "text": "最小 EV100" },
-        "editor.label.auto_exposure_max_ev": { "source": "Max EV100", "text": "最大 EV100" },
-        "editor.label.auto_exposure_speed": { "source": "Adaptation Speed", "text": "適応速度" },
-        "editor.label.sun_glow_intensity": { "source": "Sun Glow Intensity", "text": "太陽グロー強度" },
-        "editor.label.sun_glow_falloff": { "source": "Sun Glow Falloff", "text": "太陽グロー減衰" },
-        "editor.label.sky_horizon_color": { "source": "Sky Horizon Color", "text": "空の地平線カラー" },
-        "editor.label.sky_horizon_falloff": { "source": "Sky Horizon Falloff", "text": "空の地平線減衰" },
-        "editor.label.sky_zenith_color": { "source": "Sky Zenith Color", "text": "空の天頂カラー" },
-        "editor.label.ground_horizon_color": { "source": "Ground Horizon Color", "text": "地面の地平線カラー" },
-        "editor.label.ground_falloff": { "source": "Ground Falloff", "text": "地面の減衰" },
-        "editor.label.ground_color": { "source": "Ground Color", "text": "地面のカラー" },
-        "editor.label.ambient_color": { "source": "Ambient Color", "text": "環境カラー" },
-        "editor.label.ambient_intensity": { "source": "Ambient Intensity", "text": "環境強度" },
-        "editor.label.indirect_diffuse_scale": { "source": "Indirect Diffuse Scale", "text": "間接拡散スケール" },
-        "editor.label.indirect_specular_scale": { "source": "Indirect Specular Scale", "text": "間接スペキュラスケール" },
-        "editor.label.probe_counts": { "source": "Probe Counts", "text": "プローブ数" },
-        "editor.label.probe_spacing": { "source": "Probe Spacing", "text": "プローブ間隔" },
-        "editor.label.volume_offset": { "source": "Volume Offset", "text": "ボリュームオフセット" },
-        "editor.label.probes_per_frame": { "source": "Probes Per Frame", "text": "フレームあたりのプローブ数" },
-        "editor.label.priority": { "source": "Priority", "text": "優先度" },
-        "editor.label.hysteresis": { "source": "Hysteresis", "text": "ヒステリシス" },
-        "editor.label.normal_bias": { "source": "Normal Bias", "text": "法線バイアス" },
-        "editor.label.view_bias": { "source": "View Bias", "text": "ビュー・バイアス" },
-        "editor.label.max_distance": { "source": "Max Distance", "text": "最大距離" },
-        "editor.label.trigger": { "source": "Trigger", "text": "トリガー" },
-        "editor.label.box": { "source": "Box", "text": "ボックス" },
-        "editor.label.sphere": { "source": "Sphere", "text": "球" },
-        "editor.label.height_field": { "source": "Height Field", "text": "高さフィールド" },
-        "editor.label.offset": { "source": "Offset", "text": "オフセット" },
-        "editor.label.half_extent": { "source": "Half Extent", "text": "半範囲" },
-        "editor.label.radius": { "source": "Radius", "text": "半径" },
-        "editor.label.anchor": { "source": "Anchor", "text": "アンカー" },
-        "editor.label.size": { "source": "Size", "text": "サイズ" },
-        "editor.label.pivot": { "source": "Pivot", "text": "ピボット" },
-        "editor.label.uv_rect": { "source": "UV Rect", "text": "UV矩形" },
-        "editor.label.layer": { "source": "Layer", "text": "レイヤー" },
-        "editor.label.anchor_presets": { "source": "Anchor Presets", "text": "アンカープリセット" },
-        "editor.format.font_format": { "source": "Font: %s", "text": "フォント：%s" },
-        "editor.label.mesh_asset": { "source": "Mesh Asset", "text": "メッシュアセット" },
-        "editor.label.pixel_height": { "source": "Pixel Height", "text": "ピクセル高さ" },
-        "editor.label.height": { "source": "Height", "text": "高さ" },
-        "editor.format.clips_format": { "source": "Clips: %d", "text": "クリップ数：%d" },
-        "editor.label.clip": { "source": "Clip", "text": "クリップ" },
-        "editor.label.speed": { "source": "Speed", "text": "速度" },
-        "editor.label.time": { "source": "Time", "text": "時間" },
-        "editor.format.duration_format": { "source": "Duration: %.3fs", "text": "時間：%.3f秒" },
-        "editor.format.bone_matrices_format": { "source": "Bone Matrices: %d", "text": "ボーン行列：%d" },
-        "editor.format.bone_matrix_offset_format": { "source": "Bone Matrix Offset: %u", "text": "ボーン行列オフセット：%u" },
-        "editor.format.material_slots_format": { "source": "Material Slots: %d", "text": "マテリアルスロット数：%d" },
-        "editor.action.fork_material": { "source": "Fork Material", "text": "マテリアルを複製" },
-        "editor.action.save_material_asset": { "source": "Save as Material Asset", "text": "マテリアルアセットとして保存" },
-        "editor.label.won_material_file": { "source": "WonEngine Material", "text": "WonEngine マテリアル" },
-        "editor.message.save_material_failed": { "source": "Failed to save material: ", "text": "マテリアルの保存に失敗しました： " },
-        "editor.label.slot_prefix": { "source": "Slot ", "text": "スロット " },
-        "editor.label.selected_slot": { "source": "Selected Slot", "text": "選択中のスロット" },
-        "editor.label.shader_type": { "source": "Material Type", "text": "マテリアルタイプ" },
-        "editor.label.unlit": { "source": "Unlit", "text": "ライティングなし" },
-        "editor.label.pbr": { "source": "PBR", "text": "PBR" },
-        "editor.label.blend_mode": { "source": "Blend Mode", "text": "ブレンドモード" },
-        "editor.label.opaque": { "source": "Opaque", "text": "不透明" },
-        "editor.label.alpha": { "source": "Alpha", "text": "アルファ" },
-        "editor.label.additive": { "source": "Additive", "text": "加算" },
-        "editor.label.premultiplied": { "source": "Premultiplied", "text": "事前乗算" },
-        "editor.label.anisotropy": { "source": "Anisotropy", "text": "異方性" },
-        "editor.label.sheen_color": { "source": "Sheen Color", "text": "シーンカラー" },
-        "editor.label.sheen_roughness": { "source": "Sheen Roughness", "text": "シーン粗さ" },
-        "editor.label.clearcoat": { "source": "Clearcoat", "text": "クリアコート" },
-        "editor.label.clearcoat_roughness": { "source": "Clearcoat Roughness", "text": "クリアコート粗さ" },
-        "editor.message.project_saved": { "source": "Project saved: ", "text": "プロジェクトを保存しました： " },
-        "editor.message.project_loaded": { "source": "Project loaded: ", "text": "プロジェクトを読み込みました： " },
-        "editor.message.project_created": { "source": "Project created: ", "text": "プロジェクトを作成しました： " },
-        "editor.message.save_project_failed": { "source": "Save project failed: ", "text": "プロジェクトの保存に失敗しました： " },
-        "editor.message.load_project_failed": { "source": "Load project failed: ", "text": "プロジェクトの読み込みに失敗しました： " },
-        "editor.message.create_project_failed": { "source": "Create project failed: ", "text": "プロジェクトの作成に失敗しました： " },
-        "editor.message.save_scene_failed": { "source": "Save scene failed: ", "text": "シーンの保存に失敗しました： " },
-        "editor.message.save_prefab_failed": { "source": "Save prefab failed: ", "text": "プレハブの保存に失敗しました： " },
-        "editor.message.load_prefab_failed": { "source": "Load prefab failed: ", "text": "プレハブの読み込みに失敗しました： " },
-        "editor.message.prefab_added": { "source": "Prefab added: ", "text": "プレハブを追加しました： " },
-        "editor.message.scene_saved": { "source": "Scene saved: ", "text": "シーンを保存しました： " },
-        "editor.message.load_scene_failed": { "source": "Load scene failed: ", "text": "シーンの読み込みに失敗しました： " },
-        "editor.message.load_scene_warning": { "source": "Load scene warning: ", "text": "シーンの読み込み警告： " },
-        "editor.message.scene_loaded": { "source": "Scene loaded: ", "text": "シーンを読み込みました： " },
-        "editor.message.content_browser_import_commit_failed": { "source": "Content Browser import commit failed: ", "text": "コンテンツブラウザーのインポート確定に失敗しました： " },
-        "editor.message.content_browser_import_failed": { "source": "Content Browser import failed: ", "text": "コンテンツブラウザーのインポートに失敗しました： " },
-        "editor.message.asset_importer_tool_not_found": { "source": "AssetImporterTool not found: ", "text": "AssetImporterTool が見つかりません： " },
-        "editor.message.failed_register_component_type": { "source": "Failed to register component type: ", "text": "コンポーネントタイプの登録に失敗しました： " },
-        "editor.message.failed_enable_plugin": { "source": "Failed to enable plugin: ", "text": "プラグインの有効化に失敗しました： " },
-        "editor.message.plugin_disabled_next_restart": { "source": "Plugin will be disabled on next editor restart: ", "text": "次回のエディター再起動時にプラグインを無効化します： " },
-        "editor.label.base_color_map": { "source": "Base Color Map", "text": "ベースカラー マップ" },
-        "editor.label.opacity_map": { "source": "Opacity Map", "text": "不透明度マップ" },
-        "editor.label.displacement_map": { "source": "Displacement Map", "text": "ディスプレイスメントマップ" },
-        "editor.label.occlusion_map": { "source": "Occlusion Map", "text": "オクルージョンマップ" },
-        "editor.label.sheen_color_map": { "source": "Sheen Color Map", "text": "シーンカラーマップ" },
-        "editor.label.sheen_roughness_map": { "source": "Sheen Roughness Map", "text": "シーン粗さマップ" },
-        "editor.label.clearcoat_map": { "source": "Clearcoat Map", "text": "クリアコートマップ" },
-        "editor.label.clearcoat_roughness_map": { "source": "Clearcoat Roughness Map", "text": "クリアコート粗さマップ" },
-        "editor.label.clearcoat_normal_map": { "source": "Clearcoat Normal Map", "text": "クリアコート法線マップ" },
-        "editor.label.anisotropy_map": { "source": "Anisotropy Map", "text": "異方性マップ" },
-        "editor.label.sound_asset_path": { "source": "Sound Path", "text": "サウンドパス" },
-        "editor.label.volume": { "source": "Volume", "text": "音量" },
-        "editor.label.pitch": { "source": "Pitch", "text": "ピッチ" },
-        "editor.label.min_distance": { "source": "Min Distance", "text": "最小距離" },
-        "editor.label.is_3d": { "source": "3D Spatial", "text": "3D空間化" },
-        "editor.label.play_on_start": { "source": "Play On Start", "text": "開始時に再生" },
-        "editor.label.is_playing": { "source": "Playing", "text": "再生中" },
-        "editor.window.save_current_scene": { "source": "Save Current Scene?", "text": "現在のシーンを保存しますか？" },
-        "editor.hint.search": { "source": "Search", "text": "検索" },
-        "editor.label.aa_none": { "source": "None", "text": "なし" },
-        "editor.label.aa_fxaa": { "source": "FXAA", "text": "FXAA" },
-        "editor.label.tonemap_reinhard": { "source": "Reinhard", "text": "Reinhard" },
-        "editor.label.tonemap_aces": { "source": "ACES", "text": "ACES" },
-        "editor.label.backend_directx12": { "source": "DirectX12", "text": "DirectX12" },
-        "editor.label.layout_horizontal": { "source": "Horizontal", "text": "水平" },
-        "editor.label.layout_vertical": { "source": "Vertical", "text": "垂直" },
-        "editor.label.align_start": { "source": "Start", "text": "開始" },
-        "editor.label.align_center": { "source": "Center", "text": "中央" },
-        "editor.label.align_end": { "source": "End", "text": "終了" },
-        "editor.label.align_stretch": { "source": "Stretch", "text": "ストレッチ" },
-        "editor.label.column_label": { "source": "Label", "text": "ラベル" },
-        "editor.label.column_value": { "source": "Value", "text": "値" },
-        "editor.label.column_type": { "source": "Type", "text": "種類" },
-        "editor.label.column_default": { "source": "Default", "text": "デフォルト" },
-        "editor.label.file_name": { "source": "File name:", "text": "ファイル名：" },
-        "editor.action.new": { "source": "New...", "text": "新規…" },
-        "editor.action.create": { "source": "Create", "text": "作成" },
-        "editor.action.add": { "source": "Add", "text": "追加" },
-        "editor.action.save_schema": { "source": "Save Schema", "text": "スキーマを保存" },
-        "editor.format.localization_summary": { "source": "default: %s   keys: %d%s", "text": "デフォルト：%s   キー：%d%s" },
-        "editor.format.source_changed": { "source": "source changed: \"%s\" -> \"%s\"", "text": "ソースが変更されました：「%s」→「%s」" },
-        "editor.label.asset_sound": { "source": "Sound", "text": "サウンド" },
-        "editor.field.agent_height": { "source": "Agent Height", "text": "エージェント高さ" },
-        "editor.field.agent_max_climb": { "source": "Agent Max Climb", "text": "エージェント最大登坂高" },
-        "editor.field.agent_max_slope": { "source": "Agent Max Slope", "text": "エージェント最大傾斜" },
-        "editor.field.agent_radius": { "source": "Agent Radius", "text": "エージェント半径" },
-        "editor.field.anchor": { "source": "Anchor", "text": "アンカー" },
-        "editor.field.arrival_threshold": { "source": "Arrival Threshold", "text": "到達しきい値" },
-        "editor.field.axis": { "source": "Axis", "text": "軸" },
-        "editor.field.blend_duration": { "source": "Blend Duration", "text": "ブレンド時間" },
-        "editor.field.bounds_center": { "source": "Bounds Center", "text": "境界中心" },
-        "editor.field.bounds_extent": { "source": "Bounds Extent", "text": "境界範囲" },
-        "editor.field.clip": { "source": "Clip", "text": "クリップ" },
-        "editor.field.connected_entity": { "source": "Connected Entity", "text": "接続エンティティ" },
-        "editor.field.cubemap_asset_path": { "source": "Cubemap Asset Path", "text": "キューブマップアセットパス" },
-        "editor.field.default_state": { "source": "Default State", "text": "デフォルト状態" },
-        "editor.field.emit_radius": { "source": "Emit Radius", "text": "放出半径" },
-        "editor.field.end_color": { "source": "End Color", "text": "終了カラー" },
-        "editor.field.end_size": { "source": "End Size", "text": "終了サイズ" },
-        "editor.field.exit_time": { "source": "Exit Time", "text": "終了時間" },
-        "editor.field.frequency": { "source": "Frequency", "text": "周波数" },
-        "editor.field.from_state": { "source": "From State", "text": "遷移元ステート" },
-        "editor.field.gravity": { "source": "Gravity", "text": "重力" },
-        "editor.field.has_exit_time": { "source": "Has Exit Time", "text": "終了時間を持つ" },
-        "editor.field.height_scale": { "source": "Height Scale", "text": "高さスケール" },
-        "editor.field.include_layers": { "source": "Include Layers", "text": "含めるレイヤー" },
-        "editor.field.influence_radius": { "source": "Influence Radius", "text": "影響半径" },
-        "editor.field.intensity_multiplier": { "source": "Intensity Multiplier", "text": "強度倍率" },
-        "editor.field.island_falloff": { "source": "Island Falloff", "text": "島の減衰" },
-        "editor.field.lacunarity": { "source": "Lacunarity", "text": "ラクナリティ" },
-        "editor.field.layer": { "source": "Layer", "text": "レイヤー" },
-        "editor.field.layer_mask": { "source": "Layer Mask", "text": "レイヤーマスク" },
-        "editor.field.lifetime": { "source": "Lifetime", "text": "寿命" },
-        "editor.field.limit_max": { "source": "Limit Max", "text": "最大制限" },
-        "editor.field.limit_min": { "source": "Limit Min", "text": "最小制限" },
-        "editor.field.loop": { "source": "Loop", "text": "ループ" },
-        "editor.field.match": { "source": "Match", "text": "一致" },
-        "editor.field.max_particle_count": { "source": "Max Particle Count", "text": "最大パーティクル数" },
-        "editor.field.move_speed": { "source": "Move Speed", "text": "移動速度" },
-        "editor.field.name": { "source": "Name", "text": "名前" },
-        "editor.field.navmesh_asset_path": { "source": "Navmesh Asset Path", "text": "NavMeshアセットパス" },
-        "editor.field.octaves": { "source": "Octaves", "text": "オクターブ数" },
-        "editor.field.op": { "source": "Op", "text": "操作" },
-        "editor.field.parameter": { "source": "Parameter", "text": "パラメーター" },
-        "editor.field.persistence": { "source": "Persistence", "text": "持続性" },
-        "editor.field.reference_resolution": { "source": "Reference Resolution", "text": "基準解像度" },
-        "editor.field.render_mode": { "source": "Render Mode", "text": "描画モード" },
-        "editor.field.resolution_x": { "source": "Resolution X", "text": "X解像度" },
-        "editor.field.resolution_z": { "source": "Resolution Z", "text": "Z解像度" },
-        "editor.field.ridge_strength": { "source": "Ridge Strength", "text": "リッジ強度" },
-        "editor.field.scale_mode": { "source": "Scale Mode", "text": "スケールモード" },
-        "editor.field.seed": { "source": "Seed", "text": "シード" },
-        "editor.field.sort_order": { "source": "Sort Order", "text": "並び順" },
-        "editor.field.spawn_rate": { "source": "Spawn Rate", "text": "生成レート" },
-        "editor.field.speed": { "source": "Speed", "text": "速度" },
-        "editor.field.start_color": { "source": "Start Color", "text": "開始カラー" },
-        "editor.field.start_size": { "source": "Start Size", "text": "開始サイズ" },
-        "editor.field.threshold": { "source": "Threshold", "text": "しきい値" },
-        "editor.field.to_state": { "source": "To State", "text": "遷移先ステート" },
-        "editor.field.tree_asset_path": { "source": "Tree Asset Path", "text": "ツリーアセットパス" },
-        "editor.field.turn_rate": { "source": "Turn Rate", "text": "旋回速度" },
-        "editor.field.type": { "source": "Type", "text": "種類" },
-        "editor.field.use_bounds": { "source": "Use Bounds", "text": "境界を使用" },
-        "editor.field.use_limit": { "source": "Use Limit", "text": "制限を使用" },
-        "editor.field.value": { "source": "Value", "text": "値" },
-        "editor.field.velocity": { "source": "Velocity", "text": "速度" },
-        "editor.field.velocity_variation": { "source": "Velocity Variation", "text": "速度の変動" },
-        "editor.field.warp_strength": { "source": "Warp Strength", "text": "ワープ強度" },
-        "editor.field.world_size_x": { "source": "World Size X", "text": "ワールドサイズ X" },
-        "editor.field.world_size_z": { "source": "World Size Z", "text": "ワールドサイズ Z" }
+        "editor.menu.file": {
+            "source": "File",
+            "text": "ファイル"
+        },
+        "editor.menu.edit": {
+            "source": "Edit",
+            "text": "編集"
+        },
+        "editor.menu.build": {
+            "source": "Build",
+            "text": "ビルド"
+        },
+        "editor.menu.window": {
+            "source": "Window",
+            "text": "ウィンドウ"
+        },
+        "editor.menu.plugins": {
+            "source": "Plugins",
+            "text": "プラグイン"
+        },
+        "editor.window.viewport": {
+            "source": "Viewport",
+            "text": "ビューポート"
+        },
+        "editor.window.entity_list": {
+            "source": "Entity List",
+            "text": "エンティティ一覧"
+        },
+        "editor.window.inspector": {
+            "source": "Inspector",
+            "text": "インスペクター"
+        },
+        "editor.window.log": {
+            "source": "Log",
+            "text": "ログ"
+        },
+        "editor.window.profiler": {
+            "source": "Profiler",
+            "text": "プロファイラー"
+        },
+        "editor.window.contents_browser": {
+            "source": "Contents Browser",
+            "text": "コンテンツブラウザー"
+        },
+        "editor.window.project_settings": {
+            "source": "Project Settings",
+            "text": "プロジェクト設定"
+        },
+        "editor.window.localization": {
+            "source": "Localization",
+            "text": "ローカライズ"
+        },
+        "editor.window.preferences": {
+            "source": "Editor Preferences",
+            "text": "エディター設定"
+        },
+        "editor.window.project_localization": {
+            "source": "Project Localization",
+            "text": "プロジェクトのローカライズ"
+        },
+        "editor.action.save": {
+            "source": "Save",
+            "text": "保存"
+        },
+        "editor.action.reload": {
+            "source": "Reload",
+            "text": "再読み込み"
+        },
+        "editor.action.add_key": {
+            "source": "Add Key",
+            "text": "キーを追加"
+        },
+        "editor.action.remove_key": {
+            "source": "Remove Key",
+            "text": "キーを削除"
+        },
+        "editor.action.add_language": {
+            "source": "Add Language",
+            "text": "言語を追加"
+        },
+        "editor.action.close": {
+            "source": "Close",
+            "text": "閉じる"
+        },
+        "editor.action.copy_to_clipboard": {
+            "source": "Copy to Clipboard",
+            "text": "クリップボードにコピー"
+        },
+        "editor.action.clear": {
+            "source": "Clear",
+            "text": "クリア"
+        },
+        "editor.action.add_component": {
+            "source": "Add Component",
+            "text": "コンポーネントを追加"
+        },
+        "editor.action.add_script": {
+            "source": "Add Script",
+            "text": "スクリプトを追加"
+        },
+        "editor.action.add_slot": {
+            "source": "Add Slot",
+            "text": "スロットを追加"
+        },
+        "editor.action.remove_slot": {
+            "source": "Remove Slot",
+            "text": "スロットを削除"
+        },
+        "editor.action.up": {
+            "source": "Up",
+            "text": "上へ"
+        },
+        "editor.action.down": {
+            "source": "Down",
+            "text": "下へ"
+        },
+        "editor.action.delete_button": {
+            "source": "Delete",
+            "text": "削除"
+        },
+        "editor.action.reset_editor_camera": {
+            "source": "Reset Editor Camera",
+            "text": "エディターカメラをリセット"
+        },
+        "editor.action.play": {
+            "source": "Play",
+            "text": "再生"
+        },
+        "editor.action.pause": {
+            "source": "Pause",
+            "text": "一時停止"
+        },
+        "editor.label.key": {
+            "source": "Key",
+            "text": "キー"
+        },
+        "editor.label.comment": {
+            "source": "Comment",
+            "text": "コメント"
+        },
+        "editor.label.language": {
+            "source": "Language",
+            "text": "言語"
+        },
+        "editor.label.default_language": {
+            "source": "Default Language",
+            "text": "既定の言語"
+        },
+        "editor.label.packaged_languages": {
+            "source": "Packaged Languages",
+            "text": "パッケージ言語"
+        },
+        "editor.label.path": {
+            "source": "Path",
+            "text": "パス"
+        },
+        "editor.label.path_label": {
+            "source": "Path:",
+            "text": "パス:"
+        },
+        "editor.label.value": {
+            "source": "Value",
+            "text": "値"
+        },
+        "editor.label.no_project": {
+            "source": "No Project",
+            "text": "プロジェクトなし"
+        },
+        "editor.label.unknown": {
+            "source": "Unknown",
+            "text": "不明"
+        },
+        "editor.label.active": {
+            "source": "Active",
+            "text": "有効"
+        },
+        "editor.label.dynamic": {
+            "source": "Dynamic",
+            "text": "動的"
+        },
+        "editor.label.cast_shadow": {
+            "source": "Cast Shadow",
+            "text": "影を投影"
+        },
+        "editor.label.enabled": {
+            "source": "Enabled",
+            "text": "有効"
+        },
+        "editor.label.script_enabled": {
+            "source": "Script Enabled",
+            "text": "スクリプトを有効化"
+        },
+        "editor.label.none": {
+            "source": "None",
+            "text": "なし"
+        },
+        "editor.label.assigned": {
+            "source": "Assigned",
+            "text": "割り当て済み"
+        },
+        "editor.label.all_types": {
+            "source": "All Types",
+            "text": "すべての種類"
+        },
+        "editor.label.contents": {
+            "source": "Contents",
+            "text": "コンテンツ"
+        },
+        "editor.label.folder": {
+            "source": "Folder",
+            "text": "フォルダー"
+        },
+        "editor.label.folder_empty": {
+            "source": "Folder is empty.",
+            "text": "フォルダーは空です。"
+        },
+        "editor.label.entity_label": {
+            "source": "Entity ",
+            "text": "エンティティ "
+        },
+        "editor.label.parent": {
+            "source": "Parent",
+            "text": "親"
+        },
+        "editor.label.position": {
+            "source": "Position",
+            "text": "位置"
+        },
+        "editor.label.rotation_xyz": {
+            "source": "Rotation XYZ",
+            "text": "回転 XYZ"
+        },
+        "editor.label.scale": {
+            "source": "Scale",
+            "text": "スケール"
+        },
+        "editor.label.type": {
+            "source": "Type",
+            "text": "種類"
+        },
+        "editor.label.color": {
+            "source": "Color",
+            "text": "カラー"
+        },
+        "editor.label.intensity": {
+            "source": "Intensity",
+            "text": "強度"
+        },
+        "editor.label.range": {
+            "source": "Range",
+            "text": "範囲"
+        },
+        "editor.label.shadow_resolution": {
+            "source": "Shadow Resolution",
+            "text": "影の解像度"
+        },
+        "editor.label.cascade_count": {
+            "source": "Cascade Count",
+            "text": "カスケード数"
+        },
+        "editor.label.cascade_lambda": {
+            "source": "Cascade Lambda",
+            "text": "カスケード Lambda"
+        },
+        "editor.label.cascade_blend": {
+            "source": "Cascade Blend",
+            "text": "カスケードブレンド"
+        },
+        "editor.label.sky_type": {
+            "source": "Sky Type",
+            "text": "空の種類"
+        },
+        "editor.label.turbidity": {
+            "source": "Turbidity",
+            "text": "濁度"
+        },
+        "editor.label.mie_eccentricity": {
+            "source": "Mie Eccentricity",
+            "text": "Mie 偏心率"
+        },
+        "editor.label.rayleigh_coefficient": {
+            "source": "Rayleigh Coefficient",
+            "text": "Rayleigh 係数"
+        },
+        "editor.label.mie_coefficient": {
+            "source": "Mie Coefficient",
+            "text": "Mie 係数"
+        },
+        "editor.label.direct_sun_active": {
+            "source": "Direct Sun Active",
+            "text": "太陽の直接光を有効化"
+        },
+        "editor.label.direct_sun_cast_shadow": {
+            "source": "Direct Sun Cast Shadow",
+            "text": "太陽の直接光で影を投影"
+        },
+        "editor.label.direct_sun_shadow_resolution": {
+            "source": "Direct Sun Shadow Resolution",
+            "text": "太陽の影の解像度"
+        },
+        "editor.label.direct_sun_cascade_count": {
+            "source": "Direct Sun Cascade Count",
+            "text": "太陽カスケード数"
+        },
+        "editor.label.direct_sun_cascade_lambda": {
+            "source": "Direct Sun Cascade Lambda",
+            "text": "太陽カスケード Lambda"
+        },
+        "editor.label.direct_sun_cascade_blend": {
+            "source": "Direct Sun Cascade Blend",
+            "text": "太陽カスケードブレンド"
+        },
+        "editor.label.sun_direction": {
+            "source": "Sun Direction",
+            "text": "太陽の方向"
+        },
+        "editor.label.sun_color": {
+            "source": "Sun Color",
+            "text": "太陽の色"
+        },
+        "editor.label.sun_intensity": {
+            "source": "Sun Intensity",
+            "text": "太陽の強度"
+        },
+        "editor.label.sun_angular_radius": {
+            "source": "Sun Angular Radius",
+            "text": "太陽の角半径"
+        },
+        "editor.label.sky_intensity": {
+            "source": "Sky Intensity",
+            "text": "空の強度"
+        },
+        "editor.label.ground_intensity": {
+            "source": "Ground Intensity",
+            "text": "地面の強度"
+        },
+        "editor.label.gi_mode": {
+            "source": "Diffuse GI Mode",
+            "text": "拡散 GI モード"
+        },
+        "editor.label.reflection_mode": {
+            "source": "Reflection Mode",
+            "text": "反射モード"
+        },
+        "editor.label.asset": {
+            "source": "Asset",
+            "text": "アセット"
+        },
+        "editor.label.asset_texture": {
+            "source": "Texture",
+            "text": "テクスチャ"
+        },
+        "editor.label.asset_material": {
+            "source": "Material",
+            "text": "マテリアル"
+        },
+        "editor.label.asset_mesh": {
+            "source": "Mesh",
+            "text": "メッシュ"
+        },
+        "editor.label.asset_scene": {
+            "source": "Scene",
+            "text": "シーン"
+        },
+        "editor.label.asset_shader": {
+            "source": "Shader",
+            "text": "シェーダー"
+        },
+        "editor.label.asset_font": {
+            "source": "Font",
+            "text": "フォント"
+        },
+        "editor.label.asset_script": {
+            "source": "Script",
+            "text": "スクリプト"
+        },
+        "editor.label.asset_prefab": {
+            "source": "Prefab",
+            "text": "プレハブ"
+        },
+        "editor.menu.import": {
+            "source": "Import",
+            "text": "インポート"
+        },
+        "editor.menu.import_to_scene": {
+            "source": "Import to Scene",
+            "text": "シーンにインポート"
+        },
+        "editor.menu.add_to_scene": {
+            "source": "Add to Scene",
+            "text": "シーンに追加"
+        },
+        "editor.menu.reimport": {
+            "source": "Reimport",
+            "text": "再インポート"
+        },
+        "editor.menu.show_in_explorer": {
+            "source": "Show in Explorer",
+            "text": "エクスプローラーで表示"
+        },
+        "editor.menu.copy_disk_path": {
+            "source": "Copy Disk Path",
+            "text": "ディスクパスをコピー"
+        },
+        "editor.menu.copy_virtual_path": {
+            "source": "Copy Virtual Path",
+            "text": "仮想パスをコピー"
+        },
+        "editor.label.material_asset": {
+            "source": "Material Asset",
+            "text": "マテリアルアセット"
+        },
+        "editor.label.metallic": {
+            "source": "Metallic",
+            "text": "メタリック"
+        },
+        "editor.label.roughness": {
+            "source": "Roughness",
+            "text": "ラフネス"
+        },
+        "editor.label.reflectance": {
+            "source": "Reflectance",
+            "text": "反射率"
+        },
+        "editor.label.base_color": {
+            "source": "Base Color",
+            "text": "ベースカラー"
+        },
+        "editor.label.normal_map": {
+            "source": "Normal Map",
+            "text": "法線マップ"
+        },
+        "editor.label.emissive_map": {
+            "source": "Emissive Map",
+            "text": "発光マップ"
+        },
+        "editor.label.roughness_map": {
+            "source": "Roughness Map",
+            "text": "ラフネスマップ"
+        },
+        "editor.label.metallic_map": {
+            "source": "Metallic Map",
+            "text": "メタリックマップ"
+        },
+        "editor.label.anti_aliasing": {
+            "source": "Anti-Aliasing",
+            "text": "アンチエイリアス"
+        },
+        "editor.label.tonemap_mode": {
+            "source": "Tonemap Mode",
+            "text": "トーンマップモード"
+        },
+        "editor.label.vsync": {
+            "source": "VSync",
+            "text": "垂直同期"
+        },
+        "editor.action.dont_save": {
+            "source": "Don't Save",
+            "text": "保存しない"
+        },
+        "editor.action.cancel": {
+            "source": "Cancel",
+            "text": "キャンセル"
+        },
+        "editor.label.save_current_scene_message": {
+            "source": "Save current scene?",
+            "text": "現在のシーンを保存しますか？"
+        },
+        "editor.label.unsaved_scene": {
+            "source": "Unsaved Scene",
+            "text": "未保存のシーン"
+        },
+        "editor.label.won_project_file": {
+            "source": "Won Project",
+            "text": "Won プロジェクト"
+        },
+        "editor.label.won_scene_file": {
+            "source": "Won Scene",
+            "text": "Won シーン"
+        },
+        "editor.label.won_prefab_file": {
+            "source": "Won Prefab",
+            "text": "Won プレハブ"
+        },
+        "editor.hint.new_key": {
+            "source": "new key",
+            "text": "新しいキー"
+        },
+        "editor.hint.new_language": {
+            "source": "new language",
+            "text": "新しい言語"
+        },
+        "editor.message.no_languages": {
+            "source": "no languages declared - add one above",
+            "text": "言語が登録されていません - 上で追加してください"
+        },
+        "editor.menu.edit.preferences": {
+            "source": "Editor Preferences",
+            "text": "エディター設定"
+        },
+        "editor.menu.edit.project_localization": {
+            "source": "Project Localization",
+            "text": "プロジェクトのローカライズ"
+        },
+        "editor.menu.window.reset_layout": {
+            "source": "Reset Layout",
+            "text": "レイアウトをリセット"
+        },
+        "editor.menu.package_project": {
+            "source": "Package Project",
+            "text": "プロジェクトをパッケージ化"
+        },
+        "editor.menu.new_project": {
+            "source": "New Project",
+            "text": "新規プロジェクト"
+        },
+        "editor.menu.load_project": {
+            "source": "Load Project",
+            "text": "プロジェクトを開く"
+        },
+        "editor.menu.save_project": {
+            "source": "Save Project",
+            "text": "プロジェクトを保存"
+        },
+        "editor.menu.new_scene": {
+            "source": "New Scene",
+            "text": "新規シーン"
+        },
+        "editor.menu.save_scene": {
+            "source": "Save Scene",
+            "text": "シーンを保存"
+        },
+        "editor.menu.save_scene_as": {
+            "source": "Save Scene As...",
+            "text": "シーンを別名で保存..."
+        },
+        "editor.menu.load_scene": {
+            "source": "Load Scene",
+            "text": "シーンを開く"
+        },
+        "editor.menu.save_as_prefab": {
+            "source": "Save as Prefab...",
+            "text": "プレハブとして保存..."
+        },
+        "editor.label.no_plugins_found": {
+            "source": "No plugins found",
+            "text": "プラグインが見つかりません"
+        },
+        "editor.label.wireframe": {
+            "source": "WireFrame",
+            "text": "ワイヤーフレーム"
+        },
+        "editor.label.editor_grid": {
+            "source": "Editor Grid",
+            "text": "エディターグリッド"
+        },
+        "editor.label.collider_3d": {
+            "source": "Collider3D",
+            "text": "Collider3D"
+        },
+        "editor.label.bvh_debug": {
+            "source": "BVH Debug",
+            "text": "BVH デバッグ"
+        },
+        "editor.label.ddgi_debug_overlay": {
+            "source": "DDGI Debug Overlay",
+            "text": "DDGI デバッグオーバーレイ"
+        },
+        "editor.menu.delete_entity": {
+            "source": "Delete Entity",
+            "text": "エンティティを削除"
+        },
+        "editor.label.delete_entity_children_warning": {
+            "source": "Children and components will also be removed.",
+            "text": "子エンティティとコンポーネントも削除されます。"
+        },
+        "editor.label.importing_asset": {
+            "source": "Importing asset",
+            "text": "アセットをインポート中"
+        },
+        "editor.label.importing_assets": {
+            "source": "Importing assets (",
+            "text": "アセットをインポート中（"
+        },
+        "editor.label.refresh": {
+            "source": "Refresh",
+            "text": "更新"
+        },
+        "editor.label.import_content_asset_message": {
+            "source": "Import this asset to Scene?",
+            "text": "このアセットをシーンにインポートしますか？"
+        },
+        "editor.action.remove": {
+            "source": "Remove",
+            "text": "削除"
+        },
+        "editor.label.action_cannot_be_undone": {
+            "source": "This action cannot be undone.",
+            "text": "この操作は元に戻せません。"
+        },
+        "editor.label.no_components_available": {
+            "source": "No components available",
+            "text": "利用可能なコンポーネントはありません"
+        },
+        "editor.label.edit_entity_command": {
+            "source": "Edit Entity",
+            "text": "エンティティを編集"
+        },
+        "editor.label.create_entity_command": {
+            "source": "Create Entity",
+            "text": "エンティティを作成"
+        },
+        "editor.label.delete_entity_command": {
+            "source": "Delete Entity",
+            "text": "エンティティを削除"
+        },
+        "editor.label.instantiate_prefab_command": {
+            "source": "Instantiate Prefab",
+            "text": "プレハブをインスタンス化"
+        },
+        "editor.action.update_scene_gpubvh": {
+            "source": "Update Scene GPUBVH",
+            "text": "シーン GPUBVH を更新"
+        },
+        "editor.action.regenerate_terrain": {
+            "source": "Regenerate Terrain",
+            "text": "地形を再生成"
+        },
+        "editor.action.bake_navmesh": {
+            "source": "Bake NavMesh",
+            "text": "NavMesh をベイク"
+        },
+        "editor.label.orthographic": {
+            "source": "Orthographic",
+            "text": "正投影"
+        },
+        "editor.label.billboard": {
+            "source": "Billboard",
+            "text": "ビルボード"
+        },
+        "editor.label.loop": {
+            "source": "Loop",
+            "text": "ループ"
+        },
+        "editor.label.double_sided": {
+            "source": "Double Sided",
+            "text": "両面"
+        },
+        "editor.label.receive_shadow": {
+            "source": "Receive Shadow",
+            "text": "影を受ける"
+        },
+        "editor.label.script": {
+            "source": "Script",
+            "text": "スクリプト"
+        },
+        "editor.label.text": {
+            "source": "Text",
+            "text": "テキスト"
+        },
+        "editor.label.textures": {
+            "source": "Textures",
+            "text": "テクスチャ"
+        },
+        "editor.label.font": {
+            "source": "Font",
+            "text": "フォント"
+        },
+        "editor.message.preferences_scope": {
+            "source": "These settings are per-machine and are not shared with the project.",
+            "text": "これらの設定はこのマシン固有で、プロジェクトとは共有されません。"
+        },
+        "editor.message.package_project_started": {
+            "source": "Packaging project: ",
+            "text": "プロジェクトをパッケージ化中： "
+        },
+        "editor.message.package_project_failed": {
+            "source": "Package failed.",
+            "text": "パッケージ化に失敗しました。"
+        },
+        "editor.message.package_project_missing_settings": {
+            "source": "Project settings path is empty.",
+            "text": "プロジェクト設定のパスが空です。"
+        },
+        "editor.message.package_tool_not_found": {
+            "source": "PackageTool not found: ",
+            "text": "PackageTool が見つかりません： "
+        },
+        "editor.message.splash_starting_renderer": {
+            "source": "Starting renderer...",
+            "text": "レンダラーを起動中…"
+        },
+        "editor.message.splash_loading_editor_settings": {
+            "source": "Loading editor settings...",
+            "text": "エディター設定を読み込み中…"
+        },
+        "editor.message.splash_loading_plugins": {
+            "source": "Loading plugins...",
+            "text": "プラグインを読み込み中…"
+        },
+        "editor.message.splash_loading_startup_scene": {
+            "source": "Loading startup scene...",
+            "text": "起動シーンを読み込み中…"
+        },
+        "editor.action.save_as": {
+            "source": "Save As",
+            "text": "名前を付けて保存"
+        },
+        "editor.message.plugin_loaded": {
+            "source": "Loaded",
+            "text": "読み込み済み"
+        },
+        "editor.message.plugin_not_loaded": {
+            "source": "Not loaded",
+            "text": "未読み込み"
+        },
+        "editor.format.delete_confirm_format": {
+            "source": "Delete %s?",
+            "text": "%sを削除しますか？"
+        },
+        "editor.label.enable_profiler": {
+            "source": "Enable Profiler",
+            "text": "プロファイラーを有効化"
+        },
+        "editor.label.profiler_starting": {
+            "source": "Profiler starting...",
+            "text": "プロファイラーを起動中…"
+        },
+        "editor.label.profiler_warning": {
+            "source": "Profiler Turned On! Performance may be reduced!",
+            "text": "プロファイラーを有効にしました。パフォーマンスが低下する場合があります。"
+        },
+        "editor.message.asset_binary_missing": {
+            "source": "Imported binary missing (needs import)",
+            "text": "インポート済みバイナリがありません（再インポートが必要です）"
+        },
+        "editor.message.asset_source_missing": {
+            "source": "Source file missing",
+            "text": "ソースファイルがありません"
+        },
+        "editor.message.asset_texture_missing": {
+            "source": "Missing texture: ",
+            "text": "テクスチャがありません： "
+        },
+        "editor.label.asset_needs_reimport": {
+            "source": "Source changed since last import",
+            "text": "前回のインポート後にソースが変更されました"
+        },
+        "editor.format.size_format": {
+            "source": "Size %.0f",
+            "text": "サイズ %.0f"
+        },
+        "editor.format.remove_tooltip_format": {
+            "source": "Remove %s",
+            "text": "%sを削除"
+        },
+        "editor.format.remove_confirm_format": {
+            "source": "Remove %s?",
+            "text": "%sを削除しますか？"
+        },
+        "editor.format.unsupported_format": {
+            "source": "%s: unsupported",
+            "text": "%s：サポートされていません"
+        },
+        "editor.label.undo": {
+            "source": "Undo",
+            "text": "元に戻す"
+        },
+        "editor.label.redo": {
+            "source": "Redo",
+            "text": "やり直す"
+        },
+        "editor.label.use_vertex_colors": {
+            "source": "Use Vertex Colors",
+            "text": "頂点カラーを使用"
+        },
+        "editor.label.duration_zero": {
+            "source": "Duration: 0.000s",
+            "text": "時間：0.000秒"
+        },
+        "editor.label.no_animation_clips": {
+            "source": "No animation clips",
+            "text": "アニメーションクリップがありません"
+        },
+        "editor.label.sky_cubemap_asset_path": {
+            "source": "Sky Cubemap Path",
+            "text": "空のキューブマップパス"
+        },
+        "editor.label.irradiance_cubemap_asset_path": {
+            "source": "Irradiance Cubemap Path",
+            "text": "放射照度キューブマップパス"
+        },
+        "editor.label.specular_cubemap_asset_path": {
+            "source": "Specular Cubemap Path",
+            "text": "スペキュラキューブマップパス"
+        },
+        "editor.label.motion_type": {
+            "source": "Motion Type",
+            "text": "モーションタイプ"
+        },
+        "editor.label.mass": {
+            "source": "Mass",
+            "text": "質量"
+        },
+        "editor.label.friction": {
+            "source": "Friction",
+            "text": "摩擦"
+        },
+        "editor.label.restitution": {
+            "source": "Restitution",
+            "text": "反発係数"
+        },
+        "editor.label.gravity_factor": {
+            "source": "Gravity Factor",
+            "text": "重力係数"
+        },
+        "editor.label.linear_velocity": {
+            "source": "Linear Velocity",
+            "text": "線速度"
+        },
+        "editor.label.angular_velocity": {
+            "source": "Angular Velocity",
+            "text": "角速度"
+        },
+        "editor.label.animation_events": {
+            "source": "Animation Events",
+            "text": "アニメーションイベント"
+        },
+        "editor.action.animation_event_add": {
+            "source": "Add Event",
+            "text": "イベントを追加"
+        },
+        "editor.action.animation_event_save": {
+            "source": "Save Events",
+            "text": "イベントを保存"
+        },
+        "editor.action.animation_event_remove": {
+            "source": "-",
+            "text": "-"
+        },
+        "editor.label.animation_event_default_name": {
+            "source": "event",
+            "text": "イベント"
+        },
+        "editor.message.animation_events_saved": {
+            "source": "Animation events saved: ",
+            "text": "アニメーションイベントを保存しました： "
+        },
+        "editor.message.animation_events_save_failed": {
+            "source": "Failed to save animation events.",
+            "text": "アニメーションイベントの保存に失敗しました。"
+        },
+        "editor.message.animation_events_no_mesh": {
+            "source": "No mesh asset to save animation events.",
+            "text": "アニメーションイベントを保存するメッシュアセットがありません。"
+        },
+        "editor.label.none_placeholder": {
+            "source": "<none>",
+            "text": "<なし>"
+        },
+        "editor.label.script_already_exists": {
+            "source": "script already exists on this component",
+            "text": "このコンポーネントにはすでにスクリプトがあります"
+        },
+        "editor.format.last_error_format": {
+            "source": "Last Error: %s",
+            "text": "最後のエラー：%s"
+        },
+        "editor.label.padding_min": {
+            "source": "Padding Min",
+            "text": "最小パディング"
+        },
+        "editor.label.padding_max": {
+            "source": "Padding Max",
+            "text": "最大パディング"
+        },
+        "editor.label.spacing": {
+            "source": "Spacing",
+            "text": "間隔"
+        },
+        "editor.label.cross_align": {
+            "source": "Cross Align",
+            "text": "交差方向の整列"
+        },
+        "editor.label.reverse": {
+            "source": "Reverse",
+            "text": "反転"
+        },
+        "editor.label.outer_cone": {
+            "source": "Outer Cone",
+            "text": "外側コーン"
+        },
+        "editor.label.inner_cone": {
+            "source": "Inner Cone",
+            "text": "内側コーン"
+        },
+        "editor.label.near_plane": {
+            "source": "Near",
+            "text": "近接"
+        },
+        "editor.label.far_plane": {
+            "source": "Far",
+            "text": "遠方"
+        },
+        "editor.label.fov_y": {
+            "source": "FOV Y",
+            "text": "垂直視野角"
+        },
+        "editor.label.ortho_size": {
+            "source": "Ortho Size",
+            "text": "正投影サイズ"
+        },
+        "editor.format.aspect_ratio_format": {
+            "source": "Aspect Ratio: %.3f",
+            "text": "アスペクト比：%.3f"
+        },
+        "editor.label.aperture": {
+            "source": "Aperture",
+            "text": "絞り"
+        },
+        "editor.label.shutter_speed": {
+            "source": "Shutter Speed",
+            "text": "シャッター速度"
+        },
+        "editor.label.sensitivity": {
+            "source": "Sensitivity",
+            "text": "感度"
+        },
+        "editor.label.auto_exposure": {
+            "source": "Auto Exposure",
+            "text": "自動露出"
+        },
+        "editor.label.fixed_ev100": {
+            "source": "Fixed EV100",
+            "text": "固定 EV100"
+        },
+        "editor.format.exposure_multiplier_format": {
+            "source": "Exposure Multiplier: %.6f",
+            "text": "露出倍率：%.6f"
+        },
+        "editor.label.exposure_compensation": {
+            "source": "Exposure Compensation (EV)",
+            "text": "露出補正（EV）"
+        },
+        "editor.label.auto_exposure_min_ev": {
+            "source": "Min EV100",
+            "text": "最小 EV100"
+        },
+        "editor.label.auto_exposure_max_ev": {
+            "source": "Max EV100",
+            "text": "最大 EV100"
+        },
+        "editor.label.auto_exposure_speed": {
+            "source": "Adaptation Speed",
+            "text": "適応速度"
+        },
+        "editor.label.sun_glow_intensity": {
+            "source": "Sun Glow Intensity",
+            "text": "太陽グロー強度"
+        },
+        "editor.label.sun_glow_falloff": {
+            "source": "Sun Glow Falloff",
+            "text": "太陽グロー減衰"
+        },
+        "editor.label.sky_horizon_color": {
+            "source": "Sky Horizon Color",
+            "text": "空の地平線カラー"
+        },
+        "editor.label.sky_horizon_falloff": {
+            "source": "Sky Horizon Falloff",
+            "text": "空の地平線減衰"
+        },
+        "editor.label.sky_zenith_color": {
+            "source": "Sky Zenith Color",
+            "text": "空の天頂カラー"
+        },
+        "editor.label.ground_horizon_color": {
+            "source": "Ground Horizon Color",
+            "text": "地面の地平線カラー"
+        },
+        "editor.label.ground_falloff": {
+            "source": "Ground Falloff",
+            "text": "地面の減衰"
+        },
+        "editor.label.ground_color": {
+            "source": "Ground Color",
+            "text": "地面のカラー"
+        },
+        "editor.label.ambient_color": {
+            "source": "Ambient Color",
+            "text": "環境カラー"
+        },
+        "editor.label.ambient_intensity": {
+            "source": "Ambient Intensity",
+            "text": "環境強度"
+        },
+        "editor.label.indirect_diffuse_scale": {
+            "source": "Indirect Diffuse Scale",
+            "text": "間接拡散スケール"
+        },
+        "editor.label.indirect_specular_scale": {
+            "source": "Indirect Specular Scale",
+            "text": "間接スペキュラスケール"
+        },
+        "editor.label.probe_counts": {
+            "source": "Probe Counts",
+            "text": "プローブ数"
+        },
+        "editor.label.probe_spacing": {
+            "source": "Probe Spacing",
+            "text": "プローブ間隔"
+        },
+        "editor.label.volume_offset": {
+            "source": "Volume Offset",
+            "text": "ボリュームオフセット"
+        },
+        "editor.label.probes_per_frame": {
+            "source": "Probes Per Frame",
+            "text": "フレームあたりのプローブ数"
+        },
+        "editor.label.priority": {
+            "source": "Priority",
+            "text": "優先度"
+        },
+        "editor.label.hysteresis": {
+            "source": "Hysteresis",
+            "text": "ヒステリシス"
+        },
+        "editor.label.normal_bias": {
+            "source": "Normal Bias",
+            "text": "法線バイアス"
+        },
+        "editor.label.view_bias": {
+            "source": "View Bias",
+            "text": "ビュー・バイアス"
+        },
+        "editor.label.max_distance": {
+            "source": "Max Distance",
+            "text": "最大距離"
+        },
+        "editor.label.trigger": {
+            "source": "Trigger",
+            "text": "トリガー"
+        },
+        "editor.label.offset": {
+            "source": "Offset",
+            "text": "オフセット"
+        },
+        "editor.label.half_extent": {
+            "source": "Half Extent",
+            "text": "半範囲"
+        },
+        "editor.label.radius": {
+            "source": "Radius",
+            "text": "半径"
+        },
+        "editor.label.anchor": {
+            "source": "Anchor",
+            "text": "アンカー"
+        },
+        "editor.label.size": {
+            "source": "Size",
+            "text": "サイズ"
+        },
+        "editor.label.pivot": {
+            "source": "Pivot",
+            "text": "ピボット"
+        },
+        "editor.label.uv_rect": {
+            "source": "UV Rect",
+            "text": "UV矩形"
+        },
+        "editor.label.layer": {
+            "source": "Layer",
+            "text": "レイヤー"
+        },
+        "editor.label.anchor_presets": {
+            "source": "Anchor Presets",
+            "text": "アンカープリセット"
+        },
+        "editor.format.font_format": {
+            "source": "Font: %s",
+            "text": "フォント：%s"
+        },
+        "editor.label.mesh_asset": {
+            "source": "Mesh Asset",
+            "text": "メッシュアセット"
+        },
+        "editor.label.pixel_height": {
+            "source": "Pixel Height",
+            "text": "ピクセル高さ"
+        },
+        "editor.label.height": {
+            "source": "Height",
+            "text": "高さ"
+        },
+        "editor.format.clips_format": {
+            "source": "Clips: %d",
+            "text": "クリップ数：%d"
+        },
+        "editor.label.clip": {
+            "source": "Clip",
+            "text": "クリップ"
+        },
+        "editor.label.speed": {
+            "source": "Speed",
+            "text": "速度"
+        },
+        "editor.label.time": {
+            "source": "Time",
+            "text": "時間"
+        },
+        "editor.format.duration_format": {
+            "source": "Duration: %.3fs",
+            "text": "時間：%.3f秒"
+        },
+        "editor.format.bone_matrices_format": {
+            "source": "Bone Matrices: %d",
+            "text": "ボーン行列：%d"
+        },
+        "editor.format.bone_matrix_offset_format": {
+            "source": "Bone Matrix Offset: %u",
+            "text": "ボーン行列オフセット：%u"
+        },
+        "editor.format.material_slots_format": {
+            "source": "Material Slots: %d",
+            "text": "マテリアルスロット数：%d"
+        },
+        "editor.action.fork_material": {
+            "source": "Fork Material",
+            "text": "マテリアルを複製"
+        },
+        "editor.action.save_material_asset": {
+            "source": "Save as Material Asset",
+            "text": "マテリアルアセットとして保存"
+        },
+        "editor.label.won_material_file": {
+            "source": "WonEngine Material",
+            "text": "WonEngine マテリアル"
+        },
+        "editor.message.save_material_failed": {
+            "source": "Failed to save material: ",
+            "text": "マテリアルの保存に失敗しました： "
+        },
+        "editor.label.slot_prefix": {
+            "source": "Slot ",
+            "text": "スロット "
+        },
+        "editor.label.selected_slot": {
+            "source": "Selected Slot",
+            "text": "選択中のスロット"
+        },
+        "editor.label.shader_type": {
+            "source": "Material Type",
+            "text": "マテリアルタイプ"
+        },
+        "editor.label.blend_mode": {
+            "source": "Blend Mode",
+            "text": "ブレンドモード"
+        },
+        "editor.label.anisotropy": {
+            "source": "Anisotropy",
+            "text": "異方性"
+        },
+        "editor.label.sheen_color": {
+            "source": "Sheen Color",
+            "text": "シーンカラー"
+        },
+        "editor.label.sheen_roughness": {
+            "source": "Sheen Roughness",
+            "text": "シーン粗さ"
+        },
+        "editor.label.clearcoat": {
+            "source": "Clearcoat",
+            "text": "クリアコート"
+        },
+        "editor.label.clearcoat_roughness": {
+            "source": "Clearcoat Roughness",
+            "text": "クリアコート粗さ"
+        },
+        "editor.message.project_saved": {
+            "source": "Project saved: ",
+            "text": "プロジェクトを保存しました： "
+        },
+        "editor.message.project_loaded": {
+            "source": "Project loaded: ",
+            "text": "プロジェクトを読み込みました： "
+        },
+        "editor.message.project_created": {
+            "source": "Project created: ",
+            "text": "プロジェクトを作成しました： "
+        },
+        "editor.message.save_project_failed": {
+            "source": "Save project failed: ",
+            "text": "プロジェクトの保存に失敗しました： "
+        },
+        "editor.message.load_project_failed": {
+            "source": "Load project failed: ",
+            "text": "プロジェクトの読み込みに失敗しました： "
+        },
+        "editor.message.create_project_failed": {
+            "source": "Create project failed: ",
+            "text": "プロジェクトの作成に失敗しました： "
+        },
+        "editor.message.save_scene_failed": {
+            "source": "Save scene failed: ",
+            "text": "シーンの保存に失敗しました： "
+        },
+        "editor.message.save_prefab_failed": {
+            "source": "Save prefab failed: ",
+            "text": "プレハブの保存に失敗しました： "
+        },
+        "editor.message.load_prefab_failed": {
+            "source": "Load prefab failed: ",
+            "text": "プレハブの読み込みに失敗しました： "
+        },
+        "editor.message.prefab_added": {
+            "source": "Prefab added: ",
+            "text": "プレハブを追加しました： "
+        },
+        "editor.message.scene_saved": {
+            "source": "Scene saved: ",
+            "text": "シーンを保存しました： "
+        },
+        "editor.message.load_scene_failed": {
+            "source": "Load scene failed: ",
+            "text": "シーンの読み込みに失敗しました： "
+        },
+        "editor.message.load_scene_warning": {
+            "source": "Load scene warning: ",
+            "text": "シーンの読み込み警告： "
+        },
+        "editor.message.scene_loaded": {
+            "source": "Scene loaded: ",
+            "text": "シーンを読み込みました： "
+        },
+        "editor.message.content_browser_import_commit_failed": {
+            "source": "Content Browser import commit failed: ",
+            "text": "コンテンツブラウザーのインポート確定に失敗しました： "
+        },
+        "editor.message.content_browser_import_failed": {
+            "source": "Content Browser import failed: ",
+            "text": "コンテンツブラウザーのインポートに失敗しました： "
+        },
+        "editor.message.asset_importer_tool_not_found": {
+            "source": "AssetImporterTool not found: ",
+            "text": "AssetImporterTool が見つかりません： "
+        },
+        "editor.message.failed_register_component_type": {
+            "source": "Failed to register component type: ",
+            "text": "コンポーネントタイプの登録に失敗しました： "
+        },
+        "editor.message.failed_enable_plugin": {
+            "source": "Failed to enable plugin: ",
+            "text": "プラグインの有効化に失敗しました： "
+        },
+        "editor.message.plugin_disabled_next_restart": {
+            "source": "Plugin will be disabled on next editor restart: ",
+            "text": "次回のエディター再起動時にプラグインを無効化します： "
+        },
+        "editor.label.base_color_map": {
+            "source": "Base Color Map",
+            "text": "ベースカラー マップ"
+        },
+        "editor.label.opacity_map": {
+            "source": "Opacity Map",
+            "text": "不透明度マップ"
+        },
+        "editor.label.displacement_map": {
+            "source": "Displacement Map",
+            "text": "ディスプレイスメントマップ"
+        },
+        "editor.label.occlusion_map": {
+            "source": "Occlusion Map",
+            "text": "オクルージョンマップ"
+        },
+        "editor.label.sheen_color_map": {
+            "source": "Sheen Color Map",
+            "text": "シーンカラーマップ"
+        },
+        "editor.label.sheen_roughness_map": {
+            "source": "Sheen Roughness Map",
+            "text": "シーン粗さマップ"
+        },
+        "editor.label.clearcoat_map": {
+            "source": "Clearcoat Map",
+            "text": "クリアコートマップ"
+        },
+        "editor.label.clearcoat_roughness_map": {
+            "source": "Clearcoat Roughness Map",
+            "text": "クリアコート粗さマップ"
+        },
+        "editor.label.clearcoat_normal_map": {
+            "source": "Clearcoat Normal Map",
+            "text": "クリアコート法線マップ"
+        },
+        "editor.label.anisotropy_map": {
+            "source": "Anisotropy Map",
+            "text": "異方性マップ"
+        },
+        "editor.label.sound_asset_path": {
+            "source": "Sound Path",
+            "text": "サウンドパス"
+        },
+        "editor.label.volume": {
+            "source": "Volume",
+            "text": "音量"
+        },
+        "editor.label.pitch": {
+            "source": "Pitch",
+            "text": "ピッチ"
+        },
+        "editor.label.min_distance": {
+            "source": "Min Distance",
+            "text": "最小距離"
+        },
+        "editor.label.is_3d": {
+            "source": "3D Spatial",
+            "text": "3D空間化"
+        },
+        "editor.label.play_on_start": {
+            "source": "Play On Start",
+            "text": "開始時に再生"
+        },
+        "editor.label.is_playing": {
+            "source": "Playing",
+            "text": "再生中"
+        },
+        "editor.window.save_current_scene": {
+            "source": "Save Current Scene?",
+            "text": "現在のシーンを保存しますか？"
+        },
+        "editor.hint.search": {
+            "source": "Search",
+            "text": "検索"
+        },
+        "editor.label.backend_directx12": {
+            "source": "DirectX12",
+            "text": "DirectX12"
+        },
+        "editor.label.column_label": {
+            "source": "Label",
+            "text": "ラベル"
+        },
+        "editor.label.column_value": {
+            "source": "Value",
+            "text": "値"
+        },
+        "editor.label.column_type": {
+            "source": "Type",
+            "text": "種類"
+        },
+        "editor.label.column_default": {
+            "source": "Default",
+            "text": "デフォルト"
+        },
+        "editor.label.file_name": {
+            "source": "File name:",
+            "text": "ファイル名："
+        },
+        "editor.action.new": {
+            "source": "New...",
+            "text": "新規…"
+        },
+        "editor.action.create": {
+            "source": "Create",
+            "text": "作成"
+        },
+        "editor.action.add": {
+            "source": "Add",
+            "text": "追加"
+        },
+        "editor.action.save_schema": {
+            "source": "Save Schema",
+            "text": "スキーマを保存"
+        },
+        "editor.format.localization_summary": {
+            "source": "default: %s   keys: %d%s",
+            "text": "デフォルト：%s   キー：%d%s"
+        },
+        "editor.format.source_changed": {
+            "source": "source changed: \"%s\" -> \"%s\"",
+            "text": "ソースが変更されました：「%s」→「%s」"
+        },
+        "editor.label.asset_sound": {
+            "source": "Sound",
+            "text": "サウンド"
+        },
+        "editor.field.agent_height": {
+            "source": "Agent Height",
+            "text": "エージェント高さ"
+        },
+        "editor.field.agent_max_climb": {
+            "source": "Agent Max Climb",
+            "text": "エージェント最大登坂高"
+        },
+        "editor.field.agent_max_slope": {
+            "source": "Agent Max Slope",
+            "text": "エージェント最大傾斜"
+        },
+        "editor.field.agent_radius": {
+            "source": "Agent Radius",
+            "text": "エージェント半径"
+        },
+        "editor.field.anchor": {
+            "source": "Anchor",
+            "text": "アンカー"
+        },
+        "editor.field.arrival_threshold": {
+            "source": "Arrival Threshold",
+            "text": "到達しきい値"
+        },
+        "editor.field.axis": {
+            "source": "Axis",
+            "text": "軸"
+        },
+        "editor.field.blend_duration": {
+            "source": "Blend Duration",
+            "text": "ブレンド時間"
+        },
+        "editor.field.bounds_center": {
+            "source": "Bounds Center",
+            "text": "境界中心"
+        },
+        "editor.field.bounds_extent": {
+            "source": "Bounds Extent",
+            "text": "境界範囲"
+        },
+        "editor.field.clip": {
+            "source": "Clip",
+            "text": "クリップ"
+        },
+        "editor.field.connected_entity": {
+            "source": "Connected Entity",
+            "text": "接続エンティティ"
+        },
+        "editor.field.cubemap_asset_path": {
+            "source": "Cubemap Asset Path",
+            "text": "キューブマップアセットパス"
+        },
+        "editor.field.default_state": {
+            "source": "Default State",
+            "text": "デフォルト状態"
+        },
+        "editor.field.emit_radius": {
+            "source": "Emit Radius",
+            "text": "放出半径"
+        },
+        "editor.field.end_color": {
+            "source": "End Color",
+            "text": "終了カラー"
+        },
+        "editor.field.end_size": {
+            "source": "End Size",
+            "text": "終了サイズ"
+        },
+        "editor.field.exit_time": {
+            "source": "Exit Time",
+            "text": "終了時間"
+        },
+        "editor.field.frequency": {
+            "source": "Frequency",
+            "text": "周波数"
+        },
+        "editor.field.from_state": {
+            "source": "From State",
+            "text": "遷移元ステート"
+        },
+        "editor.field.gravity": {
+            "source": "Gravity",
+            "text": "重力"
+        },
+        "editor.field.has_exit_time": {
+            "source": "Has Exit Time",
+            "text": "終了時間を持つ"
+        },
+        "editor.field.height_scale": {
+            "source": "Height Scale",
+            "text": "高さスケール"
+        },
+        "editor.field.include_layers": {
+            "source": "Include Layers",
+            "text": "含めるレイヤー"
+        },
+        "editor.field.influence_radius": {
+            "source": "Influence Radius",
+            "text": "影響半径"
+        },
+        "editor.field.intensity_multiplier": {
+            "source": "Intensity Multiplier",
+            "text": "強度倍率"
+        },
+        "editor.field.island_falloff": {
+            "source": "Island Falloff",
+            "text": "島の減衰"
+        },
+        "editor.field.lacunarity": {
+            "source": "Lacunarity",
+            "text": "ラクナリティ"
+        },
+        "editor.field.layer": {
+            "source": "Layer",
+            "text": "レイヤー"
+        },
+        "editor.field.layer_mask": {
+            "source": "Layer Mask",
+            "text": "レイヤーマスク"
+        },
+        "editor.field.lifetime": {
+            "source": "Lifetime",
+            "text": "寿命"
+        },
+        "editor.field.limit_max": {
+            "source": "Limit Max",
+            "text": "最大制限"
+        },
+        "editor.field.limit_min": {
+            "source": "Limit Min",
+            "text": "最小制限"
+        },
+        "editor.field.loop": {
+            "source": "Loop",
+            "text": "ループ"
+        },
+        "editor.field.match": {
+            "source": "Match",
+            "text": "一致"
+        },
+        "editor.field.max_particle_count": {
+            "source": "Max Particle Count",
+            "text": "最大パーティクル数"
+        },
+        "editor.field.move_speed": {
+            "source": "Move Speed",
+            "text": "移動速度"
+        },
+        "editor.field.name": {
+            "source": "Name",
+            "text": "名前"
+        },
+        "editor.field.navmesh_asset_path": {
+            "source": "Navmesh Asset Path",
+            "text": "NavMeshアセットパス"
+        },
+        "editor.field.octaves": {
+            "source": "Octaves",
+            "text": "オクターブ数"
+        },
+        "editor.field.op": {
+            "source": "Op",
+            "text": "操作"
+        },
+        "editor.field.parameter": {
+            "source": "Parameter",
+            "text": "パラメーター"
+        },
+        "editor.field.persistence": {
+            "source": "Persistence",
+            "text": "持続性"
+        },
+        "editor.field.reference_resolution": {
+            "source": "Reference Resolution",
+            "text": "基準解像度"
+        },
+        "editor.field.render_mode": {
+            "source": "Render Mode",
+            "text": "描画モード"
+        },
+        "editor.field.resolution_x": {
+            "source": "Resolution X",
+            "text": "X解像度"
+        },
+        "editor.field.resolution_z": {
+            "source": "Resolution Z",
+            "text": "Z解像度"
+        },
+        "editor.field.ridge_strength": {
+            "source": "Ridge Strength",
+            "text": "リッジ強度"
+        },
+        "editor.field.scale_mode": {
+            "source": "Scale Mode",
+            "text": "スケールモード"
+        },
+        "editor.field.seed": {
+            "source": "Seed",
+            "text": "シード"
+        },
+        "editor.field.sort_order": {
+            "source": "Sort Order",
+            "text": "並び順"
+        },
+        "editor.field.spawn_rate": {
+            "source": "Spawn Rate",
+            "text": "生成レート"
+        },
+        "editor.field.speed": {
+            "source": "Speed",
+            "text": "速度"
+        },
+        "editor.field.start_color": {
+            "source": "Start Color",
+            "text": "開始カラー"
+        },
+        "editor.field.start_size": {
+            "source": "Start Size",
+            "text": "開始サイズ"
+        },
+        "editor.field.threshold": {
+            "source": "Threshold",
+            "text": "しきい値"
+        },
+        "editor.field.to_state": {
+            "source": "To State",
+            "text": "遷移先ステート"
+        },
+        "editor.field.tree_asset_path": {
+            "source": "Tree Asset Path",
+            "text": "ツリーアセットパス"
+        },
+        "editor.field.turn_rate": {
+            "source": "Turn Rate",
+            "text": "旋回速度"
+        },
+        "editor.field.type": {
+            "source": "Type",
+            "text": "種類"
+        },
+        "editor.field.use_bounds": {
+            "source": "Use Bounds",
+            "text": "境界を使用"
+        },
+        "editor.field.use_limit": {
+            "source": "Use Limit",
+            "text": "制限を使用"
+        },
+        "editor.field.value": {
+            "source": "Value",
+            "text": "値"
+        },
+        "editor.field.velocity": {
+            "source": "Velocity",
+            "text": "速度"
+        },
+        "editor.field.velocity_variation": {
+            "source": "Velocity Variation",
+            "text": "速度の変動"
+        },
+        "editor.field.warp_strength": {
+            "source": "Warp Strength",
+            "text": "ワープ強度"
+        },
+        "editor.field.world_size_x": {
+            "source": "World Size X",
+            "text": "ワールドサイズ X"
+        },
+        "editor.field.world_size_z": {
+            "source": "World Size Z",
+            "text": "ワールドサイズ Z"
+        },
+        "editor.label.cloud_coverage": {
+            "source": "Cloud Coverage",
+            "text": "雲の量"
+        },
+        "editor.label.cloud_density": {
+            "source": "Cloud Density",
+            "text": "雲の密度"
+        },
+        "editor.label.cloud_speed": {
+            "source": "Cloud Speed",
+            "text": "雲の速度"
+        },
+        "editor.label.cloud_color": {
+            "source": "Cloud Color",
+            "text": "雲の色"
+        },
+        "editor.label.cloud_direction": {
+            "source": "Cloud Direction",
+            "text": "雲の方向"
+        },
+        "editor.enum.MaterialType.Unlit": {
+            "source": "Unlit",
+            "text": "アンリット"
+        },
+        "editor.enum.MaterialType.PBR": {
+            "source": "PBR",
+            "text": "PBR"
+        },
+        "editor.enum.MaterialBlendMode.Opaque": {
+            "source": "Opaque",
+            "text": "不透明"
+        },
+        "editor.enum.MaterialBlendMode.Masked": {
+            "source": "Masked",
+            "text": "マスク"
+        },
+        "editor.enum.MaterialBlendMode.Transparent": {
+            "source": "Transparent",
+            "text": "半透明"
+        },
+        "editor.enum.MaterialBlendMode.Additive": {
+            "source": "Additive",
+            "text": "加算"
+        },
+        "editor.enum.MaterialBlendMode.Premultiplied": {
+            "source": "Premultiplied",
+            "text": "乗算済みアルファ"
+        },
+        "editor.enum.SkyType.None": {
+            "source": "None",
+            "text": "なし"
+        },
+        "editor.enum.SkyType.Procedural": {
+            "source": "Procedural",
+            "text": "プロシージャル"
+        },
+        "editor.enum.SkyType.Cubemap": {
+            "source": "Cubemap",
+            "text": "キューブマップ"
+        },
+        "editor.enum.SkyType.PhysicallyBased": {
+            "source": "Physically Based",
+            "text": "物理ベース"
+        },
+        "editor.enum.DiffuseGIMode.None": {
+            "source": "None",
+            "text": "なし"
+        },
+        "editor.enum.DiffuseGIMode.Ambient": {
+            "source": "Ambient",
+            "text": "アンビエント"
+        },
+        "editor.enum.DiffuseGIMode.DDGI": {
+            "source": "DDGI",
+            "text": "DDGI"
+        },
+        "editor.enum.DiffuseGIMode.Cubemap": {
+            "source": "Cubemap",
+            "text": "キューブマップ"
+        },
+        "editor.enum.DiffuseGIMode.Sky": {
+            "source": "Sky",
+            "text": "空"
+        },
+        "editor.enum.ReflectionMode.None": {
+            "source": "None",
+            "text": "なし"
+        },
+        "editor.enum.ReflectionMode.Cubemap": {
+            "source": "Cubemap",
+            "text": "キューブマップ"
+        },
+        "editor.enum.ReflectionMode.Sky": {
+            "source": "Sky",
+            "text": "空"
+        },
+        "editor.enum.LightType.Directional": {
+            "source": "Directional",
+            "text": "ディレクショナル"
+        },
+        "editor.enum.LightType.Point": {
+            "source": "Point",
+            "text": "ポイント"
+        },
+        "editor.enum.LightType.Spot": {
+            "source": "Spot",
+            "text": "スポット"
+        },
+        "editor.enum.LightType.Rect": {
+            "source": "Rect",
+            "text": "矩形"
+        },
+        "editor.enum.Collider3DShapeType.Box": {
+            "source": "Box",
+            "text": "ボックス"
+        },
+        "editor.enum.Collider3DShapeType.Sphere": {
+            "source": "Sphere",
+            "text": "球"
+        },
+        "editor.enum.Collider3DShapeType.HeightField": {
+            "source": "Height Field",
+            "text": "ハイトフィールド"
+        },
+        "editor.enum.Rigidbody3DMotionType.Static": {
+            "source": "Static",
+            "text": "スタティック"
+        },
+        "editor.enum.Rigidbody3DMotionType.Kinematic": {
+            "source": "Kinematic",
+            "text": "キネマティック"
+        },
+        "editor.enum.Rigidbody3DMotionType.Dynamic": {
+            "source": "Dynamic",
+            "text": "ダイナミック"
+        },
+        "editor.enum.LayoutType.Horizontal": {
+            "source": "Horizontal",
+            "text": "水平"
+        },
+        "editor.enum.LayoutType.Vertical": {
+            "source": "Vertical",
+            "text": "垂直"
+        },
+        "editor.enum.LayoutCrossAlign.Start": {
+            "source": "Start",
+            "text": "開始"
+        },
+        "editor.enum.LayoutCrossAlign.Center": {
+            "source": "Center",
+            "text": "中央"
+        },
+        "editor.enum.LayoutCrossAlign.End": {
+            "source": "End",
+            "text": "終了"
+        },
+        "editor.enum.LayoutCrossAlign.Stretch": {
+            "source": "Stretch",
+            "text": "ストレッチ"
+        },
+        "editor.enum.AntiAliasingMode.None": {
+            "source": "None",
+            "text": "なし"
+        },
+        "editor.enum.AntiAliasingMode.FXAA": {
+            "source": "FXAA",
+            "text": "FXAA"
+        },
+        "editor.enum.TonemapMode.Reinhard": {
+            "source": "Reinhard",
+            "text": "ラインハルト"
+        },
+        "editor.enum.TonemapMode.ACES": {
+            "source": "ACES",
+            "text": "ACES"
+        },
+        "editor.label.cloud_frequency": {
+            "source": "Cloud Frequency",
+            "text": "雲の周波数"
+        }
     }
 }

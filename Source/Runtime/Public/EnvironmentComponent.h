@@ -72,6 +72,14 @@ namespace won::ecs
         float direct_sun_cascade_lambda = 0.95f;
         float direct_sun_cascade_blend = 0.1f;
 
+        // Cloud layer
+		float cloud_coverage = 0.55f; // 0.0 = clear sky, 1.0 = almost fully covered
+		float cloud_density = 0.1f; // how opaque the clouds are
+		float cloud_frequency = 2.0f; // noise tiling; higher value makes smaller clouds
+		float cloud_speed = 0.01f; // in uv units per second
+        float3 cloud_color = { 1.0f, 1.0f, 1.0f };
+		float2 cloud_direction = { 1.0f, 0.3f }; // only direction matters, will be normalized internally
+
         // Cubemap sky
         String sky_cubemap_asset_path;
 

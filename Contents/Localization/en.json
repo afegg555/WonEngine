@@ -762,21 +762,6 @@
             "text": "Sky Type",
             "comment": "label"
         },
-        "editor.label.procedural": {
-            "source": "Procedural",
-            "text": "Procedural",
-            "comment": "label"
-        },
-        "editor.label.physically_based": {
-            "source": "Physically Based",
-            "text": "Physically Based",
-            "comment": "label"
-        },
-        "editor.label.sky": {
-            "source": "Sky",
-            "text": "Sky",
-            "comment": "label"
-        },
         "editor.label.turbidity": {
             "source": "Turbidity",
             "text": "Turbidity",
@@ -845,16 +830,6 @@
         "editor.label.motion_type": {
             "source": "Motion Type",
             "text": "Motion Type",
-            "comment": "label"
-        },
-        "editor.label.static_str": {
-            "source": "Static",
-            "text": "Static",
-            "comment": "label"
-        },
-        "editor.label.kinematic": {
-            "source": "Kinematic",
-            "text": "Kinematic",
             "comment": "label"
         },
         "editor.label.mass": {
@@ -1000,26 +975,6 @@
         "editor.label.color": {
             "source": "Color",
             "text": "Color",
-            "comment": "label"
-        },
-        "editor.label.directional": {
-            "source": "Directional",
-            "text": "Directional",
-            "comment": "label"
-        },
-        "editor.label.point": {
-            "source": "Point",
-            "text": "Point",
-            "comment": "label"
-        },
-        "editor.label.spot": {
-            "source": "Spot",
-            "text": "Spot",
-            "comment": "label"
-        },
-        "editor.label.rect": {
-            "source": "Rect",
-            "text": "Rect",
             "comment": "label"
         },
         "editor.label.intensity": {
@@ -1217,24 +1172,9 @@
             "text": "Diffuse GI Mode",
             "comment": "label"
         },
-        "editor.label.ambient": {
-            "source": "Ambient",
-            "text": "Ambient",
-            "comment": "label"
-        },
-        "editor.label.ddgi": {
-            "source": "DDGI",
-            "text": "DDGI",
-            "comment": "label"
-        },
         "editor.label.reflection_mode": {
             "source": "Reflection Mode",
             "text": "Reflection Mode",
-            "comment": "label"
-        },
-        "editor.label.cubemap": {
-            "source": "Cubemap",
-            "text": "Cubemap",
             "comment": "label"
         },
         "editor.label.ambient_color": {
@@ -1305,21 +1245,6 @@
         "editor.label.trigger": {
             "source": "Trigger",
             "text": "Trigger",
-            "comment": "label"
-        },
-        "editor.label.box": {
-            "source": "Box",
-            "text": "Box",
-            "comment": "label"
-        },
-        "editor.label.sphere": {
-            "source": "Sphere",
-            "text": "Sphere",
-            "comment": "label"
-        },
-        "editor.label.height_field": {
-            "source": "Height Field",
-            "text": "Height Field",
             "comment": "label"
         },
         "editor.label.offset": {
@@ -1487,39 +1412,9 @@
             "text": "Material Type",
             "comment": "label"
         },
-        "editor.label.unlit": {
-            "source": "Unlit",
-            "text": "Unlit",
-            "comment": "label"
-        },
-        "editor.label.pbr": {
-            "source": "PBR",
-            "text": "PBR",
-            "comment": "label"
-        },
         "editor.label.blend_mode": {
             "source": "Blend Mode",
             "text": "Blend Mode",
-            "comment": "label"
-        },
-        "editor.label.opaque": {
-            "source": "Opaque",
-            "text": "Opaque",
-            "comment": "label"
-        },
-        "editor.label.alpha": {
-            "source": "Alpha",
-            "text": "Alpha",
-            "comment": "label"
-        },
-        "editor.label.additive": {
-            "source": "Additive",
-            "text": "Additive",
-            "comment": "label"
-        },
-        "editor.label.premultiplied": {
-            "source": "Premultiplied",
-            "text": "Premultiplied",
             "comment": "label"
         },
         "editor.label.base_color": {
@@ -1797,60 +1692,10 @@
             "text": "Search",
             "comment": "content browser search placeholder"
         },
-        "editor.label.aa_none": {
-            "source": "None",
-            "text": "None",
-            "comment": "anti-aliasing combo item"
-        },
-        "editor.label.aa_fxaa": {
-            "source": "FXAA",
-            "text": "FXAA",
-            "comment": "anti-aliasing combo item"
-        },
-        "editor.label.tonemap_reinhard": {
-            "source": "Reinhard",
-            "text": "Reinhard",
-            "comment": "tonemap combo item"
-        },
-        "editor.label.tonemap_aces": {
-            "source": "ACES",
-            "text": "ACES",
-            "comment": "tonemap combo item"
-        },
         "editor.label.backend_directx12": {
             "source": "DirectX12",
             "text": "DirectX12",
             "comment": "rhi backend combo item"
-        },
-        "editor.label.layout_horizontal": {
-            "source": "Horizontal",
-            "text": "Horizontal",
-            "comment": "layout type combo item"
-        },
-        "editor.label.layout_vertical": {
-            "source": "Vertical",
-            "text": "Vertical",
-            "comment": "layout type combo item"
-        },
-        "editor.label.align_start": {
-            "source": "Start",
-            "text": "Start",
-            "comment": "cross align combo item"
-        },
-        "editor.label.align_center": {
-            "source": "Center",
-            "text": "Center",
-            "comment": "cross align combo item"
-        },
-        "editor.label.align_end": {
-            "source": "End",
-            "text": "End",
-            "comment": "cross align combo item"
-        },
-        "editor.label.align_stretch": {
-            "source": "Stretch",
-            "text": "Stretch",
-            "comment": "cross align combo item"
         },
         "editor.label.column_label": {
             "source": "Label",
@@ -2251,6 +2096,231 @@
             "source": "World Size Z",
             "text": "World Size Z",
             "comment": "reflected component field"
+        },
+        "editor.label.cloud_coverage": {
+            "source": "Cloud Coverage",
+            "text": "Cloud Coverage",
+            "comment": "label"
+        },
+        "editor.label.cloud_density": {
+            "source": "Cloud Density",
+            "text": "Cloud Density",
+            "comment": "label"
+        },
+        "editor.label.cloud_speed": {
+            "source": "Cloud Speed",
+            "text": "Cloud Speed",
+            "comment": "label"
+        },
+        "editor.label.cloud_color": {
+            "source": "Cloud Color",
+            "text": "Cloud Color",
+            "comment": "label"
+        },
+        "editor.label.cloud_direction": {
+            "source": "Cloud Direction",
+            "text": "Cloud Direction",
+            "comment": "label"
+        },
+        "editor.enum.MaterialType.Unlit": {
+            "source": "Unlit",
+            "text": "Unlit",
+            "comment": "enum"
+        },
+        "editor.enum.MaterialType.PBR": {
+            "source": "PBR",
+            "text": "PBR",
+            "comment": "enum"
+        },
+        "editor.enum.MaterialBlendMode.Opaque": {
+            "source": "Opaque",
+            "text": "Opaque",
+            "comment": "enum"
+        },
+        "editor.enum.MaterialBlendMode.Masked": {
+            "source": "Masked",
+            "text": "Masked",
+            "comment": "enum"
+        },
+        "editor.enum.MaterialBlendMode.Transparent": {
+            "source": "Transparent",
+            "text": "Transparent",
+            "comment": "enum"
+        },
+        "editor.enum.MaterialBlendMode.Additive": {
+            "source": "Additive",
+            "text": "Additive",
+            "comment": "enum"
+        },
+        "editor.enum.MaterialBlendMode.Premultiplied": {
+            "source": "Premultiplied",
+            "text": "Premultiplied",
+            "comment": "enum"
+        },
+        "editor.enum.SkyType.None": {
+            "source": "None",
+            "text": "None",
+            "comment": "enum"
+        },
+        "editor.enum.SkyType.Procedural": {
+            "source": "Procedural",
+            "text": "Procedural",
+            "comment": "enum"
+        },
+        "editor.enum.SkyType.Cubemap": {
+            "source": "Cubemap",
+            "text": "Cubemap",
+            "comment": "enum"
+        },
+        "editor.enum.SkyType.PhysicallyBased": {
+            "source": "Physically Based",
+            "text": "Physically Based",
+            "comment": "enum"
+        },
+        "editor.enum.DiffuseGIMode.None": {
+            "source": "None",
+            "text": "None",
+            "comment": "enum"
+        },
+        "editor.enum.DiffuseGIMode.Ambient": {
+            "source": "Ambient",
+            "text": "Ambient",
+            "comment": "enum"
+        },
+        "editor.enum.DiffuseGIMode.DDGI": {
+            "source": "DDGI",
+            "text": "DDGI",
+            "comment": "enum"
+        },
+        "editor.enum.DiffuseGIMode.Cubemap": {
+            "source": "Cubemap",
+            "text": "Cubemap",
+            "comment": "enum"
+        },
+        "editor.enum.DiffuseGIMode.Sky": {
+            "source": "Sky",
+            "text": "Sky",
+            "comment": "enum"
+        },
+        "editor.enum.ReflectionMode.None": {
+            "source": "None",
+            "text": "None",
+            "comment": "enum"
+        },
+        "editor.enum.ReflectionMode.Cubemap": {
+            "source": "Cubemap",
+            "text": "Cubemap",
+            "comment": "enum"
+        },
+        "editor.enum.ReflectionMode.Sky": {
+            "source": "Sky",
+            "text": "Sky",
+            "comment": "enum"
+        },
+        "editor.enum.LightType.Directional": {
+            "source": "Directional",
+            "text": "Directional",
+            "comment": "enum"
+        },
+        "editor.enum.LightType.Point": {
+            "source": "Point",
+            "text": "Point",
+            "comment": "enum"
+        },
+        "editor.enum.LightType.Spot": {
+            "source": "Spot",
+            "text": "Spot",
+            "comment": "enum"
+        },
+        "editor.enum.LightType.Rect": {
+            "source": "Rect",
+            "text": "Rect",
+            "comment": "enum"
+        },
+        "editor.enum.Collider3DShapeType.Box": {
+            "source": "Box",
+            "text": "Box",
+            "comment": "enum"
+        },
+        "editor.enum.Collider3DShapeType.Sphere": {
+            "source": "Sphere",
+            "text": "Sphere",
+            "comment": "enum"
+        },
+        "editor.enum.Collider3DShapeType.HeightField": {
+            "source": "Height Field",
+            "text": "Height Field",
+            "comment": "enum"
+        },
+        "editor.enum.Rigidbody3DMotionType.Static": {
+            "source": "Static",
+            "text": "Static",
+            "comment": "enum"
+        },
+        "editor.enum.Rigidbody3DMotionType.Kinematic": {
+            "source": "Kinematic",
+            "text": "Kinematic",
+            "comment": "enum"
+        },
+        "editor.enum.Rigidbody3DMotionType.Dynamic": {
+            "source": "Dynamic",
+            "text": "Dynamic",
+            "comment": "enum"
+        },
+        "editor.enum.LayoutType.Horizontal": {
+            "source": "Horizontal",
+            "text": "Horizontal",
+            "comment": "enum"
+        },
+        "editor.enum.LayoutType.Vertical": {
+            "source": "Vertical",
+            "text": "Vertical",
+            "comment": "enum"
+        },
+        "editor.enum.LayoutCrossAlign.Start": {
+            "source": "Start",
+            "text": "Start",
+            "comment": "enum"
+        },
+        "editor.enum.LayoutCrossAlign.Center": {
+            "source": "Center",
+            "text": "Center",
+            "comment": "enum"
+        },
+        "editor.enum.LayoutCrossAlign.End": {
+            "source": "End",
+            "text": "End",
+            "comment": "enum"
+        },
+        "editor.enum.LayoutCrossAlign.Stretch": {
+            "source": "Stretch",
+            "text": "Stretch",
+            "comment": "enum"
+        },
+        "editor.enum.AntiAliasingMode.None": {
+            "source": "None",
+            "text": "None",
+            "comment": "enum"
+        },
+        "editor.enum.AntiAliasingMode.FXAA": {
+            "source": "FXAA",
+            "text": "FXAA",
+            "comment": "enum"
+        },
+        "editor.enum.TonemapMode.Reinhard": {
+            "source": "Reinhard",
+            "text": "Reinhard",
+            "comment": "enum"
+        },
+        "editor.enum.TonemapMode.ACES": {
+            "source": "ACES",
+            "text": "ACES",
+            "comment": "enum"
+        },
+        "editor.label.cloud_frequency": {
+            "source": "Cloud Frequency",
+            "text": "Cloud Frequency",
+            "comment": "label"
         }
     }
 }

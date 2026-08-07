@@ -22,11 +22,11 @@ namespace won::ecs
             Stretch,
         };
 
-        uint32 type = static_cast<uint32>(Type::Horizontal);
+        Type type = Type::Horizontal;
         float2 padding_min = { 0.0f, 0.0f };
         float2 padding_max = { 0.0f, 0.0f };
         float spacing = 0.0f;
-        uint32 cross_align = static_cast<uint32>(CrossAlign::Start);
+        CrossAlign cross_align = CrossAlign::Start;
         bool reverse = false;
     };
 }

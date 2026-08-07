@@ -45,6 +45,10 @@ namespace won::reflection
         RegisterType(TypeMeta<ecs::AnimationParameter::Type>::Get());
         RegisterType(TypeMeta<ecs::TransitionCondition::Op>::Get());
         RegisterType(TypeMeta<ecs::SequenceTrackType>::Get());
+        RegisterType(TypeMeta<ecs::LayoutComponent::Type>::Get());
+        RegisterType(TypeMeta<ecs::LayoutComponent::CrossAlign>::Get());
+        RegisterType(TypeMeta<rendering::AntiAliasingMode>::Get());
+        RegisterType(TypeMeta<rendering::TonemapMode>::Get());
 
         RegisterType(TypeMeta<ecs::NameComponent>::Get());
         RegisterType(TypeMeta<ecs::TransformComponent>::Get());

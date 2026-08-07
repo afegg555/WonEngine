@@ -34,9 +34,9 @@ WonEngine is a work-in-progress C++ rendering engine for experimenting with mode
       Your browser does not support the video tag —
       <a href="https://github.com/user-attachments/assets/5aff2b73-bf61-4829-8516-a4389217b444">watch the clip</a>.
     </video><br><sub><b>Clustered forward lighting</b> — 2,048 dynamic point lights in a single view</sub></td>
-    <td width="50%"><video src="https://github.com/user-attachments/assets/c6f08053-36e4-4938-9947-20f2ca3d9020" width="100%" controls muted>
+    <td width="50%"><video src="https://github.com/user-attachments/assets/c4908b04-10e8-449d-b319-683e6e68efdc" width="100%" controls muted>
       Your browser does not support the video tag —
-      <a href="https://github.com/user-attachments/assets/c6f08053-36e4-4938-9947-20f2ca3d9020">watch the clip</a>.
+      <a href="https://github.com/user-attachments/assets/c4908b04-10e8-449d-b319-683e6e68efdc">watch the clip</a>.
     </video><br><sub><b>Physically based sky</b> — real-time Rayleigh/Mie atmospheric scattering</sub></td>
   </tr>
   <tr>

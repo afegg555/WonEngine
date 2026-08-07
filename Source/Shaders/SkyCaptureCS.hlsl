@@ -31,5 +31,7 @@ void main(uint3 dispatch_thread_id : SV_DispatchThreadID)
         color = EvaluateProceduralSky(sky, direction);
     }
 
+    color = CompositeCloudLayer(sky, direction, color, GetTime());
+
     bindless_rwtextures2DArray[DescriptorIndex((int)skycapturepush.output_descriptor)][uint3(dispatch_thread_id.xy, face)] = float4(min(color, MEDIUMP_FLT_MAX), 1.0);
 }

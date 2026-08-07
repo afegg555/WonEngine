@@ -2,450 +2,1845 @@
     "version": 1,
     "language": "pt-BR",
     "entries": {
-        "editor.menu.file": { "source": "File", "text": "Arquivo" },
-        "editor.menu.edit": { "source": "Edit", "text": "Editar" },
-        "editor.menu.build": { "source": "Build", "text": "Compilar" },
-        "editor.menu.window": { "source": "Window", "text": "Janela" },
-        "editor.menu.plugins": { "source": "Plugins", "text": "Extensões" },
-        "editor.window.viewport": { "source": "Viewport", "text": "Janela de visualização" },
-        "editor.window.entity_list": { "source": "Entity List", "text": "Lista de entidades" },
-        "editor.window.inspector": { "source": "Inspector", "text": "Inspetor" },
-        "editor.window.log": { "source": "Log", "text": "Registro" },
-        "editor.window.profiler": { "source": "Profiler", "text": "Perfilador" },
-        "editor.window.contents_browser": { "source": "Contents Browser", "text": "Navegador de conteúdo" },
-        "editor.window.project_settings": { "source": "Project Settings", "text": "Configurações do projeto" },
-        "editor.window.localization": { "source": "Localization", "text": "Localização" },
-        "editor.window.preferences": { "source": "Editor Preferences", "text": "Preferências do editor" },
-        "editor.window.project_localization": { "source": "Project Localization", "text": "Localização do projeto" },
-        "editor.action.save": { "source": "Save", "text": "Salvar" },
-        "editor.action.reload": { "source": "Reload", "text": "Recarregar" },
-        "editor.action.add_key": { "source": "Add Key", "text": "Adicionar chave" },
-        "editor.action.remove_key": { "source": "Remove Key", "text": "Remover chave" },
-        "editor.action.add_language": { "source": "Add Language", "text": "Adicionar idioma" },
-        "editor.action.close": { "source": "Close", "text": "Fechar" },
-        "editor.action.copy_to_clipboard": { "source": "Copy to Clipboard", "text": "Copiar para a área de transferência" },
-        "editor.action.clear": { "source": "Clear", "text": "Limpar" },
-        "editor.action.add_component": { "source": "Add Component", "text": "Adicionar componente" },
-        "editor.action.add_script": { "source": "Add Script", "text": "Adicionar script" },
-        "editor.action.add_slot": { "source": "Add Slot", "text": "Adicionar slot" },
-        "editor.action.remove_slot": { "source": "Remove Slot", "text": "Remover slot" },
-        "editor.action.up": { "source": "Up", "text": "Para cima" },
-        "editor.action.down": { "source": "Down", "text": "Para baixo" },
-        "editor.action.delete_button": { "source": "Delete", "text": "Excluir" },
-        "editor.action.reset_editor_camera": { "source": "Reset Editor Camera", "text": "Redefinir câmera do editor" },
-        "editor.action.play": { "source": "Play", "text": "Reproduzir" },
-        "editor.action.pause": { "source": "Pause", "text": "Pausar" },
-        "editor.label.key": { "source": "Key", "text": "Chave" },
-        "editor.label.comment": { "source": "Comment", "text": "Comentário" },
-        "editor.label.language": { "source": "Language", "text": "Idioma" },
-        "editor.label.default_language": { "source": "Default Language", "text": "Idioma padrão" },
-        "editor.label.packaged_languages": { "source": "Packaged Languages", "text": "Idiomas empacotados" },
-        "editor.label.path": { "source": "Path", "text": "Caminho" },
-        "editor.label.path_label": { "source": "Path:", "text": "Caminho:" },
-        "editor.label.value": { "source": "Value", "text": "Valor" },
-        "editor.label.no_project": { "source": "No Project", "text": "Nenhum projeto" },
-        "editor.label.unknown": { "source": "Unknown", "text": "Desconhecido" },
-        "editor.label.active": { "source": "Active", "text": "Ativo" },
-        "editor.label.dynamic": { "source": "Dynamic", "text": "Dinâmico" },
-        "editor.label.cast_shadow": { "source": "Cast Shadow", "text": "Projetar sombra" },
-        "editor.label.enabled": { "source": "Enabled", "text": "Ativado" },
-        "editor.label.script_enabled": { "source": "Script Enabled", "text": "Script ativado" },
-        "editor.label.none": { "source": "None", "text": "Nenhum" },
-        "editor.label.assigned": { "source": "Assigned", "text": "Atribuído" },
-        "editor.label.all_types": { "source": "All Types", "text": "Todos os tipos" },
-        "editor.label.contents": { "source": "Contents", "text": "Conteúdo" },
-        "editor.label.folder": { "source": "Folder", "text": "Pasta" },
-        "editor.label.folder_empty": { "source": "Folder is empty.", "text": "A pasta está vazia." },
-        "editor.label.entity_label": { "source": "Entity ", "text": "Entidade " },
-        "editor.label.parent": { "source": "Parent", "text": "Pai" },
-        "editor.label.position": { "source": "Position", "text": "Posição" },
-        "editor.label.rotation_xyz": { "source": "Rotation XYZ", "text": "Rotação XYZ" },
-        "editor.label.scale": { "source": "Scale", "text": "Escala" },
-        "editor.label.type": { "source": "Type", "text": "Tipo" },
-        "editor.label.color": { "source": "Color", "text": "Cor" },
-        "editor.label.intensity": { "source": "Intensity", "text": "Intensidade" },
-        "editor.label.range": { "source": "Range", "text": "Alcance" },
-        "editor.label.directional": { "source": "Directional", "text": "Direcional" },
-        "editor.label.point": { "source": "Point", "text": "Ponto" },
-        "editor.label.spot": { "source": "Spot", "text": "Foco" },
-        "editor.label.shadow_resolution": { "source": "Shadow Resolution", "text": "Resolução da sombra" },
-        "editor.label.cascade_count": { "source": "Cascade Count", "text": "Quantidade de cascatas" },
-        "editor.label.cascade_lambda": { "source": "Cascade Lambda", "text": "Lambda da cascata" },
-        "editor.label.cascade_blend": { "source": "Cascade Blend", "text": "Mistura da cascata" },
-        "editor.label.sky_type": { "source": "Sky Type", "text": "Tipo de céu" },
-        "editor.label.procedural": { "source": "Procedural", "text": "Procedural" },
-        "editor.label.physically_based": { "source": "Physically Based", "text": "Baseado em física" },
-        "editor.label.sky": { "source": "Sky", "text": "Céu" },
-        "editor.label.turbidity": { "source": "Turbidity", "text": "Turbidez" },
-        "editor.label.mie_eccentricity": { "source": "Mie Eccentricity", "text": "Excentricidade de Mie" },
-        "editor.label.rayleigh_coefficient": { "source": "Rayleigh Coefficient", "text": "Coeficiente de Rayleigh" },
-        "editor.label.mie_coefficient": { "source": "Mie Coefficient", "text": "Coeficiente de Mie" },
-        "editor.label.direct_sun_active": { "source": "Direct Sun Active", "text": "Sol direto ativo" },
-        "editor.label.direct_sun_cast_shadow": { "source": "Direct Sun Cast Shadow", "text": "Sol direto projeta sombras" },
-        "editor.label.direct_sun_shadow_resolution": { "source": "Direct Sun Shadow Resolution", "text": "Resolução da sombra do sol" },
-        "editor.label.direct_sun_cascade_count": { "source": "Direct Sun Cascade Count", "text": "Cascatas do sol" },
-        "editor.label.direct_sun_cascade_lambda": { "source": "Direct Sun Cascade Lambda", "text": "Lambda das cascatas do sol" },
-        "editor.label.direct_sun_cascade_blend": { "source": "Direct Sun Cascade Blend", "text": "Mistura das cascatas do sol" },
-        "editor.label.sun_direction": { "source": "Sun Direction", "text": "Direção do sol" },
-        "editor.label.sun_color": { "source": "Sun Color", "text": "Cor do sol" },
-        "editor.label.sun_intensity": { "source": "Sun Intensity", "text": "Intensidade do sol" },
-        "editor.label.sun_angular_radius": { "source": "Sun Angular Radius", "text": "Raio angular do sol" },
-        "editor.label.sky_intensity": { "source": "Sky Intensity", "text": "Intensidade do céu" },
-        "editor.label.ground_intensity": { "source": "Ground Intensity", "text": "Intensidade do solo" },
-        "editor.label.gi_mode": { "source": "Diffuse GI Mode", "text": "Modo de GI difusa" },
-        "editor.label.ambient": { "source": "Ambient", "text": "Ambiente" },
-        "editor.label.ddgi": { "source": "DDGI", "text": "DDGI" },
-        "editor.label.reflection_mode": { "source": "Reflection Mode", "text": "Modo de reflexão" },
-        "editor.label.cubemap": { "source": "Cubemap", "text": "Cubemap" },
-        "editor.label.asset": { "source": "Asset", "text": "Recurso" },
-        "editor.label.asset_texture": { "source": "Texture", "text": "Textura" },
-        "editor.label.asset_material": { "source": "Material", "text": "Material" },
-        "editor.label.asset_mesh": { "source": "Mesh", "text": "Malha" },
-        "editor.label.asset_scene": { "source": "Scene", "text": "Cena" },
-        "editor.label.asset_shader": { "source": "Shader", "text": "Shader" },
-        "editor.label.asset_font": { "source": "Font", "text": "Fonte" },
-        "editor.label.asset_script": { "source": "Script", "text": "Script" },
-        "editor.label.asset_prefab": { "source": "Prefab", "text": "Prefab" },
-        "editor.menu.import": { "source": "Import", "text": "Importar" },
-        "editor.menu.import_to_scene": { "source": "Import to Scene", "text": "Importar para a cena" },
-        "editor.menu.add_to_scene": { "source": "Add to Scene", "text": "Adicionar à cena" },
-        "editor.menu.reimport": { "source": "Reimport", "text": "Reimportar" },
-        "editor.menu.show_in_explorer": { "source": "Show in Explorer", "text": "Mostrar no Explorer" },
-        "editor.menu.copy_disk_path": { "source": "Copy Disk Path", "text": "Copiar caminho do disco" },
-        "editor.menu.copy_virtual_path": { "source": "Copy Virtual Path", "text": "Copiar caminho virtual" },
-        "editor.label.material_asset": { "source": "Material Asset", "text": "Recurso de material" },
-        "editor.label.metallic": { "source": "Metallic", "text": "Metálico" },
-        "editor.label.roughness": { "source": "Roughness", "text": "Rugosidade" },
-        "editor.label.reflectance": { "source": "Reflectance", "text": "Reflectância" },
-        "editor.label.base_color": { "source": "Base Color", "text": "Cor base" },
-        "editor.label.normal_map": { "source": "Normal Map", "text": "Mapa de normais" },
-        "editor.label.emissive_map": { "source": "Emissive Map", "text": "Mapa emissivo" },
-        "editor.label.roughness_map": { "source": "Roughness Map", "text": "Mapa de rugosidade" },
-        "editor.label.metallic_map": { "source": "Metallic Map", "text": "Mapa metálico" },
-        "editor.label.anti_aliasing": { "source": "Anti-Aliasing", "text": "Antialiasing" },
-        "editor.label.tonemap_mode": { "source": "Tonemap Mode", "text": "Modo de tonemap" },
-        "editor.label.vsync": { "source": "VSync", "text": "Sincronização vertical" },
-        "editor.action.dont_save": { "source": "Don't Save", "text": "Não salvar" },
-        "editor.action.cancel": { "source": "Cancel", "text": "Cancelar" },
-        "editor.label.save_current_scene_message": { "source": "Save current scene?", "text": "Salvar a cena atual?" },
-        "editor.label.unsaved_scene": { "source": "Unsaved Scene", "text": "Cena não salva" },
-        "editor.label.won_project_file": { "source": "Won Project", "text": "Projeto Won" },
-        "editor.label.won_scene_file": { "source": "Won Scene", "text": "Cena Won" },
-        "editor.label.won_prefab_file": { "source": "Won Prefab", "text": "Prefab Won" },
-        "editor.hint.new_key": { "source": "new key", "text": "nova chave" },
-        "editor.hint.new_language": { "source": "new language", "text": "novo idioma" },
-        "editor.message.no_languages": { "source": "no languages declared - add one above", "text": "nenhum idioma declarado - adicione um acima" },
-        "editor.menu.edit.preferences": { "source": "Editor Preferences", "text": "Preferências do Editor" },
-        "editor.menu.edit.project_localization": { "source": "Project Localization", "text": "Localização do Projeto" },
-        "editor.menu.window.reset_layout": { "source": "Reset Layout", "text": "Redefinir Layout" },
-        "editor.menu.package_project": { "source": "Package Project", "text": "Empacotar Projeto" },
-        "editor.menu.new_project": { "source": "New Project", "text": "Novo Projeto" },
-        "editor.menu.load_project": { "source": "Load Project", "text": "Carregar Projeto" },
-        "editor.menu.save_project": { "source": "Save Project", "text": "Salvar Projeto" },
-        "editor.menu.new_scene": { "source": "New Scene", "text": "Nova Cena" },
-        "editor.menu.save_scene": { "source": "Save Scene", "text": "Salvar Cena" },
-        "editor.menu.save_scene_as": { "source": "Save Scene As...", "text": "Salvar Cena Como..." },
-        "editor.menu.load_scene": { "source": "Load Scene", "text": "Carregar Cena" },
-        "editor.menu.save_as_prefab": { "source": "Save as Prefab...", "text": "Salvar como Prefab..." },
-        "editor.label.no_plugins_found": { "source": "No plugins found", "text": "Nenhum plugin encontrado" },
-        "editor.label.wireframe": { "source": "WireFrame", "text": "Estrutura de arame" },
-        "editor.label.editor_grid": { "source": "Editor Grid", "text": "Grade do Editor" },
-        "editor.label.collider_3d": { "source": "Collider3D", "text": "Collider3D" },
-        "editor.label.bvh_debug": { "source": "BVH Debug", "text": "Depuração de BVH" },
-        "editor.label.ddgi_debug_overlay": { "source": "DDGI Debug Overlay", "text": "Sobreposição de Depuração DDGI" },
-        "editor.menu.delete_entity": { "source": "Delete Entity", "text": "Excluir Entidade" },
-        "editor.label.delete_entity_children_warning": { "source": "Children and components will also be removed.", "text": "Os filhos e componentes também serão removidos." },
-        "editor.label.importing_asset": { "source": "Importing asset", "text": "Importando recurso" },
-        "editor.label.importing_assets": { "source": "Importing assets (", "text": "Importando recursos (" },
-        "editor.label.refresh": { "source": "Refresh", "text": "Atualizar" },
-        "editor.label.import_content_asset_message": { "source": "Import this asset to Scene?", "text": "Importar este recurso para a cena?" },
-        "editor.action.remove": { "source": "Remove", "text": "Remover" },
-        "editor.label.action_cannot_be_undone": { "source": "This action cannot be undone.", "text": "Esta ação não pode ser desfeita." },
-        "editor.label.no_components_available": { "source": "No components available", "text": "Nenhum componente disponível" },
-        "editor.label.edit_entity_command": { "source": "Edit Entity", "text": "Editar Entidade" },
-        "editor.label.create_entity_command": { "source": "Create Entity", "text": "Criar Entidade" },
-        "editor.label.delete_entity_command": { "source": "Delete Entity", "text": "Excluir Entidade" },
-        "editor.label.instantiate_prefab_command": { "source": "Instantiate Prefab", "text": "Instanciar Prefab" },
-        "editor.action.update_scene_gpubvh": { "source": "Update Scene GPUBVH", "text": "Atualizar GPUBVH da Cena" },
-        "editor.action.regenerate_terrain": { "source": "Regenerate Terrain", "text": "Regenerar Terreno" },
-        "editor.action.bake_navmesh": { "source": "Bake NavMesh", "text": "Construir NavMesh" },
-        "editor.label.orthographic": { "source": "Orthographic", "text": "Ortográfico" },
-        "editor.label.billboard": { "source": "Billboard", "text": "Painel" },
-        "editor.label.loop": { "source": "Loop", "text": "Repetir" },
-        "editor.label.double_sided": { "source": "Double Sided", "text": "Dupla Face" },
-        "editor.label.receive_shadow": { "source": "Receive Shadow", "text": "Receber Sombras" },
-        "editor.label.script": { "source": "Script", "text": "Script" },
-        "editor.label.text": { "source": "Text", "text": "Texto" },
-        "editor.label.textures": { "source": "Textures", "text": "Texturas" },
-        "editor.label.font": { "source": "Font", "text": "Fonte" },
-        "editor.message.preferences_scope": { "source": "These settings are per-machine and are not shared with the project.", "text": "Estas configurações são específicas da máquina e não são compartilhadas com o projeto." },
-        "editor.message.package_project_started": { "source": "Packaging project: ", "text": "Empacotando projeto: " },
-        "editor.message.package_project_failed": { "source": "Package failed.", "text": "Falha ao empacotar o projeto." },
-        "editor.message.package_project_missing_settings": { "source": "Project settings path is empty.", "text": "O caminho das configurações do projeto está vazio." },
-        "editor.message.package_tool_not_found": { "source": "PackageTool not found: ", "text": "PackageTool não encontrado: " },
-        "editor.message.splash_starting_renderer": { "source": "Starting renderer...", "text": "Iniciando o renderizador..." },
-        "editor.message.splash_loading_editor_settings": { "source": "Loading editor settings...", "text": "Carregando as configurações do editor..." },
-        "editor.message.splash_loading_plugins": { "source": "Loading plugins...", "text": "Carregando plugins..." },
-        "editor.message.splash_loading_startup_scene": { "source": "Loading startup scene...", "text": "Carregando a cena de inicialização..." },
-        "editor.action.save_as": { "source": "Save As", "text": "Salvar como" },
-        "editor.message.plugin_loaded": { "source": "Loaded", "text": "Carregado" },
-        "editor.message.plugin_not_loaded": { "source": "Not loaded", "text": "Não carregado" },
-        "editor.format.delete_confirm_format": { "source": "Delete %s?", "text": "Excluir %s?" },
-        "editor.label.enable_profiler": { "source": "Enable Profiler", "text": "Ativar perfilador" },
-        "editor.label.profiler_starting": { "source": "Profiler starting...", "text": "Iniciando o perfilador..." },
-        "editor.label.profiler_warning": { "source": "Profiler Turned On! Performance may be reduced!", "text": "Perfilador ativado! O desempenho pode ser reduzido!" },
-        "editor.message.asset_binary_missing": { "source": "Imported binary missing (needs import)", "text": "Binário importado ausente (é necessário importar)" },
-        "editor.message.asset_source_missing": { "source": "Source file missing", "text": "Arquivo de origem ausente" },
-        "editor.message.asset_texture_missing": { "source": "Missing texture: ", "text": "Textura ausente: " },
-        "editor.label.asset_needs_reimport": { "source": "Source changed since last import", "text": "A origem foi alterada desde a última importação" },
-        "editor.format.size_format": { "source": "Size %.0f", "text": "Tamanho %.0f" },
-        "editor.format.remove_tooltip_format": { "source": "Remove %s", "text": "Remover %s" },
-        "editor.format.remove_confirm_format": { "source": "Remove %s?", "text": "Remover %s?" },
-        "editor.format.unsupported_format": { "source": "%s: unsupported", "text": "%s: sem suporte" },
-        "editor.label.undo": { "source": "Undo", "text": "Desfazer" },
-        "editor.label.redo": { "source": "Redo", "text": "Refazer" },
-        "editor.label.use_vertex_colors": { "source": "Use Vertex Colors", "text": "Usar cores dos vértices" },
-        "editor.label.duration_zero": { "source": "Duration: 0.000s", "text": "Duração: 0,000 s" },
-        "editor.label.no_animation_clips": { "source": "No animation clips", "text": "Nenhum clipe de animação" },
-        "editor.label.sky_cubemap_asset_path": { "source": "Sky Cubemap Path", "text": "Caminho do cubemap do céu" },
-        "editor.label.irradiance_cubemap_asset_path": { "source": "Irradiance Cubemap Path", "text": "Caminho do cubemap de irradiância" },
-        "editor.label.specular_cubemap_asset_path": { "source": "Specular Cubemap Path", "text": "Caminho do cubemap especular" },
-        "editor.label.motion_type": { "source": "Motion Type", "text": "Tipo de movimento" },
-        "editor.label.static_str": { "source": "Static", "text": "Estático" },
-        "editor.label.kinematic": { "source": "Kinematic", "text": "Cinemático" },
-        "editor.label.mass": { "source": "Mass", "text": "Massa" },
-        "editor.label.friction": { "source": "Friction", "text": "Fricção" },
-        "editor.label.restitution": { "source": "Restitution", "text": "Restituição" },
-        "editor.label.gravity_factor": { "source": "Gravity Factor", "text": "Fator da gravidade" },
-        "editor.label.linear_velocity": { "source": "Linear Velocity", "text": "Velocidade linear" },
-        "editor.label.angular_velocity": { "source": "Angular Velocity", "text": "Velocidade angular" },
-        "editor.label.animation_events": { "source": "Animation Events", "text": "Eventos de animação" },
-        "editor.action.animation_event_add": { "source": "Add Event", "text": "Adicionar evento" },
-        "editor.action.animation_event_save": { "source": "Save Events", "text": "Salvar eventos" },
-        "editor.action.animation_event_remove": { "source": "-", "text": "-" },
-        "editor.label.hysteresis": { "source": "Hysteresis", "text": "Histerese" },
-        "editor.label.normal_bias": { "source": "Normal Bias", "text": "Viés da normal" },
-        "editor.label.view_bias": { "source": "View Bias", "text": "Viés da visão" },
-        "editor.label.max_distance": { "source": "Max Distance", "text": "Distância máxima" },
-        "editor.label.trigger": { "source": "Trigger", "text": "Gatilho" },
-        "editor.label.box": { "source": "Box", "text": "Caixa" },
-        "editor.label.sphere": { "source": "Sphere", "text": "Esfera" },
-        "editor.label.height_field": { "source": "Height Field", "text": "Campo de altura" },
-        "editor.label.offset": { "source": "Offset", "text": "Deslocamento" },
-        "editor.label.half_extent": { "source": "Half Extent", "text": "Meia extensão" },
-        "editor.label.radius": { "source": "Radius", "text": "Raio" },
-        "editor.label.anchor": { "source": "Anchor", "text": "Âncora" },
-        "editor.label.size": { "source": "Size", "text": "Tamanho" },
-        "editor.label.pivot": { "source": "Pivot", "text": "Pivô" },
-        "editor.label.uv_rect": { "source": "UV Rect", "text": "Retângulo UV" },
-        "editor.label.layer": { "source": "Layer", "text": "Camada" },
-        "editor.label.anchor_presets": { "source": "Anchor Presets", "text": "Predefinições de âncora" },
-        "editor.format.font_format": { "source": "Font: %s", "text": "Fonte: %s" },
-        "editor.label.mesh_asset": { "source": "Mesh Asset", "text": "Recurso de malha" },
-        "editor.label.pixel_height": { "source": "Pixel Height", "text": "Altura em pixels" },
-        "editor.label.height": { "source": "Height", "text": "Altura" },
-        "editor.format.clips_format": { "source": "Clips: %d", "text": "Clipes: %d" },
-        "editor.label.clip": { "source": "Clip", "text": "Clipe" },
-        "editor.label.speed": { "source": "Speed", "text": "Velocidade" },
-        "editor.label.time": { "source": "Time", "text": "Tempo" },
-        "editor.format.duration_format": { "source": "Duration: %.3fs", "text": "Duração: %.3f s" },
-        "editor.format.bone_matrices_format": { "source": "Bone Matrices: %d", "text": "Matrizes de ossos: %d" },
-        "editor.format.bone_matrix_offset_format": { "source": "Bone Matrix Offset: %u", "text": "Deslocamento da matriz de ossos: %u" },
-        "editor.format.material_slots_format": { "source": "Material Slots: %d", "text": "Slots de material: %d" },
-        "editor.action.fork_material": { "source": "Fork Material", "text": "Duplicar material" },
-        "editor.action.save_material_asset": { "source": "Save as Material Asset", "text": "Salvar como recurso de material" },
-        "editor.label.won_material_file": { "source": "WonEngine Material", "text": "Material do WonEngine" },
-        "editor.message.save_material_failed": { "source": "Failed to save material: ", "text": "Falha ao salvar o material: " },
-        "editor.label.slot_prefix": { "source": "Slot ", "text": "Slot " },
-        "editor.label.selected_slot": { "source": "Selected Slot", "text": "Slot selecionado" },
-        "editor.label.shader_type": { "source": "Material Type", "text": "Tipo de material" },
-        "editor.label.unlit": { "source": "Unlit", "text": "Sem iluminação" },
-        "editor.label.pbr": { "source": "PBR", "text": "PBR" },
-        "editor.label.blend_mode": { "source": "Blend Mode", "text": "Modo de mesclagem" },
-        "editor.label.opaque": { "source": "Opaque", "text": "Opaco" },
-        "editor.label.alpha": { "source": "Alpha", "text": "Alfa" },
-        "editor.label.additive": { "source": "Additive", "text": "Aditivo" },
-        "editor.label.premultiplied": { "source": "Premultiplied", "text": "Pré-multiplicado" },
-        "editor.label.anisotropy": { "source": "Anisotropy", "text": "Anisotropia" },
-        "editor.label.sheen_color": { "source": "Sheen Color", "text": "Cor do brilho" },
-        "editor.label.tonemap_aces": { "source": "ACES", "text": "ACES" },
-        "editor.label.backend_directx12": { "source": "DirectX12", "text": "DirectX12" },
-        "editor.label.layout_horizontal": { "source": "Horizontal", "text": "Horizontal" },
-        "editor.label.layout_vertical": { "source": "Vertical", "text": "Vertical" },
-        "editor.label.align_start": { "source": "Start", "text": "Início" },
-        "editor.label.align_center": { "source": "Center", "text": "Centro" },
-        "editor.label.align_end": { "source": "End", "text": "Fim" },
-        "editor.label.align_stretch": { "source": "Stretch", "text": "Esticar" },
-        "editor.label.column_label": { "source": "Label", "text": "Rótulo" },
-        "editor.label.column_value": { "source": "Value", "text": "Valor" },
-        "editor.label.column_type": { "source": "Type", "text": "Tipo" },
-        "editor.label.column_default": { "source": "Default", "text": "Padrão" },
-        "editor.label.file_name": { "source": "File name:", "text": "Nome do arquivo:" },
-        "editor.action.new": { "source": "New...", "text": "Novo..." },
-        "editor.action.create": { "source": "Create", "text": "Criar" },
-        "editor.action.add": { "source": "Add", "text": "Adicionar" },
-        "editor.action.save_schema": { "source": "Save Schema", "text": "Salvar esquema" },
-        "editor.format.localization_summary": { "source": "default: %s   keys: %d%s", "text": "padrão: %s   chaves: %d%s" },
-        "editor.format.source_changed": { "source": "source changed: \"%s\" -> \"%s\"", "text": "origem alterada: \"%s\" -\u003e \"%s\"" },
-        "editor.label.asset_sound": { "source": "Sound", "text": "Som" },
-        "editor.field.agent_height": { "source": "Agent Height", "text": "Altura do agente" },
-        "editor.field.agent_max_climb": { "source": "Agent Max Climb", "text": "Subida máxima do agente" },
-        "editor.field.agent_max_slope": { "source": "Agent Max Slope", "text": "Inclinação máxima do agente" },
-        "editor.field.agent_radius": { "source": "Agent Radius", "text": "Raio do agente" },
-        "editor.field.anchor": { "source": "Anchor", "text": "Âncora" },
-        "editor.field.arrival_threshold": { "source": "Arrival Threshold", "text": "Limite de chegada" },
-        "editor.field.axis": { "source": "Axis", "text": "Eixo" },
-        "editor.field.blend_duration": { "source": "Blend Duration", "text": "Duração da mistura" },
-        "editor.field.bounds_center": { "source": "Bounds Center", "text": "Centro dos limites" },
-        "editor.field.bounds_extent": { "source": "Bounds Extent", "text": "Extensão dos limites" },
-        "editor.field.clip": { "source": "Clip", "text": "Clipe" },
-        "editor.field.connected_entity": { "source": "Connected Entity", "text": "Entidade conectada" },
-        "editor.field.cubemap_asset_path": { "source": "Cubemap Asset Path", "text": "Caminho do recurso cubemap" },
-        "editor.field.default_state": { "source": "Default State", "text": "Estado padrão" },
-        "editor.field.emit_radius": { "source": "Emit Radius", "text": "Raio de emissão" },
-        "editor.field.end_color": { "source": "End Color", "text": "Cor final" },
-        "editor.field.end_size": { "source": "End Size", "text": "Tamanho final" },
-        "editor.field.exit_time": { "source": "Exit Time", "text": "Tempo de saída" },
-        "editor.field.frequency": { "source": "Frequency", "text": "Frequência" },
-        "editor.field.from_state": { "source": "From State", "text": "Estado inicial" },
-        "editor.field.gravity": { "source": "Gravity", "text": "Gravidade" },
-        "editor.field.has_exit_time": { "source": "Has Exit Time", "text": "Possui tempo de saída" },
-        "editor.field.height_scale": { "source": "Height Scale", "text": "Escala de altura" },
-        "editor.field.include_layers": { "source": "Include Layers", "text": "Incluir camadas" },
-        "editor.field.influence_radius": { "source": "Influence Radius", "text": "Raio de influência" },
-        "editor.label.animation_event_default_name": { "source": "event", "text": "evento" },
-        "editor.message.animation_events_saved": { "source": "Animation events saved: ", "text": "Eventos de animação salvos: " },
-        "editor.message.animation_events_save_failed": { "source": "Failed to save animation events.", "text": "Falha ao salvar os eventos de animação." },
-        "editor.message.animation_events_no_mesh": { "source": "No mesh asset to save animation events.", "text": "Não há recurso de malha para salvar eventos de animação." },
-        "editor.label.none_placeholder": { "source": "<none>", "text": "\u003cnenhum\u003e" },
-        "editor.label.script_already_exists": { "source": "script already exists on this component", "text": "já existe um script neste componente" },
-        "editor.format.last_error_format": { "source": "Last Error: %s", "text": "Último erro: %s" },
-        "editor.label.padding_min": { "source": "Padding Min", "text": "Preenchimento mínimo" },
-        "editor.label.padding_max": { "source": "Padding Max", "text": "Preenchimento máximo" },
-        "editor.label.spacing": { "source": "Spacing", "text": "Espaçamento" },
-        "editor.label.cross_align": { "source": "Cross Align", "text": "Alinhamento cruzado" },
-        "editor.label.reverse": { "source": "Reverse", "text": "Inverter" },
-        "editor.label.outer_cone": { "source": "Outer Cone", "text": "Cone externo" },
-        "editor.label.inner_cone": { "source": "Inner Cone", "text": "Cone interno" },
-        "editor.label.near_plane": { "source": "Near", "text": "Próximo" },
-        "editor.label.far_plane": { "source": "Far", "text": "Distante" },
-        "editor.label.fov_y": { "source": "FOV Y", "text": "Campo de visão Y" },
-        "editor.label.ortho_size": { "source": "Ortho Size", "text": "Tamanho ortográfico" },
-        "editor.format.aspect_ratio_format": { "source": "Aspect Ratio: %.3f", "text": "Proporção: %.3f" },
-        "editor.label.aperture": { "source": "Aperture", "text": "Abertura" },
-        "editor.label.shutter_speed": { "source": "Shutter Speed", "text": "Velocidade do obturador" },
-        "editor.label.sensitivity": { "source": "Sensitivity", "text": "Sensibilidade" },
-        "editor.label.auto_exposure": { "source": "Auto Exposure", "text": "Exposição automática" },
-        "editor.label.fixed_ev100": { "source": "Fixed EV100", "text": "EV100 fixo" },
-        "editor.format.exposure_multiplier_format": { "source": "Exposure Multiplier: %.6f", "text": "Multiplicador de exposição: %.6f" },
-        "editor.label.exposure_compensation": { "source": "Exposure Compensation (EV)", "text": "Compensação de exposição (EV)" },
-        "editor.label.auto_exposure_min_ev": { "source": "Min EV100", "text": "EV100 mínimo" },
-        "editor.label.auto_exposure_max_ev": { "source": "Max EV100", "text": "EV100 máximo" },
-        "editor.label.auto_exposure_speed": { "source": "Adaptation Speed", "text": "Velocidade de adaptação" },
-        "editor.label.sun_glow_intensity": { "source": "Sun Glow Intensity", "text": "Intensidade do brilho solar" },
-        "editor.label.sun_glow_falloff": { "source": "Sun Glow Falloff", "text": "Atenuação do brilho solar" },
-        "editor.label.sky_horizon_color": { "source": "Sky Horizon Color", "text": "Cor do horizonte do céu" },
-        "editor.label.sky_horizon_falloff": { "source": "Sky Horizon Falloff", "text": "Atenuação do horizonte do céu" },
-        "editor.label.sky_zenith_color": { "source": "Sky Zenith Color", "text": "Cor do zênite do céu" },
-        "editor.label.ground_horizon_color": { "source": "Ground Horizon Color", "text": "Cor do horizonte do solo" },
-        "editor.label.ground_falloff": { "source": "Ground Falloff", "text": "Atenuação do solo" },
-        "editor.label.ground_color": { "source": "Ground Color", "text": "Cor do solo" },
-        "editor.label.ambient_color": { "source": "Ambient Color", "text": "Cor ambiente" },
-        "editor.label.ambient_intensity": { "source": "Ambient Intensity", "text": "Intensidade ambiente" },
-        "editor.label.indirect_diffuse_scale": { "source": "Indirect Diffuse Scale", "text": "Escala difusa indireta" },
-        "editor.label.indirect_specular_scale": { "source": "Indirect Specular Scale", "text": "Escala especular indireta" },
-        "editor.label.probe_counts": { "source": "Probe Counts", "text": "Número de probes" },
-        "editor.label.probe_spacing": { "source": "Probe Spacing", "text": "Espaçamento dos probes" },
-        "editor.label.volume_offset": { "source": "Volume Offset", "text": "Deslocamento do volume" },
-        "editor.label.probes_per_frame": { "source": "Probes Per Frame", "text": "Probes por quadro" },
-        "editor.label.priority": { "source": "Priority", "text": "Prioridade" },
-        "editor.label.sheen_roughness": { "source": "Sheen Roughness", "text": "Rugosidade do brilho" },
-        "editor.label.clearcoat": { "source": "Clearcoat", "text": "Verniz" },
-        "editor.label.clearcoat_roughness": { "source": "Clearcoat Roughness", "text": "Rugosidade do verniz" },
-        "editor.message.project_saved": { "source": "Project saved: ", "text": "Projeto salvo: " },
-        "editor.message.project_loaded": { "source": "Project loaded: ", "text": "Projeto carregado: " },
-        "editor.message.project_created": { "source": "Project created: ", "text": "Projeto criado: " },
-        "editor.message.save_project_failed": { "source": "Save project failed: ", "text": "Falha ao salvar o projeto: " },
-        "editor.message.load_project_failed": { "source": "Load project failed: ", "text": "Falha ao carregar o projeto: " },
-        "editor.message.create_project_failed": { "source": "Create project failed: ", "text": "Falha ao criar o projeto: " },
-        "editor.message.save_scene_failed": { "source": "Save scene failed: ", "text": "Falha ao salvar a cena: " },
-        "editor.message.save_prefab_failed": { "source": "Save prefab failed: ", "text": "Falha ao salvar o prefab: " },
-        "editor.message.load_prefab_failed": { "source": "Load prefab failed: ", "text": "Falha ao carregar o prefab: " },
-        "editor.message.prefab_added": { "source": "Prefab added: ", "text": "Prefab adicionado: " },
-        "editor.message.scene_saved": { "source": "Scene saved: ", "text": "Cena salva: " },
-        "editor.message.load_scene_failed": { "source": "Load scene failed: ", "text": "Falha ao carregar a cena: " },
-        "editor.message.load_scene_warning": { "source": "Load scene warning: ", "text": "Aviso ao carregar a cena: " },
-        "editor.message.scene_loaded": { "source": "Scene loaded: ", "text": "Cena carregada: " },
-        "editor.message.content_browser_import_commit_failed": { "source": "Content Browser import commit failed: ", "text": "Falha ao confirmar a importação do navegador de conteúdo: " },
-        "editor.message.content_browser_import_failed": { "source": "Content Browser import failed: ", "text": "Falha ao importar pelo navegador de conteúdo: " },
-        "editor.message.asset_importer_tool_not_found": { "source": "AssetImporterTool not found: ", "text": "AssetImporterTool não encontrado: " },
-        "editor.message.failed_register_component_type": { "source": "Failed to register component type: ", "text": "Falha ao registrar o tipo de componente: " },
-        "editor.message.failed_enable_plugin": { "source": "Failed to enable plugin: ", "text": "Falha ao ativar o plugin: " },
-        "editor.message.plugin_disabled_next_restart": { "source": "Plugin will be disabled on next editor restart: ", "text": "O plugin será desativado na próxima reinicialização do editor: " },
-        "editor.label.base_color_map": { "source": "Base Color Map", "text": "Mapa de cor base" },
-        "editor.label.opacity_map": { "source": "Opacity Map", "text": "Mapa de opacidade" },
-        "editor.label.displacement_map": { "source": "Displacement Map", "text": "Mapa de deslocamento" },
-        "editor.label.occlusion_map": { "source": "Occlusion Map", "text": "Mapa de oclusão" },
-        "editor.label.sheen_color_map": { "source": "Sheen Color Map", "text": "Mapa de cor do brilho" },
-        "editor.label.sheen_roughness_map": { "source": "Sheen Roughness Map", "text": "Mapa de rugosidade do brilho" },
-        "editor.label.clearcoat_map": { "source": "Clearcoat Map", "text": "Mapa de verniz" },
-        "editor.label.clearcoat_roughness_map": { "source": "Clearcoat Roughness Map", "text": "Mapa de rugosidade do verniz" },
-        "editor.label.clearcoat_normal_map": { "source": "Clearcoat Normal Map", "text": "Mapa de normal do verniz" },
-        "editor.label.anisotropy_map": { "source": "Anisotropy Map", "text": "Mapa de anisotropia" },
-        "editor.label.sound_asset_path": { "source": "Sound Path", "text": "Caminho do som" },
-        "editor.label.volume": { "source": "Volume", "text": "Volume" },
-        "editor.label.pitch": { "source": "Pitch", "text": "Afinação" },
-        "editor.label.min_distance": { "source": "Min Distance", "text": "Distância mínima" },
-        "editor.label.is_3d": { "source": "3D Spatial", "text": "Espacial 3D" },
-        "editor.label.play_on_start": { "source": "Play On Start", "text": "Reproduzir ao iniciar" },
-        "editor.label.is_playing": { "source": "Playing", "text": "Reproduzindo" },
-        "editor.window.save_current_scene": { "source": "Save Current Scene?", "text": "Salvar a cena atual?" },
-        "editor.hint.search": { "source": "Search", "text": "Pesquisar" },
-        "editor.label.aa_none": { "source": "None", "text": "Nenhum" },
-        "editor.label.aa_fxaa": { "source": "FXAA", "text": "FXAA" },
-        "editor.label.tonemap_reinhard": { "source": "Reinhard", "text": "Reinhard" },
-        "editor.field.intensity_multiplier": { "source": "Intensity Multiplier", "text": "Multiplicador de intensidade" },
-        "editor.field.island_falloff": { "source": "Island Falloff", "text": "Atenuação da ilha" },
-        "editor.field.lacunarity": { "source": "Lacunarity", "text": "Lacunaridade" },
-        "editor.field.layer": { "source": "Layer", "text": "Camada" },
-        "editor.field.layer_mask": { "source": "Layer Mask", "text": "Máscara de camadas" },
-        "editor.field.lifetime": { "source": "Lifetime", "text": "Vida útil" },
-        "editor.field.limit_max": { "source": "Limit Max", "text": "Limite máximo" },
-        "editor.field.limit_min": { "source": "Limit Min", "text": "Limite mínimo" },
-        "editor.field.loop": { "source": "Loop", "text": "Repetir" },
-        "editor.field.match": { "source": "Match", "text": "Correspondência" },
-        "editor.field.max_particle_count": { "source": "Max Particle Count", "text": "Quantidade máxima de partículas" },
-        "editor.field.move_speed": { "source": "Move Speed", "text": "Velocidade de movimento" },
-        "editor.field.name": { "source": "Name", "text": "Nome" },
-        "editor.field.navmesh_asset_path": { "source": "Navmesh Asset Path", "text": "Caminho do recurso NavMesh" },
-        "editor.field.octaves": { "source": "Octaves", "text": "Oitavas" },
-        "editor.field.op": { "source": "Op", "text": "Operação" },
-        "editor.field.parameter": { "source": "Parameter", "text": "Parâmetro" },
-        "editor.field.persistence": { "source": "Persistence", "text": "Persistência" },
-        "editor.field.reference_resolution": { "source": "Reference Resolution", "text": "Resolução de referência" },
-        "editor.field.render_mode": { "source": "Render Mode", "text": "Modo de renderização" },
-        "editor.field.resolution_x": { "source": "Resolution X", "text": "Resolução X" },
-        "editor.field.resolution_z": { "source": "Resolution Z", "text": "Resolução Z" },
-        "editor.field.ridge_strength": { "source": "Ridge Strength", "text": "Intensidade da crista" },
-        "editor.field.scale_mode": { "source": "Scale Mode", "text": "Modo de escala" },
-        "editor.field.seed": { "source": "Seed", "text": "Semente" },
-        "editor.field.sort_order": { "source": "Sort Order", "text": "Ordem de classificação" },
-        "editor.field.spawn_rate": { "source": "Spawn Rate", "text": "Taxa de geração" },
-        "editor.field.speed": { "source": "Speed", "text": "Velocidade" },
-        "editor.field.start_color": { "source": "Start Color", "text": "Cor inicial" },
-        "editor.field.start_size": { "source": "Start Size", "text": "Tamanho inicial" },
-        "editor.field.threshold": { "source": "Threshold", "text": "Limite" },
-        "editor.field.to_state": { "source": "To State", "text": "Estado final" },
-        "editor.field.tree_asset_path": { "source": "Tree Asset Path", "text": "Caminho do recurso de árvore" },
-        "editor.field.turn_rate": { "source": "Turn Rate", "text": "Taxa de giro" },
-        "editor.field.type": { "source": "Type", "text": "Tipo" },
-        "editor.field.use_bounds": { "source": "Use Bounds", "text": "Usar limites" },
-        "editor.field.use_limit": { "source": "Use Limit", "text": "Usar limite" },
-        "editor.field.value": { "source": "Value", "text": "Valor" },
-        "editor.field.velocity": { "source": "Velocity", "text": "Velocidade" },
-        "editor.field.velocity_variation": { "source": "Velocity Variation", "text": "Variação da velocidade" },
-        "editor.field.warp_strength": { "source": "Warp Strength", "text": "Intensidade da distorção" },
-        "editor.field.world_size_x": { "source": "World Size X", "text": "Tamanho do mundo X" },
-        "editor.field.world_size_z": { "source": "World Size Z", "text": "Tamanho do mundo Z" }
+        "editor.menu.file": {
+            "source": "File",
+            "text": "Arquivo"
+        },
+        "editor.menu.edit": {
+            "source": "Edit",
+            "text": "Editar"
+        },
+        "editor.menu.build": {
+            "source": "Build",
+            "text": "Compilar"
+        },
+        "editor.menu.window": {
+            "source": "Window",
+            "text": "Janela"
+        },
+        "editor.menu.plugins": {
+            "source": "Plugins",
+            "text": "Extensões"
+        },
+        "editor.window.viewport": {
+            "source": "Viewport",
+            "text": "Janela de visualização"
+        },
+        "editor.window.entity_list": {
+            "source": "Entity List",
+            "text": "Lista de entidades"
+        },
+        "editor.window.inspector": {
+            "source": "Inspector",
+            "text": "Inspetor"
+        },
+        "editor.window.log": {
+            "source": "Log",
+            "text": "Registro"
+        },
+        "editor.window.profiler": {
+            "source": "Profiler",
+            "text": "Perfilador"
+        },
+        "editor.window.contents_browser": {
+            "source": "Contents Browser",
+            "text": "Navegador de conteúdo"
+        },
+        "editor.window.project_settings": {
+            "source": "Project Settings",
+            "text": "Configurações do projeto"
+        },
+        "editor.window.localization": {
+            "source": "Localization",
+            "text": "Localização"
+        },
+        "editor.window.preferences": {
+            "source": "Editor Preferences",
+            "text": "Preferências do editor"
+        },
+        "editor.window.project_localization": {
+            "source": "Project Localization",
+            "text": "Localização do projeto"
+        },
+        "editor.action.save": {
+            "source": "Save",
+            "text": "Salvar"
+        },
+        "editor.action.reload": {
+            "source": "Reload",
+            "text": "Recarregar"
+        },
+        "editor.action.add_key": {
+            "source": "Add Key",
+            "text": "Adicionar chave"
+        },
+        "editor.action.remove_key": {
+            "source": "Remove Key",
+            "text": "Remover chave"
+        },
+        "editor.action.add_language": {
+            "source": "Add Language",
+            "text": "Adicionar idioma"
+        },
+        "editor.action.close": {
+            "source": "Close",
+            "text": "Fechar"
+        },
+        "editor.action.copy_to_clipboard": {
+            "source": "Copy to Clipboard",
+            "text": "Copiar para a área de transferência"
+        },
+        "editor.action.clear": {
+            "source": "Clear",
+            "text": "Limpar"
+        },
+        "editor.action.add_component": {
+            "source": "Add Component",
+            "text": "Adicionar componente"
+        },
+        "editor.action.add_script": {
+            "source": "Add Script",
+            "text": "Adicionar script"
+        },
+        "editor.action.add_slot": {
+            "source": "Add Slot",
+            "text": "Adicionar slot"
+        },
+        "editor.action.remove_slot": {
+            "source": "Remove Slot",
+            "text": "Remover slot"
+        },
+        "editor.action.up": {
+            "source": "Up",
+            "text": "Para cima"
+        },
+        "editor.action.down": {
+            "source": "Down",
+            "text": "Para baixo"
+        },
+        "editor.action.delete_button": {
+            "source": "Delete",
+            "text": "Excluir"
+        },
+        "editor.action.reset_editor_camera": {
+            "source": "Reset Editor Camera",
+            "text": "Redefinir câmera do editor"
+        },
+        "editor.action.play": {
+            "source": "Play",
+            "text": "Reproduzir"
+        },
+        "editor.action.pause": {
+            "source": "Pause",
+            "text": "Pausar"
+        },
+        "editor.label.key": {
+            "source": "Key",
+            "text": "Chave"
+        },
+        "editor.label.comment": {
+            "source": "Comment",
+            "text": "Comentário"
+        },
+        "editor.label.language": {
+            "source": "Language",
+            "text": "Idioma"
+        },
+        "editor.label.default_language": {
+            "source": "Default Language",
+            "text": "Idioma padrão"
+        },
+        "editor.label.packaged_languages": {
+            "source": "Packaged Languages",
+            "text": "Idiomas empacotados"
+        },
+        "editor.label.path": {
+            "source": "Path",
+            "text": "Caminho"
+        },
+        "editor.label.path_label": {
+            "source": "Path:",
+            "text": "Caminho:"
+        },
+        "editor.label.value": {
+            "source": "Value",
+            "text": "Valor"
+        },
+        "editor.label.no_project": {
+            "source": "No Project",
+            "text": "Nenhum projeto"
+        },
+        "editor.label.unknown": {
+            "source": "Unknown",
+            "text": "Desconhecido"
+        },
+        "editor.label.active": {
+            "source": "Active",
+            "text": "Ativo"
+        },
+        "editor.label.dynamic": {
+            "source": "Dynamic",
+            "text": "Dinâmico"
+        },
+        "editor.label.cast_shadow": {
+            "source": "Cast Shadow",
+            "text": "Projetar sombra"
+        },
+        "editor.label.enabled": {
+            "source": "Enabled",
+            "text": "Ativado"
+        },
+        "editor.label.script_enabled": {
+            "source": "Script Enabled",
+            "text": "Script ativado"
+        },
+        "editor.label.none": {
+            "source": "None",
+            "text": "Nenhum"
+        },
+        "editor.label.assigned": {
+            "source": "Assigned",
+            "text": "Atribuído"
+        },
+        "editor.label.all_types": {
+            "source": "All Types",
+            "text": "Todos os tipos"
+        },
+        "editor.label.contents": {
+            "source": "Contents",
+            "text": "Conteúdo"
+        },
+        "editor.label.folder": {
+            "source": "Folder",
+            "text": "Pasta"
+        },
+        "editor.label.folder_empty": {
+            "source": "Folder is empty.",
+            "text": "A pasta está vazia."
+        },
+        "editor.label.entity_label": {
+            "source": "Entity ",
+            "text": "Entidade "
+        },
+        "editor.label.parent": {
+            "source": "Parent",
+            "text": "Pai"
+        },
+        "editor.label.position": {
+            "source": "Position",
+            "text": "Posição"
+        },
+        "editor.label.rotation_xyz": {
+            "source": "Rotation XYZ",
+            "text": "Rotação XYZ"
+        },
+        "editor.label.scale": {
+            "source": "Scale",
+            "text": "Escala"
+        },
+        "editor.label.type": {
+            "source": "Type",
+            "text": "Tipo"
+        },
+        "editor.label.color": {
+            "source": "Color",
+            "text": "Cor"
+        },
+        "editor.label.intensity": {
+            "source": "Intensity",
+            "text": "Intensidade"
+        },
+        "editor.label.range": {
+            "source": "Range",
+            "text": "Alcance"
+        },
+        "editor.label.shadow_resolution": {
+            "source": "Shadow Resolution",
+            "text": "Resolução da sombra"
+        },
+        "editor.label.cascade_count": {
+            "source": "Cascade Count",
+            "text": "Quantidade de cascatas"
+        },
+        "editor.label.cascade_lambda": {
+            "source": "Cascade Lambda",
+            "text": "Lambda da cascata"
+        },
+        "editor.label.cascade_blend": {
+            "source": "Cascade Blend",
+            "text": "Mistura da cascata"
+        },
+        "editor.label.sky_type": {
+            "source": "Sky Type",
+            "text": "Tipo de céu"
+        },
+        "editor.label.turbidity": {
+            "source": "Turbidity",
+            "text": "Turbidez"
+        },
+        "editor.label.mie_eccentricity": {
+            "source": "Mie Eccentricity",
+            "text": "Excentricidade de Mie"
+        },
+        "editor.label.rayleigh_coefficient": {
+            "source": "Rayleigh Coefficient",
+            "text": "Coeficiente de Rayleigh"
+        },
+        "editor.label.mie_coefficient": {
+            "source": "Mie Coefficient",
+            "text": "Coeficiente de Mie"
+        },
+        "editor.label.direct_sun_active": {
+            "source": "Direct Sun Active",
+            "text": "Sol direto ativo"
+        },
+        "editor.label.direct_sun_cast_shadow": {
+            "source": "Direct Sun Cast Shadow",
+            "text": "Sol direto projeta sombras"
+        },
+        "editor.label.direct_sun_shadow_resolution": {
+            "source": "Direct Sun Shadow Resolution",
+            "text": "Resolução da sombra do sol"
+        },
+        "editor.label.direct_sun_cascade_count": {
+            "source": "Direct Sun Cascade Count",
+            "text": "Cascatas do sol"
+        },
+        "editor.label.direct_sun_cascade_lambda": {
+            "source": "Direct Sun Cascade Lambda",
+            "text": "Lambda das cascatas do sol"
+        },
+        "editor.label.direct_sun_cascade_blend": {
+            "source": "Direct Sun Cascade Blend",
+            "text": "Mistura das cascatas do sol"
+        },
+        "editor.label.sun_direction": {
+            "source": "Sun Direction",
+            "text": "Direção do sol"
+        },
+        "editor.label.sun_color": {
+            "source": "Sun Color",
+            "text": "Cor do sol"
+        },
+        "editor.label.sun_intensity": {
+            "source": "Sun Intensity",
+            "text": "Intensidade do sol"
+        },
+        "editor.label.sun_angular_radius": {
+            "source": "Sun Angular Radius",
+            "text": "Raio angular do sol"
+        },
+        "editor.label.sky_intensity": {
+            "source": "Sky Intensity",
+            "text": "Intensidade do céu"
+        },
+        "editor.label.ground_intensity": {
+            "source": "Ground Intensity",
+            "text": "Intensidade do solo"
+        },
+        "editor.label.gi_mode": {
+            "source": "Diffuse GI Mode",
+            "text": "Modo de GI difusa"
+        },
+        "editor.label.reflection_mode": {
+            "source": "Reflection Mode",
+            "text": "Modo de reflexão"
+        },
+        "editor.label.asset": {
+            "source": "Asset",
+            "text": "Recurso"
+        },
+        "editor.label.asset_texture": {
+            "source": "Texture",
+            "text": "Textura"
+        },
+        "editor.label.asset_material": {
+            "source": "Material",
+            "text": "Material"
+        },
+        "editor.label.asset_mesh": {
+            "source": "Mesh",
+            "text": "Malha"
+        },
+        "editor.label.asset_scene": {
+            "source": "Scene",
+            "text": "Cena"
+        },
+        "editor.label.asset_shader": {
+            "source": "Shader",
+            "text": "Shader"
+        },
+        "editor.label.asset_font": {
+            "source": "Font",
+            "text": "Fonte"
+        },
+        "editor.label.asset_script": {
+            "source": "Script",
+            "text": "Script"
+        },
+        "editor.label.asset_prefab": {
+            "source": "Prefab",
+            "text": "Prefab"
+        },
+        "editor.menu.import": {
+            "source": "Import",
+            "text": "Importar"
+        },
+        "editor.menu.import_to_scene": {
+            "source": "Import to Scene",
+            "text": "Importar para a cena"
+        },
+        "editor.menu.add_to_scene": {
+            "source": "Add to Scene",
+            "text": "Adicionar à cena"
+        },
+        "editor.menu.reimport": {
+            "source": "Reimport",
+            "text": "Reimportar"
+        },
+        "editor.menu.show_in_explorer": {
+            "source": "Show in Explorer",
+            "text": "Mostrar no Explorer"
+        },
+        "editor.menu.copy_disk_path": {
+            "source": "Copy Disk Path",
+            "text": "Copiar caminho do disco"
+        },
+        "editor.menu.copy_virtual_path": {
+            "source": "Copy Virtual Path",
+            "text": "Copiar caminho virtual"
+        },
+        "editor.label.material_asset": {
+            "source": "Material Asset",
+            "text": "Recurso de material"
+        },
+        "editor.label.metallic": {
+            "source": "Metallic",
+            "text": "Metálico"
+        },
+        "editor.label.roughness": {
+            "source": "Roughness",
+            "text": "Rugosidade"
+        },
+        "editor.label.reflectance": {
+            "source": "Reflectance",
+            "text": "Reflectância"
+        },
+        "editor.label.base_color": {
+            "source": "Base Color",
+            "text": "Cor base"
+        },
+        "editor.label.normal_map": {
+            "source": "Normal Map",
+            "text": "Mapa de normais"
+        },
+        "editor.label.emissive_map": {
+            "source": "Emissive Map",
+            "text": "Mapa emissivo"
+        },
+        "editor.label.roughness_map": {
+            "source": "Roughness Map",
+            "text": "Mapa de rugosidade"
+        },
+        "editor.label.metallic_map": {
+            "source": "Metallic Map",
+            "text": "Mapa metálico"
+        },
+        "editor.label.anti_aliasing": {
+            "source": "Anti-Aliasing",
+            "text": "Antialiasing"
+        },
+        "editor.label.tonemap_mode": {
+            "source": "Tonemap Mode",
+            "text": "Modo de tonemap"
+        },
+        "editor.label.vsync": {
+            "source": "VSync",
+            "text": "Sincronização vertical"
+        },
+        "editor.action.dont_save": {
+            "source": "Don't Save",
+            "text": "Não salvar"
+        },
+        "editor.action.cancel": {
+            "source": "Cancel",
+            "text": "Cancelar"
+        },
+        "editor.label.save_current_scene_message": {
+            "source": "Save current scene?",
+            "text": "Salvar a cena atual?"
+        },
+        "editor.label.unsaved_scene": {
+            "source": "Unsaved Scene",
+            "text": "Cena não salva"
+        },
+        "editor.label.won_project_file": {
+            "source": "Won Project",
+            "text": "Projeto Won"
+        },
+        "editor.label.won_scene_file": {
+            "source": "Won Scene",
+            "text": "Cena Won"
+        },
+        "editor.label.won_prefab_file": {
+            "source": "Won Prefab",
+            "text": "Prefab Won"
+        },
+        "editor.hint.new_key": {
+            "source": "new key",
+            "text": "nova chave"
+        },
+        "editor.hint.new_language": {
+            "source": "new language",
+            "text": "novo idioma"
+        },
+        "editor.message.no_languages": {
+            "source": "no languages declared - add one above",
+            "text": "nenhum idioma declarado - adicione um acima"
+        },
+        "editor.menu.edit.preferences": {
+            "source": "Editor Preferences",
+            "text": "Preferências do Editor"
+        },
+        "editor.menu.edit.project_localization": {
+            "source": "Project Localization",
+            "text": "Localização do Projeto"
+        },
+        "editor.menu.window.reset_layout": {
+            "source": "Reset Layout",
+            "text": "Redefinir Layout"
+        },
+        "editor.menu.package_project": {
+            "source": "Package Project",
+            "text": "Empacotar Projeto"
+        },
+        "editor.menu.new_project": {
+            "source": "New Project",
+            "text": "Novo Projeto"
+        },
+        "editor.menu.load_project": {
+            "source": "Load Project",
+            "text": "Carregar Projeto"
+        },
+        "editor.menu.save_project": {
+            "source": "Save Project",
+            "text": "Salvar Projeto"
+        },
+        "editor.menu.new_scene": {
+            "source": "New Scene",
+            "text": "Nova Cena"
+        },
+        "editor.menu.save_scene": {
+            "source": "Save Scene",
+            "text": "Salvar Cena"
+        },
+        "editor.menu.save_scene_as": {
+            "source": "Save Scene As...",
+            "text": "Salvar Cena Como..."
+        },
+        "editor.menu.load_scene": {
+            "source": "Load Scene",
+            "text": "Carregar Cena"
+        },
+        "editor.menu.save_as_prefab": {
+            "source": "Save as Prefab...",
+            "text": "Salvar como Prefab..."
+        },
+        "editor.label.no_plugins_found": {
+            "source": "No plugins found",
+            "text": "Nenhum plugin encontrado"
+        },
+        "editor.label.wireframe": {
+            "source": "WireFrame",
+            "text": "Estrutura de arame"
+        },
+        "editor.label.editor_grid": {
+            "source": "Editor Grid",
+            "text": "Grade do Editor"
+        },
+        "editor.label.collider_3d": {
+            "source": "Collider3D",
+            "text": "Collider3D"
+        },
+        "editor.label.bvh_debug": {
+            "source": "BVH Debug",
+            "text": "Depuração de BVH"
+        },
+        "editor.label.ddgi_debug_overlay": {
+            "source": "DDGI Debug Overlay",
+            "text": "Sobreposição de Depuração DDGI"
+        },
+        "editor.menu.delete_entity": {
+            "source": "Delete Entity",
+            "text": "Excluir Entidade"
+        },
+        "editor.label.delete_entity_children_warning": {
+            "source": "Children and components will also be removed.",
+            "text": "Os filhos e componentes também serão removidos."
+        },
+        "editor.label.importing_asset": {
+            "source": "Importing asset",
+            "text": "Importando recurso"
+        },
+        "editor.label.importing_assets": {
+            "source": "Importing assets (",
+            "text": "Importando recursos ("
+        },
+        "editor.label.refresh": {
+            "source": "Refresh",
+            "text": "Atualizar"
+        },
+        "editor.label.import_content_asset_message": {
+            "source": "Import this asset to Scene?",
+            "text": "Importar este recurso para a cena?"
+        },
+        "editor.action.remove": {
+            "source": "Remove",
+            "text": "Remover"
+        },
+        "editor.label.action_cannot_be_undone": {
+            "source": "This action cannot be undone.",
+            "text": "Esta ação não pode ser desfeita."
+        },
+        "editor.label.no_components_available": {
+            "source": "No components available",
+            "text": "Nenhum componente disponível"
+        },
+        "editor.label.edit_entity_command": {
+            "source": "Edit Entity",
+            "text": "Editar Entidade"
+        },
+        "editor.label.create_entity_command": {
+            "source": "Create Entity",
+            "text": "Criar Entidade"
+        },
+        "editor.label.delete_entity_command": {
+            "source": "Delete Entity",
+            "text": "Excluir Entidade"
+        },
+        "editor.label.instantiate_prefab_command": {
+            "source": "Instantiate Prefab",
+            "text": "Instanciar Prefab"
+        },
+        "editor.action.update_scene_gpubvh": {
+            "source": "Update Scene GPUBVH",
+            "text": "Atualizar GPUBVH da Cena"
+        },
+        "editor.action.regenerate_terrain": {
+            "source": "Regenerate Terrain",
+            "text": "Regenerar Terreno"
+        },
+        "editor.action.bake_navmesh": {
+            "source": "Bake NavMesh",
+            "text": "Construir NavMesh"
+        },
+        "editor.label.orthographic": {
+            "source": "Orthographic",
+            "text": "Ortográfico"
+        },
+        "editor.label.billboard": {
+            "source": "Billboard",
+            "text": "Painel"
+        },
+        "editor.label.loop": {
+            "source": "Loop",
+            "text": "Repetir"
+        },
+        "editor.label.double_sided": {
+            "source": "Double Sided",
+            "text": "Dupla Face"
+        },
+        "editor.label.receive_shadow": {
+            "source": "Receive Shadow",
+            "text": "Receber Sombras"
+        },
+        "editor.label.script": {
+            "source": "Script",
+            "text": "Script"
+        },
+        "editor.label.text": {
+            "source": "Text",
+            "text": "Texto"
+        },
+        "editor.label.textures": {
+            "source": "Textures",
+            "text": "Texturas"
+        },
+        "editor.label.font": {
+            "source": "Font",
+            "text": "Fonte"
+        },
+        "editor.message.preferences_scope": {
+            "source": "These settings are per-machine and are not shared with the project.",
+            "text": "Estas configurações são específicas da máquina e não são compartilhadas com o projeto."
+        },
+        "editor.message.package_project_started": {
+            "source": "Packaging project: ",
+            "text": "Empacotando projeto: "
+        },
+        "editor.message.package_project_failed": {
+            "source": "Package failed.",
+            "text": "Falha ao empacotar o projeto."
+        },
+        "editor.message.package_project_missing_settings": {
+            "source": "Project settings path is empty.",
+            "text": "O caminho das configurações do projeto está vazio."
+        },
+        "editor.message.package_tool_not_found": {
+            "source": "PackageTool not found: ",
+            "text": "PackageTool não encontrado: "
+        },
+        "editor.message.splash_starting_renderer": {
+            "source": "Starting renderer...",
+            "text": "Iniciando o renderizador..."
+        },
+        "editor.message.splash_loading_editor_settings": {
+            "source": "Loading editor settings...",
+            "text": "Carregando as configurações do editor..."
+        },
+        "editor.message.splash_loading_plugins": {
+            "source": "Loading plugins...",
+            "text": "Carregando plugins..."
+        },
+        "editor.message.splash_loading_startup_scene": {
+            "source": "Loading startup scene...",
+            "text": "Carregando a cena de inicialização..."
+        },
+        "editor.action.save_as": {
+            "source": "Save As",
+            "text": "Salvar como"
+        },
+        "editor.message.plugin_loaded": {
+            "source": "Loaded",
+            "text": "Carregado"
+        },
+        "editor.message.plugin_not_loaded": {
+            "source": "Not loaded",
+            "text": "Não carregado"
+        },
+        "editor.format.delete_confirm_format": {
+            "source": "Delete %s?",
+            "text": "Excluir %s?"
+        },
+        "editor.label.enable_profiler": {
+            "source": "Enable Profiler",
+            "text": "Ativar perfilador"
+        },
+        "editor.label.profiler_starting": {
+            "source": "Profiler starting...",
+            "text": "Iniciando o perfilador..."
+        },
+        "editor.label.profiler_warning": {
+            "source": "Profiler Turned On! Performance may be reduced!",
+            "text": "Perfilador ativado! O desempenho pode ser reduzido!"
+        },
+        "editor.message.asset_binary_missing": {
+            "source": "Imported binary missing (needs import)",
+            "text": "Binário importado ausente (é necessário importar)"
+        },
+        "editor.message.asset_source_missing": {
+            "source": "Source file missing",
+            "text": "Arquivo de origem ausente"
+        },
+        "editor.message.asset_texture_missing": {
+            "source": "Missing texture: ",
+            "text": "Textura ausente: "
+        },
+        "editor.label.asset_needs_reimport": {
+            "source": "Source changed since last import",
+            "text": "A origem foi alterada desde a última importação"
+        },
+        "editor.format.size_format": {
+            "source": "Size %.0f",
+            "text": "Tamanho %.0f"
+        },
+        "editor.format.remove_tooltip_format": {
+            "source": "Remove %s",
+            "text": "Remover %s"
+        },
+        "editor.format.remove_confirm_format": {
+            "source": "Remove %s?",
+            "text": "Remover %s?"
+        },
+        "editor.format.unsupported_format": {
+            "source": "%s: unsupported",
+            "text": "%s: sem suporte"
+        },
+        "editor.label.undo": {
+            "source": "Undo",
+            "text": "Desfazer"
+        },
+        "editor.label.redo": {
+            "source": "Redo",
+            "text": "Refazer"
+        },
+        "editor.label.use_vertex_colors": {
+            "source": "Use Vertex Colors",
+            "text": "Usar cores dos vértices"
+        },
+        "editor.label.duration_zero": {
+            "source": "Duration: 0.000s",
+            "text": "Duração: 0,000 s"
+        },
+        "editor.label.no_animation_clips": {
+            "source": "No animation clips",
+            "text": "Nenhum clipe de animação"
+        },
+        "editor.label.sky_cubemap_asset_path": {
+            "source": "Sky Cubemap Path",
+            "text": "Caminho do cubemap do céu"
+        },
+        "editor.label.irradiance_cubemap_asset_path": {
+            "source": "Irradiance Cubemap Path",
+            "text": "Caminho do cubemap de irradiância"
+        },
+        "editor.label.specular_cubemap_asset_path": {
+            "source": "Specular Cubemap Path",
+            "text": "Caminho do cubemap especular"
+        },
+        "editor.label.motion_type": {
+            "source": "Motion Type",
+            "text": "Tipo de movimento"
+        },
+        "editor.label.mass": {
+            "source": "Mass",
+            "text": "Massa"
+        },
+        "editor.label.friction": {
+            "source": "Friction",
+            "text": "Fricção"
+        },
+        "editor.label.restitution": {
+            "source": "Restitution",
+            "text": "Restituição"
+        },
+        "editor.label.gravity_factor": {
+            "source": "Gravity Factor",
+            "text": "Fator da gravidade"
+        },
+        "editor.label.linear_velocity": {
+            "source": "Linear Velocity",
+            "text": "Velocidade linear"
+        },
+        "editor.label.angular_velocity": {
+            "source": "Angular Velocity",
+            "text": "Velocidade angular"
+        },
+        "editor.label.animation_events": {
+            "source": "Animation Events",
+            "text": "Eventos de animação"
+        },
+        "editor.action.animation_event_add": {
+            "source": "Add Event",
+            "text": "Adicionar evento"
+        },
+        "editor.action.animation_event_save": {
+            "source": "Save Events",
+            "text": "Salvar eventos"
+        },
+        "editor.action.animation_event_remove": {
+            "source": "-",
+            "text": "-"
+        },
+        "editor.label.hysteresis": {
+            "source": "Hysteresis",
+            "text": "Histerese"
+        },
+        "editor.label.normal_bias": {
+            "source": "Normal Bias",
+            "text": "Viés da normal"
+        },
+        "editor.label.view_bias": {
+            "source": "View Bias",
+            "text": "Viés da visão"
+        },
+        "editor.label.max_distance": {
+            "source": "Max Distance",
+            "text": "Distância máxima"
+        },
+        "editor.label.trigger": {
+            "source": "Trigger",
+            "text": "Gatilho"
+        },
+        "editor.label.offset": {
+            "source": "Offset",
+            "text": "Deslocamento"
+        },
+        "editor.label.half_extent": {
+            "source": "Half Extent",
+            "text": "Meia extensão"
+        },
+        "editor.label.radius": {
+            "source": "Radius",
+            "text": "Raio"
+        },
+        "editor.label.anchor": {
+            "source": "Anchor",
+            "text": "Âncora"
+        },
+        "editor.label.size": {
+            "source": "Size",
+            "text": "Tamanho"
+        },
+        "editor.label.pivot": {
+            "source": "Pivot",
+            "text": "Pivô"
+        },
+        "editor.label.uv_rect": {
+            "source": "UV Rect",
+            "text": "Retângulo UV"
+        },
+        "editor.label.layer": {
+            "source": "Layer",
+            "text": "Camada"
+        },
+        "editor.label.anchor_presets": {
+            "source": "Anchor Presets",
+            "text": "Predefinições de âncora"
+        },
+        "editor.format.font_format": {
+            "source": "Font: %s",
+            "text": "Fonte: %s"
+        },
+        "editor.label.mesh_asset": {
+            "source": "Mesh Asset",
+            "text": "Recurso de malha"
+        },
+        "editor.label.pixel_height": {
+            "source": "Pixel Height",
+            "text": "Altura em pixels"
+        },
+        "editor.label.height": {
+            "source": "Height",
+            "text": "Altura"
+        },
+        "editor.format.clips_format": {
+            "source": "Clips: %d",
+            "text": "Clipes: %d"
+        },
+        "editor.label.clip": {
+            "source": "Clip",
+            "text": "Clipe"
+        },
+        "editor.label.speed": {
+            "source": "Speed",
+            "text": "Velocidade"
+        },
+        "editor.label.time": {
+            "source": "Time",
+            "text": "Tempo"
+        },
+        "editor.format.duration_format": {
+            "source": "Duration: %.3fs",
+            "text": "Duração: %.3f s"
+        },
+        "editor.format.bone_matrices_format": {
+            "source": "Bone Matrices: %d",
+            "text": "Matrizes de ossos: %d"
+        },
+        "editor.format.bone_matrix_offset_format": {
+            "source": "Bone Matrix Offset: %u",
+            "text": "Deslocamento da matriz de ossos: %u"
+        },
+        "editor.format.material_slots_format": {
+            "source": "Material Slots: %d",
+            "text": "Slots de material: %d"
+        },
+        "editor.action.fork_material": {
+            "source": "Fork Material",
+            "text": "Duplicar material"
+        },
+        "editor.action.save_material_asset": {
+            "source": "Save as Material Asset",
+            "text": "Salvar como recurso de material"
+        },
+        "editor.label.won_material_file": {
+            "source": "WonEngine Material",
+            "text": "Material do WonEngine"
+        },
+        "editor.message.save_material_failed": {
+            "source": "Failed to save material: ",
+            "text": "Falha ao salvar o material: "
+        },
+        "editor.label.slot_prefix": {
+            "source": "Slot ",
+            "text": "Slot "
+        },
+        "editor.label.selected_slot": {
+            "source": "Selected Slot",
+            "text": "Slot selecionado"
+        },
+        "editor.label.shader_type": {
+            "source": "Material Type",
+            "text": "Tipo de material"
+        },
+        "editor.label.blend_mode": {
+            "source": "Blend Mode",
+            "text": "Modo de mesclagem"
+        },
+        "editor.label.anisotropy": {
+            "source": "Anisotropy",
+            "text": "Anisotropia"
+        },
+        "editor.label.sheen_color": {
+            "source": "Sheen Color",
+            "text": "Cor do brilho"
+        },
+        "editor.label.backend_directx12": {
+            "source": "DirectX12",
+            "text": "DirectX12"
+        },
+        "editor.label.column_label": {
+            "source": "Label",
+            "text": "Rótulo"
+        },
+        "editor.label.column_value": {
+            "source": "Value",
+            "text": "Valor"
+        },
+        "editor.label.column_type": {
+            "source": "Type",
+            "text": "Tipo"
+        },
+        "editor.label.column_default": {
+            "source": "Default",
+            "text": "Padrão"
+        },
+        "editor.label.file_name": {
+            "source": "File name:",
+            "text": "Nome do arquivo:"
+        },
+        "editor.action.new": {
+            "source": "New...",
+            "text": "Novo..."
+        },
+        "editor.action.create": {
+            "source": "Create",
+            "text": "Criar"
+        },
+        "editor.action.add": {
+            "source": "Add",
+            "text": "Adicionar"
+        },
+        "editor.action.save_schema": {
+            "source": "Save Schema",
+            "text": "Salvar esquema"
+        },
+        "editor.format.localization_summary": {
+            "source": "default: %s   keys: %d%s",
+            "text": "padrão: %s   chaves: %d%s"
+        },
+        "editor.format.source_changed": {
+            "source": "source changed: \"%s\" -> \"%s\"",
+            "text": "origem alterada: \"%s\" -> \"%s\""
+        },
+        "editor.label.asset_sound": {
+            "source": "Sound",
+            "text": "Som"
+        },
+        "editor.field.agent_height": {
+            "source": "Agent Height",
+            "text": "Altura do agente"
+        },
+        "editor.field.agent_max_climb": {
+            "source": "Agent Max Climb",
+            "text": "Subida máxima do agente"
+        },
+        "editor.field.agent_max_slope": {
+            "source": "Agent Max Slope",
+            "text": "Inclinação máxima do agente"
+        },
+        "editor.field.agent_radius": {
+            "source": "Agent Radius",
+            "text": "Raio do agente"
+        },
+        "editor.field.anchor": {
+            "source": "Anchor",
+            "text": "Âncora"
+        },
+        "editor.field.arrival_threshold": {
+            "source": "Arrival Threshold",
+            "text": "Limite de chegada"
+        },
+        "editor.field.axis": {
+            "source": "Axis",
+            "text": "Eixo"
+        },
+        "editor.field.blend_duration": {
+            "source": "Blend Duration",
+            "text": "Duração da mistura"
+        },
+        "editor.field.bounds_center": {
+            "source": "Bounds Center",
+            "text": "Centro dos limites"
+        },
+        "editor.field.bounds_extent": {
+            "source": "Bounds Extent",
+            "text": "Extensão dos limites"
+        },
+        "editor.field.clip": {
+            "source": "Clip",
+            "text": "Clipe"
+        },
+        "editor.field.connected_entity": {
+            "source": "Connected Entity",
+            "text": "Entidade conectada"
+        },
+        "editor.field.cubemap_asset_path": {
+            "source": "Cubemap Asset Path",
+            "text": "Caminho do recurso cubemap"
+        },
+        "editor.field.default_state": {
+            "source": "Default State",
+            "text": "Estado padrão"
+        },
+        "editor.field.emit_radius": {
+            "source": "Emit Radius",
+            "text": "Raio de emissão"
+        },
+        "editor.field.end_color": {
+            "source": "End Color",
+            "text": "Cor final"
+        },
+        "editor.field.end_size": {
+            "source": "End Size",
+            "text": "Tamanho final"
+        },
+        "editor.field.exit_time": {
+            "source": "Exit Time",
+            "text": "Tempo de saída"
+        },
+        "editor.field.frequency": {
+            "source": "Frequency",
+            "text": "Frequência"
+        },
+        "editor.field.from_state": {
+            "source": "From State",
+            "text": "Estado inicial"
+        },
+        "editor.field.gravity": {
+            "source": "Gravity",
+            "text": "Gravidade"
+        },
+        "editor.field.has_exit_time": {
+            "source": "Has Exit Time",
+            "text": "Possui tempo de saída"
+        },
+        "editor.field.height_scale": {
+            "source": "Height Scale",
+            "text": "Escala de altura"
+        },
+        "editor.field.include_layers": {
+            "source": "Include Layers",
+            "text": "Incluir camadas"
+        },
+        "editor.field.influence_radius": {
+            "source": "Influence Radius",
+            "text": "Raio de influência"
+        },
+        "editor.label.animation_event_default_name": {
+            "source": "event",
+            "text": "evento"
+        },
+        "editor.message.animation_events_saved": {
+            "source": "Animation events saved: ",
+            "text": "Eventos de animação salvos: "
+        },
+        "editor.message.animation_events_save_failed": {
+            "source": "Failed to save animation events.",
+            "text": "Falha ao salvar os eventos de animação."
+        },
+        "editor.message.animation_events_no_mesh": {
+            "source": "No mesh asset to save animation events.",
+            "text": "Não há recurso de malha para salvar eventos de animação."
+        },
+        "editor.label.none_placeholder": {
+            "source": "<none>",
+            "text": "<nenhum>"
+        },
+        "editor.label.script_already_exists": {
+            "source": "script already exists on this component",
+            "text": "já existe um script neste componente"
+        },
+        "editor.format.last_error_format": {
+            "source": "Last Error: %s",
+            "text": "Último erro: %s"
+        },
+        "editor.label.padding_min": {
+            "source": "Padding Min",
+            "text": "Preenchimento mínimo"
+        },
+        "editor.label.padding_max": {
+            "source": "Padding Max",
+            "text": "Preenchimento máximo"
+        },
+        "editor.label.spacing": {
+            "source": "Spacing",
+            "text": "Espaçamento"
+        },
+        "editor.label.cross_align": {
+            "source": "Cross Align",
+            "text": "Alinhamento cruzado"
+        },
+        "editor.label.reverse": {
+            "source": "Reverse",
+            "text": "Inverter"
+        },
+        "editor.label.outer_cone": {
+            "source": "Outer Cone",
+            "text": "Cone externo"
+        },
+        "editor.label.inner_cone": {
+            "source": "Inner Cone",
+            "text": "Cone interno"
+        },
+        "editor.label.near_plane": {
+            "source": "Near",
+            "text": "Próximo"
+        },
+        "editor.label.far_plane": {
+            "source": "Far",
+            "text": "Distante"
+        },
+        "editor.label.fov_y": {
+            "source": "FOV Y",
+            "text": "Campo de visão Y"
+        },
+        "editor.label.ortho_size": {
+            "source": "Ortho Size",
+            "text": "Tamanho ortográfico"
+        },
+        "editor.format.aspect_ratio_format": {
+            "source": "Aspect Ratio: %.3f",
+            "text": "Proporção: %.3f"
+        },
+        "editor.label.aperture": {
+            "source": "Aperture",
+            "text": "Abertura"
+        },
+        "editor.label.shutter_speed": {
+            "source": "Shutter Speed",
+            "text": "Velocidade do obturador"
+        },
+        "editor.label.sensitivity": {
+            "source": "Sensitivity",
+            "text": "Sensibilidade"
+        },
+        "editor.label.auto_exposure": {
+            "source": "Auto Exposure",
+            "text": "Exposição automática"
+        },
+        "editor.label.fixed_ev100": {
+            "source": "Fixed EV100",
+            "text": "EV100 fixo"
+        },
+        "editor.format.exposure_multiplier_format": {
+            "source": "Exposure Multiplier: %.6f",
+            "text": "Multiplicador de exposição: %.6f"
+        },
+        "editor.label.exposure_compensation": {
+            "source": "Exposure Compensation (EV)",
+            "text": "Compensação de exposição (EV)"
+        },
+        "editor.label.auto_exposure_min_ev": {
+            "source": "Min EV100",
+            "text": "EV100 mínimo"
+        },
+        "editor.label.auto_exposure_max_ev": {
+            "source": "Max EV100",
+            "text": "EV100 máximo"
+        },
+        "editor.label.auto_exposure_speed": {
+            "source": "Adaptation Speed",
+            "text": "Velocidade de adaptação"
+        },
+        "editor.label.sun_glow_intensity": {
+            "source": "Sun Glow Intensity",
+            "text": "Intensidade do brilho solar"
+        },
+        "editor.label.sun_glow_falloff": {
+            "source": "Sun Glow Falloff",
+            "text": "Atenuação do brilho solar"
+        },
+        "editor.label.sky_horizon_color": {
+            "source": "Sky Horizon Color",
+            "text": "Cor do horizonte do céu"
+        },
+        "editor.label.sky_horizon_falloff": {
+            "source": "Sky Horizon Falloff",
+            "text": "Atenuação do horizonte do céu"
+        },
+        "editor.label.sky_zenith_color": {
+            "source": "Sky Zenith Color",
+            "text": "Cor do zênite do céu"
+        },
+        "editor.label.ground_horizon_color": {
+            "source": "Ground Horizon Color",
+            "text": "Cor do horizonte do solo"
+        },
+        "editor.label.ground_falloff": {
+            "source": "Ground Falloff",
+            "text": "Atenuação do solo"
+        },
+        "editor.label.ground_color": {
+            "source": "Ground Color",
+            "text": "Cor do solo"
+        },
+        "editor.label.ambient_color": {
+            "source": "Ambient Color",
+            "text": "Cor ambiente"
+        },
+        "editor.label.ambient_intensity": {
+            "source": "Ambient Intensity",
+            "text": "Intensidade ambiente"
+        },
+        "editor.label.indirect_diffuse_scale": {
+            "source": "Indirect Diffuse Scale",
+            "text": "Escala difusa indireta"
+        },
+        "editor.label.indirect_specular_scale": {
+            "source": "Indirect Specular Scale",
+            "text": "Escala especular indireta"
+        },
+        "editor.label.probe_counts": {
+            "source": "Probe Counts",
+            "text": "Número de probes"
+        },
+        "editor.label.probe_spacing": {
+            "source": "Probe Spacing",
+            "text": "Espaçamento dos probes"
+        },
+        "editor.label.volume_offset": {
+            "source": "Volume Offset",
+            "text": "Deslocamento do volume"
+        },
+        "editor.label.probes_per_frame": {
+            "source": "Probes Per Frame",
+            "text": "Probes por quadro"
+        },
+        "editor.label.priority": {
+            "source": "Priority",
+            "text": "Prioridade"
+        },
+        "editor.label.sheen_roughness": {
+            "source": "Sheen Roughness",
+            "text": "Rugosidade do brilho"
+        },
+        "editor.label.clearcoat": {
+            "source": "Clearcoat",
+            "text": "Verniz"
+        },
+        "editor.label.clearcoat_roughness": {
+            "source": "Clearcoat Roughness",
+            "text": "Rugosidade do verniz"
+        },
+        "editor.message.project_saved": {
+            "source": "Project saved: ",
+            "text": "Projeto salvo: "
+        },
+        "editor.message.project_loaded": {
+            "source": "Project loaded: ",
+            "text": "Projeto carregado: "
+        },
+        "editor.message.project_created": {
+            "source": "Project created: ",
+            "text": "Projeto criado: "
+        },
+        "editor.message.save_project_failed": {
+            "source": "Save project failed: ",
+            "text": "Falha ao salvar o projeto: "
+        },
+        "editor.message.load_project_failed": {
+            "source": "Load project failed: ",
+            "text": "Falha ao carregar o projeto: "
+        },
+        "editor.message.create_project_failed": {
+            "source": "Create project failed: ",
+            "text": "Falha ao criar o projeto: "
+        },
+        "editor.message.save_scene_failed": {
+            "source": "Save scene failed: ",
+            "text": "Falha ao salvar a cena: "
+        },
+        "editor.message.save_prefab_failed": {
+            "source": "Save prefab failed: ",
+            "text": "Falha ao salvar o prefab: "
+        },
+        "editor.message.load_prefab_failed": {
+            "source": "Load prefab failed: ",
+            "text": "Falha ao carregar o prefab: "
+        },
+        "editor.message.prefab_added": {
+            "source": "Prefab added: ",
+            "text": "Prefab adicionado: "
+        },
+        "editor.message.scene_saved": {
+            "source": "Scene saved: ",
+            "text": "Cena salva: "
+        },
+        "editor.message.load_scene_failed": {
+            "source": "Load scene failed: ",
+            "text": "Falha ao carregar a cena: "
+        },
+        "editor.message.load_scene_warning": {
+            "source": "Load scene warning: ",
+            "text": "Aviso ao carregar a cena: "
+        },
+        "editor.message.scene_loaded": {
+            "source": "Scene loaded: ",
+            "text": "Cena carregada: "
+        },
+        "editor.message.content_browser_import_commit_failed": {
+            "source": "Content Browser import commit failed: ",
+            "text": "Falha ao confirmar a importação do navegador de conteúdo: "
+        },
+        "editor.message.content_browser_import_failed": {
+            "source": "Content Browser import failed: ",
+            "text": "Falha ao importar pelo navegador de conteúdo: "
+        },
+        "editor.message.asset_importer_tool_not_found": {
+            "source": "AssetImporterTool not found: ",
+            "text": "AssetImporterTool não encontrado: "
+        },
+        "editor.message.failed_register_component_type": {
+            "source": "Failed to register component type: ",
+            "text": "Falha ao registrar o tipo de componente: "
+        },
+        "editor.message.failed_enable_plugin": {
+            "source": "Failed to enable plugin: ",
+            "text": "Falha ao ativar o plugin: "
+        },
+        "editor.message.plugin_disabled_next_restart": {
+            "source": "Plugin will be disabled on next editor restart: ",
+            "text": "O plugin será desativado na próxima reinicialização do editor: "
+        },
+        "editor.label.base_color_map": {
+            "source": "Base Color Map",
+            "text": "Mapa de cor base"
+        },
+        "editor.label.opacity_map": {
+            "source": "Opacity Map",
+            "text": "Mapa de opacidade"
+        },
+        "editor.label.displacement_map": {
+            "source": "Displacement Map",
+            "text": "Mapa de deslocamento"
+        },
+        "editor.label.occlusion_map": {
+            "source": "Occlusion Map",
+            "text": "Mapa de oclusão"
+        },
+        "editor.label.sheen_color_map": {
+            "source": "Sheen Color Map",
+            "text": "Mapa de cor do brilho"
+        },
+        "editor.label.sheen_roughness_map": {
+            "source": "Sheen Roughness Map",
+            "text": "Mapa de rugosidade do brilho"
+        },
+        "editor.label.clearcoat_map": {
+            "source": "Clearcoat Map",
+            "text": "Mapa de verniz"
+        },
+        "editor.label.clearcoat_roughness_map": {
+            "source": "Clearcoat Roughness Map",
+            "text": "Mapa de rugosidade do verniz"
+        },
+        "editor.label.clearcoat_normal_map": {
+            "source": "Clearcoat Normal Map",
+            "text": "Mapa de normal do verniz"
+        },
+        "editor.label.anisotropy_map": {
+            "source": "Anisotropy Map",
+            "text": "Mapa de anisotropia"
+        },
+        "editor.label.sound_asset_path": {
+            "source": "Sound Path",
+            "text": "Caminho do som"
+        },
+        "editor.label.volume": {
+            "source": "Volume",
+            "text": "Volume"
+        },
+        "editor.label.pitch": {
+            "source": "Pitch",
+            "text": "Afinação"
+        },
+        "editor.label.min_distance": {
+            "source": "Min Distance",
+            "text": "Distância mínima"
+        },
+        "editor.label.is_3d": {
+            "source": "3D Spatial",
+            "text": "Espacial 3D"
+        },
+        "editor.label.play_on_start": {
+            "source": "Play On Start",
+            "text": "Reproduzir ao iniciar"
+        },
+        "editor.label.is_playing": {
+            "source": "Playing",
+            "text": "Reproduzindo"
+        },
+        "editor.window.save_current_scene": {
+            "source": "Save Current Scene?",
+            "text": "Salvar a cena atual?"
+        },
+        "editor.hint.search": {
+            "source": "Search",
+            "text": "Pesquisar"
+        },
+        "editor.field.intensity_multiplier": {
+            "source": "Intensity Multiplier",
+            "text": "Multiplicador de intensidade"
+        },
+        "editor.field.island_falloff": {
+            "source": "Island Falloff",
+            "text": "Atenuação da ilha"
+        },
+        "editor.field.lacunarity": {
+            "source": "Lacunarity",
+            "text": "Lacunaridade"
+        },
+        "editor.field.layer": {
+            "source": "Layer",
+            "text": "Camada"
+        },
+        "editor.field.layer_mask": {
+            "source": "Layer Mask",
+            "text": "Máscara de camadas"
+        },
+        "editor.field.lifetime": {
+            "source": "Lifetime",
+            "text": "Vida útil"
+        },
+        "editor.field.limit_max": {
+            "source": "Limit Max",
+            "text": "Limite máximo"
+        },
+        "editor.field.limit_min": {
+            "source": "Limit Min",
+            "text": "Limite mínimo"
+        },
+        "editor.field.loop": {
+            "source": "Loop",
+            "text": "Repetir"
+        },
+        "editor.field.match": {
+            "source": "Match",
+            "text": "Correspondência"
+        },
+        "editor.field.max_particle_count": {
+            "source": "Max Particle Count",
+            "text": "Quantidade máxima de partículas"
+        },
+        "editor.field.move_speed": {
+            "source": "Move Speed",
+            "text": "Velocidade de movimento"
+        },
+        "editor.field.name": {
+            "source": "Name",
+            "text": "Nome"
+        },
+        "editor.field.navmesh_asset_path": {
+            "source": "Navmesh Asset Path",
+            "text": "Caminho do recurso NavMesh"
+        },
+        "editor.field.octaves": {
+            "source": "Octaves",
+            "text": "Oitavas"
+        },
+        "editor.field.op": {
+            "source": "Op",
+            "text": "Operação"
+        },
+        "editor.field.parameter": {
+            "source": "Parameter",
+            "text": "Parâmetro"
+        },
+        "editor.field.persistence": {
+            "source": "Persistence",
+            "text": "Persistência"
+        },
+        "editor.field.reference_resolution": {
+            "source": "Reference Resolution",
+            "text": "Resolução de referência"
+        },
+        "editor.field.render_mode": {
+            "source": "Render Mode",
+            "text": "Modo de renderização"
+        },
+        "editor.field.resolution_x": {
+            "source": "Resolution X",
+            "text": "Resolução X"
+        },
+        "editor.field.resolution_z": {
+            "source": "Resolution Z",
+            "text": "Resolução Z"
+        },
+        "editor.field.ridge_strength": {
+            "source": "Ridge Strength",
+            "text": "Intensidade da crista"
+        },
+        "editor.field.scale_mode": {
+            "source": "Scale Mode",
+            "text": "Modo de escala"
+        },
+        "editor.field.seed": {
+            "source": "Seed",
+            "text": "Semente"
+        },
+        "editor.field.sort_order": {
+            "source": "Sort Order",
+            "text": "Ordem de classificação"
+        },
+        "editor.field.spawn_rate": {
+            "source": "Spawn Rate",
+            "text": "Taxa de geração"
+        },
+        "editor.field.speed": {
+            "source": "Speed",
+            "text": "Velocidade"
+        },
+        "editor.field.start_color": {
+            "source": "Start Color",
+            "text": "Cor inicial"
+        },
+        "editor.field.start_size": {
+            "source": "Start Size",
+            "text": "Tamanho inicial"
+        },
+        "editor.field.threshold": {
+            "source": "Threshold",
+            "text": "Limite"
+        },
+        "editor.field.to_state": {
+            "source": "To State",
+            "text": "Estado final"
+        },
+        "editor.field.tree_asset_path": {
+            "source": "Tree Asset Path",
+            "text": "Caminho do recurso de árvore"
+        },
+        "editor.field.turn_rate": {
+            "source": "Turn Rate",
+            "text": "Taxa de giro"
+        },
+        "editor.field.type": {
+            "source": "Type",
+            "text": "Tipo"
+        },
+        "editor.field.use_bounds": {
+            "source": "Use Bounds",
+            "text": "Usar limites"
+        },
+        "editor.field.use_limit": {
+            "source": "Use Limit",
+            "text": "Usar limite"
+        },
+        "editor.field.value": {
+            "source": "Value",
+            "text": "Valor"
+        },
+        "editor.field.velocity": {
+            "source": "Velocity",
+            "text": "Velocidade"
+        },
+        "editor.field.velocity_variation": {
+            "source": "Velocity Variation",
+            "text": "Variação da velocidade"
+        },
+        "editor.field.warp_strength": {
+            "source": "Warp Strength",
+            "text": "Intensidade da distorção"
+        },
+        "editor.field.world_size_x": {
+            "source": "World Size X",
+            "text": "Tamanho do mundo X"
+        },
+        "editor.field.world_size_z": {
+            "source": "World Size Z",
+            "text": "Tamanho do mundo Z"
+        },
+        "editor.label.cloud_coverage": {
+            "source": "Cloud Coverage",
+            "text": "Cobertura de nuvens"
+        },
+        "editor.label.cloud_density": {
+            "source": "Cloud Density",
+            "text": "Densidade de nuvens"
+        },
+        "editor.label.cloud_speed": {
+            "source": "Cloud Speed",
+            "text": "Velocidade das nuvens"
+        },
+        "editor.label.cloud_color": {
+            "source": "Cloud Color",
+            "text": "Cor das nuvens"
+        },
+        "editor.label.cloud_direction": {
+            "source": "Cloud Direction",
+            "text": "Direção das nuvens"
+        },
+        "editor.enum.MaterialType.Unlit": {
+            "source": "Unlit",
+            "text": "Sem iluminação"
+        },
+        "editor.enum.MaterialType.PBR": {
+            "source": "PBR",
+            "text": "PBR"
+        },
+        "editor.enum.MaterialBlendMode.Opaque": {
+            "source": "Opaque",
+            "text": "Opaco"
+        },
+        "editor.enum.MaterialBlendMode.Masked": {
+            "source": "Masked",
+            "text": "Mascarado"
+        },
+        "editor.enum.MaterialBlendMode.Transparent": {
+            "source": "Transparent",
+            "text": "Transparente"
+        },
+        "editor.enum.MaterialBlendMode.Additive": {
+            "source": "Additive",
+            "text": "Aditivo"
+        },
+        "editor.enum.MaterialBlendMode.Premultiplied": {
+            "source": "Premultiplied",
+            "text": "Pré-multiplicado"
+        },
+        "editor.enum.SkyType.None": {
+            "source": "None",
+            "text": "Nenhum"
+        },
+        "editor.enum.SkyType.Procedural": {
+            "source": "Procedural",
+            "text": "Procedural"
+        },
+        "editor.enum.SkyType.Cubemap": {
+            "source": "Cubemap",
+            "text": "Cubemap"
+        },
+        "editor.enum.SkyType.PhysicallyBased": {
+            "source": "Physically Based",
+            "text": "Baseado em física"
+        },
+        "editor.enum.DiffuseGIMode.None": {
+            "source": "None",
+            "text": "Nenhum"
+        },
+        "editor.enum.DiffuseGIMode.Ambient": {
+            "source": "Ambient",
+            "text": "Ambiente"
+        },
+        "editor.enum.DiffuseGIMode.DDGI": {
+            "source": "DDGI",
+            "text": "DDGI"
+        },
+        "editor.enum.DiffuseGIMode.Cubemap": {
+            "source": "Cubemap",
+            "text": "Cubemap"
+        },
+        "editor.enum.DiffuseGIMode.Sky": {
+            "source": "Sky",
+            "text": "Céu"
+        },
+        "editor.enum.ReflectionMode.None": {
+            "source": "None",
+            "text": "Nenhum"
+        },
+        "editor.enum.ReflectionMode.Cubemap": {
+            "source": "Cubemap",
+            "text": "Cubemap"
+        },
+        "editor.enum.ReflectionMode.Sky": {
+            "source": "Sky",
+            "text": "Céu"
+        },
+        "editor.enum.LightType.Directional": {
+            "source": "Directional",
+            "text": "Direcional"
+        },
+        "editor.enum.LightType.Point": {
+            "source": "Point",
+            "text": "Pontual"
+        },
+        "editor.enum.LightType.Spot": {
+            "source": "Spot",
+            "text": "Spot"
+        },
+        "editor.enum.LightType.Rect": {
+            "source": "Rect",
+            "text": "Retângulo"
+        },
+        "editor.enum.Collider3DShapeType.Box": {
+            "source": "Box",
+            "text": "Caixa"
+        },
+        "editor.enum.Collider3DShapeType.Sphere": {
+            "source": "Sphere",
+            "text": "Esfera"
+        },
+        "editor.enum.Collider3DShapeType.HeightField": {
+            "source": "Height Field",
+            "text": "Campo de altura"
+        },
+        "editor.enum.Rigidbody3DMotionType.Static": {
+            "source": "Static",
+            "text": "Estático"
+        },
+        "editor.enum.Rigidbody3DMotionType.Kinematic": {
+            "source": "Kinematic",
+            "text": "Cinemático"
+        },
+        "editor.enum.Rigidbody3DMotionType.Dynamic": {
+            "source": "Dynamic",
+            "text": "Dinâmico"
+        },
+        "editor.enum.LayoutType.Horizontal": {
+            "source": "Horizontal",
+            "text": "Horizontal"
+        },
+        "editor.enum.LayoutType.Vertical": {
+            "source": "Vertical",
+            "text": "Vertical"
+        },
+        "editor.enum.LayoutCrossAlign.Start": {
+            "source": "Start",
+            "text": "Início"
+        },
+        "editor.enum.LayoutCrossAlign.Center": {
+            "source": "Center",
+            "text": "Centro"
+        },
+        "editor.enum.LayoutCrossAlign.End": {
+            "source": "End",
+            "text": "Fim"
+        },
+        "editor.enum.LayoutCrossAlign.Stretch": {
+            "source": "Stretch",
+            "text": "Esticar"
+        },
+        "editor.enum.AntiAliasingMode.None": {
+            "source": "None",
+            "text": "Nenhum"
+        },
+        "editor.enum.AntiAliasingMode.FXAA": {
+            "source": "FXAA",
+            "text": "FXAA"
+        },
+        "editor.enum.TonemapMode.Reinhard": {
+            "source": "Reinhard",
+            "text": "Reinhard"
+        },
+        "editor.enum.TonemapMode.ACES": {
+            "source": "ACES",
+            "text": "ACES"
+        },
+        "editor.label.cloud_frequency": {
+            "source": "Cloud Frequency",
+            "text": "Frequência das nuvens"
+        }
     }
 }
