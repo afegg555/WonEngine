@@ -903,6 +903,8 @@ namespace won::rendering
                 grid_desc.size = static_cast<Size>(cluster_count) * sizeof(uint32);
                 grid_desc.usage = RHIResourceUsage::Default;
                 grid_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
+                frame_context.RemoveResourceDeferred(view.light_resources.cluster_light_count_buffer);
+                frame_context.RemoveResourceDeferred(view.light_resources.cluster_light_offset_buffer);
                 view.light_resources.cluster_light_count_buffer = device->CreateBuffer(grid_desc);
                 view.light_resources.cluster_light_offset_buffer = device->CreateBuffer(grid_desc);
 
@@ -910,6 +912,7 @@ namespace won::rendering
                 index_desc.size = static_cast<Size>(cluster_count) * MAX_LIGHTS_PER_CLUSTER * sizeof(uint32);
                 index_desc.usage = RHIResourceUsage::Default;
                 index_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
+                frame_context.RemoveResourceDeferred(view.light_resources.cluster_light_index_buffer);
                 view.light_resources.cluster_light_index_buffer = device->CreateBuffer(index_desc);
 
                 if (view.light_resources.cluster_light_count_buffer && view.light_resources.cluster_light_offset_buffer && view.light_resources.cluster_light_index_buffer)
