@@ -952,36 +952,6 @@
             "text": "검색",
             "comment": "content browser search placeholder"
         },
-        "editor.label.layout_horizontal": {
-            "source": "Horizontal",
-            "text": "가로",
-            "comment": "layout type combo item"
-        },
-        "editor.label.layout_vertical": {
-            "source": "Vertical",
-            "text": "세로",
-            "comment": "layout type combo item"
-        },
-        "editor.label.align_start": {
-            "source": "Start",
-            "text": "시작",
-            "comment": "cross align combo item"
-        },
-        "editor.label.align_center": {
-            "source": "Center",
-            "text": "가운데",
-            "comment": "cross align combo item"
-        },
-        "editor.label.align_end": {
-            "source": "End",
-            "text": "끝",
-            "comment": "cross align combo item"
-        },
-        "editor.label.align_stretch": {
-            "source": "Stretch",
-            "text": "늘이기",
-            "comment": "cross align combo item"
-        },
         "editor.label.column_label": {
             "source": "Label",
             "text": "항목",
@@ -1102,26 +1072,6 @@
             "text": "머티리얼 슬롯: %d",
             "comment": "format"
         },
-        "editor.label.aa_none": {
-            "source": "None",
-            "text": "없음",
-            "comment": "anti-aliasing combo item"
-        },
-        "editor.label.additive": {
-            "source": "Additive",
-            "text": "가산",
-            "comment": "label"
-        },
-        "editor.label.alpha": {
-            "source": "Alpha",
-            "text": "알파",
-            "comment": "label"
-        },
-        "editor.label.ambient": {
-            "source": "Ambient",
-            "text": "앰비언트",
-            "comment": "label"
-        },
         "editor.label.ambient_color": {
             "source": "Ambient Color",
             "text": "앰비언트 색상",
@@ -1222,11 +1172,6 @@
             "text": "블렌드 모드",
             "comment": "label"
         },
-        "editor.label.box": {
-            "source": "Box",
-            "text": "박스",
-            "comment": "label"
-        },
         "editor.label.bvh_debug": {
             "source": "BVH Debug",
             "text": "BVH 디버그",
@@ -1287,11 +1232,6 @@
             "text": "교차축 정렬",
             "comment": "label"
         },
-        "editor.label.cubemap": {
-            "source": "Cubemap",
-            "text": "큐브맵",
-            "comment": "label"
-        },
         "editor.label.ddgi_debug_overlay": {
             "source": "DDGI Debug Overlay",
             "text": "DDGI 디버그 오버레이",
@@ -1325,11 +1265,6 @@
         "editor.label.direct_sun_shadow_resolution": {
             "source": "Direct Sun Shadow Resolution",
             "text": "직사광 그림자 해상도",
-            "comment": "label"
-        },
-        "editor.label.directional": {
-            "source": "Directional",
-            "text": "디렉셔널",
             "comment": "label"
         },
         "editor.label.displacement_map": {
@@ -1422,11 +1357,6 @@
             "text": "절반 크기",
             "comment": "label"
         },
-        "editor.label.height_field": {
-            "source": "Height Field",
-            "text": "높이 필드",
-            "comment": "label"
-        },
         "editor.label.hysteresis": {
             "source": "Hysteresis",
             "text": "히스테리시스(누적 비율)",
@@ -1455,11 +1385,6 @@
         "editor.label.is_3d": {
             "source": "3D Spatial",
             "text": "3D 공간 음향",
-            "comment": "label"
-        },
-        "editor.label.kinematic": {
-            "source": "Kinematic",
-            "text": "키네마틱",
             "comment": "label"
         },
         "editor.label.linear_velocity": {
@@ -1527,11 +1452,6 @@
             "text": "불투명도 맵",
             "comment": "label"
         },
-        "editor.label.opaque": {
-            "source": "Opaque",
-            "text": "불투명",
-            "comment": "label"
-        },
         "editor.label.ortho_size": {
             "source": "Ortho Size",
             "text": "직교 뷰 크기",
@@ -1557,11 +1477,6 @@
             "text": "패딩 최소",
             "comment": "label"
         },
-        "editor.label.physically_based": {
-            "source": "Physically Based",
-            "text": "물리 기반",
-            "comment": "label"
-        },
         "editor.label.pitch": {
             "source": "Pitch",
             "text": "피치(음정)",
@@ -1575,16 +1490,6 @@
         "editor.label.pixel_height": {
             "source": "Pixel Height",
             "text": "픽셀 높이",
-            "comment": "label"
-        },
-        "editor.label.point": {
-            "source": "Point",
-            "text": "포인트",
-            "comment": "label"
-        },
-        "editor.label.premultiplied": {
-            "source": "Premultiplied",
-            "text": "프리멀티플라이드 알파",
             "comment": "label"
         },
         "editor.label.probe_counts": {
@@ -1602,11 +1507,6 @@
             "text": "프레임당 프로브",
             "comment": "label"
         },
-        "editor.label.procedural": {
-            "source": "Procedural",
-            "text": "프로시저럴",
-            "comment": "label"
-        },
         "editor.label.rayleigh_coefficient": {
             "source": "Rayleigh Coefficient",
             "text": "Rayleigh 계수",
@@ -1615,11 +1515,6 @@
         "editor.label.receive_shadow": {
             "source": "Receive Shadow",
             "text": "그림자 받기",
-            "comment": "label"
-        },
-        "editor.label.rect": {
-            "source": "Rect",
-            "text": "사각형",
             "comment": "label"
         },
         "editor.label.reflectance": {
@@ -1660,11 +1555,6 @@
         "editor.label.shutter_speed": {
             "source": "Shutter Speed",
             "text": "셔터 속도",
-            "comment": "label"
-        },
-        "editor.label.sky": {
-            "source": "Sky",
-            "text": "하늘",
             "comment": "label"
         },
         "editor.label.sky_cubemap_asset_path": {
@@ -1710,21 +1600,6 @@
         "editor.label.specular_cubemap_asset_path": {
             "source": "Specular Cubemap Path",
             "text": "Specular 큐브맵 경로",
-            "comment": "label"
-        },
-        "editor.label.sphere": {
-            "source": "Sphere",
-            "text": "구",
-            "comment": "label"
-        },
-        "editor.label.spot": {
-            "source": "Spot",
-            "text": "스포트",
-            "comment": "label"
-        },
-        "editor.label.static_str": {
-            "source": "Static",
-            "text": "스태틱",
             "comment": "label"
         },
         "editor.label.sun_angular_radius": {
@@ -2217,39 +2092,234 @@
             "text": "Far",
             "comment": "label"
         },
-        "editor.label.ddgi": {
-            "source": "DDGI",
-            "text": "DDGI",
-            "comment": "label"
-        },
-        "editor.label.unlit": {
-            "source": "Unlit",
-            "text": "Unlit",
-            "comment": "label"
-        },
-        "editor.label.pbr": {
-            "source": "PBR",
-            "text": "PBR",
-            "comment": "label"
-        },
-        "editor.label.aa_fxaa": {
-            "source": "FXAA",
-            "text": "FXAA",
-            "comment": "label"
-        },
-        "editor.label.tonemap_reinhard": {
-            "source": "Reinhard",
-            "text": "Reinhard",
-            "comment": "label"
-        },
-        "editor.label.tonemap_aces": {
-            "source": "ACES",
-            "text": "ACES",
-            "comment": "label"
-        },
         "editor.label.backend_directx12": {
             "source": "DirectX12",
             "text": "DirectX12",
+            "comment": "label"
+        },
+        "editor.label.cloud_coverage": {
+            "source": "Cloud Coverage",
+            "text": "구름 양",
+            "comment": "label"
+        },
+        "editor.label.cloud_density": {
+            "source": "Cloud Density",
+            "text": "구름 밀도",
+            "comment": "label"
+        },
+        "editor.label.cloud_speed": {
+            "source": "Cloud Speed",
+            "text": "구름 속도",
+            "comment": "label"
+        },
+        "editor.label.cloud_color": {
+            "source": "Cloud Color",
+            "text": "구름 색상",
+            "comment": "label"
+        },
+        "editor.label.cloud_direction": {
+            "source": "Cloud Direction",
+            "text": "구름 방향",
+            "comment": "label"
+        },
+        "editor.enum.MaterialType.Unlit": {
+            "source": "Unlit",
+            "text": "언릿",
+            "comment": "enum"
+        },
+        "editor.enum.MaterialType.PBR": {
+            "source": "PBR",
+            "text": "PBR",
+            "comment": "enum"
+        },
+        "editor.enum.MaterialBlendMode.Opaque": {
+            "source": "Opaque",
+            "text": "불투명",
+            "comment": "enum"
+        },
+        "editor.enum.MaterialBlendMode.Masked": {
+            "source": "Masked",
+            "text": "마스크",
+            "comment": "enum"
+        },
+        "editor.enum.MaterialBlendMode.Transparent": {
+            "source": "Transparent",
+            "text": "반투명",
+            "comment": "enum"
+        },
+        "editor.enum.MaterialBlendMode.Additive": {
+            "source": "Additive",
+            "text": "가산",
+            "comment": "enum"
+        },
+        "editor.enum.MaterialBlendMode.Premultiplied": {
+            "source": "Premultiplied",
+            "text": "프리멀티플라이드",
+            "comment": "enum"
+        },
+        "editor.enum.SkyType.None": {
+            "source": "None",
+            "text": "없음",
+            "comment": "enum"
+        },
+        "editor.enum.SkyType.Procedural": {
+            "source": "Procedural",
+            "text": "프로시저럴",
+            "comment": "enum"
+        },
+        "editor.enum.SkyType.Cubemap": {
+            "source": "Cubemap",
+            "text": "큐브맵",
+            "comment": "enum"
+        },
+        "editor.enum.SkyType.PhysicallyBased": {
+            "source": "Physically Based",
+            "text": "물리 기반",
+            "comment": "enum"
+        },
+        "editor.enum.DiffuseGIMode.None": {
+            "source": "None",
+            "text": "없음",
+            "comment": "enum"
+        },
+        "editor.enum.DiffuseGIMode.Ambient": {
+            "source": "Ambient",
+            "text": "앰비언트",
+            "comment": "enum"
+        },
+        "editor.enum.DiffuseGIMode.DDGI": {
+            "source": "DDGI",
+            "text": "DDGI",
+            "comment": "enum"
+        },
+        "editor.enum.DiffuseGIMode.Cubemap": {
+            "source": "Cubemap",
+            "text": "큐브맵",
+            "comment": "enum"
+        },
+        "editor.enum.DiffuseGIMode.Sky": {
+            "source": "Sky",
+            "text": "하늘",
+            "comment": "enum"
+        },
+        "editor.enum.ReflectionMode.None": {
+            "source": "None",
+            "text": "없음",
+            "comment": "enum"
+        },
+        "editor.enum.ReflectionMode.Cubemap": {
+            "source": "Cubemap",
+            "text": "큐브맵",
+            "comment": "enum"
+        },
+        "editor.enum.ReflectionMode.Sky": {
+            "source": "Sky",
+            "text": "하늘",
+            "comment": "enum"
+        },
+        "editor.enum.LightType.Directional": {
+            "source": "Directional",
+            "text": "디렉셔널",
+            "comment": "enum"
+        },
+        "editor.enum.LightType.Point": {
+            "source": "Point",
+            "text": "포인트",
+            "comment": "enum"
+        },
+        "editor.enum.LightType.Spot": {
+            "source": "Spot",
+            "text": "스포트",
+            "comment": "enum"
+        },
+        "editor.enum.LightType.Rect": {
+            "source": "Rect",
+            "text": "렉트",
+            "comment": "enum"
+        },
+        "editor.enum.Collider3DShapeType.Box": {
+            "source": "Box",
+            "text": "박스",
+            "comment": "enum"
+        },
+        "editor.enum.Collider3DShapeType.Sphere": {
+            "source": "Sphere",
+            "text": "구",
+            "comment": "enum"
+        },
+        "editor.enum.Collider3DShapeType.HeightField": {
+            "source": "Height Field",
+            "text": "하이트 필드",
+            "comment": "enum"
+        },
+        "editor.enum.Rigidbody3DMotionType.Static": {
+            "source": "Static",
+            "text": "스태틱",
+            "comment": "enum"
+        },
+        "editor.enum.Rigidbody3DMotionType.Kinematic": {
+            "source": "Kinematic",
+            "text": "키네마틱",
+            "comment": "enum"
+        },
+        "editor.enum.Rigidbody3DMotionType.Dynamic": {
+            "source": "Dynamic",
+            "text": "다이나믹",
+            "comment": "enum"
+        },
+        "editor.enum.LayoutType.Horizontal": {
+            "source": "Horizontal",
+            "text": "가로",
+            "comment": "enum"
+        },
+        "editor.enum.LayoutType.Vertical": {
+            "source": "Vertical",
+            "text": "세로",
+            "comment": "enum"
+        },
+        "editor.enum.LayoutCrossAlign.Start": {
+            "source": "Start",
+            "text": "시작",
+            "comment": "enum"
+        },
+        "editor.enum.LayoutCrossAlign.Center": {
+            "source": "Center",
+            "text": "가운데",
+            "comment": "enum"
+        },
+        "editor.enum.LayoutCrossAlign.End": {
+            "source": "End",
+            "text": "끝",
+            "comment": "enum"
+        },
+        "editor.enum.LayoutCrossAlign.Stretch": {
+            "source": "Stretch",
+            "text": "늘이기",
+            "comment": "enum"
+        },
+        "editor.enum.AntiAliasingMode.None": {
+            "source": "None",
+            "text": "없음",
+            "comment": "enum"
+        },
+        "editor.enum.AntiAliasingMode.FXAA": {
+            "source": "FXAA",
+            "text": "FXAA",
+            "comment": "enum"
+        },
+        "editor.enum.TonemapMode.Reinhard": {
+            "source": "Reinhard",
+            "text": "라인하르트",
+            "comment": "enum"
+        },
+        "editor.enum.TonemapMode.ACES": {
+            "source": "ACES",
+            "text": "ACES",
+            "comment": "enum"
+        },
+        "editor.label.cloud_frequency": {
+            "source": "Cloud Frequency",
+            "text": "구름 빈도",
             "comment": "label"
         }
     }

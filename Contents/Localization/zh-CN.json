@@ -2,450 +2,1845 @@
     "version": 1,
     "language": "zh-CN",
     "entries": {
-        "editor.menu.file": { "source": "File", "text": "文件" },
-        "editor.menu.edit": { "source": "Edit", "text": "编辑" },
-        "editor.menu.build": { "source": "Build", "text": "构建" },
-        "editor.menu.window": { "source": "Window", "text": "窗口" },
-        "editor.menu.plugins": { "source": "Plugins", "text": "插件" },
-        "editor.window.viewport": { "source": "Viewport", "text": "视口" },
-        "editor.window.entity_list": { "source": "Entity List", "text": "实体列表" },
-        "editor.window.inspector": { "source": "Inspector", "text": "检查器" },
-        "editor.window.log": { "source": "Log", "text": "日志" },
-        "editor.window.profiler": { "source": "Profiler", "text": "性能分析器" },
-        "editor.window.contents_browser": { "source": "Contents Browser", "text": "内容浏览器" },
-        "editor.window.project_settings": { "source": "Project Settings", "text": "项目设置" },
-        "editor.window.localization": { "source": "Localization", "text": "本地化" },
-        "editor.window.preferences": { "source": "Editor Preferences", "text": "编辑器偏好设置" },
-        "editor.window.project_localization": { "source": "Project Localization", "text": "项目本地化" },
-        "editor.action.save": { "source": "Save", "text": "保存" },
-        "editor.action.reload": { "source": "Reload", "text": "重新加载" },
-        "editor.action.add_key": { "source": "Add Key", "text": "添加键" },
-        "editor.action.remove_key": { "source": "Remove Key", "text": "删除键" },
-        "editor.action.add_language": { "source": "Add Language", "text": "添加语言" },
-        "editor.action.close": { "source": "Close", "text": "关闭" },
-        "editor.action.copy_to_clipboard": { "source": "Copy to Clipboard", "text": "复制到剪贴板" },
-        "editor.action.clear": { "source": "Clear", "text": "清除" },
-        "editor.action.add_component": { "source": "Add Component", "text": "添加组件" },
-        "editor.action.add_script": { "source": "Add Script", "text": "添加脚本" },
-        "editor.action.add_slot": { "source": "Add Slot", "text": "添加插槽" },
-        "editor.action.remove_slot": { "source": "Remove Slot", "text": "移除插槽" },
-        "editor.action.up": { "source": "Up", "text": "上移" },
-        "editor.action.down": { "source": "Down", "text": "下移" },
-        "editor.action.delete_button": { "source": "Delete", "text": "删除" },
-        "editor.action.reset_editor_camera": { "source": "Reset Editor Camera", "text": "重置编辑器相机" },
-        "editor.action.play": { "source": "Play", "text": "播放" },
-        "editor.action.pause": { "source": "Pause", "text": "暂停" },
-        "editor.label.key": { "source": "Key", "text": "键" },
-        "editor.label.comment": { "source": "Comment", "text": "备注" },
-        "editor.label.language": { "source": "Language", "text": "语言" },
-        "editor.label.default_language": { "source": "Default Language", "text": "默认语言" },
-        "editor.label.packaged_languages": { "source": "Packaged Languages", "text": "打包语言" },
-        "editor.label.path": { "source": "Path", "text": "路径" },
-        "editor.label.path_label": { "source": "Path:", "text": "路径：" },
-        "editor.label.value": { "source": "Value", "text": "值" },
-        "editor.label.no_project": { "source": "No Project", "text": "没有项目" },
-        "editor.label.unknown": { "source": "Unknown", "text": "未知" },
-        "editor.label.active": { "source": "Active", "text": "启用" },
-        "editor.label.dynamic": { "source": "Dynamic", "text": "动态" },
-        "editor.label.cast_shadow": { "source": "Cast Shadow", "text": "投射阴影" },
-        "editor.label.enabled": { "source": "Enabled", "text": "已启用" },
-        "editor.label.script_enabled": { "source": "Script Enabled", "text": "启用脚本" },
-        "editor.label.none": { "source": "None", "text": "无" },
-        "editor.label.assigned": { "source": "Assigned", "text": "已分配" },
-        "editor.label.all_types": { "source": "All Types", "text": "所有类型" },
-        "editor.label.contents": { "source": "Contents", "text": "内容" },
-        "editor.label.folder": { "source": "Folder", "text": "文件夹" },
-        "editor.label.folder_empty": { "source": "Folder is empty.", "text": "文件夹为空。" },
-        "editor.label.entity_label": { "source": "Entity ", "text": "实体 " },
-        "editor.label.parent": { "source": "Parent", "text": "父级" },
-        "editor.label.position": { "source": "Position", "text": "位置" },
-        "editor.label.rotation_xyz": { "source": "Rotation XYZ", "text": "旋转 XYZ" },
-        "editor.label.scale": { "source": "Scale", "text": "缩放" },
-        "editor.label.type": { "source": "Type", "text": "类型" },
-        "editor.label.color": { "source": "Color", "text": "颜色" },
-        "editor.label.intensity": { "source": "Intensity", "text": "强度" },
-        "editor.label.range": { "source": "Range", "text": "范围" },
-        "editor.label.directional": { "source": "Directional", "text": "方向光" },
-        "editor.label.point": { "source": "Point", "text": "点光源" },
-        "editor.label.spot": { "source": "Spot", "text": "聚光灯" },
-        "editor.label.shadow_resolution": { "source": "Shadow Resolution", "text": "阴影分辨率" },
-        "editor.label.cascade_count": { "source": "Cascade Count", "text": "级联数量" },
-        "editor.label.cascade_lambda": { "source": "Cascade Lambda", "text": "级联 Lambda" },
-        "editor.label.cascade_blend": { "source": "Cascade Blend", "text": "级联混合" },
-        "editor.label.sky_type": { "source": "Sky Type", "text": "天空类型" },
-        "editor.label.procedural": { "source": "Procedural", "text": "程序化" },
-        "editor.label.physically_based": { "source": "Physically Based", "text": "基于物理" },
-        "editor.label.sky": { "source": "Sky", "text": "天空" },
-        "editor.label.turbidity": { "source": "Turbidity", "text": "浑浊度" },
-        "editor.label.mie_eccentricity": { "source": "Mie Eccentricity", "text": "Mie 偏心率" },
-        "editor.label.rayleigh_coefficient": { "source": "Rayleigh Coefficient", "text": "Rayleigh 系数" },
-        "editor.label.mie_coefficient": { "source": "Mie Coefficient", "text": "Mie 系数" },
-        "editor.label.direct_sun_active": { "source": "Direct Sun Active", "text": "启用太阳直射光" },
-        "editor.label.direct_sun_cast_shadow": { "source": "Direct Sun Cast Shadow", "text": "太阳直射光投射阴影" },
-        "editor.label.direct_sun_shadow_resolution": { "source": "Direct Sun Shadow Resolution", "text": "太阳阴影分辨率" },
-        "editor.label.direct_sun_cascade_count": { "source": "Direct Sun Cascade Count", "text": "太阳级联数量" },
-        "editor.label.direct_sun_cascade_lambda": { "source": "Direct Sun Cascade Lambda", "text": "太阳级联 Lambda" },
-        "editor.label.direct_sun_cascade_blend": { "source": "Direct Sun Cascade Blend", "text": "太阳级联混合" },
-        "editor.label.sun_direction": { "source": "Sun Direction", "text": "太阳方向" },
-        "editor.label.sun_color": { "source": "Sun Color", "text": "太阳颜色" },
-        "editor.label.sun_intensity": { "source": "Sun Intensity", "text": "太阳强度" },
-        "editor.label.sun_angular_radius": { "source": "Sun Angular Radius", "text": "太阳角半径" },
-        "editor.label.sky_intensity": { "source": "Sky Intensity", "text": "天空强度" },
-        "editor.label.ground_intensity": { "source": "Ground Intensity", "text": "地面强度" },
-        "editor.label.gi_mode": { "source": "Diffuse GI Mode", "text": "漫反射 GI 模式" },
-        "editor.label.ambient": { "source": "Ambient", "text": "环境光" },
-        "editor.label.ddgi": { "source": "DDGI", "text": "DDGI" },
-        "editor.label.reflection_mode": { "source": "Reflection Mode", "text": "反射模式" },
-        "editor.label.cubemap": { "source": "Cubemap", "text": "立方体贴图" },
-        "editor.label.asset": { "source": "Asset", "text": "资源" },
-        "editor.label.asset_texture": { "source": "Texture", "text": "纹理" },
-        "editor.label.asset_material": { "source": "Material", "text": "材质" },
-        "editor.label.asset_mesh": { "source": "Mesh", "text": "网格" },
-        "editor.label.asset_scene": { "source": "Scene", "text": "场景" },
-        "editor.label.asset_shader": { "source": "Shader", "text": "着色器" },
-        "editor.label.asset_font": { "source": "Font", "text": "字体" },
-        "editor.label.asset_script": { "source": "Script", "text": "脚本" },
-        "editor.label.asset_prefab": { "source": "Prefab", "text": "预制体" },
-        "editor.menu.import": { "source": "Import", "text": "导入" },
-        "editor.menu.import_to_scene": { "source": "Import to Scene", "text": "导入到场景" },
-        "editor.menu.add_to_scene": { "source": "Add to Scene", "text": "添加到场景" },
-        "editor.menu.reimport": { "source": "Reimport", "text": "重新导入" },
-        "editor.menu.show_in_explorer": { "source": "Show in Explorer", "text": "在资源管理器中显示" },
-        "editor.menu.copy_disk_path": { "source": "Copy Disk Path", "text": "复制磁盘路径" },
-        "editor.menu.copy_virtual_path": { "source": "Copy Virtual Path", "text": "复制虚拟路径" },
-        "editor.label.material_asset": { "source": "Material Asset", "text": "材质资源" },
-        "editor.label.metallic": { "source": "Metallic", "text": "金属度" },
-        "editor.label.roughness": { "source": "Roughness", "text": "粗糙度" },
-        "editor.label.reflectance": { "source": "Reflectance", "text": "反射率" },
-        "editor.label.base_color": { "source": "Base Color", "text": "基础颜色" },
-        "editor.label.normal_map": { "source": "Normal Map", "text": "法线贴图" },
-        "editor.label.emissive_map": { "source": "Emissive Map", "text": "自发光贴图" },
-        "editor.label.roughness_map": { "source": "Roughness Map", "text": "粗糙度贴图" },
-        "editor.label.metallic_map": { "source": "Metallic Map", "text": "金属度贴图" },
-        "editor.label.anti_aliasing": { "source": "Anti-Aliasing", "text": "抗锯齿" },
-        "editor.label.tonemap_mode": { "source": "Tonemap Mode", "text": "色调映射模式" },
-        "editor.label.vsync": { "source": "VSync", "text": "垂直同步" },
-        "editor.action.dont_save": { "source": "Don't Save", "text": "不保存" },
-        "editor.action.cancel": { "source": "Cancel", "text": "取消" },
-        "editor.label.save_current_scene_message": { "source": "Save current scene?", "text": "保存当前场景吗？" },
-        "editor.label.unsaved_scene": { "source": "Unsaved Scene", "text": "未保存的场景" },
-        "editor.label.won_project_file": { "source": "Won Project", "text": "Won 项目" },
-        "editor.label.won_scene_file": { "source": "Won Scene", "text": "Won 场景" },
-        "editor.label.won_prefab_file": { "source": "Won Prefab", "text": "Won 预制体" },
-        "editor.hint.new_key": { "source": "new key", "text": "新键" },
-        "editor.hint.new_language": { "source": "new language", "text": "新语言" },
-        "editor.message.no_languages": { "source": "no languages declared - add one above", "text": "尚未声明语言 - 请在上方添加" },
-        "editor.menu.edit.preferences": { "source": "Editor Preferences", "text": "编辑器偏好设置" },
-        "editor.menu.edit.project_localization": { "source": "Project Localization", "text": "项目本地化" },
-        "editor.menu.window.reset_layout": { "source": "Reset Layout", "text": "重置布局" },
-        "editor.menu.package_project": { "source": "Package Project", "text": "打包项目" },
-        "editor.menu.new_project": { "source": "New Project", "text": "新建项目" },
-        "editor.menu.load_project": { "source": "Load Project", "text": "加载项目" },
-        "editor.menu.save_project": { "source": "Save Project", "text": "保存项目" },
-        "editor.menu.new_scene": { "source": "New Scene", "text": "新建场景" },
-        "editor.menu.save_scene": { "source": "Save Scene", "text": "保存场景" },
-        "editor.menu.save_scene_as": { "source": "Save Scene As...", "text": "场景另存为..." },
-        "editor.menu.load_scene": { "source": "Load Scene", "text": "加载场景" },
-        "editor.menu.save_as_prefab": { "source": "Save as Prefab...", "text": "另存为预制体..." },
-        "editor.label.no_plugins_found": { "source": "No plugins found", "text": "未找到插件" },
-        "editor.label.wireframe": { "source": "WireFrame", "text": "线框" },
-        "editor.label.editor_grid": { "source": "Editor Grid", "text": "编辑器网格" },
-        "editor.label.collider_3d": { "source": "Collider3D", "text": "Collider3D" },
-        "editor.label.bvh_debug": { "source": "BVH Debug", "text": "BVH 调试" },
-        "editor.label.ddgi_debug_overlay": { "source": "DDGI Debug Overlay", "text": "DDGI 调试叠加层" },
-        "editor.menu.delete_entity": { "source": "Delete Entity", "text": "删除实体" },
-        "editor.label.delete_entity_children_warning": { "source": "Children and components will also be removed.", "text": "子实体和组件也会被删除。" },
-        "editor.label.importing_asset": { "source": "Importing asset", "text": "正在导入资源" },
-        "editor.label.importing_assets": { "source": "Importing assets (", "text": "正在导入资源（" },
-        "editor.label.refresh": { "source": "Refresh", "text": "刷新" },
-        "editor.label.import_content_asset_message": { "source": "Import this asset to Scene?", "text": "要将此资源导入场景吗？" },
-        "editor.action.remove": { "source": "Remove", "text": "移除" },
-        "editor.label.action_cannot_be_undone": { "source": "This action cannot be undone.", "text": "此操作无法撤销。" },
-        "editor.label.no_components_available": { "source": "No components available", "text": "没有可用组件" },
-        "editor.label.edit_entity_command": { "source": "Edit Entity", "text": "编辑实体" },
-        "editor.label.create_entity_command": { "source": "Create Entity", "text": "创建实体" },
-        "editor.label.delete_entity_command": { "source": "Delete Entity", "text": "删除实体" },
-        "editor.label.instantiate_prefab_command": { "source": "Instantiate Prefab", "text": "实例化预制体" },
-        "editor.action.update_scene_gpubvh": { "source": "Update Scene GPUBVH", "text": "更新场景 GPUBVH" },
-        "editor.action.regenerate_terrain": { "source": "Regenerate Terrain", "text": "重新生成地形" },
-        "editor.action.bake_navmesh": { "source": "Bake NavMesh", "text": "烘焙 NavMesh" },
-        "editor.label.orthographic": { "source": "Orthographic", "text": "正交" },
-        "editor.label.billboard": { "source": "Billboard", "text": "公告板" },
-        "editor.label.loop": { "source": "Loop", "text": "循环" },
-        "editor.label.double_sided": { "source": "Double Sided", "text": "双面" },
-        "editor.label.receive_shadow": { "source": "Receive Shadow", "text": "接收阴影" },
-        "editor.label.script": { "source": "Script", "text": "脚本" },
-        "editor.label.text": { "source": "Text", "text": "文本" },
-        "editor.label.textures": { "source": "Textures", "text": "纹理" },
-        "editor.label.font": { "source": "Font", "text": "字体" },
-        "editor.message.preferences_scope": { "source": "These settings are per-machine and are not shared with the project.", "text": "这些设置仅对本机生效，不会随项目共享。" },
-        "editor.message.package_project_started": { "source": "Packaging project: ", "text": "正在打包项目： " },
-        "editor.message.package_project_failed": { "source": "Package failed.", "text": "项目打包失败。" },
-        "editor.message.package_project_missing_settings": { "source": "Project settings path is empty.", "text": "项目设置路径为空。" },
-        "editor.message.package_tool_not_found": { "source": "PackageTool not found: ", "text": "未找到 PackageTool： " },
-        "editor.message.splash_starting_renderer": { "source": "Starting renderer...", "text": "正在启动渲染器……" },
-        "editor.message.splash_loading_editor_settings": { "source": "Loading editor settings...", "text": "正在加载编辑器设置……" },
-        "editor.message.splash_loading_plugins": { "source": "Loading plugins...", "text": "正在加载插件……" },
-        "editor.message.splash_loading_startup_scene": { "source": "Loading startup scene...", "text": "正在加载启动场景……" },
-        "editor.action.save_as": { "source": "Save As", "text": "另存为" },
-        "editor.message.plugin_loaded": { "source": "Loaded", "text": "已加载" },
-        "editor.message.plugin_not_loaded": { "source": "Not loaded", "text": "未加载" },
-        "editor.format.delete_confirm_format": { "source": "Delete %s?", "text": "删除 %s？" },
-        "editor.label.enable_profiler": { "source": "Enable Profiler", "text": "启用性能分析器" },
-        "editor.label.profiler_starting": { "source": "Profiler starting...", "text": "性能分析器启动中……" },
-        "editor.label.profiler_warning": { "source": "Profiler Turned On! Performance may be reduced!", "text": "性能分析器已开启！性能可能会降低！" },
-        "editor.message.asset_binary_missing": { "source": "Imported binary missing (needs import)", "text": "缺少导入后的二进制文件（需要重新导入）" },
-        "editor.message.asset_source_missing": { "source": "Source file missing", "text": "缺少源文件" },
-        "editor.message.asset_texture_missing": { "source": "Missing texture: ", "text": "缺少纹理： " },
-        "editor.label.asset_needs_reimport": { "source": "Source changed since last import", "text": "自上次导入后源文件已更改" },
-        "editor.format.size_format": { "source": "Size %.0f", "text": "大小 %.0f" },
-        "editor.format.remove_tooltip_format": { "source": "Remove %s", "text": "移除 %s" },
-        "editor.format.remove_confirm_format": { "source": "Remove %s?", "text": "移除 %s？" },
-        "editor.format.unsupported_format": { "source": "%s: unsupported", "text": "%s：不支持" },
-        "editor.label.undo": { "source": "Undo", "text": "撤销" },
-        "editor.label.redo": { "source": "Redo", "text": "重做" },
-        "editor.label.use_vertex_colors": { "source": "Use Vertex Colors", "text": "使用顶点颜色" },
-        "editor.label.duration_zero": { "source": "Duration: 0.000s", "text": "时长：0.000 秒" },
-        "editor.label.no_animation_clips": { "source": "No animation clips", "text": "没有动画片段" },
-        "editor.label.sky_cubemap_asset_path": { "source": "Sky Cubemap Path", "text": "天空立方体贴图路径" },
-        "editor.label.irradiance_cubemap_asset_path": { "source": "Irradiance Cubemap Path", "text": "辐照度立方体贴图路径" },
-        "editor.label.specular_cubemap_asset_path": { "source": "Specular Cubemap Path", "text": "镜面立方体贴图路径" },
-        "editor.label.motion_type": { "source": "Motion Type", "text": "运动类型" },
-        "editor.label.static_str": { "source": "Static", "text": "静态" },
-        "editor.label.kinematic": { "source": "Kinematic", "text": "运动学" },
-        "editor.label.mass": { "source": "Mass", "text": "质量" },
-        "editor.label.friction": { "source": "Friction", "text": "摩擦" },
-        "editor.label.restitution": { "source": "Restitution", "text": "恢复系数" },
-        "editor.label.gravity_factor": { "source": "Gravity Factor", "text": "重力系数" },
-        "editor.label.linear_velocity": { "source": "Linear Velocity", "text": "线性速度" },
-        "editor.label.angular_velocity": { "source": "Angular Velocity", "text": "角速度" },
-        "editor.label.animation_events": { "source": "Animation Events", "text": "动画事件" },
-        "editor.action.animation_event_add": { "source": "Add Event", "text": "添加事件" },
-        "editor.action.animation_event_save": { "source": "Save Events", "text": "保存事件" },
-        "editor.action.animation_event_remove": { "source": "-", "text": "-" },
-        "editor.label.animation_event_default_name": { "source": "event", "text": "事件" },
-        "editor.message.animation_events_saved": { "source": "Animation events saved: ", "text": "动画事件已保存： " },
-        "editor.message.animation_events_save_failed": { "source": "Failed to save animation events.", "text": "保存动画事件失败。" },
-        "editor.message.animation_events_no_mesh": { "source": "No mesh asset to save animation events.", "text": "没有可保存动画事件的网格资源。" },
-        "editor.label.none_placeholder": { "source": "<none>", "text": "\u003c无\u003e" },
-        "editor.label.script_already_exists": { "source": "script already exists on this component", "text": "此组件上已存在脚本" },
-        "editor.format.last_error_format": { "source": "Last Error: %s", "text": "最后错误：%s" },
-        "editor.label.padding_min": { "source": "Padding Min", "text": "最小内边距" },
-        "editor.label.padding_max": { "source": "Padding Max", "text": "最大内边距" },
-        "editor.label.spacing": { "source": "Spacing", "text": "间距" },
-        "editor.label.cross_align": { "source": "Cross Align", "text": "交叉对齐" },
-        "editor.label.reverse": { "source": "Reverse", "text": "反向" },
-        "editor.label.outer_cone": { "source": "Outer Cone", "text": "外锥角" },
-        "editor.label.inner_cone": { "source": "Inner Cone", "text": "内锥角" },
-        "editor.label.near_plane": { "source": "Near", "text": "近" },
-        "editor.label.far_plane": { "source": "Far", "text": "远" },
-        "editor.label.fov_y": { "source": "FOV Y", "text": "垂直视场角" },
-        "editor.label.ortho_size": { "source": "Ortho Size", "text": "正交大小" },
-        "editor.format.aspect_ratio_format": { "source": "Aspect Ratio: %.3f", "text": "宽高比：%.3f" },
-        "editor.label.aperture": { "source": "Aperture", "text": "光圈" },
-        "editor.label.shutter_speed": { "source": "Shutter Speed", "text": "快门速度" },
-        "editor.label.sensitivity": { "source": "Sensitivity", "text": "感光度" },
-        "editor.label.auto_exposure": { "source": "Auto Exposure", "text": "自动曝光" },
-        "editor.label.fixed_ev100": { "source": "Fixed EV100", "text": "固定 EV100" },
-        "editor.format.exposure_multiplier_format": { "source": "Exposure Multiplier: %.6f", "text": "曝光倍数：%.6f" },
-        "editor.label.exposure_compensation": { "source": "Exposure Compensation (EV)", "text": "曝光补偿（EV）" },
-        "editor.label.auto_exposure_min_ev": { "source": "Min EV100", "text": "最小 EV100" },
-        "editor.label.auto_exposure_max_ev": { "source": "Max EV100", "text": "最大 EV100" },
-        "editor.label.auto_exposure_speed": { "source": "Adaptation Speed", "text": "适应速度" },
-        "editor.label.sun_glow_intensity": { "source": "Sun Glow Intensity", "text": "太阳光晕强度" },
-        "editor.label.sun_glow_falloff": { "source": "Sun Glow Falloff", "text": "太阳光晕衰减" },
-        "editor.label.sky_horizon_color": { "source": "Sky Horizon Color", "text": "天空地平线颜色" },
-        "editor.label.sky_horizon_falloff": { "source": "Sky Horizon Falloff", "text": "天空地平线衰减" },
-        "editor.label.sky_zenith_color": { "source": "Sky Zenith Color", "text": "天空天顶颜色" },
-        "editor.label.ground_horizon_color": { "source": "Ground Horizon Color", "text": "地面地平线颜色" },
-        "editor.label.ground_falloff": { "source": "Ground Falloff", "text": "地面衰减" },
-        "editor.label.ground_color": { "source": "Ground Color", "text": "地面颜色" },
-        "editor.label.ambient_color": { "source": "Ambient Color", "text": "环境颜色" },
-        "editor.label.ambient_intensity": { "source": "Ambient Intensity", "text": "环境强度" },
-        "editor.label.indirect_diffuse_scale": { "source": "Indirect Diffuse Scale", "text": "间接漫反射缩放" },
-        "editor.label.indirect_specular_scale": { "source": "Indirect Specular Scale", "text": "间接镜面反射缩放" },
-        "editor.label.probe_counts": { "source": "Probe Counts", "text": "探针数量" },
-        "editor.label.probe_spacing": { "source": "Probe Spacing", "text": "探针间距" },
-        "editor.label.volume_offset": { "source": "Volume Offset", "text": "体积偏移" },
-        "editor.label.probes_per_frame": { "source": "Probes Per Frame", "text": "每帧探针数" },
-        "editor.label.priority": { "source": "Priority", "text": "优先级" },
-        "editor.label.hysteresis": { "source": "Hysteresis", "text": "滞后" },
-        "editor.label.normal_bias": { "source": "Normal Bias", "text": "法线偏移" },
-        "editor.label.view_bias": { "source": "View Bias", "text": "视图偏移" },
-        "editor.label.max_distance": { "source": "Max Distance", "text": "最大距离" },
-        "editor.label.trigger": { "source": "Trigger", "text": "触发器" },
-        "editor.label.box": { "source": "Box", "text": "盒" },
-        "editor.label.sphere": { "source": "Sphere", "text": "球" },
-        "editor.label.height_field": { "source": "Height Field", "text": "高度场" },
-        "editor.label.offset": { "source": "Offset", "text": "偏移" },
-        "editor.label.half_extent": { "source": "Half Extent", "text": "半范围" },
-        "editor.label.radius": { "source": "Radius", "text": "半径" },
-        "editor.label.anchor": { "source": "Anchor", "text": "锚点" },
-        "editor.label.size": { "source": "Size", "text": "大小" },
-        "editor.label.pivot": { "source": "Pivot", "text": "枢轴" },
-        "editor.label.uv_rect": { "source": "UV Rect", "text": "UV 矩形" },
-        "editor.label.layer": { "source": "Layer", "text": "层" },
-        "editor.label.anchor_presets": { "source": "Anchor Presets", "text": "锚点预设" },
-        "editor.format.font_format": { "source": "Font: %s", "text": "字体：%s" },
-        "editor.label.mesh_asset": { "source": "Mesh Asset", "text": "网格资源" },
-        "editor.label.pixel_height": { "source": "Pixel Height", "text": "像素高度" },
-        "editor.label.height": { "source": "Height", "text": "高度" },
-        "editor.format.clips_format": { "source": "Clips: %d", "text": "片段：%d" },
-        "editor.label.clip": { "source": "Clip", "text": "片段" },
-        "editor.label.speed": { "source": "Speed", "text": "速度" },
-        "editor.label.time": { "source": "Time", "text": "时间" },
-        "editor.format.duration_format": { "source": "Duration: %.3fs", "text": "时长：%.3f 秒" },
-        "editor.format.bone_matrices_format": { "source": "Bone Matrices: %d", "text": "骨骼矩阵：%d" },
-        "editor.format.bone_matrix_offset_format": { "source": "Bone Matrix Offset: %u", "text": "骨骼矩阵偏移：%u" },
-        "editor.format.material_slots_format": { "source": "Material Slots: %d", "text": "材质槽：%d" },
-        "editor.action.fork_material": { "source": "Fork Material", "text": "创建材质副本" },
-        "editor.action.save_material_asset": { "source": "Save as Material Asset", "text": "另存为材质资源" },
-        "editor.label.won_material_file": { "source": "WonEngine Material", "text": "WonEngine 材质" },
-        "editor.message.save_material_failed": { "source": "Failed to save material: ", "text": "材质保存失败： " },
-        "editor.label.slot_prefix": { "source": "Slot ", "text": "槽位 " },
-        "editor.label.selected_slot": { "source": "Selected Slot", "text": "已选槽位" },
-        "editor.label.shader_type": { "source": "Material Type", "text": "材质类型" },
-        "editor.label.unlit": { "source": "Unlit", "text": "无光照" },
-        "editor.label.pbr": { "source": "PBR", "text": "PBR" },
-        "editor.label.blend_mode": { "source": "Blend Mode", "text": "混合模式" },
-        "editor.label.opaque": { "source": "Opaque", "text": "不透明" },
-        "editor.label.alpha": { "source": "Alpha", "text": "透明度" },
-        "editor.label.additive": { "source": "Additive", "text": "加法" },
-        "editor.label.premultiplied": { "source": "Premultiplied", "text": "预乘" },
-        "editor.label.anisotropy": { "source": "Anisotropy", "text": "各向异性" },
-        "editor.label.sheen_color": { "source": "Sheen Color", "text": "光泽颜色" },
-        "editor.label.sheen_roughness": { "source": "Sheen Roughness", "text": "光泽粗糙度" },
-        "editor.label.clearcoat": { "source": "Clearcoat", "text": "清漆层" },
-        "editor.label.clearcoat_roughness": { "source": "Clearcoat Roughness", "text": "清漆层粗糙度" },
-        "editor.message.project_saved": { "source": "Project saved: ", "text": "项目已保存： " },
-        "editor.message.project_loaded": { "source": "Project loaded: ", "text": "项目已加载： " },
-        "editor.message.project_created": { "source": "Project created: ", "text": "项目已创建： " },
-        "editor.message.save_project_failed": { "source": "Save project failed: ", "text": "项目保存失败： " },
-        "editor.message.load_project_failed": { "source": "Load project failed: ", "text": "项目加载失败： " },
-        "editor.message.create_project_failed": { "source": "Create project failed: ", "text": "项目创建失败： " },
-        "editor.message.save_scene_failed": { "source": "Save scene failed: ", "text": "场景保存失败： " },
-        "editor.message.save_prefab_failed": { "source": "Save prefab failed: ", "text": "预制体保存失败： " },
-        "editor.message.load_prefab_failed": { "source": "Load prefab failed: ", "text": "预制体加载失败： " },
-        "editor.message.prefab_added": { "source": "Prefab added: ", "text": "已添加预制体： " },
-        "editor.message.scene_saved": { "source": "Scene saved: ", "text": "场景已保存： " },
-        "editor.message.load_scene_failed": { "source": "Load scene failed: ", "text": "场景加载失败： " },
-        "editor.message.load_scene_warning": { "source": "Load scene warning: ", "text": "场景加载警告： " },
-        "editor.message.scene_loaded": { "source": "Scene loaded: ", "text": "场景已加载： " },
-        "editor.message.content_browser_import_commit_failed": { "source": "Content Browser import commit failed: ", "text": "内容浏览器导入提交失败： " },
-        "editor.message.content_browser_import_failed": { "source": "Content Browser import failed: ", "text": "内容浏览器导入失败： " },
-        "editor.message.asset_importer_tool_not_found": { "source": "AssetImporterTool not found: ", "text": "未找到 AssetImporterTool： " },
-        "editor.message.failed_register_component_type": { "source": "Failed to register component type: ", "text": "注册组件类型失败： " },
-        "editor.message.failed_enable_plugin": { "source": "Failed to enable plugin: ", "text": "启用插件失败： " },
-        "editor.message.plugin_disabled_next_restart": { "source": "Plugin will be disabled on next editor restart: ", "text": "插件将在编辑器下次重启时禁用： " },
-        "editor.label.base_color_map": { "source": "Base Color Map", "text": "基础色贴图" },
-        "editor.label.opacity_map": { "source": "Opacity Map", "text": "不透明度贴图" },
-        "editor.label.displacement_map": { "source": "Displacement Map", "text": "位移贴图" },
-        "editor.label.occlusion_map": { "source": "Occlusion Map", "text": "遮蔽贴图" },
-        "editor.label.sheen_color_map": { "source": "Sheen Color Map", "text": "光泽颜色贴图" },
-        "editor.label.sheen_roughness_map": { "source": "Sheen Roughness Map", "text": "光泽粗糙度贴图" },
-        "editor.label.clearcoat_map": { "source": "Clearcoat Map", "text": "清漆层贴图" },
-        "editor.label.clearcoat_roughness_map": { "source": "Clearcoat Roughness Map", "text": "清漆层粗糙度贴图" },
-        "editor.label.clearcoat_normal_map": { "source": "Clearcoat Normal Map", "text": "清漆层法线贴图" },
-        "editor.label.anisotropy_map": { "source": "Anisotropy Map", "text": "各向异性贴图" },
-        "editor.label.sound_asset_path": { "source": "Sound Path", "text": "声音路径" },
-        "editor.label.volume": { "source": "Volume", "text": "音量" },
-        "editor.label.pitch": { "source": "Pitch", "text": "音调" },
-        "editor.label.min_distance": { "source": "Min Distance", "text": "最小距离" },
-        "editor.label.is_3d": { "source": "3D Spatial", "text": "3D 空间化" },
-        "editor.label.play_on_start": { "source": "Play On Start", "text": "启动时播放" },
-        "editor.label.is_playing": { "source": "Playing", "text": "播放中" },
-        "editor.window.save_current_scene": { "source": "Save Current Scene?", "text": "保存当前场景？" },
-        "editor.hint.search": { "source": "Search", "text": "搜索" },
-        "editor.label.aa_none": { "source": "None", "text": "无" },
-        "editor.label.aa_fxaa": { "source": "FXAA", "text": "FXAA" },
-        "editor.label.tonemap_reinhard": { "source": "Reinhard", "text": "Reinhard" },
-        "editor.label.tonemap_aces": { "source": "ACES", "text": "ACES" },
-        "editor.label.backend_directx12": { "source": "DirectX12", "text": "DirectX12" },
-        "editor.label.layout_horizontal": { "source": "Horizontal", "text": "水平" },
-        "editor.label.layout_vertical": { "source": "Vertical", "text": "垂直" },
-        "editor.label.align_start": { "source": "Start", "text": "开始" },
-        "editor.label.align_center": { "source": "Center", "text": "居中" },
-        "editor.label.align_end": { "source": "End", "text": "结束" },
-        "editor.label.align_stretch": { "source": "Stretch", "text": "拉伸" },
-        "editor.label.column_label": { "source": "Label", "text": "标签" },
-        "editor.label.column_value": { "source": "Value", "text": "值" },
-        "editor.label.column_type": { "source": "Type", "text": "类型" },
-        "editor.label.column_default": { "source": "Default", "text": "默认值" },
-        "editor.label.file_name": { "source": "File name:", "text": "文件名：" },
-        "editor.action.new": { "source": "New...", "text": "新建……" },
-        "editor.action.create": { "source": "Create", "text": "创建" },
-        "editor.action.add": { "source": "Add", "text": "添加" },
-        "editor.action.save_schema": { "source": "Save Schema", "text": "保存架构" },
-        "editor.format.localization_summary": { "source": "default: %s   keys: %d%s", "text": "默认：%s   键：%d%s" },
-        "editor.format.source_changed": { "source": "source changed: \"%s\" -> \"%s\"", "text": "源文本已更改：“%s” -\u003e “%s”" },
-        "editor.label.asset_sound": { "source": "Sound", "text": "声音" },
-        "editor.field.agent_height": { "source": "Agent Height", "text": "代理高度" },
-        "editor.field.agent_max_climb": { "source": "Agent Max Climb", "text": "代理最大攀爬高度" },
-        "editor.field.agent_max_slope": { "source": "Agent Max Slope", "text": "代理最大坡度" },
-        "editor.field.agent_radius": { "source": "Agent Radius", "text": "代理半径" },
-        "editor.field.anchor": { "source": "Anchor", "text": "锚点" },
-        "editor.field.arrival_threshold": { "source": "Arrival Threshold", "text": "到达阈值" },
-        "editor.field.axis": { "source": "Axis", "text": "轴" },
-        "editor.field.blend_duration": { "source": "Blend Duration", "text": "混合时长" },
-        "editor.field.bounds_center": { "source": "Bounds Center", "text": "边界中心" },
-        "editor.field.bounds_extent": { "source": "Bounds Extent", "text": "边界范围" },
-        "editor.field.clip": { "source": "Clip", "text": "片段" },
-        "editor.field.connected_entity": { "source": "Connected Entity", "text": "关联实体" },
-        "editor.field.cubemap_asset_path": { "source": "Cubemap Asset Path", "text": "立方体贴图资源路径" },
-        "editor.field.default_state": { "source": "Default State", "text": "默认状态" },
-        "editor.field.emit_radius": { "source": "Emit Radius", "text": "发射半径" },
-        "editor.field.end_color": { "source": "End Color", "text": "结束颜色" },
-        "editor.field.end_size": { "source": "End Size", "text": "结束大小" },
-        "editor.field.exit_time": { "source": "Exit Time", "text": "退出时间" },
-        "editor.field.frequency": { "source": "Frequency", "text": "频率" },
-        "editor.field.from_state": { "source": "From State", "text": "起始状态" },
-        "editor.field.gravity": { "source": "Gravity", "text": "重力" },
-        "editor.field.has_exit_time": { "source": "Has Exit Time", "text": "包含退出时间" },
-        "editor.field.height_scale": { "source": "Height Scale", "text": "高度缩放" },
-        "editor.field.include_layers": { "source": "Include Layers", "text": "包含层" },
-        "editor.field.influence_radius": { "source": "Influence Radius", "text": "影响半径" },
-        "editor.field.intensity_multiplier": { "source": "Intensity Multiplier", "text": "强度倍数" },
-        "editor.field.island_falloff": { "source": "Island Falloff", "text": "岛屿衰减" },
-        "editor.field.lacunarity": { "source": "Lacunarity", "text": "间隙度" },
-        "editor.field.layer": { "source": "Layer", "text": "层" },
-        "editor.field.layer_mask": { "source": "Layer Mask", "text": "层遮罩" },
-        "editor.field.lifetime": { "source": "Lifetime", "text": "生命周期" },
-        "editor.field.limit_max": { "source": "Limit Max", "text": "最大限制" },
-        "editor.field.limit_min": { "source": "Limit Min", "text": "最小限制" },
-        "editor.field.loop": { "source": "Loop", "text": "循环" },
-        "editor.field.match": { "source": "Match", "text": "匹配" },
-        "editor.field.max_particle_count": { "source": "Max Particle Count", "text": "最大粒子数" },
-        "editor.field.move_speed": { "source": "Move Speed", "text": "移动速度" },
-        "editor.field.name": { "source": "Name", "text": "名称" },
-        "editor.field.navmesh_asset_path": { "source": "Navmesh Asset Path", "text": "NavMesh 资源路径" },
-        "editor.field.octaves": { "source": "Octaves", "text": "八度数" },
-        "editor.field.op": { "source": "Op", "text": "操作" },
-        "editor.field.parameter": { "source": "Parameter", "text": "参数" },
-        "editor.field.persistence": { "source": "Persistence", "text": "持久性" },
-        "editor.field.reference_resolution": { "source": "Reference Resolution", "text": "参考分辨率" },
-        "editor.field.render_mode": { "source": "Render Mode", "text": "渲染模式" },
-        "editor.field.resolution_x": { "source": "Resolution X", "text": "X 分辨率" },
-        "editor.field.resolution_z": { "source": "Resolution Z", "text": "Z 分辨率" },
-        "editor.field.ridge_strength": { "source": "Ridge Strength", "text": "脊线强度" },
-        "editor.field.scale_mode": { "source": "Scale Mode", "text": "缩放模式" },
-        "editor.field.seed": { "source": "Seed", "text": "种子" },
-        "editor.field.sort_order": { "source": "Sort Order", "text": "排序顺序" },
-        "editor.field.spawn_rate": { "source": "Spawn Rate", "text": "生成速率" },
-        "editor.field.speed": { "source": "Speed", "text": "速度" },
-        "editor.field.start_color": { "source": "Start Color", "text": "起始颜色" },
-        "editor.field.start_size": { "source": "Start Size", "text": "起始大小" },
-        "editor.field.threshold": { "source": "Threshold", "text": "阈值" },
-        "editor.field.to_state": { "source": "To State", "text": "目标状态" },
-        "editor.field.tree_asset_path": { "source": "Tree Asset Path", "text": "树资源路径" },
-        "editor.field.turn_rate": { "source": "Turn Rate", "text": "转向速率" },
-        "editor.field.type": { "source": "Type", "text": "类型" },
-        "editor.field.use_bounds": { "source": "Use Bounds", "text": "使用边界" },
-        "editor.field.use_limit": { "source": "Use Limit", "text": "使用限制" },
-        "editor.field.value": { "source": "Value", "text": "值" },
-        "editor.field.velocity": { "source": "Velocity", "text": "速度" },
-        "editor.field.velocity_variation": { "source": "Velocity Variation", "text": "速度变化" },
-        "editor.field.warp_strength": { "source": "Warp Strength", "text": "扭曲强度" },
-        "editor.field.world_size_x": { "source": "World Size X", "text": "世界尺寸 X" },
-        "editor.field.world_size_z": { "source": "World Size Z", "text": "世界尺寸 Z" }
+        "editor.menu.file": {
+            "source": "File",
+            "text": "文件"
+        },
+        "editor.menu.edit": {
+            "source": "Edit",
+            "text": "编辑"
+        },
+        "editor.menu.build": {
+            "source": "Build",
+            "text": "构建"
+        },
+        "editor.menu.window": {
+            "source": "Window",
+            "text": "窗口"
+        },
+        "editor.menu.plugins": {
+            "source": "Plugins",
+            "text": "插件"
+        },
+        "editor.window.viewport": {
+            "source": "Viewport",
+            "text": "视口"
+        },
+        "editor.window.entity_list": {
+            "source": "Entity List",
+            "text": "实体列表"
+        },
+        "editor.window.inspector": {
+            "source": "Inspector",
+            "text": "检查器"
+        },
+        "editor.window.log": {
+            "source": "Log",
+            "text": "日志"
+        },
+        "editor.window.profiler": {
+            "source": "Profiler",
+            "text": "性能分析器"
+        },
+        "editor.window.contents_browser": {
+            "source": "Contents Browser",
+            "text": "内容浏览器"
+        },
+        "editor.window.project_settings": {
+            "source": "Project Settings",
+            "text": "项目设置"
+        },
+        "editor.window.localization": {
+            "source": "Localization",
+            "text": "本地化"
+        },
+        "editor.window.preferences": {
+            "source": "Editor Preferences",
+            "text": "编辑器偏好设置"
+        },
+        "editor.window.project_localization": {
+            "source": "Project Localization",
+            "text": "项目本地化"
+        },
+        "editor.action.save": {
+            "source": "Save",
+            "text": "保存"
+        },
+        "editor.action.reload": {
+            "source": "Reload",
+            "text": "重新加载"
+        },
+        "editor.action.add_key": {
+            "source": "Add Key",
+            "text": "添加键"
+        },
+        "editor.action.remove_key": {
+            "source": "Remove Key",
+            "text": "删除键"
+        },
+        "editor.action.add_language": {
+            "source": "Add Language",
+            "text": "添加语言"
+        },
+        "editor.action.close": {
+            "source": "Close",
+            "text": "关闭"
+        },
+        "editor.action.copy_to_clipboard": {
+            "source": "Copy to Clipboard",
+            "text": "复制到剪贴板"
+        },
+        "editor.action.clear": {
+            "source": "Clear",
+            "text": "清除"
+        },
+        "editor.action.add_component": {
+            "source": "Add Component",
+            "text": "添加组件"
+        },
+        "editor.action.add_script": {
+            "source": "Add Script",
+            "text": "添加脚本"
+        },
+        "editor.action.add_slot": {
+            "source": "Add Slot",
+            "text": "添加插槽"
+        },
+        "editor.action.remove_slot": {
+            "source": "Remove Slot",
+            "text": "移除插槽"
+        },
+        "editor.action.up": {
+            "source": "Up",
+            "text": "上移"
+        },
+        "editor.action.down": {
+            "source": "Down",
+            "text": "下移"
+        },
+        "editor.action.delete_button": {
+            "source": "Delete",
+            "text": "删除"
+        },
+        "editor.action.reset_editor_camera": {
+            "source": "Reset Editor Camera",
+            "text": "重置编辑器相机"
+        },
+        "editor.action.play": {
+            "source": "Play",
+            "text": "播放"
+        },
+        "editor.action.pause": {
+            "source": "Pause",
+            "text": "暂停"
+        },
+        "editor.label.key": {
+            "source": "Key",
+            "text": "键"
+        },
+        "editor.label.comment": {
+            "source": "Comment",
+            "text": "备注"
+        },
+        "editor.label.language": {
+            "source": "Language",
+            "text": "语言"
+        },
+        "editor.label.default_language": {
+            "source": "Default Language",
+            "text": "默认语言"
+        },
+        "editor.label.packaged_languages": {
+            "source": "Packaged Languages",
+            "text": "打包语言"
+        },
+        "editor.label.path": {
+            "source": "Path",
+            "text": "路径"
+        },
+        "editor.label.path_label": {
+            "source": "Path:",
+            "text": "路径："
+        },
+        "editor.label.value": {
+            "source": "Value",
+            "text": "值"
+        },
+        "editor.label.no_project": {
+            "source": "No Project",
+            "text": "没有项目"
+        },
+        "editor.label.unknown": {
+            "source": "Unknown",
+            "text": "未知"
+        },
+        "editor.label.active": {
+            "source": "Active",
+            "text": "启用"
+        },
+        "editor.label.dynamic": {
+            "source": "Dynamic",
+            "text": "动态"
+        },
+        "editor.label.cast_shadow": {
+            "source": "Cast Shadow",
+            "text": "投射阴影"
+        },
+        "editor.label.enabled": {
+            "source": "Enabled",
+            "text": "已启用"
+        },
+        "editor.label.script_enabled": {
+            "source": "Script Enabled",
+            "text": "启用脚本"
+        },
+        "editor.label.none": {
+            "source": "None",
+            "text": "无"
+        },
+        "editor.label.assigned": {
+            "source": "Assigned",
+            "text": "已分配"
+        },
+        "editor.label.all_types": {
+            "source": "All Types",
+            "text": "所有类型"
+        },
+        "editor.label.contents": {
+            "source": "Contents",
+            "text": "内容"
+        },
+        "editor.label.folder": {
+            "source": "Folder",
+            "text": "文件夹"
+        },
+        "editor.label.folder_empty": {
+            "source": "Folder is empty.",
+            "text": "文件夹为空。"
+        },
+        "editor.label.entity_label": {
+            "source": "Entity ",
+            "text": "实体 "
+        },
+        "editor.label.parent": {
+            "source": "Parent",
+            "text": "父级"
+        },
+        "editor.label.position": {
+            "source": "Position",
+            "text": "位置"
+        },
+        "editor.label.rotation_xyz": {
+            "source": "Rotation XYZ",
+            "text": "旋转 XYZ"
+        },
+        "editor.label.scale": {
+            "source": "Scale",
+            "text": "缩放"
+        },
+        "editor.label.type": {
+            "source": "Type",
+            "text": "类型"
+        },
+        "editor.label.color": {
+            "source": "Color",
+            "text": "颜色"
+        },
+        "editor.label.intensity": {
+            "source": "Intensity",
+            "text": "强度"
+        },
+        "editor.label.range": {
+            "source": "Range",
+            "text": "范围"
+        },
+        "editor.label.shadow_resolution": {
+            "source": "Shadow Resolution",
+            "text": "阴影分辨率"
+        },
+        "editor.label.cascade_count": {
+            "source": "Cascade Count",
+            "text": "级联数量"
+        },
+        "editor.label.cascade_lambda": {
+            "source": "Cascade Lambda",
+            "text": "级联 Lambda"
+        },
+        "editor.label.cascade_blend": {
+            "source": "Cascade Blend",
+            "text": "级联混合"
+        },
+        "editor.label.sky_type": {
+            "source": "Sky Type",
+            "text": "天空类型"
+        },
+        "editor.label.turbidity": {
+            "source": "Turbidity",
+            "text": "浑浊度"
+        },
+        "editor.label.mie_eccentricity": {
+            "source": "Mie Eccentricity",
+            "text": "Mie 偏心率"
+        },
+        "editor.label.rayleigh_coefficient": {
+            "source": "Rayleigh Coefficient",
+            "text": "Rayleigh 系数"
+        },
+        "editor.label.mie_coefficient": {
+            "source": "Mie Coefficient",
+            "text": "Mie 系数"
+        },
+        "editor.label.direct_sun_active": {
+            "source": "Direct Sun Active",
+            "text": "启用太阳直射光"
+        },
+        "editor.label.direct_sun_cast_shadow": {
+            "source": "Direct Sun Cast Shadow",
+            "text": "太阳直射光投射阴影"
+        },
+        "editor.label.direct_sun_shadow_resolution": {
+            "source": "Direct Sun Shadow Resolution",
+            "text": "太阳阴影分辨率"
+        },
+        "editor.label.direct_sun_cascade_count": {
+            "source": "Direct Sun Cascade Count",
+            "text": "太阳级联数量"
+        },
+        "editor.label.direct_sun_cascade_lambda": {
+            "source": "Direct Sun Cascade Lambda",
+            "text": "太阳级联 Lambda"
+        },
+        "editor.label.direct_sun_cascade_blend": {
+            "source": "Direct Sun Cascade Blend",
+            "text": "太阳级联混合"
+        },
+        "editor.label.sun_direction": {
+            "source": "Sun Direction",
+            "text": "太阳方向"
+        },
+        "editor.label.sun_color": {
+            "source": "Sun Color",
+            "text": "太阳颜色"
+        },
+        "editor.label.sun_intensity": {
+            "source": "Sun Intensity",
+            "text": "太阳强度"
+        },
+        "editor.label.sun_angular_radius": {
+            "source": "Sun Angular Radius",
+            "text": "太阳角半径"
+        },
+        "editor.label.sky_intensity": {
+            "source": "Sky Intensity",
+            "text": "天空强度"
+        },
+        "editor.label.ground_intensity": {
+            "source": "Ground Intensity",
+            "text": "地面强度"
+        },
+        "editor.label.gi_mode": {
+            "source": "Diffuse GI Mode",
+            "text": "漫反射 GI 模式"
+        },
+        "editor.label.reflection_mode": {
+            "source": "Reflection Mode",
+            "text": "反射模式"
+        },
+        "editor.label.asset": {
+            "source": "Asset",
+            "text": "资源"
+        },
+        "editor.label.asset_texture": {
+            "source": "Texture",
+            "text": "纹理"
+        },
+        "editor.label.asset_material": {
+            "source": "Material",
+            "text": "材质"
+        },
+        "editor.label.asset_mesh": {
+            "source": "Mesh",
+            "text": "网格"
+        },
+        "editor.label.asset_scene": {
+            "source": "Scene",
+            "text": "场景"
+        },
+        "editor.label.asset_shader": {
+            "source": "Shader",
+            "text": "着色器"
+        },
+        "editor.label.asset_font": {
+            "source": "Font",
+            "text": "字体"
+        },
+        "editor.label.asset_script": {
+            "source": "Script",
+            "text": "脚本"
+        },
+        "editor.label.asset_prefab": {
+            "source": "Prefab",
+            "text": "预制体"
+        },
+        "editor.menu.import": {
+            "source": "Import",
+            "text": "导入"
+        },
+        "editor.menu.import_to_scene": {
+            "source": "Import to Scene",
+            "text": "导入到场景"
+        },
+        "editor.menu.add_to_scene": {
+            "source": "Add to Scene",
+            "text": "添加到场景"
+        },
+        "editor.menu.reimport": {
+            "source": "Reimport",
+            "text": "重新导入"
+        },
+        "editor.menu.show_in_explorer": {
+            "source": "Show in Explorer",
+            "text": "在资源管理器中显示"
+        },
+        "editor.menu.copy_disk_path": {
+            "source": "Copy Disk Path",
+            "text": "复制磁盘路径"
+        },
+        "editor.menu.copy_virtual_path": {
+            "source": "Copy Virtual Path",
+            "text": "复制虚拟路径"
+        },
+        "editor.label.material_asset": {
+            "source": "Material Asset",
+            "text": "材质资源"
+        },
+        "editor.label.metallic": {
+            "source": "Metallic",
+            "text": "金属度"
+        },
+        "editor.label.roughness": {
+            "source": "Roughness",
+            "text": "粗糙度"
+        },
+        "editor.label.reflectance": {
+            "source": "Reflectance",
+            "text": "反射率"
+        },
+        "editor.label.base_color": {
+            "source": "Base Color",
+            "text": "基础颜色"
+        },
+        "editor.label.normal_map": {
+            "source": "Normal Map",
+            "text": "法线贴图"
+        },
+        "editor.label.emissive_map": {
+            "source": "Emissive Map",
+            "text": "自发光贴图"
+        },
+        "editor.label.roughness_map": {
+            "source": "Roughness Map",
+            "text": "粗糙度贴图"
+        },
+        "editor.label.metallic_map": {
+            "source": "Metallic Map",
+            "text": "金属度贴图"
+        },
+        "editor.label.anti_aliasing": {
+            "source": "Anti-Aliasing",
+            "text": "抗锯齿"
+        },
+        "editor.label.tonemap_mode": {
+            "source": "Tonemap Mode",
+            "text": "色调映射模式"
+        },
+        "editor.label.vsync": {
+            "source": "VSync",
+            "text": "垂直同步"
+        },
+        "editor.action.dont_save": {
+            "source": "Don't Save",
+            "text": "不保存"
+        },
+        "editor.action.cancel": {
+            "source": "Cancel",
+            "text": "取消"
+        },
+        "editor.label.save_current_scene_message": {
+            "source": "Save current scene?",
+            "text": "保存当前场景吗？"
+        },
+        "editor.label.unsaved_scene": {
+            "source": "Unsaved Scene",
+            "text": "未保存的场景"
+        },
+        "editor.label.won_project_file": {
+            "source": "Won Project",
+            "text": "Won 项目"
+        },
+        "editor.label.won_scene_file": {
+            "source": "Won Scene",
+            "text": "Won 场景"
+        },
+        "editor.label.won_prefab_file": {
+            "source": "Won Prefab",
+            "text": "Won 预制体"
+        },
+        "editor.hint.new_key": {
+            "source": "new key",
+            "text": "新键"
+        },
+        "editor.hint.new_language": {
+            "source": "new language",
+            "text": "新语言"
+        },
+        "editor.message.no_languages": {
+            "source": "no languages declared - add one above",
+            "text": "尚未声明语言 - 请在上方添加"
+        },
+        "editor.menu.edit.preferences": {
+            "source": "Editor Preferences",
+            "text": "编辑器偏好设置"
+        },
+        "editor.menu.edit.project_localization": {
+            "source": "Project Localization",
+            "text": "项目本地化"
+        },
+        "editor.menu.window.reset_layout": {
+            "source": "Reset Layout",
+            "text": "重置布局"
+        },
+        "editor.menu.package_project": {
+            "source": "Package Project",
+            "text": "打包项目"
+        },
+        "editor.menu.new_project": {
+            "source": "New Project",
+            "text": "新建项目"
+        },
+        "editor.menu.load_project": {
+            "source": "Load Project",
+            "text": "加载项目"
+        },
+        "editor.menu.save_project": {
+            "source": "Save Project",
+            "text": "保存项目"
+        },
+        "editor.menu.new_scene": {
+            "source": "New Scene",
+            "text": "新建场景"
+        },
+        "editor.menu.save_scene": {
+            "source": "Save Scene",
+            "text": "保存场景"
+        },
+        "editor.menu.save_scene_as": {
+            "source": "Save Scene As...",
+            "text": "场景另存为..."
+        },
+        "editor.menu.load_scene": {
+            "source": "Load Scene",
+            "text": "加载场景"
+        },
+        "editor.menu.save_as_prefab": {
+            "source": "Save as Prefab...",
+            "text": "另存为预制体..."
+        },
+        "editor.label.no_plugins_found": {
+            "source": "No plugins found",
+            "text": "未找到插件"
+        },
+        "editor.label.wireframe": {
+            "source": "WireFrame",
+            "text": "线框"
+        },
+        "editor.label.editor_grid": {
+            "source": "Editor Grid",
+            "text": "编辑器网格"
+        },
+        "editor.label.collider_3d": {
+            "source": "Collider3D",
+            "text": "Collider3D"
+        },
+        "editor.label.bvh_debug": {
+            "source": "BVH Debug",
+            "text": "BVH 调试"
+        },
+        "editor.label.ddgi_debug_overlay": {
+            "source": "DDGI Debug Overlay",
+            "text": "DDGI 调试叠加层"
+        },
+        "editor.menu.delete_entity": {
+            "source": "Delete Entity",
+            "text": "删除实体"
+        },
+        "editor.label.delete_entity_children_warning": {
+            "source": "Children and components will also be removed.",
+            "text": "子实体和组件也会被删除。"
+        },
+        "editor.label.importing_asset": {
+            "source": "Importing asset",
+            "text": "正在导入资源"
+        },
+        "editor.label.importing_assets": {
+            "source": "Importing assets (",
+            "text": "正在导入资源（"
+        },
+        "editor.label.refresh": {
+            "source": "Refresh",
+            "text": "刷新"
+        },
+        "editor.label.import_content_asset_message": {
+            "source": "Import this asset to Scene?",
+            "text": "要将此资源导入场景吗？"
+        },
+        "editor.action.remove": {
+            "source": "Remove",
+            "text": "移除"
+        },
+        "editor.label.action_cannot_be_undone": {
+            "source": "This action cannot be undone.",
+            "text": "此操作无法撤销。"
+        },
+        "editor.label.no_components_available": {
+            "source": "No components available",
+            "text": "没有可用组件"
+        },
+        "editor.label.edit_entity_command": {
+            "source": "Edit Entity",
+            "text": "编辑实体"
+        },
+        "editor.label.create_entity_command": {
+            "source": "Create Entity",
+            "text": "创建实体"
+        },
+        "editor.label.delete_entity_command": {
+            "source": "Delete Entity",
+            "text": "删除实体"
+        },
+        "editor.label.instantiate_prefab_command": {
+            "source": "Instantiate Prefab",
+            "text": "实例化预制体"
+        },
+        "editor.action.update_scene_gpubvh": {
+            "source": "Update Scene GPUBVH",
+            "text": "更新场景 GPUBVH"
+        },
+        "editor.action.regenerate_terrain": {
+            "source": "Regenerate Terrain",
+            "text": "重新生成地形"
+        },
+        "editor.action.bake_navmesh": {
+            "source": "Bake NavMesh",
+            "text": "烘焙 NavMesh"
+        },
+        "editor.label.orthographic": {
+            "source": "Orthographic",
+            "text": "正交"
+        },
+        "editor.label.billboard": {
+            "source": "Billboard",
+            "text": "公告板"
+        },
+        "editor.label.loop": {
+            "source": "Loop",
+            "text": "循环"
+        },
+        "editor.label.double_sided": {
+            "source": "Double Sided",
+            "text": "双面"
+        },
+        "editor.label.receive_shadow": {
+            "source": "Receive Shadow",
+            "text": "接收阴影"
+        },
+        "editor.label.script": {
+            "source": "Script",
+            "text": "脚本"
+        },
+        "editor.label.text": {
+            "source": "Text",
+            "text": "文本"
+        },
+        "editor.label.textures": {
+            "source": "Textures",
+            "text": "纹理"
+        },
+        "editor.label.font": {
+            "source": "Font",
+            "text": "字体"
+        },
+        "editor.message.preferences_scope": {
+            "source": "These settings are per-machine and are not shared with the project.",
+            "text": "这些设置仅对本机生效，不会随项目共享。"
+        },
+        "editor.message.package_project_started": {
+            "source": "Packaging project: ",
+            "text": "正在打包项目： "
+        },
+        "editor.message.package_project_failed": {
+            "source": "Package failed.",
+            "text": "项目打包失败。"
+        },
+        "editor.message.package_project_missing_settings": {
+            "source": "Project settings path is empty.",
+            "text": "项目设置路径为空。"
+        },
+        "editor.message.package_tool_not_found": {
+            "source": "PackageTool not found: ",
+            "text": "未找到 PackageTool： "
+        },
+        "editor.message.splash_starting_renderer": {
+            "source": "Starting renderer...",
+            "text": "正在启动渲染器……"
+        },
+        "editor.message.splash_loading_editor_settings": {
+            "source": "Loading editor settings...",
+            "text": "正在加载编辑器设置……"
+        },
+        "editor.message.splash_loading_plugins": {
+            "source": "Loading plugins...",
+            "text": "正在加载插件……"
+        },
+        "editor.message.splash_loading_startup_scene": {
+            "source": "Loading startup scene...",
+            "text": "正在加载启动场景……"
+        },
+        "editor.action.save_as": {
+            "source": "Save As",
+            "text": "另存为"
+        },
+        "editor.message.plugin_loaded": {
+            "source": "Loaded",
+            "text": "已加载"
+        },
+        "editor.message.plugin_not_loaded": {
+            "source": "Not loaded",
+            "text": "未加载"
+        },
+        "editor.format.delete_confirm_format": {
+            "source": "Delete %s?",
+            "text": "删除 %s？"
+        },
+        "editor.label.enable_profiler": {
+            "source": "Enable Profiler",
+            "text": "启用性能分析器"
+        },
+        "editor.label.profiler_starting": {
+            "source": "Profiler starting...",
+            "text": "性能分析器启动中……"
+        },
+        "editor.label.profiler_warning": {
+            "source": "Profiler Turned On! Performance may be reduced!",
+            "text": "性能分析器已开启！性能可能会降低！"
+        },
+        "editor.message.asset_binary_missing": {
+            "source": "Imported binary missing (needs import)",
+            "text": "缺少导入后的二进制文件（需要重新导入）"
+        },
+        "editor.message.asset_source_missing": {
+            "source": "Source file missing",
+            "text": "缺少源文件"
+        },
+        "editor.message.asset_texture_missing": {
+            "source": "Missing texture: ",
+            "text": "缺少纹理： "
+        },
+        "editor.label.asset_needs_reimport": {
+            "source": "Source changed since last import",
+            "text": "自上次导入后源文件已更改"
+        },
+        "editor.format.size_format": {
+            "source": "Size %.0f",
+            "text": "大小 %.0f"
+        },
+        "editor.format.remove_tooltip_format": {
+            "source": "Remove %s",
+            "text": "移除 %s"
+        },
+        "editor.format.remove_confirm_format": {
+            "source": "Remove %s?",
+            "text": "移除 %s？"
+        },
+        "editor.format.unsupported_format": {
+            "source": "%s: unsupported",
+            "text": "%s：不支持"
+        },
+        "editor.label.undo": {
+            "source": "Undo",
+            "text": "撤销"
+        },
+        "editor.label.redo": {
+            "source": "Redo",
+            "text": "重做"
+        },
+        "editor.label.use_vertex_colors": {
+            "source": "Use Vertex Colors",
+            "text": "使用顶点颜色"
+        },
+        "editor.label.duration_zero": {
+            "source": "Duration: 0.000s",
+            "text": "时长：0.000 秒"
+        },
+        "editor.label.no_animation_clips": {
+            "source": "No animation clips",
+            "text": "没有动画片段"
+        },
+        "editor.label.sky_cubemap_asset_path": {
+            "source": "Sky Cubemap Path",
+            "text": "天空立方体贴图路径"
+        },
+        "editor.label.irradiance_cubemap_asset_path": {
+            "source": "Irradiance Cubemap Path",
+            "text": "辐照度立方体贴图路径"
+        },
+        "editor.label.specular_cubemap_asset_path": {
+            "source": "Specular Cubemap Path",
+            "text": "镜面立方体贴图路径"
+        },
+        "editor.label.motion_type": {
+            "source": "Motion Type",
+            "text": "运动类型"
+        },
+        "editor.label.mass": {
+            "source": "Mass",
+            "text": "质量"
+        },
+        "editor.label.friction": {
+            "source": "Friction",
+            "text": "摩擦"
+        },
+        "editor.label.restitution": {
+            "source": "Restitution",
+            "text": "恢复系数"
+        },
+        "editor.label.gravity_factor": {
+            "source": "Gravity Factor",
+            "text": "重力系数"
+        },
+        "editor.label.linear_velocity": {
+            "source": "Linear Velocity",
+            "text": "线性速度"
+        },
+        "editor.label.angular_velocity": {
+            "source": "Angular Velocity",
+            "text": "角速度"
+        },
+        "editor.label.animation_events": {
+            "source": "Animation Events",
+            "text": "动画事件"
+        },
+        "editor.action.animation_event_add": {
+            "source": "Add Event",
+            "text": "添加事件"
+        },
+        "editor.action.animation_event_save": {
+            "source": "Save Events",
+            "text": "保存事件"
+        },
+        "editor.action.animation_event_remove": {
+            "source": "-",
+            "text": "-"
+        },
+        "editor.label.animation_event_default_name": {
+            "source": "event",
+            "text": "事件"
+        },
+        "editor.message.animation_events_saved": {
+            "source": "Animation events saved: ",
+            "text": "动画事件已保存： "
+        },
+        "editor.message.animation_events_save_failed": {
+            "source": "Failed to save animation events.",
+            "text": "保存动画事件失败。"
+        },
+        "editor.message.animation_events_no_mesh": {
+            "source": "No mesh asset to save animation events.",
+            "text": "没有可保存动画事件的网格资源。"
+        },
+        "editor.label.none_placeholder": {
+            "source": "<none>",
+            "text": "<无>"
+        },
+        "editor.label.script_already_exists": {
+            "source": "script already exists on this component",
+            "text": "此组件上已存在脚本"
+        },
+        "editor.format.last_error_format": {
+            "source": "Last Error: %s",
+            "text": "最后错误：%s"
+        },
+        "editor.label.padding_min": {
+            "source": "Padding Min",
+            "text": "最小内边距"
+        },
+        "editor.label.padding_max": {
+            "source": "Padding Max",
+            "text": "最大内边距"
+        },
+        "editor.label.spacing": {
+            "source": "Spacing",
+            "text": "间距"
+        },
+        "editor.label.cross_align": {
+            "source": "Cross Align",
+            "text": "交叉对齐"
+        },
+        "editor.label.reverse": {
+            "source": "Reverse",
+            "text": "反向"
+        },
+        "editor.label.outer_cone": {
+            "source": "Outer Cone",
+            "text": "外锥角"
+        },
+        "editor.label.inner_cone": {
+            "source": "Inner Cone",
+            "text": "内锥角"
+        },
+        "editor.label.near_plane": {
+            "source": "Near",
+            "text": "近"
+        },
+        "editor.label.far_plane": {
+            "source": "Far",
+            "text": "远"
+        },
+        "editor.label.fov_y": {
+            "source": "FOV Y",
+            "text": "垂直视场角"
+        },
+        "editor.label.ortho_size": {
+            "source": "Ortho Size",
+            "text": "正交大小"
+        },
+        "editor.format.aspect_ratio_format": {
+            "source": "Aspect Ratio: %.3f",
+            "text": "宽高比：%.3f"
+        },
+        "editor.label.aperture": {
+            "source": "Aperture",
+            "text": "光圈"
+        },
+        "editor.label.shutter_speed": {
+            "source": "Shutter Speed",
+            "text": "快门速度"
+        },
+        "editor.label.sensitivity": {
+            "source": "Sensitivity",
+            "text": "感光度"
+        },
+        "editor.label.auto_exposure": {
+            "source": "Auto Exposure",
+            "text": "自动曝光"
+        },
+        "editor.label.fixed_ev100": {
+            "source": "Fixed EV100",
+            "text": "固定 EV100"
+        },
+        "editor.format.exposure_multiplier_format": {
+            "source": "Exposure Multiplier: %.6f",
+            "text": "曝光倍数：%.6f"
+        },
+        "editor.label.exposure_compensation": {
+            "source": "Exposure Compensation (EV)",
+            "text": "曝光补偿（EV）"
+        },
+        "editor.label.auto_exposure_min_ev": {
+            "source": "Min EV100",
+            "text": "最小 EV100"
+        },
+        "editor.label.auto_exposure_max_ev": {
+            "source": "Max EV100",
+            "text": "最大 EV100"
+        },
+        "editor.label.auto_exposure_speed": {
+            "source": "Adaptation Speed",
+            "text": "适应速度"
+        },
+        "editor.label.sun_glow_intensity": {
+            "source": "Sun Glow Intensity",
+            "text": "太阳光晕强度"
+        },
+        "editor.label.sun_glow_falloff": {
+            "source": "Sun Glow Falloff",
+            "text": "太阳光晕衰减"
+        },
+        "editor.label.sky_horizon_color": {
+            "source": "Sky Horizon Color",
+            "text": "天空地平线颜色"
+        },
+        "editor.label.sky_horizon_falloff": {
+            "source": "Sky Horizon Falloff",
+            "text": "天空地平线衰减"
+        },
+        "editor.label.sky_zenith_color": {
+            "source": "Sky Zenith Color",
+            "text": "天空天顶颜色"
+        },
+        "editor.label.ground_horizon_color": {
+            "source": "Ground Horizon Color",
+            "text": "地面地平线颜色"
+        },
+        "editor.label.ground_falloff": {
+            "source": "Ground Falloff",
+            "text": "地面衰减"
+        },
+        "editor.label.ground_color": {
+            "source": "Ground Color",
+            "text": "地面颜色"
+        },
+        "editor.label.ambient_color": {
+            "source": "Ambient Color",
+            "text": "环境颜色"
+        },
+        "editor.label.ambient_intensity": {
+            "source": "Ambient Intensity",
+            "text": "环境强度"
+        },
+        "editor.label.indirect_diffuse_scale": {
+            "source": "Indirect Diffuse Scale",
+            "text": "间接漫反射缩放"
+        },
+        "editor.label.indirect_specular_scale": {
+            "source": "Indirect Specular Scale",
+            "text": "间接镜面反射缩放"
+        },
+        "editor.label.probe_counts": {
+            "source": "Probe Counts",
+            "text": "探针数量"
+        },
+        "editor.label.probe_spacing": {
+            "source": "Probe Spacing",
+            "text": "探针间距"
+        },
+        "editor.label.volume_offset": {
+            "source": "Volume Offset",
+            "text": "体积偏移"
+        },
+        "editor.label.probes_per_frame": {
+            "source": "Probes Per Frame",
+            "text": "每帧探针数"
+        },
+        "editor.label.priority": {
+            "source": "Priority",
+            "text": "优先级"
+        },
+        "editor.label.hysteresis": {
+            "source": "Hysteresis",
+            "text": "滞后"
+        },
+        "editor.label.normal_bias": {
+            "source": "Normal Bias",
+            "text": "法线偏移"
+        },
+        "editor.label.view_bias": {
+            "source": "View Bias",
+            "text": "视图偏移"
+        },
+        "editor.label.max_distance": {
+            "source": "Max Distance",
+            "text": "最大距离"
+        },
+        "editor.label.trigger": {
+            "source": "Trigger",
+            "text": "触发器"
+        },
+        "editor.label.offset": {
+            "source": "Offset",
+            "text": "偏移"
+        },
+        "editor.label.half_extent": {
+            "source": "Half Extent",
+            "text": "半范围"
+        },
+        "editor.label.radius": {
+            "source": "Radius",
+            "text": "半径"
+        },
+        "editor.label.anchor": {
+            "source": "Anchor",
+            "text": "锚点"
+        },
+        "editor.label.size": {
+            "source": "Size",
+            "text": "大小"
+        },
+        "editor.label.pivot": {
+            "source": "Pivot",
+            "text": "枢轴"
+        },
+        "editor.label.uv_rect": {
+            "source": "UV Rect",
+            "text": "UV 矩形"
+        },
+        "editor.label.layer": {
+            "source": "Layer",
+            "text": "层"
+        },
+        "editor.label.anchor_presets": {
+            "source": "Anchor Presets",
+            "text": "锚点预设"
+        },
+        "editor.format.font_format": {
+            "source": "Font: %s",
+            "text": "字体：%s"
+        },
+        "editor.label.mesh_asset": {
+            "source": "Mesh Asset",
+            "text": "网格资源"
+        },
+        "editor.label.pixel_height": {
+            "source": "Pixel Height",
+            "text": "像素高度"
+        },
+        "editor.label.height": {
+            "source": "Height",
+            "text": "高度"
+        },
+        "editor.format.clips_format": {
+            "source": "Clips: %d",
+            "text": "片段：%d"
+        },
+        "editor.label.clip": {
+            "source": "Clip",
+            "text": "片段"
+        },
+        "editor.label.speed": {
+            "source": "Speed",
+            "text": "速度"
+        },
+        "editor.label.time": {
+            "source": "Time",
+            "text": "时间"
+        },
+        "editor.format.duration_format": {
+            "source": "Duration: %.3fs",
+            "text": "时长：%.3f 秒"
+        },
+        "editor.format.bone_matrices_format": {
+            "source": "Bone Matrices: %d",
+            "text": "骨骼矩阵：%d"
+        },
+        "editor.format.bone_matrix_offset_format": {
+            "source": "Bone Matrix Offset: %u",
+            "text": "骨骼矩阵偏移：%u"
+        },
+        "editor.format.material_slots_format": {
+            "source": "Material Slots: %d",
+            "text": "材质槽：%d"
+        },
+        "editor.action.fork_material": {
+            "source": "Fork Material",
+            "text": "创建材质副本"
+        },
+        "editor.action.save_material_asset": {
+            "source": "Save as Material Asset",
+            "text": "另存为材质资源"
+        },
+        "editor.label.won_material_file": {
+            "source": "WonEngine Material",
+            "text": "WonEngine 材质"
+        },
+        "editor.message.save_material_failed": {
+            "source": "Failed to save material: ",
+            "text": "材质保存失败： "
+        },
+        "editor.label.slot_prefix": {
+            "source": "Slot ",
+            "text": "槽位 "
+        },
+        "editor.label.selected_slot": {
+            "source": "Selected Slot",
+            "text": "已选槽位"
+        },
+        "editor.label.shader_type": {
+            "source": "Material Type",
+            "text": "材质类型"
+        },
+        "editor.label.blend_mode": {
+            "source": "Blend Mode",
+            "text": "混合模式"
+        },
+        "editor.label.anisotropy": {
+            "source": "Anisotropy",
+            "text": "各向异性"
+        },
+        "editor.label.sheen_color": {
+            "source": "Sheen Color",
+            "text": "光泽颜色"
+        },
+        "editor.label.sheen_roughness": {
+            "source": "Sheen Roughness",
+            "text": "光泽粗糙度"
+        },
+        "editor.label.clearcoat": {
+            "source": "Clearcoat",
+            "text": "清漆层"
+        },
+        "editor.label.clearcoat_roughness": {
+            "source": "Clearcoat Roughness",
+            "text": "清漆层粗糙度"
+        },
+        "editor.message.project_saved": {
+            "source": "Project saved: ",
+            "text": "项目已保存： "
+        },
+        "editor.message.project_loaded": {
+            "source": "Project loaded: ",
+            "text": "项目已加载： "
+        },
+        "editor.message.project_created": {
+            "source": "Project created: ",
+            "text": "项目已创建： "
+        },
+        "editor.message.save_project_failed": {
+            "source": "Save project failed: ",
+            "text": "项目保存失败： "
+        },
+        "editor.message.load_project_failed": {
+            "source": "Load project failed: ",
+            "text": "项目加载失败： "
+        },
+        "editor.message.create_project_failed": {
+            "source": "Create project failed: ",
+            "text": "项目创建失败： "
+        },
+        "editor.message.save_scene_failed": {
+            "source": "Save scene failed: ",
+            "text": "场景保存失败： "
+        },
+        "editor.message.save_prefab_failed": {
+            "source": "Save prefab failed: ",
+            "text": "预制体保存失败： "
+        },
+        "editor.message.load_prefab_failed": {
+            "source": "Load prefab failed: ",
+            "text": "预制体加载失败： "
+        },
+        "editor.message.prefab_added": {
+            "source": "Prefab added: ",
+            "text": "已添加预制体： "
+        },
+        "editor.message.scene_saved": {
+            "source": "Scene saved: ",
+            "text": "场景已保存： "
+        },
+        "editor.message.load_scene_failed": {
+            "source": "Load scene failed: ",
+            "text": "场景加载失败： "
+        },
+        "editor.message.load_scene_warning": {
+            "source": "Load scene warning: ",
+            "text": "场景加载警告： "
+        },
+        "editor.message.scene_loaded": {
+            "source": "Scene loaded: ",
+            "text": "场景已加载： "
+        },
+        "editor.message.content_browser_import_commit_failed": {
+            "source": "Content Browser import commit failed: ",
+            "text": "内容浏览器导入提交失败： "
+        },
+        "editor.message.content_browser_import_failed": {
+            "source": "Content Browser import failed: ",
+            "text": "内容浏览器导入失败： "
+        },
+        "editor.message.asset_importer_tool_not_found": {
+            "source": "AssetImporterTool not found: ",
+            "text": "未找到 AssetImporterTool： "
+        },
+        "editor.message.failed_register_component_type": {
+            "source": "Failed to register component type: ",
+            "text": "注册组件类型失败： "
+        },
+        "editor.message.failed_enable_plugin": {
+            "source": "Failed to enable plugin: ",
+            "text": "启用插件失败： "
+        },
+        "editor.message.plugin_disabled_next_restart": {
+            "source": "Plugin will be disabled on next editor restart: ",
+            "text": "插件将在编辑器下次重启时禁用： "
+        },
+        "editor.label.base_color_map": {
+            "source": "Base Color Map",
+            "text": "基础色贴图"
+        },
+        "editor.label.opacity_map": {
+            "source": "Opacity Map",
+            "text": "不透明度贴图"
+        },
+        "editor.label.displacement_map": {
+            "source": "Displacement Map",
+            "text": "位移贴图"
+        },
+        "editor.label.occlusion_map": {
+            "source": "Occlusion Map",
+            "text": "遮蔽贴图"
+        },
+        "editor.label.sheen_color_map": {
+            "source": "Sheen Color Map",
+            "text": "光泽颜色贴图"
+        },
+        "editor.label.sheen_roughness_map": {
+            "source": "Sheen Roughness Map",
+            "text": "光泽粗糙度贴图"
+        },
+        "editor.label.clearcoat_map": {
+            "source": "Clearcoat Map",
+            "text": "清漆层贴图"
+        },
+        "editor.label.clearcoat_roughness_map": {
+            "source": "Clearcoat Roughness Map",
+            "text": "清漆层粗糙度贴图"
+        },
+        "editor.label.clearcoat_normal_map": {
+            "source": "Clearcoat Normal Map",
+            "text": "清漆层法线贴图"
+        },
+        "editor.label.anisotropy_map": {
+            "source": "Anisotropy Map",
+            "text": "各向异性贴图"
+        },
+        "editor.label.sound_asset_path": {
+            "source": "Sound Path",
+            "text": "声音路径"
+        },
+        "editor.label.volume": {
+            "source": "Volume",
+            "text": "音量"
+        },
+        "editor.label.pitch": {
+            "source": "Pitch",
+            "text": "音调"
+        },
+        "editor.label.min_distance": {
+            "source": "Min Distance",
+            "text": "最小距离"
+        },
+        "editor.label.is_3d": {
+            "source": "3D Spatial",
+            "text": "3D 空间化"
+        },
+        "editor.label.play_on_start": {
+            "source": "Play On Start",
+            "text": "启动时播放"
+        },
+        "editor.label.is_playing": {
+            "source": "Playing",
+            "text": "播放中"
+        },
+        "editor.window.save_current_scene": {
+            "source": "Save Current Scene?",
+            "text": "保存当前场景？"
+        },
+        "editor.hint.search": {
+            "source": "Search",
+            "text": "搜索"
+        },
+        "editor.label.backend_directx12": {
+            "source": "DirectX12",
+            "text": "DirectX12"
+        },
+        "editor.label.column_label": {
+            "source": "Label",
+            "text": "标签"
+        },
+        "editor.label.column_value": {
+            "source": "Value",
+            "text": "值"
+        },
+        "editor.label.column_type": {
+            "source": "Type",
+            "text": "类型"
+        },
+        "editor.label.column_default": {
+            "source": "Default",
+            "text": "默认值"
+        },
+        "editor.label.file_name": {
+            "source": "File name:",
+            "text": "文件名："
+        },
+        "editor.action.new": {
+            "source": "New...",
+            "text": "新建……"
+        },
+        "editor.action.create": {
+            "source": "Create",
+            "text": "创建"
+        },
+        "editor.action.add": {
+            "source": "Add",
+            "text": "添加"
+        },
+        "editor.action.save_schema": {
+            "source": "Save Schema",
+            "text": "保存架构"
+        },
+        "editor.format.localization_summary": {
+            "source": "default: %s   keys: %d%s",
+            "text": "默认：%s   键：%d%s"
+        },
+        "editor.format.source_changed": {
+            "source": "source changed: \"%s\" -> \"%s\"",
+            "text": "源文本已更改：“%s” -> “%s”"
+        },
+        "editor.label.asset_sound": {
+            "source": "Sound",
+            "text": "声音"
+        },
+        "editor.field.agent_height": {
+            "source": "Agent Height",
+            "text": "代理高度"
+        },
+        "editor.field.agent_max_climb": {
+            "source": "Agent Max Climb",
+            "text": "代理最大攀爬高度"
+        },
+        "editor.field.agent_max_slope": {
+            "source": "Agent Max Slope",
+            "text": "代理最大坡度"
+        },
+        "editor.field.agent_radius": {
+            "source": "Agent Radius",
+            "text": "代理半径"
+        },
+        "editor.field.anchor": {
+            "source": "Anchor",
+            "text": "锚点"
+        },
+        "editor.field.arrival_threshold": {
+            "source": "Arrival Threshold",
+            "text": "到达阈值"
+        },
+        "editor.field.axis": {
+            "source": "Axis",
+            "text": "轴"
+        },
+        "editor.field.blend_duration": {
+            "source": "Blend Duration",
+            "text": "混合时长"
+        },
+        "editor.field.bounds_center": {
+            "source": "Bounds Center",
+            "text": "边界中心"
+        },
+        "editor.field.bounds_extent": {
+            "source": "Bounds Extent",
+            "text": "边界范围"
+        },
+        "editor.field.clip": {
+            "source": "Clip",
+            "text": "片段"
+        },
+        "editor.field.connected_entity": {
+            "source": "Connected Entity",
+            "text": "关联实体"
+        },
+        "editor.field.cubemap_asset_path": {
+            "source": "Cubemap Asset Path",
+            "text": "立方体贴图资源路径"
+        },
+        "editor.field.default_state": {
+            "source": "Default State",
+            "text": "默认状态"
+        },
+        "editor.field.emit_radius": {
+            "source": "Emit Radius",
+            "text": "发射半径"
+        },
+        "editor.field.end_color": {
+            "source": "End Color",
+            "text": "结束颜色"
+        },
+        "editor.field.end_size": {
+            "source": "End Size",
+            "text": "结束大小"
+        },
+        "editor.field.exit_time": {
+            "source": "Exit Time",
+            "text": "退出时间"
+        },
+        "editor.field.frequency": {
+            "source": "Frequency",
+            "text": "频率"
+        },
+        "editor.field.from_state": {
+            "source": "From State",
+            "text": "起始状态"
+        },
+        "editor.field.gravity": {
+            "source": "Gravity",
+            "text": "重力"
+        },
+        "editor.field.has_exit_time": {
+            "source": "Has Exit Time",
+            "text": "包含退出时间"
+        },
+        "editor.field.height_scale": {
+            "source": "Height Scale",
+            "text": "高度缩放"
+        },
+        "editor.field.include_layers": {
+            "source": "Include Layers",
+            "text": "包含层"
+        },
+        "editor.field.influence_radius": {
+            "source": "Influence Radius",
+            "text": "影响半径"
+        },
+        "editor.field.intensity_multiplier": {
+            "source": "Intensity Multiplier",
+            "text": "强度倍数"
+        },
+        "editor.field.island_falloff": {
+            "source": "Island Falloff",
+            "text": "岛屿衰减"
+        },
+        "editor.field.lacunarity": {
+            "source": "Lacunarity",
+            "text": "间隙度"
+        },
+        "editor.field.layer": {
+            "source": "Layer",
+            "text": "层"
+        },
+        "editor.field.layer_mask": {
+            "source": "Layer Mask",
+            "text": "层遮罩"
+        },
+        "editor.field.lifetime": {
+            "source": "Lifetime",
+            "text": "生命周期"
+        },
+        "editor.field.limit_max": {
+            "source": "Limit Max",
+            "text": "最大限制"
+        },
+        "editor.field.limit_min": {
+            "source": "Limit Min",
+            "text": "最小限制"
+        },
+        "editor.field.loop": {
+            "source": "Loop",
+            "text": "循环"
+        },
+        "editor.field.match": {
+            "source": "Match",
+            "text": "匹配"
+        },
+        "editor.field.max_particle_count": {
+            "source": "Max Particle Count",
+            "text": "最大粒子数"
+        },
+        "editor.field.move_speed": {
+            "source": "Move Speed",
+            "text": "移动速度"
+        },
+        "editor.field.name": {
+            "source": "Name",
+            "text": "名称"
+        },
+        "editor.field.navmesh_asset_path": {
+            "source": "Navmesh Asset Path",
+            "text": "NavMesh 资源路径"
+        },
+        "editor.field.octaves": {
+            "source": "Octaves",
+            "text": "八度数"
+        },
+        "editor.field.op": {
+            "source": "Op",
+            "text": "操作"
+        },
+        "editor.field.parameter": {
+            "source": "Parameter",
+            "text": "参数"
+        },
+        "editor.field.persistence": {
+            "source": "Persistence",
+            "text": "持久性"
+        },
+        "editor.field.reference_resolution": {
+            "source": "Reference Resolution",
+            "text": "参考分辨率"
+        },
+        "editor.field.render_mode": {
+            "source": "Render Mode",
+            "text": "渲染模式"
+        },
+        "editor.field.resolution_x": {
+            "source": "Resolution X",
+            "text": "X 分辨率"
+        },
+        "editor.field.resolution_z": {
+            "source": "Resolution Z",
+            "text": "Z 分辨率"
+        },
+        "editor.field.ridge_strength": {
+            "source": "Ridge Strength",
+            "text": "脊线强度"
+        },
+        "editor.field.scale_mode": {
+            "source": "Scale Mode",
+            "text": "缩放模式"
+        },
+        "editor.field.seed": {
+            "source": "Seed",
+            "text": "种子"
+        },
+        "editor.field.sort_order": {
+            "source": "Sort Order",
+            "text": "排序顺序"
+        },
+        "editor.field.spawn_rate": {
+            "source": "Spawn Rate",
+            "text": "生成速率"
+        },
+        "editor.field.speed": {
+            "source": "Speed",
+            "text": "速度"
+        },
+        "editor.field.start_color": {
+            "source": "Start Color",
+            "text": "起始颜色"
+        },
+        "editor.field.start_size": {
+            "source": "Start Size",
+            "text": "起始大小"
+        },
+        "editor.field.threshold": {
+            "source": "Threshold",
+            "text": "阈值"
+        },
+        "editor.field.to_state": {
+            "source": "To State",
+            "text": "目标状态"
+        },
+        "editor.field.tree_asset_path": {
+            "source": "Tree Asset Path",
+            "text": "树资源路径"
+        },
+        "editor.field.turn_rate": {
+            "source": "Turn Rate",
+            "text": "转向速率"
+        },
+        "editor.field.type": {
+            "source": "Type",
+            "text": "类型"
+        },
+        "editor.field.use_bounds": {
+            "source": "Use Bounds",
+            "text": "使用边界"
+        },
+        "editor.field.use_limit": {
+            "source": "Use Limit",
+            "text": "使用限制"
+        },
+        "editor.field.value": {
+            "source": "Value",
+            "text": "值"
+        },
+        "editor.field.velocity": {
+            "source": "Velocity",
+            "text": "速度"
+        },
+        "editor.field.velocity_variation": {
+            "source": "Velocity Variation",
+            "text": "速度变化"
+        },
+        "editor.field.warp_strength": {
+            "source": "Warp Strength",
+            "text": "扭曲强度"
+        },
+        "editor.field.world_size_x": {
+            "source": "World Size X",
+            "text": "世界尺寸 X"
+        },
+        "editor.field.world_size_z": {
+            "source": "World Size Z",
+            "text": "世界尺寸 Z"
+        },
+        "editor.label.cloud_coverage": {
+            "source": "Cloud Coverage",
+            "text": "云量"
+        },
+        "editor.label.cloud_density": {
+            "source": "Cloud Density",
+            "text": "云密度"
+        },
+        "editor.label.cloud_speed": {
+            "source": "Cloud Speed",
+            "text": "云速度"
+        },
+        "editor.label.cloud_color": {
+            "source": "Cloud Color",
+            "text": "云颜色"
+        },
+        "editor.label.cloud_direction": {
+            "source": "Cloud Direction",
+            "text": "云方向"
+        },
+        "editor.enum.MaterialType.Unlit": {
+            "source": "Unlit",
+            "text": "无光照"
+        },
+        "editor.enum.MaterialType.PBR": {
+            "source": "PBR",
+            "text": "PBR"
+        },
+        "editor.enum.MaterialBlendMode.Opaque": {
+            "source": "Opaque",
+            "text": "不透明"
+        },
+        "editor.enum.MaterialBlendMode.Masked": {
+            "source": "Masked",
+            "text": "遮罩"
+        },
+        "editor.enum.MaterialBlendMode.Transparent": {
+            "source": "Transparent",
+            "text": "半透明"
+        },
+        "editor.enum.MaterialBlendMode.Additive": {
+            "source": "Additive",
+            "text": "叠加"
+        },
+        "editor.enum.MaterialBlendMode.Premultiplied": {
+            "source": "Premultiplied",
+            "text": "预乘 Alpha"
+        },
+        "editor.enum.SkyType.None": {
+            "source": "None",
+            "text": "无"
+        },
+        "editor.enum.SkyType.Procedural": {
+            "source": "Procedural",
+            "text": "程序化"
+        },
+        "editor.enum.SkyType.Cubemap": {
+            "source": "Cubemap",
+            "text": "立方体贴图"
+        },
+        "editor.enum.SkyType.PhysicallyBased": {
+            "source": "Physically Based",
+            "text": "基于物理"
+        },
+        "editor.enum.DiffuseGIMode.None": {
+            "source": "None",
+            "text": "无"
+        },
+        "editor.enum.DiffuseGIMode.Ambient": {
+            "source": "Ambient",
+            "text": "环境光"
+        },
+        "editor.enum.DiffuseGIMode.DDGI": {
+            "source": "DDGI",
+            "text": "DDGI"
+        },
+        "editor.enum.DiffuseGIMode.Cubemap": {
+            "source": "Cubemap",
+            "text": "立方体贴图"
+        },
+        "editor.enum.DiffuseGIMode.Sky": {
+            "source": "Sky",
+            "text": "天空"
+        },
+        "editor.enum.ReflectionMode.None": {
+            "source": "None",
+            "text": "无"
+        },
+        "editor.enum.ReflectionMode.Cubemap": {
+            "source": "Cubemap",
+            "text": "立方体贴图"
+        },
+        "editor.enum.ReflectionMode.Sky": {
+            "source": "Sky",
+            "text": "天空"
+        },
+        "editor.enum.LightType.Directional": {
+            "source": "Directional",
+            "text": "平行光"
+        },
+        "editor.enum.LightType.Point": {
+            "source": "Point",
+            "text": "点光源"
+        },
+        "editor.enum.LightType.Spot": {
+            "source": "Spot",
+            "text": "聚光灯"
+        },
+        "editor.enum.LightType.Rect": {
+            "source": "Rect",
+            "text": "矩形"
+        },
+        "editor.enum.Collider3DShapeType.Box": {
+            "source": "Box",
+            "text": "盒体"
+        },
+        "editor.enum.Collider3DShapeType.Sphere": {
+            "source": "Sphere",
+            "text": "球体"
+        },
+        "editor.enum.Collider3DShapeType.HeightField": {
+            "source": "Height Field",
+            "text": "高度场"
+        },
+        "editor.enum.Rigidbody3DMotionType.Static": {
+            "source": "Static",
+            "text": "静态"
+        },
+        "editor.enum.Rigidbody3DMotionType.Kinematic": {
+            "source": "Kinematic",
+            "text": "运动学"
+        },
+        "editor.enum.Rigidbody3DMotionType.Dynamic": {
+            "source": "Dynamic",
+            "text": "动态"
+        },
+        "editor.enum.LayoutType.Horizontal": {
+            "source": "Horizontal",
+            "text": "水平"
+        },
+        "editor.enum.LayoutType.Vertical": {
+            "source": "Vertical",
+            "text": "垂直"
+        },
+        "editor.enum.LayoutCrossAlign.Start": {
+            "source": "Start",
+            "text": "起始"
+        },
+        "editor.enum.LayoutCrossAlign.Center": {
+            "source": "Center",
+            "text": "居中"
+        },
+        "editor.enum.LayoutCrossAlign.End": {
+            "source": "End",
+            "text": "末端"
+        },
+        "editor.enum.LayoutCrossAlign.Stretch": {
+            "source": "Stretch",
+            "text": "拉伸"
+        },
+        "editor.enum.AntiAliasingMode.None": {
+            "source": "None",
+            "text": "无"
+        },
+        "editor.enum.AntiAliasingMode.FXAA": {
+            "source": "FXAA",
+            "text": "FXAA"
+        },
+        "editor.enum.TonemapMode.Reinhard": {
+            "source": "Reinhard",
+            "text": "莱因哈德"
+        },
+        "editor.enum.TonemapMode.ACES": {
+            "source": "ACES",
+            "text": "ACES"
+        },
+        "editor.label.cloud_frequency": {
+            "source": "Cloud Frequency",
+            "text": "云频率"
+        }
     }
 }
