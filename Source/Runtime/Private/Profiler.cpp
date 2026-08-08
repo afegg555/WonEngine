@@ -33,6 +33,7 @@ namespace won::profiler
             int avg_counter = 0;
             float time_ms = 0.0f;
             uint64 last_seen_frame = 0;
+            uint32 begin_order = 0;
             won::utils::Timer cpu_timer;
             rendering::RHICommandList* command_list = nullptr;
             std::array<int32, rendering::max_frames_in_flight> query_begin = { -1, -1, -1 };
@@ -49,6 +50,7 @@ namespace won::profiler
         uint64 frame_counter = 0;
         uint32 active_frame_slot = 0;
         uint32 next_query_index = 0;
+        uint32 next_begin_order = 0;
         double timestamp_per_ms = 0.0;
         rendering::RHIDevice* active_device = nullptr;
         std::mutex lock;
@@ -99,6 +101,7 @@ namespace won::profiler
         }
 
         ++frame_counter;
+        next_begin_order = 0;
 
         for (auto& pair : ranges)
         {
@@ -311,6 +314,7 @@ namespace won::profiler
         range.type = RangeType::CPU;
         range.name = name;
         range.last_seen_frame = frame_counter;
+        range.begin_order = next_begin_order++;
         range.cpu_timer.Reset();
 
         return id;
@@ -339,6 +343,7 @@ namespace won::profiler
             range.type = RangeType::GPU;
             range.name = name;
             range.last_seen_frame = frame_counter;
+            range.begin_order = next_begin_order++;
             range.command_list = &command_list;
             query_begin = AllocateQuery();
             range.query_begin[active_frame_slot] = query_begin;
@@ -419,8 +424,10 @@ namespace won::profiler
 
     struct Hits
     {
+        String name;
         uint32 num_hits = 0;
         float total_time = 0.0f;
+        uint32 begin_order = 0;
     };
 
     void GetProfileInfo(String& performance_profile, String& resource_profile)
@@ -432,8 +439,10 @@ namespace won::profiler
             return;
         }
 
-        UnorderedMap<String, Hits> cpu_time_cache;
-        UnorderedMap<String, Hits> gpu_time_cache;
+        Vector<Hits> cpu_hits;
+        Vector<Hits> gpu_hits;
+        UnorderedMap<String, Size> cpu_lookup;
+        UnorderedMap<String, Size> gpu_lookup;
         std::stringstream ss;
         ss.precision(2);
 
@@ -450,27 +459,30 @@ namespace won::profiler
                 continue;
             }
 
-            if (range.type == RangeType::CPU)
+            const bool is_cpu = range.type == RangeType::CPU;
+            if (pair.first == (is_cpu ? cpu_frame : gpu_frame))
             {
-                if (pair.first == cpu_frame)
-                {
-                    continue;
-                }
+                continue;
+            }
 
-                Hits& hit = cpu_time_cache[range.name];
-                hit.num_hits++;
-                hit.total_time += range.time_ms;
+            Vector<Hits>& hits = is_cpu ? cpu_hits : gpu_hits;
+            UnorderedMap<String, Size>& lookup = is_cpu ? cpu_lookup : gpu_lookup;
+            auto found = lookup.find(range.name);
+            if (found == lookup.end())
+            {
+                lookup[range.name] = hits.size();
+                Hits& hit = hits.emplace_back();
+                hit.name = range.name;
+                hit.num_hits = 1;
+                hit.total_time = range.time_ms;
+                hit.begin_order = range.begin_order;
             }
             else
             {
-                if (pair.first == gpu_frame)
-                {
-                    continue;
-                }
-
-                Hits& hit = gpu_time_cache[range.name];
+                Hits& hit = hits[found->second];
                 hit.num_hits++;
                 hit.total_time += range.time_ms;
+                hit.begin_order = (std::min)(hit.begin_order, range.begin_order);
             }
         }
 
@@ -479,16 +491,17 @@ namespace won::profiler
             ss << ranges[cpu_frame].name << ": " << std::fixed << ranges[cpu_frame].time_ms << " ms\n";
         }
 
-        for (auto& pair : cpu_time_cache)
+        std::sort(cpu_hits.begin(), cpu_hits.end(), [](const Hits& a, const Hits& b) { return a.begin_order < b.begin_order; });
+        for (const Hits& hit : cpu_hits)
         {
-            if (pair.second.num_hits > 1)
+            if (hit.num_hits > 1)
             {
-                ss << "\t" << pair.first << " (" << pair.second.num_hits << "x)"
-                   << ": " << std::fixed << pair.second.total_time << " ms\n";
+                ss << "\t" << hit.name << " (" << hit.num_hits << "x)"
+                   << ": " << std::fixed << hit.total_time << " ms\n";
             }
-            else if (pair.second.num_hits == 1)
+            else if (hit.num_hits == 1)
             {
-                ss << "\t" << pair.first << ": " << std::fixed << pair.second.total_time << " ms\n";
+                ss << "\t" << hit.name << ": " << std::fixed << hit.total_time << " ms\n";
             }
         }
 
@@ -503,16 +516,17 @@ namespace won::profiler
             ss << "GPU Frame: unavailable\n";
         }
 
-        for (auto& pair : gpu_time_cache)
+        std::sort(gpu_hits.begin(), gpu_hits.end(), [](const Hits& a, const Hits& b) { return a.begin_order < b.begin_order; });
+        for (const Hits& hit : gpu_hits)
         {
-            if (pair.second.num_hits > 1)
+            if (hit.num_hits > 1)
             {
-                ss << "\t" << pair.first << " (" << pair.second.num_hits << "x)"
-                   << ": " << std::fixed << pair.second.total_time << " ms\n";
+                ss << "\t" << hit.name << " (" << hit.num_hits << "x)"
+                   << ": " << std::fixed << hit.total_time << " ms\n";
             }
-            else if (pair.second.num_hits == 1)
+            else if (hit.num_hits == 1)
             {
-                ss << "\t" << pair.first << ": " << std::fixed << pair.second.total_time << " ms\n";
+                ss << "\t" << hit.name << ": " << std::fixed << hit.total_time << " ms\n";
             }
         }
 
