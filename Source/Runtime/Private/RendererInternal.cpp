@@ -2106,11 +2106,7 @@ namespace won::rendering
 
         if (scene.GetUpdateIndex() != gpu_scene.synced_index)
         {
-            {
-                auto cpu_range = profiler::ScopedRangeCPU("Build GPU BVH");
-                scene.BuildGPUBVH();
-            }
-            gpu_scene.Update(scene, *device, *command_list, current_frame_slot);
+            gpu_scene.UploadGPUData(*device, *command_list, current_frame_slot);
             gpu_scene.synced_index = scene.GetUpdateIndex();
         }
 

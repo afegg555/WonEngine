@@ -1764,12 +1764,9 @@ namespace won::rendering
         return true;
     }
 
-    void GPUScene::Update(ecs::Scene& scene, RHIDevice& device, RHICommandList& command_list, uint32 frame_slot)
+    void GPUScene::Update(ecs::Scene& scene)
     {
-        auto cpu_range = profiler::ScopedRangeCPU("Update GPU Scene");
-        auto gpu_range = profiler::ScopedRangeGPU("Update GPU Scene", command_list);
-
-        retired[frame_slot].clear();
+        auto extract_range = profiler::ScopedRangeCPU("Update GPU Scene");
 
         if (has_derived_sun)
         {
@@ -1847,6 +1844,15 @@ namespace won::rendering
             resource::UpdateGlyphAtlas(*font);
         }
         // Newly packed glyphs are picked up on the next frame.
+
+    }
+
+    void GPUScene::UploadGPUData(RHIDevice& device, RHICommandList& command_list, uint32 frame_slot)
+    {
+        auto upload_cpu_range = profiler::ScopedRangeCPU("Upload GPU Data");
+        auto upload_gpu_range = profiler::ScopedRangeGPU("Upload GPU Data", command_list);
+
+        retired[frame_slot].clear();
 
         UploadBuffer(light_buffer, retired[frame_slot], shader_lights.data(), shader_lights.size() * sizeof(ShaderLight), sizeof(ShaderLight), device, command_list, frame_slot);
         UploadBuffer(geometry_buffer, retired[frame_slot], shader_geometries.data(), shader_geometries.size() * sizeof(ShaderGeometry), sizeof(ShaderGeometry), device, command_list, frame_slot);

@@ -229,7 +229,8 @@ namespace won::rendering
 
         uint64 synced_index = ~0ull;
 
-        void Update(ecs::Scene& scene, RHIDevice& device, RHICommandList& command_list, uint32 frame_slot);
+        void Update(ecs::Scene& scene);
+        void UploadGPUData(RHIDevice& device, RHICommandList& command_list, uint32 frame_slot);
 
     private:
         void RetireResource(std::unique_ptr<RHIResource>& resource, uint32 frame_slot);
