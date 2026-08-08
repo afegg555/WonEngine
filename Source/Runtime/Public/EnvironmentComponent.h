@@ -67,7 +67,7 @@ namespace won::ecs
         float mie_coefficient = 1.0f;
         bool direct_sun_active = true;
         bool direct_sun_cast_shadow = true;
-        uint32 direct_sun_shadow_resolution = 1024;
+        uint32 direct_sun_shadow_resolution = 2048;
         uint32 direct_sun_cascade_count = 4;
         float direct_sun_cascade_lambda = 0.95f;
         float direct_sun_cascade_blend = 0.1f;

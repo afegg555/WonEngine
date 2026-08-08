@@ -115,7 +115,7 @@ namespace won::rendering
     struct DirectSunShadowSettings
     {
         bool cast_shadow = false;
-        uint32 shadow_resolution = 1024;
+        uint32 shadow_resolution = 2048;
         uint32 cascade_count = 4;
         float cascade_lambda = 0.95f;
         float cascade_blend = 0.1f;
