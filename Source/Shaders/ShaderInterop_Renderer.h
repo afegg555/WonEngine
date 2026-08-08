@@ -147,7 +147,7 @@ struct alignas(16) ShaderTextureSlot
 
 };
 
-struct alignas(16) ShaderGeometry
+struct alignas(16) ShaderGeometry // per submesh
 {
     // Vertex pulling path: stream descriptors are resolved from bindless SRVs, not IA bindings.
     int position_buffer_descriptor;
@@ -932,7 +932,7 @@ struct ObjectPushConstants
 #endif
 };
 
-struct alignas(16) ShaderInstance
+struct alignas(16) ShaderInstance // per transform
 {
     float4x4 world_transform;
 

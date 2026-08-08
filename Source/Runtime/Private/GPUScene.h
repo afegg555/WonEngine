@@ -234,18 +234,9 @@ namespace won::rendering
         Vector<ShaderBVHInstance> shader_bvh_instances;
         GPUBuffer bvh_instance_buffer;
 
-        std::array<Vector<std::unique_ptr<RHIResource>>, max_frames_in_flight> retired = {};
-
         uint64 synced_index = ~0ull;
 
         void Update(ecs::Scene& scene);
-        void UploadGPUData(RHIDevice& device, RHICommandList& command_list, uint32 frame_slot);
 
-    private:
-        void RetireResource(std::unique_ptr<RHIResource>& resource, uint32 frame_slot);
-        bool CreateSkyLightingResources(RHIDevice& device);
-        void ReleaseSkyLightingResources(uint32 frame_slot);
-        void ReleaseDDGIResources(uint32 frame_slot);
-        bool CreateDDGIResources(RHIDevice& device, uint32 frame_slot);
     };
 }

@@ -70,6 +70,7 @@ namespace won::rendering
             Vector<RenderShadowSlice> render_shadow_slices; // for cpu, SetViewport, SetScissor, etc.
 			Vector<uint32> light_shadow_slices; // cascade offset(16bit) and cascade count(16bit) per light
             Vector<uint2> caster_slice_ranges; // per slice {offset, count} into sorted_shadow_caster_indices
+            Vector<Vector<uint32>> caster_slice_scratch; // kept across frames so the per slice culling jobs reuse their capacity
             uint2 shadow_map_atlas_size = { 0, 0 };
 
             std::unique_ptr<RHIResource> atlas;
@@ -147,6 +148,7 @@ namespace won::rendering
         Rect scissor = {};
         uint32 ui_layer_mask = 0xFFFFFFFF;
 
+        // renderable indices
         Vector<uint32> sorted_shadow_caster_indices; // per shadow slice, concatenated in slice order; each range is in batch-key order
         Vector<uint32> sorted_opaque_indices;       // batch-key order
         Vector<uint32> sorted_transparent_indices;  // back-to-front
@@ -154,6 +156,7 @@ namespace won::rendering
         Vector<uint32> sorted_sprite_2d_indices;    // by layer
 
         void UpdateUIInteraction();
+        void BuildShadowSlices(float shadow_resolution_scale);
         void BuildSortedIndices();
         ecs::Entity ResolveCamera() const;
         bool RayCast(float2 screen_position, ecs::RayCastHit& out_hit, bool use_local_bvh = true, uint32 layer_mask = 0xFFFFFFFF) const;

@@ -428,6 +428,12 @@ namespace won
             scene->SetUpdateIndex(update_index);
 
             view.camera_entity = view.ResolveCamera();
+
+            view.BuildShadowSlices(user_settings.shadow_resolution_scale.value_or(1.0f));
+            {
+                auto sorted_range = profiler::ScopedRangeCPU("Build Sorted Indices");
+                view.BuildSortedIndices();
+            }
         }
         profiler::EndRange(range);
     }
