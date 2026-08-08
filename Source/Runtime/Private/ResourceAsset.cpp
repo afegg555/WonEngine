@@ -44,6 +44,13 @@ namespace won::resource
         constexpr uint32 dds_caps2_cubemap = 0x00000200;
         constexpr uint32 dds_misc_flag_texturecube = 0x00000004;
         constexpr uint32 dds_fourcc_a16b16g16r16f = 113; // legacy D3DFMT_A16B16G16R16F (RGBA16F)
+        constexpr uint32 dds_fourcc_dxt1 = 0x31545844; // DXT1
+        constexpr uint32 dds_fourcc_dxt3 = 0x33545844; // DXT3
+        constexpr uint32 dds_fourcc_dxt5 = 0x35545844; // DXT5
+        constexpr uint32 dds_fourcc_ati1 = 0x31495441; // ATI1
+        constexpr uint32 dds_fourcc_bc4u = 0x55344342; // BC4U
+        constexpr uint32 dds_fourcc_ati2 = 0x32495441; // ATI2
+        constexpr uint32 dds_fourcc_bc5u = 0x55354342; // BC5U
         // DDS DX10 headers store DXGI_FORMAT numeric values, but resource code must not include platform headers.
         constexpr uint32 dds_dxgi_format_unknown = 0;
         constexpr uint32 dds_dxgi_format_r16g16b16a16_float = 10;
@@ -529,7 +536,8 @@ namespace won::resource
         {
             return nullptr;
         }
-        if (utils::ToLower(io::GetExtension(path)) != texture_binary_extension)
+        const String extension = utils::ToLower(io::GetExtension(path));
+        if (extension != texture_binary_extension && extension != "dds") // support dds
         {
             backlog::Post("[LoadResources] texture load rejected, expected ." + String(texture_binary_extension) + ": " + path, backlog::LogLevel::Warning);
             return nullptr;
@@ -590,11 +598,24 @@ namespace won::resource
         else
         {
             // Legacy header: FourCC extended formats, or uncompressed RGBA/BGRA by channel masks; cube flagged in caps2.
-            if ((header.pixel_format.flags & dds_pixel_format_flags_fourcc) != 0 && header.pixel_format.four_cc == dds_fourcc_a16b16g16r16f)
+            if ((header.pixel_format.flags & dds_pixel_format_flags_fourcc) != 0)
             {
-                format = rendering::RHIFormat::R16G16B16A16Float;
+                switch (header.pixel_format.four_cc)
+                {
+                case dds_fourcc_a16b16g16r16f: format = rendering::RHIFormat::R16G16B16A16Float; break;
+                case dds_fourcc_dxt1: format = rendering::RHIFormat::BC1Unorm; break;
+                case dds_fourcc_dxt3: format = rendering::RHIFormat::BC2Unorm; break;
+                case dds_fourcc_dxt5: format = rendering::RHIFormat::BC3Unorm; break;
+                case dds_fourcc_ati1:
+                case dds_fourcc_bc4u: format = rendering::RHIFormat::BC4Unorm; break;
+                case dds_fourcc_ati2:
+                case dds_fourcc_bc5u: format = rendering::RHIFormat::BC5Unorm; break;
+                default: break;
+                }
             }
-            else if ((header.pixel_format.flags & dds_pixel_format_flags_rgb) != 0 && header.pixel_format.rgb_bit_count == 32)
+
+            if (format == rendering::RHIFormat::Unknown
+                && (header.pixel_format.flags & dds_pixel_format_flags_rgb) != 0 && header.pixel_format.rgb_bit_count == 32)
             {
                 const uint32 r = header.pixel_format.r_bit_mask;
                 const uint32 g = header.pixel_format.g_bit_mask;
