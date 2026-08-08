@@ -2700,6 +2700,7 @@ namespace won::rendering
             command_list->SetScissor(scissor);
 
             // prepass
+            if ((view.show_flags & Show_Opaque) != 0)
             {
                 auto gpu_range = profiler::ScopedRangeGPU("Prepass", *command_list);
                 command_list->BeginEvent("Prepass");
