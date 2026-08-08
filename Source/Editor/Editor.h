@@ -188,6 +188,7 @@ namespace won::editor
 				float pitch = 0.0f;
 				float orbit_distance = 0.0f;
 				float move_speed = 5.0f;
+				float move_boost_multiplier = 5.0f;
 				float rotate_speed = 1.0f;
 				float orbit_speed = 1.0f;
 				float3 focus_point = { 0.0f, 0.0f, 0.0f };

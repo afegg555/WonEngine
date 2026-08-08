@@ -751,28 +751,31 @@ namespace won::editor
 		XMVECTOR xup = XMVector3Normalize(XMLoadFloat3(&camera.up));
 		XMVECTOR xright = XMVector3Normalize(XMVector3Cross(xup, xforward));
 
+		const bool boost = io::IsDown(io::KEYBOARD_BUTTON_LSHIFT) || io::IsDown(io::KEYBOARD_BUTTON_RSHIFT);
+		const float frame_move_speed = dt * move_speed * (boost ? move_boost_multiplier : 1.0f);
+
 		if (can_begin_interaction && io::IsDown(io::Button('W')))
 		{
 			float3 translation{};
-			XMStoreFloat3(&translation, XMVectorScale(xforward, dt * move_speed));
+			XMStoreFloat3(&translation, XMVectorScale(xforward, frame_move_speed));
 			transform.Translate(translation);
 		}
 		if (can_begin_interaction && io::IsDown(io::Button('A')))
 		{
 			float3 translation{};
-			XMStoreFloat3(&translation, XMVectorScale(xright, -dt * move_speed));
+			XMStoreFloat3(&translation, XMVectorScale(xright, -frame_move_speed));
 			transform.Translate(translation);
 		}
 		if (can_begin_interaction && io::IsDown(io::Button('S')))
 		{
 			float3 translation{};
-			XMStoreFloat3(&translation, XMVectorScale(xforward, -dt * move_speed));
+			XMStoreFloat3(&translation, XMVectorScale(xforward, -frame_move_speed));
 			transform.Translate(translation);
 		}
 		if (can_begin_interaction && io::IsDown(io::Button('D')))
 		{
 			float3 translation{};
-			XMStoreFloat3(&translation, XMVectorScale(xright, dt * move_speed));
+			XMStoreFloat3(&translation, XMVectorScale(xright, frame_move_speed));
 			transform.Translate(translation);
 		}
 
