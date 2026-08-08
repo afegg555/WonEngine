@@ -209,13 +209,14 @@ namespace won::rendering
         jobsystem::Execute(ctx, [&](jobsystem::JobArgs)
         {
             const auto& renderables = gpu_scene.opaque_renderables;
+            const auto& cull_data = gpu_scene.opaque_cull_data;
             sorted_opaque_indices.clear();
-            for (uint32 i = 0; i < static_cast<uint32>(renderables.size()); ++i)
+            for (uint32 i = 0; i < static_cast<uint32>(cull_data.size()); ++i)
             {
-                const auto& r = renderables[i];
-                if ((culling_mask & r.layer_mask) == 0)
+                const auto& c = cull_data[i];
+                if ((culling_mask & c.layer_mask) == 0)
                     continue;
-                if (frustum && r.aabb.IsValid() && !r.aabb.IntersectFrustum(*frustum))
+                if (frustum && c.aabb.IsValid() && !c.aabb.IntersectFrustum(*frustum))
                     continue;
                 sorted_opaque_indices.push_back(i);
             }
@@ -239,6 +240,7 @@ namespace won::rendering
         jobsystem::Execute(ctx, [&](jobsystem::JobArgs)
         {
             const auto& renderables = gpu_scene.opaque_renderables;
+            const auto& cull_data = gpu_scene.opaque_cull_data;
             const Size slice_count = shadow_resources.render_shadow_slices.size();
             sorted_shadow_caster_indices.clear();
             shadow_resources.caster_slice_ranges.assign(slice_count, uint2{ 0, 0 });

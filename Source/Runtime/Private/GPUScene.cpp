@@ -360,7 +360,7 @@ namespace won::rendering
         }
 
         void ExtractRenderables(const ecs::Scene& scene, Vector<ShaderInstance>& shader_instances,
-            Vector<Renderable>& opaque_renderables, Vector<Renderable>& transparent_renderables,
+            Vector<GPUScene::RenderableCullData>& opaque_cull_data, Vector<Renderable>& opaque_renderables, Vector<Renderable>& transparent_renderables,
             Vector<Renderable>& line_renderables, Vector<Renderable>& point_renderables,
             math::AABB& shadow_caster_world_bound)
         {
@@ -539,6 +539,16 @@ namespace won::rendering
                 transparent_renderables.insert(transparent_renderables.end(), std::make_move_iterator(bucket.transparent.begin()), std::make_move_iterator(bucket.transparent.end()));
                 line_renderables.insert(line_renderables.end(), std::make_move_iterator(bucket.line.begin()), std::make_move_iterator(bucket.line.end()));
                 point_renderables.insert(point_renderables.end(), std::make_move_iterator(bucket.point.begin()), std::make_move_iterator(bucket.point.end()));
+            }
+
+            opaque_cull_data.resize(opaque_renderables.size());
+            for (Size renderable_index = 0; renderable_index < opaque_renderables.size(); ++renderable_index)
+            {
+                const Renderable& renderable = opaque_renderables[renderable_index];
+                GPUScene::RenderableCullData& cull_data = opaque_cull_data[renderable_index];
+                cull_data.aabb = renderable.aabb;
+                cull_data.layer_mask = renderable.layer_mask;
+                cull_data.flags = renderable.flags;
             }
         }
 
@@ -1807,7 +1817,7 @@ namespace won::rendering
         Vector<Sprite3DRenderable> particle_sprite_3d;
 
         jobsystem::Context project_ctx;
-        jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractRenderables(scene, shader_instances, opaque_renderables, transparent_renderables, line_renderables, point_renderables, shadow_caster_world_bound); });
+        jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractRenderables(scene, shader_instances, opaque_cull_data, opaque_renderables, transparent_renderables, line_renderables, point_renderables, shadow_caster_world_bound); });
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractSprites(scene, sprite_2d_renderables, sprite_3d_renderables); });
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractText(scene, text_sprite_2d, text_sprite_3d, glyph_requests); });
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractParticles(scene, particle_instances, particle_sprite_3d); });

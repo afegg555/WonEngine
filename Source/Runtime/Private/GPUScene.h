@@ -147,6 +147,15 @@ namespace won::rendering
         Vector<float4> shader_bone_matrices;
         GPUBuffer bone_buffer;
 
+        // culling walks this instead of the "Renderable" so a scan touches 32 bytes per entry, not the whole Renderable
+        struct RenderableCullData
+        {
+            math::AABB aabb = {};
+            uint32 layer_mask = 0xFFFFFFFF;
+            uint32 flags = 0;
+        };
+
+        Vector<RenderableCullData> opaque_cull_data;
         Vector<Renderable> opaque_renderables;
         Vector<Renderable> transparent_renderables;
         Vector<Renderable> line_renderables;
