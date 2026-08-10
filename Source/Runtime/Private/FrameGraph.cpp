@@ -13,13 +13,16 @@ namespace won::rendering
         resources.clear();
         resource_ids.clear();
         passes.clear();
+        buffer_uploads.clear();
+        upload_pass_index = 0;
+        has_upload_pass = false;
     }
 
-    void FrameGraph::MarkOutput(FrameGraphResourceId resource)
+    void FrameGraph::MarkNoCull(FrameGraphResourceId resource)
     {
         if (resource < resources.size())
         {
-            resources[resource].is_output = true;
+            resources[resource].no_cull = true;
         }
     }
 
@@ -39,6 +42,48 @@ namespace won::rendering
     }
 
 
+    bool FrameGraph::QueueBufferUpload(FrameGraphResourceId destination, const void* data, Size size, RHIResourceState final_state, Size destination_offset)
+    {
+        RHIResource* destination_resource = destination < resources.size() ? resources[destination].resource : nullptr;
+        if (!destination_resource || size == 0)
+        {
+            return false;
+        }
+
+        FrameUploadAllocation allocation = {};
+        const Size alignment = device->GetMinOffsetAlignment(destination_resource->GetDesc().buffer_desc);
+        if (!frame_context->AllocateFrameUpload(*device, size, alignment, allocation))
+        {
+            return false;
+        }
+        std::memcpy(allocation.mapped_data, data, size);
+
+        if (!has_upload_pass)
+        {
+            has_upload_pass = true;
+            upload_pass_index = passes.size();
+            AddPass("Upload Buffers", {}, [this](RHICommandList& command_list)
+            {
+                for (const BufferUpload& upload : buffer_uploads)
+                {
+                    command_list.TransitionResource(*upload.destination, RHIResourceState::CopyDest);
+                    command_list.CopyBuffer(*upload.destination, upload.destination_offset, *upload.source, upload.source_offset, upload.size);
+                    command_list.TransitionResource(*upload.destination, upload.final_state);
+                }
+            });
+        }
+
+        passes[upload_pass_index].accesses.push_back({ destination, RHIResourceState::CopyDest, FrameGraphAccessType::Write });
+        BufferUpload& upload = buffer_uploads.emplace_back();
+        upload.destination = destination_resource;
+        upload.destination_offset = destination_offset;
+        upload.source = allocation.buffer;
+        upload.source_offset = allocation.buffer_offset;
+        upload.size = size;
+        upload.final_state = final_state;
+        return true;
+    }
+
     void FrameGraph::AddPass(const char* name, Vector<FrameGraphAccess> accesses, std::function<void(RHICommandList&)> execute)
     {
         Pass& pass = passes.emplace_back();
@@ -54,7 +99,7 @@ namespace won::rendering
 
         for (Size resource_index = 0; resource_index < resources.size(); ++resource_index)
         {
-            resource_needed[resource_index] = resources[resource_index].is_output;
+            resource_needed[resource_index] = resources[resource_index].no_cull;
         }
 
         // !! backwards

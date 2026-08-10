@@ -46,9 +46,9 @@ namespace won::rendering
         bool CreateBackBufferSubresources();
 
         // gpu call
-        bool UploadSceneData(FrameContext& frame_context, GPUScene& gpu_scene, RHICommandList& command_list);
-        bool UploadViewData(FrameContext& frame_context, View& view, RHICommandList& command_list);
-        bool UpdateFrameConstants(FrameContext& frame_context, const View& view, RHICommandList& command_list);
+        bool UploadSceneData(FrameContext& frame_context, GPUScene& gpu_scene);
+        bool UploadViewData(FrameContext& frame_context, View& view);
+        bool UpdateFrameConstants(FrameContext& frame_context, const View& view);
         bool DrawScene(const FrameContext& frame_context, const View& view, resource::RenderPassType pass, uint32 flags, RHICommandList& command_list, uint32 shadow_slice_index = 0);
         void UpdateDDGIProbe(FrameContext& frame_context, View& view, RHICommandList& command_list);
         void UpdateSkyCapture(GPUScene& gpu_scene, RHICommandList& command_list);
@@ -63,7 +63,6 @@ namespace won::rendering
         // etc
         bool Update(View& view);
         void RenderForwardPath(View& view);
-        void UpdateForwardLightList(View& view, RHICommandList& command_list);
 
         resource::ShaderCompilerOptions shader_compiler_options = {};
         resource::ShaderLibrary shader_library;
@@ -99,6 +98,7 @@ namespace won::rendering
         float shadow_resolution_scale = 1.0f;
         double frame_time_seconds = 0.0;
 
+		Vector<uint32> sort_upload_scratch; // not to allocate every frame !!
         FrameGraph frame_graph;
         FrameGraphResourcePool resource_pool;
 

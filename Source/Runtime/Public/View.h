@@ -43,6 +43,7 @@ namespace won::rendering
             FrameGraphResourceRef forward_index_buffer = nullptr;
             RHISubresourceHandle forward_index_srv = {};
             uint32 forward_light_count = 0;
+            Vector<uint32> visible_forward_lights;
 
             FrameGraphResourceRef cluster_light_count_buffer = nullptr;
             RHISubresourceHandle cluster_light_count_srv = {};
@@ -155,6 +156,7 @@ namespace won::rendering
         void UpdateUIInteraction();
         void BuildShadowSlices(float shadow_resolution_scale);
         void BuildSortedIndices();
+        void BuildForwardLightList();
         ecs::Entity ResolveCamera() const;
         bool RayCast(float2 screen_position, ecs::RayCastHit& out_hit, bool use_local_bvh = true, uint32 layer_mask = 0xFFFFFFFF) const;
         bool ScreenToRay(float2 screen_position, math::Ray& out_ray) const;

@@ -143,7 +143,7 @@ namespace won::rendering
         return true;
     }
 
-    bool RendererInternal::UpdateFrameConstants(FrameContext& frame_context, const View& view, RHICommandList& command_list)
+    bool RendererInternal::UpdateFrameConstants(FrameContext& frame_context, const View& view)
     {
         ShaderFrame shader_frame{};
         shader_frame.Init();
@@ -239,14 +239,29 @@ namespace won::rendering
             }
         }
 
-        if (!UpdateDefaultBuffer(frame_context, *shader_frame_buffer, &shader_frame, sizeof(ShaderFrame), RHIResourceState::ConstantBuffer, 0, command_list))
+        const FrameGraphResourceId frame_constants_id = frame_graph.Import(*shader_frame_buffer);
+        frame_graph.MarkNoCull(frame_constants_id);
+        if (!frame_graph.QueueBufferUpload(frame_constants_id, &shader_frame, sizeof(ShaderFrame), RHIResourceState::ConstantBuffer))
         {
             return false;
         }
-        if (!UpdateDefaultBuffer(frame_context, *view.view_constants.buffer, &shader_view, sizeof(ShaderView), RHIResourceState::ConstantBuffer, 0, command_list))
+        FrameUploadAllocation view_constants_upload = {};
+        const Size view_constants_alignment = device->GetMinOffsetAlignment(view.view_constants.buffer->GetDesc().buffer_desc);
+        if (!frame_context.AllocateFrameUpload(*device, sizeof(ShaderView), view_constants_alignment, view_constants_upload))
         {
             return false;
         }
+        std::memcpy(view_constants_upload.mapped_data, &shader_view, sizeof(ShaderView));
+
+        RHIResource* view_constants_buffer = view.view_constants.buffer;
+        const FrameGraphResourceId view_constants_upload_id = frame_graph.Import(*view_constants_buffer);
+        frame_graph.MarkNoCull(view_constants_upload_id);
+        frame_graph.AddPass("Upload View Constants",
+            { { view_constants_upload_id, RHIResourceState::CopyDest, FrameGraphAccessType::Write } },
+            [view_constants_buffer, view_constants_upload](RHICommandList& pass_command_list)
+        {
+            pass_command_list.CopyBuffer(*view_constants_buffer, 0, *view_constants_upload.buffer, view_constants_upload.buffer_offset, sizeof(ShaderView));
+        });
 
         return true;
     }
@@ -255,7 +270,7 @@ namespace won::rendering
     {
         bool UploadBuffer(GPUBuffer& target, FrameContext& frame_context,
             const void* data, Size size, Size stride,
-            RHIDevice& device, RHICommandList& command_list, uint32 frame_slot)
+            RHIDevice& device, FrameGraph& frame_graph)
         {
             if (size == 0)
             {
@@ -301,19 +316,9 @@ namespace won::rendering
                 }
             }
 
-            FrameUploadAllocation staging = {};
-            const Size staging_alignment = device.GetMinOffsetAlignment(target.buffer->GetDesc().buffer_desc);
-            if (!frame_context.AllocateFrameUpload(device, size, staging_alignment, staging))
-            {
-                backlog::Post("GPUScene upload: failed to allocate staging", backlog::LogLevel::Error);
-                return false;
-            }
-            std::memcpy(staging.mapped_data, data, size);
-
-            command_list.TransitionResource(*target.buffer, RHIResourceState::CopyDest);
-            command_list.CopyBuffer(*target.buffer, 0, *staging.buffer, staging.buffer_offset, size);
-            command_list.TransitionResource(*target.buffer, RHIResourceState::ShaderRead);
-            return true;
+            const FrameGraphResourceId target_id = frame_graph.Import(*target.buffer);
+            frame_graph.MarkNoCull(target_id);
+            return frame_graph.QueueBufferUpload(target_id, data, size, RHIResourceState::ShaderRead);
         }
     }
 
@@ -321,21 +326,20 @@ namespace won::rendering
     static won::console::ConsoleVariable r_cluster_depth_slices("r.cluster.depth_slices", 32, "Forward+ cluster depth slices (1 = 2D tiled)", won::console::ConsoleVariableFlagArchive);
 
     // the frame context never leaves the renderer, so retiring stays in one place for both paths
-    bool RendererInternal::UploadSceneData(FrameContext& frame_context, GPUScene& gpu_scene, RHICommandList& command_list)
+    bool RendererInternal::UploadSceneData(FrameContext& frame_context, GPUScene& gpu_scene)
     {
         auto upload_cpu_range = profiler::ScopedRangeCPU("Upload GPU Data");
-        auto upload_gpu_range = profiler::ScopedRangeGPU("Upload GPU Data", command_list);
 
         // upload the scene buffers
-        UploadBuffer(gpu_scene.light_buffer, frame_context, gpu_scene.shader_lights.data(), gpu_scene.shader_lights.size() * sizeof(ShaderLight), sizeof(ShaderLight), *device, command_list, current_frame_slot);
-        UploadBuffer(gpu_scene.geometry_buffer, frame_context, gpu_scene.shader_geometries.data(), gpu_scene.shader_geometries.size() * sizeof(ShaderGeometry), sizeof(ShaderGeometry), *device, command_list, current_frame_slot);
-        UploadBuffer(gpu_scene.material_buffer, frame_context, gpu_scene.shader_materials.data(), gpu_scene.shader_materials.size() * sizeof(ShaderMaterial), sizeof(ShaderMaterial), *device, command_list, current_frame_slot);
-        UploadBuffer(gpu_scene.bone_buffer, frame_context, gpu_scene.shader_bone_matrices.data(), gpu_scene.shader_bone_matrices.size() * sizeof(float4), sizeof(float4), *device, command_list, current_frame_slot);
-        UploadBuffer(gpu_scene.instance_buffer, frame_context, gpu_scene.shader_instances.data(), gpu_scene.shader_instances.size() * sizeof(ShaderInstance), sizeof(ShaderInstance), *device, command_list, current_frame_slot);
-        UploadBuffer(gpu_scene.particle_buffer, frame_context, gpu_scene.particle_instances.data(), gpu_scene.particle_instances.size() * sizeof(float4), sizeof(float4), *device, command_list, current_frame_slot);
-        UploadBuffer(gpu_scene.decal_buffer, frame_context, gpu_scene.shader_decals.data(), gpu_scene.shader_decals.size() * sizeof(ShaderDecal), sizeof(ShaderDecal), *device, command_list, current_frame_slot);
-        UploadBuffer(gpu_scene.bvh_node_buffer, frame_context, gpu_scene.shader_bvh_nodes.data(), gpu_scene.shader_bvh_nodes.size() * sizeof(ShaderBVHNode), sizeof(ShaderBVHNode), *device, command_list, current_frame_slot);
-        UploadBuffer(gpu_scene.bvh_instance_buffer, frame_context, gpu_scene.shader_bvh_instances.data(), gpu_scene.shader_bvh_instances.size() * sizeof(ShaderBVHInstance), sizeof(ShaderBVHInstance), *device, command_list, current_frame_slot);
+        UploadBuffer(gpu_scene.light_buffer, frame_context, gpu_scene.shader_lights.data(), gpu_scene.shader_lights.size() * sizeof(ShaderLight), sizeof(ShaderLight), *device, frame_graph);
+        UploadBuffer(gpu_scene.geometry_buffer, frame_context, gpu_scene.shader_geometries.data(), gpu_scene.shader_geometries.size() * sizeof(ShaderGeometry), sizeof(ShaderGeometry), *device, frame_graph);
+        UploadBuffer(gpu_scene.material_buffer, frame_context, gpu_scene.shader_materials.data(), gpu_scene.shader_materials.size() * sizeof(ShaderMaterial), sizeof(ShaderMaterial), *device, frame_graph);
+        UploadBuffer(gpu_scene.bone_buffer, frame_context, gpu_scene.shader_bone_matrices.data(), gpu_scene.shader_bone_matrices.size() * sizeof(float4), sizeof(float4), *device, frame_graph);
+        UploadBuffer(gpu_scene.instance_buffer, frame_context, gpu_scene.shader_instances.data(), gpu_scene.shader_instances.size() * sizeof(ShaderInstance), sizeof(ShaderInstance), *device, frame_graph);
+        UploadBuffer(gpu_scene.particle_buffer, frame_context, gpu_scene.particle_instances.data(), gpu_scene.particle_instances.size() * sizeof(float4), sizeof(float4), *device, frame_graph);
+        UploadBuffer(gpu_scene.decal_buffer, frame_context, gpu_scene.shader_decals.data(), gpu_scene.shader_decals.size() * sizeof(ShaderDecal), sizeof(ShaderDecal), *device, frame_graph);
+        UploadBuffer(gpu_scene.bvh_node_buffer, frame_context, gpu_scene.shader_bvh_nodes.data(), gpu_scene.shader_bvh_nodes.size() * sizeof(ShaderBVHNode), sizeof(ShaderBVHNode), *device, frame_graph);
+        UploadBuffer(gpu_scene.bvh_instance_buffer, frame_context, gpu_scene.shader_bvh_instances.data(), gpu_scene.shader_bvh_instances.size() * sizeof(ShaderBVHInstance), sizeof(ShaderBVHInstance), *device, frame_graph);
 
         const bool use_sky_lighting = gpu_scene.shader_environment.sky_type != SHADER_SKY_TYPE_NONE
             && (gpu_scene.shader_environment.diffuse_gi_mode == SHADER_DIFFUSE_GI_MODE_SKY
@@ -765,7 +769,7 @@ namespace won::rendering
         return true;
     }
 
-    bool RendererInternal::UploadViewData(FrameContext& frame_context, View& view, RHICommandList& command_list)
+    bool RendererInternal::UploadViewData(FrameContext& frame_context, View& view)
     {
         if (!view.scene || view.camera_entity == INVALID_ENTITY)
         {
@@ -959,7 +963,9 @@ namespace won::rendering
                 return false;
             }
 
-            if (!UpdateDefaultBuffer(frame_context, *view.shadow_resources.cascade_buffer, shader_shadow_cascades.data(), required_shadow_cascade_buffer_size, RHIResourceState::ShaderRead, 0, command_list))
+            const FrameGraphResourceId cascade_id = frame_graph.Import(*view.shadow_resources.cascade_buffer);
+            frame_graph.MarkNoCull(cascade_id);
+            if (!frame_graph.QueueBufferUpload(cascade_id, shader_shadow_cascades.data(), required_shadow_cascade_buffer_size, RHIResourceState::ShaderRead))
             {
                 return false;
             }
@@ -995,7 +1001,9 @@ namespace won::rendering
                 return false;
             }
 
-            if (!UpdateDefaultBuffer(frame_context, *view.shadow_resources.light_slice_buffer, view.shadow_resources.light_shadow_slices.data(), required_shadow_slice_buffer_size, RHIResourceState::ShaderRead, 0, command_list))
+            const FrameGraphResourceId light_slice_id = frame_graph.Import(*view.shadow_resources.light_slice_buffer);
+            frame_graph.MarkNoCull(light_slice_id);
+            if (!frame_graph.QueueBufferUpload(light_slice_id, view.shadow_resources.light_shadow_slices.data(), required_shadow_slice_buffer_size, RHIResourceState::ShaderRead))
             {
                 return false;
             }
@@ -1041,15 +1049,8 @@ namespace won::rendering
                     return false;
                 }
 
-                FrameUploadAllocation sort_upload = {};
-                const Size sort_alignment = device->GetMinOffsetAlignment(view.instance_resources.sort_buffer->GetDesc().buffer_desc);
-                if (!frame_context.AllocateFrameUpload(*device, required_sort_buffer_size, sort_alignment, sort_upload))
-                {
-                    backlog::Post("failed to allocate instance sort staging", backlog::LogLevel::Error);
-                    return false;
-                }
-
-                uint32* mapped = static_cast<uint32*>(sort_upload.mapped_data);
+                sort_upload_scratch.resize(opaque_count + transparent_count + shadow_caster_count);
+                uint32* mapped = sort_upload_scratch.data();
                 for (uint32 i = 0; i < opaque_count; ++i)
 					mapped[i] = opaque[view.sorted_opaque_indices[i]].push_constants.draw_offset; // renderable index -> ShaderInstance index, all submeshes share the same ShaderInstance index
                 for (uint32 i = 0; i < transparent_count; ++i)
@@ -1057,9 +1058,9 @@ namespace won::rendering
                 for (uint32 i = 0; i < shadow_caster_count; ++i)
                     mapped[opaque_count + transparent_count + i] = opaque[view.sorted_shadow_caster_indices[i]].push_constants.draw_offset;
 
-                command_list.TransitionResource(*view.instance_resources.sort_buffer, RHIResourceState::CopyDest);
-                command_list.CopyBuffer(*view.instance_resources.sort_buffer, 0, *sort_upload.buffer, sort_upload.buffer_offset, required_sort_buffer_size);
-                command_list.TransitionResource(*view.instance_resources.sort_buffer, RHIResourceState::ShaderRead);
+                const FrameGraphResourceId sort_id = frame_graph.Import(*view.instance_resources.sort_buffer);
+                frame_graph.MarkNoCull(sort_id);
+                frame_graph.QueueBufferUpload(sort_id, sort_upload_scratch.data(), required_sort_buffer_size, RHIResourceState::ShaderRead);
             }
         }
 
@@ -1122,7 +1123,42 @@ namespace won::rendering
         }
         else if (view.render_path_type == RenderPathType::Forward)
         {
-            UpdateForwardLightList(view, command_list);
+            View::LightResources& light_resources = view.light_resources;
+            light_resources.forward_light_count = 0;
+
+            const Vector<uint32>& visible_lights = light_resources.visible_forward_lights;
+            if (!visible_lights.empty())
+            {
+                const Size forward_index_size = static_cast<Size>(NUM_MAX_LIGHTS_FORWARD_RENDERING) * sizeof(uint32);
+                RHIBufferDesc forward_index_desc = {};
+                forward_index_desc.size = forward_index_size;
+                forward_index_desc.usage = RHIResourceUsage::Default;
+                forward_index_desc.bind_flags = RHIBindFlags::ShaderResource;
+                light_resources.forward_index_buffer = resource_pool.CreateBuffer(view.viewer_index, "Forward Light Index Buffer", forward_index_desc);
+                if (!light_resources.forward_index_buffer)
+                {
+                    backlog::Post("failed to create forward light index buffer", backlog::LogLevel::Error);
+                    return false;
+                }
+
+                RHISubresourceDesc forward_index_srv_desc = {};
+                forward_index_srv_desc.type = RHISubresourceType::ShaderResource;
+                forward_index_srv_desc.buffer_offset = 0;
+                forward_index_srv_desc.buffer_size = forward_index_size;
+                forward_index_srv_desc.buffer_stride = sizeof(uint32);
+                light_resources.forward_index_srv = resource_pool.GetSubresource(*light_resources.forward_index_buffer, forward_index_srv_desc);
+                if (!light_resources.forward_index_srv.IsValid())
+                {
+                    backlog::Post("failed to create forward light index subresource", backlog::LogLevel::Error);
+                    return false;
+                }
+
+                const FrameGraphResourceId forward_index_id = frame_graph.Import(*light_resources.forward_index_buffer);
+                frame_graph.MarkNoCull(forward_index_id);
+                frame_graph.QueueBufferUpload(forward_index_id, visible_lights.data(), visible_lights.size() * sizeof(uint32), RHIResourceState::ShaderRead);
+
+                light_resources.forward_light_count = static_cast<uint32>(visible_lights.size());
+            }
         }
 
         const RHIResource* ddgi_probe_data_buffer = view.scene->GetGPUScene().ddgi.probe_data_buffer.get();
@@ -1755,6 +1791,7 @@ namespace won::rendering
 
         frame_graph.Reset(*device, frame_context);
         const FrameGraphResourceId back_buffer_id = frame_graph.Import(*back_buffer_binding.resource);
+        frame_graph.MarkNoCull(back_buffer_id);
         frame_graph.AddPass("Clear Back Buffer",
             { { back_buffer_id, RHIResourceState::RenderTarget, FrameGraphAccessType::Write } },
             [this, back_buffer_binding](RHICommandList& pass_command_list)
@@ -2261,22 +2298,16 @@ namespace won::rendering
         GPUScene& gpu_scene = scene.GetGPUScene();
 
         FrameContext& frame_context = GetFrameContext();
-        RHICommandList* command_list = frame_context.BeginCommandList(*device);
-        if (!command_list)
-        {
-            return false;
-        }
 
         if (scene.GetUpdateIndex() != gpu_scene.synced_index)
         {
-            UploadSceneData(frame_context, gpu_scene, *command_list);
+            UploadSceneData(frame_context, gpu_scene);
             gpu_scene.synced_index = scene.GetUpdateIndex();
         }
 
         {
             auto cpu_range = profiler::ScopedRangeCPU("Upload View Data");
-            auto gpu_range = profiler::ScopedRangeGPU("Upload View Data", *command_list);
-            if (!UploadViewData(frame_context, view, *command_list))
+            if (!UploadViewData(frame_context, view))
             {
                 return false;
             }
@@ -2320,19 +2351,22 @@ namespace won::rendering
                 brdf_lut_uav_desc.slice_count = 1;
                 device->CreateSubresource(*brdf_lut, brdf_lut_uav_desc, &brdf_lut_uav);
 
-                auto gpu_range = profiler::ScopedRangeGPU("Integrate BRDF", *command_list);
-                command_list->BeginEvent("Integrate BRDF");
-                command_list->TransitionResource(*brdf_lut, RHIResourceState::ShaderWrite);
-                command_list->SetComputePipeline(*brdf_integration_pipeline);
-                BRDFIntegrationPushConstants brdf_push = {};
-                brdf_push.Init();
-                brdf_push.output_descriptor = static_cast<uint32>(brdf_lut_uav.descriptor_index);
-                command_list->PushConstants(RHIShaderStage::Compute, &brdf_push, sizeof(brdf_push), 0);
-                const uint32 brdf_group_count = (brdf_lut_resolution + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D;
-                command_list->Dispatch(brdf_group_count, brdf_group_count, 1u);
-                command_list->UAVBarrier(*brdf_lut);
-                command_list->TransitionResource(*brdf_lut, RHIResourceState::ShaderRead);
-                command_list->EndEvent();
+                const FrameGraphResourceId brdf_lut_id = frame_graph.Import(*brdf_lut);
+                frame_graph.MarkNoCull(brdf_lut_id);
+                frame_graph.AddPass("Integrate BRDF", { { brdf_lut_id, RHIResourceState::ShaderWrite, FrameGraphAccessType::Write } }, [this, brdf_integration_pipeline](RHICommandList& pass_command_list)
+                {
+                    auto gpu_range = profiler::ScopedRangeGPU("Integrate BRDF", pass_command_list);
+                    pass_command_list.TransitionResource(*brdf_lut, RHIResourceState::ShaderWrite);
+                    pass_command_list.SetComputePipeline(*brdf_integration_pipeline);
+                    BRDFIntegrationPushConstants brdf_push = {};
+                    brdf_push.Init();
+                    brdf_push.output_descriptor = static_cast<uint32>(brdf_lut_uav.descriptor_index);
+                    pass_command_list.PushConstants(RHIShaderStage::Compute, &brdf_push, sizeof(brdf_push), 0);
+                    const uint32 brdf_group_count = (brdf_lut_resolution + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D;
+                    pass_command_list.Dispatch(brdf_group_count, brdf_group_count, 1u);
+                    pass_command_list.UAVBarrier(*brdf_lut);
+                    pass_command_list.TransitionResource(*brdf_lut, RHIResourceState::ShaderRead);
+                });
                 wonlog("[Startup] brdf lut bake dispatched (%ux%u, cpu setup %.1f ms; gpu time in profiler overlay)", brdf_lut_resolution, brdf_lut_resolution, brdf_setup_timer.ElapsedMilliSeconds());
             }
         }
@@ -2422,14 +2456,21 @@ namespace won::rendering
         }
 
         {
-            auto frame_gpu_range = profiler::ScopedRangeGPU("Update Frame Constants", *command_list);
-            if (!UpdateFrameConstants(frame_context, view, *command_list))
+            if (!UpdateFrameConstants(frame_context, view))
             {
                 return false;
             }
         }
 
-        UpdateSkyCapture(gpu_scene, *command_list);
+        if (gpu_scene.sky_lighting.capture_texture)
+        {
+            const FrameGraphResourceId sky_capture_id = frame_graph.Import(*gpu_scene.sky_lighting.capture_texture);
+            frame_graph.MarkNoCull(sky_capture_id);
+            frame_graph.AddPass("Update Sky Capture", { { sky_capture_id, RHIResourceState::ShaderWrite, FrameGraphAccessType::ReadWrite } }, [this, &gpu_scene](RHICommandList& pass_command_list)
+        {
+                UpdateSkyCapture(gpu_scene, pass_command_list);
+            });
+        }
         return true;
     }
 
@@ -2597,81 +2638,6 @@ namespace won::rendering
         }
     }
 
-    void RendererInternal::UpdateForwardLightList(View& view, RHICommandList& command_list)
-    {
-        View::LightResources& resources = view.light_resources;
-        resources.forward_light_count = 0;
-
-        if (!view.scene || view.camera_entity == ecs::INVALID_ENTITY)
-        {
-            return;
-        }
-
-        const ecs::CameraComponent* camera_component = view.scene->GetComponent<ecs::CameraComponent>(view.camera_entity);
-        if (!camera_component)
-        {
-            return;
-        }
-
-        Vector<uint32> visible;
-        rendering::GPUScene& gpu_scene = view.scene->GetGPUScene();
-        const uint32 light_count = static_cast<uint32>(gpu_scene.shader_lights.size());
-        for (uint32 i = gpu_scene.directional_count; i < light_count; ++i)
-        {
-            if (gpu_scene.light_bounds[i].IntersectFrustum(camera_component->frustum))
-            {
-                visible.push_back(i);
-                if (visible.size() >= NUM_MAX_LIGHTS_FORWARD_RENDERING)
-                {
-                    backlog::Post("Per-view forward light count reached the limit; remaining lights culled", backlog::LogLevel::Warning);
-                    break;
-                }
-            }
-        }
-
-        if (visible.empty())
-        {
-            return;
-        }
-
-        const Size max_size = static_cast<Size>(NUM_MAX_LIGHTS_FORWARD_RENDERING) * sizeof(uint32);
-        RHIBufferDesc default_desc = {};
-        default_desc.size = max_size;
-        default_desc.usage = RHIResourceUsage::Default;
-        default_desc.bind_flags = RHIBindFlags::ShaderResource;
-        RHIResource* forward_index_resource = resource_pool.CreateBuffer(view.viewer_index, "Forward Light Index Buffer", default_desc);
-        resources.forward_index_buffer = forward_index_resource;
-        if (!resources.forward_index_buffer)
-        {
-            return;
-        }
-
-        RHISubresourceDesc srv_desc = {};
-        srv_desc.type = RHISubresourceType::ShaderResource;
-        srv_desc.buffer_offset = 0;
-        srv_desc.buffer_size = max_size;
-        srv_desc.buffer_stride = sizeof(uint32);
-        resources.forward_index_srv = resource_pool.GetSubresource(*forward_index_resource, srv_desc);
-        if (!resources.forward_index_srv.IsValid())
-        {
-            return;
-        }
-
-        const Size upload_size = visible.size() * sizeof(uint32);
-        FrameUploadAllocation forward_index_upload = {};
-        const Size forward_index_alignment = device->GetMinOffsetAlignment(resources.forward_index_buffer->GetDesc().buffer_desc);
-        if (!GetFrameContext().AllocateFrameUpload(*device, upload_size, forward_index_alignment, forward_index_upload))
-        {
-            return;
-        }
-        std::memcpy(forward_index_upload.mapped_data, visible.data(), upload_size);
-
-        command_list.TransitionResource(*resources.forward_index_buffer, RHIResourceState::CopyDest);
-        command_list.CopyBuffer(*resources.forward_index_buffer, 0, *forward_index_upload.buffer, forward_index_upload.buffer_offset, upload_size);
-        command_list.TransitionResource(*resources.forward_index_buffer, RHIResourceState::ShaderRead);
-
-        resources.forward_light_count = static_cast<uint32>(visible.size());
-    }
 
     void RendererInternal::RenderForwardPath(View& view)
     {
@@ -2680,12 +2646,6 @@ namespace won::rendering
 
         FrameContext& frame_context = GetFrameContext();
         rendering::GPUScene& gpu_scene = view.scene->GetGPUScene();
-
-        RHICommandList* command_list = frame_context.BeginCommandList(*device);
-        if (!command_list)
-        {
-            return;
-        }
 
         RHISubresourceBinding back_buffer_binding = {};
         if (!GetCurrentBackBufferBinding(back_buffer_binding))
@@ -2732,9 +2692,14 @@ namespace won::rendering
         scissor.width = targets.width;
         scissor.height = targets.height;
 
+        if (gpu_scene.ddgi.irradiance_texture)
         {
-            auto cpu_range = profiler::ScopedRangeCPU("Update DDGI Probes");
-            UpdateDDGIProbe(frame_context, view, *command_list);
+            const FrameGraphResourceId ddgi_irradiance_id = frame_graph.Import(*gpu_scene.ddgi.irradiance_texture);
+            frame_graph.MarkNoCull(ddgi_irradiance_id);
+            frame_graph.AddPass("Update DDGI Probes", { { ddgi_irradiance_id, RHIResourceState::ShaderWrite, FrameGraphAccessType::ReadWrite } }, [this, &view](RHICommandList& pass_command_list)
+            {
+                UpdateDDGIProbe(GetFrameContext(), view, pass_command_list);
+            });
         }
 
         const FrameGraphResourceId depth_id = frame_graph.Import(*depth_buffer_binding.resource);
@@ -2742,12 +2707,23 @@ namespace won::rendering
         const FrameGraphResourceId scene_color_id = color_id[0];
         const FrameGraphResourceId back_buffer_id = frame_graph.Import(*back_buffer_binding.resource);
         FrameGraphResourceId shadow_atlas_id = invalid_frame_graph_resource;
+        const FrameGraphResourceId view_constants_id = frame_graph.Import(*view.view_constants.buffer);
+        const FrameGraphAccess view_constants_read = { view_constants_id, RHIResourceState::ConstantBuffer, FrameGraphAccessType::Read };
+        const FrameGraphAccess view_constants_write = { view_constants_id, RHIResourceState::ConstantBuffer, FrameGraphAccessType::ReadWrite };
+
+
+        RHISubresourceBinding post_color_binding = {};
+        post_color_binding.resource = targets.color[1];
+        post_color_binding.subresource = targets.color_rtv[1];
 
         frame_graph.AddPass("Clear View Targets",
-            { { scene_color_id, RHIResourceState::RenderTarget, FrameGraphAccessType::Write }, { depth_id, RHIResourceState::DepthWrite, FrameGraphAccessType::Write } },
-            [this, scene_color_binding, depth_buffer_binding, viewport, scissor](RHICommandList& pass_command_list)
+            { { scene_color_id, RHIResourceState::RenderTarget, FrameGraphAccessType::Write },
+              { color_id[1], RHIResourceState::RenderTarget, FrameGraphAccessType::Write },
+              { depth_id, RHIResourceState::DepthWrite, FrameGraphAccessType::Write } },
+            [this, scene_color_binding, post_color_binding, depth_buffer_binding, viewport, scissor](RHICommandList& pass_command_list)
         {
             pass_command_list.ClearRenderTarget(scene_color_binding, clear_color);
+            pass_command_list.ClearRenderTarget(post_color_binding, clear_color);
             pass_command_list.ClearDepthStencil(depth_buffer_binding, 0.0f, 0u);
             pass_command_list.SetViewport(viewport);
             pass_command_list.SetScissor(scissor);
@@ -2755,7 +2731,7 @@ namespace won::rendering
 
         if (gpu_scene.shader_environment.sky_type != SHADER_SKY_TYPE_NONE)
         {
-            frame_graph.AddPass("Sky Pass", { { scene_color_id, RHIResourceState::RenderTarget, FrameGraphAccessType::Write } },
+            frame_graph.AddPass("Sky Pass", { { scene_color_id, RHIResourceState::RenderTarget, FrameGraphAccessType::Write }, view_constants_read },
                 [this, viewport, scissor, color_targets, shader_frame_binding, shader_view_binding](RHICommandList& pass_command_list)
             {
                 auto gpu_range = profiler::ScopedRangeGPU("Sky Pass", pass_command_list);
@@ -2787,7 +2763,7 @@ namespace won::rendering
         if (view.shadow_resources.atlas && view.shadow_resources.atlas_dsv.IsValid() && !view.shadow_resources.render_shadow_slices.empty())
         {
             shadow_atlas_id = frame_graph.Import(*view.shadow_resources.atlas);
-            frame_graph.AddPass("Shadow Pass", { { shadow_atlas_id, RHIResourceState::DepthWrite, FrameGraphAccessType::Write } },
+            frame_graph.AddPass("Shadow Pass", { { shadow_atlas_id, RHIResourceState::DepthWrite, FrameGraphAccessType::Write }, view_constants_write },
                 [this, &view, &frame_context](RHICommandList& pass_command_list)
             {
                 auto cpu_range = profiler::ScopedRangeCPU("Shadow Pass");
@@ -2881,7 +2857,7 @@ namespace won::rendering
         // prepass
         if ((view.show_flags & Show_Opaque) != 0)
         {
-            frame_graph.AddPass("Prepass", { { depth_id, RHIResourceState::DepthWrite, FrameGraphAccessType::ReadWrite } },
+            frame_graph.AddPass("Prepass", { { depth_id, RHIResourceState::DepthWrite, FrameGraphAccessType::ReadWrite }, view_constants_read },
                 [this, &view, &frame_context, viewport, scissor, depth_buffer_binding](RHICommandList& pass_command_list)
             {
                 auto gpu_range = profiler::ScopedRangeGPU("Prepass", pass_command_list);
@@ -2906,7 +2882,7 @@ namespace won::rendering
                 cluster_offset_id = frame_graph.Import(*view.light_resources.cluster_light_offset_buffer);
                 cluster_index_id = frame_graph.Import(*view.light_resources.cluster_light_index_buffer);
                 frame_graph.AddPass("Cull Lights",
-                    { { cluster_count_id, RHIResourceState::ShaderWrite, FrameGraphAccessType::Write },
+                    { { cluster_count_id, RHIResourceState::ShaderWrite, FrameGraphAccessType::Write }, view_constants_read,
                       { cluster_offset_id, RHIResourceState::ShaderWrite, FrameGraphAccessType::Write },
                       { cluster_index_id, RHIResourceState::ShaderWrite, FrameGraphAccessType::Write } },
                     [this, &view, &gpu_scene, light_cull_pipeline](RHICommandList& pass_command_list)
@@ -2956,6 +2932,7 @@ namespace won::rendering
         if (main_pass_flags != 0)
         {
             Vector<FrameGraphAccess> main_pass_accesses = {
+                view_constants_read,
                 { scene_color_id, RHIResourceState::RenderTarget, FrameGraphAccessType::ReadWrite },
 				{ depth_id, RHIResourceState::DepthWrite, FrameGraphAccessType::ReadWrite }, // depth buffer is written in the main pass for transparent or masked objects
             };
@@ -2987,7 +2964,7 @@ namespace won::rendering
         if ((view.show_flags & Show_Decals) != 0 && !gpu_scene.shader_decals.empty() && gpu_scene.decal_buffer.srv.IsValid() && view.render_targets.depth_srv.IsValid())
         {
             frame_graph.AddPass("Decal Pass",
-                { { scene_color_id, RHIResourceState::RenderTarget, FrameGraphAccessType::ReadWrite }, { depth_id, RHIResourceState::ShaderRead, FrameGraphAccessType::Read } },
+                { { scene_color_id, RHIResourceState::RenderTarget, FrameGraphAccessType::ReadWrite }, { depth_id, RHIResourceState::ShaderRead, FrameGraphAccessType::Read }, view_constants_read },
                 [this, &view, &frame_context, viewport, scissor, color_targets](RHICommandList& pass_command_list)
             {
                 auto gpu_range = profiler::ScopedRangeGPU("Decal Pass", pass_command_list);
@@ -3087,7 +3064,7 @@ namespace won::rendering
             if (auto_exposure_active && luminance_reduce_pipeline && luminance_resolve_pipeline && luminance_partial_buffer && luminance_buffer && exposure.luminance_readback_buffer)
             {
                 const FrameGraphResourceId luminance_readback_id = frame_graph.Import(*exposure.luminance_readback_buffer);
-                frame_graph.MarkOutput(luminance_readback_id);
+                frame_graph.MarkNoCull(luminance_readback_id);
 
                 frame_graph.AddPass("Reduce Luminance",
                     { { color_id[src], RHIResourceState::ShaderRead, FrameGraphAccessType::Read }, { partial_id, RHIResourceState::ShaderWrite, FrameGraphAccessType::Write } },
@@ -3135,7 +3112,7 @@ namespace won::rendering
             {
                 const uint32 dst = src ^ 1u;
                 frame_graph.AddPass("Tonemap",
-                    { { color_id[src], RHIResourceState::ShaderRead, FrameGraphAccessType::Read }, { color_id[dst], RHIResourceState::ShaderWrite, FrameGraphAccessType::Write } },
+                    { { color_id[src], RHIResourceState::ShaderRead, FrameGraphAccessType::Read }, { color_id[dst], RHIResourceState::ShaderWrite, FrameGraphAccessType::Write }, view_constants_read },
                     [&view, &targets, shader_frame_binding, shader_view_binding, src, dst, tonemap_pipeline, width, height](RHICommandList& pass_command_list)
                 {
                     RHICommandList* command_list = &pass_command_list;
@@ -3165,7 +3142,7 @@ namespace won::rendering
             {
                 const uint32 dst = src ^ 1u;
                 frame_graph.AddPass("FXAA",
-                    { { color_id[src], RHIResourceState::ShaderRead, FrameGraphAccessType::Read }, { color_id[dst], RHIResourceState::ShaderWrite, FrameGraphAccessType::Write } },
+                    { { color_id[src], RHIResourceState::ShaderRead, FrameGraphAccessType::Read }, { color_id[dst], RHIResourceState::ShaderWrite, FrameGraphAccessType::Write }, view_constants_read },
                     [&targets, shader_frame_binding, shader_view_binding, src, dst, fxaa_pipeline, width, height](RHICommandList& pass_command_list)
                 {
                     RHICommandList* command_list = &pass_command_list;
@@ -3206,7 +3183,7 @@ namespace won::rendering
             if (RHIPipeline* grid_pipeline = shader_library.GetPipeline(grid_pipeline_hash))
             {
                 frame_graph.AddPass("Grid Pass",
-                    { { view_output_id, RHIResourceState::RenderTarget, FrameGraphAccessType::ReadWrite }, { depth_id, RHIResourceState::DepthWrite, FrameGraphAccessType::ReadWrite } },
+                    { { view_output_id, RHIResourceState::RenderTarget, FrameGraphAccessType::ReadWrite }, { depth_id, RHIResourceState::DepthWrite, FrameGraphAccessType::ReadWrite }, view_constants_read },
                     [viewport, scissor, view_output_binding, depth_buffer_binding, grid_pipeline](RHICommandList& pass_command_list)
                 {
                     auto gpu_range = profiler::ScopedRangeGPU("Grid Pass", pass_command_list);
@@ -3224,7 +3201,7 @@ namespace won::rendering
 
         // primitive (line/point) pass: depth-tested against the scene
         frame_graph.AddPass("Primitive Pass",
-            { { view_output_id, RHIResourceState::RenderTarget, FrameGraphAccessType::ReadWrite }, { depth_id, RHIResourceState::DepthWrite, FrameGraphAccessType::ReadWrite } },
+            { { view_output_id, RHIResourceState::RenderTarget, FrameGraphAccessType::ReadWrite }, { depth_id, RHIResourceState::DepthWrite, FrameGraphAccessType::ReadWrite }, view_constants_read },
             [this, &view, &frame_context, viewport, scissor, view_output_binding, depth_buffer_binding](RHICommandList& pass_command_list)
         {
             auto gpu_range = profiler::ScopedRangeGPU("Primitive Pass", pass_command_list);
@@ -3240,7 +3217,7 @@ namespace won::rendering
         if ((view.show_flags & Show_Sprites3D) != 0)
         {
             frame_graph.AddPass("Sprite/Text3D Pass",
-                { { view_output_id, RHIResourceState::RenderTarget, FrameGraphAccessType::ReadWrite }, { depth_id, RHIResourceState::DepthWrite, FrameGraphAccessType::ReadWrite } },
+                { { view_output_id, RHIResourceState::RenderTarget, FrameGraphAccessType::ReadWrite }, { depth_id, RHIResourceState::DepthWrite, FrameGraphAccessType::ReadWrite }, view_constants_read },
                 [this, &view, &frame_context, view_output_binding, depth_buffer_binding](RHICommandList& pass_command_list)
             {
                 auto gpu_range = profiler::ScopedRangeGPU("Sprite/Text3D Pass", pass_command_list);
@@ -3254,7 +3231,7 @@ namespace won::rendering
 #ifndef WON_SHIPPING
         // drawn after tonemap so debug colors are authored and displayed in LDR
         frame_graph.AddPass("DebugDraw3D Pass",
-            { { view_output_id, RHIResourceState::RenderTarget, FrameGraphAccessType::ReadWrite }, { depth_id, RHIResourceState::DepthWrite, FrameGraphAccessType::ReadWrite } },
+            { { view_output_id, RHIResourceState::RenderTarget, FrameGraphAccessType::ReadWrite }, { depth_id, RHIResourceState::DepthWrite, FrameGraphAccessType::ReadWrite }, view_constants_read },
             [this, &view, view_output_binding, depth_buffer_binding](RHICommandList& pass_command_list)
         {
             auto gpu_range = profiler::ScopedRangeGPU("DebugDraw3D Pass", pass_command_list);
@@ -3268,7 +3245,7 @@ namespace won::rendering
         // sprite 2d pass
         if ((view.show_flags & Show_Sprites2D) != 0)
         {
-            frame_graph.AddPass("Sprite2D Pass", { { view_output_id, RHIResourceState::RenderTarget, FrameGraphAccessType::ReadWrite } },
+            frame_graph.AddPass("Sprite2D Pass", { { view_output_id, RHIResourceState::RenderTarget, FrameGraphAccessType::ReadWrite }, view_constants_read },
                 [this, &view, &frame_context, view_output_binding](RHICommandList& pass_command_list)
             {
                 auto gpu_range = profiler::ScopedRangeGPU("Sprite2D Pass", pass_command_list);
@@ -3283,7 +3260,7 @@ namespace won::rendering
         if (composite_pipeline)
         {
             frame_graph.AddPass("Composite",
-                { { view_output_id, RHIResourceState::ShaderRead, FrameGraphAccessType::Read }, { back_buffer_id, RHIResourceState::RenderTarget, FrameGraphAccessType::ReadWrite } },
+                { { view_output_id, RHIResourceState::ShaderRead, FrameGraphAccessType::Read }, { back_buffer_id, RHIResourceState::RenderTarget, FrameGraphAccessType::ReadWrite }, view_constants_read },
                 [&view, &targets, back_buffer_binding, composite_pipeline, src](RHICommandList& pass_command_list)
             {
             auto gpu_range = profiler::ScopedRangeGPU("Composite", pass_command_list);
@@ -3337,7 +3314,6 @@ namespace won::rendering
             return;
         }
 
-        frame_graph.MarkOutput(frame_graph.Import(*back_buffer_binding.resource));
         frame_graph.Compile();
         frame_graph.Dispatch(GetRenderingWorkContext());
 

@@ -437,6 +437,37 @@ namespace won::rendering
         }
     }
 
+    void View::BuildForwardLightList()
+    {
+        if (render_path_type == RenderPathType::Forward)
+        {
+            light_resources.visible_forward_lights.clear();
+
+            const ecs::CameraComponent* camera = scene ? scene->GetComponent<ecs::CameraComponent>(camera_entity) : nullptr;
+            if (!camera)
+            {
+                return;
+            }
+
+            rendering::GPUScene& gpu_scene = scene->GetGPUScene();
+            const uint32 light_count = static_cast<uint32>(gpu_scene.shader_lights.size());
+            for (uint32 i = gpu_scene.directional_count; i < light_count; ++i)
+            {
+                if (!gpu_scene.light_bounds[i].IntersectFrustum(camera->frustum))
+                {
+                    continue;
+                }
+
+                light_resources.visible_forward_lights.push_back(i);
+                if (light_resources.visible_forward_lights.size() >= NUM_MAX_LIGHTS_FORWARD_RENDERING)
+                {
+                    backlog::Post("Per-view forward light count reached the limit; remaining lights culled", backlog::LogLevel::Warning);
+                    break;
+                }
+            }
+        }
+    }
+
     void View::BuildSortedIndices()
     {
         if (!scene || camera_entity == ecs::INVALID_ENTITY)

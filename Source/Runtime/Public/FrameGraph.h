@@ -32,7 +32,7 @@ namespace won::rendering
     {
         RHIResource* resource = nullptr;
         RHIResourceState state = RHIResourceState::Undefined;
-        bool is_output = false; // something outside the graph consumes it
+        bool no_cull = false;
     };
 
     class FrameGraph
@@ -41,11 +41,13 @@ namespace won::rendering
         void Reset(RHIDevice& device, FrameContext& frame_context);
 
         FrameGraphResourceId Import(RHIResource& resource);
+
+        bool QueueBufferUpload(FrameGraphResourceId destination, const void* data, Size size, RHIResourceState final_state, Size destination_offset = 0);
 		// Passes are executed in the order they are added
         void AddPass(const char* name, Vector<FrameGraphAccess> accesses, std::function<void(RHICommandList&)> execute);
 
         // Something outside the graph consumes this resource, so whatever produces it must survive culling.
-        void MarkOutput(FrameGraphResourceId resource);
+        void MarkNoCull(FrameGraphResourceId resource);
 
         void Compile();
         void Dispatch(jobsystem::Context& context);
@@ -59,11 +61,24 @@ namespace won::rendering
             RHICommandList* command_list = nullptr;
         };
 
+        struct BufferUpload
+        {
+            RHIResource* destination = nullptr;
+            Size destination_offset = 0;
+            RHIResource* source = nullptr;
+            Size source_offset = 0;
+            Size size = 0;
+            RHIResourceState final_state = RHIResourceState::ShaderRead;
+        };
+
         RHIDevice* device = nullptr;
         FrameContext* frame_context = nullptr;
 
         Vector<FrameGraphResource> resources;
         UnorderedMap<RHIResource*, FrameGraphResourceId> resource_ids;
         Vector<Pass> passes;
+        Vector<BufferUpload> buffer_uploads;
+        Size upload_pass_index = 0;
+        bool has_upload_pass = false;
     };
 }

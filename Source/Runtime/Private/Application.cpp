@@ -433,6 +433,7 @@ namespace won
             {
                 auto sorted_range = profiler::ScopedRangeCPU("Build Sorted Indices");
                 view.BuildSortedIndices();
+                view.BuildForwardLightList();
             }
         }
         profiler::EndRange(range);
