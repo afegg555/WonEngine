@@ -228,6 +228,7 @@ set(RUNTIME_RENDERING
     Source/Runtime/Public/RenderingUtils.h
     Source/Runtime/Private/GPUScene.h
     Source/Runtime/Private/GPUScene.cpp
+    Source/Runtime/Public/FrameContext.h
     Source/Runtime/Private/Renderer.cpp
     Source/Runtime/Private/RenderingUtils.cpp
     Source/Runtime/Public/View.h
