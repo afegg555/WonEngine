@@ -16,6 +16,8 @@
 
 namespace won::rendering
 {
+    class FrameGraph;
+
     struct RendererDesc
     {
         RHIDevice* device = nullptr;
@@ -50,6 +52,7 @@ namespace won::rendering
         virtual void SetVSync(bool enabled) = 0;
         virtual void SetShadowResolutionScale(float scale) = 0;
         virtual bool GetCurrentBackBufferBinding(RHISubresourceBinding& out_binding) const = 0;
+        virtual FrameGraph& GetFrameGraph() = 0;
 
 
         inline FrameContext& GetFrameContext() { return frame_contexts[current_frame_slot]; };

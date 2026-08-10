@@ -1,5 +1,6 @@
 #include "Editor.h"
 #include "EditorTextKeys.h"
+#include "FrameGraph.h"
 #include "Input.h"
 #include "ShaderCompiler.h"
 #include "RHIResource.h"
@@ -5781,24 +5782,23 @@ namespace won::editor
 			return;
 
 
-		Renderer::FrameContext& frame_context = renderer->GetFrameContext();
-		RHICommandList* command_list = frame_context.BeginCommandList(*device);
-		if (!command_list)
+		RHISubresourceBinding back_buffer_binding = {};
+		if (!renderer->GetCurrentBackBufferBinding(back_buffer_binding))
 		{
 			return;
 		}
 
-		jobsystem::Execute(renderer->GetRenderingWorkContext(), [this, drawData, fb_width, fb_height, command_list](jobsystem::JobArgs args) {
+		rendering::FrameGraph& frame_graph = renderer->GetFrameGraph();
+		const rendering::FrameGraphResourceId back_buffer_id = frame_graph.Import(*back_buffer_binding.resource);
+		frame_graph.AddPass("Draw ImGui",
+			{ { back_buffer_id, RHIResourceState::RenderTarget, rendering::FrameGraphAccessType::ReadWrite } },
+			[this, drawData, fb_width, fb_height, back_buffer_binding](RHICommandList& pass_command_list) {
 
-			Renderer::FrameContext& frame_context = renderer->GetFrameContext();
-			RHISubresourceBinding back_buffer_binding = {};
-			if (!renderer->GetCurrentBackBufferBinding(back_buffer_binding))
-			{
-				return;
-			}
+			RHICommandList* command_list = &pass_command_list;
+			FrameContext& frame_context = renderer->GetFrameContext();
 			Vector<RHISubresourceBinding> color_targets = { back_buffer_binding };
 
-			Renderer::FrameUploadAllocation allocation{};
+			FrameUploadAllocation allocation{};
 			auto gpu_range = profiler::ScopedRangeGPU("Draw ImGui", *command_list);
 
 			// Setup orthographic projection matrix into our constant buffer

@@ -1,4 +1,6 @@
 #pragma once
+#include "FrameGraph.h"
+#include "FrameGraphResourcePool.h"
 #include "Renderer.h"
 #include "RHISwapchain.h"
 #include "Types.h"
@@ -27,6 +29,7 @@ namespace won::rendering
         void SetVSync(bool enabled) override;
         void SetShadowResolutionScale(float scale) override;
         bool GetCurrentBackBufferBinding(RHISubresourceBinding& out_binding) const override;
+        FrameGraph& GetFrameGraph() override;
     private:
         
         enum DrawSceneFlags : uint32
@@ -95,6 +98,9 @@ namespace won::rendering
         bool vsync_requested = true;
         float shadow_resolution_scale = 1.0f;
         double frame_time_seconds = 0.0;
+
+        FrameGraph frame_graph;
+        FrameGraphResourcePool resource_pool;
 
         std::array<RHISubresourceHandle, max_frames_in_flight> back_buffers_rtv = {};
 

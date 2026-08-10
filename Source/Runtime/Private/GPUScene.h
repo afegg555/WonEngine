@@ -24,7 +24,6 @@ namespace won::rendering
     {
         std::unique_ptr<RHIResource> buffer;
         RHISubresourceHandle srv = {};
-        std::array<std::unique_ptr<RHIResource>, max_frames_in_flight> staging = {};
     };
 
     struct Renderable
