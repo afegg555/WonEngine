@@ -787,7 +787,7 @@ namespace won::rendering
         view_constants_desc.size = sizeof(ShaderView);
         view_constants_desc.usage = RHIResourceUsage::Default;
         view_constants_desc.bind_flags = RHIBindFlags::ConstantBuffer;
-        RHIResource* view_constants_resource = resource_pool.CreateBuffer(view.viewer_index, "View Constants", view_constants_desc);
+        RHIResource* view_constants_resource = frame_graph.CreateBuffer(view.viewer_index, "View Constants", view_constants_desc);
         view.view_constants.buffer = view_constants_resource;
         if (!view.view_constants.buffer)
         {
@@ -799,7 +799,7 @@ namespace won::rendering
         view_constants_cbv_desc.type = RHISubresourceType::ConstantBuffer;
         view_constants_cbv_desc.buffer_offset = 0;
         view_constants_cbv_desc.buffer_size = sizeof(ShaderView);
-        view.view_constants.cbv = resource_pool.GetSubresource(*view_constants_resource, view_constants_cbv_desc);
+        view.view_constants.cbv = frame_graph.GetSubresource(*view_constants_resource, view_constants_cbv_desc);
         if (!view.view_constants.cbv.IsValid())
         {
             backlog::Post("failed to create view constant buffer CBV", backlog::LogLevel::Error);
@@ -816,7 +816,7 @@ namespace won::rendering
         depth_desc.format = DEPTH_BUFFER_FORMAT;
         depth_desc.usage = RHIResourceUsage::Default;
         depth_desc.bind_flags = RHIBindFlags::DepthStencil | RHIBindFlags::ShaderResource;
-        RHIResource* depth_resource = resource_pool.CreateTexture(view.viewer_index, "View Depth Buffer", depth_desc);
+        RHIResource* depth_resource = frame_graph.CreateTexture(view.viewer_index, "View Depth Buffer", depth_desc);
         targets.depth = depth_resource;
         if (!targets.depth)
         {
@@ -827,9 +827,9 @@ namespace won::rendering
         RHISubresourceDesc depth_subresource_desc = {};
         depth_subresource_desc.type = RHISubresourceType::DepthStencil;
         depth_subresource_desc.format = depth_desc.format;
-        targets.depth_dsv = resource_pool.GetSubresource(*depth_resource, depth_subresource_desc);
+        targets.depth_dsv = frame_graph.GetSubresource(*depth_resource, depth_subresource_desc);
         depth_subresource_desc.type = RHISubresourceType::ShaderResource;
-        targets.depth_srv = resource_pool.GetSubresource(*depth_resource, depth_subresource_desc);
+        targets.depth_srv = frame_graph.GetSubresource(*depth_resource, depth_subresource_desc);
         if (!targets.depth_dsv.IsValid() || !targets.depth_srv.IsValid())
         {
             backlog::Post("failed to create view depth subresources", backlog::LogLevel::Error);
@@ -852,7 +852,7 @@ namespace won::rendering
             color_desc.clear_color[1] = clear_color.g;
             color_desc.clear_color[2] = clear_color.b;
             color_desc.clear_color[3] = clear_color.a;
-            RHIResource* color_resource = resource_pool.CreateTexture(view.viewer_index, i == 0 ? "View Color Buffer 0 (Scene Color)" : "View Color Buffer 1", color_desc);
+            RHIResource* color_resource = frame_graph.CreateTexture(view.viewer_index, i == 0 ? "View Color Buffer 0 (Scene Color)" : "View Color Buffer 1", color_desc);
             targets.color[i] = color_resource;
             if (!targets.color[i])
             {
@@ -873,9 +873,9 @@ namespace won::rendering
             rtv_desc.type = RHISubresourceType::RenderTarget;
             rtv_desc.format = color_desc.format;
 
-            targets.color_srv[i] = resource_pool.GetSubresource(*color_resource, srv_desc);
-            targets.color_uav[i] = resource_pool.GetSubresource(*color_resource, uav_desc);
-            targets.color_rtv[i] = resource_pool.GetSubresource(*color_resource, rtv_desc);
+            targets.color_srv[i] = frame_graph.GetSubresource(*color_resource, srv_desc);
+            targets.color_uav[i] = frame_graph.GetSubresource(*color_resource, uav_desc);
+            targets.color_rtv[i] = frame_graph.GetSubresource(*color_resource, rtv_desc);
             if (!targets.color_srv[i].IsValid() || !targets.color_uav[i].IsValid() || !targets.color_rtv[i].IsValid())
             {
                 backlog::Post("failed to create view color subresources", backlog::LogLevel::Error);
@@ -906,7 +906,7 @@ namespace won::rendering
             shadow_map_atlas_desc.format = RHIFormat::D32Float;
             shadow_map_atlas_desc.usage = RHIResourceUsage::Default;
             shadow_map_atlas_desc.bind_flags = RHIBindFlags::DepthStencil | RHIBindFlags::ShaderResource;
-            RHIResource* atlas_resource = resource_pool.CreateTexture(view.viewer_index, "Shadow Map Atlas", shadow_map_atlas_desc);
+            RHIResource* atlas_resource = frame_graph.CreateTexture(view.viewer_index, "Shadow Map Atlas", shadow_map_atlas_desc);
             view.shadow_resources.atlas = atlas_resource;
             if (!view.shadow_resources.atlas)
             {
@@ -917,9 +917,9 @@ namespace won::rendering
             RHISubresourceDesc shadow_map_atlas_subresource_desc = {};
             shadow_map_atlas_subresource_desc.type = RHISubresourceType::DepthStencil;
             shadow_map_atlas_subresource_desc.format = shadow_map_atlas_desc.format;
-            view.shadow_resources.atlas_dsv = resource_pool.GetSubresource(*atlas_resource, shadow_map_atlas_subresource_desc);
+            view.shadow_resources.atlas_dsv = frame_graph.GetSubresource(*atlas_resource, shadow_map_atlas_subresource_desc);
             shadow_map_atlas_subresource_desc.type = RHISubresourceType::ShaderResource;
-            view.shadow_resources.atlas_srv = resource_pool.GetSubresource(*atlas_resource, shadow_map_atlas_subresource_desc);
+            view.shadow_resources.atlas_srv = frame_graph.GetSubresource(*atlas_resource, shadow_map_atlas_subresource_desc);
             if (!view.shadow_resources.atlas_dsv.IsValid() || !view.shadow_resources.atlas_srv.IsValid())
             {
                 backlog::Post("failed to create shadow map atlas subresource", backlog::LogLevel::Error);
@@ -943,7 +943,7 @@ namespace won::rendering
             cascade_buffer_desc.size = required_shadow_cascade_buffer_size;
             cascade_buffer_desc.usage = RHIResourceUsage::Default;
             cascade_buffer_desc.bind_flags = RHIBindFlags::ShaderResource;
-            RHIResource* cascade_resource = resource_pool.CreateBuffer(view.viewer_index, "View Shadow Cascade Buffer", cascade_buffer_desc);
+            RHIResource* cascade_resource = frame_graph.CreateBuffer(view.viewer_index, "View Shadow Cascade Buffer", cascade_buffer_desc);
             view.shadow_resources.cascade_buffer = cascade_resource;
             if (!view.shadow_resources.cascade_buffer)
             {
@@ -956,7 +956,7 @@ namespace won::rendering
             cascade_srv_desc.buffer_offset = 0;
             cascade_srv_desc.buffer_size = view.shadow_resources.cascade_buffer->GetDesc().buffer_desc.size;
             cascade_srv_desc.buffer_stride = sizeof(ShaderShadowCascade);
-            view.shadow_resources.cascade_srv = resource_pool.GetSubresource(*cascade_resource, cascade_srv_desc);
+            view.shadow_resources.cascade_srv = frame_graph.GetSubresource(*cascade_resource, cascade_srv_desc);
             if (!view.shadow_resources.cascade_srv.IsValid())
             {
                 backlog::Post("failed to create view shadow cascade subresource", backlog::LogLevel::Error);
@@ -981,7 +981,7 @@ namespace won::rendering
             shadow_slice_buffer_desc.size = required_shadow_slice_buffer_size;
             shadow_slice_buffer_desc.usage = RHIResourceUsage::Default;
             shadow_slice_buffer_desc.bind_flags = RHIBindFlags::ShaderResource;
-            RHIResource* light_slice_resource = resource_pool.CreateBuffer(view.viewer_index, "View Light Shadow Slice Buffer", shadow_slice_buffer_desc);
+            RHIResource* light_slice_resource = frame_graph.CreateBuffer(view.viewer_index, "View Light Shadow Slice Buffer", shadow_slice_buffer_desc);
             view.shadow_resources.light_slice_buffer = light_slice_resource;
             if (!view.shadow_resources.light_slice_buffer)
             {
@@ -994,7 +994,7 @@ namespace won::rendering
             shadow_slice_srv_desc.buffer_offset = 0;
             shadow_slice_srv_desc.buffer_size = view.shadow_resources.light_slice_buffer->GetDesc().buffer_desc.size;
             shadow_slice_srv_desc.buffer_stride = sizeof(uint32);
-            view.shadow_resources.light_slice_srv = resource_pool.GetSubresource(*light_slice_resource, shadow_slice_srv_desc);
+            view.shadow_resources.light_slice_srv = frame_graph.GetSubresource(*light_slice_resource, shadow_slice_srv_desc);
             if (!view.shadow_resources.light_slice_srv.IsValid())
             {
                 backlog::Post("failed to create light shadow slice subresource", backlog::LogLevel::Error);
@@ -1029,7 +1029,7 @@ namespace won::rendering
                 desc.size = required_sort_buffer_size;
                 desc.usage = RHIResourceUsage::Default;
                 desc.bind_flags = RHIBindFlags::ShaderResource;
-                RHIResource* sort_resource = resource_pool.CreateBuffer(view.viewer_index, "Shader Instance Sort Default Buffer", desc);
+                RHIResource* sort_resource = frame_graph.CreateBuffer(view.viewer_index, "Shader Instance Sort Default Buffer", desc);
                 view.instance_resources.sort_buffer = sort_resource;
                 if (!view.instance_resources.sort_buffer)
                 {
@@ -1042,7 +1042,7 @@ namespace won::rendering
                 srv_desc.buffer_offset = 0;
                 srv_desc.buffer_size = view.instance_resources.sort_buffer->GetDesc().buffer_desc.size;
                 srv_desc.buffer_stride = sizeof(uint32);
-                view.instance_resources.sort_srv = resource_pool.GetSubresource(*sort_resource, srv_desc);
+                view.instance_resources.sort_srv = frame_graph.GetSubresource(*sort_resource, srv_desc);
                 if (!view.instance_resources.sort_srv.IsValid())
                 {
                     backlog::Post("failed to create shader instance sort subresource", backlog::LogLevel::Error);
@@ -1079,14 +1079,14 @@ namespace won::rendering
                 grid_desc.size = static_cast<Size>(cluster_count) * sizeof(uint32);
                 grid_desc.usage = RHIResourceUsage::Default;
                 grid_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
-                RHIResource* count_resource = resource_pool.CreateBuffer(view.viewer_index, "Cluster Light Count", grid_desc);
-                RHIResource* offset_resource = resource_pool.CreateBuffer(view.viewer_index, "Cluster Light Offset", grid_desc);
+                RHIResource* count_resource = frame_graph.CreateBuffer(view.viewer_index, "Cluster Light Count", grid_desc);
+                RHIResource* offset_resource = frame_graph.CreateBuffer(view.viewer_index, "Cluster Light Offset", grid_desc);
 
                 RHIBufferDesc index_desc = {};
                 index_desc.size = static_cast<Size>(cluster_count) * MAX_LIGHTS_PER_CLUSTER * sizeof(uint32);
                 index_desc.usage = RHIResourceUsage::Default;
                 index_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
-                RHIResource* index_resource = resource_pool.CreateBuffer(view.viewer_index, "Cluster Light Index List", index_desc);
+                RHIResource* index_resource = frame_graph.CreateBuffer(view.viewer_index, "Cluster Light Index List", index_desc);
 
                 view.light_resources.cluster_light_count_buffer = count_resource;
                 view.light_resources.cluster_light_offset_buffer = offset_resource;
@@ -1101,10 +1101,10 @@ namespace won::rendering
                     grid_uav_desc.buffer_stride = sizeof(uint32);
                     RHISubresourceDesc grid_srv_desc = grid_uav_desc;
                     grid_srv_desc.type = RHISubresourceType::ShaderResource;
-                    view.light_resources.cluster_light_count_uav = resource_pool.GetSubresource(*count_resource, grid_uav_desc);
-                    view.light_resources.cluster_light_count_srv = resource_pool.GetSubresource(*count_resource, grid_srv_desc);
-                    view.light_resources.cluster_light_offset_uav = resource_pool.GetSubresource(*offset_resource, grid_uav_desc);
-                    view.light_resources.cluster_light_offset_srv = resource_pool.GetSubresource(*offset_resource, grid_srv_desc);
+                    view.light_resources.cluster_light_count_uav = frame_graph.GetSubresource(*count_resource, grid_uav_desc);
+                    view.light_resources.cluster_light_count_srv = frame_graph.GetSubresource(*count_resource, grid_srv_desc);
+                    view.light_resources.cluster_light_offset_uav = frame_graph.GetSubresource(*offset_resource, grid_uav_desc);
+                    view.light_resources.cluster_light_offset_srv = frame_graph.GetSubresource(*offset_resource, grid_srv_desc);
 
                     RHISubresourceDesc index_uav_desc = {};
                     index_uav_desc.type = RHISubresourceType::UnorderedAccess;
@@ -1113,8 +1113,8 @@ namespace won::rendering
                     index_uav_desc.buffer_stride = sizeof(uint32);
                     RHISubresourceDesc index_srv_desc = index_uav_desc;
                     index_srv_desc.type = RHISubresourceType::ShaderResource;
-                    view.light_resources.cluster_light_index_uav = resource_pool.GetSubresource(*index_resource, index_uav_desc);
-                    view.light_resources.cluster_light_index_srv = resource_pool.GetSubresource(*index_resource, index_srv_desc);
+                    view.light_resources.cluster_light_index_uav = frame_graph.GetSubresource(*index_resource, index_uav_desc);
+                    view.light_resources.cluster_light_index_srv = frame_graph.GetSubresource(*index_resource, index_srv_desc);
 
                     view.light_resources.cluster_dims = { tiles_x, tiles_y };
                     view.light_resources.depth_slice_count = depth_slices;
@@ -1134,7 +1134,7 @@ namespace won::rendering
                 forward_index_desc.size = forward_index_size;
                 forward_index_desc.usage = RHIResourceUsage::Default;
                 forward_index_desc.bind_flags = RHIBindFlags::ShaderResource;
-                light_resources.forward_index_buffer = resource_pool.CreateBuffer(view.viewer_index, "Forward Light Index Buffer", forward_index_desc);
+                light_resources.forward_index_buffer = frame_graph.CreateBuffer(view.viewer_index, "Forward Light Index Buffer", forward_index_desc);
                 if (!light_resources.forward_index_buffer)
                 {
                     backlog::Post("failed to create forward light index buffer", backlog::LogLevel::Error);
@@ -1146,7 +1146,7 @@ namespace won::rendering
                 forward_index_srv_desc.buffer_offset = 0;
                 forward_index_srv_desc.buffer_size = forward_index_size;
                 forward_index_srv_desc.buffer_stride = sizeof(uint32);
-                light_resources.forward_index_srv = resource_pool.GetSubresource(*light_resources.forward_index_buffer, forward_index_srv_desc);
+                light_resources.forward_index_srv = frame_graph.GetSubresource(*light_resources.forward_index_buffer, forward_index_srv_desc);
                 if (!light_resources.forward_index_srv.IsValid())
                 {
                     backlog::Post("failed to create forward light index subresource", backlog::LogLevel::Error);
@@ -1749,7 +1749,6 @@ namespace won::rendering
         const uint32 frame_slot = current_frame_slot;
         FrameContext& frame_context = GetFrameContext();
 
-        resource_pool.BeginFrame(*device, frame_context);
 
         enqueued_work_recorded = false;
         if (enqueued_work_fence_value > 0 && enqueued_work_fence->GetCompletedValue() >= enqueued_work_fence_value)
@@ -2718,12 +2717,10 @@ namespace won::rendering
 
         frame_graph.AddPass("Clear View Targets",
             { { scene_color_id, RHIResourceState::RenderTarget, FrameGraphAccessType::Write },
-              { color_id[1], RHIResourceState::RenderTarget, FrameGraphAccessType::Write },
               { depth_id, RHIResourceState::DepthWrite, FrameGraphAccessType::Write } },
-            [this, scene_color_binding, post_color_binding, depth_buffer_binding, viewport, scissor](RHICommandList& pass_command_list)
+            [this, scene_color_binding, depth_buffer_binding, viewport, scissor](RHICommandList& pass_command_list)
         {
             pass_command_list.ClearRenderTarget(scene_color_binding, clear_color);
-            pass_command_list.ClearRenderTarget(post_color_binding, clear_color);
             pass_command_list.ClearDepthStencil(depth_buffer_binding, 0.0f, 0u);
             pass_command_list.SetViewport(viewport);
             pass_command_list.SetScissor(scissor);
@@ -3011,7 +3008,7 @@ namespace won::rendering
                 luminance_partial_desc.size = sizeof(float) * luminance_reduce_group_count;
                 luminance_partial_desc.usage = RHIResourceUsage::Default;
                 luminance_partial_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
-                luminance_partial_buffer = resource_pool.CreateBuffer(view.viewer_index, "Auto-Exposure Luminance Partials", luminance_partial_desc);
+                luminance_partial_buffer = frame_graph.CreateBuffer(view.viewer_index, "Auto-Exposure Luminance Partials", luminance_partial_desc);
 
                 RHISubresourceDesc luminance_partial_uav_desc = {};
                 luminance_partial_uav_desc.type = RHISubresourceType::UnorderedAccess;
@@ -3023,15 +3020,15 @@ namespace won::rendering
                 if (luminance_partial_buffer)
                 {
                     partial_id = frame_graph.Import(*luminance_partial_buffer);
-                    luminance_partial_uav = resource_pool.GetSubresource(*luminance_partial_buffer, luminance_partial_uav_desc);
-                    luminance_partial_srv = resource_pool.GetSubresource(*luminance_partial_buffer, luminance_partial_srv_desc);
+                    luminance_partial_uav = frame_graph.GetSubresource(*luminance_partial_buffer, luminance_partial_uav_desc);
+                    luminance_partial_srv = frame_graph.GetSubresource(*luminance_partial_buffer, luminance_partial_srv_desc);
                 }
 
                 RHIBufferDesc luminance_buffer_desc = {};
                 luminance_buffer_desc.size = sizeof(float);
                 luminance_buffer_desc.usage = RHIResourceUsage::Default;
                 luminance_buffer_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
-                luminance_buffer = resource_pool.CreateBuffer(view.viewer_index, "Auto-Exposure Luminance Buffer", luminance_buffer_desc);
+                luminance_buffer = frame_graph.CreateBuffer(view.viewer_index, "Auto-Exposure Luminance Buffer", luminance_buffer_desc);
 
                 RHISubresourceDesc luminance_uav_desc = {};
                 luminance_uav_desc.type = RHISubresourceType::UnorderedAccess;
@@ -3041,7 +3038,7 @@ namespace won::rendering
                 if (luminance_buffer)
                 {
                     luminance_id = frame_graph.Import(*luminance_buffer);
-                    luminance_uav = resource_pool.GetSubresource(*luminance_buffer, luminance_uav_desc);
+                    luminance_uav = frame_graph.GetSubresource(*luminance_buffer, luminance_uav_desc);
                 }
             }
             if (auto_exposure_active && !exposure.luminance_readback_buffer)
@@ -3060,6 +3057,8 @@ namespace won::rendering
 
             const bool use_fxaa = view.options.aa_mode == AntiAliasingMode::FXAA;
             RHIPipeline* fxaa_pipeline = use_fxaa ? shader_library.GetPipeline(ComputePipelineHash(ShaderId::CSFXAA)) : nullptr;
+
+            const bool use_post_chain = tonemap_pipeline || (use_fxaa && fxaa_pipeline);
 
             if (auto_exposure_active && luminance_reduce_pipeline && luminance_resolve_pipeline && luminance_partial_buffer && luminance_buffer && exposure.luminance_readback_buffer)
             {
@@ -3106,6 +3105,16 @@ namespace won::rendering
                     pass_command_list.CopyBuffer(*exposure.luminance_readback_buffer, 0, *luminance_buffer, 0, sizeof(float));
                 });
 
+            }
+
+            if (use_post_chain)
+            {
+                frame_graph.AddPass("Init Post Color",
+                    { { color_id[1], RHIResourceState::RenderTarget, FrameGraphAccessType::Write } },
+                    [this, post_color_binding](RHICommandList& pass_command_list)
+                {
+                    pass_command_list.ClearRenderTarget(post_color_binding, clear_color);
+                });
             }
 
             if (tonemap_pipeline)

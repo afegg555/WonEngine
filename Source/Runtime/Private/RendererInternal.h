@@ -1,6 +1,5 @@
 #pragma once
 #include "FrameGraph.h"
-#include "FrameGraphResourcePool.h"
 #include "Renderer.h"
 #include "RHISwapchain.h"
 #include "Types.h"
@@ -100,7 +99,6 @@ namespace won::rendering
 
 		Vector<uint32> sort_upload_scratch; // not to allocate every frame !!
         FrameGraph frame_graph;
-        FrameGraphResourcePool resource_pool;
 
         std::array<RHISubresourceHandle, max_frames_in_flight> back_buffers_rtv = {};
 

@@ -13,9 +13,35 @@ namespace won::rendering
         resources.clear();
         resource_ids.clear();
         passes.clear();
+        pool.BeginFrame(in_device, in_frame_context);
         buffer_uploads.clear();
         upload_pass_index = 0;
         has_upload_pass = false;
+    }
+
+    RHIResource* FrameGraph::CreateBuffer(uint32 scope, const char* name, const RHIBufferDesc& desc)
+    {
+        RHIResource* created = pool.CreateBuffer(scope, name, desc);
+        if (created)
+        {
+            resources[Import(*created)].transient = true;
+        }
+        return created;
+    }
+
+    RHIResource* FrameGraph::CreateTexture(uint32 scope, const char* name, const RHITextureDesc& desc)
+    {
+        RHIResource* created = pool.CreateTexture(scope, name, desc);
+        if (created)
+        {
+            resources[Import(*created)].transient = true;
+        }
+        return created;
+    }
+
+    RHISubresourceHandle FrameGraph::GetSubresource(RHIResource& resource, const RHISubresourceDesc& desc)
+    {
+        return pool.GetSubresource(resource, desc);
     }
 
     void FrameGraph::MarkNoCull(FrameGraphResourceId resource)
@@ -154,17 +180,26 @@ namespace won::rendering
             pass_command_list->BeginEvent(pass.name.c_str());
             for (const FrameGraphAccess& access : pass.accesses)
             {
-                if (access.resource >= resources.size() || !resources[access.resource].resource)
-                {
-                    continue;
-                }
-                if (resources[access.resource].state == access.state)
+                if (access.resource >= resources.size())
                 {
                     continue;
                 }
 
-                pass_command_list->TransitionResource(*resources[access.resource].resource, access.state);
-                resources[access.resource].state = access.state;
+                FrameGraphResource& resource = resources[access.resource];
+                if (!resource.alive)
+                {
+                    resource.alive = true;
+                    resource.first_pass = pass_index;
+                }
+                resource.last_pass = pass_index;
+
+                if (!resource.resource || resource.state == access.state)
+                {
+                    continue;
+                }
+
+                pass_command_list->TransitionResource(*resource.resource, access.state);
+                resource.state = access.state;
             }
         }
     }

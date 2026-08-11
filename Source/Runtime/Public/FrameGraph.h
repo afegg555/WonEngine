@@ -1,6 +1,7 @@
 #pragma once
 #include "JobSystem.h"
 #include "FrameContext.h"
+#include "FrameGraphResourcePool.h"
 #include "RHIResource.h"
 #include "Types.h"
 
@@ -33,6 +34,10 @@ namespace won::rendering
         RHIResource* resource = nullptr;
         RHIResourceState state = RHIResourceState::Undefined;
         bool no_cull = false;
+        Size first_pass = 0;
+        Size last_pass = 0;
+        bool alive = false;
+        bool transient = false;
     };
 
     class FrameGraph
@@ -41,6 +46,10 @@ namespace won::rendering
         void Reset(RHIDevice& device, FrameContext& frame_context);
 
         FrameGraphResourceId Import(RHIResource& resource);
+
+        RHIResource* CreateBuffer(uint32 scope, const char* name, const RHIBufferDesc& desc);
+        RHIResource* CreateTexture(uint32 scope, const char* name, const RHITextureDesc& desc);
+        RHISubresourceHandle GetSubresource(RHIResource& resource, const RHISubresourceDesc& desc);
 
         bool QueueBufferUpload(FrameGraphResourceId destination, const void* data, Size size, RHIResourceState final_state, Size destination_offset = 0);
 		// Passes are executed in the order they are added
@@ -77,6 +86,7 @@ namespace won::rendering
         Vector<FrameGraphResource> resources;
         UnorderedMap<RHIResource*, FrameGraphResourceId> resource_ids;
         Vector<Pass> passes;
+        FrameGraphResourcePool pool;
         Vector<BufferUpload> buffer_uploads;
         Size upload_pass_index = 0;
         bool has_upload_pass = false;
