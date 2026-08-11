@@ -92,6 +92,12 @@ namespace won::rendering
 
         virtual Size GetMinOffsetAlignment(const RHIBufferDesc& desc) const = 0;
 
+        virtual std::unique_ptr<RHIMemoryBlock> AllocateMemory(Size size, Size alignment, RHIMemoryCategory category) = 0;
+        virtual std::unique_ptr<RHIResource> CreatePlacedBuffer(RHIMemoryBlock& block, Size offset, const RHIBufferDesc& desc) = 0;
+        virtual std::unique_ptr<RHIResource> CreatePlacedTexture(RHIMemoryBlock& block, Size offset, const RHITextureDesc& desc) = 0;
+        virtual bool ReplaceResource(RHIResource& resource, RHIMemoryBlock& block, Size offset, std::unique_ptr<RHIResource>& out_retired) = 0;
+        virtual Size GetResourceAllocationSize(const RHIResourceDesc& desc, Size& out_alignment) const = 0;
+
         virtual bool CreateSubresource(RHIResource& resource,
             const RHISubresourceDesc& desc,
             RHISubresourceHandle* out_handle) = 0;

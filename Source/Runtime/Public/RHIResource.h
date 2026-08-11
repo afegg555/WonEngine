@@ -214,6 +214,21 @@ namespace won::rendering
         RHITextureDesc texture_desc = {};
     };
 
+    enum class RHIMemoryCategory
+    {
+        Buffer,
+        Texture,
+        RenderTargetOrDepthStencil,
+    };
+
+    class RHIMemoryBlock : public RHIObject
+    {
+    public:
+        ~RHIMemoryBlock() override = default;
+
+        virtual Size GetSize() const = 0;
+    };
+
     class RHIResource : public RHIObject
     {
     public:

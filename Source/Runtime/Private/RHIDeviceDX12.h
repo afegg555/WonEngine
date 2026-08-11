@@ -46,6 +46,12 @@ namespace won::rendering
 
         Size GetMinOffsetAlignment(const RHIBufferDesc& desc) const override;
 
+        std::unique_ptr<RHIMemoryBlock> AllocateMemory(Size size, Size alignment, RHIMemoryCategory category) override;
+        std::unique_ptr<RHIResource> CreatePlacedBuffer(RHIMemoryBlock& block, Size offset, const RHIBufferDesc& desc) override;
+        std::unique_ptr<RHIResource> CreatePlacedTexture(RHIMemoryBlock& block, Size offset, const RHITextureDesc& desc) override;
+        bool ReplaceResource(RHIResource& resource, RHIMemoryBlock& block, Size offset, std::unique_ptr<RHIResource>& out_retired) override;
+        Size GetResourceAllocationSize(const RHIResourceDesc& desc, Size& out_alignment) const override;
+
         // create persistent subresource
         bool CreateSubresource(RHIResource& resource,
             const RHISubresourceDesc& desc,

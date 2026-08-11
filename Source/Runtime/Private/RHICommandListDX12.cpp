@@ -766,6 +766,28 @@ namespace won::rendering
         return;
     }
 
+    void RHICommandListDX12::AliasingBarrier(RHIResource* before, RHIResource& after)
+    {
+        if (!command_list)
+        {
+            return;
+        }
+
+        auto after_dx12 = dynamic_cast<RHIResourceDX12*>(&after);
+        if (!after_dx12 || !after_dx12->GetResource())
+        {
+            return;
+        }
+
+        auto before_dx12 = before ? dynamic_cast<RHIResourceDX12*>(before) : nullptr;
+
+        D3D12_RESOURCE_BARRIER barrier = {};
+        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_ALIASING;
+        barrier.Aliasing.pResourceBefore = before_dx12 ? before_dx12->GetResource() : nullptr;
+        barrier.Aliasing.pResourceAfter = after_dx12->GetResource();
+        command_list->ResourceBarrier(1, &barrier);
+    }
+
     void RHICommandListDX12::TransitionResource(RHIResource& resource,
         RHIResourceState after_state)
     {

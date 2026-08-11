@@ -39,6 +39,9 @@ namespace won::rendering
             const RHISubresourceDesc& desc,
             D3D12_DESCRIPTOR_HEAP_TYPE& out_heap_type,
             int& out_descriptor_index);
+        bool UpdateSubresourceDescriptor(RHIResourceDX12& resource,
+            const RHISubresourceDesc& desc,
+            int descriptor_index);
 
         bool GetCpuDescriptorHandle(D3D12_DESCRIPTOR_HEAP_TYPE heap_type,
             bool shader_visible,
@@ -103,6 +106,8 @@ namespace won::rendering
             uint64 cached_completed_value = 0;
             uint32 wrap_reservation = 0;
         };
+
+        DescriptorHeap* GetDescriptorHeap(RHISubresourceType type, bool shader_visible);
 
         DescriptorHeap* GetDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE heap_type, bool shader_visible);
         const DescriptorHeap* GetDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE heap_type, bool shader_visible) const;
