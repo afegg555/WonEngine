@@ -1,62 +1,75 @@
-#pragma once
+﻿#pragma once
 #include "JobSystem.h"
-#include "FrameContext.h"
-#include "FrameGraphResourcePool.h"
 #include "RHIResource.h"
 #include "Types.h"
-
-#include <functional>
 
 namespace won::rendering
 {
     class RHICommandList;
     class RHIDevice;
+    struct FrameContext;
 
-    using FrameGraphResourceId = uint32;
-    inline constexpr FrameGraphResourceId invalid_frame_graph_resource = ~0u;
+    using FrameResourceId = uint32;
+    inline constexpr FrameResourceId invalid_frame_resource = ~0u;
 
-    enum class FrameGraphAccessType
+    struct FrameResourceAccess
     {
-        Read,
-        Write,
-        ReadWrite,
-    };
+        enum class Type
+        {
+            Read,
+            Write,
+            ReadWrite,
+        };
 
-    struct FrameGraphAccess
-    {
-        FrameGraphResourceId resource = invalid_frame_graph_resource;
+        FrameResourceId resource = invalid_frame_resource;
         RHIResourceState state = RHIResourceState::ShaderRead;
-        FrameGraphAccessType type = FrameGraphAccessType::Read;
+        Type type = Type::Read;
     };
 
-    struct FrameGraphResource
+    struct FrameResource
     {
         RHIResource* resource = nullptr;
+        uint32 scope = 0;
+        const char* name = nullptr;
+        RHIResourceDesc desc;
         RHIResourceState state = RHIResourceState::Undefined;
+        RHIResourceState entry_state = RHIResourceState::Undefined;
         bool no_cull = false;
-        Size first_pass = 0;
-        Size last_pass = 0;
+        uint32 first_pass = 0;
+        uint32 last_pass = 0;
         bool alive = false;
         bool transient = false;
+    };
+
+    class FrameGraph;
+
+    struct FrameGraphPassContext
+    {
+        RHICommandList* command_list = nullptr;
+
+        RHIResource* GetResource(FrameResourceId resource) const;
+
+    private:
+        const FrameResource* frame_resources = nullptr;
+        Size frame_resource_count = 0;
+        friend class FrameGraph;
     };
 
     class FrameGraph
     {
     public:
-        void Reset(RHIDevice& device, FrameContext& frame_context);
+        void Initialize(RHIDevice* device);
+        void BeginFrame(FrameContext& frame_context);
 
-        FrameGraphResourceId Import(RHIResource& resource);
+        FrameResourceId Import(RHIResource& resource, RHIResourceState state = RHIResourceState::Undefined);
+        FrameResourceId CreateBuffer(uint32 scope, const char* name, const RHIBufferDesc& desc);
+        FrameResourceId CreateTexture(uint32 scope, const char* name, const RHITextureDesc& desc);
+        RHISubresourceHandle CreateSubresource(FrameResourceId resource, const RHISubresourceDesc& desc);
 
-        RHIResource* CreateBuffer(uint32 scope, const char* name, const RHIBufferDesc& desc);
-        RHIResource* CreateTexture(uint32 scope, const char* name, const RHITextureDesc& desc);
-        RHISubresourceHandle GetSubresource(RHIResource& resource, const RHISubresourceDesc& desc);
+		void MarkNoCull(FrameResourceId resource); // this resource will not be culled even if it is not used in any pass. and this resource is not aliased
+        bool QueueBufferUpload(FrameResourceId destination, const void* data, Size size, Size destination_offset = 0);
 
-        bool QueueBufferUpload(FrameGraphResourceId destination, const void* data, Size size, RHIResourceState final_state, Size destination_offset = 0);
-		// Passes are executed in the order they are added
-        void AddPass(const char* name, Vector<FrameGraphAccess> accesses, std::function<void(RHICommandList&)> execute);
-
-        // Something outside the graph consumes this resource, so whatever produces it must survive culling.
-        void MarkNoCull(FrameGraphResourceId resource);
+        void AddPass(const char* name, Vector<FrameResourceAccess> accesses, std::function<void(const FrameGraphPassContext&)> execute);
 
         void Compile();
         void Dispatch(jobsystem::Context& context);
@@ -65,30 +78,64 @@ namespace won::rendering
         struct Pass
         {
             String name;
-            Vector<FrameGraphAccess> accesses;
-            std::function<void(RHICommandList&)> execute;
+            Vector<FrameResourceAccess> accesses;
+            std::function<void(const FrameGraphPassContext&)> execute;
             RHICommandList* command_list = nullptr;
+            bool alive = false;
+        };
+
+        struct PooledSubresource
+        {
+            RHISubresourceDesc desc;
+            RHISubresourceHandle handle;
+            bool realized = false;
+        };
+
+        struct PooledResource
+        {
+            uint32 scope = 0;
+            String name;
+            std::unique_ptr<RHIResource> resource;
+            Vector<PooledSubresource> subresources;
+            uint32 unused_frames = 0;
+            FrameResourceId frame_resource = invalid_frame_resource;
+
+            RHIResourceDesc desc;
+            RHIResourceState state = RHIResourceState::Undefined; // survives the frame, the graph resumes from it
+            RHIMemoryCategory category = RHIMemoryCategory::Buffer;
+            Size allocation_size = 0;
+            Size allocation_alignment = 0;
+            Size heap_index = ~(Size)0;
+            Size heap_offset = 0;
+        };
+
+        struct Heap
+        {
+            RHIMemoryCategory category = RHIMemoryCategory::Buffer;
+            Size size = 0;
+            Size alignment = 0;
+            std::unique_ptr<RHIMemoryBlock> block;
         };
 
         struct BufferUpload
         {
-            RHIResource* destination = nullptr;
+            FrameResourceId destination = invalid_frame_resource;
             Size destination_offset = 0;
             RHIResource* source = nullptr;
             Size source_offset = 0;
             Size size = 0;
-            RHIResourceState final_state = RHIResourceState::ShaderRead;
         };
+
+        PooledResource& CreatePooledResource(uint32 scope, const char* name);
 
         RHIDevice* device = nullptr;
         FrameContext* frame_context = nullptr;
-
-        Vector<FrameGraphResource> resources;
-        UnorderedMap<RHIResource*, FrameGraphResourceId> resource_ids;
+        Vector<FrameResource> frame_resources; // per frame logical resources
         Vector<Pass> passes;
-        FrameGraphResourcePool pool;
         Vector<BufferUpload> buffer_uploads;
         Size upload_pass_index = 0;
         bool has_upload_pass = false;
+        UnorderedMap<uint64, PooledResource> pooled_resources; // keyed by StableHash of the name
+        Vector<Heap> heaps;
     };
 }

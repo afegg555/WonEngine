@@ -102,6 +102,14 @@ namespace won::rendering
             const RHISubresourceDesc& desc,
             RHISubresourceHandle* out_handle) = 0;
 
+        virtual bool ReserveSubresource(const RHISubresourceDesc& desc,
+            RHISubresourceHandle* out_handle) = 0;
+        virtual bool UpdateSubresource(RHIResource& resource,
+            const RHISubresourceDesc& desc,
+            RHISubresourceHandle handle) = 0;
+        virtual void ReleaseSubresource(const RHISubresourceDesc& desc,
+            RHISubresourceHandle handle) = 0;
+
         virtual std::unique_ptr<RHIPipeline> CreateGraphicsPipeline(
             const RHIGraphicsPipelineDesc& desc) = 0;
 

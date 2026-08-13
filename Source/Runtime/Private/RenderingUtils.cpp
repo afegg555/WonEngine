@@ -1,4 +1,4 @@
-#include "RenderingUtils.h"
+﻿#include "RenderingUtils.h"
 #include "Backlog.h"
 #include "Font.h"
 #include "Image.h"
@@ -99,7 +99,7 @@ namespace won::rendering::utils
                 texture_mipgen_pipeline->SetName("TextureMipGenPipeline");
             }
 
-            command_list.TransitionResource(texture_resource, RHIResourceState::ShaderRead);
+            command_list.TransitionResource(texture_resource, RHIResourceState::Undefined, RHIResourceState::ShaderRead);
             command_list.SetComputePipeline(*texture_mipgen_pipeline);
 
             Vector<RHISubresourceHandle> mip_srvs;
@@ -418,12 +418,12 @@ namespace won::rendering::utils
                     succeeded = false;
                     continue;
                 }
-                command_list.TransitionResource(*mesh.render_data.buffer, RHIResourceState::ShaderRead);
-                command_list.TransitionResource(*gpu_bvh.node_buffer, RHIResourceState::ShaderWrite);
-                command_list.TransitionResource(*gpu_bvh.primitive_buffer, RHIResourceState::ShaderWrite);
-                command_list.TransitionResource(*sort_buffer, RHIResourceState::ShaderWrite);
-                command_list.TransitionResource(*parent_buffer, RHIResourceState::ShaderWrite);
-                command_list.TransitionResource(*counter_buffer, RHIResourceState::ShaderWrite);
+                command_list.TransitionResource(*mesh.render_data.buffer, RHIResourceState::Undefined, RHIResourceState::ShaderRead);
+                command_list.TransitionResource(*gpu_bvh.node_buffer, RHIResourceState::Undefined, RHIResourceState::ShaderWrite);
+                command_list.TransitionResource(*gpu_bvh.primitive_buffer, RHIResourceState::Undefined, RHIResourceState::ShaderWrite);
+                command_list.TransitionResource(*sort_buffer, RHIResourceState::Undefined, RHIResourceState::ShaderWrite);
+                command_list.TransitionResource(*parent_buffer, RHIResourceState::Undefined, RHIResourceState::ShaderWrite);
+                command_list.TransitionResource(*counter_buffer, RHIResourceState::Undefined, RHIResourceState::ShaderWrite);
 
                 command_list.SetComputePipeline(*gpu_bvh_build_pipelines[static_cast<uint32>(GPUBVHBuildPipelineType::GeneratePrimitives)]);
                 command_list.SetShaderResource(RHIShaderStage::Compute, 0, { mesh.render_data.buffer.get(), mesh.render_data.positions.handle });
@@ -511,9 +511,9 @@ namespace won::rendering::utils
                 scratch_resources.push_back(std::move(parent_buffer));
                 scratch_resources.push_back(std::move(counter_buffer));
 
-                command_list.TransitionResource(*gpu_bvh.node_buffer, RHIResourceState::ShaderRead);
-                command_list.TransitionResource(*gpu_bvh.primitive_buffer, RHIResourceState::ShaderRead);
-                command_list.TransitionResource(*mesh.render_data.buffer, RHIResourceState::Undefined);
+                command_list.TransitionResource(*gpu_bvh.node_buffer, RHIResourceState::ShaderWrite, RHIResourceState::Undefined);
+                command_list.TransitionResource(*gpu_bvh.primitive_buffer, RHIResourceState::ShaderWrite, RHIResourceState::Undefined);
+                command_list.TransitionResource(*mesh.render_data.buffer, RHIResourceState::ShaderRead, RHIResourceState::Undefined);
 
                 gpu_bvh.node_count = node_count;
                 gpu_bvh.primitive_count = primitive_count;
@@ -901,9 +901,9 @@ namespace won::rendering::utils
                 command_list->End();
                 return false;
             }
-            command_list->TransitionResource(*source_texture, RHIResourceState::ShaderRead);
+            command_list->TransitionResource(*source_texture, RHIResourceState::Undefined, RHIResourceState::ShaderRead);
         }
-        command_list->TransitionResource(*output_buffer, RHIResourceState::ShaderWrite);
+        command_list->TransitionResource(*output_buffer, RHIResourceState::Undefined, RHIResourceState::ShaderWrite);
         command_list->SetComputePipeline(*pipeline);
 
         for (uint32 mip_index = 0; mip_index < mip_levels; ++mip_index)
@@ -924,7 +924,7 @@ namespace won::rendering::utils
             command_list->Dispatch((block_count_x + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D, (block_count_y + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D, 1u);
         }
         command_list->UAVBarrier(*output_buffer);
-        command_list->TransitionResource(*output_buffer, RHIResourceState::CopySource);
+        command_list->TransitionResource(*output_buffer, RHIResourceState::ShaderWrite, RHIResourceState::CopySource);
         command_list->CopyBuffer(*readback_buffer, 0, *output_buffer, 0, output_size);
         command_list->End();
 

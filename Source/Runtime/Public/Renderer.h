@@ -58,7 +58,7 @@ namespace won::rendering
         inline FrameContext& GetFrameContext() { return frame_contexts[current_frame_slot]; };
         inline jobsystem::Context& GetRenderingWorkContext() { return rendering_work_context; };
 
-        bool UpdateDefaultBuffer(FrameContext& frame_context, RHIResource& destination_buffer, const void* source_data, Size data_size, RHIResourceState final_state, Size destination_offset, RHICommandList& command_list)
+        bool UpdateDefaultBuffer(FrameContext& frame_context, RHIResource& destination_buffer, const void* source_data, Size data_size, RHIResourceState surrounding_state, Size destination_offset, RHICommandList& command_list)
         {
             const RHIResourceDesc& destination_desc = destination_buffer.GetDesc();
             Size upload_alignment = device->GetMinOffsetAlignment(destination_desc.buffer_desc);
@@ -71,9 +71,9 @@ namespace won::rendering
 
             std::memcpy(upload_allocation.mapped_data, source_data, data_size);
 
-            command_list.TransitionResource(destination_buffer, RHIResourceState::CopyDest);
+            command_list.TransitionResource(destination_buffer, surrounding_state, RHIResourceState::CopyDest);
             command_list.CopyBuffer(destination_buffer, destination_offset, *upload_allocation.buffer, upload_allocation.buffer_offset, data_size);
-            command_list.TransitionResource(destination_buffer, final_state);
+            command_list.TransitionResource(destination_buffer, RHIResourceState::CopyDest, surrounding_state);
             return true;
         }
 

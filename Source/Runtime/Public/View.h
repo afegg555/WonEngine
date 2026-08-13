@@ -1,15 +1,14 @@
-#pragma once
+﻿#pragma once
 #include "Scene.h"
 #include "ViewOptionEnums.h"
 #include "Types.h"
 #include "RHIResource.h"
 #include "RHISwapchain.h"
+#include "FrameGraph.h"
 
 namespace won::rendering
 {
-    // Borrowed from the renderer's FrameGraphResourcePool, which creates, resizes and retires it
-    // Valid for the current frame only
-    using FrameGraphResourceRef = RHIResource*;
+    using FrameGraphResourceRef = FrameResourceId;
 
     enum class RenderPathType
     {
@@ -40,18 +39,18 @@ namespace won::rendering
 
         struct LightResources
         {
-            FrameGraphResourceRef forward_index_buffer = nullptr;
+            FrameGraphResourceRef forward_index_buffer = invalid_frame_resource;
             RHISubresourceHandle forward_index_srv = {};
             uint32 forward_light_count = 0;
             Vector<uint32> visible_forward_lights;
 
-            FrameGraphResourceRef cluster_light_count_buffer = nullptr;
+            FrameGraphResourceRef cluster_light_count_buffer = invalid_frame_resource;
             RHISubresourceHandle cluster_light_count_srv = {};
             RHISubresourceHandle cluster_light_count_uav = {};
-            FrameGraphResourceRef cluster_light_offset_buffer = nullptr;
+            FrameGraphResourceRef cluster_light_offset_buffer = invalid_frame_resource;
             RHISubresourceHandle cluster_light_offset_srv = {};
             RHISubresourceHandle cluster_light_offset_uav = {};
-            FrameGraphResourceRef cluster_light_index_buffer = nullptr;
+            FrameGraphResourceRef cluster_light_index_buffer = invalid_frame_resource;
             RHISubresourceHandle cluster_light_index_srv = {};
             RHISubresourceHandle cluster_light_index_uav = {};
             uint2 cluster_dims = { 0, 0 };
@@ -77,19 +76,19 @@ namespace won::rendering
             Vector<Vector<uint32>> caster_slice_scratch; // kept across frames so the per slice culling jobs reuse their capacity
             uint2 shadow_map_atlas_size = { 0, 0 };
 
-            FrameGraphResourceRef atlas = nullptr;
+            FrameGraphResourceRef atlas = invalid_frame_resource;
             RHISubresourceHandle atlas_dsv = {};
             RHISubresourceHandle atlas_srv = {};
 
-            FrameGraphResourceRef cascade_buffer = nullptr;
+            FrameGraphResourceRef cascade_buffer = invalid_frame_resource;
             RHISubresourceHandle cascade_srv = {};
-            FrameGraphResourceRef light_slice_buffer = nullptr;
+            FrameGraphResourceRef light_slice_buffer = invalid_frame_resource;
             RHISubresourceHandle light_slice_srv = {};
         };
 
         struct InstanceResources
         {
-            FrameGraphResourceRef sort_buffer = nullptr;
+            FrameGraphResourceRef sort_buffer = invalid_frame_resource;
             RHISubresourceHandle sort_srv = {};
         };
 
@@ -101,12 +100,12 @@ namespace won::rendering
 
         struct RenderTargets
         {
-            FrameGraphResourceRef color[2] = {};
+            FrameGraphResourceRef color[2] = { invalid_frame_resource, invalid_frame_resource };
             RHISubresourceHandle color_rtv[2] = {};
             RHISubresourceHandle color_srv[2] = {};
             RHISubresourceHandle color_uav[2] = {};
 
-            FrameGraphResourceRef depth = nullptr;
+            FrameGraphResourceRef depth = invalid_frame_resource;
             RHISubresourceHandle depth_dsv = {};
             RHISubresourceHandle depth_srv = {};
 
@@ -116,7 +115,7 @@ namespace won::rendering
 
         struct ViewConstants
         {
-            FrameGraphResourceRef buffer = nullptr;
+            std::unique_ptr<RHIResource> buffer;
             RHISubresourceHandle cbv = {};
         };
 

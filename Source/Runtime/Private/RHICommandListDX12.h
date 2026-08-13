@@ -78,6 +78,7 @@ namespace won::rendering
 
         void AliasingBarrier(RHIResource* before, RHIResource& after) override;
         void TransitionResource(RHIResource& resource,
+            RHIResourceState before_state,
             RHIResourceState after_state) override;
         void TransitionSubresource(RHIResource& resource,
             RHIResourceState before_state,

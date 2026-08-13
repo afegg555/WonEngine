@@ -173,6 +173,19 @@ namespace won::rendering
         Size buffer_stride = 0;
     };
 
+    inline bool operator==(const RHISubresourceDesc& lhs, const RHISubresourceDesc& rhs)
+    {
+        return lhs.type == rhs.type
+            && lhs.format == rhs.format
+            && lhs.first_slice == rhs.first_slice
+            && lhs.slice_count == rhs.slice_count
+            && lhs.first_mip == rhs.first_mip
+            && lhs.mip_count == rhs.mip_count
+            && lhs.buffer_offset == rhs.buffer_offset
+            && lhs.buffer_size == rhs.buffer_size
+            && lhs.buffer_stride == rhs.buffer_stride;
+    }
+
     struct RHISubresourceHandle
     {
         int descriptor_index = -1;
@@ -207,6 +220,33 @@ namespace won::rendering
         float clear_color[4] = { OPTIMIZED_FAST_CLEAR_COLOR[0], OPTIMIZED_FAST_CLEAR_COLOR[1], OPTIMIZED_FAST_CLEAR_COLOR[2], OPTIMIZED_FAST_CLEAR_COLOR[3] };
     };
 
+    inline bool operator==(const RHIBufferDesc& lhs, const RHIBufferDesc& rhs)
+    {
+        return lhs.size == rhs.size
+            && lhs.usage == rhs.usage
+            && lhs.bind_flags == rhs.bind_flags
+            && lhs.misc_flags == rhs.misc_flags;
+    }
+
+    inline bool operator==(const RHITextureDesc& lhs, const RHITextureDesc& rhs)
+    {
+        return lhs.width == rhs.width
+            && lhs.height == rhs.height
+            && lhs.depth == rhs.depth
+            && lhs.mip_levels == rhs.mip_levels
+            && lhs.array_layers == rhs.array_layers
+            && lhs.sample_count == rhs.sample_count
+            && lhs.is_cube == rhs.is_cube
+            && lhs.format == rhs.format
+            && lhs.usage == rhs.usage
+            && lhs.bind_flags == rhs.bind_flags
+            && lhs.misc_flags == rhs.misc_flags
+            && lhs.clear_color[0] == rhs.clear_color[0]
+            && lhs.clear_color[1] == rhs.clear_color[1]
+            && lhs.clear_color[2] == rhs.clear_color[2]
+            && lhs.clear_color[3] == rhs.clear_color[3];
+    }
+
     struct RHIResourceDesc
     {
         RHIResourceType type = RHIResourceType::Unknown;
@@ -219,6 +259,8 @@ namespace won::rendering
         Buffer,
         Texture,
         RenderTargetOrDepthStencil,
+
+        Count
     };
 
     class RHIMemoryBlock : public RHIObject

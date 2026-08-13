@@ -22,10 +22,6 @@ namespace won::rendering
         constexpr uint32 cbv_srv_uav_persistent_descriptor_count = cbv_srv_uav_gpu_descriptor_count - cbv_srv_uav_transient_descriptor_count;
         constexpr uint32 sampler_persistent_descriptor_count = sampler_gpu_descriptor_count - sampler_transient_descriptor_count;
 
-        UINT AlignConstantBufferSize(UINT size)
-        {
-            return won::math::Align(size, static_cast<UINT>(256u));
-        }
     }
 
     DescriptorAllocatorDX12::DescriptorAllocatorDX12(ComPtr<ID3D12Device> device_in)
@@ -101,7 +97,7 @@ namespace won::rendering
         int& out_descriptor_index)
     {
         int descriptor_index = -1;
-        if (!AllocateFromHeap(sampler_cpu_staging_heap, sampler_persistent_descriptor_count, descriptor_index))
+        if (!AllocateFromHeap(sampler_cpu_staging_heap, descriptor_index))
         {
             backlog::Post("Sampler descriptor heap allocation failed", backlog::LogLevel::Error);
             return false;
@@ -216,31 +212,48 @@ namespace won::rendering
         D3D12_DESCRIPTOR_HEAP_TYPE& out_heap_type,
         int& out_descriptor_index)
     {
-        DescriptorHeap* target_heap = GetDescriptorHeap(desc.type, false);
-        if (!resource.GetResource() || !target_heap)
+        if (!resource.GetResource() || !ReserveSubresourceDescriptor(desc, out_heap_type, out_descriptor_index))
         {
             return false;
         }
 
-        int descriptor_index = -1;
-        const uint32 max_descriptor_count = target_heap->heap_type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV ?
-            cbv_srv_uav_persistent_descriptor_count :
-            target_heap->capacity;
-        if (!AllocateFromHeap(*target_heap, max_descriptor_count, descriptor_index))
+        if (!UpdateSubresourceDescriptor(resource, desc, out_descriptor_index))
+        {
+            ReleaseDescriptor(out_heap_type, out_descriptor_index);
+            return false;
+        }
+
+        return true;
+    }
+
+    bool DescriptorAllocatorDX12::ReserveSubresourceDescriptor(const RHISubresourceDesc& desc,
+        D3D12_DESCRIPTOR_HEAP_TYPE& out_heap_type,
+        int& out_descriptor_index)
+    {
+        DescriptorHeap* target_heap = GetDescriptorHeap(desc.type, false);
+        if (!target_heap)
+        {
+            return false;
+        }
+
+        if (!AllocateFromHeap(*target_heap, out_descriptor_index))
         {
             backlog::Post("Descriptor heap allocation failed", backlog::LogLevel::Error);
             return false;
         }
 
-        if (!UpdateSubresourceDescriptor(resource, desc, descriptor_index))
-        {
-            FreeToHeap(*target_heap, descriptor_index);
-            return false;
-        }
-
         out_heap_type = target_heap->heap_type;
-        out_descriptor_index = descriptor_index;
         return true;
+    }
+
+    void DescriptorAllocatorDX12::ReleaseSubresourceDescriptor(const RHISubresourceDesc& desc,
+        int descriptor_index)
+    {
+        DescriptorHeap* target_heap = GetDescriptorHeap(desc.type, false);
+        if (target_heap)
+        {
+            ReleaseDescriptor(target_heap->heap_type, descriptor_index);
+        }
     }
 
     bool DescriptorAllocatorDX12::GetCpuDescriptorHandle(D3D12_DESCRIPTOR_HEAP_TYPE heap_type,
@@ -472,17 +485,12 @@ namespace won::rendering
 
     bool DescriptorAllocatorDX12::AllocateFromHeap(DescriptorHeap& heap, int& out_descriptor_index)
     {
-        return AllocateFromHeap(heap, heap.capacity, out_descriptor_index);
-    }
-
-    bool DescriptorAllocatorDX12::AllocateFromHeap(DescriptorHeap& heap, uint32 max_count, int& out_descriptor_index)
-    {
         std::lock_guard<std::mutex> lock(heap.mutex);
 
         for (Size free_index = heap.free_list.size(); free_index > 0; --free_index)
         {
             const int descriptor_index = heap.free_list[free_index - 1];
-            if (descriptor_index >= 0 && static_cast<uint32>(descriptor_index) < max_count)
+            if (descriptor_index >= 0 && static_cast<uint32>(descriptor_index) < heap.capacity)
             {
                 out_descriptor_index = descriptor_index;
                 heap.free_list.erase(heap.free_list.begin() + static_cast<ptrdiff_t>(free_index - 1));
@@ -490,7 +498,7 @@ namespace won::rendering
             }
         }
 
-        if (heap.allocated_count >= heap.capacity || heap.allocated_count >= max_count)
+        if (heap.allocated_count >= heap.capacity)
         {
             return false;
         }
@@ -502,10 +510,10 @@ namespace won::rendering
 
     bool DescriptorAllocatorDX12::CreateNullDescriptors()
     {
-        if (!AllocateFromHeap(cbv_srv_uav_cpu_staging_heap, cbv_srv_uav_persistent_descriptor_count, null_cbv_descriptor_index) ||
-            !AllocateFromHeap(cbv_srv_uav_cpu_staging_heap, cbv_srv_uav_persistent_descriptor_count, null_srv_descriptor_index) ||
-            !AllocateFromHeap(cbv_srv_uav_cpu_staging_heap, cbv_srv_uav_persistent_descriptor_count, null_uav_descriptor_index) ||
-            !AllocateFromHeap(sampler_cpu_staging_heap, sampler_persistent_descriptor_count, null_sampler_descriptor_index))
+        if (!AllocateFromHeap(cbv_srv_uav_cpu_staging_heap, null_cbv_descriptor_index) ||
+            !AllocateFromHeap(cbv_srv_uav_cpu_staging_heap, null_srv_descriptor_index) ||
+            !AllocateFromHeap(cbv_srv_uav_cpu_staging_heap, null_uav_descriptor_index) ||
+            !AllocateFromHeap(sampler_cpu_staging_heap, null_sampler_descriptor_index))
         {
             backlog::Post("Failed to allocate null descriptors", backlog::LogLevel::Error);
             return false;
@@ -856,7 +864,7 @@ namespace won::rendering
         const Size buffer_size = desc.buffer_size > 0 ? desc.buffer_size : static_cast<Size>(native_desc.Width - desc.buffer_offset);
         D3D12_CONSTANT_BUFFER_VIEW_DESC cbv_desc = {};
         cbv_desc.BufferLocation = native_resource->GetGPUVirtualAddress() + static_cast<UINT64>(desc.buffer_offset);
-        cbv_desc.SizeInBytes = AlignConstantBufferSize(static_cast<UINT>(buffer_size));
+        cbv_desc.SizeInBytes = won::math::Align(static_cast<UINT>(buffer_size), static_cast<UINT>(256u));
         device->CreateConstantBufferView(&cbv_desc, cpu_handle);
         return true;
     }

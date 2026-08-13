@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "Backlog.h"
 #include "MathUtils.h"
 #include "Profiler.h"
@@ -67,6 +67,7 @@ namespace won::rendering
                     if (!new_command_list.command_allocator || !new_command_list.command_list)
                     {
                         backlog::Post("failed to create frame command list", backlog::LogLevel::Error);
+                        command_list_counts[queue_index].store(typed_command_lists.size(), std::memory_order_relaxed);
                         return nullptr;
                     }
                     typed_command_lists.push_back(std::move(new_command_list));
@@ -135,7 +136,7 @@ namespace won::rendering
             {
                 RHIBufferDesc new_desc = frame_upload_buffer->GetDesc().buffer_desc;
                 new_desc.size = math::Align(required_size * 2, alignment);
-                RemoveResourceDeferred(frame_upload_buffer);
+                RemoveResourceDeferred(std::move(frame_upload_buffer));
                 frame_upload_buffer = device.CreateBuffer(new_desc);
                 if (frame_upload_buffer)
                 {
@@ -156,10 +157,10 @@ namespace won::rendering
             return true;
         }
 
-        void RemoveResourceDeferred(std::unique_ptr<RHIResource>& resource)
+        void RemoveResourceDeferred(std::unique_ptr<RHIObject> object)
         {
             std::scoped_lock lock(deferred_res_removal_mutex);
-            deferred_res_removal.push_back(std::move(resource));
+            deferred_res_removal.push_back(std::move(object));
         }
 
         Vector<FrameCommandList> command_lists[static_cast<Size>(RHIQueueType::Count)];
@@ -172,6 +173,6 @@ namespace won::rendering
         Size frame_upload_offset = 0;
         uint64 fence_value = 0;
 
-        std::vector<std::unique_ptr<RHIResource>> deferred_res_removal;
+        std::vector<std::unique_ptr<RHIObject>> deferred_res_removal;
     };
 }

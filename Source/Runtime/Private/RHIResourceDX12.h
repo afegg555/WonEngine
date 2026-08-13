@@ -67,12 +67,9 @@ namespace won::rendering
         ID3D12Resource* GetResource() const;
         void* GetMappedData() const override;
 
-        void SetCurrentState(D3D12_RESOURCE_STATES new_state);
-        D3D12_RESOURCE_STATES GetCurrentState() const;
-
         bool FindSubresource(const RHISubresourceDesc& desc, RHISubresourceHandle* out_handle) const;
         bool CreateSubresource(const RHISubresourceDesc& desc, RHISubresourceHandle* out_handle);
-        bool Replace(ComPtr<ID3D12Resource> new_resource, D3D12_RESOURCE_STATES new_state, std::unique_ptr<RHIResource>& out_retired);
+        bool Replace(ComPtr<ID3D12Resource> new_resource, std::unique_ptr<RHIResource>& out_retired);
 
     private:
         friend class RHICommandListDX12;
@@ -84,7 +81,6 @@ namespace won::rendering
             bool valid = false;
         };
 
-        bool IsSameSubresourceDesc(const RHISubresourceDesc& lhs, const RHISubresourceDesc& rhs) const;
         const SubresourceEntry* FindSubresourceEntry(const RHISubresourceHandle& handle) const;
 
         RHIResourceDesc desc = {};
@@ -93,7 +89,6 @@ namespace won::rendering
         D3D12MA::Allocation* allocation = nullptr;
         DescriptorAllocatorDX12* descriptor_allocator = nullptr;
         void* mapped_data = nullptr;
-        D3D12_RESOURCE_STATES current_state = D3D12_RESOURCE_STATE_COMMON;
         Vector<SubresourceEntry> subresources;
     };
 }

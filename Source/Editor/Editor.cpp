@@ -1,4 +1,4 @@
-#include "Editor.h"
+﻿#include "Editor.h"
 #include "EditorTextKeys.h"
 #include "FrameGraph.h"
 #include "Input.h"
@@ -5789,12 +5789,12 @@ namespace won::editor
 		}
 
 		rendering::FrameGraph& frame_graph = renderer->GetFrameGraph();
-		const rendering::FrameGraphResourceId back_buffer_id = frame_graph.Import(*back_buffer_binding.resource);
+		const rendering::FrameResourceId back_buffer_id = frame_graph.Import(*back_buffer_binding.resource);
 		frame_graph.AddPass("Draw ImGui",
-			{ { back_buffer_id, RHIResourceState::RenderTarget, rendering::FrameGraphAccessType::ReadWrite } },
-			[this, drawData, fb_width, fb_height, back_buffer_binding](RHICommandList& pass_command_list) {
+			{ { back_buffer_id, RHIResourceState::RenderTarget, rendering::FrameResourceAccess::Type::ReadWrite } },
+			[this, drawData, fb_width, fb_height, back_buffer_binding](const rendering::FrameGraphPassContext& pass_context) {
 
-			RHICommandList* command_list = &pass_command_list;
+			RHICommandList* command_list = pass_context.command_list;
 			FrameContext& frame_context = renderer->GetFrameContext();
 			Vector<RHISubresourceBinding> color_targets = { back_buffer_binding };
 

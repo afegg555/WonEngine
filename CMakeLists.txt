@@ -231,8 +231,6 @@ set(RUNTIME_RENDERING
     Source/Runtime/Public/FrameContext.h
     Source/Runtime/Public/FrameGraph.h
     Source/Runtime/Private/FrameGraph.cpp
-    Source/Runtime/Public/FrameGraphResourcePool.h
-    Source/Runtime/Private/FrameGraphResourcePool.cpp
     Source/Runtime/Private/Renderer.cpp
     Source/Runtime/Private/RenderingUtils.cpp
     Source/Runtime/Public/View.h

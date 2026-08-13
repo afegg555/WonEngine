@@ -252,16 +252,6 @@ namespace won::rendering
         return mapped_data;
     }
 
-    void RHIResourceDX12::SetCurrentState(D3D12_RESOURCE_STATES new_state)
-    {
-        current_state = new_state;
-    }
-
-    D3D12_RESOURCE_STATES RHIResourceDX12::GetCurrentState() const
-    {
-        return current_state;
-    }
-
     bool RHIResourceDX12::FindSubresource(const RHISubresourceDesc& desc_in, RHISubresourceHandle* out_handle) const
     {
         if (!out_handle)
@@ -276,7 +266,7 @@ namespace won::rendering
                 continue;
             }
 
-            if (IsSameSubresourceDesc(entry.desc, desc_in))
+            if (entry.desc == desc_in)
             {
                 out_handle->descriptor_index = entry.descriptor_index;
                 return true;
@@ -309,7 +299,7 @@ namespace won::rendering
         return true;
     }
 
-    bool RHIResourceDX12::Replace(ComPtr<ID3D12Resource> new_resource, D3D12_RESOURCE_STATES new_state, std::unique_ptr<RHIResource>& out_retired)
+    bool RHIResourceDX12::Replace(ComPtr<ID3D12Resource> new_resource, std::unique_ptr<RHIResource>& out_retired)
     {
         if (!new_resource || mapped_data)
         {
@@ -321,7 +311,6 @@ namespace won::rendering
 
         resource = std::move(new_resource);
         allocation = nullptr;
-        current_state = new_state;
         SetName(name);
 
         for (SubresourceEntry& entry : subresources)
@@ -339,19 +328,6 @@ namespace won::rendering
 
         out_retired = std::move(retired);
         return true;
-    }
-
-    bool RHIResourceDX12::IsSameSubresourceDesc(const RHISubresourceDesc& lhs, const RHISubresourceDesc& rhs) const
-    {
-        return lhs.type == rhs.type &&
-            lhs.format == rhs.format &&
-            lhs.first_slice == rhs.first_slice &&
-            lhs.slice_count == rhs.slice_count &&
-            lhs.first_mip == rhs.first_mip &&
-            lhs.mip_count == rhs.mip_count &&
-            lhs.buffer_offset == rhs.buffer_offset &&
-            lhs.buffer_size == rhs.buffer_size &&
-            lhs.buffer_stride == rhs.buffer_stride;
     }
 
     const RHIResourceDX12::SubresourceEntry* RHIResourceDX12::FindSubresourceEntry(const RHISubresourceHandle& handle) const

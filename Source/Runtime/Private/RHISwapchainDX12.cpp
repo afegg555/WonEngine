@@ -167,9 +167,7 @@ namespace won::rendering
             desc.texture_desc.format = RHIFormat::R8G8B8A8Unorm;
             desc.texture_desc.bind_flags = RHIBindFlags::RenderTarget;
 
-            auto resource = std::make_unique<RHIResourceDX12>(desc, std::move(back_buffer), nullptr, descriptor_allocator);
-            resource->SetCurrentState(D3D12_RESOURCE_STATE_PRESENT);
-            back_buffers[i] = std::move(resource);
+            back_buffers[i] = std::make_unique<RHIResourceDX12>(desc, std::move(back_buffer), nullptr, descriptor_allocator.get());
         }
 
         return true;

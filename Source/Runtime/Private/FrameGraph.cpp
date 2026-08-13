@@ -1,83 +1,215 @@
-#include "FrameGraph.h"
+﻿#include "FrameGraph.h"
 
+#include "Backlog.h"
+#include "FrameContext.h"
+#include "MathUtils.h"
 #include "RHICommandList.h"
 #include "RHIDevice.h"
-#include "JobSystem.h"
+#include "StableHash.h"
 
 namespace won::rendering
 {
-    void FrameGraph::Reset(RHIDevice& in_device, FrameContext& in_frame_context)
+    RHIResource* FrameGraphPassContext::GetResource(FrameResourceId resource) const
     {
-        device = &in_device;
+        return resource < frame_resource_count ? frame_resources[resource].resource : nullptr;
+    }
+
+    void FrameGraph::Initialize(RHIDevice* in_device)
+    {
+        device = in_device;
+
+		// tier 2 lets every resource type share one heap
+        if (device->HasFeature(RHIDeviceFeature::MixedResourceHeap))
+        {
+            heaps.resize(1);
+            return;
+        }
+        else
+        {
+            heaps.resize(static_cast<Size>(RHIMemoryCategory::Count));
+            for (Size i = 0; i < heaps.size(); ++i)
+            {
+                heaps[i].category = static_cast<RHIMemoryCategory>(i);
+            }
+        }
+    }
+
+    void FrameGraph::BeginFrame(FrameContext& in_frame_context)
+    {
         frame_context = &in_frame_context;
-        resources.clear();
-        resource_ids.clear();
+
+        frame_resources.clear();
         passes.clear();
-        pool.BeginFrame(in_device, in_frame_context);
         buffer_uploads.clear();
         upload_pass_index = 0;
         has_upload_pass = false;
-    }
 
-    RHIResource* FrameGraph::CreateBuffer(uint32 scope, const char* name, const RHIBufferDesc& desc)
-    {
-        RHIResource* created = pool.CreateBuffer(scope, name, desc);
-        if (created)
+		// drop pooled resources that have not been used for a few frames
+        for (auto pooled_iterator = pooled_resources.begin(); pooled_iterator != pooled_resources.end(); )
         {
-            resources[Import(*created)].transient = true;
-        }
-        return created;
-    }
+            PooledResource& pooled = pooled_iterator->second;
+            pooled.frame_resource = invalid_frame_resource;
+            ++pooled.unused_frames;
+			if (pooled.unused_frames <= max_frames_in_flight * 2) // heuristic: keep resources for a few frames
+            {
+                ++pooled_iterator;
+                continue;
+            }
 
-    RHIResource* FrameGraph::CreateTexture(uint32 scope, const char* name, const RHITextureDesc& desc)
-    {
-        RHIResource* created = pool.CreateTexture(scope, name, desc);
-        if (created)
-        {
-            resources[Import(*created)].transient = true;
-        }
-        return created;
-    }
-
-    RHISubresourceHandle FrameGraph::GetSubresource(RHIResource& resource, const RHISubresourceDesc& desc)
-    {
-        return pool.GetSubresource(resource, desc);
-    }
-
-    void FrameGraph::MarkNoCull(FrameGraphResourceId resource)
-    {
-        if (resource < resources.size())
-        {
-            resources[resource].no_cull = true;
+            for (const PooledSubresource& subresource : pooled.subresources)
+            {
+                device->ReleaseSubresource(subresource.desc, subresource.handle);
+            }
+            frame_context->RemoveResourceDeferred(std::move(pooled.resource));
+            pooled_iterator = pooled_resources.erase(pooled_iterator);
         }
     }
 
-    FrameGraphResourceId FrameGraph::Import(RHIResource& resource)
+    FrameGraph::PooledResource& FrameGraph::CreatePooledResource(uint32 scope, const char* name)
     {
-        auto found = resource_ids.find(&resource);
-        if (found != resource_ids.end())
+        uint64 key = StableHash(name);
+        key ^= scope;
+        key *= stable_hash_prime;
+
+        auto found = pooled_resources.find(key);
+        if (found != pooled_resources.end())
         {
+            if (found->second.scope != scope || found->second.name != name)
+            {
+                backlog::Post((String("FrameGraph: '") + name + "' and '" + found->second.name + "' collide on the same pooled resource key").c_str(), backlog::LogLevel::Error);
+            }
             return found->second;
         }
 
-        const FrameGraphResourceId id = static_cast<FrameGraphResourceId>(resources.size());
-        FrameGraphResource& graph_resource = resources.emplace_back();
-        graph_resource.resource = &resource;
-        resource_ids.emplace(&resource, id);
+        PooledResource& created = pooled_resources[key];
+        created.scope = scope;
+        created.name = name;
+        return created;
+    }
+
+    FrameResourceId FrameGraph::Import(RHIResource& resource, RHIResourceState state)
+    {
+        for (Size resource_index = 0; resource_index < frame_resources.size(); ++resource_index)
+        {
+            if (frame_resources[resource_index].resource == &resource)
+            {
+                return static_cast<FrameResourceId>(resource_index);
+            }
+        }
+
+        const FrameResourceId id = static_cast<FrameResourceId>(frame_resources.size());
+        FrameResource& frame_resource = frame_resources.emplace_back();
+        frame_resource.resource = &resource;
+        frame_resource.name = resource.GetName().c_str();
+        frame_resource.desc = resource.GetDesc();
+        frame_resource.state = state;
+        frame_resource.entry_state = state;
         return id;
     }
 
-
-    bool FrameGraph::QueueBufferUpload(FrameGraphResourceId destination, const void* data, Size size, RHIResourceState final_state, Size destination_offset)
+    FrameResourceId FrameGraph::CreateBuffer(uint32 scope, const char* name, const RHIBufferDesc& desc)
     {
-        RHIResource* destination_resource = destination < resources.size() ? resources[destination].resource : nullptr;
-        if (!destination_resource || size == 0)
+        PooledResource& pooled = CreatePooledResource(scope, name);
+        if (pooled.frame_resource != invalid_frame_resource)
+        {
+            const FrameResource& existing = frame_resources[pooled.frame_resource];
+            if (existing.desc.type != RHIResourceType::Buffer || !(existing.desc.buffer_desc == desc))
+            {
+                backlog::Post((String("FrameGraph: '") + name + "' is already declared this frame with a different description").c_str(), backlog::LogLevel::Warning);
+            }
+            return pooled.frame_resource;
+        }
+
+        const FrameResourceId id = static_cast<FrameResourceId>(frame_resources.size());
+        FrameResource& frame_resource = frame_resources.emplace_back();
+        frame_resource.scope = scope;
+        frame_resource.name = name;
+        frame_resource.desc.type = RHIResourceType::Buffer;
+        frame_resource.desc.buffer_desc = desc;
+        frame_resource.transient = true;
+        pooled.frame_resource = id;
+        return id;
+    }
+
+    FrameResourceId FrameGraph::CreateTexture(uint32 scope, const char* name, const RHITextureDesc& desc)
+    {
+        PooledResource& pooled = CreatePooledResource(scope, name);
+        if (pooled.frame_resource != invalid_frame_resource)
+        {
+            const FrameResource& existing = frame_resources[pooled.frame_resource];
+            if (existing.desc.type == RHIResourceType::Buffer || !(existing.desc.texture_desc == desc))
+            {
+                backlog::Post((String("FrameGraph: '") + name + "' is already declared this frame with a different description").c_str(), backlog::LogLevel::Warning);
+            }
+            return pooled.frame_resource;
+        }
+
+        const FrameResourceId id = static_cast<FrameResourceId>(frame_resources.size());
+        FrameResource& frame_resource = frame_resources.emplace_back();
+        frame_resource.scope = scope;
+        frame_resource.name = name;
+        frame_resource.desc.type = RHIResourceType::Texture2D;
+        frame_resource.desc.texture_desc = desc;
+        frame_resource.transient = true;
+        pooled.frame_resource = id;
+        return id;
+    }
+
+    RHISubresourceHandle FrameGraph::CreateSubresource(FrameResourceId resource, const RHISubresourceDesc& desc)
+    {
+        if (resource >= frame_resources.size())
+        {
+            return {};
+        }
+
+        const FrameResource& frame_resource = frame_resources[resource];
+
+        RHISubresourceDesc pooled_desc = desc;
+        if (frame_resource.desc.type == RHIResourceType::Buffer
+            && desc.buffer_offset == 0
+            && desc.buffer_size == frame_resource.desc.buffer_desc.size)
+        {
+            pooled_desc.buffer_size = 0;
+        }
+
+		PooledResource& pooled = CreatePooledResource(frame_resource.scope, frame_resource.name); // if exists, will return existing pooled resource
+        for (const PooledSubresource& subresource : pooled.subresources)
+        {
+            if (subresource.desc == pooled_desc)
+            {
+                return subresource.handle;
+            }
+        }
+
+        RHISubresourceHandle handle = {};
+        if (!device->ReserveSubresource(pooled_desc, &handle))
+        {
+            return {};
+        }
+
+        PooledSubresource& subresource = pooled.subresources.emplace_back();
+        subresource.desc = pooled_desc;
+        subresource.handle = handle;
+        return handle;
+    }
+
+    void FrameGraph::MarkNoCull(FrameResourceId resource)
+    {
+        if (resource < frame_resources.size())
+        {
+            frame_resources[resource].no_cull = true;
+        }
+    }
+
+    bool FrameGraph::QueueBufferUpload(FrameResourceId destination, const void* data, Size size, Size destination_offset)
+    {
+        if (destination >= frame_resources.size() || frame_resources[destination].desc.type != RHIResourceType::Buffer || size == 0)
         {
             return false;
         }
 
         FrameUploadAllocation allocation = {};
-        const Size alignment = device->GetMinOffsetAlignment(destination_resource->GetDesc().buffer_desc);
+        const Size alignment = device->GetMinOffsetAlignment(frame_resources[destination].desc.buffer_desc);
         if (!frame_context->AllocateFrameUpload(*device, size, alignment, allocation))
         {
             return false;
@@ -88,29 +220,35 @@ namespace won::rendering
         {
             has_upload_pass = true;
             upload_pass_index = passes.size();
-            AddPass("Upload Buffers", {}, [this](RHICommandList& command_list)
+            AddPass("Upload Buffers", {}, [this](const FrameGraphPassContext& pass_context)
             {
                 for (const BufferUpload& upload : buffer_uploads)
                 {
-                    command_list.TransitionResource(*upload.destination, RHIResourceState::CopyDest);
-                    command_list.CopyBuffer(*upload.destination, upload.destination_offset, *upload.source, upload.source_offset, upload.size);
-                    command_list.TransitionResource(*upload.destination, upload.final_state);
+                    RHIResource* destination_resource = pass_context.GetResource(upload.destination);
+                    if (!destination_resource)
+                    {
+                        continue;
+                    }
+
+                    pass_context.command_list->TransitionResource(*destination_resource, RHIResourceState::Undefined, RHIResourceState::CopyDest);
+                    pass_context.command_list->CopyBuffer(*destination_resource, upload.destination_offset,
+                        *upload.source, upload.source_offset, upload.size);
+                    pass_context.command_list->TransitionResource(*destination_resource, RHIResourceState::CopyDest, RHIResourceState::Undefined);
                 }
             });
         }
+        passes[upload_pass_index].accesses.push_back({ destination, RHIResourceState::Undefined, FrameResourceAccess::Type::Write });
 
-        passes[upload_pass_index].accesses.push_back({ destination, RHIResourceState::CopyDest, FrameGraphAccessType::Write });
         BufferUpload& upload = buffer_uploads.emplace_back();
-        upload.destination = destination_resource;
+        upload.destination = destination;
         upload.destination_offset = destination_offset;
         upload.source = allocation.buffer;
         upload.source_offset = allocation.buffer_offset;
         upload.size = size;
-        upload.final_state = final_state;
         return true;
     }
 
-    void FrameGraph::AddPass(const char* name, Vector<FrameGraphAccess> accesses, std::function<void(RHICommandList&)> execute)
+    void FrameGraph::AddPass(const char* name, Vector<FrameResourceAccess> accesses, std::function<void(const FrameGraphPassContext&)> execute)
     {
         Pass& pass = passes.emplace_back();
         pass.name = name;
@@ -120,105 +258,373 @@ namespace won::rendering
 
     void FrameGraph::Compile()
     {
-        Vector<bool> pass_alive(passes.size(), false);
-        Vector<bool> resource_needed(resources.size(), false);
+        Vector<bool> resource_needed(frame_resources.size(), false);
 
-        for (Size resource_index = 0; resource_index < resources.size(); ++resource_index)
+		// cull passes and compute resource lifetimes !! backwards
+        for (uint32 pass_index = (uint32)passes.size(); pass_index > 0; --pass_index)
         {
-            resource_needed[resource_index] = resources[resource_index].no_cull;
-        }
+            const uint32 index = pass_index - 1;
+            Pass& pass = passes[index];
 
-        // !! backwards
-        for (Size pass_index = passes.size(); pass_index > 0; --pass_index)
-        {
-            const Size index = pass_index - 1;
-            const Pass& pass = passes[index];
-
-            for (const FrameGraphAccess& access : pass.accesses)
+            for (const FrameResourceAccess& access : pass.accesses)
             {
-                if (access.type == FrameGraphAccessType::Read)
+                if (access.type == FrameResourceAccess::Type::Read)
                 {
                     continue;
                 }
-                if (access.resource < resource_needed.size() && resource_needed[access.resource])
+                if (access.resource < resource_needed.size()
+                    && (resource_needed[access.resource] || frame_resources[access.resource].no_cull))
                 {
-                    pass_alive[index] = true;
+                    pass.alive = true;
                     break;
                 }
             }
 
-            if (!pass_alive[index])
+            if (!pass.alive)
             {
                 continue;
             }
 
-			// all read accesses of this pass are needed
-            for (const FrameGraphAccess& access : pass.accesses)
+            for (const FrameResourceAccess& access : pass.accesses)
             {
-                if (access.type != FrameGraphAccessType::Write && access.resource < resource_needed.size())
+                if (access.resource >= frame_resources.size())
+                {
+                    continue;
+                }
+
+                FrameResource& frame_resource = frame_resources[access.resource];
+                if (!frame_resource.alive)
+                {
+                    frame_resource.alive = true;
+                    frame_resource.last_pass = index;
+                }
+                frame_resource.first_pass = index;
+
+                if (access.type != FrameResourceAccess::Type::Write)
                 {
                     resource_needed[access.resource] = true;
                 }
             }
         }
 
-        for (Size pass_index = 0; pass_index < passes.size(); ++pass_index)
+        struct Placement
         {
-            if (!pass_alive[pass_index])
+            PooledResource* pooled = nullptr;
+            FrameResourceId frame_resource = invalid_frame_resource;
+            uint32 first_pass = 0;
+            uint32 last_pass = 0;
+            Size heap_index = ~(Size)0;
+            Size heap_offset = 0;
+            Vector<Size> overlaps; // placement indices sharing this memory
+        };
+
+        Vector<Placement> placements;
+        placements.reserve(frame_resources.size());
+        for (Size resource_index = 0; resource_index < frame_resources.size(); ++resource_index)
+        {
+            FrameResource& frame_resource = frame_resources[resource_index];
+            if (!frame_resource.alive || !frame_resource.transient)
             {
                 continue;
             }
 
-            Pass& pass = passes[pass_index];
-            RHICommandList* pass_command_list = frame_context->BeginCommandList(*device);
-            if (!pass_command_list)
+            PooledResource& pooled = CreatePooledResource(frame_resource.scope, frame_resource.name);
+            pooled.unused_frames = 0;
+
+            const bool desc_changed = pooled.desc.type != frame_resource.desc.type
+                || (frame_resource.desc.type == RHIResourceType::Buffer
+                    ? !(pooled.desc.buffer_desc == frame_resource.desc.buffer_desc)
+                    : !(pooled.desc.texture_desc == frame_resource.desc.texture_desc));
+
+            if (desc_changed)
             {
-                return;
+                frame_context->RemoveResourceDeferred(std::move(pooled.resource));
+                pooled.desc = frame_resource.desc;
+                pooled.category = pooled.desc.type == RHIResourceType::Buffer
+                    ? RHIMemoryCategory::Buffer
+                    : ((HasBindFlag(pooled.desc.texture_desc.bind_flags, RHIBindFlags::RenderTarget) || HasBindFlag(pooled.desc.texture_desc.bind_flags, RHIBindFlags::DepthStencil))
+                        ? RHIMemoryCategory::RenderTargetOrDepthStencil
+                        : RHIMemoryCategory::Texture);
+                pooled.allocation_size = device->GetResourceAllocationSize(pooled.desc, pooled.allocation_alignment);
             }
-            pass.command_list = pass_command_list;
 
-            pass_command_list->BeginEvent(pass.name.c_str());
-            for (const FrameGraphAccess& access : pass.accesses)
+            if (pooled.allocation_size == 0)
             {
-                if (access.resource >= resources.size())
+                continue;
+            }
+
+            Placement& placement = placements.emplace_back();
+            placement.pooled = &pooled;
+            placement.frame_resource = static_cast<FrameResourceId>(resource_index);
+
+            placement.first_pass = frame_resource.no_cull ? 0 : frame_resource.first_pass;
+            placement.last_pass = frame_resource.no_cull ? static_cast<uint32>(passes.size() - 1) : frame_resource.last_pass;
+        }
+
+        // place resources into logical heaps
+        for (Heap& heap : heaps)
+        {
+            heap.size = 0;
+            heap.alignment = 0;
+        }
+
+        std::sort(placements.begin(), placements.end(), [](const Placement& a, const Placement& b)
+            {
+                return a.first_pass < b.first_pass;
+            });
+
+        for (Size placement_index = 0; placement_index < placements.size(); ++placement_index)
+        {
+            Placement& placement = placements[placement_index];
+            const PooledResource& pooled = *placement.pooled;
+
+            placement.heap_index = heaps.size() == 1 ? 0 : static_cast<Size>(pooled.category);
+
+            Size offset = 0;
+            bool moved = true;
+            while (moved)
+            {
+                moved = false;
+                for (Size other_index = 0; other_index < placement_index; ++other_index)
+                {
+                    const Placement& other = placements[other_index];
+                    if (other.heap_index != placement.heap_index)
+                    {
+                        continue;
+                    }
+
+                    if (other.last_pass < placement.first_pass || placement.last_pass < other.first_pass)
+                    {
+                        // no pass overlap
+                        continue;
+                    }
+
+                    const Size placement_end = offset + pooled.allocation_size;
+                    const Size other_end = other.heap_offset + other.pooled->allocation_size;
+
+                    if (placement_end <= other.heap_offset || other_end <= offset)
+                    {
+						// no memory overlap
+                        continue;
+                    }
+
+					// both lifetime and memory overlap, so this one has to go after the other
+                    offset = math::Align(other_end, pooled.allocation_alignment);
+                    moved = true;
+                }
+            }
+
+            placement.heap_offset = offset;
+
+			// whatever still intersects this range has a disjoint lifetime, so the two alias each other
+            const Size placement_end = offset + pooled.allocation_size;
+            for (Size other_index = 0; other_index < placement_index; ++other_index)
+            {
+                Placement& other = placements[other_index];
+                if (other.heap_index != placement.heap_index)
                 {
                     continue;
                 }
 
-                FrameGraphResource& resource = resources[access.resource];
-                if (!resource.alive)
-                {
-                    resource.alive = true;
-                    resource.first_pass = pass_index;
-                }
-                resource.last_pass = pass_index;
-
-                if (!resource.resource || resource.state == access.state)
+                const Size other_end = other.heap_offset + other.pooled->allocation_size;
+                if (placement_end <= other.heap_offset || other_end <= offset)
                 {
                     continue;
                 }
 
-                pass_command_list->TransitionResource(*resource.resource, access.state);
-                resource.state = access.state;
+                placement.overlaps.push_back(other_index);
+                other.overlaps.push_back(placement_index);
+            }
+
+            Heap& heap = heaps[placement.heap_index];
+            heap.size = (std::max)(heap.size, placement_end);
+            heap.alignment = (std::max)(heap.alignment, pooled.allocation_alignment);
+        }
+
+		// grow heaps that no longer fit
+        Vector<bool> heap_reallocated(heaps.size(), false);
+        for (Size heap_index = 0; heap_index < heaps.size(); ++heap_index)
+        {
+            Heap& heap = heaps[heap_index];
+            if (heap.size == 0 || (heap.block && heap.block->GetSize() >= heap.size))
+            {
+                continue;
+            }
+
+            frame_context->RemoveResourceDeferred(std::move(heap.block));
+            heap.block = device->AllocateMemory(math::Align(heap.size, heap.alignment), heap.alignment, heap.category);
+            heap_reallocated[heap_index] = true;
+        }
+
+		// materialize resources
+        for (const Placement& placement : placements)
+        {
+            PooledResource& pooled = *placement.pooled;
+            RHIMemoryBlock* block = heaps[placement.heap_index].block.get();
+            if (!block)
+            {
+                continue;
+            }
+
+            if (!pooled.resource
+                || pooled.heap_index != placement.heap_index
+                || pooled.heap_offset != placement.heap_offset
+                || heap_reallocated[placement.heap_index])
+            {
+                frame_context->RemoveResourceDeferred(std::move(pooled.resource));
+                pooled.resource = pooled.desc.type == RHIResourceType::Buffer
+                    ? device->CreatePlacedBuffer(*block, placement.heap_offset, pooled.desc.buffer_desc)
+                    : device->CreatePlacedTexture(*block, placement.heap_offset, pooled.desc.texture_desc);
+                if (!pooled.resource)
+                {
+                    continue;
+                }
+                pooled.resource->SetName(pooled.name);
+                pooled.state = RHIResourceState::Undefined;
+
+                for (PooledSubresource& subresource : pooled.subresources)
+                {
+                    subresource.realized = false;
+                }
+            }
+
+            pooled.heap_index = placement.heap_index;
+            pooled.heap_offset = placement.heap_offset;
+
+            for (PooledSubresource& subresource : pooled.subresources)
+            {
+                if (subresource.realized)
+                {
+                    continue;
+                }
+
+                subresource.realized = device->UpdateSubresource(*pooled.resource, subresource.desc, subresource.handle);
+            }
+
+            FrameResource& frame_resource = frame_resources[placement.frame_resource];
+            frame_resource.resource = pooled.resource.get();
+
+            frame_resource.state = pooled.state;
+        }
+
+		// command lists are opened in pass order so submission follows the graph order
+        for (Size pass_index = 0; pass_index < passes.size(); ++pass_index)
+        {
+            Pass& pass = passes[pass_index];
+            if (!pass.alive)
+            {
+                continue;
+            }
+
+            pass.command_list = frame_context->BeginCommandList(*device);
+            if (!pass.command_list)
+            {
+                backlog::Post((String("FrameGraph: no command list for pass '") + pass.name + "', the rest of the frame is dropped").c_str(), backlog::LogLevel::Error);
+                break;
+            }
+
+            for (const Placement& placement : placements)
+            {
+                if (placement.first_pass != pass_index || placement.overlaps.empty())
+                {
+                    continue;
+                }
+
+                FrameResource& frame_resource = frame_resources[placement.frame_resource];
+                if (!frame_resource.resource)
+                {
+                    continue;
+                }
+
+                for (Size overlap_index : placement.overlaps)
+                {
+                    const Placement& overlap = placements[overlap_index];
+                    if (overlap.last_pass >= placement.first_pass)
+                    {
+                        continue;
+                    }
+
+                    pass.command_list->AliasingBarrier(overlap.pooled->resource.get(), *frame_resource.resource);
+                }
+
+                for (const FrameResourceAccess& access : pass.accesses)
+                {
+                    if (access.resource == placement.frame_resource && access.type == FrameResourceAccess::Type::Read)
+                    {
+                        backlog::Post((String("FrameGraph: '") + frame_resource.name + "' aliases memory but its first access reads it").c_str(), backlog::LogLevel::Warning);
+                    }
+                }
+            }
+
+            for (const FrameResourceAccess& access : pass.accesses)
+            {
+                if (access.resource >= frame_resources.size())
+                {
+                    continue;
+                }
+
+                FrameResource& frame_resource = frame_resources[access.resource];
+                if (!frame_resource.resource || frame_resource.state == access.state)
+                {
+                    continue;
+                }
+
+                pass.command_list->TransitionResource(*frame_resource.resource, frame_resource.state, access.state);
+                frame_resource.state = access.state;
             }
         }
+
+		// carry the states the passes left behind over to the next frame
+        for (const Placement& placement : placements)
+        {
+            placement.pooled->state = frame_resources[placement.frame_resource].state;
+        }
+
+        RHICommandList* epilogue_command_list = frame_context->BeginCommandList(*device);
+        if (epilogue_command_list)
+        {
+			epilogue_command_list->BeginEvent("FrameGraph Epilogue");
+
+            for (FrameResource& frame_resource : frame_resources)
+            {
+                if (frame_resource.transient
+                    || !frame_resource.alive
+                    || !frame_resource.resource
+                    || frame_resource.state == frame_resource.entry_state)
+                {
+                    continue;
+                }
+
+                epilogue_command_list->TransitionResource(*frame_resource.resource, frame_resource.state, frame_resource.entry_state);
+                frame_resource.state = frame_resource.entry_state;
+            }
+
+            epilogue_command_list->EndEvent();
+        }
+
     }
 
     void FrameGraph::Dispatch(jobsystem::Context& context)
     {
+        const FrameResource* resources_data = frame_resources.data();
+        const Size resources_count = frame_resources.size();
+
         for (Pass& pass : passes)
         {
-            if (!pass.command_list)
+            if (!pass.alive || !pass.execute || !pass.command_list)
             {
                 continue;
             }
 
-            jobsystem::Execute(context, [pass = &pass](jobsystem::JobArgs)
+            jobsystem::Execute(context, [pass = &pass, resources_data, resources_count](jobsystem::JobArgs)
             {
-                if (pass->execute)
-                {
-                    pass->execute(*pass->command_list);
-                }
+                FrameGraphPassContext pass_context = {};
+                pass_context.command_list = pass->command_list;
+                pass_context.frame_resources = resources_data;
+                pass_context.frame_resource_count = resources_count;
+
+                pass->command_list->BeginEvent(pass->name.c_str());
+                pass->execute(pass_context);
                 pass->command_list->EndEvent();
             });
         }
