@@ -40,6 +40,7 @@ namespace won::resource
             }
 
             auto font = std::make_shared<Font>();
+            font->name = path;
             font->data = std::move(file_data.bytes);
             font->font_info = std::make_shared<stbtt_fontinfo>();
 

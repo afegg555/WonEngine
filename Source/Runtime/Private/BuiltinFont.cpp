@@ -317,6 +317,7 @@ namespace won::builtinfont
             backlog::Post("[BuiltinFont] atlas texture creation failed", backlog::LogLevel::Error);
             return false;
         }
+        atlas_texture->SetName("Builtin Font Atlas Texture");
 
         rendering::RHISubresourceDesc srv_desc = {};
         srv_desc.type = rendering::RHISubresourceType::ShaderResource;

@@ -168,6 +168,7 @@ namespace won::rendering
             desc.texture_desc.bind_flags = RHIBindFlags::RenderTarget;
 
             back_buffers[i] = std::make_unique<RHIResourceDX12>(desc, std::move(back_buffer), nullptr, descriptor_allocator.get());
+            back_buffers[i]->SetName("Swapchain Back Buffer " + std::to_string(i));
         }
 
         return true;

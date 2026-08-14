@@ -837,6 +837,7 @@ namespace won::rendering::utils
         {
             return false;
         }
+        source_texture->SetName("BC Compress Source Texture");
 
         RHIBufferDesc output_desc = {};
         output_desc.size = output_size;
@@ -847,6 +848,7 @@ namespace won::rendering::utils
         {
             return false;
         }
+        output_buffer->SetName("BC Compress Output Buffer");
 
         RHISubresourceHandle output_uav = {};
         RHISubresourceDesc output_uav_desc = {};
@@ -868,6 +870,7 @@ namespace won::rendering::utils
         {
             return false;
         }
+        readback_buffer->SetName("BC Compress Readback Buffer");
 
         RHIQueueType queue_type = RHIQueueType::Graphics;
         RHIContext* context = device.GetContext(queue_type);
@@ -1021,6 +1024,7 @@ namespace won::rendering::utils
         {
             return false;
         }
+        new_render_data.buffer->SetName(mesh.name.empty() ? String("Mesh Vertex Index Buffer") : "Mesh Vertex Index Buffer (" + mesh.name + ")");
 
         auto create_subresource = [&](RHISubresourceType type, Size buffer_offset, Size buffer_size, Size buffer_stride, resource::Mesh::VBSubresource& out_subresource) -> bool
         {
@@ -1131,6 +1135,7 @@ namespace won::rendering::utils
         {
             return false;
         }
+        new_render_data.texture->SetName(image.name.empty() ? String("Image Texture") : "Image Texture (" + image.name + ")");
 
         RHISubresourceDesc texture_srv_desc = {};
         texture_srv_desc.type = RHISubresourceType::ShaderResource;
@@ -1184,6 +1189,7 @@ namespace won::rendering::utils
         {
             return false;
         }
+        new_render_data.atlas_texture->SetName(font.name.empty() ? String("Font Atlas Texture") : "Font Atlas Texture (" + font.name + ")");
 
         RHISubresourceDesc texture_srv_desc = {};
         texture_srv_desc.type = RHISubresourceType::ShaderResource;

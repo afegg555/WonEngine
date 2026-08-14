@@ -446,6 +446,7 @@ namespace won::resource
         }
 
         auto mesh = std::make_shared<Mesh>();
+        mesh->name = path;
         serialize::Serialize(archive, mesh->positions);
         serialize::Serialize(archive, mesh->colors);
         serialize::Serialize(archive, mesh->normals);
@@ -644,6 +645,7 @@ namespace won::resource
         }
 
         auto image = std::make_shared<Image>();
+        image->name = path;
         image->width = static_cast<int32>(header.width);
         image->height = static_cast<int32>(header.height);
         image->channels = 4;

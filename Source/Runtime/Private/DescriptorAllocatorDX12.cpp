@@ -477,6 +477,24 @@ namespace won::rendering
             return false;
         }
 
+        switch (heap.heap_type)
+        {
+        case D3D12_DESCRIPTOR_HEAP_TYPE_RTV:
+            heap.heap->SetName(L"RTV CPU Staging Heap");
+            break;
+        case D3D12_DESCRIPTOR_HEAP_TYPE_DSV:
+            heap.heap->SetName(L"DSV CPU Staging Heap");
+            break;
+        case D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV:
+            heap.heap->SetName(shader_visible ? L"CBV SRV UAV GPU Heap" : L"CBV SRV UAV CPU Staging Heap");
+            break;
+        case D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER:
+            heap.heap->SetName(shader_visible ? L"Sampler GPU Heap" : L"Sampler CPU Staging Heap");
+            break;
+        default:
+            break;
+        }
+
         heap.descriptor_size = device->GetDescriptorHandleIncrementSize(heap.heap_type);
         heap.capacity = capacity;
         heap.free_list.clear();

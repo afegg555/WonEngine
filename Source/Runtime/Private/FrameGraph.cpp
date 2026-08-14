@@ -479,7 +479,7 @@ namespace won::rendering
                 {
                     continue;
                 }
-                pooled.resource->SetName(pooled.name);
+                pooled.resource->SetName(pooled.name + " (View " + std::to_string(pooled.scope) + ")");
                 pooled.state = RHIResourceState::Undefined;
 
                 for (PooledSubresource& subresource : pooled.subresources)
