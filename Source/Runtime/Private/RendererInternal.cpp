@@ -829,7 +829,7 @@ namespace won::rendering
             color_desc.clear_color[1] = clear_color.g;
             color_desc.clear_color[2] = clear_color.b;
             color_desc.clear_color[3] = clear_color.a;
-            targets.color[i] = frame_graph.CreateTexture(view.viewer_index, i == 0 ? "View Color Buffer 0 (Scene Color)" : "View Color Buffer 1", color_desc);
+            targets.color[i] = frame_graph.CreateTexture(view.viewer_index, i == 0 ? "View Color Buffer" : "View Post Color Buffer", color_desc);
 
             RHISubresourceDesc srv_desc = {};
             srv_desc.type = RHISubresourceType::ShaderResource;
@@ -1682,7 +1682,9 @@ namespace won::rendering
 
         {
             auto cpu_range = profiler::ScopedRangeCPU("Flush Resource Uploads");
-            utils::FlushEnqueuedResourceUploads(*device, static_cast<uint32>(r_upload_budget.GetInt()));
+            uint64 completed_component_mask = 0;
+            utils::FlushEnqueuedResourceUploads(*device, static_cast<uint32>(r_upload_budget.GetInt()), &completed_component_mask);
+            upload_completed_component_mask |= completed_component_mask;
         }
 
         CreateBackBufferSubresources();
@@ -2109,7 +2111,6 @@ namespace won::rendering
         scissor.width = back_buffer_binding.resource->GetDesc().texture_desc.width;
         scissor.height = back_buffer_binding.resource->GetDesc().texture_desc.height;
 
-        command_list.TransitionResource(*back_buffer_binding.resource, RHIResourceState::Undefined, RHIResourceState::RenderTarget);
         command_list.SetRenderTargets({ back_buffer_binding }, nullptr);
         command_list.SetViewport(viewport);
         command_list.SetScissor(scissor);
@@ -2204,6 +2205,11 @@ namespace won::rendering
         GPUScene& gpu_scene = scene.GetGPUScene();
 
         FrameContext& frame_context = GetFrameContext();
+
+        if (upload_completed_component_mask != 0)
+        {
+            scene.MarkGpuDirty(upload_completed_component_mask);
+        }
 
         if (scene.GetUpdateIndex() != gpu_scene.synced_index)
         {
@@ -2591,6 +2597,7 @@ namespace won::rendering
         const FrameResourceId view_constants_id = frame_graph.Import(*view.view_constants.buffer);
         const FrameResourceAccess view_constants_read = { view_constants_id, RHIResourceState::ConstantBuffer, FrameResourceAccess::Type::Read };
         const FrameResourceAccess view_constants_write = { view_constants_id, RHIResourceState::ConstantBuffer, FrameResourceAccess::Type::ReadWrite };
+        const FrameResourceAccess sort_buffer_read = { view.instance_resources.sort_buffer, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read };
 
         if (gpu_scene.ddgi.irradiance_texture)
         {
@@ -2657,7 +2664,7 @@ namespace won::rendering
         if (view.shadow_resources.atlas != invalid_frame_resource && view.shadow_resources.atlas_dsv.IsValid() && !view.shadow_resources.render_shadow_slices.empty())
         {
             shadow_atlas_id = view.shadow_resources.atlas;
-            frame_graph.AddPass("Shadow Pass", { { shadow_atlas_id, RHIResourceState::DepthWrite, FrameResourceAccess::Type::Write }, view_constants_write },
+            frame_graph.AddPass("Shadow Pass", { { shadow_atlas_id, RHIResourceState::DepthWrite, FrameResourceAccess::Type::Write }, view_constants_write, sort_buffer_read },
                 [this, &view, &frame_context](const FrameGraphPassContext& pass_context)
             {
                 auto cpu_range = profiler::ScopedRangeCPU("Shadow Pass");
@@ -2758,7 +2765,7 @@ namespace won::rendering
         // prepass
         if ((view.show_flags & Show_Opaque) != 0)
         {
-            frame_graph.AddPass("Prepass", { { depth_id, RHIResourceState::DepthWrite, FrameResourceAccess::Type::ReadWrite }, view_constants_read },
+            frame_graph.AddPass("Prepass", { { depth_id, RHIResourceState::DepthWrite, FrameResourceAccess::Type::ReadWrite }, view_constants_read, sort_buffer_read },
                 [this, &view, &targets, &frame_context, viewport, scissor](const FrameGraphPassContext& pass_context)
             {
                 auto gpu_range = profiler::ScopedRangeGPU("Prepass", (*pass_context.command_list));
@@ -2838,6 +2845,7 @@ namespace won::rendering
         {
             Vector<FrameResourceAccess> main_pass_accesses = {
                 view_constants_read,
+                sort_buffer_read,
                 { scene_color_id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite },
 				{ depth_id, RHIResourceState::DepthWrite, FrameResourceAccess::Type::ReadWrite }, // depth buffer is written in the main pass for transparent or masked objects
             };
@@ -2858,10 +2866,6 @@ namespace won::rendering
             if (view.shadow_resources.light_slice_buffer != invalid_frame_resource)
             {
                 main_pass_accesses.push_back({ view.shadow_resources.light_slice_buffer, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read });
-            }
-            if (view.instance_resources.sort_buffer != invalid_frame_resource)
-            {
-                main_pass_accesses.push_back({ view.instance_resources.sort_buffer, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read });
             }
             if (view.light_resources.forward_index_buffer != invalid_frame_resource)
             {
@@ -2886,7 +2890,7 @@ namespace won::rendering
         if ((view.show_flags & Show_Decals) != 0 && !gpu_scene.shader_decals.empty() && gpu_scene.decal_buffer.srv.IsValid() && view.render_targets.depth_srv.IsValid())
         {
             frame_graph.AddPass("Decal Pass",
-                { { scene_color_id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite }, { depth_id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read }, view_constants_read },
+                { { scene_color_id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite }, { depth_id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read }, view_constants_read, sort_buffer_read },
                 [this, &view, &targets, &frame_context, viewport, scissor](const FrameGraphPassContext& pass_context)
             {
                 auto gpu_range = profiler::ScopedRangeGPU("Decal Pass", (*pass_context.command_list));
@@ -3110,16 +3114,21 @@ namespace won::rendering
             {
                 frame_graph.AddPass("Grid Pass",
                     { { view_output_id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite }, { depth_id, RHIResourceState::DepthWrite, FrameResourceAccess::Type::ReadWrite }, view_constants_read },
-                    [&targets, viewport, scissor, src, grid_pipeline](const FrameGraphPassContext& pass_context)
+                    [&view, &targets, viewport, scissor, src, grid_pipeline, shader_frame_binding](const FrameGraphPassContext& pass_context)
                 {
                     auto gpu_range = profiler::ScopedRangeGPU("Grid Pass", (*pass_context.command_list));
                     RHICommandList* command_list = pass_context.command_list;
+                    const RHISubresourceBinding shader_view_binding = { view.view_constants.buffer.get(), view.view_constants.cbv };
 
                     const RHISubresourceBinding depth_binding = { pass_context.GetResource(targets.depth), targets.depth_dsv };
                     command_list->SetViewport(viewport);
                     command_list->SetScissor(scissor);
                     command_list->SetRenderTargets({ { pass_context.GetResource(targets.color[src]), targets.color_rtv[src] } }, &depth_binding);
                     command_list->SetGraphicsPipeline(*grid_pipeline);
+                    command_list->SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
+                    command_list->SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_view_binding);
+                    command_list->SetConstantBuffer(RHIShaderStage::Pixel, 0, shader_frame_binding);
+                    command_list->SetConstantBuffer(RHIShaderStage::Pixel, 1, shader_view_binding);
                     command_list->SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
                     command_list->Draw(3, 1, 0, 0);
                 });
@@ -3128,7 +3137,7 @@ namespace won::rendering
 
         // primitive (line/point) pass: depth-tested against the scene
         frame_graph.AddPass("Primitive Pass",
-            { { view_output_id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite }, { depth_id, RHIResourceState::DepthWrite, FrameResourceAccess::Type::ReadWrite }, view_constants_read },
+            { { view_output_id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite }, { depth_id, RHIResourceState::DepthWrite, FrameResourceAccess::Type::ReadWrite }, view_constants_read, sort_buffer_read },
             [this, &view, &targets, &frame_context, viewport, scissor, src](const FrameGraphPassContext& pass_context)
         {
             auto gpu_range = profiler::ScopedRangeGPU("Primitive Pass", (*pass_context.command_list));
@@ -3145,7 +3154,7 @@ namespace won::rendering
         if ((view.show_flags & Show_Sprites3D) != 0)
         {
             frame_graph.AddPass("Sprite/Text3D Pass",
-                { { view_output_id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite }, { depth_id, RHIResourceState::DepthWrite, FrameResourceAccess::Type::ReadWrite }, view_constants_read },
+                { { view_output_id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite }, { depth_id, RHIResourceState::DepthWrite, FrameResourceAccess::Type::ReadWrite }, view_constants_read, sort_buffer_read },
                 [this, &view, &targets, &frame_context, src](const FrameGraphPassContext& pass_context)
             {
                 auto gpu_range = profiler::ScopedRangeGPU("Sprite/Text3D Pass", (*pass_context.command_list));
@@ -3175,7 +3184,7 @@ namespace won::rendering
         // sprite 2d pass
         if ((view.show_flags & Show_Sprites2D) != 0)
         {
-            frame_graph.AddPass("Sprite2D Pass", { { view_output_id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite }, view_constants_read },
+            frame_graph.AddPass("Sprite2D Pass", { { view_output_id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite }, view_constants_read, sort_buffer_read },
                 [this, &view, &targets, &frame_context, src](const FrameGraphPassContext& pass_context)
             {
                 auto gpu_range = profiler::ScopedRangeGPU("Sprite2D Pass", (*pass_context.command_list));
@@ -3230,6 +3239,8 @@ namespace won::rendering
 
     void RendererInternal::EndFrame()
     {
+        upload_completed_component_mask = 0;
+
         FrameContext& frame_context = GetFrameContext();
 
         RHISwapchain* swapchain = current_window->GetRHISwapchain();

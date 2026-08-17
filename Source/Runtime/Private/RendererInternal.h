@@ -91,6 +91,7 @@ namespace won::rendering
         uint64 enqueued_work_fence_value = 0;
         bool enqueued_work_succeeded = true;
         bool enqueued_work_recorded = false;
+        ecs::ComponentMask upload_completed_component_mask = 0;
         RHIClearColor clear_color = {};
         bool vsync_enabled = true;
         bool vsync_requested = true;

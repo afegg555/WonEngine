@@ -8,6 +8,7 @@
 #include "ShaderInterop_Utility.h"
 #include "Timer.h"
 #include "Renderer.h"
+#include "SceneComponents.h"
 #include <mutex>
 
 namespace won::rendering::utils
@@ -658,8 +659,10 @@ namespace won::rendering::utils
         pending_image_upload.push_back({ image, format });
     }
 
-    bool FlushEnqueuedResourceUploads(RHIDevice& device, uint32 max_uploads)
+    bool FlushEnqueuedResourceUploads(RHIDevice& device, uint32 max_uploads, uint64* out_completed_component_mask)
     {
+        ecs::ComponentMask completed_component_mask = ecs::none_component_mask;
+
         Vector<std::weak_ptr<resource::Mesh>> meshes;
         Vector<std::weak_ptr<resource::Font>> fonts;
         Vector<PendingImageUpload> images;
@@ -694,7 +697,10 @@ namespace won::rendering::utils
         {
             if (std::shared_ptr<resource::Mesh> mesh = weak.lock())
             {
-                CreateRenderData(device, *mesh);
+                if (CreateRenderData(device, *mesh))
+                {
+                    completed_component_mask |= ecs::geometry_component_mask;
+                }
             }
         }
         for (const std::weak_ptr<resource::Font>& weak : fonts)
@@ -708,8 +714,16 @@ namespace won::rendering::utils
         {
             if (std::shared_ptr<resource::Image> image = pending.image.lock())
             {
-                CreateRenderData(device, *image, pending.format, true);
+                if (CreateRenderData(device, *image, pending.format, true))
+                {
+                    completed_component_mask |= ecs::material_component_mask;
+                }
             }
+        }
+
+        if (out_completed_component_mask)
+        {
+            *out_completed_component_mask = completed_component_mask;
         }
         return queue_empty;
     }

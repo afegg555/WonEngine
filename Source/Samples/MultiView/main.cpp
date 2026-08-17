@@ -22,6 +22,9 @@ namespace
         view.viewport = viewport;
         view.scissor = viewport;
         view.ui_layer_mask = ui_layer_mask;
+
+        //view.show_flags = won::rendering::Show_Default | won::rendering::Show_Grid;
+		//view.view_mode = won::rendering::ViewMode::Wireframe;
         app.AddView(std::move(view));
     }
 }
