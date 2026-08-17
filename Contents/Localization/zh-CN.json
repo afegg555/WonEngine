@@ -254,6 +254,10 @@
             "source": "Range",
             "text": "范围"
         },
+        "editor.label.shadow_distance": {
+            "source": "Shadow Distance",
+            "text": "阴影距离"
+        },
         "editor.label.shadow_resolution": {
             "source": "Shadow Resolution",
             "text": "阴影分辨率"
@@ -297,6 +301,10 @@
         "editor.label.direct_sun_cast_shadow": {
             "source": "Direct Sun Cast Shadow",
             "text": "太阳直射光投射阴影"
+        },
+        "editor.label.direct_sun_shadow_distance": {
+            "source": "Sun Shadow Distance",
+            "text": "太阳阴影距离"
         },
         "editor.label.direct_sun_shadow_resolution": {
             "source": "Direct Sun Shadow Resolution",
@@ -550,25 +558,21 @@
             "source": "No plugins found",
             "text": "未找到插件"
         },
-        "editor.label.wireframe": {
-            "source": "WireFrame",
-            "text": "线框"
+        "editor.label.show_grid": {
+            "source": "Grid",
+            "text": "网格"
         },
-        "editor.label.editor_grid": {
-            "source": "Editor Grid",
-            "text": "编辑器网格"
+        "editor.label.show_colliders": {
+            "source": "Colliders",
+            "text": "碰撞体"
         },
-        "editor.label.collider_3d": {
-            "source": "Collider3D",
-            "text": "Collider3D"
+        "editor.label.show_bvh": {
+            "source": "BVH",
+            "text": "BVH"
         },
-        "editor.label.bvh_debug": {
-            "source": "BVH Debug",
-            "text": "BVH 调试"
-        },
-        "editor.label.ddgi_debug_overlay": {
-            "source": "DDGI Debug Overlay",
-            "text": "DDGI 调试叠加层"
+        "editor.label.show_ddgi": {
+            "source": "DDGI",
+            "text": "DDGI"
         },
         "editor.menu.delete_entity": {
             "source": "Delete Entity",
@@ -1841,6 +1845,78 @@
         "editor.label.cloud_frequency": {
             "source": "Cloud Frequency",
             "text": "云频率"
+        },
+        "editor.enum.ViewMode.Lit": {
+            "source": "Lit",
+            "text": "光照"
+        },
+        "editor.enum.ViewMode.Unlit": {
+            "source": "Unlit",
+            "text": "无光照"
+        },
+        "editor.enum.ViewMode.BaseColor": {
+            "source": "Base Color",
+            "text": "基础色"
+        },
+        "editor.enum.ViewMode.WorldNormal": {
+            "source": "World Normal",
+            "text": "世界法线"
+        },
+        "editor.enum.ViewMode.Roughness": {
+            "source": "Roughness",
+            "text": "粗糙度"
+        },
+        "editor.enum.ViewMode.Metallic": {
+            "source": "Metallic",
+            "text": "金属度"
+        },
+        "editor.enum.ViewMode.LightComplexity": {
+            "source": "Light Complexity",
+            "text": "光源复杂度"
+        },
+        "editor.enum.ViewMode.ShadowCascades": {
+            "source": "Shadow Cascades",
+            "text": "阴影级联"
+        },
+        "editor.enum.ViewMode.Wireframe": {
+            "source": "Wireframe",
+            "text": "线框"
+        },
+        "editor.enum.ViewMode.Overdraw": {
+            "source": "Overdraw",
+            "text": "过度绘制"
+        },
+        "editor.label.view_mode": {
+            "source": "View Mode",
+            "text": "视图模式"
+        },
+        "editor.label.show_shadows": {
+            "source": "Shadows",
+            "text": "阴影"
+        },
+        "editor.label.show_opaque": {
+            "source": "Opaque",
+            "text": "不透明"
+        },
+        "editor.label.show_transparent": {
+            "source": "Transparent",
+            "text": "半透明"
+        },
+        "editor.label.show_decals": {
+            "source": "Decals",
+            "text": "贴花"
+        },
+        "editor.label.show_particles": {
+            "source": "Particles",
+            "text": "粒子"
+        },
+        "editor.label.show_sprites_3d": {
+            "source": "Sprites 3D",
+            "text": "精灵 3D"
+        },
+        "editor.label.show_sprites_2d": {
+            "source": "Sprites 2D",
+            "text": "精灵 2D"
         }
     }
 }

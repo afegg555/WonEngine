@@ -254,6 +254,10 @@
             "source": "Range",
             "text": "Portée"
         },
+        "editor.label.shadow_distance": {
+            "source": "Shadow Distance",
+            "text": "Distance des ombres"
+        },
         "editor.label.shadow_resolution": {
             "source": "Shadow Resolution",
             "text": "Résolution des ombres"
@@ -297,6 +301,10 @@
         "editor.label.direct_sun_cast_shadow": {
             "source": "Direct Sun Cast Shadow",
             "text": "Le soleil direct projette des ombres"
+        },
+        "editor.label.direct_sun_shadow_distance": {
+            "source": "Sun Shadow Distance",
+            "text": "Distance des ombres du soleil"
         },
         "editor.label.direct_sun_shadow_resolution": {
             "source": "Direct Sun Shadow Resolution",
@@ -550,25 +558,21 @@
             "source": "No plugins found",
             "text": "Aucun plugin trouvé"
         },
-        "editor.label.wireframe": {
-            "source": "WireFrame",
-            "text": "Filaire"
+        "editor.label.show_grid": {
+            "source": "Grid",
+            "text": "Grille"
         },
-        "editor.label.editor_grid": {
-            "source": "Editor Grid",
-            "text": "Grille de l’éditeur"
+        "editor.label.show_colliders": {
+            "source": "Colliders",
+            "text": "Collisionneurs"
         },
-        "editor.label.collider_3d": {
-            "source": "Collider3D",
-            "text": "Collider3D"
+        "editor.label.show_bvh": {
+            "source": "BVH",
+            "text": "BVH"
         },
-        "editor.label.bvh_debug": {
-            "source": "BVH Debug",
-            "text": "Débogage BVH"
-        },
-        "editor.label.ddgi_debug_overlay": {
-            "source": "DDGI Debug Overlay",
-            "text": "Superposition de débogage DDGI"
+        "editor.label.show_ddgi": {
+            "source": "DDGI",
+            "text": "DDGI"
         },
         "editor.menu.delete_entity": {
             "source": "Delete Entity",
@@ -1841,6 +1845,78 @@
         "editor.label.cloud_frequency": {
             "source": "Cloud Frequency",
             "text": "Fréquence des nuages"
+        },
+        "editor.enum.ViewMode.Lit": {
+            "source": "Lit",
+            "text": "Éclairé"
+        },
+        "editor.enum.ViewMode.Unlit": {
+            "source": "Unlit",
+            "text": "Sans éclairage"
+        },
+        "editor.enum.ViewMode.BaseColor": {
+            "source": "Base Color",
+            "text": "Couleur de base"
+        },
+        "editor.enum.ViewMode.WorldNormal": {
+            "source": "World Normal",
+            "text": "Normale monde"
+        },
+        "editor.enum.ViewMode.Roughness": {
+            "source": "Roughness",
+            "text": "Rugosité"
+        },
+        "editor.enum.ViewMode.Metallic": {
+            "source": "Metallic",
+            "text": "Métallique"
+        },
+        "editor.enum.ViewMode.LightComplexity": {
+            "source": "Light Complexity",
+            "text": "Complexité lumineuse"
+        },
+        "editor.enum.ViewMode.ShadowCascades": {
+            "source": "Shadow Cascades",
+            "text": "Cascades d ombre"
+        },
+        "editor.enum.ViewMode.Wireframe": {
+            "source": "Wireframe",
+            "text": "Filaire"
+        },
+        "editor.enum.ViewMode.Overdraw": {
+            "source": "Overdraw",
+            "text": "Surdessin"
+        },
+        "editor.label.view_mode": {
+            "source": "View Mode",
+            "text": "Mode d affichage"
+        },
+        "editor.label.show_shadows": {
+            "source": "Shadows",
+            "text": "Ombres"
+        },
+        "editor.label.show_opaque": {
+            "source": "Opaque",
+            "text": "Opaque"
+        },
+        "editor.label.show_transparent": {
+            "source": "Transparent",
+            "text": "Transparent"
+        },
+        "editor.label.show_decals": {
+            "source": "Decals",
+            "text": "Décalques"
+        },
+        "editor.label.show_particles": {
+            "source": "Particles",
+            "text": "Particules"
+        },
+        "editor.label.show_sprites_3d": {
+            "source": "Sprites 3D",
+            "text": "Sprites 3D"
+        },
+        "editor.label.show_sprites_2d": {
+            "source": "Sprites 2D",
+            "text": "Sprites 2D"
         }
     }
 }

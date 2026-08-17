@@ -254,6 +254,10 @@
             "source": "Range",
             "text": "Reichweite"
         },
+        "editor.label.shadow_distance": {
+            "source": "Shadow Distance",
+            "text": "Schattendistanz"
+        },
         "editor.label.shadow_resolution": {
             "source": "Shadow Resolution",
             "text": "Schattenauflösung"
@@ -297,6 +301,10 @@
         "editor.label.direct_sun_cast_shadow": {
             "source": "Direct Sun Cast Shadow",
             "text": "Direkte Sonne wirft Schatten"
+        },
+        "editor.label.direct_sun_shadow_distance": {
+            "source": "Sun Shadow Distance",
+            "text": "Sonnenschattendistanz"
         },
         "editor.label.direct_sun_shadow_resolution": {
             "source": "Direct Sun Shadow Resolution",
@@ -550,25 +558,21 @@
             "source": "No plugins found",
             "text": "Keine Plugins gefunden"
         },
-        "editor.label.wireframe": {
-            "source": "WireFrame",
-            "text": "Drahtmodell"
+        "editor.label.show_grid": {
+            "source": "Grid",
+            "text": "Raster"
         },
-        "editor.label.editor_grid": {
-            "source": "Editor Grid",
-            "text": "Editor-Raster"
+        "editor.label.show_colliders": {
+            "source": "Colliders",
+            "text": "Collider"
         },
-        "editor.label.collider_3d": {
-            "source": "Collider3D",
-            "text": "Collider3D"
+        "editor.label.show_bvh": {
+            "source": "BVH",
+            "text": "BVH"
         },
-        "editor.label.bvh_debug": {
-            "source": "BVH Debug",
-            "text": "BVH-Debug"
-        },
-        "editor.label.ddgi_debug_overlay": {
-            "source": "DDGI Debug Overlay",
-            "text": "DDGI-Debug-Overlay"
+        "editor.label.show_ddgi": {
+            "source": "DDGI",
+            "text": "DDGI"
         },
         "editor.menu.delete_entity": {
             "source": "Delete Entity",
@@ -1841,6 +1845,78 @@
         "editor.label.cloud_frequency": {
             "source": "Cloud Frequency",
             "text": "Wolkenfrequenz"
+        },
+        "editor.enum.ViewMode.Lit": {
+            "source": "Lit",
+            "text": "Beleuchtet"
+        },
+        "editor.enum.ViewMode.Unlit": {
+            "source": "Unlit",
+            "text": "Unbeleuchtet"
+        },
+        "editor.enum.ViewMode.BaseColor": {
+            "source": "Base Color",
+            "text": "Grundfarbe"
+        },
+        "editor.enum.ViewMode.WorldNormal": {
+            "source": "World Normal",
+            "text": "Weltnormale"
+        },
+        "editor.enum.ViewMode.Roughness": {
+            "source": "Roughness",
+            "text": "Rauheit"
+        },
+        "editor.enum.ViewMode.Metallic": {
+            "source": "Metallic",
+            "text": "Metallisch"
+        },
+        "editor.enum.ViewMode.LightComplexity": {
+            "source": "Light Complexity",
+            "text": "Lichtkomplexität"
+        },
+        "editor.enum.ViewMode.ShadowCascades": {
+            "source": "Shadow Cascades",
+            "text": "Schattenkaskaden"
+        },
+        "editor.enum.ViewMode.Wireframe": {
+            "source": "Wireframe",
+            "text": "Drahtgitter"
+        },
+        "editor.enum.ViewMode.Overdraw": {
+            "source": "Overdraw",
+            "text": "Overdraw"
+        },
+        "editor.label.view_mode": {
+            "source": "View Mode",
+            "text": "Ansichtsmodus"
+        },
+        "editor.label.show_shadows": {
+            "source": "Shadows",
+            "text": "Schatten"
+        },
+        "editor.label.show_opaque": {
+            "source": "Opaque",
+            "text": "Opak"
+        },
+        "editor.label.show_transparent": {
+            "source": "Transparent",
+            "text": "Transparent"
+        },
+        "editor.label.show_decals": {
+            "source": "Decals",
+            "text": "Decals"
+        },
+        "editor.label.show_particles": {
+            "source": "Particles",
+            "text": "Partikel"
+        },
+        "editor.label.show_sprites_3d": {
+            "source": "Sprites 3D",
+            "text": "Sprites 3D"
+        },
+        "editor.label.show_sprites_2d": {
+            "source": "Sprites 2D",
+            "text": "Sprites 2D"
         }
     }
 }
