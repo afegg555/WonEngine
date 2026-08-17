@@ -254,6 +254,10 @@
             "source": "Range",
             "text": "範囲"
         },
+        "editor.label.shadow_distance": {
+            "source": "Shadow Distance",
+            "text": "シャドウ距離"
+        },
         "editor.label.shadow_resolution": {
             "source": "Shadow Resolution",
             "text": "影の解像度"
@@ -297,6 +301,10 @@
         "editor.label.direct_sun_cast_shadow": {
             "source": "Direct Sun Cast Shadow",
             "text": "太陽の直接光で影を投影"
+        },
+        "editor.label.direct_sun_shadow_distance": {
+            "source": "Sun Shadow Distance",
+            "text": "太陽シャドウ距離"
         },
         "editor.label.direct_sun_shadow_resolution": {
             "source": "Direct Sun Shadow Resolution",
@@ -550,25 +558,21 @@
             "source": "No plugins found",
             "text": "プラグインが見つかりません"
         },
-        "editor.label.wireframe": {
-            "source": "WireFrame",
-            "text": "ワイヤーフレーム"
+        "editor.label.show_grid": {
+            "source": "Grid",
+            "text": "グリッド"
         },
-        "editor.label.editor_grid": {
-            "source": "Editor Grid",
-            "text": "エディターグリッド"
+        "editor.label.show_colliders": {
+            "source": "Colliders",
+            "text": "コライダー"
         },
-        "editor.label.collider_3d": {
-            "source": "Collider3D",
-            "text": "Collider3D"
+        "editor.label.show_bvh": {
+            "source": "BVH",
+            "text": "BVH"
         },
-        "editor.label.bvh_debug": {
-            "source": "BVH Debug",
-            "text": "BVH デバッグ"
-        },
-        "editor.label.ddgi_debug_overlay": {
-            "source": "DDGI Debug Overlay",
-            "text": "DDGI デバッグオーバーレイ"
+        "editor.label.show_ddgi": {
+            "source": "DDGI",
+            "text": "DDGI"
         },
         "editor.menu.delete_entity": {
             "source": "Delete Entity",
@@ -1841,6 +1845,78 @@
         "editor.label.cloud_frequency": {
             "source": "Cloud Frequency",
             "text": "雲の周波数"
+        },
+        "editor.enum.ViewMode.Lit": {
+            "source": "Lit",
+            "text": "ライティング"
+        },
+        "editor.enum.ViewMode.Unlit": {
+            "source": "Unlit",
+            "text": "アンリット"
+        },
+        "editor.enum.ViewMode.BaseColor": {
+            "source": "Base Color",
+            "text": "ベースカラー"
+        },
+        "editor.enum.ViewMode.WorldNormal": {
+            "source": "World Normal",
+            "text": "ワールド法線"
+        },
+        "editor.enum.ViewMode.Roughness": {
+            "source": "Roughness",
+            "text": "ラフネス"
+        },
+        "editor.enum.ViewMode.Metallic": {
+            "source": "Metallic",
+            "text": "メタリック"
+        },
+        "editor.enum.ViewMode.LightComplexity": {
+            "source": "Light Complexity",
+            "text": "ライト複雑度"
+        },
+        "editor.enum.ViewMode.ShadowCascades": {
+            "source": "Shadow Cascades",
+            "text": "シャドウカスケード"
+        },
+        "editor.enum.ViewMode.Wireframe": {
+            "source": "Wireframe",
+            "text": "ワイヤーフレーム"
+        },
+        "editor.enum.ViewMode.Overdraw": {
+            "source": "Overdraw",
+            "text": "オーバードロー"
+        },
+        "editor.label.view_mode": {
+            "source": "View Mode",
+            "text": "表示モード"
+        },
+        "editor.label.show_shadows": {
+            "source": "Shadows",
+            "text": "シャドウ"
+        },
+        "editor.label.show_opaque": {
+            "source": "Opaque",
+            "text": "不透明"
+        },
+        "editor.label.show_transparent": {
+            "source": "Transparent",
+            "text": "半透明"
+        },
+        "editor.label.show_decals": {
+            "source": "Decals",
+            "text": "デカール"
+        },
+        "editor.label.show_particles": {
+            "source": "Particles",
+            "text": "パーティクル"
+        },
+        "editor.label.show_sprites_3d": {
+            "source": "Sprites 3D",
+            "text": "スプライト 3D"
+        },
+        "editor.label.show_sprites_2d": {
+            "source": "Sprites 2D",
+            "text": "スプライト 2D"
         }
     }
 }

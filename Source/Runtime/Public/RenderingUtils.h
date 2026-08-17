@@ -25,7 +25,7 @@ namespace won::rendering::utils
     WONENGINE_API void EnqueueResourceUpload(const std::shared_ptr<resource::Mesh>& mesh);
     WONENGINE_API void EnqueueResourceUpload(const std::shared_ptr<resource::Font>& font);
     WONENGINE_API void EnqueueResourceUpload(const std::shared_ptr<resource::Image>& image, RHIFormat format);
-    WONENGINE_API bool FlushEnqueuedResourceUploads(RHIDevice& device, uint32 max_uploads = 0);
+    WONENGINE_API bool FlushEnqueuedResourceUploads(RHIDevice& device, uint32 max_uploads = 0, uint64* out_completed_component_mask = nullptr);
     WONENGINE_API bool HasPendingResourceUploads();
 
     WONENGINE_API bool CompressTextureBC(RHIDevice& device, Renderer& renderer, const resource::Image& image, RHIFormat format, Vector<uint8>& out_blocks, uint32& out_mip_levels);

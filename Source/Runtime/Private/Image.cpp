@@ -27,7 +27,12 @@ namespace won::resource
                 return nullptr;
             }
 
-            return LoadImageMemory(file_data.bytes.data(), file_data.bytes.size(), desired_channels);
+            std::shared_ptr<Image> image = LoadImageMemory(file_data.bytes.data(), file_data.bytes.size(), desired_channels);
+            if (image)
+            {
+                image->name = path;
+            }
+            return image;
         }
     }
 

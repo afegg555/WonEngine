@@ -1,4 +1,5 @@
 #pragma once
+#include "FrameGraph.h"
 #include "Renderer.h"
 #include "RHISwapchain.h"
 #include "Types.h"
@@ -27,6 +28,7 @@ namespace won::rendering
         void SetVSync(bool enabled) override;
         void SetShadowResolutionScale(float scale) override;
         bool GetCurrentBackBufferBinding(RHISubresourceBinding& out_binding) const override;
+        FrameGraph& GetFrameGraph() override;
     private:
         
         enum DrawSceneFlags : uint32
@@ -43,9 +45,10 @@ namespace won::rendering
         bool CreateBackBufferSubresources();
 
         // gpu call
-        bool BuildViewResources(FrameContext& frame_context, View& view, RHICommandList& command_list);
-        bool UpdateFrameConstants(FrameContext& frame_context, const View& view, RHICommandList& command_list);
-        bool DrawScene(const FrameContext& frame_context, const View& view, resource::RenderPassType pass, uint32 flags, RHICommandList& command_list);
+        bool UploadSceneData(FrameContext& frame_context, GPUScene& gpu_scene);
+        bool UploadViewData(FrameContext& frame_context, View& view);
+        bool UpdateFrameConstants(FrameContext& frame_context, const View& view);
+        bool DrawScene(const FrameContext& frame_context, const View& view, resource::RenderPassType pass, uint32 flags, RHICommandList& command_list, uint32 shadow_slice_index = 0);
         void UpdateDDGIProbe(FrameContext& frame_context, View& view, RHICommandList& command_list);
         void UpdateSkyCapture(GPUScene& gpu_scene, RHICommandList& command_list);
 
@@ -59,7 +62,6 @@ namespace won::rendering
         // etc
         bool Update(View& view);
         void RenderForwardPath(View& view);
-        void UpdateForwardLightList(View& view, RHICommandList& command_list);
 
         resource::ShaderCompilerOptions shader_compiler_options = {};
         resource::ShaderLibrary shader_library;
@@ -89,11 +91,15 @@ namespace won::rendering
         uint64 enqueued_work_fence_value = 0;
         bool enqueued_work_succeeded = true;
         bool enqueued_work_recorded = false;
+        ecs::ComponentMask upload_completed_component_mask = 0;
         RHIClearColor clear_color = {};
         bool vsync_enabled = true;
         bool vsync_requested = true;
         float shadow_resolution_scale = 1.0f;
         double frame_time_seconds = 0.0;
+
+		Vector<uint32> sort_upload_scratch; // not to allocate every frame !!
+        FrameGraph frame_graph;
 
         std::array<RHISubresourceHandle, max_frames_in_flight> back_buffers_rtv = {};
 

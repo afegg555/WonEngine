@@ -326,6 +326,9 @@ namespace won::ecs
         {
             BuildBVH();
         }
+
+        BuildGPUBVH();
+        GetGPUScene().Update(*this);
     }
 
     Entity Scene::CreateEntity()

@@ -1,12 +1,15 @@
-#pragma once
+﻿#pragma once
 #include "Scene.h"
 #include "ViewOptionEnums.h"
 #include "Types.h"
 #include "RHIResource.h"
 #include "RHISwapchain.h"
+#include "FrameGraph.h"
 
 namespace won::rendering
 {
+    using FrameGraphResourceRef = FrameResourceId;
+
     enum class RenderPathType
     {
         Forward,
@@ -36,18 +39,18 @@ namespace won::rendering
 
         struct LightResources
         {
-            std::unique_ptr<RHIResource> forward_index_buffer;
-            std::unique_ptr<RHIResource> forward_index_upload_buffer;
+            FrameGraphResourceRef forward_index_buffer = invalid_frame_resource;
             RHISubresourceHandle forward_index_srv = {};
             uint32 forward_light_count = 0;
+            Vector<uint32> visible_forward_lights;
 
-            std::unique_ptr<RHIResource> cluster_light_count_buffer;
+            FrameGraphResourceRef cluster_light_count_buffer = invalid_frame_resource;
             RHISubresourceHandle cluster_light_count_srv = {};
             RHISubresourceHandle cluster_light_count_uav = {};
-            std::unique_ptr<RHIResource> cluster_light_offset_buffer;
+            FrameGraphResourceRef cluster_light_offset_buffer = invalid_frame_resource;
             RHISubresourceHandle cluster_light_offset_srv = {};
             RHISubresourceHandle cluster_light_offset_uav = {};
-            std::unique_ptr<RHIResource> cluster_light_index_buffer;
+            FrameGraphResourceRef cluster_light_index_buffer = invalid_frame_resource;
             RHISubresourceHandle cluster_light_index_srv = {};
             RHISubresourceHandle cluster_light_index_uav = {};
             uint2 cluster_dims = { 0, 0 };
@@ -66,27 +69,27 @@ namespace won::rendering
 
         struct ShadowResources
         {
-            Vector<ShaderShadowCascade> shader_shadow_cascades;
-            Vector<RenderShadowSlice> render_shadow_slices;
-            Vector<uint32> light_shadow_slices;
+			Vector<ShaderShadowCascade> shader_shadow_cascades; // for gpu
+            Vector<RenderShadowSlice> render_shadow_slices; // for cpu, SetViewport, SetScissor, etc.
+			Vector<uint32> light_shadow_slices; // cascade offset(16bit) and cascade count(16bit) per light
+            Vector<uint2> caster_slice_ranges; // per slice {offset, count} into sorted_shadow_caster_indices
+            Vector<Vector<uint32>> caster_slice_scratch; // kept across frames so the per slice culling jobs reuse their capacity
             uint2 shadow_map_atlas_size = { 0, 0 };
 
-            std::unique_ptr<RHIResource> atlas;
+            FrameGraphResourceRef atlas = invalid_frame_resource;
             RHISubresourceHandle atlas_dsv = {};
             RHISubresourceHandle atlas_srv = {};
 
-            std::unique_ptr<RHIResource> cascade_buffer;
+            FrameGraphResourceRef cascade_buffer = invalid_frame_resource;
             RHISubresourceHandle cascade_srv = {};
-            std::unique_ptr<RHIResource> light_slice_buffer;
+            FrameGraphResourceRef light_slice_buffer = invalid_frame_resource;
             RHISubresourceHandle light_slice_srv = {};
         };
 
         struct InstanceResources
         {
-            std::unique_ptr<RHIResource> sort_buffer;
+            FrameGraphResourceRef sort_buffer = invalid_frame_resource;
             RHISubresourceHandle sort_srv = {};
-
-            std::array<std::unique_ptr<RHIResource>, max_frames_in_flight> sort_upload_buffers;
         };
 
         struct DDGIDebugResources
@@ -97,12 +100,12 @@ namespace won::rendering
 
         struct RenderTargets
         {
-            std::unique_ptr<RHIResource> color[2];
+            FrameGraphResourceRef color[2] = { invalid_frame_resource, invalid_frame_resource };
             RHISubresourceHandle color_rtv[2] = {};
             RHISubresourceHandle color_srv[2] = {};
             RHISubresourceHandle color_uav[2] = {};
 
-            std::unique_ptr<RHIResource> depth;
+            FrameGraphResourceRef depth = invalid_frame_resource;
             RHISubresourceHandle depth_dsv = {};
             RHISubresourceHandle depth_srv = {};
 
@@ -118,11 +121,6 @@ namespace won::rendering
 
         struct ExposureResources
         {
-            std::unique_ptr<RHIResource> luminance_partial_buffer;
-            RHISubresourceHandle luminance_partial_buffer_uav = {};
-            RHISubresourceHandle luminance_partial_buffer_srv = {};
-            std::unique_ptr<RHIResource> luminance_buffer;
-            RHISubresourceHandle luminance_buffer_uav = {};
             std::unique_ptr<RHIResource> luminance_readback_buffer;
         };
 
@@ -146,14 +144,18 @@ namespace won::rendering
         Rect scissor = {};
         uint32 ui_layer_mask = 0xFFFFFFFF;
 
-        Vector<uint32> sorted_shadow_caster_indices; // batch-key order, culled against the shadow slices
+
+        // renderable indices
+        Vector<uint32> sorted_shadow_caster_indices; // per shadow slice, concatenated in slice order; each range is in batch-key order
         Vector<uint32> sorted_opaque_indices;       // batch-key order
         Vector<uint32> sorted_transparent_indices;  // back-to-front
         Vector<uint32> sorted_sprite_3d_indices;    // back-to-front
         Vector<uint32> sorted_sprite_2d_indices;    // by layer
 
         void UpdateUIInteraction();
+        void BuildShadowSlices(float shadow_resolution_scale);
         void BuildSortedIndices();
+        void BuildForwardLightList();
         ecs::Entity ResolveCamera() const;
         bool RayCast(float2 screen_position, ecs::RayCastHit& out_hit, bool use_local_bvh = true, uint32 layer_mask = 0xFFFFFFFF) const;
         bool ScreenToRay(float2 screen_position, math::Ray& out_ray) const;

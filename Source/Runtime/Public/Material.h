@@ -32,7 +32,7 @@ namespace won::resource
         float alpha_cutoff = 0.5f;
         bool double_sided = false;
         bool use_vertex_colors = false;
-        bool receive_shadow = false;
+        bool receive_shadow = true;
 
         float4 base_color = { 1.0f, 1.0f, 1.0f, 1.0f };
         float3 emissive_color = { 0.0f, 0.0f, 0.0f };

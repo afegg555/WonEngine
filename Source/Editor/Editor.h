@@ -165,11 +165,8 @@ namespace won::editor
 
 		struct ViewportDebugSettings
 		{
-			bool show_grid = false;
-			bool show_colliders = true;
-			bool use_wireframe = false;
-			bool show_ddgi_overlay = false;
-			bool show_bvh_debug = false;
+			rendering::ViewMode view_mode = rendering::ViewMode::Lit;
+			uint32 show_flags = rendering::Show_Default | rendering::Show_Colliders;
 		};
 
 		struct EditorViewport
@@ -191,6 +188,7 @@ namespace won::editor
 				float pitch = 0.0f;
 				float orbit_distance = 0.0f;
 				float move_speed = 5.0f;
+				float move_boost_multiplier = 5.0f;
 				float rotate_speed = 1.0f;
 				float orbit_speed = 1.0f;
 				float3 focus_point = { 0.0f, 0.0f, 0.0f };

@@ -15,9 +15,9 @@
 
 #if defined(WON_TEXTURE_COMPRESS_GPU)
 // GPU path: include rendering headers and initialize device in Run()
-#else
-#include <DirectXTex.h>
 #endif
+
+#include <DirectXTex.h>
 
 #include <algorithm>
 #include <cctype>
@@ -39,6 +39,73 @@ struct COMInitializer
         constexpr uint32 texture_source_file = 0;
         constexpr uint32 texture_source_embedded = 1;
 
+        bool LoadDDSImage(const String& path, DirectX::ScratchImage& out_image)
+        {
+            io::FileData file_data;
+            if (!io::ReadAllBytes(path, &file_data) || file_data.bytes.empty())
+            {
+                return false;
+            }
+
+            return SUCCEEDED(DirectX::LoadFromDDSMemory(file_data.bytes.data(), file_data.bytes.size(),
+                DirectX::DDS_FLAGS_NONE, nullptr, out_image));
+        }
+
+        bool SaveDDSImage(const String& path, DirectX::ScratchImage& image, bool is_srgb)
+        {
+            if (is_srgb)
+            {
+                image.OverrideFormat(DirectX::MakeSRGB(image.GetMetadata().format));
+            }
+
+            DirectX::Blob blob;
+            if (FAILED(DirectX::SaveToDDSMemory(image.GetImages(), image.GetImageCount(), image.GetMetadata(),
+                DirectX::DDS_FLAGS_FORCE_DX10_EXT, blob)))
+            {
+                return false;
+            }
+
+            return io::WriteAllBytes(path, blob.GetConstBufferPointer(), blob.GetBufferSize());
+        }
+
+        bool HasCutoutAlpha(const uint8* rgba_pixels, Size size, float alpha_cutoff)
+        {
+            const uint32 threshold = static_cast<uint32>(std::clamp(alpha_cutoff, 0.0f, 1.0f) * 255.0f + 0.5f);
+            for (Size pixel = 3; pixel < size; pixel += 4)
+            {
+                if (rgba_pixels[pixel] < threshold)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        bool HasCutoutAlpha(const DirectX::Image& image, float alpha_cutoff)
+        {
+            if (!DirectX::HasAlpha(image.format))
+            {
+                return false;
+            }
+
+            if (image.format == DXGI_FORMAT_R8G8B8A8_UNORM || image.format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB)
+            {
+                return HasCutoutAlpha(image.pixels, image.slicePitch, alpha_cutoff);
+            }
+
+            DirectX::ScratchImage decoded;
+            const HRESULT hr = DirectX::IsCompressed(image.format)
+                ? DirectX::Decompress(image, DXGI_FORMAT_R8G8B8A8_UNORM, decoded)
+                : DirectX::Convert(image, DXGI_FORMAT_R8G8B8A8_UNORM, DirectX::TEX_FILTER_DEFAULT, DirectX::TEX_THRESHOLD_DEFAULT, decoded);
+            if (FAILED(hr))
+            {
+                return false;
+            }
+
+            const DirectX::Image* decoded_mip = decoded.GetImage(0, 0, 0);
+            return decoded_mip != nullptr && HasCutoutAlpha(decoded_mip->pixels, decoded_mip->slicePitch, alpha_cutoff);
+        }
+
         struct TextureData
         {
             uint32 material_index = 0;
@@ -56,12 +123,18 @@ struct COMInitializer
             Vector<uint8> bytes;
         };
 
+        struct MaterialData
+        {
+            resource::MaterialSlot slot;
+            bool has_alpha_mode = false;
+        };
+
         struct AssetData
         {
             String name;
             uint64 timestamp = 0;
             std::shared_ptr<resource::Mesh> mesh;
-            Vector<resource::MaterialSlot> materials;
+            Vector<MaterialData> materials;
             Vector<TextureData> textures;
             Vector<EmbeddedTexture> embedded_textures;
         };
@@ -379,7 +452,8 @@ struct COMInitializer
             {
                 const aiMaterial* ai_mat = aiscene->mMaterials[i];
                 const uint32 material_index = static_cast<uint32>(asset_data.materials.size());
-                resource::MaterialSlot& slot = asset_data.materials.emplace_back();
+                MaterialData& material_data = asset_data.materials.emplace_back();
+                resource::MaterialSlot& slot = material_data.slot;
                 aiColor4D c;
                 float v = 0.f;
 
@@ -403,7 +477,8 @@ struct COMInitializer
                 }
 
                 aiString alpha_mode;
-                if (aiReturn_SUCCESS == ai_mat->Get(AI_MATKEY_GLTF_ALPHAMODE, alpha_mode))
+                material_data.has_alpha_mode = aiReturn_SUCCESS == ai_mat->Get(AI_MATKEY_GLTF_ALPHAMODE, alpha_mode);
+                if (material_data.has_alpha_mode)
                 {
                     const std::string mode = alpha_mode.C_Str();
                     if (mode == "MASK")
@@ -880,7 +955,12 @@ struct COMInitializer
             }
 
             // Copy material slots so texture paths can be filled in without modifying the original
-            Vector<resource::MaterialSlot> material_slots = data.materials;
+            Vector<resource::MaterialSlot> material_slots;
+            material_slots.reserve(data.materials.size());
+            for (const MaterialData& material_data : data.materials)
+            {
+                material_slots.push_back(material_data.slot);
+            }
             if (material_slots.empty())
             {
                 material_slots.emplace_back();
@@ -888,6 +968,7 @@ struct COMInitializer
 
             const String embedded_texture_directory = String(generated_asset_directory) + "/" + asset_id + "_Textures";
             UnorderedMap<String, String> saved_texture_paths;
+            UnorderedMap<String, bool> base_color_cutout;
 
             auto SaveTexture = [&](const resource::Image& image, const String& texture_full_path, const resource::TextureImportSettings& settings) -> bool
             {
@@ -939,30 +1020,63 @@ struct COMInitializer
                     }
                     else
                     {
-                        std::shared_ptr<resource::Image> image = resource::LoadImageFile(source_texture_full_path, 4);
-                        if (image && image->IsValid())
+                        const String texture_file_name = std::to_string(utils::Hash(texture_asset_key)) + "." + resource::texture_binary_extension;
+                        const String candidate_asset_path = embedded_texture_directory + "/" + texture_file_name;
+                        const String texture_full_path = io::CombinePath(content_root, candidate_asset_path);
+                        const String source_extension = utils::ToLower(io::GetExtension(source_texture_full_path));
+
+                        if (source_extension == "dds")
                         {
-                            const String texture_file_name = std::to_string(utils::Hash(texture_asset_key)) + "." + resource::texture_binary_extension;
-                            texture_asset_path = embedded_texture_directory + "/" + texture_file_name;
-                            const String texture_full_path = io::CombinePath(content_root, texture_asset_path);
-
-                            resource::TextureImportSettings settings;
-                            settings.is_srgb = color_texture;
-                            settings.generate_mipmaps = true;
-
-                            resource::AssetMeta texture_meta;
-                            if (resource::LoadAssetMeta(resource::GetAssetMetaPath(source_texture_full_path), texture_meta))
+                            DirectX::ScratchImage dds;
+                            if (LoadDDSImage(source_texture_full_path, dds)
+                                && io::CreateDirectories(io::GetDirectoryFromPath(texture_full_path))
+                                && SaveDDSImage(texture_full_path, dds, color_texture))
                             {
-                                settings = texture_meta.texture;
-                            }
+                                texture_asset_path = candidate_asset_path;
+                                saved_texture_paths[texture_asset_key] = texture_asset_path;
 
-                            if (!SaveTexture(*image, texture_full_path, settings))
-                            {
-                                texture_asset_path.clear();
+                                const DirectX::Image* base_mip = dds.GetImage(0, 0, 0);
+                                base_color_cutout[candidate_asset_path] = tex_data.texture_slot == BASECOLORMAP
+                                    && base_mip != nullptr
+                                    && HasCutoutAlpha(*base_mip, material_slots[tex_data.material_index].alpha_cutoff);
                             }
                             else
                             {
-                                saved_texture_paths[texture_asset_key] = texture_asset_path;
+                                std::cout << "WARNING: failed to import dds texture: " << source_texture_full_path << "\n";
+                            }
+                        }
+                        else
+                        {
+                            std::shared_ptr<resource::Image> image = resource::LoadImageFile(source_texture_full_path, 4);
+                            if (image && image->IsValid())
+                            {
+                                resource::TextureImportSettings settings;
+                                settings.is_srgb = color_texture;
+                                settings.generate_mipmaps = true;
+
+                                resource::AssetMeta texture_meta;
+                                if (resource::LoadAssetMeta(resource::GetAssetMetaPath(source_texture_full_path), texture_meta))
+                                {
+                                    settings = texture_meta.texture;
+                                }
+
+                                if (SaveTexture(*image, texture_full_path, settings))
+                                {
+                                    texture_asset_path = candidate_asset_path;
+                                    saved_texture_paths[texture_asset_key] = texture_asset_path;
+                                    base_color_cutout[candidate_asset_path] = tex_data.texture_slot == BASECOLORMAP
+                                        && image->channels == 4
+                                        && HasCutoutAlpha(image->pixels.data(), image->pixels.size(),
+                                            material_slots[tex_data.material_index].alpha_cutoff);
+                                }
+                                else
+                                {
+                                    std::cout << "WARNING: failed to save texture: " << source_texture_full_path << "\n";
+                                }
+                            }
+                            else
+                            {
+                                std::cout << "WARNING: failed to decode texture: " << source_texture_full_path << "\n";
                             }
                         }
                     }
@@ -1017,12 +1131,30 @@ struct COMInitializer
                             std::cout << "DEBUG: Skipping texture save due to validation failure\n";
                             texture_asset_path.clear();
                         }
+                        else
+                        {
+                            base_color_cutout[texture_asset_path] = tex_data.texture_slot == BASECOLORMAP
+                                && image->channels == 4
+                                && HasCutoutAlpha(image->pixels.data(), image->pixels.size(),
+                                    material_slots[tex_data.material_index].alpha_cutoff);
+                        }
                     }
                 }
 
                 if (!texture_asset_path.empty())
                 {
-                    material_slots[tex_data.material_index].textures[tex_data.texture_slot].texture_asset_path = texture_asset_path;
+                    resource::MaterialSlot& target_slot = material_slots[tex_data.material_index];
+                    target_slot.textures[tex_data.texture_slot].texture_asset_path = texture_asset_path;
+
+                    const bool has_alpha_mode = tex_data.material_index < data.materials.size()
+                        && data.materials[tex_data.material_index].has_alpha_mode;
+                    auto cutout_it = base_color_cutout.find(texture_asset_path);
+                    if (tex_data.texture_slot == BASECOLORMAP && !has_alpha_mode
+                        && cutout_it != base_color_cutout.end() && cutout_it->second
+                        && target_slot.blend_mode == resource::MaterialBlendMode::Opaque)
+                    {
+                        target_slot.blend_mode = resource::MaterialBlendMode::Masked;
+                    }
                 }
             }
 
@@ -1153,9 +1285,18 @@ struct COMInitializer
 
             const String texture_binary_path = String(generated_asset_directory) + "/" + asset_id + "." + resource::texture_binary_extension;
             const String texture_full_path = io::CombinePath(content_root, texture_binary_path);
-            if (!io::CopyFileTo(source_asset_path, texture_full_path, true))
+
+            resource::TextureImportSettings settings;
+            resource::AssetMeta existing_meta;
+            if (resource::LoadAssetMeta(resource::GetAssetMetaPath(source_asset_path), existing_meta))
             {
-                out_error = "Failed to copy dds to texture binary: " + source_asset_path;
+                settings = existing_meta.texture;
+            }
+
+            DirectX::ScratchImage dds;
+            if (!LoadDDSImage(source_asset_path, dds) || !SaveDDSImage(texture_full_path, dds, settings.is_srgb))
+            {
+                out_error = "Failed to import dds as texture binary: " + source_asset_path;
                 return false;
             }
 
@@ -1165,6 +1306,7 @@ struct COMInitializer
             meta.source_asset_path = source_rel;
             meta.asset_type = "texture";
             meta.binary_path = texture_binary_path;
+            meta.texture = settings;
             io::GetLastTimestamp(source_asset_path, &meta.source_timestamp);
             resource::SaveAssetMeta(resource::GetAssetMetaPath(source_asset_path), meta);
 

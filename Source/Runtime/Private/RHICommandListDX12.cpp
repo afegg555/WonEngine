@@ -766,7 +766,30 @@ namespace won::rendering
         return;
     }
 
+    void RHICommandListDX12::AliasingBarrier(RHIResource* before, RHIResource& after)
+    {
+        if (!command_list)
+        {
+            return;
+        }
+
+        auto after_dx12 = dynamic_cast<RHIResourceDX12*>(&after);
+        if (!after_dx12 || !after_dx12->GetResource())
+        {
+            return;
+        }
+
+        auto before_dx12 = before ? dynamic_cast<RHIResourceDX12*>(before) : nullptr;
+
+        D3D12_RESOURCE_BARRIER barrier = {};
+        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_ALIASING;
+        barrier.Aliasing.pResourceBefore = before_dx12 ? before_dx12->GetResource() : nullptr;
+        barrier.Aliasing.pResourceAfter = after_dx12->GetResource();
+        command_list->ResourceBarrier(1, &barrier);
+    }
+
     void RHICommandListDX12::TransitionResource(RHIResource& resource,
+        RHIResourceState before_state,
         RHIResourceState after_state)
     {
         if (!command_list)
@@ -780,7 +803,7 @@ namespace won::rendering
             return;
         }
 
-        const D3D12_RESOURCE_STATES before = resource_dx12->GetCurrentState();
+        const D3D12_RESOURCE_STATES before = ToD3D12State(queue_type, before_state);
         const D3D12_RESOURCE_STATES after = ToD3D12State(queue_type, after_state);
         if (before == after)
         {
@@ -794,7 +817,6 @@ namespace won::rendering
         barrier.Transition.StateAfter = after;
         barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
         command_list->ResourceBarrier(1, &barrier);
-        resource_dx12->SetCurrentState(after);
     }
 
     void RHICommandListDX12::TransitionSubresource(RHIResource& resource,
@@ -853,10 +875,6 @@ namespace won::rendering
             command_list->ResourceBarrier(static_cast<UINT>(barriers.size()), barriers.data());
         }
 
-        if (first_mip == 0 && mip_count == mip_levels && first_slice == 0 && slice_count == total_slices)
-        {
-            resource_dx12->SetCurrentState(after);
-        }
     }
 
     void RHICommandListDX12::UAVBarrier(RHIResource& resource)

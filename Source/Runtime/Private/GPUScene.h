@@ -24,7 +24,6 @@ namespace won::rendering
     {
         std::unique_ptr<RHIResource> buffer;
         RHISubresourceHandle srv = {};
-        std::array<std::unique_ptr<RHIResource>, max_frames_in_flight> staging = {};
     };
 
     struct Renderable
@@ -41,7 +40,9 @@ namespace won::rendering
         RHIResource* index_buffer = nullptr;
         float3 world_position = {};
         math::AABB aabb = {};
-        uint32 index_offset = 0;
+        uint32 index_buffer_offset = 0; // byte offset of the whole index range the mesh owns
+        uint32 index_buffer_size = 0;
+        uint32 first_index = 0; // index of the submesh inside that range
         uint32 index_count = 0;
         uint32 flags = None;
         uint32 shader_type = SHADER_MATERIAL_TYPE_PBR;
@@ -110,6 +111,16 @@ namespace won::rendering
         bool IsText() const { return (flags & Text) != 0; }
     };
 
+    struct DirectSunShadowSettings
+    {
+        bool cast_shadow = false;
+        uint32 shadow_resolution = 2048;
+        uint32 cascade_count = 4;
+        float cascade_lambda = 0.95f;
+        float cascade_blend = 0.1f;
+        float shadow_distance = 0.0f;
+    };
+
     // this class is not exported
     struct GPUScene
     {
@@ -119,11 +130,7 @@ namespace won::rendering
         ShaderLight derived_sun;
         uint32 derived_sun_index = std::numeric_limits<uint32>::max();
         bool has_derived_sun = false;
-        bool direct_sun_cast_shadow = false;
-        uint32 direct_sun_shadow_resolution = 1024;
-        uint32 direct_sun_cascade_count = 4;
-        float direct_sun_cascade_lambda = 0.95f;
-        float direct_sun_cascade_blend = 0.1f;
+        DirectSunShadowSettings direct_sun_shadow = {};
 
         GPUBuffer light_buffer;
 
@@ -139,6 +146,15 @@ namespace won::rendering
         Vector<float4> shader_bone_matrices;
         GPUBuffer bone_buffer;
 
+        // culling walks this instead of the "Renderable" so a scan touches 32 bytes per entry, not the whole Renderable
+        struct RenderableCullData
+        {
+            math::AABB aabb = {};
+            uint32 layer_mask = 0xFFFFFFFF;
+            uint32 flags = 0;
+        };
+
+        Vector<RenderableCullData> opaque_cull_data;
         Vector<Renderable> opaque_renderables;
         Vector<Renderable> transparent_renderables;
         Vector<Renderable> line_renderables;
@@ -217,17 +233,9 @@ namespace won::rendering
         Vector<ShaderBVHInstance> shader_bvh_instances;
         GPUBuffer bvh_instance_buffer;
 
-        std::array<Vector<std::unique_ptr<RHIResource>>, max_frames_in_flight> retired = {};
-
         uint64 synced_index = ~0ull;
 
-        void Update(ecs::Scene& scene, RHIDevice& device, RHICommandList& command_list, uint32 frame_slot);
+        void Update(ecs::Scene& scene);
 
-    private:
-        void RetireResource(std::unique_ptr<RHIResource>& resource, uint32 frame_slot);
-        bool CreateSkyLightingResources(RHIDevice& device);
-        void ReleaseSkyLightingResources(uint32 frame_slot);
-        void ReleaseDDGIResources(uint32 frame_slot);
-        bool CreateDDGIResources(RHIDevice& device, uint32 frame_slot);
     };
 }

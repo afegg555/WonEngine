@@ -1172,9 +1172,9 @@
             "text": "블렌드 모드",
             "comment": "label"
         },
-        "editor.label.bvh_debug": {
-            "source": "BVH Debug",
-            "text": "BVH 디버그",
+        "editor.label.show_bvh": {
+            "source": "BVH",
+            "text": "BVH",
             "comment": "label"
         },
         "editor.label.cascade_blend": {
@@ -1232,9 +1232,9 @@
             "text": "교차축 정렬",
             "comment": "label"
         },
-        "editor.label.ddgi_debug_overlay": {
-            "source": "DDGI Debug Overlay",
-            "text": "DDGI 디버그 오버레이",
+        "editor.label.show_ddgi": {
+            "source": "DDGI",
+            "text": "DDGI",
             "comment": "label"
         },
         "editor.label.direct_sun_active": {
@@ -1262,6 +1262,11 @@
             "text": "직사광 그림자 생성",
             "comment": "label"
         },
+        "editor.label.direct_sun_shadow_distance": {
+            "source": "Sun Shadow Distance",
+            "text": "태양 그림자 거리",
+            "comment": "label"
+        },
         "editor.label.direct_sun_shadow_resolution": {
             "source": "Direct Sun Shadow Resolution",
             "text": "직사광 그림자 해상도",
@@ -1287,9 +1292,9 @@
             "text": "다이내믹",
             "comment": "label"
         },
-        "editor.label.editor_grid": {
-            "source": "Editor Grid",
-            "text": "에디터 그리드",
+        "editor.label.show_grid": {
+            "source": "Grid",
+            "text": "그리드",
             "comment": "label"
         },
         "editor.label.emissive_map": {
@@ -1547,6 +1552,11 @@
             "text": "머티리얼 타입",
             "comment": "label"
         },
+        "editor.label.shadow_distance": {
+            "source": "Shadow Distance",
+            "text": "그림자 거리",
+            "comment": "label"
+        },
         "editor.label.shadow_resolution": {
             "source": "Shadow Resolution",
             "text": "그림자 해상도",
@@ -1670,11 +1680,6 @@
         "editor.label.vsync": {
             "source": "VSync",
             "text": "수직 동기화",
-            "comment": "label"
-        },
-        "editor.label.wireframe": {
-            "source": "WireFrame",
-            "text": "와이어프레임",
             "comment": "label"
         },
         "editor.label.won_material_file": {
@@ -2062,9 +2067,9 @@
             "text": "월드 크기 Z",
             "comment": "reflected component field"
         },
-        "editor.label.collider_3d": {
-            "source": "Collider3D",
-            "text": "Collider3D",
+        "editor.label.show_colliders": {
+            "source": "Colliders",
+            "text": "콜라이더",
             "comment": "label"
         },
         "editor.label.contents": {
@@ -2320,6 +2325,96 @@
         "editor.label.cloud_frequency": {
             "source": "Cloud Frequency",
             "text": "구름 빈도",
+            "comment": "label"
+        },
+        "editor.enum.ViewMode.Lit": {
+            "source": "Lit",
+            "text": "라이팅",
+            "comment": "enum"
+        },
+        "editor.enum.ViewMode.Unlit": {
+            "source": "Unlit",
+            "text": "언릿",
+            "comment": "enum"
+        },
+        "editor.enum.ViewMode.BaseColor": {
+            "source": "Base Color",
+            "text": "베이스 컬러",
+            "comment": "enum"
+        },
+        "editor.enum.ViewMode.WorldNormal": {
+            "source": "World Normal",
+            "text": "월드 노멀",
+            "comment": "enum"
+        },
+        "editor.enum.ViewMode.Roughness": {
+            "source": "Roughness",
+            "text": "러프니스",
+            "comment": "enum"
+        },
+        "editor.enum.ViewMode.Metallic": {
+            "source": "Metallic",
+            "text": "메탈릭",
+            "comment": "enum"
+        },
+        "editor.enum.ViewMode.LightComplexity": {
+            "source": "Light Complexity",
+            "text": "라이트 복잡도",
+            "comment": "enum"
+        },
+        "editor.enum.ViewMode.ShadowCascades": {
+            "source": "Shadow Cascades",
+            "text": "그림자 캐스케이드",
+            "comment": "enum"
+        },
+        "editor.enum.ViewMode.Wireframe": {
+            "source": "Wireframe",
+            "text": "와이어프레임",
+            "comment": "enum"
+        },
+        "editor.enum.ViewMode.Overdraw": {
+            "source": "Overdraw",
+            "text": "오버드로",
+            "comment": "enum"
+        },
+        "editor.label.view_mode": {
+            "source": "View Mode",
+            "text": "뷰 모드",
+            "comment": "label"
+        },
+        "editor.label.show_shadows": {
+            "source": "Shadows",
+            "text": "그림자",
+            "comment": "label"
+        },
+        "editor.label.show_opaque": {
+            "source": "Opaque",
+            "text": "불투명",
+            "comment": "label"
+        },
+        "editor.label.show_transparent": {
+            "source": "Transparent",
+            "text": "반투명",
+            "comment": "label"
+        },
+        "editor.label.show_decals": {
+            "source": "Decals",
+            "text": "데칼",
+            "comment": "label"
+        },
+        "editor.label.show_particles": {
+            "source": "Particles",
+            "text": "파티클",
+            "comment": "label"
+        },
+        "editor.label.show_sprites_3d": {
+            "source": "Sprites 3D",
+            "text": "스프라이트 3D",
+            "comment": "label"
+        },
+        "editor.label.show_sprites_2d": {
+            "source": "Sprites 2D",
+            "text": "스프라이트 2D",
             "comment": "label"
         }
     }

@@ -26,84 +26,6 @@ namespace won::rendering
     {
         using namespace won::ecs;
 
-        bool UploadBuffer(GPUBuffer& target, Vector<std::unique_ptr<RHIResource>>& retire,
-            const void* data, Size size, Size stride,
-            RHIDevice& device, RHICommandList& command_list, uint32 frame_slot)
-        {
-            if (size == 0)
-            {
-                if (target.buffer)
-                {
-                    retire.push_back(std::move(target.buffer));
-                }
-                target.buffer = nullptr;
-                target.srv = {};
-                return true;
-            }
-
-            const Size current_buffer_size = target.buffer ? target.buffer->GetDesc().buffer_desc.size : 0;
-            if (!target.buffer || current_buffer_size < size)
-            {
-                if (target.buffer)
-                {
-                    retire.push_back(std::move(target.buffer));
-                }
-
-                RHIBufferDesc buffer_desc = {};
-                buffer_desc.size = size;
-                buffer_desc.usage = RHIResourceUsage::Default;
-                buffer_desc.bind_flags = RHIBindFlags::ShaderResource;
-                target.buffer = device.CreateBuffer(buffer_desc);
-                if (!target.buffer)
-                {
-                    backlog::Post("GPUScene: failed to create default buffer", backlog::LogLevel::Error);
-                    return false;
-                }
-
-                target.srv = {};
-                RHISubresourceDesc srv_desc = {};
-                srv_desc.type = RHISubresourceType::ShaderResource;
-                srv_desc.buffer_offset = 0;
-                srv_desc.buffer_size = target.buffer->GetDesc().buffer_desc.size;
-                srv_desc.buffer_stride = stride;
-                if (!device.CreateSubresource(*target.buffer, srv_desc, &target.srv))
-                {
-                    backlog::Post("GPUScene: failed to create buffer subresource", backlog::LogLevel::Error);
-                    target.buffer = nullptr;
-                    return false;
-                }
-            }
-
-            std::unique_ptr<RHIResource>& staging = target.staging[frame_slot];
-            const Size current_staging_size = staging ? staging->GetDesc().buffer_desc.size : 0;
-            if (!staging || current_staging_size < size)
-            {
-                RHIBufferDesc staging_desc = {};
-                staging_desc.size = size;
-                staging_desc.usage = RHIResourceUsage::Upload;
-                staging_desc.bind_flags = RHIBindFlags::None;
-                staging = device.CreateBuffer(staging_desc);
-                if (!staging)
-                {
-                    backlog::Post("GPUScene: failed to create staging buffer", backlog::LogLevel::Error);
-                    return false;
-                }
-            }
-
-            void* mapped = staging->GetMappedData();
-            if (!mapped)
-            {
-                backlog::Post("GPUScene: failed to map staging buffer", backlog::LogLevel::Error);
-                return false;
-            }
-            std::memcpy(mapped, data, size);
-
-            command_list.TransitionResource(*target.buffer, RHIResourceState::CopyDest);
-            command_list.CopyBuffer(*target.buffer, 0, *staging, 0, size);
-            command_list.TransitionResource(*target.buffer, RHIResourceState::ShaderRead);
-            return true;
-        }
-
         void ExtractLights(const ecs::Scene& scene, Vector<ShaderLight>& shader_lights, Vector<math::AABB>& light_bounds, uint32& directional_count)
         {
             auto light_array = scene.GetComponentArray<ecs::LightComponent>().get();
@@ -360,7 +282,7 @@ namespace won::rendering
         }
 
         void ExtractRenderables(const ecs::Scene& scene, Vector<ShaderInstance>& shader_instances,
-            Vector<Renderable>& opaque_renderables, Vector<Renderable>& transparent_renderables,
+            Vector<GPUScene::RenderableCullData>& opaque_cull_data, Vector<Renderable>& opaque_renderables, Vector<Renderable>& transparent_renderables,
             Vector<Renderable>& line_renderables, Vector<Renderable>& point_renderables,
             math::AABB& shadow_caster_world_bound)
         {
@@ -466,13 +388,17 @@ namespace won::rendering
                         push_constants.Init();
                         push_constants.geometry_index = geometry_comp.geometry_offset + (uint)i;
                         push_constants.material_index = material_comp.material_offset + submesh.material_slot;
-                        push_constants.draw_offset = (uint)args.job_index;
+						push_constants.draw_offset = (uint)args.job_index; // in here, we use the draw_offset to store the ShaderInstance index(per transform)
 
                         renderable.index_buffer = mesh_render_data.buffer.get();
-                        renderable.index_offset = mesh_render_data.indices.offset + submesh.first_index * sizeof(uint32);
+                        renderable.index_buffer_offset = mesh_render_data.indices.offset;
+                        renderable.index_buffer_size = mesh_render_data.indices.size;
+                        renderable.first_index = submesh.first_index;
                         renderable.index_count = submesh.index_count;
                         renderable.world_position = world_position;
-                        renderable.aabb = world_aabb;
+                        renderable.aabb = submesh.local_bounds.IsValid()
+                            ? submesh.local_bounds.TransformAABB(transform.world_transform)
+                            : world_aabb;
                         renderable.primitive_topology = submesh.primitive_topology;
                         renderable.shader_type = static_cast<uint32>(material_slot.material_type);
                         renderable.blend_mode = material_slot.blend_mode;
@@ -535,6 +461,16 @@ namespace won::rendering
                 transparent_renderables.insert(transparent_renderables.end(), std::make_move_iterator(bucket.transparent.begin()), std::make_move_iterator(bucket.transparent.end()));
                 line_renderables.insert(line_renderables.end(), std::make_move_iterator(bucket.line.begin()), std::make_move_iterator(bucket.line.end()));
                 point_renderables.insert(point_renderables.end(), std::make_move_iterator(bucket.point.begin()), std::make_move_iterator(bucket.point.end()));
+            }
+
+            opaque_cull_data.resize(opaque_renderables.size());
+            for (Size renderable_index = 0; renderable_index < opaque_renderables.size(); ++renderable_index)
+            {
+                const Renderable& renderable = opaque_renderables[renderable_index];
+                GPUScene::RenderableCullData& cull_data = opaque_cull_data[renderable_index];
+                cull_data.aabb = renderable.aabb;
+                cull_data.layer_mask = renderable.layer_mask;
+                cull_data.flags = renderable.flags;
             }
         }
 
@@ -1175,7 +1111,7 @@ namespace won::rendering
             }
         }
 
-        void ExtractEnvironment(const ecs::Scene& scene, ShaderEnvironment& shader_environment, ShaderDDGIVolume& shader_ddgi_volume, ShaderReflectionProbe& shader_reflection_probe, Entity& ddgi_volume_entity, ShaderLight& derived_sun, bool& has_derived_sun, bool& direct_sun_cast_shadow, uint32& direct_sun_shadow_resolution, uint32& direct_sun_cascade_count, float& direct_sun_cascade_lambda, float& direct_sun_cascade_blend)
+        void ExtractEnvironment(const ecs::Scene& scene, ShaderEnvironment& shader_environment, ShaderDDGIVolume& shader_ddgi_volume, ShaderReflectionProbe& shader_reflection_probe, Entity& ddgi_volume_entity, ShaderLight& derived_sun, bool& has_derived_sun, DirectSunShadowSettings& direct_sun_shadow)
         {
             shader_environment.Init();
             shader_ddgi_volume.Init();
@@ -1183,7 +1119,7 @@ namespace won::rendering
             ddgi_volume_entity = INVALID_ENTITY;
             derived_sun.Init();
             has_derived_sun = false;
-            direct_sun_cast_shadow = false;
+            direct_sun_shadow = {};
 
             const auto environment_array = scene.GetComponentArray<EnvironmentComponent>().get();
             const auto transform_array = scene.GetComponentArray<TransformComponent>().get();
@@ -1228,11 +1164,12 @@ namespace won::rendering
                             derived_sun.SetFlags(SHADER_LIGHT_FLAGS::LIGHT_FLAG_LIGHT_CASTING_SHADOW);
                         }
                         has_derived_sun = true;
-                        direct_sun_cast_shadow = environment.direct_sun_cast_shadow;
-                        direct_sun_shadow_resolution = environment.direct_sun_shadow_resolution;
-                        direct_sun_cascade_count = environment.direct_sun_cascade_count;
-                        direct_sun_cascade_lambda = environment.direct_sun_cascade_lambda;
-                        direct_sun_cascade_blend = environment.direct_sun_cascade_blend;
+                        direct_sun_shadow.cast_shadow = environment.direct_sun_cast_shadow;
+                        direct_sun_shadow.shadow_resolution = environment.direct_sun_shadow_resolution;
+                        direct_sun_shadow.cascade_count = environment.direct_sun_cascade_count;
+                        direct_sun_shadow.cascade_lambda = environment.direct_sun_cascade_lambda;
+                        direct_sun_shadow.cascade_blend = environment.direct_sun_cascade_blend;
+                        direct_sun_shadow.shadow_distance = environment.direct_sun_shadow_distance;
                     }
 
                     shader_environment.diffuse_gi_mode = static_cast<uint32>(environment.diffuse_gi_mode);
@@ -1344,427 +1281,10 @@ namespace won::rendering
         }
     }
 
-    void GPUScene::RetireResource(std::unique_ptr<RHIResource>& resource, uint32 frame_slot)
+
+    void GPUScene::Update(ecs::Scene& scene)
     {
-        if (resource)
-        {
-            retired[frame_slot].push_back(std::move(resource));
-        }
-    }
-
-    void GPUScene::ReleaseDDGIResources(uint32 frame_slot)
-    {
-        RetireResource(ddgi.irradiance_texture, frame_slot);
-        RetireResource(ddgi.irradiance_history_texture, frame_slot);
-        RetireResource(ddgi.visibility_texture, frame_slot);
-        RetireResource(ddgi.visibility_history_texture, frame_slot);
-        RetireResource(ddgi.probe_data_buffer, frame_slot);
-        RetireResource(ddgi.probe_data_history_buffer, frame_slot);
-        ddgi.irradiance_texture_srv = {};
-        ddgi.irradiance_texture_uav = {};
-        ddgi.irradiance_history_texture_srv = {};
-        ddgi.visibility_texture_srv = {};
-        ddgi.visibility_texture_uav = {};
-        ddgi.visibility_history_texture_srv = {};
-        ddgi.probe_data_buffer_srv = {};
-        ddgi.probe_data_buffer_uav = {};
-        ddgi.probe_data_history_buffer_srv = {};
-        ddgi.probe_counts = { 0, 0, 0 };
-        ddgi.probe_spacing = { 0.0f, 0.0f, 0.0f };
-        ddgi.volume_min = { 0.0f, 0.0f, 0.0f };
-        ddgi.max_distance = 0.0f;
-        ddgi.probe_update_offset = 0;
-        ddgi.history_valid = false;
-    }
-
-    bool GPUScene::CreateSkyLightingResources(RHIDevice& device)
-    {
-        const bool diffuse_from_sky = shader_environment.diffuse_gi_mode == SHADER_DIFFUSE_GI_MODE_SKY;
-        const bool specular_from_sky = shader_environment.reflection_mode == SHADER_REFLECTION_MODE_SKY;
-        if (!diffuse_from_sky && !specular_from_sky)
-        {
-            return false;
-        }
-
-        if (!sky_lighting.capture_texture)
-        {
-            RHITextureDesc desc = {};
-            desc.width = sky_capture_resolution;
-            desc.height = sky_capture_resolution;
-            desc.depth = 1;
-            desc.mip_levels = 1;
-            desc.array_layers = 6;
-            desc.is_cube = true;
-            desc.sample_count = 1;
-            desc.format = RHIFormat::R16G16B16A16Float;
-            desc.usage = RHIResourceUsage::Default;
-            desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
-            sky_lighting.capture_texture = device.CreateTexture(desc);
-            if (!sky_lighting.capture_texture)
-            {
-                return false;
-            }
-            sky_lighting.capture_texture->SetName("Sky Capture Cubemap");
-
-            RHISubresourceDesc srv_desc = {};
-            srv_desc.type = RHISubresourceType::ShaderResource;
-            srv_desc.format = desc.format;
-            srv_desc.first_mip = 0;
-            srv_desc.mip_count = 1;
-            srv_desc.first_slice = 0;
-            srv_desc.slice_count = 6;
-            device.CreateSubresource(*sky_lighting.capture_texture, srv_desc, &sky_lighting.capture_srv);
-
-            RHISubresourceDesc uav_desc = {};
-            uav_desc.type = RHISubresourceType::UnorderedAccess;
-            uav_desc.format = desc.format;
-            uav_desc.first_mip = 0;
-            uav_desc.mip_count = 1;
-            uav_desc.first_slice = 0;
-            uav_desc.slice_count = 6;
-            device.CreateSubresource(*sky_lighting.capture_texture, uav_desc, &sky_lighting.capture_uav);
-        }
-
-        if (diffuse_from_sky && !sky_lighting.irradiance_texture)
-        {
-            RHITextureDesc desc = {};
-            desc.width = sky_irradiance_resolution;
-            desc.height = sky_irradiance_resolution;
-            desc.depth = 1;
-            desc.mip_levels = 1;
-            desc.array_layers = 6;
-            desc.is_cube = true;
-            desc.sample_count = 1;
-            desc.format = RHIFormat::R16G16B16A16Float;
-            desc.usage = RHIResourceUsage::Default;
-            desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
-            sky_lighting.irradiance_texture = device.CreateTexture(desc);
-            if (!sky_lighting.irradiance_texture)
-            {
-                return false;
-            }
-            sky_lighting.irradiance_texture->SetName("Sky Irradiance Cubemap");
-
-            RHISubresourceDesc srv_desc = {};
-            srv_desc.type = RHISubresourceType::ShaderResource;
-            srv_desc.format = desc.format;
-            srv_desc.first_mip = 0;
-            srv_desc.mip_count = 1;
-            srv_desc.first_slice = 0;
-            srv_desc.slice_count = 6;
-            device.CreateSubresource(*sky_lighting.irradiance_texture, srv_desc, &sky_lighting.irradiance_srv);
-
-            RHISubresourceDesc uav_desc = {};
-            uav_desc.type = RHISubresourceType::UnorderedAccess;
-            uav_desc.format = desc.format;
-            uav_desc.first_mip = 0;
-            uav_desc.mip_count = 1;
-            uav_desc.first_slice = 0;
-            uav_desc.slice_count = 6;
-            device.CreateSubresource(*sky_lighting.irradiance_texture, uav_desc, &sky_lighting.irradiance_uav);
-        }
-
-        if (specular_from_sky && !sky_lighting.specular_texture)
-        {
-            RHITextureDesc desc = {};
-            desc.width = sky_specular_resolution;
-            desc.height = sky_specular_resolution;
-            desc.depth = 1;
-            desc.mip_levels = sky_specular_mip_count;
-            desc.array_layers = 6;
-            desc.is_cube = true;
-            desc.sample_count = 1;
-            desc.format = RHIFormat::R16G16B16A16Float;
-            desc.usage = RHIResourceUsage::Default;
-            desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
-            sky_lighting.specular_texture = device.CreateTexture(desc);
-            if (!sky_lighting.specular_texture)
-            {
-                return false;
-            }
-            sky_lighting.specular_texture->SetName("Sky Specular Cubemap");
-
-            RHISubresourceDesc srv_desc = {};
-            srv_desc.type = RHISubresourceType::ShaderResource;
-            srv_desc.format = desc.format;
-            srv_desc.first_mip = 0;
-            srv_desc.mip_count = sky_specular_mip_count;
-            srv_desc.first_slice = 0;
-            srv_desc.slice_count = 6;
-            device.CreateSubresource(*sky_lighting.specular_texture, srv_desc, &sky_lighting.specular_srv);
-
-            for (uint32 mip = 0; mip < sky_specular_mip_count; ++mip)
-            {
-                RHISubresourceDesc uav_desc = {};
-                uav_desc.type = RHISubresourceType::UnorderedAccess;
-                uav_desc.format = desc.format;
-                uav_desc.first_mip = mip;
-                uav_desc.mip_count = 1;
-                uav_desc.first_slice = 0;
-                uav_desc.slice_count = 6;
-                device.CreateSubresource(*sky_lighting.specular_texture, uav_desc, &sky_lighting.specular_mip_uav[mip]);
-            }
-        }
-
-        return true;
-    }
-
-    void GPUScene::ReleaseSkyLightingResources(uint32 frame_slot)
-    {
-        RetireResource(sky_lighting.capture_texture, frame_slot);
-        RetireResource(sky_lighting.irradiance_texture, frame_slot);
-        RetireResource(sky_lighting.specular_texture, frame_slot);
-        sky_lighting.capture_srv = {};
-        sky_lighting.capture_uav = {};
-        sky_lighting.irradiance_srv = {};
-        sky_lighting.irradiance_uav = {};
-        sky_lighting.specular_srv = {};
-        for (uint32 mip = 0; mip < sky_specular_mip_count; ++mip)
-        {
-            sky_lighting.specular_mip_uav[mip] = {};
-        }
-        sky_lighting.signature = {};
-        sky_lighting.pending_irradiance_face = -1;
-        sky_lighting.pending_specular_mip = -1;
-        sky_lighting.valid = false;
-    }
-
-    bool GPUScene::CreateDDGIResources(RHIDevice& device, uint32 frame_slot)
-    {
-        if ((shader_ddgi_volume.flags & SHADER_DDGI_FLAG_ACTIVE) == 0)
-        {
-            ReleaseDDGIResources(frame_slot);
-            return true;
-        }
-
-        const bool recreate_ddgi_texture =
-            !ddgi.irradiance_texture ||
-            !ddgi.irradiance_texture_srv.IsValid() ||
-            !ddgi.irradiance_texture_uav.IsValid() ||
-            !ddgi.irradiance_history_texture ||
-            !ddgi.irradiance_history_texture_srv.IsValid() ||
-            !ddgi.visibility_texture ||
-            !ddgi.visibility_texture_srv.IsValid() ||
-            !ddgi.visibility_texture_uav.IsValid() ||
-            !ddgi.visibility_history_texture ||
-            !ddgi.visibility_history_texture_srv.IsValid() ||
-            !ddgi.probe_data_buffer ||
-            !ddgi.probe_data_buffer_srv.IsValid() ||
-            !ddgi.probe_data_buffer_uav.IsValid() ||
-            !ddgi.probe_data_history_buffer ||
-            !ddgi.probe_data_history_buffer_srv.IsValid() ||
-            ddgi.probe_counts.x != shader_ddgi_volume.probe_counts.x ||
-            ddgi.probe_counts.y != shader_ddgi_volume.probe_counts.y ||
-            ddgi.probe_counts.z != shader_ddgi_volume.probe_counts.z;
-
-        if (!recreate_ddgi_texture)
-        {
-            const bool reset_ddgi_history =
-                ddgi.probe_spacing.x != shader_ddgi_volume.probe_spacing.x ||
-                ddgi.probe_spacing.y != shader_ddgi_volume.probe_spacing.y ||
-                ddgi.probe_spacing.z != shader_ddgi_volume.probe_spacing.z ||
-                ddgi.volume_min.x != shader_ddgi_volume.volume_min.x ||
-                ddgi.volume_min.y != shader_ddgi_volume.volume_min.y ||
-                ddgi.volume_min.z != shader_ddgi_volume.volume_min.z ||
-                ddgi.max_distance != shader_ddgi_volume.max_distance;
-            if (reset_ddgi_history)
-            {
-                ddgi.probe_spacing = shader_ddgi_volume.probe_spacing;
-                ddgi.volume_min = shader_ddgi_volume.volume_min;
-                ddgi.max_distance = shader_ddgi_volume.max_distance;
-                ddgi.probe_update_offset = 0;
-                ddgi.history_valid = false;
-            }
-            return true;
-        }
-
-        ReleaseDDGIResources(frame_slot);
-
-        RHITextureDesc ddgi_irradiance_texture_desc = {};
-        ddgi_irradiance_texture_desc.width = (std::max)(shader_ddgi_volume.probe_counts.x, 1u) * (DDGI_IRRADIANCE_RESOLUTION + 2);
-        ddgi_irradiance_texture_desc.height = (std::max)(shader_ddgi_volume.probe_counts.y, 1u) * (DDGI_IRRADIANCE_RESOLUTION + 2);
-        ddgi_irradiance_texture_desc.depth = 1;
-        ddgi_irradiance_texture_desc.mip_levels = 1;
-        ddgi_irradiance_texture_desc.array_layers = (std::max)(shader_ddgi_volume.probe_counts.z, 1u);
-        ddgi_irradiance_texture_desc.sample_count = 1;
-        ddgi_irradiance_texture_desc.format = RHIFormat::R16G16B16A16Float;
-        ddgi_irradiance_texture_desc.usage = RHIResourceUsage::Default;
-        ddgi_irradiance_texture_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
-        ddgi.irradiance_texture = device.CreateTexture(ddgi_irradiance_texture_desc);
-        if (!ddgi.irradiance_texture)
-        {
-            backlog::Post("failed to create ddgi irradiance texture", backlog::LogLevel::Error);
-            return false;
-        }
-        ddgi.irradiance_texture->SetName("DDGI Irradiance Texture");
-
-        RHISubresourceDesc ddgi_irradiance_srv_desc = {};
-        ddgi_irradiance_srv_desc.type = RHISubresourceType::ShaderResource;
-        ddgi_irradiance_srv_desc.format = ddgi_irradiance_texture_desc.format;
-        ddgi_irradiance_srv_desc.first_slice = 0;
-        ddgi_irradiance_srv_desc.slice_count = ddgi_irradiance_texture_desc.array_layers;
-        ddgi_irradiance_srv_desc.first_mip = 0;
-        ddgi_irradiance_srv_desc.mip_count = 1;
-        if (!device.CreateSubresource(*ddgi.irradiance_texture, ddgi_irradiance_srv_desc, &ddgi.irradiance_texture_srv))
-        {
-            backlog::Post("failed to create ddgi irradiance srv", backlog::LogLevel::Error);
-            ddgi.irradiance_texture = nullptr;
-            return false;
-        }
-
-        RHISubresourceDesc ddgi_irradiance_uav_desc = {};
-        ddgi_irradiance_uav_desc.type = RHISubresourceType::UnorderedAccess;
-        ddgi_irradiance_uav_desc.format = ddgi_irradiance_texture_desc.format;
-        ddgi_irradiance_uav_desc.first_mip = 0;
-        ddgi_irradiance_uav_desc.mip_count = 1;
-        ddgi_irradiance_uav_desc.first_slice = 0;
-        ddgi_irradiance_uav_desc.slice_count = ddgi_irradiance_texture_desc.array_layers;
-        if (!device.CreateSubresource(*ddgi.irradiance_texture, ddgi_irradiance_uav_desc, &ddgi.irradiance_texture_uav))
-        {
-            backlog::Post("failed to create ddgi irradiance uav", backlog::LogLevel::Error);
-            ddgi.irradiance_texture = nullptr;
-            return false;
-        }
-
-        ddgi.irradiance_history_texture = device.CreateTexture(ddgi_irradiance_texture_desc);
-        if (!ddgi.irradiance_history_texture)
-        {
-            backlog::Post("failed to create ddgi irradiance history texture", backlog::LogLevel::Error);
-            return false;
-        }
-        ddgi.irradiance_history_texture->SetName("DDGI Irradiance History Texture");
-        if (!device.CreateSubresource(*ddgi.irradiance_history_texture, ddgi_irradiance_srv_desc, &ddgi.irradiance_history_texture_srv))
-        {
-            backlog::Post("failed to create ddgi irradiance history srv", backlog::LogLevel::Error);
-            ddgi.irradiance_history_texture = nullptr;
-            return false;
-        }
-
-        RHITextureDesc ddgi_visibility_texture_desc = {};
-        ddgi_visibility_texture_desc.width = (std::max)(shader_ddgi_volume.probe_counts.x, 1u) * (DDGI_VISIBILITY_RESOLUTION + 2);
-        ddgi_visibility_texture_desc.height = (std::max)(shader_ddgi_volume.probe_counts.y, 1u) * (DDGI_VISIBILITY_RESOLUTION + 2);
-        ddgi_visibility_texture_desc.depth = 1;
-        ddgi_visibility_texture_desc.mip_levels = 1;
-        ddgi_visibility_texture_desc.array_layers = (std::max)(shader_ddgi_volume.probe_counts.z, 1u);
-        ddgi_visibility_texture_desc.sample_count = 1;
-        ddgi_visibility_texture_desc.format = RHIFormat::R16G16B16A16Float;
-        ddgi_visibility_texture_desc.usage = RHIResourceUsage::Default;
-        ddgi_visibility_texture_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
-        ddgi.visibility_texture = device.CreateTexture(ddgi_visibility_texture_desc);
-        if (!ddgi.visibility_texture)
-        {
-            backlog::Post("failed to create ddgi visibility texture", backlog::LogLevel::Error);
-            return false;
-        }
-        ddgi.visibility_texture->SetName("DDGI Visibility Texture");
-
-        RHISubresourceDesc ddgi_visibility_srv_desc = {};
-        ddgi_visibility_srv_desc.type = RHISubresourceType::ShaderResource;
-        ddgi_visibility_srv_desc.format = ddgi_visibility_texture_desc.format;
-        ddgi_visibility_srv_desc.first_slice = 0;
-        ddgi_visibility_srv_desc.slice_count = ddgi_visibility_texture_desc.array_layers;
-        ddgi_visibility_srv_desc.first_mip = 0;
-        ddgi_visibility_srv_desc.mip_count = 1;
-        if (!device.CreateSubresource(*ddgi.visibility_texture, ddgi_visibility_srv_desc, &ddgi.visibility_texture_srv))
-        {
-            backlog::Post("failed to create ddgi visibility srv", backlog::LogLevel::Error);
-            ddgi.visibility_texture = nullptr;
-            return false;
-        }
-
-        RHISubresourceDesc ddgi_visibility_uav_desc = {};
-        ddgi_visibility_uav_desc.type = RHISubresourceType::UnorderedAccess;
-        ddgi_visibility_uav_desc.format = ddgi_visibility_texture_desc.format;
-        ddgi_visibility_uav_desc.first_mip = 0;
-        ddgi_visibility_uav_desc.mip_count = 1;
-        ddgi_visibility_uav_desc.first_slice = 0;
-        ddgi_visibility_uav_desc.slice_count = ddgi_visibility_texture_desc.array_layers;
-        if (!device.CreateSubresource(*ddgi.visibility_texture, ddgi_visibility_uav_desc, &ddgi.visibility_texture_uav))
-        {
-            backlog::Post("failed to create ddgi visibility uav", backlog::LogLevel::Error);
-            ddgi.visibility_texture = nullptr;
-            return false;
-        }
-
-        ddgi.visibility_history_texture = device.CreateTexture(ddgi_visibility_texture_desc);
-        if (!ddgi.visibility_history_texture)
-        {
-            backlog::Post("failed to create ddgi visibility history texture", backlog::LogLevel::Error);
-            return false;
-        }
-        ddgi.visibility_history_texture->SetName("DDGI Visibility History Texture");
-        if (!device.CreateSubresource(*ddgi.visibility_history_texture, ddgi_visibility_srv_desc, &ddgi.visibility_history_texture_srv))
-        {
-            backlog::Post("failed to create ddgi visibility history srv", backlog::LogLevel::Error);
-            ddgi.visibility_history_texture = nullptr;
-            return false;
-        }
-
-        const uint32 total_probe_count = (std::max)(shader_ddgi_volume.total_probe_count, 1u);
-        RHIBufferDesc ddgi_probe_data_buffer_desc = {};
-        ddgi_probe_data_buffer_desc.size = sizeof(float4) * total_probe_count;
-        ddgi_probe_data_buffer_desc.usage = RHIResourceUsage::Default;
-        ddgi_probe_data_buffer_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
-        ddgi.probe_data_buffer = device.CreateBuffer(ddgi_probe_data_buffer_desc);
-        if (!ddgi.probe_data_buffer)
-        {
-            backlog::Post("failed to create ddgi probe data buffer", backlog::LogLevel::Error);
-            return false;
-        }
-        ddgi.probe_data_buffer->SetName("DDGI Probe Data Buffer");
-
-        RHISubresourceDesc ddgi_probe_data_srv_desc = {};
-        ddgi_probe_data_srv_desc.type = RHISubresourceType::ShaderResource;
-        ddgi_probe_data_srv_desc.buffer_offset = 0;
-        ddgi_probe_data_srv_desc.buffer_size = ddgi.probe_data_buffer->GetDesc().buffer_desc.size;
-        ddgi_probe_data_srv_desc.buffer_stride = sizeof(float4);
-        if (!device.CreateSubresource(*ddgi.probe_data_buffer, ddgi_probe_data_srv_desc, &ddgi.probe_data_buffer_srv))
-        {
-            backlog::Post("failed to create ddgi probe data srv", backlog::LogLevel::Error);
-            ddgi.probe_data_buffer = nullptr;
-            return false;
-        }
-
-        RHISubresourceDesc ddgi_probe_data_uav_desc = {};
-        ddgi_probe_data_uav_desc.type = RHISubresourceType::UnorderedAccess;
-        ddgi_probe_data_uav_desc.buffer_offset = 0;
-        ddgi_probe_data_uav_desc.buffer_size = ddgi.probe_data_buffer->GetDesc().buffer_desc.size;
-        ddgi_probe_data_uav_desc.buffer_stride = sizeof(float4);
-        if (!device.CreateSubresource(*ddgi.probe_data_buffer, ddgi_probe_data_uav_desc, &ddgi.probe_data_buffer_uav))
-        {
-            backlog::Post("failed to create ddgi probe data uav", backlog::LogLevel::Error);
-            ddgi.probe_data_buffer = nullptr;
-            return false;
-        }
-
-        ddgi.probe_data_history_buffer = device.CreateBuffer(ddgi_probe_data_buffer_desc);
-        if (!ddgi.probe_data_history_buffer)
-        {
-            backlog::Post("failed to create ddgi probe data history buffer", backlog::LogLevel::Error);
-            return false;
-        }
-        ddgi.probe_data_history_buffer->SetName("DDGI Probe Data History Buffer");
-        if (!device.CreateSubresource(*ddgi.probe_data_history_buffer, ddgi_probe_data_srv_desc, &ddgi.probe_data_history_buffer_srv))
-        {
-            backlog::Post("failed to create ddgi probe data history srv", backlog::LogLevel::Error);
-            ddgi.probe_data_history_buffer = nullptr;
-            return false;
-        }
-
-        ddgi.probe_counts = shader_ddgi_volume.probe_counts;
-        ddgi.probe_spacing = shader_ddgi_volume.probe_spacing;
-        ddgi.volume_min = shader_ddgi_volume.volume_min;
-        ddgi.max_distance = shader_ddgi_volume.max_distance;
-        ddgi.probe_update_offset = 0;
-        return true;
-    }
-
-    void GPUScene::Update(ecs::Scene& scene, RHIDevice& device, RHICommandList& command_list, uint32 frame_slot)
-    {
-        auto cpu_range = profiler::ScopedRangeCPU("GPUScene::Update");
-        auto gpu_range = profiler::ScopedRangeGPU("GPUScene::Update", command_list);
-
-        retired[frame_slot].clear();
+        auto extract_range = profiler::ScopedRangeCPU("Update GPU Scene");
 
         if (has_derived_sun)
         {
@@ -1805,12 +1325,12 @@ namespace won::rendering
         Vector<Sprite3DRenderable> particle_sprite_3d;
 
         jobsystem::Context project_ctx;
-        jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractRenderables(scene, shader_instances, opaque_renderables, transparent_renderables, line_renderables, point_renderables, shadow_caster_world_bound); });
+        jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractRenderables(scene, shader_instances, opaque_cull_data, opaque_renderables, transparent_renderables, line_renderables, point_renderables, shadow_caster_world_bound); });
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractSprites(scene, sprite_2d_renderables, sprite_3d_renderables); });
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractText(scene, text_sprite_2d, text_sprite_3d, glyph_requests); });
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractParticles(scene, particle_instances, particle_sprite_3d); });
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractDecals(scene, shader_decals); });
-        jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractEnvironment(scene, shader_environment, shader_ddgi_volume, shader_reflection_probe, ddgi_volume_entity, derived_sun, has_derived_sun, direct_sun_cast_shadow, direct_sun_shadow_resolution, direct_sun_cascade_count, direct_sun_cascade_lambda, direct_sun_cascade_blend); });
+        jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractEnvironment(scene, shader_environment, shader_ddgi_volume, shader_reflection_probe, ddgi_volume_entity, derived_sun, has_derived_sun, direct_sun_shadow); });
         jobsystem::Wait(project_ctx);
 
         if (has_derived_sun)
@@ -1843,27 +1363,6 @@ namespace won::rendering
         }
         // Newly packed glyphs are picked up on the next frame.
 
-        UploadBuffer(light_buffer, retired[frame_slot], shader_lights.data(), shader_lights.size() * sizeof(ShaderLight), sizeof(ShaderLight), device, command_list, frame_slot);
-        UploadBuffer(geometry_buffer, retired[frame_slot], shader_geometries.data(), shader_geometries.size() * sizeof(ShaderGeometry), sizeof(ShaderGeometry), device, command_list, frame_slot);
-        UploadBuffer(material_buffer, retired[frame_slot], shader_materials.data(), shader_materials.size() * sizeof(ShaderMaterial), sizeof(ShaderMaterial), device, command_list, frame_slot);
-        UploadBuffer(bone_buffer, retired[frame_slot], shader_bone_matrices.data(), shader_bone_matrices.size() * sizeof(float4), sizeof(float4), device, command_list, frame_slot);
-        UploadBuffer(instance_buffer, retired[frame_slot], shader_instances.data(), shader_instances.size() * sizeof(ShaderInstance), sizeof(ShaderInstance), device, command_list, frame_slot);
-        UploadBuffer(particle_buffer, retired[frame_slot], particle_instances.data(), particle_instances.size() * sizeof(float4), sizeof(float4), device, command_list, frame_slot);
-        UploadBuffer(decal_buffer, retired[frame_slot], shader_decals.data(), shader_decals.size() * sizeof(ShaderDecal), sizeof(ShaderDecal), device, command_list, frame_slot);
-        UploadBuffer(bvh_node_buffer, retired[frame_slot], shader_bvh_nodes.data(), shader_bvh_nodes.size() * sizeof(ShaderBVHNode), sizeof(ShaderBVHNode), device, command_list, frame_slot);
-        UploadBuffer(bvh_instance_buffer, retired[frame_slot], shader_bvh_instances.data(), shader_bvh_instances.size() * sizeof(ShaderBVHInstance), sizeof(ShaderBVHInstance), device, command_list, frame_slot);
-
-        const bool uses_sky_lighting = shader_environment.sky_type != SHADER_SKY_TYPE_NONE
-            && (shader_environment.diffuse_gi_mode == SHADER_DIFFUSE_GI_MODE_SKY
-                || shader_environment.reflection_mode == SHADER_REFLECTION_MODE_SKY);
-        if (uses_sky_lighting)
-        {
-            CreateSkyLightingResources(device);
-        }
-        else if (sky_lighting.capture_texture)
-        {
-            ReleaseSkyLightingResources(frame_slot);
-        }
-        CreateDDGIResources(device, frame_slot);
     }
+
 }

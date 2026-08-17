@@ -1,4 +1,4 @@
-#include "RenderingUtils.h"
+﻿#include "RenderingUtils.h"
 #include "Backlog.h"
 #include "Font.h"
 #include "Image.h"
@@ -8,6 +8,7 @@
 #include "ShaderInterop_Utility.h"
 #include "Timer.h"
 #include "Renderer.h"
+#include "SceneComponents.h"
 #include <mutex>
 
 namespace won::rendering::utils
@@ -99,7 +100,7 @@ namespace won::rendering::utils
                 texture_mipgen_pipeline->SetName("TextureMipGenPipeline");
             }
 
-            command_list.TransitionResource(texture_resource, RHIResourceState::ShaderRead);
+            command_list.TransitionResource(texture_resource, RHIResourceState::Undefined, RHIResourceState::ShaderRead);
             command_list.SetComputePipeline(*texture_mipgen_pipeline);
 
             Vector<RHISubresourceHandle> mip_srvs;
@@ -418,12 +419,12 @@ namespace won::rendering::utils
                     succeeded = false;
                     continue;
                 }
-                command_list.TransitionResource(*mesh.render_data.buffer, RHIResourceState::ShaderRead);
-                command_list.TransitionResource(*gpu_bvh.node_buffer, RHIResourceState::ShaderWrite);
-                command_list.TransitionResource(*gpu_bvh.primitive_buffer, RHIResourceState::ShaderWrite);
-                command_list.TransitionResource(*sort_buffer, RHIResourceState::ShaderWrite);
-                command_list.TransitionResource(*parent_buffer, RHIResourceState::ShaderWrite);
-                command_list.TransitionResource(*counter_buffer, RHIResourceState::ShaderWrite);
+                command_list.TransitionResource(*mesh.render_data.buffer, RHIResourceState::Undefined, RHIResourceState::ShaderRead);
+                command_list.TransitionResource(*gpu_bvh.node_buffer, RHIResourceState::Undefined, RHIResourceState::ShaderWrite);
+                command_list.TransitionResource(*gpu_bvh.primitive_buffer, RHIResourceState::Undefined, RHIResourceState::ShaderWrite);
+                command_list.TransitionResource(*sort_buffer, RHIResourceState::Undefined, RHIResourceState::ShaderWrite);
+                command_list.TransitionResource(*parent_buffer, RHIResourceState::Undefined, RHIResourceState::ShaderWrite);
+                command_list.TransitionResource(*counter_buffer, RHIResourceState::Undefined, RHIResourceState::ShaderWrite);
 
                 command_list.SetComputePipeline(*gpu_bvh_build_pipelines[static_cast<uint32>(GPUBVHBuildPipelineType::GeneratePrimitives)]);
                 command_list.SetShaderResource(RHIShaderStage::Compute, 0, { mesh.render_data.buffer.get(), mesh.render_data.positions.handle });
@@ -511,9 +512,9 @@ namespace won::rendering::utils
                 scratch_resources.push_back(std::move(parent_buffer));
                 scratch_resources.push_back(std::move(counter_buffer));
 
-                command_list.TransitionResource(*gpu_bvh.node_buffer, RHIResourceState::ShaderRead);
-                command_list.TransitionResource(*gpu_bvh.primitive_buffer, RHIResourceState::ShaderRead);
-                command_list.TransitionResource(*mesh.render_data.buffer, RHIResourceState::Undefined);
+                command_list.TransitionResource(*gpu_bvh.node_buffer, RHIResourceState::ShaderWrite, RHIResourceState::Undefined);
+                command_list.TransitionResource(*gpu_bvh.primitive_buffer, RHIResourceState::ShaderWrite, RHIResourceState::Undefined);
+                command_list.TransitionResource(*mesh.render_data.buffer, RHIResourceState::ShaderRead, RHIResourceState::Undefined);
 
                 gpu_bvh.node_count = node_count;
                 gpu_bvh.primitive_count = primitive_count;
@@ -658,8 +659,10 @@ namespace won::rendering::utils
         pending_image_upload.push_back({ image, format });
     }
 
-    bool FlushEnqueuedResourceUploads(RHIDevice& device, uint32 max_uploads)
+    bool FlushEnqueuedResourceUploads(RHIDevice& device, uint32 max_uploads, uint64* out_completed_component_mask)
     {
+        ecs::ComponentMask completed_component_mask = ecs::none_component_mask;
+
         Vector<std::weak_ptr<resource::Mesh>> meshes;
         Vector<std::weak_ptr<resource::Font>> fonts;
         Vector<PendingImageUpload> images;
@@ -694,7 +697,10 @@ namespace won::rendering::utils
         {
             if (std::shared_ptr<resource::Mesh> mesh = weak.lock())
             {
-                CreateRenderData(device, *mesh);
+                if (CreateRenderData(device, *mesh))
+                {
+                    completed_component_mask |= ecs::geometry_component_mask;
+                }
             }
         }
         for (const std::weak_ptr<resource::Font>& weak : fonts)
@@ -708,8 +714,16 @@ namespace won::rendering::utils
         {
             if (std::shared_ptr<resource::Image> image = pending.image.lock())
             {
-                CreateRenderData(device, *image, pending.format, true);
+                if (CreateRenderData(device, *image, pending.format, true))
+                {
+                    completed_component_mask |= ecs::material_component_mask;
+                }
             }
+        }
+
+        if (out_completed_component_mask)
+        {
+            *out_completed_component_mask = completed_component_mask;
         }
         return queue_empty;
     }
@@ -837,6 +851,7 @@ namespace won::rendering::utils
         {
             return false;
         }
+        source_texture->SetName("BC Compress Source Texture");
 
         RHIBufferDesc output_desc = {};
         output_desc.size = output_size;
@@ -847,6 +862,7 @@ namespace won::rendering::utils
         {
             return false;
         }
+        output_buffer->SetName("BC Compress Output Buffer");
 
         RHISubresourceHandle output_uav = {};
         RHISubresourceDesc output_uav_desc = {};
@@ -868,6 +884,7 @@ namespace won::rendering::utils
         {
             return false;
         }
+        readback_buffer->SetName("BC Compress Readback Buffer");
 
         RHIQueueType queue_type = RHIQueueType::Graphics;
         RHIContext* context = device.GetContext(queue_type);
@@ -901,9 +918,9 @@ namespace won::rendering::utils
                 command_list->End();
                 return false;
             }
-            command_list->TransitionResource(*source_texture, RHIResourceState::ShaderRead);
+            command_list->TransitionResource(*source_texture, RHIResourceState::Undefined, RHIResourceState::ShaderRead);
         }
-        command_list->TransitionResource(*output_buffer, RHIResourceState::ShaderWrite);
+        command_list->TransitionResource(*output_buffer, RHIResourceState::Undefined, RHIResourceState::ShaderWrite);
         command_list->SetComputePipeline(*pipeline);
 
         for (uint32 mip_index = 0; mip_index < mip_levels; ++mip_index)
@@ -924,7 +941,7 @@ namespace won::rendering::utils
             command_list->Dispatch((block_count_x + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D, (block_count_y + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D, 1u);
         }
         command_list->UAVBarrier(*output_buffer);
-        command_list->TransitionResource(*output_buffer, RHIResourceState::CopySource);
+        command_list->TransitionResource(*output_buffer, RHIResourceState::ShaderWrite, RHIResourceState::CopySource);
         command_list->CopyBuffer(*readback_buffer, 0, *output_buffer, 0, output_size);
         command_list->End();
 
@@ -1021,6 +1038,7 @@ namespace won::rendering::utils
         {
             return false;
         }
+        new_render_data.buffer->SetName(mesh.name.empty() ? String("Mesh Vertex Index Buffer") : "Mesh Vertex Index Buffer (" + mesh.name + ")");
 
         auto create_subresource = [&](RHISubresourceType type, Size buffer_offset, Size buffer_size, Size buffer_stride, resource::Mesh::VBSubresource& out_subresource) -> bool
         {
@@ -1131,6 +1149,7 @@ namespace won::rendering::utils
         {
             return false;
         }
+        new_render_data.texture->SetName(image.name.empty() ? String("Image Texture") : "Image Texture (" + image.name + ")");
 
         RHISubresourceDesc texture_srv_desc = {};
         texture_srv_desc.type = RHISubresourceType::ShaderResource;
@@ -1184,6 +1203,7 @@ namespace won::rendering::utils
         {
             return false;
         }
+        new_render_data.atlas_texture->SetName(font.name.empty() ? String("Font Atlas Texture") : "Font Atlas Texture (" + font.name + ")");
 
         RHISubresourceDesc texture_srv_desc = {};
         texture_srv_desc.type = RHISubresourceType::ShaderResource;

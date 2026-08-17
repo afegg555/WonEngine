@@ -51,11 +51,6 @@ namespace won::rendering
             }
         }
 
-        Size AlignConstantBufferByteSize(Size size_in_bytes)
-        {
-            return won::math::Align(size_in_bytes, static_cast<Size>(256u));
-        }
-
         bool GetFormatBytesPerPixel(RHIFormat format, uint32& out_bytes_per_pixel)
         {
             switch (format)
@@ -604,11 +599,7 @@ namespace won::rendering
             flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
         }
 
-        Size buffer_size = desc.size;
-        if (HasBindFlag(desc.bind_flags, RHIBindFlags::ConstantBuffer))
-        {
-            buffer_size = AlignConstantBufferByteSize(buffer_size);
-        }
+        const Size buffer_size = math::Align(desc.size, GetMinOffsetAlignment(desc));
 
         D3D12_HEAP_TYPE heap_type = D3D12_HEAP_TYPE_DEFAULT;
         if (desc.usage == RHIResourceUsage::Upload)
@@ -652,8 +643,7 @@ namespace won::rendering
         resource_info.type = RHIResourceType::Buffer;
         resource_info.buffer_desc = desc;
         resource_info.buffer_desc.size = buffer_size;
-        auto buffer_resource = std::make_unique<RHIResourceDX12>(resource_info, std::move(resource), allocation, descriptor_allocator);
-        buffer_resource->SetCurrentState(initial_state);
+        auto buffer_resource = std::make_unique<RHIResourceDX12>(resource_info, std::move(resource), allocation, descriptor_allocator.get());
 
         if (initial_data && initial_size > 0)
         {
@@ -696,8 +686,7 @@ namespace won::rendering
                 auto upload_resource = std::make_unique<RHIResourceDX12>(upload_resource_info,
                     std::move(upload_native_resource),
                     upload_allocation,
-                    descriptor_allocator);
-                upload_resource->SetCurrentState(D3D12_RESOURCE_STATE_GENERIC_READ);
+                    descriptor_allocator.get());
 
                 void* mapped_data = upload_resource->GetMappedData();
                 if (!mapped_data)
@@ -734,9 +723,9 @@ namespace won::rendering
 
                 upload_allocator->Reset();
                 upload_command_list->Begin(*upload_allocator);
-                upload_command_list->TransitionResource(*buffer_resource, RHIResourceState::CopyDest);
+                upload_command_list->TransitionResource(*buffer_resource, RHIResourceState::Undefined, RHIResourceState::CopyDest);
                 upload_command_list->CopyResource(*buffer_resource, *upload_resource);
-                upload_command_list->TransitionResource(*buffer_resource, RHIResourceState::Undefined);
+                upload_command_list->TransitionResource(*buffer_resource, RHIResourceState::CopyDest, RHIResourceState::Undefined);
                 upload_command_list->End();
 
                 auto upload_fence = CreateFence(0);
@@ -819,15 +808,7 @@ namespace won::rendering
         D3D12MA::ALLOCATION_DESC allocation_desc = {};
         allocation_desc.HeapType = D3D12_HEAP_TYPE_DEFAULT;
 
-        D3D12_RESOURCE_STATES initial_state = D3D12_RESOURCE_STATE_COMMON;
-        if (HasBindFlag(desc.bind_flags, RHIBindFlags::DepthStencil))
-        {
-            initial_state = D3D12_RESOURCE_STATE_DEPTH_WRITE;
-        }
-        else if (HasBindFlag(desc.bind_flags, RHIBindFlags::RenderTarget))
-        {
-            initial_state = D3D12_RESOURCE_STATE_RENDER_TARGET;
-        }
+        const D3D12_RESOURCE_STATES initial_state = D3D12_RESOURCE_STATE_COMMON;
 
         D3D12_CLEAR_VALUE optimized_clear_value = {};
         D3D12_CLEAR_VALUE* optimized_clear_value_ptr = nullptr;
@@ -862,8 +843,7 @@ namespace won::rendering
             ? RHIResourceType::TextureCube
             : ((dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D) ? RHIResourceType::Texture3D : RHIResourceType::Texture2D);
         resource_info.texture_desc = desc;
-        auto texture_resource = std::make_unique<RHIResourceDX12>(resource_info, std::move(resource), allocation, descriptor_allocator);
-        texture_resource->SetCurrentState(initial_state);
+        auto texture_resource = std::make_unique<RHIResourceDX12>(resource_info, std::move(resource), allocation, descriptor_allocator.get());
 
         if (initial_data && initial_size > 0)
         {
@@ -928,7 +908,7 @@ namespace won::rendering
 
             upload_allocator->Reset();
             upload_command_list->Begin(*upload_allocator);
-            upload_command_list->TransitionResource(*texture_resource, RHIResourceState::CopyDest);
+            upload_command_list->TransitionResource(*texture_resource, RHIResourceState::Undefined, RHIResourceState::CopyDest);
 
             Size source_offset = 0;
             for (size_t i = 0; i < footprints.size(); ++i)
@@ -974,7 +954,7 @@ namespace won::rendering
                 source_offset += static_cast<Size>(data.SlicePitch);
             }
 
-            upload_command_list->TransitionResource(*texture_resource, RHIResourceState::ShaderRead);
+            upload_command_list->TransitionResource(*texture_resource, RHIResourceState::CopyDest, RHIResourceState::Undefined);
             
             upload_command_list->End();
 
@@ -1013,6 +993,174 @@ namespace won::rendering
         return alignment;
     }
 
+    std::unique_ptr<RHIMemoryBlock> RHIDeviceDX12::AllocateMemory(Size size, Size alignment, RHIMemoryCategory category)
+    {
+        if (!resource_allocator || size == 0)
+        {
+            return nullptr;
+        }
+
+        D3D12MA::ALLOCATION_DESC allocation_desc = {};
+        allocation_desc.HeapType = D3D12_HEAP_TYPE_DEFAULT;
+        allocation_desc.ExtraHeapFlags = HasFeature(RHIDeviceFeature::MixedResourceHeap)
+            ? D3D12_HEAP_FLAG_NONE // we can use mixed heaps in tier 2
+            : resource_dx12::ToNative(category);
+
+        D3D12_RESOURCE_ALLOCATION_INFO allocation_info = {};
+        allocation_info.SizeInBytes = size;
+        allocation_info.Alignment = alignment;
+
+        D3D12MA::Allocation* allocation = nullptr;
+        if (FAILED(resource_allocator->AllocateMemory(&allocation_desc, &allocation_info, &allocation)))
+        {
+            backlog::Post("Failed to allocate transient memory block", backlog::LogLevel::Error);
+            return nullptr;
+        }
+
+        return std::make_unique<RHIMemoryBlockDX12>(allocation, size);
+    }
+
+    std::unique_ptr<RHIResource> RHIDeviceDX12::CreatePlacedBuffer(RHIMemoryBlock& block, Size offset, const RHIBufferDesc& desc)
+    {
+        auto block_dx12 = dynamic_cast<RHIMemoryBlockDX12*>(&block);
+        if (!resource_allocator || !block_dx12 || !block_dx12->GetAllocation() || desc.size == 0)
+        {
+            return nullptr;
+        }
+
+        RHIBufferDesc aligned_desc = desc;
+        aligned_desc.size = math::Align(desc.size, GetMinOffsetAlignment(desc));
+
+        ComPtr<ID3D12Resource> placed;
+        const D3D12_RESOURCE_DESC resource_desc = resource_dx12::ToNative(aligned_desc);
+        if (FAILED(resource_allocator->CreateAliasingResource(block_dx12->GetAllocation(), offset, &resource_desc,
+                D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(placed.GetAddressOf()))))
+        {
+            backlog::Post("Failed to create placed buffer resource", backlog::LogLevel::Error);
+            return nullptr;
+        }
+
+        RHIResourceDesc resource_info = {};
+        resource_info.type = RHIResourceType::Buffer;
+        resource_info.buffer_desc = aligned_desc;
+        return std::make_unique<RHIResourceDX12>(resource_info, std::move(placed), nullptr, descriptor_allocator.get());
+    }
+
+    std::unique_ptr<RHIResource> RHIDeviceDX12::CreatePlacedTexture(RHIMemoryBlock& block, Size offset, const RHITextureDesc& desc)
+    {
+        auto block_dx12 = dynamic_cast<RHIMemoryBlockDX12*>(&block);
+        if (!resource_allocator || !block_dx12 || !block_dx12->GetAllocation() || desc.width == 0 || desc.height == 0)
+        {
+            return nullptr;
+        }
+
+        const D3D12_RESOURCE_STATES initial_state = D3D12_RESOURCE_STATE_COMMON;
+        D3D12_CLEAR_VALUE optimized_clear_value = {};
+        D3D12_CLEAR_VALUE* optimized_clear_value_ptr = nullptr;
+        if (HasBindFlag(desc.bind_flags, RHIBindFlags::DepthStencil))
+        {
+            optimized_clear_value.Format = ToDXGIDsvFormat(desc.format);
+            optimized_clear_value.DepthStencil.Depth = OPTIMIZED_FAST_CLEAR_DEPTH;
+            optimized_clear_value.DepthStencil.Stencil = OPTIMIZED_FAST_CLEAR_STENCIL;
+            optimized_clear_value_ptr = &optimized_clear_value;
+        }
+        else if (HasBindFlag(desc.bind_flags, RHIBindFlags::RenderTarget))
+        {
+            optimized_clear_value.Format = ToDXGIResourceFormat(desc.format);
+            optimized_clear_value.Color[0] = desc.clear_color[0];
+            optimized_clear_value.Color[1] = desc.clear_color[1];
+            optimized_clear_value.Color[2] = desc.clear_color[2];
+            optimized_clear_value.Color[3] = desc.clear_color[3];
+            optimized_clear_value_ptr = &optimized_clear_value;
+        }
+
+        ComPtr<ID3D12Resource> placed;
+        const D3D12_RESOURCE_DESC resource_desc = resource_dx12::ToNative(desc);
+        if (FAILED(resource_allocator->CreateAliasingResource(block_dx12->GetAllocation(), offset, &resource_desc,
+                initial_state, optimized_clear_value_ptr, IID_PPV_ARGS(placed.GetAddressOf()))))
+        {
+            backlog::Post("Failed to create placed texture resource", backlog::LogLevel::Error);
+            return nullptr;
+        }
+
+        RHIResourceDesc resource_info = {};
+        resource_info.type = desc.is_cube
+            ? RHIResourceType::TextureCube
+            : (desc.depth > 1 ? RHIResourceType::Texture3D : RHIResourceType::Texture2D);
+        resource_info.texture_desc = desc;
+        return std::make_unique<RHIResourceDX12>(resource_info, std::move(placed), nullptr, descriptor_allocator.get());
+    }
+
+    bool RHIDeviceDX12::ReplaceResource(RHIResource& resource, RHIMemoryBlock& block, Size offset, std::unique_ptr<RHIResource>& out_retired)
+    {
+        auto resource_dx12 = dynamic_cast<RHIResourceDX12*>(&resource);
+        auto block_dx12 = dynamic_cast<RHIMemoryBlockDX12*>(&block);
+        if (!resource_allocator || !resource_dx12 || !block_dx12 || !block_dx12->GetAllocation())
+        {
+            return false;
+        }
+
+        const RHIResourceDesc& desc = resource_dx12->GetDesc();
+        const bool is_buffer = desc.type == RHIResourceType::Buffer;
+
+        const D3D12_RESOURCE_STATES initial_state = D3D12_RESOURCE_STATE_COMMON;
+        D3D12_CLEAR_VALUE optimized_clear_value = {};
+        D3D12_CLEAR_VALUE* optimized_clear_value_ptr = nullptr;
+        if (!is_buffer)
+        {
+            const RHITextureDesc& texture_desc = desc.texture_desc;
+            if (HasBindFlag(texture_desc.bind_flags, RHIBindFlags::DepthStencil))
+            {
+                optimized_clear_value.Format = ToDXGIDsvFormat(texture_desc.format);
+                optimized_clear_value.DepthStencil.Depth = OPTIMIZED_FAST_CLEAR_DEPTH;
+                optimized_clear_value.DepthStencil.Stencil = OPTIMIZED_FAST_CLEAR_STENCIL;
+                optimized_clear_value_ptr = &optimized_clear_value;
+            }
+            else if (HasBindFlag(texture_desc.bind_flags, RHIBindFlags::RenderTarget))
+            {
+                optimized_clear_value.Format = ToDXGIResourceFormat(texture_desc.format);
+                optimized_clear_value.Color[0] = texture_desc.clear_color[0];
+                optimized_clear_value.Color[1] = texture_desc.clear_color[1];
+                optimized_clear_value.Color[2] = texture_desc.clear_color[2];
+                optimized_clear_value.Color[3] = texture_desc.clear_color[3];
+                optimized_clear_value_ptr = &optimized_clear_value;
+            }
+        }
+
+        const D3D12_RESOURCE_DESC resource_desc = resource_dx12::ToNative(desc);
+
+        ComPtr<ID3D12Resource> placed;
+        if (FAILED(resource_allocator->CreateAliasingResource(block_dx12->GetAllocation(), offset, &resource_desc,
+                initial_state, optimized_clear_value_ptr, IID_PPV_ARGS(placed.GetAddressOf()))))
+        {
+            backlog::Post("Failed to create aliasing resource", backlog::LogLevel::Error);
+            return false;
+        }
+
+        return resource_dx12->Replace(std::move(placed), out_retired);
+    }
+
+    Size RHIDeviceDX12::GetResourceAllocationSize(const RHIResourceDesc& desc, Size& out_alignment) const
+    {
+        out_alignment = 0;
+        if (!device)
+        {
+            return 0;
+        }
+
+        RHIResourceDesc aligned_desc = desc;
+        if (desc.type == RHIResourceType::Buffer)
+        {
+            aligned_desc.buffer_desc.size = math::Align(desc.buffer_desc.size, GetMinOffsetAlignment(desc.buffer_desc));
+        }
+
+        const D3D12_RESOURCE_DESC resource_desc = resource_dx12::ToNative(aligned_desc);
+
+        const D3D12_RESOURCE_ALLOCATION_INFO info = device->GetResourceAllocationInfo(0, 1, &resource_desc);
+        out_alignment = info.Alignment;
+        return info.SizeInBytes;
+    }
+
     bool RHIDeviceDX12::CreateSubresource(RHIResource& resource,
         const RHISubresourceDesc& desc,
         RHISubresourceHandle* out_handle)
@@ -1029,6 +1177,38 @@ namespace won::rendering
         }
 
         return resource_dx12->CreateSubresource(desc, out_handle);
+    }
+
+    bool RHIDeviceDX12::ReserveSubresource(const RHISubresourceDesc& desc,
+        RHISubresourceHandle* out_handle)
+    {
+        if (!descriptor_allocator || !out_handle)
+        {
+            return false;
+        }
+
+        D3D12_DESCRIPTOR_HEAP_TYPE heap_type{};
+        return descriptor_allocator->ReserveSubresourceDescriptor(desc, heap_type, out_handle->descriptor_index);
+    }
+
+    bool RHIDeviceDX12::UpdateSubresource(RHIResource& resource,
+        const RHISubresourceDesc& desc,
+        RHISubresourceHandle handle)
+    {
+        auto* resource_dx12 = dynamic_cast<RHIResourceDX12*>(&resource);
+        return resource_dx12 && descriptor_allocator && handle.IsValid()
+            && descriptor_allocator->UpdateSubresourceDescriptor(*resource_dx12, desc, handle.descriptor_index);
+    }
+
+    void RHIDeviceDX12::ReleaseSubresource(const RHISubresourceDesc& desc,
+        RHISubresourceHandle handle)
+    {
+        if (!descriptor_allocator || !handle.IsValid())
+        {
+            return;
+        }
+
+        descriptor_allocator->ReleaseSubresourceDescriptor(desc, handle.descriptor_index);
     }
 
     bool RHIDeviceDX12::GetMemoryUsage(RHIMemoryUsage& out_usage)

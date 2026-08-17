@@ -322,11 +322,6 @@
             "text": "Not loaded",
             "comment": "message"
         },
-        "editor.label.wireframe": {
-            "source": "WireFrame",
-            "text": "WireFrame",
-            "comment": "label"
-        },
         "editor.label.anti_aliasing": {
             "source": "Anti-Aliasing",
             "text": "Anti-Aliasing",
@@ -347,24 +342,24 @@
             "text": "Reset Editor Camera",
             "comment": "action"
         },
-        "editor.label.editor_grid": {
-            "source": "Editor Grid",
-            "text": "Editor Grid",
+        "editor.label.show_grid": {
+            "source": "Grid",
+            "text": "Grid",
             "comment": "label"
         },
-        "editor.label.collider_3d": {
-            "source": "Collider3D",
-            "text": "Collider3D",
+        "editor.label.show_colliders": {
+            "source": "Colliders",
+            "text": "Colliders",
             "comment": "label"
         },
-        "editor.label.bvh_debug": {
-            "source": "BVH Debug",
-            "text": "BVH Debug",
+        "editor.label.show_bvh": {
+            "source": "BVH",
+            "text": "BVH",
             "comment": "label"
         },
-        "editor.label.ddgi_debug_overlay": {
-            "source": "DDGI Debug Overlay",
-            "text": "DDGI Debug Overlay",
+        "editor.label.show_ddgi": {
+            "source": "DDGI",
+            "text": "DDGI",
             "comment": "label"
         },
         "editor.action.close": {
@@ -792,6 +787,11 @@
             "text": "Direct Sun Cast Shadow",
             "comment": "label"
         },
+        "editor.label.direct_sun_shadow_distance": {
+            "source": "Sun Shadow Distance",
+            "text": "Sun Shadow Distance",
+            "comment": "label"
+        },
         "editor.label.direct_sun_shadow_resolution": {
             "source": "Direct Sun Shadow Resolution",
             "text": "Direct Sun Shadow Resolution",
@@ -1000,6 +1000,11 @@
         "editor.label.area_size": {
             "source": "Area Size",
             "text": "Area Size",
+            "comment": "label"
+        },
+        "editor.label.shadow_distance": {
+            "source": "Shadow Distance",
+            "text": "Shadow Distance",
             "comment": "label"
         },
         "editor.label.shadow_resolution": {
@@ -2320,6 +2325,96 @@
         "editor.label.cloud_frequency": {
             "source": "Cloud Frequency",
             "text": "Cloud Frequency",
+            "comment": "label"
+        },
+        "editor.enum.ViewMode.Lit": {
+            "source": "Lit",
+            "text": "Lit",
+            "comment": "enum"
+        },
+        "editor.enum.ViewMode.Unlit": {
+            "source": "Unlit",
+            "text": "Unlit",
+            "comment": "enum"
+        },
+        "editor.enum.ViewMode.BaseColor": {
+            "source": "Base Color",
+            "text": "Base Color",
+            "comment": "enum"
+        },
+        "editor.enum.ViewMode.WorldNormal": {
+            "source": "World Normal",
+            "text": "World Normal",
+            "comment": "enum"
+        },
+        "editor.enum.ViewMode.Roughness": {
+            "source": "Roughness",
+            "text": "Roughness",
+            "comment": "enum"
+        },
+        "editor.enum.ViewMode.Metallic": {
+            "source": "Metallic",
+            "text": "Metallic",
+            "comment": "enum"
+        },
+        "editor.enum.ViewMode.LightComplexity": {
+            "source": "Light Complexity",
+            "text": "Light Complexity",
+            "comment": "enum"
+        },
+        "editor.enum.ViewMode.ShadowCascades": {
+            "source": "Shadow Cascades",
+            "text": "Shadow Cascades",
+            "comment": "enum"
+        },
+        "editor.enum.ViewMode.Wireframe": {
+            "source": "Wireframe",
+            "text": "Wireframe",
+            "comment": "enum"
+        },
+        "editor.enum.ViewMode.Overdraw": {
+            "source": "Overdraw",
+            "text": "Overdraw",
+            "comment": "enum"
+        },
+        "editor.label.view_mode": {
+            "source": "View Mode",
+            "text": "View Mode",
+            "comment": "label"
+        },
+        "editor.label.show_shadows": {
+            "source": "Shadows",
+            "text": "Shadows",
+            "comment": "label"
+        },
+        "editor.label.show_opaque": {
+            "source": "Opaque",
+            "text": "Opaque",
+            "comment": "label"
+        },
+        "editor.label.show_transparent": {
+            "source": "Transparent",
+            "text": "Transparent",
+            "comment": "label"
+        },
+        "editor.label.show_decals": {
+            "source": "Decals",
+            "text": "Decals",
+            "comment": "label"
+        },
+        "editor.label.show_particles": {
+            "source": "Particles",
+            "text": "Particles",
+            "comment": "label"
+        },
+        "editor.label.show_sprites_3d": {
+            "source": "Sprites 3D",
+            "text": "Sprites 3D",
+            "comment": "label"
+        },
+        "editor.label.show_sprites_2d": {
+            "source": "Sprites 2D",
+            "text": "Sprites 2D",
             "comment": "label"
         }
     }

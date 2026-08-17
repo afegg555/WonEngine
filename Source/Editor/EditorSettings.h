@@ -2,6 +2,7 @@
 #include "Configuration.h"
 #include "FileSystem.h"
 #include "Types.h"
+#include "ViewOptionEnums.h"
 
 namespace won::editor
 {
@@ -15,11 +16,8 @@ namespace won::editor
         String content_current_folder = "/Contents";
         int content_type_filter = 0;
         float content_tile_size = 72.0f;
-        bool viewport_show_grid = false;
-        bool viewport_show_colliders = true;
-        bool viewport_use_wireframe = false;
-        bool viewport_show_bvh_debug = false;
-        bool viewport_show_ddgi_overlay = false;
+        uint32 viewport_show_flags = rendering::Show_Default | rendering::Show_Colliders;
+        int viewport_view_mode = 0;
         float camera_speed = 5.0f;
         bool editor_camera_auto_exposure = true;
         float editor_camera_fixed_ev100 = 10.965784f;
@@ -59,25 +57,13 @@ namespace won::editor
         {
             settings.content_tile_size = float_value;
         }
-        if (configuration.GetBool("editor.viewport.show_grid", bool_value))
+        if (configuration.GetInt("editor.viewport.show_flags", int_value))
         {
-            settings.viewport_show_grid = bool_value;
+            settings.viewport_show_flags = static_cast<uint32>(int_value);
         }
-        if (configuration.GetBool("editor.viewport.show_colliders", bool_value))
+        if (configuration.GetInt("editor.viewport.view_mode", int_value))
         {
-            settings.viewport_show_colliders = bool_value;
-        }
-        if (configuration.GetBool("editor.viewport.use_wireframe", bool_value))
-        {
-            settings.viewport_use_wireframe = bool_value;
-        }
-        if (configuration.GetBool("editor.viewport.show_bvh_debug", bool_value))
-        {
-            settings.viewport_show_bvh_debug = bool_value;
-        }
-        if (configuration.GetBool("editor.viewport.show_ddgi_overlay", bool_value))
-        {
-            settings.viewport_show_ddgi_overlay = bool_value;
+            settings.viewport_view_mode = int_value;
         }
         if (configuration.GetFloat("editor.camera.speed", float_value))
         {
@@ -126,11 +112,8 @@ namespace won::editor
         configuration.SetString("editor.content.current_folder", settings.content_current_folder.c_str());
         configuration.SetInt("editor.content.type_filter", settings.content_type_filter);
         configuration.SetFloat("editor.content.tile_size", settings.content_tile_size);
-        configuration.SetBool("editor.viewport.show_grid", settings.viewport_show_grid);
-        configuration.SetBool("editor.viewport.show_colliders", settings.viewport_show_colliders);
-        configuration.SetBool("editor.viewport.use_wireframe", settings.viewport_use_wireframe);
-        configuration.SetBool("editor.viewport.show_bvh_debug", settings.viewport_show_bvh_debug);
-        configuration.SetBool("editor.viewport.show_ddgi_overlay", settings.viewport_show_ddgi_overlay);
+        configuration.SetInt("editor.viewport.show_flags", static_cast<int>(settings.viewport_show_flags));
+        configuration.SetInt("editor.viewport.view_mode", settings.viewport_view_mode);
         configuration.SetFloat("editor.camera.speed", settings.camera_speed);
         configuration.SetBool("editor.camera.auto_exposure", settings.editor_camera_auto_exposure);
         configuration.SetFloat("editor.camera.fixed_ev100", settings.editor_camera_fixed_ev100);

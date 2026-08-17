@@ -145,9 +145,12 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
     [branch]
     if (material.textures[NORMALMAP].IsValid())
     {
-        half3 normal = material.textures[NORMALMAP].Sample(sampler_objectshader, uvsets);
-        normal = normal * 2 - 1;
-	    
+        // z is derived instead of read: two channel formats such as BC5 do not store it at all,
+        // and for three channel maps the stored value is redundant with xy
+        half3 normal;
+        normal.xy = material.textures[NORMALMAP].Sample(sampler_objectshader, uvsets).xy * 2 - 1;
+        normal.z = sqrt(saturate(1 - dot(normal.xy, normal.xy)));
+
         surface.N = normalize(mul(normal, TBN));
     }
 #endif // OBJECTSHADER_USE_UVSETS

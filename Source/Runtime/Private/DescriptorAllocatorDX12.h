@@ -39,6 +39,14 @@ namespace won::rendering
             const RHISubresourceDesc& desc,
             D3D12_DESCRIPTOR_HEAP_TYPE& out_heap_type,
             int& out_descriptor_index);
+        bool ReserveSubresourceDescriptor(const RHISubresourceDesc& desc,
+            D3D12_DESCRIPTOR_HEAP_TYPE& out_heap_type,
+            int& out_descriptor_index);
+        void ReleaseSubresourceDescriptor(const RHISubresourceDesc& desc,
+            int descriptor_index);
+        bool UpdateSubresourceDescriptor(RHIResourceDX12& resource,
+            const RHISubresourceDesc& desc,
+            int descriptor_index);
 
         bool GetCpuDescriptorHandle(D3D12_DESCRIPTOR_HEAP_TYPE heap_type,
             bool shader_visible,
@@ -104,12 +112,14 @@ namespace won::rendering
             uint32 wrap_reservation = 0;
         };
 
+        DescriptorHeap* GetDescriptorHeap(RHISubresourceType type, bool shader_visible);
+
         DescriptorHeap* GetDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE heap_type, bool shader_visible);
         const DescriptorHeap* GetDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE heap_type, bool shader_visible) const;
 
         bool CreateDescriptorHeap(DescriptorHeap& state, uint32 capacity, bool shader_visible) const;
         bool AllocateFromHeap(DescriptorHeap& state, int& out_descriptor_index);
-        bool AllocateFromHeap(DescriptorHeap& state, uint32 max_count, int& out_descriptor_index);
+
         void FreeToHeap(DescriptorHeap& state, int descriptor_index);
         bool CreateNullDescriptors();
 

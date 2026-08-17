@@ -114,7 +114,9 @@ namespace won::rendering
         virtual void ResolveQuery(RHIQueryHeap& heap, uint32 start_index, uint32 count, RHIResource& dest_buffer, Size dest_offset) = 0;
         virtual void ResetQuery(RHIQueryHeap& heap, uint32 start_index, uint32 count) = 0;
 
+        virtual void AliasingBarrier(RHIResource* before, RHIResource& after) = 0;
         virtual void TransitionResource(RHIResource& resource,
+            RHIResourceState before_state,
             RHIResourceState after_state) = 0;
         virtual void TransitionSubresource(RHIResource& resource,
             RHIResourceState before_state,
