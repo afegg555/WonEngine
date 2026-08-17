@@ -981,6 +981,18 @@ namespace won::rendering
         }
 
         // per-view light culling resources
+        view.light_resources.forward_index_buffer = invalid_frame_resource;
+        view.light_resources.forward_index_srv = {};
+        view.light_resources.cluster_light_count_buffer = invalid_frame_resource;
+        view.light_resources.cluster_light_count_srv = {};
+        view.light_resources.cluster_light_count_uav = {};
+        view.light_resources.cluster_light_offset_buffer = invalid_frame_resource;
+        view.light_resources.cluster_light_offset_srv = {};
+        view.light_resources.cluster_light_offset_uav = {};
+        view.light_resources.cluster_light_index_buffer = invalid_frame_resource;
+        view.light_resources.cluster_light_index_srv = {};
+        view.light_resources.cluster_light_index_uav = {};
+
         if (view.render_path_type == RenderPathType::ForwardPlus)
         {
             const uint32 tiles_x = (static_cast<uint32>(view.viewport.width) + LIGHTCULL_TILE_SIZE - 1) / LIGHTCULL_TILE_SIZE;
