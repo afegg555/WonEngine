@@ -4,7 +4,7 @@ float4 main(VertexOutput input) : SV_Target0
 {
     ShaderCamera camera = GetCamera();
 
-    float2 screen_uv = (input.position.xy - float2(camera.viewport_offset)) * camera.internal_resolution_rcp;
+    float2 screen_uv = input.position.xy * camera.internal_resolution_rcp;
     float scene_depth = bindless_textures[DescriptorIndex(decalpush.depth_descriptor)].Load(int3((int2)input.position.xy, 0)).r;
 
     float2 ndc = float2(screen_uv.x * 2.0f - 1.0f, 1.0f - screen_uv.y * 2.0f);
