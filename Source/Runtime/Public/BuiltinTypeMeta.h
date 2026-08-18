@@ -280,8 +280,13 @@ namespace won::reflection
         WON_REFLECT_FIELD(intensity_multiplier, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
+    WON_REFLECT_ENUM(won::ecs::WaterComponent::Flags, "WaterFlags")
+        WON_REFLECT_ENUM_VALUE("Active", won::ecs::WaterComponent::Active)
+        WON_REFLECT_ENUM_VALUE("ReceiveShadow", won::ecs::WaterComponent::ReceiveShadow)
+    WON_REFLECT_ENUM_END()
+
     WON_REFLECT_STRUCT(won::ecs::WaterComponent, "WaterComponent")
-        WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
+        WON_REFLECT_FLAGS_FIELD(flags, won::FieldFlagEditable | won::FieldFlagSerializable, won::ecs::WaterComponent::Flags)
         WON_REFLECT_FIELD(half_extent, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(absorption_coefficient, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(scattering_coefficient, won::FieldFlagEditable | won::FieldFlagSerializable)

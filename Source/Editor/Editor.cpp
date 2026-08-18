@@ -351,6 +351,32 @@ namespace won::editor
 
 			void* value = component_data + field.offset;
 			const char* label = EditorFieldText(field.name);
+
+			if (field.flag_values && field.flag_value_count > 0 && field.size == sizeof(uint32))
+			{
+				uint32* bits = static_cast<uint32*>(value);
+				bool changed = false;
+				ImGui::TextUnformatted(label);
+				ImGui::Indent();
+				for (uint32 i = 0; i < field.flag_value_count; ++i)
+				{
+					const won::EnumValueDesc& flag = field.flag_values[i];
+					const uint32 mask = static_cast<uint32>(flag.value);
+					if (mask == 0)
+					{
+						continue;
+					}
+					bool enabled = (*bits & mask) != 0;
+					if (ImGui::Checkbox(EditorFieldText(flag.name), &enabled))
+					{
+						*bits = enabled ? (*bits | mask) : (*bits & ~mask);
+						changed = true;
+					}
+				}
+				ImGui::Unindent();
+				return changed;
+			}
+
 			switch (field.value_type)
 			{
 			case won::ValueType::Bool:
