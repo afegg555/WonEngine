@@ -22,7 +22,7 @@ namespace won::ecs
 
         float wave_frequency = 0.08f;
         float normal_strength = 0.6f;
-		float2 wave_velocity_primary = { 0.020f, 0.013f }; // only for normal, not for geometry displacement
+		float2 wave_velocity_primary = { 0.1f, 0.1f }; // only for normal, not for geometry displacement
         float2 wave_velocity_secondary = { -0.011f, 0.017f }; // only for normal, not for geometry displacement
 
         float refraction_strength = 0.3f;
