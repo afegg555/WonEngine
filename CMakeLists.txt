@@ -331,7 +331,7 @@ set(RUNTIME_ECS
     Source/Runtime/Public/System.h
     Source/Runtime/Public/PhysicsWorld.h
     Source/Runtime/Private/PhysicsWorld.cpp
-    Source/Runtime/Public/PrefabSpawnRequest.h
+    Source/Runtime/Public/SceneRequest.h
 )
 
 
