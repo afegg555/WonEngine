@@ -26,7 +26,6 @@ namespace won::rendering
         void SetClearColor(const RHIClearColor& color) override;
         RHIClearColor GetClearColor() const override;
         void SetVSync(bool enabled) override;
-        void SetShadowResolutionScale(float scale) override;
         bool GetCurrentBackBufferBinding(RHISubresourceBinding& out_binding) const override;
         FrameGraph& GetFrameGraph() override;
     private:
@@ -95,7 +94,6 @@ namespace won::rendering
         RHIClearColor clear_color = {};
         bool vsync_enabled = true;
         bool vsync_requested = true;
-        float shadow_resolution_scale = 1.0f;
         double frame_accumulated_time = 0.0;
         double frame_delta_seconds = 0.0;
 

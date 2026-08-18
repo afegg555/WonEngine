@@ -50,7 +50,6 @@ namespace won::rendering
         virtual void SetClearColor(const RHIClearColor& color) = 0;
         virtual RHIClearColor GetClearColor() const = 0;
         virtual void SetVSync(bool enabled) = 0;
-        virtual void SetShadowResolutionScale(float scale) = 0;
         virtual bool GetCurrentBackBufferBinding(RHISubresourceBinding& out_binding) const = 0;
         virtual FrameGraph& GetFrameGraph() = 0;
 

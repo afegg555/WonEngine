@@ -35,6 +35,7 @@ namespace won::rendering
             bool enable_viewport_culling = true; // 2D sprites only
             AntiAliasingMode aa_mode = AntiAliasingMode::None;
             TonemapMode tonemap_mode = TonemapMode::Reinhard;
+            float shadow_resolution_scale = 1.0f;
         };
 
         struct LightResources
@@ -110,6 +111,9 @@ namespace won::rendering
             RHISubresourceHandle depth_readonly_dsv = {};
             RHISubresourceHandle depth_srv = {};
 
+            FrameGraphResourceRef scene_color_snapshot = invalid_frame_resource;
+            RHISubresourceHandle scene_color_snapshot_srv = {};
+
             uint32 width = 0;
             uint32 height = 0;
         };
@@ -153,15 +157,17 @@ namespace won::rendering
         Vector<uint32> sorted_sprite_3d_indices;    // back-to-front
         Vector<uint32> sorted_sprite_2d_indices;    // by layer
 
-        void UpdateUIInteraction();
-        void BuildShadowSlices(float shadow_resolution_scale);
-        void BuildSortedIndices();
-        void BuildForwardLightList();
-        ecs::Entity ResolveCamera() const;
+        void Update(float delta_time, uint64 update_index, bool simulation_paused);
         bool RayCast(float2 screen_position, ecs::RayCastHit& out_hit, bool use_local_bvh = true, uint32 layer_mask = 0xFFFFFFFF) const;
         bool ScreenToRay(float2 screen_position, math::Ray& out_ray) const;
 
     private:
+        void UpdateUIInteraction();
+        void BuildShadowSlices();
+        void BuildSortedIndices();
+        void BuildForwardLightList();
+        ecs::Entity ResolveCamera() const;
+
         ecs::Entity HitTestUI(float2 pointer) const;
         bool HasPointerFocus() const;
 

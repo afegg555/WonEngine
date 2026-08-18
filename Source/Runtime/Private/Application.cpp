@@ -184,7 +184,6 @@ namespace won
 		renderer_desc.clear_color = project_settings.clear_color;
 		renderer_desc.vsync_enabled = user_settings.vsync.value_or(project_settings.vsync_enabled); // if user setting is not set, use project setting. note user setting is not changed
         renderer = rendering::CreateRenderer(renderer_desc);
-        renderer->SetShadowResolutionScale(user_settings.shadow_resolution_scale.value_or(1.0f));
         log_startup_phase("renderer + shaders");
 
         if (device)
@@ -413,28 +412,7 @@ namespace won
             }
 
             rendering::View& view = *view_ptr;
-            ecs::Scene* scene = view.scene;
-            if (!scene)
-            {
-                continue;
-            }
-
-            view.UpdateUIInteraction();
-
-            if (!simulation_paused && scene->GetUpdateIndex() != update_index)
-            {
-                scene->Update(dt);
-            }
-            scene->SetUpdateIndex(update_index);
-
-            view.camera_entity = view.ResolveCamera();
-
-            view.BuildShadowSlices(user_settings.shadow_resolution_scale.value_or(1.0f));
-            {
-                auto sorted_range = profiler::ScopedRangeCPU("Build Sorted Indices");
-                view.BuildSortedIndices();
-                view.BuildForwardLightList();
-            }
+            view.Update(dt, update_index, simulation_paused);
         }
         profiler::EndRange(range);
     }
@@ -553,6 +531,7 @@ namespace won
         const uint32 view_index = static_cast<uint32>(views.size() - 1);
         views.back()->viewer_index = view_index;
         views.back()->options.aa_mode = user_settings.aa_mode.value_or(project_settings.aa_mode);
+        views.back()->options.shadow_resolution_scale = user_settings.shadow_resolution_scale.value_or(1.0f);
         views.back()->options.tonemap_mode = project_settings.tonemap_mode;
         return view_index;
     }
@@ -562,15 +541,16 @@ namespace won
         if (renderer)
         {
             renderer->SetVSync(user_settings.vsync.value_or(project_settings.vsync_enabled));
-            renderer->SetShadowResolutionScale(user_settings.shadow_resolution_scale.value_or(1.0f));
         }
 
         const rendering::AntiAliasingMode effective_aa = user_settings.aa_mode.value_or(project_settings.aa_mode);
+        const float effective_shadow_resolution_scale = user_settings.shadow_resolution_scale.value_or(1.0f);
         for (std::unique_ptr<rendering::View>& view : views)
         {
             if (view)
             {
                 view->options.aa_mode = effective_aa;
+                view->options.shadow_resolution_scale = effective_shadow_resolution_scale;
             }
         }
     }

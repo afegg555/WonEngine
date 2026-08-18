@@ -178,7 +178,35 @@ namespace won::rendering
         return true;
     }
 
-    void View::BuildShadowSlices(float shadow_resolution_scale)
+    void View::Update(float delta_time, uint64 update_index, bool simulation_paused)
+    {
+        if (!scene)
+        {
+            return;
+        }
+
+        UpdateUIInteraction();
+
+        if (scene->GetUpdateIndex() != update_index)
+        {
+            scene->SetUpdateIndex(update_index);
+            if (!simulation_paused)
+            {
+                scene->Update(delta_time);
+            }
+        }
+
+        camera_entity = ResolveCamera();
+
+        BuildShadowSlices();
+        {
+            auto sorted_range = profiler::ScopedRangeCPU("Build Sorted Indices");
+            BuildSortedIndices();
+            BuildForwardLightList();
+        }
+    }
+
+    void View::BuildShadowSlices()
     {
         shadow_resources.shader_shadow_cascades.clear();
         shadow_resources.render_shadow_slices.clear();
@@ -345,7 +373,7 @@ namespace won::rendering
                         caster_light_bound = gpu_scene.shadow_caster_world_bound.TransformAABB(shadow_view);
                     }
 
-                    const uint32 shadow_resolution = (std::max)(1u, static_cast<uint32>(light.shadow_map_resolution * shadow_resolution_scale));
+                    const uint32 shadow_resolution = (std::max)(1u, static_cast<uint32>(light.shadow_map_resolution * options.shadow_resolution_scale));
                     const float texel_size = (cascade_radius * 2.0f) / static_cast<float>(shadow_resolution);
 
 					// snap the cascade center to the nearest texel to avoid shimmering

@@ -71,11 +71,6 @@ namespace won::rendering
         vsync_requested = enabled;
     }
 
-    void RendererInternal::SetShadowResolutionScale(float scale)
-    {
-        shadow_resolution_scale = (std::max)(0.1f, scale);
-    }
-
     bool RendererInternal::GetCurrentBackBufferBinding(RHISubresourceBinding& out_binding) const
     {
         if (!current_window)
