@@ -3,81 +3,6 @@
 #include "ObjectCommon.hlsli"
 #ifndef UNLIT
 #include "ShadingCommon.hlsli"
-#include "DDGICommon.hlsli"
-
-inline void EvaluateIndirectLighting(in Surface surface, inout Lighting lighting)
-{
-    float3 ambient = float3(0.0, 0.0, 0.0);
-    ShaderEnvironment environment_lighting = GetEnvironment();
-    if (environment_lighting.GetDiffuseGIMode() == SHADER_DIFFUSE_GI_MODE_AMBIENT)
-    {
-        ambient = environment_lighting.GetAmbientColor() * environment_lighting.GetAmbientIntensity();
-    }
-    else if (environment_lighting.GetDiffuseGIMode() == SHADER_DIFFUSE_GI_MODE_DDGI)
-    {
-        ShaderDDGIVolume ddgi_volume = GetDDGIVolume();
-        if (ddgi_volume.IsActive() && ddgi_volume.HasIrradianceTexture())
-        {
-            float3 sample_position = surface.P + surface.N * ddgi_volume.normal_bias + surface.V * ddgi_volume.view_bias;
-            if (IsInsideDDGIVolume(ddgi_volume, sample_position))
-            {
-                ambient = SampleDDGI(ddgi_volume, sample_position, surface.N);
-                ambient *= environment_lighting.GetIndirectDiffuseScale();
-            }
-
-        }
-    }
-    else if (environment_lighting.GetDiffuseGIMode() == SHADER_DIFFUSE_GI_MODE_CUBEMAP
-        || environment_lighting.GetDiffuseGIMode() == SHADER_DIFFUSE_GI_MODE_SKY)
-    {
-        if (environment_lighting.HasIrradianceCubemap())
-        {
-            ambient = bindless_cubemaps[DescriptorIndex(environment_lighting.irradiance_cubemap)].SampleLevel(sampler_linear_clamp, surface.N, 0).rgb;
-            ambient *= environment_lighting.GetIndirectDiffuseScale();
-        }
-    }
-    float3 indirect_specular = float3(0.0, 0.0, 0.0);
-    if (environment_lighting.GetReflectionMode() == SHADER_REFLECTION_MODE_CUBEMAP
-        || environment_lighting.GetReflectionMode() == SHADER_REFLECTION_MODE_SKY)
-    {
-        float3 reflection_direction = reflect(-surface.V, surface.N);
-        float perceptual_roughness = sqrt(surface.roughness);
-
-        float3 reflection_radiance = float3(0.0, 0.0, 0.0);
-        bool has_reflection = false;
-        if (environment_lighting.HasSpecularCubemap())
-        {
-            float lod = perceptual_roughness * max(environment_lighting.specular_mip_count - 1.0, 0.0);
-            reflection_radiance = bindless_cubemaps[DescriptorIndex(environment_lighting.specular_cubemap)].SampleLevel(sampler_linear_clamp, reflection_direction, lod).rgb;
-            has_reflection = true;
-        }
-
-        ShaderReflectionProbe reflection_probe = GetReflectionProbe();
-        if (reflection_probe.IsActive() && reflection_probe.HasCubemap())
-        {
-            float distance_to_probe = distance(surface.P, reflection_probe.position);
-            float probe_attenuation = reflection_probe.influence_radius > 0.0
-                ? saturate(1.0 - distance_to_probe / reflection_probe.influence_radius)
-                : 1.0;
-            if (probe_attenuation > 0.0)
-            {
-                float lod = perceptual_roughness * max(reflection_probe.cubemap_mip_count - 1.0, 0.0);
-                float3 probe_radiance = bindless_cubemaps[DescriptorIndex(reflection_probe.cubemap_texture)].SampleLevel(sampler_linear_clamp, reflection_direction, lod).rgb * reflection_probe.intensity;
-                reflection_radiance = lerp(reflection_radiance, probe_radiance, probe_attenuation);
-                has_reflection = true;
-            }
-        }
-
-        if (has_reflection)
-        {
-            indirect_specular = reflection_radiance * EnvBRDF(environment_lighting.brdf_lut, surface.f0, perceptual_roughness, surface.NoV);
-            indirect_specular *= environment_lighting.GetIndirectSpecularScale();
-        }
-    }
-
-    lighting.indirect.diffuse = ambient * GetCamera().exposure;
-    lighting.indirect.specular = indirect_specular * GetCamera().exposure;
-}
 #endif
 
 float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
@@ -113,6 +38,7 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
     surface.V = input.GetViewVector();
     
     ShaderMaterial material = GetMaterial();
+    surface.receive_shadow = material.IsReceiveShadow();
     half4 base_color = material.GetBaseColor();
     
 #ifdef OBJECTSHADER_USE_NORMAL

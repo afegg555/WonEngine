@@ -181,7 +181,7 @@ namespace won::rendering
         shader_view.debug_view_mode = static_cast<uint32>(view.view_mode);
         shader_frame.scene.ltc_matrix_lut = ltc_matrix_lut ? static_cast<int>(ltc_matrix_lut_srv.descriptor_index) : -1;
         shader_frame.scene.ltc_fresnel_lut = ltc_fresnel_lut ? static_cast<int>(ltc_fresnel_lut_srv.descriptor_index) : -1;
-        shader_frame.time = static_cast<float>(frame_time_seconds);
+        shader_frame.time = static_cast<float>(frame_accumulated_time);
         shader_frame.environment = gpu_scene.shader_environment;
         shader_frame.environment.brdf_lut = brdf_lut ? static_cast<int>(brdf_lut_srv.descriptor_index) : -1;
         if (shader_frame.environment.diffuse_gi_mode == SHADER_DIFFUSE_GI_MODE_SKY)
@@ -1654,7 +1654,8 @@ namespace won::rendering
 
     void RendererInternal::BeginFrame(platform::Window& window, float delta_time)
     {
-        frame_time_seconds += delta_time;
+        frame_accumulated_time += delta_time;
+        frame_delta_seconds = delta_time;
 
         if (current_window != &window)
         {

@@ -96,7 +96,8 @@ namespace won::rendering
         bool vsync_enabled = true;
         bool vsync_requested = true;
         float shadow_resolution_scale = 1.0f;
-        double frame_time_seconds = 0.0;
+        double frame_accumulated_time = 0.0;
+        double frame_delta_seconds = 0.0;
 
 		Vector<uint32> sort_upload_scratch; // not to allocate every frame !!
         FrameGraph frame_graph;

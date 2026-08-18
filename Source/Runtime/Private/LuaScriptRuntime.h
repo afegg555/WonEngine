@@ -228,6 +228,8 @@ namespace won::script
         static int LuaNavNearestPoint(lua_State* state);
         static int LuaNavIsReady(lua_State* state);
 
+        static int LuaWaterAddRipple(lua_State* state);
+
         static int LuaAISetTree(lua_State* state);
         static int LuaAISet(lua_State* state);
         static int LuaAIGet(lua_State* state);

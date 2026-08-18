@@ -13,6 +13,7 @@
 #include "View.h"
 #include "SceneComponents.h"
 #include "Sound.h"
+#include "ShaderInterop_Renderer.h"
 
 extern "C"
 {
@@ -1098,6 +1099,37 @@ namespace won::script
 
         const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
         runtime->current_context.scene->AddComponent<ecs::BehaviorTreeComponent>(entity);
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaWaterAddRipple(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        ecs::Scene& scene = *runtime->current_context.scene;
+        const ecs::Entity entity = static_cast<ecs::Entity>(luaL_checkinteger(state, 1));
+        const ecs::WaterComponent* water = scene.GetComponent<ecs::WaterComponent>(entity);
+        if (!water || !water->IsActive() || scene.GetWaterRippleQueue().size() >= water_ripple_max_injections)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        ecs::WaterRippleRequest request = {};
+        request.entity = entity;
+        request.position = {
+            static_cast<float>(luaL_checknumber(state, 2)),
+            static_cast<float>(luaL_checknumber(state, 3)),
+            static_cast<float>(luaL_checknumber(state, 4))
+        };
+        request.strength = static_cast<float>(luaL_optnumber(state, 5, 1.0));
+        scene.QueueWaterRipple(request);
         lua_pushboolean(state, true);
         return 1;
     }
@@ -4644,6 +4676,12 @@ namespace won::script
         lua_pushcclosure(lua_state, LuaNavIsReady, 1);
         lua_setfield(lua_state, -2, "is_ready");
         lua_setfield(lua_state, -2, "nav");
+
+        lua_newtable(lua_state);
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaWaterAddRipple, 1);
+        lua_setfield(lua_state, -2, "add_ripple");
+        lua_setfield(lua_state, -2, "water");
 
         lua_newtable(lua_state);
         lua_pushlightuserdata(lua_state, this);

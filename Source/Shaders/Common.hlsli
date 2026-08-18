@@ -87,6 +87,7 @@ inline float Luminance(float3 linear_color) // Rec.709 relative luminance from l
 		"UAV(u0, space = 113, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
 		"UAV(u0, space = 114, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
 		"UAV(u0, space = 115, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"UAV(u0, space = 116, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
         "SRV(t0, space = 200, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
         "SRV(t0, space = 201, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
         "SRV(t0, space = 202, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
@@ -95,7 +96,8 @@ inline float Luminance(float3 linear_color) // Rec.709 relative luminance from l
         "SRV(t0, space = 205, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
         "SRV(t0, space = 206, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
         "SRV(t0, space = 207, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
-        "SRV(t0, space = 208, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE) " \
+        "SRV(t0, space = 208, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
+        "SRV(t0, space = 209, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE) " \
     "), " \
     "StaticSampler(s100, addressU = TEXTURE_ADDRESS_CLAMP, addressV = TEXTURE_ADDRESS_CLAMP, addressW = TEXTURE_ADDRESS_CLAMP, filter = FILTER_MIN_MAG_MIP_LINEAR)," \
 	"StaticSampler(s101, addressU = TEXTURE_ADDRESS_WRAP, addressV = TEXTURE_ADDRESS_WRAP, addressW = TEXTURE_ADDRESS_WRAP, filter = FILTER_MIN_MAG_MIP_LINEAR)," \
@@ -244,6 +246,7 @@ RWTexture2D<uint> bindless_rwtextures_uint[] : register(u0, space112);
 RWTexture2D<uint2> bindless_rwtextures_uint2[] : register(u0, space113);
 RWTexture2D<uint3> bindless_rwtextures_uint3[] : register(u0, space114);
 RWTexture2D<uint4> bindless_rwtextures_uint4[] : register(u0, space115);
+RWTexture2D<float> bindless_rwtextures_float[] : register(u0, space116);
 
 #include "ShaderInterop_Renderer.h"
 
@@ -256,6 +259,7 @@ StructuredBuffer<ShaderBVHNode> bindless_structured_bvh_node[] : register(t0, sp
 StructuredBuffer<ShaderBVHPrimitive> bindless_structured_bvh_primitive[] : register(t0, space206);
 StructuredBuffer<ShaderBVHInstance> bindless_structured_bvh_instance[] : register(t0, space207);
 StructuredBuffer<ShaderDecal> bindless_structured_decal[] : register(t0, space208);
+StructuredBuffer<ShaderWaterRipple> bindless_structured_water_ripple[] : register(t0, space209);
 
 // static samplers
 SamplerState sampler_linear_clamp : register(s100);

@@ -3,7 +3,7 @@
 #include "Entity.h"
 #include "System.h"
 #include "SceneComponents.h"
-#include "PrefabSpawnRequest.h"
+#include "SceneRequest.h"
 #include "BuiltinTypeMeta.h"
 #include "Systems.h"
 #include "PhysicsWorld.h"
@@ -316,6 +316,21 @@ namespace won::ecs
             sequence_event_queue.clear();
         }
 
+        void QueueWaterRipple(const WaterRippleRequest& request)
+        {
+            water_ripple_queue.push_back(request);
+        }
+
+        const Vector<WaterRippleRequest>& GetWaterRippleQueue() const
+        {
+            return water_ripple_queue;
+        }
+
+        void ClearWaterRippleQueue()
+        {
+            water_ripple_queue.clear();
+        }
+
         void QueuePrefabSpawn(const PrefabSpawnRequest& request)
         {
             prefab_spawn_queue.push_back(request);
@@ -369,5 +384,6 @@ namespace won::ecs
         Vector<std::pair<Entity, String>> animation_event_queue;
         Vector<std::pair<Entity, String>> sequence_event_queue;
         Vector<PrefabSpawnRequest> prefab_spawn_queue;
+        Vector<WaterRippleRequest> water_ripple_queue;
     };
 }

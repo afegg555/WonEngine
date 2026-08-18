@@ -107,6 +107,7 @@ namespace won::rendering
 
             FrameGraphResourceRef depth = invalid_frame_resource;
             RHISubresourceHandle depth_dsv = {};
+            RHISubresourceHandle depth_readonly_dsv = {};
             RHISubresourceHandle depth_srv = {};
 
             uint32 width = 0;

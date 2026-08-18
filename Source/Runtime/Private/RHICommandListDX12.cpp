@@ -30,6 +30,7 @@ namespace won::rendering
         case RHIResourceState::ShaderWrite: return D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
         case RHIResourceState::RenderTarget: return D3D12_RESOURCE_STATE_RENDER_TARGET;
         case RHIResourceState::DepthWrite: return D3D12_RESOURCE_STATE_DEPTH_WRITE;
+        case RHIResourceState::DepthRead: return D3D12_RESOURCE_STATE_DEPTH_READ | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
         case RHIResourceState::Present: return D3D12_RESOURCE_STATE_PRESENT;
         default: return D3D12_RESOURCE_STATE_COMMON;
         }
