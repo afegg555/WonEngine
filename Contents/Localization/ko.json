@@ -2402,6 +2402,11 @@
             "text": "데칼",
             "comment": "label"
         },
+        "editor.label.show_water": {
+            "source": "Water",
+            "text": "물",
+            "comment": "label"
+        },
         "editor.label.show_particles": {
             "source": "Particles",
             "text": "파티클",

@@ -4,8 +4,13 @@
 
 namespace won::ecs
 {
-    struct WaterComponent
+    struct WaterBodyComponent
     {
+        enum class Type : uint32
+        {
+            Lake,
+        };
+
         enum Flags
         {
             Empty = 0,
@@ -15,7 +20,8 @@ namespace won::ecs
 
         uint32 flags = Active | ReceiveShadow;
 
-        float2 half_extent = { 10.0f, 10.0f };
+        Type type = Type::Lake;
+		float2 half_extent = { 10.0f, 10.0f }; // world unit
 
         float3 absorption_coefficient = { 0.465f, 0.0565f, 0.0092f };
         float3 scattering_coefficient = { 0.06f, 0.06f, 0.06f };

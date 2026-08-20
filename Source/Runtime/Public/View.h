@@ -129,18 +129,29 @@ namespace won::rendering
             std::unique_ptr<RHIResource> luminance_readback_buffer;
         };
 
-        struct WaterSimulationResources
+        struct WaterResources
         {
-            std::unique_ptr<RHIResource> ripple_texture[3];
-            RHISubresourceHandle ripple_srv[3] = {};
-            RHISubresourceHandle ripple_uav[3] = {};
+            struct TileRange
+            {
+                uint32 first_tile = 0;
+                uint32 tile_count = 0;
+            };
 
-            std::unique_ptr<RHIResource> wetness_texture[2];
-            RHISubresourceHandle wetness_srv[2] = {};
-            RHISubresourceHandle wetness_uav[2] = {};
+            std::unique_ptr<RHIResource> ripple_texture[2];
+            RHISubresourceHandle ripple_srv[2] = {};
+            RHISubresourceHandle ripple_uav[2] = {};
 
-			int2 window_texel_origin = { 0, 0 }; // cached from last frame's camera position, used to compute window_texel_shift
-			int2 window_texel_shift = { 0, 0 }; // camera shift in texels since last frame
+            std::unique_ptr<RHIResource> wetness_texture;
+            RHISubresourceHandle wetness_srv = {};
+            RHISubresourceHandle wetness_uav = {};
+
+            int2 window_texel_origin = { 0, 0 };
+            int2 window_texel_shift = { 0, 0 };
+
+			Vector<ShaderWaterTile> tiles; // flattened list of all water tiles for all zones
+			Vector<TileRange> zone_tile_ranges; // TileRange per water zone
+            FrameGraphResourceRef tile_buffer = invalid_frame_resource;
+            RHISubresourceHandle tile_srv = {};
         };
 
         ecs::Entity camera_entity = {};
@@ -155,7 +166,7 @@ namespace won::rendering
         RenderTargets render_targets = {};
         ViewConstants view_constants = {};
         ExposureResources exposure_resources = {};
-        WaterSimulationResources water_simulation_resources = {};
+        WaterResources water_resources = {};
         LightResources light_resources = {};
         ShadowResources shadow_resources = {};
         InstanceResources instance_resources = {};
@@ -182,6 +193,7 @@ namespace won::rendering
         void BuildSortedIndices();
         void BuildForwardLightList();
         void UpdateWaterSimulationWindow();
+        void BuildWaterTiles();
         ecs::Entity ResolveCamera() const;
 
         ecs::Entity HitTestUI(float2 pointer) const;

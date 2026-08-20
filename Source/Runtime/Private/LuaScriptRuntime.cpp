@@ -1113,22 +1113,19 @@ namespace won::script
         }
 
         ecs::Scene& scene = *runtime->current_context.scene;
-        const ecs::Entity entity = static_cast<ecs::Entity>(luaL_checkinteger(state, 1));
-        const ecs::WaterComponent* water = scene.GetComponent<ecs::WaterComponent>(entity);
-        if (!water || !water->IsActive() || scene.GetWaterRippleQueue().size() >= water_ripple_max_injections)
+        if (scene.GetWaterRippleQueue().size() >= water_ripple_max_injections)
         {
             lua_pushboolean(state, false);
             return 1;
         }
 
         ecs::WaterRippleRequest request = {};
-        request.entity = entity;
         request.position = {
+            static_cast<float>(luaL_checknumber(state, 1)),
             static_cast<float>(luaL_checknumber(state, 2)),
-            static_cast<float>(luaL_checknumber(state, 3)),
-            static_cast<float>(luaL_checknumber(state, 4))
+            static_cast<float>(luaL_checknumber(state, 3))
         };
-        request.strength = static_cast<float>(luaL_optnumber(state, 5, 1.0));
+        request.strength = static_cast<float>(luaL_optnumber(state, 4, 1.0));
         scene.QueueWaterRipple(request);
         lua_pushboolean(state, true);
         return 1;

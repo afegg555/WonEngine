@@ -16,7 +16,6 @@ namespace won::ecs
 
     struct WaterRippleRequest
     {
-        Entity entity = INVALID_ENTITY;
         float3 position = { 0.0f, 0.0f, 0.0f };
         float strength = 0.0f;
     };

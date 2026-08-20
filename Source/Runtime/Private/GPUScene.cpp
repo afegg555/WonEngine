@@ -1063,6 +1063,128 @@ namespace won::rendering
             }
         }
 
+        void ExtractWater(ecs::Scene& scene, Vector<ShaderWaterZone>& shader_water_zones, Vector<ShaderWaterBody>& shader_water_bodies, Vector<ShaderWaterRipple>& water_ripples)
+        {
+            shader_water_zones.clear();
+            shader_water_bodies.clear();
+            water_ripples.clear();
+
+            for (const WaterRippleRequest& request : scene.GetWaterRippleQueue())
+            {
+                if (water_ripples.size() >= water_ripple_max_injections)
+                {
+                    break;
+                }
+                ShaderWaterRipple ripple = {};
+                ripple.Init();
+                ripple.position = request.position;
+                ripple.strength = request.strength;
+                water_ripples.push_back(ripple);
+            }
+
+            const auto zone_array = scene.GetComponentArray<WaterZoneComponent>().get();
+            const auto body_array = scene.GetComponentArray<WaterBodyComponent>().get();
+            const auto transform_array = scene.GetComponentArray<TransformComponent>().get();
+
+            if (!zone_array || !body_array || !transform_array)
+            {
+                return;
+            }
+
+            for (Size zone_index = 0; zone_index < zone_array->GetSize(); ++zone_index)
+            {
+                const WaterZoneComponent& zone = zone_array->data[zone_index];
+                const Entity zone_entity = zone_array->index_to_entity[zone_index];
+                if (!zone.IsActive() || !transform_array->HasData(zone_entity))
+                {
+                    continue;
+                }
+
+                const float4x4& zone_transform = transform_array->GetData(zone_entity).world_transform;
+                const XMMATRIX zone_world = XMLoadFloat4x4(&zone_transform);
+                const float3 zone_center = math::GetPosition(zone_transform);
+                const float2 zone_half = {
+                    zone.half_extent.x * XMVectorGetX(XMVector3Length(zone_world.r[0])),
+                    zone.half_extent.y * XMVectorGetX(XMVector3Length(zone_world.r[2]))
+                };
+                const float2 zone_min = { zone_center.x - zone_half.x, zone_center.z - zone_half.y };
+                const float2 zone_max = { zone_center.x + zone_half.x, zone_center.z + zone_half.y };
+
+                ShaderWaterZone shader_zone = {};
+                shader_zone.Init();
+                shader_zone.origin = zone_min;
+                shader_zone.extent = { zone_max.x - zone_min.x, zone_max.y - zone_min.y };
+                shader_zone.info_resolution = zone.info_resolution;
+                shader_zone.tile_resolution = (std::max)(2u, zone.tile_resolution & ~1u);
+                shader_zone.lod_levels = zone.lod_levels;
+                shader_zone.lod_distance_scale = zone.lod_distance_scale;
+                shader_zone.first_body = static_cast<uint32>(shader_water_bodies.size());
+
+                for (Size i = 0; i < body_array->GetSize(); ++i)
+                {
+                    const WaterBodyComponent& water = body_array->data[i];
+                    const Entity entity = body_array->index_to_entity[i];
+                    if (!water.IsActive() || !transform_array->HasData(entity))
+                    {
+                        continue;
+                    }
+
+                    const float4x4& world_transform = transform_array->GetData(entity).world_transform;
+                    const XMMATRIX world = XMLoadFloat4x4(&world_transform);
+                    const XMVECTOR world_axis_x = XMVector3TransformNormal(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), world);
+                    const XMVECTOR world_axis_z = XMVector3TransformNormal(XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f), world);
+                    const float scale_x = (std::max)(XMVectorGetX(XMVector3Length(world_axis_x)), 0.000001f);
+                    const float scale_z = (std::max)(XMVectorGetX(XMVector3Length(world_axis_z)), 0.000001f);
+                    const float half_extent_x = water.half_extent.x * scale_x;
+                    const float half_extent_z = water.half_extent.y * scale_z;
+                    float3 axis_x = {};
+                    float3 axis_z = {};
+                    XMStoreFloat3(&axis_x, XMVectorScale(world_axis_x, 1.0f / scale_x));
+                    XMStoreFloat3(&axis_z, XMVectorScale(world_axis_z, 1.0f / scale_z));
+
+                    const float3 plane_origin = math::GetPosition(world_transform);
+                    const float body_reach_x = std::abs(axis_x.x) * half_extent_x + std::abs(axis_z.x) * half_extent_z;
+                    const float body_reach_z = std::abs(axis_x.z) * half_extent_x + std::abs(axis_z.z) * half_extent_z;
+                    if (plane_origin.x + body_reach_x < zone_min.x || plane_origin.x - body_reach_x > zone_max.x
+                        || plane_origin.z + body_reach_z < zone_min.y || plane_origin.z - body_reach_z > zone_max.y)
+                    {
+                        continue;
+                    }
+
+                    ShaderWaterBody shader_water = {};
+                    shader_water.Init();
+                    shader_water.flags = SHADER_WATER_FLAG_ACTIVE;
+                    if (water.IsReceiveShadow())
+                    {
+                        shader_water.flags |= SHADER_WATER_FLAG_RECEIVE_SHADOW;
+                    }
+                    shader_water.roughness = water.roughness;
+                    shader_water.reflectance = water.reflectance;
+                    shader_water.absorption_coefficient = water.absorption_coefficient;
+                    shader_water.scattering_coefficient = water.scattering_coefficient;
+                    shader_water.wave_frequency = water.wave_frequency;
+                    shader_water.normal_strength = water.normal_strength;
+                    shader_water.plane_origin = plane_origin;
+                    shader_water.ripple_strength = water.ripple_strength;
+                    shader_water.axis_x = axis_x;
+                    shader_water.half_extent_x = half_extent_x;
+                    shader_water.axis_z = axis_z;
+                    shader_water.half_extent_z = half_extent_z;
+                    shader_water.wave_velocity_primary = water.wave_velocity_primary;
+                    shader_water.wave_velocity_secondary = water.wave_velocity_secondary;
+                    shader_water.refraction_strength = water.refraction_strength;
+                    shader_water_bodies.push_back(shader_water);
+                }
+
+                shader_zone.body_count = static_cast<uint32>(shader_water_bodies.size()) - shader_zone.first_body;
+                if (shader_zone.body_count == 0)
+                {
+                    continue;
+                }
+                shader_water_zones.push_back(shader_zone);
+            }
+        }
+
         void ExtractDecals(const ecs::Scene& scene, Vector<ShaderDecal>& shader_decals)
         {
             shader_decals.clear();
@@ -1330,8 +1452,13 @@ namespace won::rendering
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractText(scene, text_sprite_2d, text_sprite_3d, glyph_requests); });
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractParticles(scene, particle_instances, particle_sprite_3d); });
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractDecals(scene, shader_decals); });
+        jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractWater(scene, shader_water_zones, shader_water_bodies, water_ripples); });
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractEnvironment(scene, shader_environment, shader_ddgi_volume, shader_reflection_probe, ddgi_volume_entity, derived_sun, has_derived_sun, direct_sun_shadow); });
         jobsystem::Wait(project_ctx);
+        if (scene.GetWaterSimulation().pending_steps > 0)
+        {
+            scene.ClearWaterRippleQueue();
+        }
 
         if (has_derived_sun)
         {

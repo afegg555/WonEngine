@@ -208,6 +208,7 @@ namespace won::rendering
         }
 
         UpdateWaterSimulationWindow();
+        BuildWaterTiles();
     }
 
     void View::UpdateWaterSimulationWindow()
@@ -223,13 +224,192 @@ namespace won::rendering
             return;
         }
 
-        WaterSimulationResources& water = water_simulation_resources;
+        WaterResources& water = water_resources;
         const float texel_size = WATER_SIMULATION_WINDOW_EXTENT / static_cast<float>(WATER_RIPPLE_RESOLUTION);
         const int32 texel_x = static_cast<int32>(std::floor(camera->eye.x / texel_size));
         const int32 texel_z = static_cast<int32>(std::floor(camera->eye.z / texel_size));
 
         water.window_texel_shift = { texel_x - water.window_texel_origin.x, texel_z - water.window_texel_origin.y };
         water.window_texel_origin = { texel_x, texel_z };
+    }
+
+    namespace
+    {
+        struct WaterQuadtree
+        {
+            float2 root_center = { 0.0f, 0.0f };
+            float root_half_size = 0.0f;
+            float3 camera = { 0.0f, 0.0f, 0.0f };
+            float water_height = 0.0f;
+            uint32 max_depth = 0;
+            float distance_scale = 2.0f;
+
+            bool ShouldSubdivide(float2 center, float half_size, uint32 depth) const
+            {
+                if (depth >= max_depth)
+                {
+                    return false;
+                }
+                const float nearest_x = (std::min)((std::max)(camera.x, center.x - half_size), center.x + half_size);
+                const float nearest_z = (std::min)((std::max)(camera.z, center.y - half_size), center.y + half_size);
+                const float dx = camera.x - nearest_x;
+                const float dy = camera.y - water_height;
+                const float dz = camera.z - nearest_z;
+                const float threshold = half_size * 2.0f * distance_scale;
+                return (dx * dx + dy * dy + dz * dz) < threshold * threshold;
+            }
+
+            uint32 DepthAt(float2 position) const
+            {
+                float2 center = root_center;
+                float half_size = root_half_size;
+                uint32 depth = 0;
+                while (ShouldSubdivide(center, half_size, depth))
+                {
+                    half_size *= 0.5f;
+                    center.x += position.x < center.x ? -half_size : half_size;
+                    center.y += position.y < center.y ? -half_size : half_size;
+                    ++depth;
+                }
+                return depth;
+            }
+        };
+    }
+
+    void View::BuildWaterTiles()
+    {
+        water_resources.tiles.clear();
+        water_resources.zone_tile_ranges.clear();
+
+        const rendering::GPUScene& gpu_scene = scene->GetGPUScene();
+        if (gpu_scene.shader_water_zones.empty())
+        {
+            return;
+        }
+
+        const ecs::CameraComponent* camera = scene->GetComponent<ecs::CameraComponent>(camera_entity);
+        if (!camera)
+        {
+            return;
+        }
+
+        water_resources.zone_tile_ranges.resize(gpu_scene.shader_water_zones.size());
+        for (Size zone_index = 0; zone_index < gpu_scene.shader_water_zones.size(); ++zone_index)
+        {
+            const ShaderWaterZone& zone = gpu_scene.shader_water_zones[zone_index];
+            WaterResources::TileRange& tile_range = water_resources.zone_tile_ranges[zone_index];
+            tile_range.first_tile = static_cast<uint32>(water_resources.tiles.size());
+            tile_range.tile_count = 0;
+
+            const float2 zone_min = zone.origin;
+            const float2 zone_max = { zone.origin.x + zone.extent.x, zone.origin.y + zone.extent.y };
+
+            WaterQuadtree quadtree = {};
+            quadtree.root_center = { (zone_min.x + zone_max.x) * 0.5f, (zone_min.y + zone_max.y) * 0.5f };
+            quadtree.root_half_size = (std::max)(zone.extent.x, zone.extent.y) * 0.5f;
+            float height_min = 0.0f;
+            float height_max = 0.0f;
+            if (zone.body_count > 0)
+            {
+                height_min = gpu_scene.shader_water_bodies[zone.first_body].plane_origin.y;
+                height_max = height_min;
+                for (uint32 body = 1; body < zone.body_count; ++body)
+                {
+                    const float body_height = gpu_scene.shader_water_bodies[zone.first_body + body].plane_origin.y;
+                    height_min = (std::min)(height_min, body_height);
+                    height_max = (std::max)(height_max, body_height);
+                }
+            }
+
+            quadtree.camera = camera->eye;
+            quadtree.water_height = (height_min + height_max) * 0.5f;
+            quadtree.max_depth = zone.lod_levels;
+            quadtree.distance_scale = zone.lod_distance_scale;
+
+            struct PendingTile
+            {
+                float2 center;
+                float half_size;
+                uint32 depth;
+				uint32 parent_corner; // 0=negXnegZ, 1=posXnegZ, 2=negXposZ, 3=posXposZ, 0xFFFFFFFF=no parent
+            };
+
+            Vector<PendingTile> pending;
+            pending.push_back({ quadtree.root_center, quadtree.root_half_size, 0u, 0u });
+
+            while (!pending.empty())
+            {
+                const PendingTile tile = pending.back();
+                pending.pop_back();
+
+                if (tile.center.x + tile.half_size < zone_min.x || tile.center.x - tile.half_size > zone_max.x
+                    || tile.center.y + tile.half_size < zone_min.y || tile.center.y - tile.half_size > zone_max.y)
+                {
+                    continue;
+                }
+
+                if (quadtree.ShouldSubdivide(tile.center, tile.half_size, tile.depth))
+                {
+                    const float child_half = tile.half_size * 0.5f;
+                    for (uint32 corner = 0; corner < 4; ++corner)
+                    {
+                        const float2 child_center = {
+                            tile.center.x + ((corner & 1u) ? child_half : -child_half),
+                            tile.center.y + ((corner & 2u) ? child_half : -child_half)
+                        };
+                        pending.push_back({ child_center, child_half, tile.depth + 1u, corner });
+                    }
+                    continue;
+                }
+
+                bool covers_water = false;
+                for (uint32 body = 0; body < zone.body_count; ++body)
+                {
+                    const ShaderWaterBody& water = gpu_scene.shader_water_bodies[zone.first_body + body];
+                    const float reach_x = std::abs(water.axis_x.x) * water.half_extent_x + std::abs(water.axis_z.x) * water.half_extent_z;
+                    const float reach_z = std::abs(water.axis_x.z) * water.half_extent_x + std::abs(water.axis_z.z) * water.half_extent_z;
+                    covers_water = std::abs(water.plane_origin.x - tile.center.x) <= reach_x + tile.half_size
+                        && std::abs(water.plane_origin.z - tile.center.y) <= reach_z + tile.half_size;
+
+                    if(covers_water)
+                    {
+                        break;
+					}
+                }
+                if (!covers_water)
+                {
+					// no water bodies intersect this tile
+                    continue;
+                }
+
+				// see this T-junction problem discussion for why we need to check for coarser neighbors and mark them in a bitmask:
+                // https://computergraphics.stackexchange.com/questions/1461/why-do-t-junctions-in-meshes-result-in-cracks
+                
+                uint32 mask = 0;
+                if (tile.depth > 0)
+                {
+                    const bool probe_neg_x = (tile.parent_corner & 1u) == 0u;
+                    const bool probe_pos_x = (tile.parent_corner & 1u) != 0u;
+                    const bool probe_neg_z = (tile.parent_corner & 2u) == 0u;
+                    const bool probe_pos_z = (tile.parent_corner & 2u) != 0u;
+
+                    const float probe = tile.half_size * 1.5f;
+                    if (probe_neg_x && quadtree.DepthAt({ tile.center.x - probe, tile.center.y }) < tile.depth) { mask |= WATER_TILE_NEIGHBOR_NEG_X; }
+                    if (probe_pos_x && quadtree.DepthAt({ tile.center.x + probe, tile.center.y }) < tile.depth) { mask |= WATER_TILE_NEIGHBOR_POS_X; }
+                    if (probe_neg_z && quadtree.DepthAt({ tile.center.x, tile.center.y - probe }) < tile.depth) { mask |= WATER_TILE_NEIGHBOR_NEG_Z; }
+                    if (probe_pos_z && quadtree.DepthAt({ tile.center.x, tile.center.y + probe }) < tile.depth) { mask |= WATER_TILE_NEIGHBOR_POS_Z; }
+                }
+
+                ShaderWaterTile shader_tile = {};
+                shader_tile.Init();
+                shader_tile.center = tile.center;
+                shader_tile.half_size = tile.half_size;
+                shader_tile.coarser_neighbor_mask = mask;
+                water_resources.tiles.push_back(shader_tile);
+            }
+
+            tile_range.tile_count = static_cast<uint32>(water_resources.tiles.size()) - tile_range.first_tile;
+        }
     }
 
     void View::BuildShadowSlices()

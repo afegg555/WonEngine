@@ -17,6 +17,8 @@ namespace won::resource
             { ShaderId::VSDebugDraw3D, { rendering::RHIShaderStage::Vertex, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "DebugDraw3DVS.hlsl", "main" } },
 #endif
             { ShaderId::VSGrid, { rendering::RHIShaderStage::Vertex, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "GridVS.hlsl", "main" } },
+            { ShaderId::VSWater, { rendering::RHIShaderStage::Vertex, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "WaterVS.hlsl", "main" } },
+            { ShaderId::VSWaterInfo, { rendering::RHIShaderStage::Vertex, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "WaterInfoVS.hlsl", "main" } },
             { ShaderId::PSSky, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "SkyPS.hlsl", "main" } },
             { ShaderId::PSObjectForward, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "ObjectPS_forward.hlsl", "main" } },
             { ShaderId::PSObjectForwardPlus, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "ObjectPS_forwardplus.hlsl", "main" } },
@@ -34,6 +36,9 @@ namespace won::resource
             { ShaderId::PSDebugDraw3D, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "DebugDraw3DPS.hlsl", "main" } },
 #endif
             { ShaderId::PSGrid, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "GridPS.hlsl", "main" } },
+            { ShaderId::PSWaterInfo, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "WaterInfoPS.hlsl", "main" } },
+            { ShaderId::PSWaterForward, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "WaterPS_forward.hlsl", "main" } },
+            { ShaderId::PSWaterForwardPlus, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "WaterPS_forwardplus.hlsl", "main" } },
             { ShaderId::CSFXAA, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "FXAACS.hlsl", "main" } },
             { ShaderId::CSTonemap, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TonemapCS.hlsl", "main" } },
             { ShaderId::CSLuminanceReduce, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "LuminanceReduceCS.hlsl", "main" } },
@@ -44,6 +49,7 @@ namespace won::resource
             { ShaderId::CSSpecularPrefilter, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "SpecularPrefilterCS.hlsl", "main" } },
             { ShaderId::CSDDGIProbeUpdate, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "DDGIProbeUpdateCS.hlsl", "main" } },
             { ShaderId::CSLightCull, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "LightCullCS.hlsl", "main" } },
+            { ShaderId::CSWaterRipple, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "WaterRippleCS.hlsl", "main" } },
             { ShaderId::CSTextureMipGen, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TextureMipGenCS.hlsl", "main" } },
             { ShaderId::CSGPUBVHBuildGeneratePrimitives, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "GPUBVHGeneratePrimitivesCS.hlsl", "main" } },
             { ShaderId::CSGPUBVHBuildSortPrimitives, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "GPUBVHSortPrimitivesCS.hlsl", "main" } },

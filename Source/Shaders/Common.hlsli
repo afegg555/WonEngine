@@ -97,7 +97,10 @@ inline float Luminance(float3 linear_color) // Rec.709 relative luminance from l
         "SRV(t0, space = 206, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
         "SRV(t0, space = 207, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
         "SRV(t0, space = 208, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
-        "SRV(t0, space = 209, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE) " \
+        "SRV(t0, space = 209, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
+        "SRV(t0, space = 210, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
+        "SRV(t0, space = 211, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
+        "SRV(t0, space = 212, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE) " \
     "), " \
     "StaticSampler(s100, addressU = TEXTURE_ADDRESS_CLAMP, addressV = TEXTURE_ADDRESS_CLAMP, addressW = TEXTURE_ADDRESS_CLAMP, filter = FILTER_MIN_MAG_MIP_LINEAR)," \
 	"StaticSampler(s101, addressU = TEXTURE_ADDRESS_WRAP, addressV = TEXTURE_ADDRESS_WRAP, addressW = TEXTURE_ADDRESS_WRAP, filter = FILTER_MIN_MAG_MIP_LINEAR)," \
@@ -260,6 +263,9 @@ StructuredBuffer<ShaderBVHPrimitive> bindless_structured_bvh_primitive[] : regis
 StructuredBuffer<ShaderBVHInstance> bindless_structured_bvh_instance[] : register(t0, space207);
 StructuredBuffer<ShaderDecal> bindless_structured_decal[] : register(t0, space208);
 StructuredBuffer<ShaderWaterRipple> bindless_structured_water_ripple[] : register(t0, space209);
+StructuredBuffer<ShaderWaterBody> bindless_structured_water_body[] : register(t0, space210);
+StructuredBuffer<ShaderWaterZone> bindless_structured_water_zone[] : register(t0, space211);
+StructuredBuffer<ShaderWaterTile> bindless_structured_water_tile[] : register(t0, space212);
 
 // static samplers
 SamplerState sampler_linear_clamp : register(s100);
@@ -300,6 +306,11 @@ inline ShaderDDGIVolume GetDDGIVolume()
 inline ShaderReflectionProbe GetReflectionProbe()
 {
     return g_frame.reflection_probe;
+}
+
+inline ShaderWaterSimulation GetWaterSimulation()
+{
+    return g_frame.water_simulation;
 }
 
 inline ShaderView GetView()

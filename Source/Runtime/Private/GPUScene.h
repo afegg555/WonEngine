@@ -223,6 +223,12 @@ namespace won::rendering
         SkyLightingResources sky_lighting = {};
         ShaderDDGIVolume shader_ddgi_volume;
         ShaderReflectionProbe shader_reflection_probe;
+        Vector<ShaderWaterZone> shader_water_zones;
+        GPUBuffer water_zone_buffer;
+        Vector<ShaderWaterBody> shader_water_bodies;
+        GPUBuffer water_body_buffer;
+        Vector<ShaderWaterRipple> water_ripples;
+
         ecs::Entity ddgi_volume_entity = ecs::INVALID_ENTITY;
         DDGIResources ddgi = {};
 

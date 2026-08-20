@@ -356,7 +356,8 @@ set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/FogVolumeComponent.h
     Source/Runtime/Public/DDGIVolumeComponent.h
     Source/Runtime/Public/ReflectionProbeComponent.h
-    Source/Runtime/Public/WaterComponent.h
+    Source/Runtime/Public/WaterBodyComponent.h
+    Source/Runtime/Public/WaterZoneComponent.h
     Source/Runtime/Public/AnimationComponent.h
     Source/Runtime/Public/AnimationStateMachineComponent.h
     Source/Runtime/Public/BehaviorTreeComponent.h
@@ -507,6 +508,8 @@ set(SHADERS_HLSL
     Source/Shaders/DecalPS.hlsl
     Source/Shaders/WaterCommon.hlsli
     Source/Shaders/WaterVS.hlsl
+    Source/Shaders/WaterInfoVS.hlsl
+    Source/Shaders/WaterInfoPS.hlsl
     Source/Shaders/WaterPS.hlsli
     Source/Shaders/WaterPS_forward.hlsl
     Source/Shaders/WaterPS_forwardplus.hlsl

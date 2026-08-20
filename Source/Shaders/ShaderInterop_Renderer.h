@@ -605,7 +605,7 @@ enum SHADER_WATER_FLAGS
     SHADER_WATER_FLAG_RECEIVE_SHADOW = 1 << 1,
 };
 
-struct alignas(16) ShaderWater
+struct alignas(16) ShaderWaterBody
 {
     uint flags;
     float roughness;
@@ -618,14 +618,14 @@ struct alignas(16) ShaderWater
     float3 scattering_coefficient;
     float normal_strength;
 
-    float3 plane_origin;
+	float3 plane_origin; // center of the water body in world space
     float ripple_strength;
 
     float3 axis_x;
-    float _water_padding0;
+    float half_extent_x;
 
     float3 axis_z;
-    float _water_padding1;
+    float half_extent_z;
 
     float2 wave_velocity_primary;
     float2 wave_velocity_secondary;
@@ -644,9 +644,9 @@ struct alignas(16) ShaderWater
         plane_origin = { 0.0f, 0.0f, 0.0f };
         ripple_strength = 0.0f;
         axis_x = { 0.0f, 0.0f, 0.0f };
-        _water_padding0 = 0.0f;
+        half_extent_x = 0.0f;
         axis_z = { 0.0f, 0.0f, 0.0f };
-        _water_padding1 = 0.0f;
+        half_extent_z = 0.0f;
         wave_velocity_primary = { 0.0f, 0.0f };
         wave_velocity_secondary = { 0.0f, 0.0f };
     }
@@ -656,23 +656,64 @@ struct alignas(16) ShaderWater
 #endif
 };
 
-struct alignas(16) ShaderWaterSimulation
+struct alignas(16) ShaderWaterTile
 {
-    float2 window_origin;
-    float2 window_extent;
-
-    int ripple_texture;
-    int wetness_texture;
-    int2 _simulation_padding0;
+	float2 center; // center of the tile in world space (x,z)
+	float half_size; // half size of the tile in world space (x,z)
+    uint coarser_neighbor_mask;
 
 #ifdef __cplusplus
     inline void Init()
     {
-        window_origin = { 0.0f, 0.0f };
-        window_extent = { 0.0f, 0.0f };
+        center = { 0.0f, 0.0f };
+        half_size = 0.0f;
+        coarser_neighbor_mask = 0;
+    }
+#endif
+};
+
+struct alignas(16) ShaderWaterZone
+{
+	float2 origin; // left-bottom corner of the zone in world space (x,z)
+	float2 extent; // full extent of the zone in world space (x,z)
+
+    uint first_body;
+    uint body_count;
+    uint info_resolution;
+	uint tile_resolution; // each tile is tessellated into (tile_resolution x tile_resolution) quads
+
+    uint lod_levels;
+    float lod_distance_scale;
+    uint2 _zone_padding0;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        origin = { 0.0f, 0.0f };
+        extent = { 0.0f, 0.0f };
+        first_body = 0;
+        body_count = 0;
+        info_resolution = 0;
+        tile_resolution = 0;
+        lod_levels = 0;
+        lod_distance_scale = 0.0f;
+        _zone_padding0 = { 0, 0 };
+    }
+#endif
+};
+
+struct alignas(16) ShaderWaterSimulation
+{
+    int2 window_grid_min;
+    int ripple_texture;
+    int wetness_texture;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        window_grid_min = { 0, 0 };
         ripple_texture = -1;
         wetness_texture = -1;
-        _simulation_padding0 = { 0, 0 };
     }
 #else
     inline bool HasRipple() { return ripple_texture >= 0; }
@@ -686,7 +727,6 @@ struct alignas(16) ShaderFrame
     ShaderEnvironment environment;
     ShaderDDGIVolume ddgi_volume;
     ShaderReflectionProbe reflection_probe;
-    ShaderWater water;
     ShaderWaterSimulation water_simulation;
 
 	float time; // accumulated time in seconds
@@ -701,7 +741,6 @@ struct alignas(16) ShaderFrame
         environment.Init();
         ddgi_volume.Init();
         reflection_probe.Init();
-        water.Init();
         water_simulation.Init();
         time = 0.0f;
     }
@@ -1076,9 +1115,11 @@ static_assert(sizeof(ShaderEnvironment) == 224, "ShaderEnvironment layout mismat
 static_assert(sizeof(ShaderDDGIVolume) == 112, "ShaderDDGIVolume layout mismatch");
 static_assert(sizeof(ShaderReflectionProbe) == 32, "ShaderReflectionProbe layout mismatch");
 static_assert(sizeof(ShaderWaterRipple) == 16, "ShaderWaterRipple layout mismatch");
-static_assert(sizeof(ShaderWaterSimulation) == 32, "ShaderWaterSimulation layout mismatch");
-static_assert(sizeof(ShaderWater) == 112, "ShaderWater layout mismatch");
-static_assert(sizeof(ShaderFrame) == 592, "ShaderFrame layout mismatch");
+static_assert(sizeof(ShaderWaterSimulation) == 16, "ShaderWaterSimulation layout mismatch");
+static_assert(sizeof(ShaderWaterBody) == 112, "ShaderWaterBody layout mismatch");
+static_assert(sizeof(ShaderWaterZone) == 48, "ShaderWaterZone layout mismatch");
+static_assert(sizeof(ShaderWaterTile) == 16, "ShaderWaterTile layout mismatch");
+static_assert(sizeof(ShaderFrame) == 464, "ShaderFrame layout mismatch");
 static_assert(sizeof(ShaderCamera) == 336, "ShaderCamera layout mismatch");
 static_assert(sizeof(ShaderView) == 400, "ShaderView layout mismatch");
 static_assert(sizeof(ShaderLight) == 64, "ShaderLight layout mismatch");
