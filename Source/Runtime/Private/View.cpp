@@ -9,6 +9,7 @@
 #include "MathUtils.h"
 #include "JobSystem.h"
 #include "Primitives.h"
+#include "ShaderInterop_Water.h"
 
 #include <cmath>
 #include <numeric>
@@ -190,6 +191,7 @@ namespace won::rendering
         if (scene->GetUpdateIndex() != update_index)
         {
             scene->SetUpdateIndex(update_index);
+            scene->GetWaterSimulation().pending_steps = 0;
             if (!simulation_paused)
             {
                 scene->Update(delta_time);
@@ -204,6 +206,30 @@ namespace won::rendering
             BuildSortedIndices();
             BuildForwardLightList();
         }
+
+        UpdateWaterSimulationWindow();
+    }
+
+    void View::UpdateWaterSimulationWindow()
+    {
+        if (scene->GetWaterSimulation().pending_steps == 0)
+        {
+            return;
+        }
+
+        const ecs::CameraComponent* camera = scene->GetComponent<ecs::CameraComponent>(camera_entity);
+        if (!camera)
+        {
+            return;
+        }
+
+        WaterSimulationResources& water = water_simulation_resources;
+        const float texel_size = WATER_SIMULATION_WINDOW_EXTENT / static_cast<float>(WATER_RIPPLE_RESOLUTION);
+        const int32 texel_x = static_cast<int32>(std::floor(camera->eye.x / texel_size));
+        const int32 texel_z = static_cast<int32>(std::floor(camera->eye.z / texel_size));
+
+        water.window_texel_shift = { texel_x - water.window_texel_origin.x, texel_z - water.window_texel_origin.y };
+        water.window_texel_origin = { texel_x, texel_z };
     }
 
     void View::BuildShadowSlices()

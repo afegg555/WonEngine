@@ -582,14 +582,114 @@ struct alignas(16) ShaderReflectionProbe
 #endif
 };
 
+static const uint water_ripple_max_injections = 64;
+
+struct ShaderWaterRipple
+{
+    float3 position;
+    float strength;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        position = { 0.0f, 0.0f, 0.0f };
+        strength = 0.0f;
+    }
+#endif
+};
+
+enum SHADER_WATER_FLAGS
+{
+    SHADER_WATER_FLAG_NONE = 0,
+    SHADER_WATER_FLAG_ACTIVE = 1 << 0,
+    SHADER_WATER_FLAG_RECEIVE_SHADOW = 1 << 1,
+};
+
+struct alignas(16) ShaderWater
+{
+    uint flags;
+    float roughness;
+    float reflectance;
+    float refraction_strength;
+
+    float3 absorption_coefficient;
+    float wave_frequency;
+
+    float3 scattering_coefficient;
+    float normal_strength;
+
+    float3 plane_origin;
+    float ripple_strength;
+
+    float3 axis_x;
+    float _water_padding0;
+
+    float3 axis_z;
+    float _water_padding1;
+
+    float2 wave_velocity_primary;
+    float2 wave_velocity_secondary;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        flags = SHADER_WATER_FLAG_NONE;
+        roughness = 1.0f;
+        reflectance = 0.354f;
+        refraction_strength = 0.0f;
+        absorption_coefficient = { 0.0f, 0.0f, 0.0f };
+        wave_frequency = 0.0f;
+        scattering_coefficient = { 0.0f, 0.0f, 0.0f };
+        normal_strength = 0.0f;
+        plane_origin = { 0.0f, 0.0f, 0.0f };
+        ripple_strength = 0.0f;
+        axis_x = { 0.0f, 0.0f, 0.0f };
+        _water_padding0 = 0.0f;
+        axis_z = { 0.0f, 0.0f, 0.0f };
+        _water_padding1 = 0.0f;
+        wave_velocity_primary = { 0.0f, 0.0f };
+        wave_velocity_secondary = { 0.0f, 0.0f };
+    }
+#else
+    inline bool IsActive() { return (flags & SHADER_WATER_FLAG_ACTIVE) != 0; }
+    inline bool IsReceiveShadow() { return (flags & SHADER_WATER_FLAG_RECEIVE_SHADOW) != 0; }
+#endif
+};
+
+struct alignas(16) ShaderWaterSimulation
+{
+    float2 window_origin;
+    float2 window_extent;
+
+    int ripple_texture;
+    int wetness_texture;
+    int2 _simulation_padding0;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        window_origin = { 0.0f, 0.0f };
+        window_extent = { 0.0f, 0.0f };
+        ripple_texture = -1;
+        wetness_texture = -1;
+        _simulation_padding0 = { 0, 0 };
+    }
+#else
+    inline bool HasRipple() { return ripple_texture >= 0; }
+    inline bool HasWetness() { return wetness_texture >= 0; }
+#endif
+};
+
 struct alignas(16) ShaderFrame
 {
     ShaderScene scene;
     ShaderEnvironment environment;
     ShaderDDGIVolume ddgi_volume;
     ShaderReflectionProbe reflection_probe;
+    ShaderWater water;
+    ShaderWaterSimulation water_simulation;
 
-    float time;
+	float time; // accumulated time in seconds
     float _frame_padding0;
     float _frame_padding1;
     float _frame_padding2;
@@ -601,6 +701,8 @@ struct alignas(16) ShaderFrame
         environment.Init();
         ddgi_volume.Init();
         reflection_probe.Init();
+        water.Init();
+        water_simulation.Init();
         time = 0.0f;
     }
 #endif
@@ -973,7 +1075,10 @@ static_assert(sizeof(ShaderScene) == 64, "ShaderScene layout mismatch");
 static_assert(sizeof(ShaderEnvironment) == 224, "ShaderEnvironment layout mismatch");
 static_assert(sizeof(ShaderDDGIVolume) == 112, "ShaderDDGIVolume layout mismatch");
 static_assert(sizeof(ShaderReflectionProbe) == 32, "ShaderReflectionProbe layout mismatch");
-static_assert(sizeof(ShaderFrame) == 448, "ShaderFrame layout mismatch");
+static_assert(sizeof(ShaderWaterRipple) == 16, "ShaderWaterRipple layout mismatch");
+static_assert(sizeof(ShaderWaterSimulation) == 32, "ShaderWaterSimulation layout mismatch");
+static_assert(sizeof(ShaderWater) == 112, "ShaderWater layout mismatch");
+static_assert(sizeof(ShaderFrame) == 592, "ShaderFrame layout mismatch");
 static_assert(sizeof(ShaderCamera) == 336, "ShaderCamera layout mismatch");
 static_assert(sizeof(ShaderView) == 400, "ShaderView layout mismatch");
 static_assert(sizeof(ShaderLight) == 64, "ShaderLight layout mismatch");

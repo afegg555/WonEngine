@@ -774,6 +774,16 @@ namespace won::physics
         };
     }
 
+    float PhysicsWorld::GetFixedStepSeconds() const
+    {
+        return impl->fixed_step;
+    }
+
+    int PhysicsWorld::GetMaxStepsPerFrame() const
+    {
+        return impl->max_steps_per_frame;
+    }
+
     bool PhysicsWorld::RayCast(const float3& origin, const float3& direction, float max_distance, RayCastHit& out_hit, uint32_t layer_mask) const
     {
         out_hit = {};

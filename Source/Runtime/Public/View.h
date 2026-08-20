@@ -129,6 +129,20 @@ namespace won::rendering
             std::unique_ptr<RHIResource> luminance_readback_buffer;
         };
 
+        struct WaterSimulationResources
+        {
+            std::unique_ptr<RHIResource> ripple_texture[3];
+            RHISubresourceHandle ripple_srv[3] = {};
+            RHISubresourceHandle ripple_uav[3] = {};
+
+            std::unique_ptr<RHIResource> wetness_texture[2];
+            RHISubresourceHandle wetness_srv[2] = {};
+            RHISubresourceHandle wetness_uav[2] = {};
+
+			int2 window_texel_origin = { 0, 0 }; // cached from last frame's camera position, used to compute window_texel_shift
+			int2 window_texel_shift = { 0, 0 }; // camera shift in texels since last frame
+        };
+
         ecs::Entity camera_entity = {};
         uint32 viewer_index = 0;
         bool manual_camera = false;
@@ -141,6 +155,7 @@ namespace won::rendering
         RenderTargets render_targets = {};
         ViewConstants view_constants = {};
         ExposureResources exposure_resources = {};
+        WaterSimulationResources water_simulation_resources = {};
         LightResources light_resources = {};
         ShadowResources shadow_resources = {};
         InstanceResources instance_resources = {};
@@ -166,6 +181,7 @@ namespace won::rendering
         void BuildShadowSlices();
         void BuildSortedIndices();
         void BuildForwardLightList();
+        void UpdateWaterSimulationWindow();
         ecs::Entity ResolveCamera() const;
 
         ecs::Entity HitTestUI(float2 pointer) const;

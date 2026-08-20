@@ -140,6 +140,10 @@ namespace won::ecs
         }
         if (desc.enable_simulation)
         {
+            AddSystem(std::make_unique<WaterSimulationSystem>());
+        }
+        if (desc.enable_simulation)
+        {
             AddSystem(std::make_unique<AudioUpdateSystem>(desc.audio_mixer));
         }
 

@@ -316,6 +316,23 @@ namespace won::ecs
             sequence_event_queue.clear();
         }
 
+        struct WaterSimulationState
+        {
+            double step_accumulator = 0.0;
+            uint64 step_count = 0;
+            uint32 pending_steps = 0;
+        };
+
+        WaterSimulationState& GetWaterSimulation()
+        {
+            return water_simulation;
+        }
+
+        const WaterSimulationState& GetWaterSimulation() const
+        {
+            return water_simulation;
+        }
+
         void QueueWaterRipple(const WaterRippleRequest& request)
         {
             water_ripple_queue.push_back(request);
@@ -385,5 +402,6 @@ namespace won::ecs
         Vector<std::pair<Entity, String>> sequence_event_queue;
         Vector<PrefabSpawnRequest> prefab_spawn_queue;
         Vector<WaterRippleRequest> water_ripple_queue;
+        WaterSimulationState water_simulation = {};
     };
 }
