@@ -687,6 +687,11 @@ struct alignas(16) ShaderWaterZone
     int ripple_texture;
     int wetness_texture;
 
+    uint ripple_resolution;
+    float ripple_speed;
+    float ripple_radius;
+    uint _zone_padding0;
+
 #ifdef __cplusplus
     inline void Init()
     {
@@ -700,6 +705,10 @@ struct alignas(16) ShaderWaterZone
         lod_distance_scale = 0.0f;
         ripple_texture = -1;
         wetness_texture = -1;
+        ripple_resolution = 0;
+        ripple_speed = 0.0f;
+        ripple_radius = 0.0f;
+        _zone_padding0 = 0;
     }
 #else
     inline bool HasRipple() { return ripple_texture >= 0; }
@@ -1100,7 +1109,7 @@ static_assert(sizeof(ShaderDDGIVolume) == 112, "ShaderDDGIVolume layout mismatch
 static_assert(sizeof(ShaderReflectionProbe) == 32, "ShaderReflectionProbe layout mismatch");
 static_assert(sizeof(ShaderWaterRipple) == 16, "ShaderWaterRipple layout mismatch");
 static_assert(sizeof(ShaderWaterBody) == 112, "ShaderWaterBody layout mismatch");
-static_assert(sizeof(ShaderWaterZone) == 48, "ShaderWaterZone layout mismatch");
+static_assert(sizeof(ShaderWaterZone) == 64, "ShaderWaterZone layout mismatch");
 static_assert(sizeof(ShaderWaterTile) == 16, "ShaderWaterTile layout mismatch");
 static_assert(sizeof(ShaderFrame) == 448, "ShaderFrame layout mismatch");
 static_assert(sizeof(ShaderCamera) == 336, "ShaderCamera layout mismatch");

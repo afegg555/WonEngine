@@ -58,9 +58,9 @@ inline float2 WaterPlaneUnitCoord(in ShaderWaterBody water, float3 world_positio
                   dot(offset, water.axis_z) / max(water.half_extent_z, water_epsilon));
 }
 
-inline float2 WaterRippleTexelSize(float2 zone_extent)
+inline float2 WaterRippleTexelSize(float2 zone_extent, uint resolution)
 {
-    return max(zone_extent, water_epsilon) / (float)WATER_RIPPLE_RESOLUTION;
+    return max(zone_extent, water_epsilon) / (float)resolution;
 }
 
 #endif

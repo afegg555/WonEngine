@@ -1,5 +1,6 @@
 #include "GPUScene.h"
 #include "ShaderInterop_PostProcess.h"
+#include "ShaderInterop_Water.h"
 
 #include "Scene.h"
 #include "LightComponent.h"
@@ -1115,6 +1116,9 @@ namespace won::rendering
                 shader_zone.origin = zone_min;
                 shader_zone.extent = { zone_max.x - zone_min.x, zone_max.y - zone_min.y };
                 shader_zone.info_resolution = zone.info_resolution;
+                shader_zone.ripple_resolution = math::Clamp(zone.ripple_resolution, WATER_RIPPLE_MIN_RESOLUTION, WATER_RIPPLE_MAX_RESOLUTION);
+                shader_zone.ripple_speed = (std::max)(zone.ripple_speed, 0.0f);
+                shader_zone.ripple_radius = (std::max)(zone.ripple_radius, 0.0f);
                 shader_zone.tile_resolution = (std::max)(2u, zone.tile_resolution & ~1u);
                 shader_zone.lod_levels = zone.lod_levels;
                 shader_zone.lod_distance_scale = zone.lod_distance_scale;

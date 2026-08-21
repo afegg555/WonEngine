@@ -7,8 +7,9 @@
 
 #include "ShaderInterop.h"
 
-#define WATER_RIPPLE_RESOLUTION 256
 #define WATER_RIPPLE_GROUP_SIZE 8
+#define WATER_RIPPLE_MIN_RESOLUTION 64u
+#define WATER_RIPPLE_MAX_RESOLUTION 1024u
 #define WATER_INFO_NO_BODY -1.0f
 #define WATER_INFO_HEIGHT_RANGE 4096.0f
 #define WATER_TILE_NEIGHBOR_NEG_X 1
@@ -68,32 +69,34 @@ struct WaterPushConstants
 
 struct WaterRipplePushConstants
 {
-    float2 zone_origin;
-    float2 zone_extent;
+    uint zone_buffer_descriptor;
+    uint zone_index;
 
     uint height_current_descriptor;
     uint height_previous_descriptor;
     uint wetness_descriptor;
     uint injection_descriptor;
     uint injection_count;
+    float step_seconds;
 
 #ifdef __cplusplus
     inline void Init()
     {
-        zone_origin = { 0.0f, 0.0f };
-        zone_extent = { 0.0f, 0.0f };
+        zone_buffer_descriptor = 0;
+        zone_index = 0;
         height_current_descriptor = 0;
         height_previous_descriptor = 0;
         wetness_descriptor = 0;
         injection_descriptor = 0;
         injection_count = 0;
+        step_seconds = 0.0f;
     }
 #endif
 };
 
 #ifdef __cplusplus
 static_assert(sizeof(WaterPushConstants) == 36, "WaterPushConstants layout mismatch");
-static_assert(sizeof(WaterRipplePushConstants) == 36, "WaterRipplePushConstants layout mismatch");
+static_assert(sizeof(WaterRipplePushConstants) == 32, "WaterRipplePushConstants layout mismatch");
 #endif
 
 #endif

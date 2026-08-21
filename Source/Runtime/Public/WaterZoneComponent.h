@@ -16,6 +16,9 @@ namespace won::ecs
 
         float2 half_extent = { 64.0f, 64.0f }; // world unit
         uint32 info_resolution = 512;
+        uint32 ripple_resolution = 256;
+        float ripple_speed = 4.0f; // world unit per second
+        float ripple_radius = 1.5f; // world unit
 
 		uint32 tile_resolution = 16; // each tile is tessellated into (tile_resolution x tile_resolution) quads
         uint32 lod_levels = 6;

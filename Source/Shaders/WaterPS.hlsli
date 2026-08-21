@@ -65,12 +65,12 @@ float4 main(VertexOutput input) : SV_Target0
     if (zone.HasRipple())
     {
         Texture2D ripple_texture = bindless_textures[DescriptorIndex(zone.ripple_texture)];
-        const float texel_uv = 1.0f / (float)WATER_RIPPLE_RESOLUTION;
+        const float texel_uv = 1.0f / (float)zone.ripple_resolution;
         const float ripple_left = ripple_texture.SampleLevel(sampler_linear_clamp, zone_uv - float2(texel_uv, 0.0f), 0).r;
         const float ripple_right = ripple_texture.SampleLevel(sampler_linear_clamp, zone_uv + float2(texel_uv, 0.0f), 0).r;
         const float ripple_down = ripple_texture.SampleLevel(sampler_linear_clamp, zone_uv - float2(0.0f, texel_uv), 0).r;
         const float ripple_up = ripple_texture.SampleLevel(sampler_linear_clamp, zone_uv + float2(0.0f, texel_uv), 0).r;
-        const float2 ripple_gradient = float2(ripple_right - ripple_left, ripple_up - ripple_down) / (2.0f * WaterRippleTexelSize(zone.extent));
+        const float2 ripple_gradient = float2(ripple_right - ripple_left, ripple_up - ripple_down) / (2.0f * WaterRippleTexelSize(zone.extent, zone.ripple_resolution));
 
         gradient += water.ripple_strength * float2(
             dot(float3(ripple_gradient.x, 0.0f, ripple_gradient.y), tangent_x),

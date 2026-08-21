@@ -594,6 +594,7 @@ namespace won::rendering
                     shader_shadow_cascade.split_far = split_far;
                     shader_shadow_cascade.blend_band = light.shadow_cascade_blend;
                     shader_shadow_cascade.texel_world_size = texel_size;
+                    shader_shadow_cascade.depth_range = (std::max)(std::abs(near_z - far_z), 1.0f);
                     shadow_resources.shader_shadow_cascades.push_back(shader_shadow_cascade);
 
                     RenderShadowSlice render_shadow_slice = {};
