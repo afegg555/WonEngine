@@ -9,8 +9,6 @@
 
 #define WATER_RIPPLE_RESOLUTION 256
 #define WATER_RIPPLE_GROUP_SIZE 8
-#define WATER_SIMULATION_WINDOW_EXTENT 64.0f
-#define WATER_SIMULATION_TEXEL_SIZE (WATER_SIMULATION_WINDOW_EXTENT / (float)WATER_RIPPLE_RESOLUTION)
 #define WATER_INFO_NO_BODY -1.0f
 #define WATER_INFO_HEIGHT_RANGE 4096.0f
 #define WATER_TILE_NEIGHBOR_NEG_X 1
@@ -70,8 +68,8 @@ struct WaterPushConstants
 
 struct WaterRipplePushConstants
 {
-    int2 window_grid_min;
-    int2 window_grid_shift;
+    float2 zone_origin;
+    float2 zone_extent;
 
     uint height_current_descriptor;
     uint height_previous_descriptor;
@@ -82,8 +80,8 @@ struct WaterRipplePushConstants
 #ifdef __cplusplus
     inline void Init()
     {
-        window_grid_min = { 0, 0 };
-        window_grid_shift = { 0, 0 };
+        zone_origin = { 0.0f, 0.0f };
+        zone_extent = { 0.0f, 0.0f };
         height_current_descriptor = 0;
         height_previous_descriptor = 0;
         wetness_descriptor = 0;
@@ -95,6 +93,7 @@ struct WaterRipplePushConstants
 
 #ifdef __cplusplus
 static_assert(sizeof(WaterPushConstants) == 36, "WaterPushConstants layout mismatch");
+static_assert(sizeof(WaterRipplePushConstants) == 36, "WaterRipplePushConstants layout mismatch");
 #endif
 
 #endif

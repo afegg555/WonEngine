@@ -308,11 +308,6 @@ inline ShaderReflectionProbe GetReflectionProbe()
     return g_frame.reflection_probe;
 }
 
-inline ShaderWaterSimulation GetWaterSimulation()
-{
-    return g_frame.water_simulation;
-}
-
 inline ShaderView GetView()
 {
     return g_view;

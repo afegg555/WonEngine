@@ -137,17 +137,6 @@ namespace won::rendering
                 uint32 tile_count = 0;
             };
 
-            std::unique_ptr<RHIResource> ripple_texture[2];
-            RHISubresourceHandle ripple_srv[2] = {};
-            RHISubresourceHandle ripple_uav[2] = {};
-
-            std::unique_ptr<RHIResource> wetness_texture;
-            RHISubresourceHandle wetness_srv = {};
-            RHISubresourceHandle wetness_uav = {};
-
-            int2 window_texel_origin = { 0, 0 };
-            int2 window_texel_shift = { 0, 0 };
-
 			Vector<ShaderWaterTile> tiles; // flattened list of all water tiles for all zones
 			Vector<TileRange> zone_tile_ranges; // TileRange per water zone
             FrameGraphResourceRef tile_buffer = invalid_frame_resource;
@@ -192,7 +181,7 @@ namespace won::rendering
         void BuildShadowSlices();
         void BuildSortedIndices();
         void BuildForwardLightList();
-        void UpdateWaterSimulationWindow();
+
         void BuildWaterTiles();
         ecs::Entity ResolveCamera() const;
 

@@ -58,32 +58,9 @@ inline float2 WaterPlaneUnitCoord(in ShaderWaterBody water, float3 world_positio
                   dot(offset, water.axis_z) / max(water.half_extent_z, water_epsilon));
 }
 
-inline float2 WaterSimulationGrid(float3 world_position)
+inline float2 WaterRippleTexelSize(float2 zone_extent)
 {
-    return world_position.xz / WATER_SIMULATION_TEXEL_SIZE;
-}
-
-inline int2 WaterWrapTexel(int2 grid)
-{
-    return ((grid % WATER_RIPPLE_RESOLUTION) + WATER_RIPPLE_RESOLUTION) % WATER_RIPPLE_RESOLUTION;
-}
-
-inline float WaterSampleRippleGrid(Texture2D ripple_texture, float2 grid)
-{
-    const float2 base = floor(grid - 0.5f);
-    const float2 weight = grid - 0.5f - base;
-    const int2 corner = (int2)base;
-    const float h00 = ripple_texture.Load(int3(WaterWrapTexel(corner), 0)).r;
-    const float h10 = ripple_texture.Load(int3(WaterWrapTexel(corner + int2(1, 0)), 0)).r;
-    const float h01 = ripple_texture.Load(int3(WaterWrapTexel(corner + int2(0, 1)), 0)).r;
-    const float h11 = ripple_texture.Load(int3(WaterWrapTexel(corner + int2(1, 1)), 0)).r;
-    return lerp(lerp(h00, h10, weight.x), lerp(h01, h11, weight.x), weight.y);
-}
-
-inline bool WaterGridInWindow(in ShaderWaterSimulation simulation, int2 grid)
-{
-    const int2 local = grid - simulation.window_grid_min;
-    return all(local >= 0) && all(local < WATER_RIPPLE_RESOLUTION);
+    return max(zone_extent, water_epsilon) / (float)WATER_RIPPLE_RESOLUTION;
 }
 
 #endif

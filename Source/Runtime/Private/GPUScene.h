@@ -223,11 +223,32 @@ namespace won::rendering
         SkyLightingResources sky_lighting = {};
         ShaderDDGIVolume shader_ddgi_volume;
         ShaderReflectionProbe shader_reflection_probe;
-        Vector<ShaderWaterZone> shader_water_zones;
-        GPUBuffer water_zone_buffer;
-        Vector<ShaderWaterBody> shader_water_bodies;
-        GPUBuffer water_body_buffer;
-        Vector<ShaderWaterRipple> water_ripples;
+        struct WaterResources
+        {
+            struct ZoneSimulation
+            {
+                std::unique_ptr<RHIResource> height_texture[2];
+                RHISubresourceHandle height_srv[2] = {};
+                RHISubresourceHandle height_uav[2] = {};
+
+                std::unique_ptr<RHIResource> wetness_texture;
+                RHISubresourceHandle wetness_srv = {};
+                RHISubresourceHandle wetness_uav = {};
+            };
+
+            Vector<ShaderWaterZone> shader_zones;
+            GPUBuffer zone_buffer;            
+
+            Vector<ShaderWaterBody> shader_bodies;
+            GPUBuffer body_buffer;
+
+            Vector<ZoneSimulation> zone_simulations;
+
+            Vector<ShaderWaterRipple> injections;
+            uint64 simulated_index = ~0ull;
+        };
+
+        WaterResources water = {};
 
         ecs::Entity ddgi_volume_entity = ecs::INVALID_ENTITY;
         DDGIResources ddgi = {};

@@ -1063,15 +1063,15 @@ namespace won::rendering
             }
         }
 
-        void ExtractWater(ecs::Scene& scene, Vector<ShaderWaterZone>& shader_water_zones, Vector<ShaderWaterBody>& shader_water_bodies, Vector<ShaderWaterRipple>& water_ripples)
+        void ExtractWater(ecs::Scene& scene, Vector<ShaderWaterZone>& out_zones, Vector<ShaderWaterBody>& out_bodies, Vector<ShaderWaterRipple>& out_injections)
         {
-            shader_water_zones.clear();
-            shader_water_bodies.clear();
-            water_ripples.clear();
+            out_zones.clear();
+            out_bodies.clear();
+            out_injections.clear();
 
             for (const WaterRippleRequest& request : scene.GetWaterRippleQueue())
             {
-                if (water_ripples.size() >= water_ripple_max_injections)
+                if (out_injections.size() >= water_ripple_max_injections)
                 {
                     break;
                 }
@@ -1079,7 +1079,7 @@ namespace won::rendering
                 ripple.Init();
                 ripple.position = request.position;
                 ripple.strength = request.strength;
-                water_ripples.push_back(ripple);
+                out_injections.push_back(ripple);
             }
 
             const auto zone_array = scene.GetComponentArray<WaterZoneComponent>().get();
@@ -1118,7 +1118,7 @@ namespace won::rendering
                 shader_zone.tile_resolution = (std::max)(2u, zone.tile_resolution & ~1u);
                 shader_zone.lod_levels = zone.lod_levels;
                 shader_zone.lod_distance_scale = zone.lod_distance_scale;
-                shader_zone.first_body = static_cast<uint32>(shader_water_bodies.size());
+                shader_zone.first_body = static_cast<uint32>(out_bodies.size());
 
                 for (Size i = 0; i < body_array->GetSize(); ++i)
                 {
@@ -1173,15 +1173,15 @@ namespace won::rendering
                     shader_water.wave_velocity_primary = water.wave_velocity_primary;
                     shader_water.wave_velocity_secondary = water.wave_velocity_secondary;
                     shader_water.refraction_strength = water.refraction_strength;
-                    shader_water_bodies.push_back(shader_water);
+                    out_bodies.push_back(shader_water);
                 }
 
-                shader_zone.body_count = static_cast<uint32>(shader_water_bodies.size()) - shader_zone.first_body;
+                shader_zone.body_count = static_cast<uint32>(out_bodies.size()) - shader_zone.first_body;
                 if (shader_zone.body_count == 0)
                 {
                     continue;
                 }
-                shader_water_zones.push_back(shader_zone);
+                out_zones.push_back(shader_zone);
             }
         }
 
@@ -1452,7 +1452,7 @@ namespace won::rendering
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractText(scene, text_sprite_2d, text_sprite_3d, glyph_requests); });
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractParticles(scene, particle_instances, particle_sprite_3d); });
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractDecals(scene, shader_decals); });
-        jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractWater(scene, shader_water_zones, shader_water_bodies, water_ripples); });
+        jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractWater(scene, water.shader_zones, water.shader_bodies, water.injections); });
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractEnvironment(scene, shader_environment, shader_ddgi_volume, shader_reflection_probe, ddgi_volume_entity, derived_sun, has_derived_sun, direct_sun_shadow); });
         jobsystem::Wait(project_ctx);
         if (scene.GetWaterSimulation().pending_steps > 0)

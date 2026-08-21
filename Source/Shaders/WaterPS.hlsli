@@ -62,16 +62,15 @@ float4 main(VertexOutput input) : SV_Target0
     const float height_z = WaterHeightField(plane_position + float2(0.0f, gradient_step), water, time);
     float2 gradient = float2(height_x - height_center, height_z - height_center) / gradient_step;
 
-    ShaderWaterSimulation simulation = GetWaterSimulation();
-    const float2 ripple_grid = WaterSimulationGrid(input.world_position);
-    if (simulation.HasRipple() && WaterGridInWindow(simulation, (int2)floor(ripple_grid)))
+    if (zone.HasRipple())
     {
-        Texture2D ripple_texture = bindless_textures[DescriptorIndex(simulation.ripple_texture)];
-        const float ripple_left = WaterSampleRippleGrid(ripple_texture, ripple_grid - float2(1.0f, 0.0f));
-        const float ripple_right = WaterSampleRippleGrid(ripple_texture, ripple_grid + float2(1.0f, 0.0f));
-        const float ripple_down = WaterSampleRippleGrid(ripple_texture, ripple_grid - float2(0.0f, 1.0f));
-        const float ripple_up = WaterSampleRippleGrid(ripple_texture, ripple_grid + float2(0.0f, 1.0f));
-        const float2 ripple_gradient = float2(ripple_right - ripple_left, ripple_up - ripple_down) / (2.0f * WATER_SIMULATION_TEXEL_SIZE);
+        Texture2D ripple_texture = bindless_textures[DescriptorIndex(zone.ripple_texture)];
+        const float texel_uv = 1.0f / (float)WATER_RIPPLE_RESOLUTION;
+        const float ripple_left = ripple_texture.SampleLevel(sampler_linear_clamp, zone_uv - float2(texel_uv, 0.0f), 0).r;
+        const float ripple_right = ripple_texture.SampleLevel(sampler_linear_clamp, zone_uv + float2(texel_uv, 0.0f), 0).r;
+        const float ripple_down = ripple_texture.SampleLevel(sampler_linear_clamp, zone_uv - float2(0.0f, texel_uv), 0).r;
+        const float ripple_up = ripple_texture.SampleLevel(sampler_linear_clamp, zone_uv + float2(0.0f, texel_uv), 0).r;
+        const float2 ripple_gradient = float2(ripple_right - ripple_left, ripple_up - ripple_down) / (2.0f * WaterRippleTexelSize(zone.extent));
 
         gradient += water.ripple_strength * float2(
             dot(float3(ripple_gradient.x, 0.0f, ripple_gradient.y), tangent_x),

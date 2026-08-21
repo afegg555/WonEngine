@@ -191,7 +191,7 @@ namespace won::rendering
         if (scene->GetUpdateIndex() != update_index)
         {
             scene->SetUpdateIndex(update_index);
-            scene->GetWaterSimulation().pending_steps = 0;
+            //scene->GetWaterSimulation().pending_steps = 0;
             if (!simulation_paused)
             {
                 scene->Update(delta_time);
@@ -207,30 +207,7 @@ namespace won::rendering
             BuildForwardLightList();
         }
 
-        UpdateWaterSimulationWindow();
         BuildWaterTiles();
-    }
-
-    void View::UpdateWaterSimulationWindow()
-    {
-        if (scene->GetWaterSimulation().pending_steps == 0)
-        {
-            return;
-        }
-
-        const ecs::CameraComponent* camera = scene->GetComponent<ecs::CameraComponent>(camera_entity);
-        if (!camera)
-        {
-            return;
-        }
-
-        WaterResources& water = water_resources;
-        const float texel_size = WATER_SIMULATION_WINDOW_EXTENT / static_cast<float>(WATER_RIPPLE_RESOLUTION);
-        const int32 texel_x = static_cast<int32>(std::floor(camera->eye.x / texel_size));
-        const int32 texel_z = static_cast<int32>(std::floor(camera->eye.z / texel_size));
-
-        water.window_texel_shift = { texel_x - water.window_texel_origin.x, texel_z - water.window_texel_origin.y };
-        water.window_texel_origin = { texel_x, texel_z };
     }
 
     namespace
@@ -282,7 +259,7 @@ namespace won::rendering
         water_resources.zone_tile_ranges.clear();
 
         const rendering::GPUScene& gpu_scene = scene->GetGPUScene();
-        if (gpu_scene.shader_water_zones.empty())
+        if (gpu_scene.water.shader_zones.empty())
         {
             return;
         }
@@ -293,10 +270,10 @@ namespace won::rendering
             return;
         }
 
-        water_resources.zone_tile_ranges.resize(gpu_scene.shader_water_zones.size());
-        for (Size zone_index = 0; zone_index < gpu_scene.shader_water_zones.size(); ++zone_index)
+        water_resources.zone_tile_ranges.resize(gpu_scene.water.shader_zones.size());
+        for (Size zone_index = 0; zone_index < gpu_scene.water.shader_zones.size(); ++zone_index)
         {
-            const ShaderWaterZone& zone = gpu_scene.shader_water_zones[zone_index];
+            const ShaderWaterZone& zone = gpu_scene.water.shader_zones[zone_index];
             WaterResources::TileRange& tile_range = water_resources.zone_tile_ranges[zone_index];
             tile_range.first_tile = static_cast<uint32>(water_resources.tiles.size());
             tile_range.tile_count = 0;
@@ -311,11 +288,11 @@ namespace won::rendering
             float height_max = 0.0f;
             if (zone.body_count > 0)
             {
-                height_min = gpu_scene.shader_water_bodies[zone.first_body].plane_origin.y;
+                height_min = gpu_scene.water.shader_bodies[zone.first_body].plane_origin.y;
                 height_max = height_min;
                 for (uint32 body = 1; body < zone.body_count; ++body)
                 {
-                    const float body_height = gpu_scene.shader_water_bodies[zone.first_body + body].plane_origin.y;
+                    const float body_height = gpu_scene.water.shader_bodies[zone.first_body + body].plane_origin.y;
                     height_min = (std::min)(height_min, body_height);
                     height_max = (std::max)(height_max, body_height);
                 }
@@ -365,7 +342,7 @@ namespace won::rendering
                 bool covers_water = false;
                 for (uint32 body = 0; body < zone.body_count; ++body)
                 {
-                    const ShaderWaterBody& water = gpu_scene.shader_water_bodies[zone.first_body + body];
+                    const ShaderWaterBody& water = gpu_scene.water.shader_bodies[zone.first_body + body];
                     const float reach_x = std::abs(water.axis_x.x) * water.half_extent_x + std::abs(water.axis_z.x) * water.half_extent_z;
                     const float reach_z = std::abs(water.axis_x.z) * water.half_extent_x + std::abs(water.axis_z.z) * water.half_extent_z;
                     covers_water = std::abs(water.plane_origin.x - tile.center.x) <= reach_x + tile.half_size

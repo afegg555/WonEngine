@@ -195,20 +195,6 @@ namespace won::rendering
             shader_frame.environment.specular_mip_count = has_specular ? static_cast<float>(sky_specular_mip_count) : 0.0f;
         }
         shader_frame.reflection_probe = gpu_scene.shader_reflection_probe;
-        const View::WaterResources& water_resources = view.water_resources;
-        const uint64 water_step_count = view.scene->GetWaterSimulation().step_count;
-        const uint32 ripple_result_index = static_cast<uint32>(water_step_count % 2ull);
-        shader_frame.water_simulation.Init();
-        shader_frame.water_simulation.window_grid_min = {
-            water_resources.window_texel_origin.x - WATER_RIPPLE_RESOLUTION / 2,
-            water_resources.window_texel_origin.y - WATER_RIPPLE_RESOLUTION / 2
-        };
-        shader_frame.water_simulation.ripple_texture = water_resources.ripple_texture[ripple_result_index]
-            ? water_resources.ripple_srv[ripple_result_index].descriptor_index
-            : -1;
-        shader_frame.water_simulation.wetness_texture = water_resources.wetness_texture
-            ? water_resources.wetness_srv.descriptor_index
-            : -1;
         shader_frame.ddgi_volume = gpu_scene.shader_ddgi_volume;
         shader_frame.ddgi_volume.irradiance_texture = gpu_scene.ddgi.irradiance_texture_srv.descriptor_index;
         shader_frame.ddgi_volume.irradiance_texture_uav = gpu_scene.ddgi.irradiance_texture_uav.descriptor_index;
@@ -323,10 +309,94 @@ namespace won::rendering
     static won::console::ConsoleVariable r_upload_budget("r.upload_budget", 8, "max queued resource uploads per frame, 0 = unlimited", won::console::ConsoleVariableFlagNone);
     static won::console::ConsoleVariable r_cluster_depth_slices("r.cluster.depth_slices", 32, "Forward+ cluster depth slices (1 = 2D tiled)", won::console::ConsoleVariableFlagArchive);
 
-    // the frame context never leaves the renderer, so retiring stays in one place for both paths
-    bool RendererInternal::UploadSceneData(FrameContext& frame_context, GPUScene& gpu_scene)
+    bool RendererInternal::UploadSceneData(FrameContext& frame_context, ecs::Scene& scene, GPUScene& gpu_scene)
     {
-        auto upload_cpu_range = profiler::ScopedRangeCPU("Upload GPU Data");
+        auto upload_cpu_range = profiler::ScopedRangeCPU("Upload GPU Scene Data");
+
+        {
+            GPUScene::WaterResources& water = gpu_scene.water;
+            // !! remove any extra zone simulations that are no longer needed
+			for (Size i = water.shader_zones.size(); i < water.zone_simulations.size(); ++i) 
+            {
+                GPUScene::WaterResources::ZoneSimulation& simulation = water.zone_simulations[i];
+                frame_context.RemoveResourceDeferred(std::move(simulation.height_texture[0]));
+                frame_context.RemoveResourceDeferred(std::move(simulation.height_texture[1]));
+                frame_context.RemoveResourceDeferred(std::move(simulation.wetness_texture));
+            }
+            water.zone_simulations.resize(water.shader_zones.size());
+
+            RHITextureDesc texture_desc = {};
+            texture_desc.width = WATER_RIPPLE_RESOLUTION;
+            texture_desc.height = WATER_RIPPLE_RESOLUTION;
+            texture_desc.depth = 1;
+            texture_desc.mip_levels = 1;
+            texture_desc.array_layers = 1;
+            texture_desc.sample_count = 1;
+            texture_desc.format = RHIFormat::R32Float;
+            texture_desc.usage = RHIResourceUsage::Default;
+            texture_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
+
+            RHISubresourceDesc srv_desc = {};
+            srv_desc.type = RHISubresourceType::ShaderResource;
+            srv_desc.format = texture_desc.format;
+            RHISubresourceDesc uav_desc = srv_desc;
+            uav_desc.type = RHISubresourceType::UnorderedAccess;
+
+            static const Vector<float> zero_texels(WATER_RIPPLE_RESOLUTION * WATER_RIPPLE_RESOLUTION, 0.0f);
+            static const char* height_names[2] = { "Water Zone Height 0", "Water Zone Height 1" };
+            const Size zero_size = zero_texels.size() * sizeof(float);
+            const uint32 result_index = static_cast<uint32>(scene.GetWaterSimulation().step_count % 2ull);
+
+            for (Size zone_index = 0; zone_index < water.zone_simulations.size(); ++zone_index)
+            {
+                GPUScene::WaterResources::ZoneSimulation& simulation = water.zone_simulations[zone_index];
+                for (uint32 i = 0; i < 2; ++i)
+                {
+                    if (simulation.height_texture[i])
+                    {
+                        continue;
+                    }
+                    simulation.height_texture[i] = device->CreateTexture(texture_desc, zero_texels.data(), zero_size);
+                    if (!simulation.height_texture[i])
+                    {
+                        backlog::Post("failed to create water zone height texture", backlog::LogLevel::Error);
+                        return false;
+                    }
+                    simulation.height_texture[i]->SetName(height_names[i]);
+
+                    if (!device->CreateSubresource(*simulation.height_texture[i], srv_desc, &simulation.height_srv[i])
+                        || !device->CreateSubresource(*simulation.height_texture[i], uav_desc, &simulation.height_uav[i]))
+                    {
+                        backlog::Post("failed to create water zone height subresource", backlog::LogLevel::Error);
+                        simulation.height_texture[i] = nullptr;
+                        return false;
+                    }
+                }
+
+                if (!simulation.wetness_texture)
+                {
+                    simulation.wetness_texture = device->CreateTexture(texture_desc, zero_texels.data(), zero_size);
+                    if (!simulation.wetness_texture)
+                    {
+                        backlog::Post("failed to create water zone wetness texture", backlog::LogLevel::Error);
+                        return false;
+                    }
+                    simulation.wetness_texture->SetName("Water Zone Wetness");
+
+                    if (!device->CreateSubresource(*simulation.wetness_texture, srv_desc, &simulation.wetness_srv)
+                        || !device->CreateSubresource(*simulation.wetness_texture, uav_desc, &simulation.wetness_uav))
+                    {
+                        backlog::Post("failed to create water zone wetness subresource", backlog::LogLevel::Error);
+                        simulation.wetness_texture = nullptr;
+                        return false;
+                    }
+                }
+
+                ShaderWaterZone& zone = water.shader_zones[zone_index];
+                zone.ripple_texture = static_cast<int32>(simulation.height_srv[result_index].descriptor_index);
+                zone.wetness_texture = static_cast<int32>(simulation.wetness_srv.descriptor_index);
+            }
+        }
 
         // upload the scene buffers
         UploadBuffer(gpu_scene.light_buffer, "Scene Light Buffer", frame_context, gpu_scene.shader_lights.data(), gpu_scene.shader_lights.size() * sizeof(ShaderLight), sizeof(ShaderLight), *device, frame_graph);
@@ -336,8 +406,8 @@ namespace won::rendering
         UploadBuffer(gpu_scene.instance_buffer, "Scene Instance Buffer", frame_context, gpu_scene.shader_instances.data(), gpu_scene.shader_instances.size() * sizeof(ShaderInstance), sizeof(ShaderInstance), *device, frame_graph);
         UploadBuffer(gpu_scene.particle_buffer, "Scene Particle Buffer", frame_context, gpu_scene.particle_instances.data(), gpu_scene.particle_instances.size() * sizeof(float4), sizeof(float4), *device, frame_graph);
         UploadBuffer(gpu_scene.decal_buffer, "Scene Decal Buffer", frame_context, gpu_scene.shader_decals.data(), gpu_scene.shader_decals.size() * sizeof(ShaderDecal), sizeof(ShaderDecal), *device, frame_graph);
-        UploadBuffer(gpu_scene.water_body_buffer, "Scene Water Body Buffer", frame_context, gpu_scene.shader_water_bodies.data(), gpu_scene.shader_water_bodies.size() * sizeof(ShaderWaterBody), sizeof(ShaderWaterBody), *device, frame_graph);
-        UploadBuffer(gpu_scene.water_zone_buffer, "Scene Water Zone Buffer", frame_context, gpu_scene.shader_water_zones.data(), gpu_scene.shader_water_zones.size() * sizeof(ShaderWaterZone), sizeof(ShaderWaterZone), *device, frame_graph);
+        UploadBuffer(gpu_scene.water.body_buffer, "Scene Water Body Buffer", frame_context, gpu_scene.water.shader_bodies.data(), gpu_scene.water.shader_bodies.size() * sizeof(ShaderWaterBody), sizeof(ShaderWaterBody), *device, frame_graph);
+        UploadBuffer(gpu_scene.water.zone_buffer, "Scene Water Zone Buffer", frame_context, gpu_scene.water.shader_zones.data(), gpu_scene.water.shader_zones.size() * sizeof(ShaderWaterZone), sizeof(ShaderWaterZone), *device, frame_graph);
         UploadBuffer(gpu_scene.bvh_node_buffer, "Scene BVH Node Buffer", frame_context, gpu_scene.shader_bvh_nodes.data(), gpu_scene.shader_bvh_nodes.size() * sizeof(ShaderBVHNode), sizeof(ShaderBVHNode), *device, frame_graph);
         UploadBuffer(gpu_scene.bvh_instance_buffer, "Scene BVH Instance Buffer", frame_context, gpu_scene.shader_bvh_instances.data(), gpu_scene.shader_bvh_instances.size() * sizeof(ShaderBVHInstance), sizeof(ShaderBVHInstance), *device, frame_graph);
 
@@ -774,88 +844,6 @@ namespace won::rendering
         if (!view.scene || view.camera_entity == INVALID_ENTITY)
         {
             return false;
-        }
-
-        View::WaterResources& water_resources = view.water_resources;
-        const bool use_water = !view.scene->GetGPUScene().shader_water_bodies.empty();
-        const bool has_water_resources = water_resources.ripple_texture[0] != nullptr;
-        if (!use_water && has_water_resources)
-        {
-            for (uint32 i = 0; i < 2; ++i)
-            {
-                frame_context.RemoveResourceDeferred(std::move(water_resources.ripple_texture[i]));
-                water_resources.ripple_srv[i] = {};
-                water_resources.ripple_uav[i] = {};
-            }
-            frame_context.RemoveResourceDeferred(std::move(water_resources.wetness_texture));
-            water_resources.wetness_srv = {};
-            water_resources.wetness_uav = {};
-            water_resources.window_texel_shift = { 0, 0 };
-        }
-        else if (use_water && !has_water_resources)
-        {
-            RHITextureDesc simulation_desc = {};
-            simulation_desc.width = WATER_RIPPLE_RESOLUTION;
-            simulation_desc.height = WATER_RIPPLE_RESOLUTION;
-            simulation_desc.depth = 1;
-            simulation_desc.mip_levels = 1;
-            simulation_desc.array_layers = 1;
-            simulation_desc.sample_count = 1;
-            simulation_desc.format = RHIFormat::R32Float;
-            simulation_desc.usage = RHIResourceUsage::Default;
-            simulation_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
-
-            RHISubresourceDesc simulation_srv_desc = {};
-            simulation_srv_desc.type = RHISubresourceType::ShaderResource;
-            simulation_srv_desc.format = simulation_desc.format;
-            RHISubresourceDesc simulation_uav_desc = simulation_srv_desc;
-            simulation_uav_desc.type = RHISubresourceType::UnorderedAccess;
-
-            static const char* ripple_texture_names[2] = {
-                "Water Ripple Texture 0", "Water Ripple Texture 1"
-            };
-
-            bool created = true;
-            for (uint32 i = 0; i < 2 && created; ++i)
-            {
-                std::unique_ptr<RHIResource>& texture = water_resources.ripple_texture[i];
-                texture = device->CreateTexture(simulation_desc);
-                created = texture
-                    && device->CreateSubresource(*texture, simulation_srv_desc, &water_resources.ripple_srv[i])
-                    && device->CreateSubresource(*texture, simulation_uav_desc, &water_resources.ripple_uav[i]);
-                if (created)
-                {
-                    texture->SetName(ripple_texture_names[i]);
-                }
-            }
-            if (created)
-            {
-                water_resources.wetness_texture = device->CreateTexture(simulation_desc);
-                created = water_resources.wetness_texture
-                    && device->CreateSubresource(*water_resources.wetness_texture, simulation_srv_desc, &water_resources.wetness_srv)
-                    && device->CreateSubresource(*water_resources.wetness_texture, simulation_uav_desc, &water_resources.wetness_uav);
-                if (created)
-                {
-                    water_resources.wetness_texture->SetName("Water Wetness Texture");
-                }
-            }
-
-            if (created)
-            {
-            }
-            else
-            {
-                backlog::Post("failed to create water simulation textures", backlog::LogLevel::Error);
-                for (uint32 i = 0; i < 2; ++i)
-                {
-                    water_resources.ripple_texture[i] = nullptr;
-                    water_resources.ripple_srv[i] = {};
-                    water_resources.ripple_uav[i] = {};
-                }
-                water_resources.wetness_texture = nullptr;
-                water_resources.wetness_srv = {};
-                water_resources.wetness_uav = {};
-            }
         }
 
         View::RenderTargets& targets = view.render_targets;
@@ -2344,7 +2332,7 @@ namespace won::rendering
 
         if (scene.GetUpdateIndex() != gpu_scene.synced_index)
         {
-            UploadSceneData(frame_context, gpu_scene);
+            UploadSceneData(frame_context, scene, gpu_scene);
             gpu_scene.synced_index = scene.GetUpdateIndex();
         }
 
@@ -2515,101 +2503,114 @@ namespace won::rendering
             });
         }
 
-        View::WaterResources& water_resources = view.water_resources;
-        const ecs::Scene::WaterSimulationState& water_simulation = view.scene->GetWaterSimulation();
+        const ecs::Scene::WaterSimulationState& water_simulation = scene.GetWaterSimulation();
         if (water_simulation.pending_steps > 0
-            && water_resources.ripple_texture[0]
-            && water_resources.ripple_texture[1]
-            && water_resources.wetness_texture)
+            && !gpu_scene.water.zone_simulations.empty()
+            && gpu_scene.water.simulated_index != scene.GetUpdateIndex())
         {
             if (RHIPipeline* ripple_pipeline = shader_library.GetPipeline(ComputePipelineHash(ShaderId::CSWaterRipple)))
             {
                 const uint32 step_count = water_simulation.pending_steps;
                 const uint64 first_step_index = water_simulation.step_count - step_count;
-                const int2 window_grid_min = {
-                    water_resources.window_texel_origin.x - WATER_RIPPLE_RESOLUTION / 2,
-                    water_resources.window_texel_origin.y - WATER_RIPPLE_RESOLUTION / 2
-                };
-                const int2 window_grid_shift = water_resources.window_texel_shift;
 
                 Vector<FrameResourceAccess> ripple_accesses;
-                for (uint32 i = 0; i < 2; ++i)
+                for (const GPUScene::WaterResources::ZoneSimulation& zone_simulation : gpu_scene.water.zone_simulations)
                 {
-                    const FrameResourceId ripple_id = frame_graph.Import(*water_resources.ripple_texture[i]);
-                    frame_graph.MarkNoCull(ripple_id);
-                    ripple_accesses.push_back({ ripple_id, RHIResourceState::Undefined, FrameResourceAccess::Type::ReadWrite });
-                }
-                const FrameResourceId wetness_id = frame_graph.Import(*water_resources.wetness_texture);
-                frame_graph.MarkNoCull(wetness_id);
-                ripple_accesses.push_back({ wetness_id, RHIResourceState::Undefined, FrameResourceAccess::Type::ReadWrite });
-
-                const uint32 injection_count = (std::min)(static_cast<uint32>(gpu_scene.water_ripples.size()),
-                    static_cast<uint32>(water_ripple_max_injections));
-                FrameResourceId injection_id = invalid_frame_resource;
-                RHISubresourceHandle injection_srv = {};
-                if (injection_count > 0)
-                {
-                    RHIBufferDesc injection_desc = {};
-                    injection_desc.size = sizeof(ShaderWaterRipple) * injection_count;
-                    injection_desc.usage = RHIResourceUsage::Default;
-                    injection_desc.bind_flags = RHIBindFlags::ShaderResource;
-                    injection_id = frame_graph.CreateBuffer(view.viewer_index, "Water Ripple Injections", injection_desc);
-
-                    RHISubresourceDesc injection_srv_desc = {};
-                    injection_srv_desc.type = RHISubresourceType::ShaderResource;
-                    injection_srv_desc.buffer_offset = 0;
-                    injection_srv_desc.buffer_size = injection_desc.size;
-                    injection_srv_desc.buffer_stride = sizeof(ShaderWaterRipple);
-                    injection_srv = frame_graph.CreateSubresource(injection_id, injection_srv_desc);
-                    frame_graph.QueueBufferUpload(injection_id, gpu_scene.water_ripples.data(), injection_desc.size);
-
-                    ripple_accesses.push_back({ injection_id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read });
-                }
-
-                frame_graph.AddPass("Water Ripple", std::move(ripple_accesses),
-                    [water = &view.water_resources, ripple_pipeline, step_count, first_step_index,
-                     window_grid_min, window_grid_shift, injection_count, injection_srv](const FrameGraphPassContext& pass_context)
-                {
-                    auto gpu_range = profiler::ScopedRangeGPU("Water Ripple", (*pass_context.command_list));
-                    RHICommandList* command_list = pass_context.command_list;
-
+                    if (!zone_simulation.height_texture[0] || !zone_simulation.height_texture[1] || !zone_simulation.wetness_texture)
+                    {
+                        continue;
+                    }
                     for (uint32 i = 0; i < 2; ++i)
                     {
-                        command_list->TransitionResource(*water->ripple_texture[i], RHIResourceState::Undefined, RHIResourceState::ShaderWrite);
+                        const FrameResourceId height_id = frame_graph.Import(*zone_simulation.height_texture[i]);
+                        frame_graph.MarkNoCull(height_id);
+                        ripple_accesses.push_back({ height_id, RHIResourceState::Undefined, FrameResourceAccess::Type::ReadWrite });
                     }
-                    command_list->TransitionResource(*water->wetness_texture, RHIResourceState::Undefined, RHIResourceState::ShaderWrite);
+                    const FrameResourceId wetness_id = frame_graph.Import(*zone_simulation.wetness_texture);
+                    frame_graph.MarkNoCull(wetness_id);
+                    ripple_accesses.push_back({ wetness_id, RHIResourceState::Undefined, FrameResourceAccess::Type::ReadWrite });
+                }
 
-                    command_list->SetComputePipeline(*ripple_pipeline);
-
-                    const uint32 group_count = (WATER_RIPPLE_RESOLUTION + WATER_RIPPLE_GROUP_SIZE - 1) / WATER_RIPPLE_GROUP_SIZE;
-                    for (uint32 step = 0; step < step_count; ++step)
+                if (!ripple_accesses.empty())
+                {
+                    const uint32 injection_count = (std::min)(static_cast<uint32>(gpu_scene.water.injections.size()),
+                        static_cast<uint32>(water_ripple_max_injections));
+                    FrameResourceId injection_id = invalid_frame_resource;
+                    RHISubresourceHandle injection_srv = {};
+                    if (injection_count > 0)
                     {
-                        const uint64 step_index = first_step_index + step;
-                        const uint32 height_previous = static_cast<uint32>(step_index % 2ull);
-                        const uint32 height_current = static_cast<uint32>((step_index + 1ull) % 2ull);
+                        RHIBufferDesc injection_desc = {};
+                        injection_desc.size = sizeof(ShaderWaterRipple) * injection_count;
+                        injection_desc.usage = RHIResourceUsage::Default;
+                        injection_desc.bind_flags = RHIBindFlags::ShaderResource;
+                        injection_id = frame_graph.CreateBuffer(view.viewer_index, "Water Ripple Injections", injection_desc);
 
-                        WaterRipplePushConstants ripple_push = {};
-                        ripple_push.Init();
-                        ripple_push.window_grid_min = window_grid_min;
-                        ripple_push.window_grid_shift = step == 0 ? window_grid_shift : int2(0, 0);
-                        ripple_push.height_current_descriptor = static_cast<uint32>(water->ripple_uav[height_current].descriptor_index);
-                        ripple_push.height_previous_descriptor = static_cast<uint32>(water->ripple_uav[height_previous].descriptor_index);
-                        ripple_push.wetness_descriptor = static_cast<uint32>(water->wetness_uav.descriptor_index);
-                        ripple_push.injection_descriptor = injection_count > 0 ? static_cast<uint32>(injection_srv.descriptor_index) : 0u;
-                        ripple_push.injection_count = step == 0 ? injection_count : 0u;
-                        command_list->PushConstants(RHIShaderStage::Compute, &ripple_push, sizeof(WaterRipplePushConstants), 0);
+                        RHISubresourceDesc injection_srv_desc = {};
+                        injection_srv_desc.type = RHISubresourceType::ShaderResource;
+                        injection_srv_desc.buffer_offset = 0;
+                        injection_srv_desc.buffer_size = injection_desc.size;
+                        injection_srv_desc.buffer_stride = sizeof(ShaderWaterRipple);
+                        injection_srv = frame_graph.CreateSubresource(injection_id, injection_srv_desc);
+                        frame_graph.QueueBufferUpload(injection_id, gpu_scene.water.injections.data(), injection_desc.size);
 
-                        command_list->Dispatch(group_count, group_count, 1);
-                        command_list->UAVBarrier(*water->ripple_texture[height_current]);
-                        command_list->UAVBarrier(*water->wetness_texture);
+                        ripple_accesses.push_back({ injection_id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read });
                     }
 
-                    command_list->TransitionResource(*water->wetness_texture, RHIResourceState::ShaderWrite, RHIResourceState::Undefined);
-                    for (uint32 i = 0; i < 2; ++i)
+                    gpu_scene.water.simulated_index = scene.GetUpdateIndex();
+                    frame_graph.AddPass("Water Ripple", std::move(ripple_accesses),
+                        [&gpu_scene, ripple_pipeline, step_count, first_step_index,
+                         injection_count, injection_srv](const FrameGraphPassContext& pass_context)
                     {
-                        command_list->TransitionResource(*water->ripple_texture[i], RHIResourceState::ShaderWrite, RHIResourceState::Undefined);
-                    }
-                });
+                        auto gpu_range = profiler::ScopedRangeGPU("Water Ripple", (*pass_context.command_list));
+                        RHICommandList* command_list = pass_context.command_list;
+                        command_list->SetComputePipeline(*ripple_pipeline);
+
+                        const uint32 group_count = (WATER_RIPPLE_RESOLUTION + WATER_RIPPLE_GROUP_SIZE - 1) / WATER_RIPPLE_GROUP_SIZE;
+                        for (Size zone_index = 0; zone_index < gpu_scene.water.zone_simulations.size(); ++zone_index)
+                        {
+                            const GPUScene::WaterResources::ZoneSimulation& zone_simulation = gpu_scene.water.zone_simulations[zone_index];
+                            if (!zone_simulation.height_texture[0] || !zone_simulation.height_texture[1] || !zone_simulation.wetness_texture)
+                            {
+                                continue;
+                            }
+                            const ShaderWaterZone& zone = gpu_scene.water.shader_zones[zone_index];
+
+                            for (uint32 i = 0; i < 2; ++i)
+                            {
+                                command_list->TransitionResource(*zone_simulation.height_texture[i], RHIResourceState::Undefined, RHIResourceState::ShaderWrite);
+                            }
+                            command_list->TransitionResource(*zone_simulation.wetness_texture, RHIResourceState::Undefined, RHIResourceState::ShaderWrite);
+
+                            for (uint32 step = 0; step < step_count; ++step)
+                            {
+                                const uint64 step_index = first_step_index + step;
+                                const uint32 height_previous = static_cast<uint32>(step_index % 2ull);
+                                const uint32 height_current = static_cast<uint32>((step_index + 1ull) % 2ull);
+
+                                WaterRipplePushConstants ripple_push = {};
+                                ripple_push.Init();
+                                ripple_push.zone_origin = zone.origin;
+                                ripple_push.zone_extent = zone.extent;
+                                ripple_push.height_current_descriptor = static_cast<uint32>(zone_simulation.height_uav[height_current].descriptor_index);
+                                ripple_push.height_previous_descriptor = static_cast<uint32>(zone_simulation.height_uav[height_previous].descriptor_index);
+                                ripple_push.wetness_descriptor = static_cast<uint32>(zone_simulation.wetness_uav.descriptor_index);
+                                ripple_push.injection_descriptor = injection_count > 0 ? static_cast<uint32>(injection_srv.descriptor_index) : 0u;
+                                ripple_push.injection_count = step == 0 ? injection_count : 0u;
+                                command_list->PushConstants(RHIShaderStage::Compute, &ripple_push, sizeof(WaterRipplePushConstants), 0);
+
+                                command_list->Dispatch(group_count, group_count, 1);
+                                command_list->UAVBarrier(*zone_simulation.height_texture[height_current]);
+                                command_list->UAVBarrier(*zone_simulation.wetness_texture);
+                            }
+
+                            command_list->TransitionResource(*zone_simulation.wetness_texture, RHIResourceState::ShaderWrite, RHIResourceState::Undefined);
+                            for (uint32 i = 0; i < 2; ++i)
+                            {
+                                command_list->TransitionResource(*zone_simulation.height_texture[i], RHIResourceState::ShaderWrite, RHIResourceState::Undefined);
+                            }
+                        }
+                    });
+                }
             }
         }
         return true;
@@ -3133,10 +3134,10 @@ namespace won::rendering
         }
 
         const bool water_pass_active = (view.show_flags & Show_Water) != 0
-            && !gpu_scene.shader_water_zones.empty()
+            && !gpu_scene.water.shader_zones.empty()
             && !view.water_resources.tiles.empty()
-            && gpu_scene.water_body_buffer.srv.IsValid()
-            && gpu_scene.water_zone_buffer.srv.IsValid()
+            && gpu_scene.water.body_buffer.srv.IsValid()
+            && gpu_scene.water.zone_buffer.srv.IsValid()
             && view.render_targets.depth_srv.IsValid()
             && view.render_targets.depth_readonly_dsv.IsValid();
 
@@ -3217,8 +3218,8 @@ namespace won::rendering
                     water_pass_accesses.push_back({ view.light_resources.forward_index_buffer, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read });
                 }
 
-                const uint32 water_body_buffer_descriptor = static_cast<uint32>(gpu_scene.water_body_buffer.srv.descriptor_index);
-                const uint32 water_zone_buffer_descriptor = static_cast<uint32>(gpu_scene.water_zone_buffer.srv.descriptor_index);
+                const uint32 water_body_buffer_descriptor = static_cast<uint32>(gpu_scene.water.body_buffer.srv.descriptor_index);
+                const uint32 water_zone_buffer_descriptor = static_cast<uint32>(gpu_scene.water.zone_buffer.srv.descriptor_index);
 
                 GraphicsPipelineHash water_info_pipeline_hash = {};
                 water_info_pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::WaterInfoPass);
@@ -3229,12 +3230,12 @@ namespace won::rendering
                 water_info_pipeline_hash.storage.bits.blend_mode = static_cast<uint64>(resource::MaterialBlendMode::Opaque);
                 RHIPipeline* water_info_pipeline = shader_library.GetPipeline(water_info_pipeline_hash);
 
-                Vector<uint32> zone_info_descriptors(gpu_scene.shader_water_zones.size(), 0u);
+                Vector<uint32> zone_info_descriptors(gpu_scene.water.shader_zones.size(), 0u);
                 if (water_info_pipeline)
                 {
-                    for (uint32 zone_index = 0; zone_index < static_cast<uint32>(gpu_scene.shader_water_zones.size()); ++zone_index)
+                    for (uint32 zone_index = 0; zone_index < static_cast<uint32>(gpu_scene.water.shader_zones.size()); ++zone_index)
                     {
-                        const ShaderWaterZone& zone = gpu_scene.shader_water_zones[zone_index];
+                        const ShaderWaterZone& zone = gpu_scene.water.shader_zones[zone_index];
                         const uint32 info_resolution = (std::max)(64u, zone.info_resolution);
 
                         RHITextureDesc info_desc = {};
@@ -3360,14 +3361,14 @@ namespace won::rendering
                     water_push.body_buffer_descriptor = water_body_buffer_descriptor;
                     water_push.zone_buffer_descriptor = water_zone_buffer_descriptor;
                     water_push.tile_buffer_descriptor = static_cast<uint32>(view.water_resources.tile_srv.descriptor_index);
-                    for (uint32 zone_index = 0; zone_index < static_cast<uint32>(gpu_scene.shader_water_zones.size()); ++zone_index)
+                    for (uint32 zone_index = 0; zone_index < static_cast<uint32>(gpu_scene.water.shader_zones.size()); ++zone_index)
                     {
                         const View::WaterResources::TileRange& tile_range = view.water_resources.zone_tile_ranges[zone_index];
                         if (zone_info_descriptors[zone_index] == 0 || tile_range.tile_count == 0)
                         {
                             continue;
                         }
-                        const ShaderWaterZone& zone = gpu_scene.shader_water_zones[zone_index];
+                        const ShaderWaterZone& zone = gpu_scene.water.shader_zones[zone_index];
                         const uint32 tile_resolution = zone.tile_resolution;
                         water_push.zone_index = zone_index;
                         water_push.info_texture_descriptor = zone_info_descriptors[zone_index];
