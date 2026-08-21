@@ -1034,7 +1034,7 @@ struct alignas(16) ShaderShadowCascade
     float split_far;
     float blend_band;
     float texel_world_size;
-    float padding;
+    float depth_range;
 
 #ifdef __cplusplus
     inline void Init()
@@ -1045,6 +1045,7 @@ struct alignas(16) ShaderShadowCascade
         split_far = 0.0f;
         blend_band = 0.0f;
         texel_world_size = 0.0f;
+        depth_range = 1.0f;
     }
 #endif
 };

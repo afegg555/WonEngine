@@ -170,7 +170,10 @@ inline float SampleDirectionalShadowCascade(in ShaderShadowCascade cascade, in f
     const float shadow_n_dot_l = max((float)NoL, 0.0001f);
     const float shadow_sin_theta = sqrt(saturate(1.0f - shadow_n_dot_l * shadow_n_dot_l));
     const float shadow_tan_theta = min(shadow_sin_theta / shadow_n_dot_l, 10.0f);
-    world_position += (float3) N * cascade.texel_world_size * 2.0f * shadow_sin_theta;
+
+    const float normal_bias_factor = 1.0f + shadow_sin_theta * 1.5f;
+    world_position += (float3) N * (cascade.texel_world_size * normal_bias_factor);
+
     float4 shadow_pos = mul(cascade.shadow_view_projection, float4(world_position, 1.0f));
     float3 shadow_ndc = shadow_pos.xyz / shadow_pos.w;
     float2 shadow_uv = shadow_ndc.xy * float2(0.5f, -0.5f) + 0.5f;
@@ -189,7 +192,11 @@ inline float SampleDirectionalShadowCascade(in ShaderShadowCascade cascade, in f
     float2 atlas_texel = 1.0f / float2(atlas_width, atlas_height);
     float2 atlas_uv_min = cascade.shadow_atlas_scale_bias.zw;
     float2 atlas_uv_max = cascade.shadow_atlas_scale_bias.xy + cascade.shadow_atlas_scale_bias.zw;
-    float shadow_bias = clamp(0.0005f * shadow_tan_theta, 0.00005f, 0.005f);
+
+    const float depth_range = max(cascade.depth_range, 1.0f);
+    const float world_bias = cascade.texel_world_size * (0.05f + 0.2f * shadow_tan_theta);
+    const float shadow_bias = clamp(world_bias / depth_range, 0.00002f, 0.005f);
+
     float visibility = 0.0f;
     Texture2D shadow_map = bindless_textures[DescriptorIndex(GetView().shadow_atlas)];
     float2 filter_step = atlas_texel;
