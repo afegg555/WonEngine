@@ -31,7 +31,7 @@ namespace won::ecs
 		float2 wave_velocity_primary = { 0.1f, 0.1f }; // only for normal, not for geometry displacement
         float2 wave_velocity_secondary = { -0.011f, 0.017f }; // only for normal, not for geometry displacement
 
-        float refraction_strength = 0.3f;
+        float refraction_strength = 0.1f;
         float roughness = 0.06f;
         float reflectance = 0.354f; // this means 0.02 f0
         float ripple_strength = 1.0f;

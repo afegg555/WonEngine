@@ -3164,9 +3164,11 @@ namespace won::rendering
             && view.render_targets.depth_srv.IsValid()
             && view.render_targets.depth_readonly_dsv.IsValid();
 
+        const bool needs_scene_color_snapshot = water_pass_active;
+
         targets.scene_color_snapshot = invalid_frame_resource;
         targets.scene_color_snapshot_srv = {};
-        if (water_pass_active)
+        if (needs_scene_color_snapshot)
         {
             RHITextureDesc snapshot_desc = {};
             snapshot_desc.width = targets.width;
