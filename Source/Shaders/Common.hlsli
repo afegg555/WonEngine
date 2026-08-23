@@ -384,10 +384,25 @@ inline ShaderShadowCascade GetShadowCascade(uint cascade_index)
     return bindless_structured_shadow_cascade[DescriptorIndex(GetView().shadow_cascade_buffer)][cascade_index];
 }
 
+inline float2 ScreenUVToNDC(float2 screen_uv)
+{
+    return float2(screen_uv.x * 2.0f - 1.0f, 1.0f - screen_uv.y * 2.0f);
+}
+
+inline float3 NDCToWorld(float2 ndc, float device_depth)
+{
+    const float4 world = mul(GetCamera().inv_view_projection, float4(ndc, device_depth, 1.0f));
+    return world.xyz / max(abs(world.w), FLT_EPSILON);
+}
+
+inline float3 ScreenUVToWorld(float2 screen_uv, float device_depth)
+{
+    return NDCToWorld(ScreenUVToNDC(screen_uv), device_depth);
+}
+
 inline float3 UnprojectRay(float2 ndc)
 {
-    float4 h = mul(GetCamera().inv_view_projection, float4(ndc, 0.0, 1.0));
-    return h.xyz / h.w;
+    return NDCToWorld(ndc, 0.0f);
 }
 
 #endif // WON_COMMON

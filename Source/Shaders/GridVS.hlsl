@@ -7,12 +7,6 @@ struct VertexOutput
     float3 far_point : FARPOINT;
 };
 
-float3 UnprojectPoint(float2 ndc, float depth)
-{
-    float4 world_position = mul(GetCamera().inv_view_projection, float4(ndc, depth, 1.0f));
-    return world_position.xyz / max(abs(world_position.w), 0.000001f);
-}
-
 VertexOutput main(uint vertex_id : SV_VertexID)
 {
     float2 vertices[3] = {
@@ -25,7 +19,7 @@ VertexOutput main(uint vertex_id : SV_VertexID)
 
     VertexOutput output;
     output.position = float4(ndc, 0.0f, 1.0f);
-    output.near_point = UnprojectPoint(ndc, 1.0f);
-    output.far_point = UnprojectPoint(ndc, 0.0f);
+    output.near_point = NDCToWorld(ndc, 1.0f);
+    output.far_point = NDCToWorld(ndc, 0.0f);
     return output;
 }

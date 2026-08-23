@@ -7,13 +7,11 @@ float4 main(VertexOutput input) : SV_Target0
     float2 screen_uv = input.position.xy * camera.internal_resolution_rcp;
     float scene_depth = bindless_textures[DescriptorIndex(decalpush.depth_descriptor)].Load(int3((int2)input.position.xy, 0)).r;
 
-    float2 ndc = float2(screen_uv.x * 2.0f - 1.0f, 1.0f - screen_uv.y * 2.0f);
-    float4 world = mul(camera.inv_view_projection, float4(ndc, scene_depth, 1.0f));
-    world.xyz /= world.w;
+    float3 world = ScreenUVToWorld(screen_uv, scene_depth);
 
     ShaderDecal decal = bindless_structured_decal[DescriptorIndex(decalpush.decal_buffer)][decalpush.decal_index];
 
-    float3 local = mul(decal.inv_world, float4(world.xyz, 1.0f)).xyz;
+    float3 local = mul(decal.inv_world, float4(world, 1.0f)).xyz;
     if (any(abs(local) > 0.5f)) // is in unit cube
     {
         discard;
