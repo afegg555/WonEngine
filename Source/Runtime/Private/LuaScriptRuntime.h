@@ -229,6 +229,8 @@ namespace won::script
         static int LuaNavIsReady(lua_State* state);
 
         static int LuaWaterAddRipple(lua_State* state);
+        static int LuaWaterSampleHeight(lua_State* state);
+        static int LuaWaterSampleSurface(lua_State* state);
 
         static int LuaAISetTree(lua_State* state);
         static int LuaAISet(lua_State* state);

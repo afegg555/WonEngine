@@ -331,6 +331,8 @@ set(RUNTIME_ECS
     Source/Runtime/Public/System.h
     Source/Runtime/Public/PhysicsWorld.h
     Source/Runtime/Private/PhysicsWorld.cpp
+    Source/Runtime/Public/WaterSurface.h
+    Source/Runtime/Private/WaterSurface.cpp
     Source/Runtime/Public/SceneRequest.h
 )
 

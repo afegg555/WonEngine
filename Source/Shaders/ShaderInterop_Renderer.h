@@ -613,10 +613,10 @@ struct alignas(16) ShaderWaterBody
     float refraction_strength;
 
     float3 absorption_coefficient;
-    float wave_frequency;
+    float detail_frequency;
 
     float3 scattering_coefficient;
-    float normal_strength;
+    float detail_strength;
 
 	float3 plane_origin; // center of the water body in world space
     float ripple_strength;
@@ -627,8 +627,17 @@ struct alignas(16) ShaderWaterBody
     float3 axis_z;
     float half_extent_z;
 
-    float2 wave_velocity_primary;
-    float2 wave_velocity_secondary;
+    float2 detail_velocity_primary;
+    float2 detail_velocity_secondary;
+
+    uint wave_count;
+    float wave_length;
+    float wave_amplitude;
+    float wave_steepness;
+
+    float2 wave_direction;
+    float wave_direction_spread;
+    float _body_padding0;
 
 #ifdef __cplusplus
     inline void Init()
@@ -638,17 +647,24 @@ struct alignas(16) ShaderWaterBody
         reflectance = 0.354f;
         refraction_strength = 0.0f;
         absorption_coefficient = { 0.0f, 0.0f, 0.0f };
-        wave_frequency = 0.0f;
+        detail_frequency = 0.0f;
         scattering_coefficient = { 0.0f, 0.0f, 0.0f };
-        normal_strength = 0.0f;
+        detail_strength = 0.0f;
         plane_origin = { 0.0f, 0.0f, 0.0f };
         ripple_strength = 0.0f;
         axis_x = { 0.0f, 0.0f, 0.0f };
         half_extent_x = 0.0f;
         axis_z = { 0.0f, 0.0f, 0.0f };
         half_extent_z = 0.0f;
-        wave_velocity_primary = { 0.0f, 0.0f };
-        wave_velocity_secondary = { 0.0f, 0.0f };
+        detail_velocity_primary = { 0.0f, 0.0f };
+        detail_velocity_secondary = { 0.0f, 0.0f };
+        wave_count = 0;
+        wave_length = 0.0f;
+        wave_amplitude = 0.0f;
+        wave_steepness = 0.0f;
+        wave_direction = { 1.0f, 0.0f };
+        wave_direction_spread = 0.0f;
+        _body_padding0 = 0.0f;
     }
 #else
     inline bool IsActive() { return (flags & SHADER_WATER_FLAG_ACTIVE) != 0; }
@@ -690,7 +706,7 @@ struct alignas(16) ShaderWaterZone
     uint ripple_resolution;
     float ripple_speed;
     float ripple_radius;
-    uint _zone_padding0;
+    float wave_time;
 
 #ifdef __cplusplus
     inline void Init()
@@ -708,7 +724,7 @@ struct alignas(16) ShaderWaterZone
         ripple_resolution = 0;
         ripple_speed = 0.0f;
         ripple_radius = 0.0f;
-        _zone_padding0 = 0;
+        wave_time = 0.0f;
     }
 #else
     inline bool HasRipple() { return ripple_texture >= 0; }
@@ -1109,7 +1125,7 @@ static_assert(sizeof(ShaderEnvironment) == 224, "ShaderEnvironment layout mismat
 static_assert(sizeof(ShaderDDGIVolume) == 112, "ShaderDDGIVolume layout mismatch");
 static_assert(sizeof(ShaderReflectionProbe) == 32, "ShaderReflectionProbe layout mismatch");
 static_assert(sizeof(ShaderWaterRipple) == 16, "ShaderWaterRipple layout mismatch");
-static_assert(sizeof(ShaderWaterBody) == 112, "ShaderWaterBody layout mismatch");
+static_assert(sizeof(ShaderWaterBody) == 144, "ShaderWaterBody layout mismatch");
 static_assert(sizeof(ShaderWaterZone) == 64, "ShaderWaterZone layout mismatch");
 static_assert(sizeof(ShaderWaterTile) == 16, "ShaderWaterTile layout mismatch");
 static_assert(sizeof(ShaderFrame) == 448, "ShaderFrame layout mismatch");

@@ -1,12 +1,14 @@
 #ifndef WON_COMMON
 #define WON_COMMON
 
+#include "ShaderInterop.h"
+
 inline int DescriptorIndex(in int descriptor_index)
 {
     return descriptor_index;
 }
 
-#define PI 3.14159265358979323846
+
 #define SQRT2 1.41421356237309504880
 #define FLT_MAX 3.402823466e+38
 #define FLT_EPSILON 1.192092896e-07

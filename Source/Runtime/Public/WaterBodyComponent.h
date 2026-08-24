@@ -26,10 +26,19 @@ namespace won::ecs
         float3 absorption_coefficient = { 0.465f, 0.0565f, 0.0092f };
         float3 scattering_coefficient = { 0.06f, 0.06f, 0.06f };
 
-        float wave_frequency = 0.08f;
-        float normal_strength = 0.6f;
-		float2 wave_velocity_primary = { 0.1f, 0.1f }; // only for normal, not for geometry displacement
-        float2 wave_velocity_secondary = { -0.011f, 0.017f }; // only for normal, not for geometry displacement
+		// only applied to surface normal
+        float detail_frequency = 0.08f;
+        float detail_strength = 0.6f;
+		float2 detail_velocity_primary = { 0.1f, 0.1f };
+        float2 detail_velocity_secondary = { -0.011f, 0.017f };
+
+		// vertex displacement waves
+		uint32 wave_count = 4; // like octaves in fbm noise
+        float wave_length = 12.0f; // world unit, longest wave
+		float wave_amplitude = 0.25f; // world unit, largest wave   !! Amplitude = (Crest - Trough) / 2
+        float wave_steepness = 0.5f; // 0 is a sine wave, 1 is a cusp(sharp crest)
+        float2 wave_direction = { 1.0f, 0.0f };
+        float wave_direction_spread = 0.6f; // radian between waves, 0 is parallel, PI/2 is omnidirectional
 
         float refraction_strength = 0.1f;
         float roughness = 0.06f;

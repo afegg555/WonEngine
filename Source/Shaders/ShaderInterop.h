@@ -6,6 +6,8 @@
 // Application-side types:
 #include "MathUtils.h"
 
+static const float PI = won::math::PI;
+
 #define CB_GETBINDSLOT(name) __CBUFFERBINDSLOT__##name##__
 #define CBUFFER(name, slot) static const int CB_GETBINDSLOT(name) = slot; struct alignas(16) name
 #define CONSTANTBUFFER(name, type, slot)
@@ -14,6 +16,8 @@
 #else
 
 // Shader - side types:
+
+#define PI 3.14159265358979323846
 
 #define alignas(x)
 

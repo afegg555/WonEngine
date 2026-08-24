@@ -34,10 +34,20 @@ VertexOutput main(uint vertex_id : SV_VertexID, uint instance_id : SV_InstanceID
     const float2 zone_uv = (world_xz - zone.origin) / max(zone.extent, water_epsilon);
     const float2 water_info = bindless_textures[DescriptorIndex(waterpush.info_texture_descriptor)].SampleLevel(sampler_point_clamp, zone_uv, 0).rg;
 
-    const float3 world_position = float3(world_xz.x, water_info.r, world_xz.y);
+    float3 world_position = float3(world_xz.x, water_info.r, world_xz.y);
+    if (water_info.g >= 0.0f)
+    {
+        const ShaderWaterBody body = GetWaterBody((uint) water_info.g);
+        const float camera_distance = distance(GetCamera().position, world_position);
+        const WaterSurfaceSample surface = EvaluateWaterBodySurface(body, zone.wave_time, world_xz, camera_distance);
+        world_position.x += surface.horizontal.x;
+        world_position.y += surface.height;
+        world_position.z += surface.horizontal.y;
+    }
 
     VertexOutput output;
     output.position = mul(GetCamera().view_projection, float4(world_position, 1.0f));
     output.world_position = world_position;
+    output.wave_coord = world_xz;
     return output;
 }

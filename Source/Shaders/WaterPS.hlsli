@@ -4,16 +4,16 @@
 #include "ShadingCommon.hlsli"
 #include "NoiseCommon.hlsli"
 
-static const float water_min_gradient_step = 0.35f;
-static const uint water_wave_octaves = 3;
-static const float water_wave_lacunarity = 2.0f;
-static const float water_wave_persistence = 0.5f;
-static const float water_wave_secondary_frequency = 2.13f; // off a whole multiple so the two layers never line up
-static const float water_wave_primary_weight = 0.6f;
+static const float water_detail_min_gradient_step = 0.35f;
+static const uint water_detail_octaves = 3;
+static const float water_detail_lacunarity = 2.0f;
+static const float water_detail_persistence = 0.5f;
+static const float water_detail_secondary_frequency = 2.13f; // off a whole multiple so the two layers never line up
+static const float water_detail_primary_weight = 0.6f;
 
 static const float water_refraction_fade_distance = 0.5f;
 static const float water_normal_flatten_scale = 200.0f;
-static const float water_distance_roughness_gain = 0.3f;
+static const float water_distance_roughness_gain = 0.05f;
 
 static const float water_min_perceptual_roughness = 0.045f;
 static const float water_reflectance_to_f0 = 0.16f;
@@ -21,10 +21,10 @@ static const float water_fresnel_exponent = 5.0f;
 
 inline float WaterHeightField(float2 plane_position, in ShaderWaterBody water, float time)
 {
-    const float2 primary = plane_position * water.wave_frequency + water.wave_velocity_primary * time;
-    const float2 secondary = plane_position * water.wave_frequency * water_wave_secondary_frequency + water.wave_velocity_secondary * time;
-    return FBMValueNoise(primary, water_wave_octaves, water_wave_lacunarity, water_wave_persistence) * water_wave_primary_weight
-         + FBMValueNoise(secondary, water_wave_octaves, water_wave_lacunarity, water_wave_persistence) * (1.0f - water_wave_primary_weight);
+    const float2 primary = plane_position * water.detail_frequency + water.detail_velocity_primary * time;
+    const float2 secondary = plane_position * water.detail_frequency * water_detail_secondary_frequency + water.detail_velocity_secondary * time;
+    return FBMValueNoise(primary, water_detail_octaves, water_detail_lacunarity, water_detail_persistence) * water_detail_primary_weight
+         + FBMValueNoise(secondary, water_detail_octaves, water_detail_lacunarity, water_detail_persistence) * (1.0f - water_detail_primary_weight);
 }
 
 float4 main(VertexOutput input) : SV_Target0
@@ -56,7 +56,7 @@ float4 main(VertexOutput input) : SV_Target0
 
     const float time = GetTime();
     const float2 plane_footprint = max(abs(ddx(plane_position)), abs(ddy(plane_position)));
-    const float gradient_step = max(length(plane_footprint), water_min_gradient_step);
+    const float gradient_step = max(length(plane_footprint), water_detail_min_gradient_step);
     const float height_center = WaterHeightField(plane_position, water, time);
     const float height_x = WaterHeightField(plane_position + float2(gradient_step, 0.0f), water, time);
     const float height_z = WaterHeightField(plane_position + float2(0.0f, gradient_step), water, time);
@@ -77,13 +77,20 @@ float4 main(VertexOutput input) : SV_Target0
             dot(float3(ripple_gradient.x, 0.0f, ripple_gradient.y), tangent_z));
     }
 
+    const float camera_distance = distance(camera.position, input.world_position);
+    const WaterSurfaceSample wave_surface = EvaluateWaterBodySurface(water, zone.wave_time, input.wave_coord, camera_distance);
+    const float2 wave_gradient = float2(
+        dot(float3(wave_surface.gradient.x, 0.0f, wave_surface.gradient.y), tangent_x),
+        dot(float3(wave_surface.gradient.x, 0.0f, wave_surface.gradient.y), tangent_z));
+
     Surface surface;
     surface.Init();
     surface.P = input.world_position;
     surface.V = normalize(camera.position - input.world_position);
     const float footprint = length(plane_footprint);
     const float normal_sharpness = 1.0f / (1.0f + footprint * footprint * water_normal_flatten_scale);
-    const float3 wave_normal = normalize(plane_normal - tangent_x * (gradient.x * water.normal_strength) - tangent_z * (gradient.y * water.normal_strength));
+    const float2 total_gradient = gradient * water.detail_strength + wave_gradient;
+    const float3 wave_normal = normalize(plane_normal - tangent_x * total_gradient.x - tangent_z * total_gradient.y);
     surface.N = normalize(lerp(plane_normal, wave_normal, normal_sharpness));
     surface.NoV = saturate(abs(dot(surface.N, surface.V)) + FLT_EPSILON);
     surface.albedo = (half3)single_scattering_albedo;

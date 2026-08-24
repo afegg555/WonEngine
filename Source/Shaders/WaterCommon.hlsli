@@ -7,11 +7,26 @@
 PUSHCONSTANT(waterpush, WaterPushConstants);
 
 static const float water_epsilon = 0.000001f;
+static const float water_wave_fade_begin = 60.0f;
+static const float water_wave_fade_end = 300.0f;
+
+inline float WaterWaveAmplitudeScale(float camera_distance)
+{
+    return 1.0f - smoothstep(water_wave_fade_begin, water_wave_fade_end, camera_distance);
+}
+
+inline WaterSurfaceSample EvaluateWaterBodySurface(in ShaderWaterBody body, float wave_time, float2 world_xz, float camera_distance)
+{
+    return EvaluateWaterSurface(world_xz, body.wave_direction, body.wave_direction_spread,
+        body.wave_count, body.wave_length, body.wave_amplitude, body.wave_steepness,
+        wave_time, WaterWaveAmplitudeScale(camera_distance));
+}
 
 struct VertexOutput
 {
     float4 position : SV_Position;
     float3 world_position : WORLDPOSITION;
+    float2 wave_coord : WAVECOORD;
 };
 
 struct WaterInfoOutput
