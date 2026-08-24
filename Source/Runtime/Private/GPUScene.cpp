@@ -1119,6 +1119,7 @@ namespace won::rendering
                 shader_zone.ripple_resolution = math::Clamp(zone.ripple_resolution, WATER_RIPPLE_MIN_RESOLUTION, WATER_RIPPLE_MAX_RESOLUTION);
                 shader_zone.ripple_speed = (std::max)(zone.ripple_speed, 0.0f);
                 shader_zone.ripple_radius = (std::max)(zone.ripple_radius, 0.0f);
+                shader_zone.wave_time = static_cast<float>(scene.GetSimulation().elapsed_seconds);
                 shader_zone.tile_resolution = (std::max)(2u, zone.tile_resolution & ~1u);
                 shader_zone.lod_levels = zone.lod_levels;
                 shader_zone.lod_distance_scale = zone.lod_distance_scale;
@@ -1176,6 +1177,18 @@ namespace won::rendering
                     shader_water.half_extent_z = half_extent_z;
                     shader_water.wave_velocity_primary = water.wave_velocity_primary;
                     shader_water.wave_velocity_secondary = water.wave_velocity_secondary;
+                    shader_water.wave_count = math::Clamp(water.wave_count, WATER_WAVE_MIN_COUNT, WATER_WAVE_MAX_COUNT);
+                    shader_water.wave_length = (std::max)(water.wave_length, 0.01f);
+                    shader_water.wave_amplitude = (std::max)(water.wave_amplitude, 0.0f);
+                    shader_water.wave_steepness = math::Clamp(water.wave_steepness, 0.0f, 1.0f);
+                    shader_water.wave_direction_spread = water.wave_direction_spread;
+                    {
+                        const float direction_length = std::sqrt(water.wave_direction.x * water.wave_direction.x
+                            + water.wave_direction.y * water.wave_direction.y);
+                        shader_water.wave_direction = direction_length > 0.0001f
+                            ? float2(water.wave_direction.x / direction_length, water.wave_direction.y / direction_length)
+                            : float2(1.0f, 0.0f);
+                    }
                     shader_water.refraction_strength = water.refraction_strength;
                     out_bodies.push_back(shader_water);
                 }

@@ -94,7 +94,7 @@ namespace won::rendering
         RHIClearColor clear_color = {};
         bool vsync_enabled = true;
         bool vsync_requested = true;
-        double frame_accumulated_time = 0.0;
+
         double frame_delta_seconds = 0.0;
 
 		Vector<uint32> sort_upload_scratch; // not to allocate every frame !!

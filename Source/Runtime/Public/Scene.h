@@ -316,6 +316,21 @@ namespace won::ecs
             sequence_event_queue.clear();
         }
 
+        struct SimulationState
+        {
+            double elapsed_seconds = 0.0;
+        };
+
+        SimulationState& GetSimulation()
+        {
+            return simulation;
+        }
+
+        const SimulationState& GetSimulation() const
+        {
+            return simulation;
+        }
+
         struct WaterSimulationState
         {
             double step_accumulator = 0.0;
@@ -402,6 +417,7 @@ namespace won::ecs
         Vector<std::pair<Entity, String>> sequence_event_queue;
         Vector<PrefabSpawnRequest> prefab_spawn_queue;
         Vector<WaterRippleRequest> water_ripple_queue;
+        SimulationState simulation = {};
         WaterSimulationState water_simulation = {};
     };
 }

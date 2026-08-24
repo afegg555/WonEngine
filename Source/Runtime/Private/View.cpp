@@ -191,6 +191,7 @@ namespace won::rendering
         if (scene->GetUpdateIndex() != update_index)
         {
             scene->SetUpdateIndex(update_index);
+            scene->GetSimulation().elapsed_seconds += static_cast<double>(delta_time);
             //scene->GetWaterSimulation().pending_steps = 0;
             if (!simulation_paused)
             {
