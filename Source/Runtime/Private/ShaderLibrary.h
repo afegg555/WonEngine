@@ -19,6 +19,7 @@ namespace won::resource
         Sprite3DPass,
         DecalPass,
         WaterInfoPass,
+        WaterRippleSplatPass,
         WaterPass,
         CompositePass,
         GridPass,

@@ -29,6 +29,13 @@ struct VertexOutput
     float2 wave_coord : WAVECOORD;
 };
 
+struct WaterRippleSplatOutput
+{
+    float4 position : SV_Position;
+    float2 unit : RIPPLEUNIT; // [-1, 1] range
+    nointerpolation float strength : RIPPLESTRENGTH;
+};
+
 struct WaterInfoOutput
 {
     float4 position : SV_Position;

@@ -1114,11 +1114,6 @@ namespace won::script
         }
 
         ecs::Scene& scene = *runtime->current_context.scene;
-        if (scene.GetWaterRippleQueue().size() >= water_ripple_max_injections)
-        {
-            lua_pushboolean(state, false);
-            return 1;
-        }
 
         ecs::WaterRippleRequest request = {};
         request.position = {

@@ -1070,17 +1070,21 @@ namespace won::rendering
             out_bodies.clear();
             out_injections.clear();
 
-            for (const WaterRippleRequest& request : scene.GetWaterRippleQueue())
+            const Vector<ecs::WaterRippleRequest>& ripple_queue = scene.GetWaterRippleQueue();
+            float ripple_strength_threshold = 0.0f;
+            if (ripple_queue.size() > water_ripple_max_injections)
             {
-                if (out_injections.size() >= water_ripple_max_injections)
+                Vector<float> strengths;
+                strengths.reserve(ripple_queue.size());
+                for (const ecs::WaterRippleRequest& request : ripple_queue)
                 {
-                    break;
+                    strengths.push_back(std::abs(request.strength));
                 }
-                ShaderWaterRipple ripple = {};
-                ripple.Init();
-                ripple.position = request.position;
-                ripple.strength = request.strength;
-                out_injections.push_back(ripple);
+                std::nth_element(strengths.begin(), strengths.begin() + (water_ripple_max_injections - 1), strengths.end(), std::greater<float>());
+                ripple_strength_threshold = strengths[water_ripple_max_injections - 1];
+                backlog::Post("water ripple injections dropped: " + std::to_string(ripple_queue.size() - water_ripple_max_injections)
+                    + " queued beyond the cap of " + std::to_string(water_ripple_max_injections)
+                    + ", weakest dropped first", backlog::LogLevel::Warning);
             }
 
             const auto zone_array = scene.GetComponentArray<WaterZoneComponent>().get();
@@ -1124,6 +1128,30 @@ namespace won::rendering
                 shader_zone.lod_levels = zone.lod_levels;
                 shader_zone.lod_distance_scale = zone.lod_distance_scale;
                 shader_zone.first_body = static_cast<uint32>(out_bodies.size());
+                shader_zone.first_injection = static_cast<uint32>(out_injections.size());
+
+                for (const WaterRippleRequest& request : ripple_queue)
+                {
+                    if (out_injections.size() >= water_ripple_max_injections)
+                    {
+                        break;
+                    }
+                    if (std::abs(request.strength) < ripple_strength_threshold)
+                    {
+                        continue;
+                    }
+                    if (request.position.x < zone_min.x || request.position.x > zone_max.x
+                        || request.position.z < zone_min.y || request.position.z > zone_max.y)
+                    {
+                        continue;
+                    }
+                    ShaderWaterRipple ripple = {};
+                    ripple.Init();
+                    ripple.position = request.position;
+                    ripple.strength = request.strength;
+                    out_injections.push_back(ripple);
+                }
+                shader_zone.injection_count = static_cast<uint32>(out_injections.size()) - shader_zone.first_injection;
 
                 for (Size i = 0; i < body_array->GetSize(); ++i)
                 {

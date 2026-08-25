@@ -230,6 +230,7 @@ namespace won::rendering
                 std::unique_ptr<RHIResource> height_texture[2];
                 RHISubresourceHandle height_srv[2] = {};
                 RHISubresourceHandle height_uav[2] = {};
+                RHISubresourceHandle height_rtv[2] = {};
 
                 std::unique_ptr<RHIResource> wetness_texture;
                 RHISubresourceHandle wetness_srv = {};

@@ -72,7 +72,7 @@ struct WaterPushConstants
 #endif
 };
 
-struct WaterRipplePushConstants
+struct WaterRippleStepPushConstants
 {
     uint zone_buffer_descriptor;
     uint zone_index;
@@ -80,8 +80,6 @@ struct WaterRipplePushConstants
     uint height_current_descriptor;
     uint height_previous_descriptor;
     uint wetness_descriptor;
-    uint injection_descriptor;
-    uint injection_count;
     float step_seconds;
 
 #ifdef __cplusplus
@@ -92,9 +90,23 @@ struct WaterRipplePushConstants
         height_current_descriptor = 0;
         height_previous_descriptor = 0;
         wetness_descriptor = 0;
-        injection_descriptor = 0;
-        injection_count = 0;
         step_seconds = 0.0f;
+    }
+#endif
+};
+
+struct WaterRippleSplatPushConstants
+{
+    uint zone_buffer_descriptor;
+    uint zone_index;
+    uint injection_descriptor;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        zone_buffer_descriptor = 0;
+        zone_index = 0;
+        injection_descriptor = 0;
     }
 #endif
 };
@@ -170,7 +182,8 @@ inline WaterSurfaceSample EvaluateWaterSurface(float2 world_xz, float2 base_dire
 
 #ifdef __cplusplus
 static_assert(sizeof(WaterPushConstants) == 36, "WaterPushConstants layout mismatch");
-static_assert(sizeof(WaterRipplePushConstants) == 32, "WaterRipplePushConstants layout mismatch");
+static_assert(sizeof(WaterRippleStepPushConstants) == 24, "WaterRippleStepPushConstants layout mismatch");
+static_assert(sizeof(WaterRippleSplatPushConstants) == 12, "WaterRippleSplatPushConstants layout mismatch");
 #endif
 
 #endif

@@ -515,7 +515,9 @@ set(SHADERS_HLSL
     Source/Shaders/WaterPS.hlsli
     Source/Shaders/WaterPS_forward.hlsl
     Source/Shaders/WaterPS_forwardplus.hlsl
-    Source/Shaders/WaterRippleCS.hlsl
+    Source/Shaders/WaterRippleStepCS.hlsl
+    Source/Shaders/WaterRippleSplatVS.hlsl
+    Source/Shaders/WaterRippleSplatPS.hlsl
     Source/Shaders/ObjectPS.hlsli
     Source/Shaders/ObjectPS_unlit.hlsl
     Source/Shaders/ObjectPS_forward.hlsl

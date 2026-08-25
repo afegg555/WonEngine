@@ -333,9 +333,9 @@ namespace won::ecs
 
         struct WaterSimulationState
         {
-            double step_accumulator = 0.0;
-            uint64 step_count = 0;
-            uint32 pending_steps = 0;
+            double step_accumulator = 0.0; // internal delta time accumulator to compute step count
+            uint64 step_count = 0; // total step count
+            uint32 pending_steps = 0; // current frame step count
         };
 
         WaterSimulationState& GetWaterSimulation()

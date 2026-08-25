@@ -582,7 +582,7 @@ struct alignas(16) ShaderReflectionProbe
 #endif
 };
 
-static const uint water_ripple_max_injections = 64;
+static const uint water_ripple_max_injections = 256;
 
 struct ShaderWaterRipple
 {
@@ -708,6 +708,10 @@ struct alignas(16) ShaderWaterZone
     float ripple_radius;
     float wave_time;
 
+    uint first_injection;
+    uint injection_count;
+    uint2 _zone_padding0;
+
 #ifdef __cplusplus
     inline void Init()
     {
@@ -725,6 +729,9 @@ struct alignas(16) ShaderWaterZone
         ripple_speed = 0.0f;
         ripple_radius = 0.0f;
         wave_time = 0.0f;
+        first_injection = 0;
+        injection_count = 0;
+        _zone_padding0 = { 0, 0 };
     }
 #else
     inline bool HasRipple() { return ripple_texture >= 0; }
@@ -1126,7 +1133,7 @@ static_assert(sizeof(ShaderDDGIVolume) == 112, "ShaderDDGIVolume layout mismatch
 static_assert(sizeof(ShaderReflectionProbe) == 32, "ShaderReflectionProbe layout mismatch");
 static_assert(sizeof(ShaderWaterRipple) == 16, "ShaderWaterRipple layout mismatch");
 static_assert(sizeof(ShaderWaterBody) == 144, "ShaderWaterBody layout mismatch");
-static_assert(sizeof(ShaderWaterZone) == 64, "ShaderWaterZone layout mismatch");
+static_assert(sizeof(ShaderWaterZone) == 80, "ShaderWaterZone layout mismatch");
 static_assert(sizeof(ShaderWaterTile) == 16, "ShaderWaterTile layout mismatch");
 static_assert(sizeof(ShaderFrame) == 448, "ShaderFrame layout mismatch");
 static_assert(sizeof(ShaderCamera) == 336, "ShaderCamera layout mismatch");
