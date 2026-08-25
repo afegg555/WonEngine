@@ -23,6 +23,7 @@ namespace won::debugdraw
         inline constexpr uint32 ddgi_probe_invalid = PackRGBA8(0xff, 0x40, 0x40);
         inline constexpr uint32 collider = PackRGBA8(0x40, 0xd0, 0xff);
         inline constexpr uint32 collider_trigger = PackRGBA8(0xff, 0xd0, 0x40);
+        inline constexpr uint32 occluded = PackRGBA8(0xff, 0x40, 0xa0);
     }
 
     struct Item3D

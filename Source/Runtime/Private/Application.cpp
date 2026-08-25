@@ -27,11 +27,12 @@
 namespace won
 {
 #ifndef WON_SHIPPING
-    static console::ConsoleVariable r_debug_viewmode("r.debug.viewmode", -1, "override the view mode of every view: -1=off 0=Lit 1=Unlit 2=BaseColor 3=WorldNormal 4=Roughness 5=Metallic 6=LightComplexity 7=ShadowCascades 8=Wireframe 9=Overdraw", console::ConsoleVariableFlagNone);
-    static console::ConsoleVariable r_debug_show_bvh("r.debug.show.bvh", -1, "override the scene BVH overlay of every view: -1=off 0=hide 1=show", console::ConsoleVariableFlagNone);
-    static console::ConsoleVariable r_debug_show_ddgi("r.debug.show.ddgi", -1, "override the DDGI volume and probe overlay of every view: -1=off 0=hide 1=show", console::ConsoleVariableFlagNone);
-    static console::ConsoleVariable r_debug_show_colliders("r.debug.show.colliders", -1, "override the physics collider overlay of every view: -1=off 0=hide 1=show", console::ConsoleVariableFlagNone);
-    static console::ConsoleVariable r_debug_freeze_culling("r.debug.freeze_culling", false, "freeze the culling frustum at its current state", console::ConsoleVariableFlagNone);
+    static console::ConsoleVariable r_viewmode("r.viewmode", -1, "override the view mode of every view: -1=off 0=Lit 1=Unlit 2=BaseColor 3=WorldNormal 4=Roughness 5=Metallic 6=LightComplexity 7=ShadowCascades 8=Wireframe 9=Overdraw", console::ConsoleVariableFlagNone);
+    static console::ConsoleVariable r_bvh_show("r.bvh.show", -1, "override the scene BVH overlay of every view: -1=off 0=hide 1=show", console::ConsoleVariableFlagNone);
+    static console::ConsoleVariable r_ddgi_show("r.ddgi.show", -1, "override the DDGI volume and probe overlay of every view: -1=off 0=hide 1=show", console::ConsoleVariableFlagNone);
+    static console::ConsoleVariable r_collider_show("r.collider.show", -1, "override the physics collider overlay of every view: -1=off 0=hide 1=show", console::ConsoleVariableFlagNone);
+    static console::ConsoleVariable r_occlusion_show("r.occlusion.show", -1, "override the occluded bounds overlay of every view: -1=off 0=hide 1=show", console::ConsoleVariableFlagNone);
+    static console::ConsoleVariable r_culling_freeze("r.culling.freeze", -1, "override the culling freeze of every view: -1=off 0=unfreeze 1=freeze", console::ConsoleVariableFlagNone);
 #endif
 
 	// currently uses a hash of the schema filename to derive the save file name... maybe changed ??
@@ -494,15 +495,16 @@ namespace won
                 if (view_ptr && view_ptr->scene)
                 {
 #ifndef WON_SHIPPING
-                    const int view_mode = r_debug_viewmode.GetInt();
+                    const int view_mode = r_viewmode.GetInt();
                     if (view_mode >= 0 && view_mode < static_cast<int>(rendering::ViewMode::VIEWMODE_COUNT))
                     {
                         view_ptr->view_mode = static_cast<rendering::ViewMode>(view_mode);
                     }
                     const struct { const console::ConsoleVariable& variable; uint32 flag; } show_flag_overrides[] = {
-                        { r_debug_show_bvh, rendering::Show_BVH },
-                        { r_debug_show_ddgi, rendering::Show_DDGI },
-                        { r_debug_show_colliders, rendering::Show_Colliders },
+                        { r_bvh_show, rendering::Show_BVH },
+                        { r_ddgi_show, rendering::Show_DDGI },
+                        { r_collider_show, rendering::Show_Colliders },
+                        { r_occlusion_show, rendering::Show_Occlusion },
                     };
                     for (const auto& override_entry : show_flag_overrides)
                     {
@@ -516,7 +518,11 @@ namespace won
                             view_ptr->show_flags &= ~override_entry.flag;
                         }
                     }
-                    view_ptr->freeze_culling = r_debug_freeze_culling.GetBool();
+                    const int freeze_culling = r_culling_freeze.GetInt();
+                    if (freeze_culling >= 0)
+                    {
+                        view_ptr->freeze_culling = freeze_culling > 0;
+                    }
 #endif
 
                     renderer->Render(*view_ptr);

@@ -360,6 +360,8 @@ namespace won::editor::editor_key
     constexpr const char* label_show_grid = "editor.label.show_grid";
     constexpr const char* label_show_bvh = "editor.label.show_bvh";
     constexpr const char* label_show_ddgi = "editor.label.show_ddgi";
+    constexpr const char* label_show_occlusion = "editor.label.show_occlusion";
+    constexpr const char* label_freeze_culling = "editor.label.freeze_culling";
     constexpr const char* label_view_mode = "editor.label.view_mode";
     constexpr const char* label_vsync = "editor.label.vsync";
     constexpr const char* label_won_material_file = "editor.label.won_material_file";

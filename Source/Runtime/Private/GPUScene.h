@@ -36,6 +36,7 @@ namespace won::rendering
             DoubleSided = 1 << 2,
         };
 
+        ecs::Entity entity = ecs::INVALID_ENTITY;
         ObjectPushConstants push_constants;
         RHIResource* index_buffer = nullptr;
         float3 world_position = {};

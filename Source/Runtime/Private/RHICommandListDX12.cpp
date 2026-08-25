@@ -161,6 +161,8 @@ namespace won::rendering
         {
         case RHIQueryType::Occlusion:
             return D3D12_QUERY_TYPE_OCCLUSION;
+        case RHIQueryType::BinaryOcclusion:
+            return D3D12_QUERY_TYPE_BINARY_OCCLUSION;
         case RHIQueryType::Timestamp:
         default:
             return D3D12_QUERY_TYPE_TIMESTAMP;

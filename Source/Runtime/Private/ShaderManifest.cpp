@@ -20,6 +20,7 @@ namespace won::resource
             { ShaderId::VSWater, { rendering::RHIShaderStage::Vertex, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "WaterVS.hlsl", "main" } },
             { ShaderId::VSWaterInfo, { rendering::RHIShaderStage::Vertex, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "WaterInfoVS.hlsl", "main" } },
             { ShaderId::VSWaterRippleSplat, { rendering::RHIShaderStage::Vertex, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "WaterRippleSplatVS.hlsl", "main" } },
+            { ShaderId::VSOcclusionBox, { rendering::RHIShaderStage::Vertex, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "OcclusionBoxVS.hlsl", "main" } },
             { ShaderId::PSSky, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "SkyPS.hlsl", "main" } },
             { ShaderId::PSObjectForward, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "ObjectPS_forward.hlsl", "main" } },
             { ShaderId::PSObjectForwardPlus, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "ObjectPS_forwardplus.hlsl", "main" } },

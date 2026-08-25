@@ -9,6 +9,7 @@
 #include "MathUtils.h"
 #include "JobSystem.h"
 #include "Primitives.h"
+#include "Console.h"
 #include "ShaderInterop_Water.h"
 
 #include <cmath>
@@ -16,6 +17,8 @@
 
 namespace won::rendering
 {
+    static console::ConsoleVariable r_culling_log("r.culling.log", false, "log per-frame opaque culling counts for each stage", console::ConsoleVariableFlagNone);
+
     bool View::HasPointerFocus() const
     {
         const float2 p = io::GetMouseState().position;
@@ -717,14 +720,41 @@ namespace won::rendering
         {
             const auto& renderables = gpu_scene.opaque_renderables;
             const auto& cull_data = gpu_scene.opaque_cull_data;
+            const bool apply_occlusion = occlusion_resources.active;
             sorted_opaque_indices.clear();
+            occlusion_query_indices.clear();
+            uint32 layer_culled = 0;
+            uint32 frustum_culled = 0;
             for (uint32 i = 0; i < static_cast<uint32>(cull_data.size()); ++i)
             {
                 const auto& c = cull_data[i];
                 if ((culling_mask & c.layer_mask) == 0)
+                {
+                    ++layer_culled;
                     continue;
+                }
                 if (frustum && c.aabb.IsValid() && !c.aabb.IntersectFrustum(*frustum))
+                {
+                    ++frustum_culled;
                     continue;
+                }
+
+                if (!apply_occlusion)
+                {
+                    sorted_opaque_indices.push_back(i);
+                    continue;
+                }
+
+                occlusion_query_indices.push_back(i);
+
+                const Renderable& renderable = renderables[i];
+                const OcclusionResources::RenderableKey key = { renderable.entity, renderable.push_constants.geometry_index };
+                const auto entry = occlusion_resources.visibility.find(key);
+                if (entry != occlusion_resources.visibility.end() && entry->second.IsOccluded())
+                {
+                    continue;
+                }
+
                 sorted_opaque_indices.push_back(i);
             }
             std::sort(sorted_opaque_indices.begin(), sorted_opaque_indices.end(),
@@ -742,6 +772,15 @@ namespace won::rendering
                         return ra.IsDoubleSided() < rb.IsDoubleSided();
                     return ra.primitive_topology < rb.primitive_topology;
                 });
+
+            if (r_culling_log.GetBool())
+            {
+                const uint32 total = static_cast<uint32>(cull_data.size());
+                const uint32 drawn = static_cast<uint32>(sorted_opaque_indices.size());
+                const uint32 occlusion_culled = total - layer_culled - frustum_culled - drawn;
+                wonlog("culling: opaque %u, layer %u, frustum %u, occlusion %u, drawn %u",
+                    total, layer_culled, frustum_culled, occlusion_culled, drawn);
+            }
         });
 
         jobsystem::Execute(ctx, [&](jobsystem::JobArgs)

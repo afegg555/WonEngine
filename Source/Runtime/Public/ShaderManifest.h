@@ -20,6 +20,7 @@ namespace won::resource
         VSWater,
         VSWaterInfo,
         VSWaterRippleSplat,
+        VSOcclusionBox,
 
         PSSky,
         PSObjectForward,
@@ -82,6 +83,7 @@ namespace won::resource
         case ShaderId::VSWater: return "VSWater";
         case ShaderId::VSWaterInfo: return "VSWaterInfo";
         case ShaderId::VSWaterRippleSplat: return "VSWaterRippleSplat";
+        case ShaderId::VSOcclusionBox: return "VSOcclusionBox";
         case ShaderId::PSSky: return "PSSky";
         case ShaderId::PSObjectForward: return "PSObjectForward";
         case ShaderId::PSObjectForwardPlus: return "PSObjectForwardPlus";

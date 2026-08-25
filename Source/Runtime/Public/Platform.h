@@ -76,6 +76,39 @@ namespace won::platform
         return GetType() == PlatformType::Windows;
     }
 
+    inline bool GetClipboardText(String& out_text)
+    {
+        out_text.clear();
+
+#if defined(_WIN32)
+        if (!IsClipboardFormatAvailable(CF_UNICODETEXT) || !OpenClipboard(nullptr))
+        {
+            return false;
+        }
+
+        bool copied = false;
+        if (HANDLE handle = GetClipboardData(CF_UNICODETEXT))
+        {
+            if (const wchar_t* wide_text = static_cast<const wchar_t*>(GlobalLock(handle)))
+            {
+                const int length = WideCharToMultiByte(CP_UTF8, 0, wide_text, -1, nullptr, 0, nullptr, nullptr);
+                if (length > 1)
+                {
+                    out_text.resize(static_cast<Size>(length) - 1);
+                    WideCharToMultiByte(CP_UTF8, 0, wide_text, -1, out_text.data(), length, nullptr, nullptr);
+                    copied = true;
+                }
+                GlobalUnlock(handle);
+            }
+        }
+
+        CloseClipboard();
+        return copied;
+#else
+        return false;
+#endif
+    }
+
     inline bool GetProcessMemoryUsage(ProcessMemoryUsage& out_usage)
     {
         out_usage = {};

@@ -167,6 +167,7 @@ namespace won::editor
 		{
 			rendering::ViewMode view_mode = rendering::ViewMode::Lit;
 			uint32 show_flags = rendering::Show_Default | rendering::Show_Colliders;
+			bool freeze_culling = false;
 		};
 
 		struct EditorViewport
