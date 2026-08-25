@@ -406,19 +406,22 @@ namespace won::resource
         pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
         pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
 
-        const struct { RHIBlendMode mode; uint64 hash_bits; } sprite_blend_variants[] = {
-            { RHIBlendMode::Alpha, static_cast<uint64>(MaterialBlendMode::Transparent) },
-            { RHIBlendMode::Additive, static_cast<uint64>(MaterialBlendMode::Additive) },
-            { RHIBlendMode::Premultiplied, static_cast<uint64>(MaterialBlendMode::Premultiplied) },
+        const struct { RHIBlendMode mode; bool blend_enable; ShaderId pixel_shader; uint64 hash_bits; } sprite_blend_variants[] = {
+            { RHIBlendMode::Alpha, false, ShaderId::PSSprite, static_cast<uint64>(MaterialBlendMode::Opaque) },
+            { RHIBlendMode::Alpha, false, ShaderId::PSSpriteMasked, static_cast<uint64>(MaterialBlendMode::Masked) },
+            { RHIBlendMode::Alpha, true, ShaderId::PSSprite, static_cast<uint64>(MaterialBlendMode::Transparent) },
+            { RHIBlendMode::Additive, true, ShaderId::PSSprite, static_cast<uint64>(MaterialBlendMode::Additive) },
+            { RHIBlendMode::Premultiplied, true, ShaderId::PSSprite, static_cast<uint64>(MaterialBlendMode::Premultiplied) },
         };
 
         for (const auto& variant : sprite_blend_variants)
         {
+            pipeline_desc.blend.enable = variant.blend_enable;
             pipeline_desc.blend.mode = variant.mode;
             pipeline_hash.storage.bits.blend_mode = variant.hash_bits;
 
             pipeline_desc.vertex_shader = GetShader(ShaderId::VSSprite3D);
-            pipeline_desc.pixel_shader = GetShader(ShaderId::PSSprite);
+            pipeline_desc.pixel_shader = GetShader(variant.pixel_shader);
             pipeline_hash.storage.bits.pass_mode = static_cast<uint64>(Sprite3DPassMode::Sprite);
             graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
 
@@ -426,6 +429,7 @@ namespace won::resource
             graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
         }
 
+        pipeline_desc.blend.enable = true;
         pipeline_desc.blend.mode = RHIBlendMode::Alpha;
         pipeline_desc.vertex_shader = GetShader(ShaderId::VSSprite3D);
         pipeline_desc.pixel_shader = GetShader(ShaderId::PSText3D);
