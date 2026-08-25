@@ -248,12 +248,20 @@ namespace won::rendering
         return true;
     }
 
+    void FrameGraph::SetDefaultViewport(const RHIViewport& viewport, const RHIRect& scissor)
+    {
+        default_viewport = viewport;
+        default_scissor = scissor;
+    }
+
     void FrameGraph::AddPass(const char* name, Vector<FrameResourceAccess> accesses, std::function<void(const FrameGraphPassContext&)> execute)
     {
         Pass& pass = passes.emplace_back();
         pass.name = name;
         pass.accesses = std::move(accesses);
         pass.execute = std::move(execute);
+        pass.viewport = default_viewport;
+        pass.scissor = default_scissor;
     }
 
     void FrameGraph::Compile()
@@ -521,6 +529,12 @@ namespace won::rendering
             {
                 backlog::Post((String("FrameGraph: no command list for pass '") + pass.name + "', the rest of the frame is dropped").c_str(), backlog::LogLevel::Error);
                 break;
+            }
+
+            if (pass.scissor.width > 0 && pass.scissor.height > 0)
+            {
+                pass.command_list->SetViewport(pass.viewport);
+                pass.command_list->SetScissor(pass.scissor);
             }
 
             for (const Placement& placement : placements)

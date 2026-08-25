@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include "JobSystem.h"
 #include "RHIResource.h"
+#include "RHICommandList.h"
 #include "Types.h"
 
 namespace won::rendering
@@ -69,6 +70,9 @@ namespace won::rendering
 		void MarkNoCull(FrameResourceId resource); // this resource will not be culled even if it is not used in any pass. and this resource is not aliased
         bool QueueBufferUpload(FrameResourceId destination, const void* data, Size size, Size destination_offset = 0);
 
+        // Applied to every pass command list opened after this call; passes only override it when they need a sub-rect.
+        void SetDefaultViewport(const RHIViewport& viewport, const RHIRect& scissor);
+
         void AddPass(const char* name, Vector<FrameResourceAccess> accesses, std::function<void(const FrameGraphPassContext&)> execute);
 
         void Compile();
@@ -81,8 +85,13 @@ namespace won::rendering
             Vector<FrameResourceAccess> accesses;
             std::function<void(const FrameGraphPassContext&)> execute;
             RHICommandList* command_list = nullptr;
+            RHIViewport viewport = {};
+            RHIRect scissor = {};
             bool alive = false;
         };
+
+        RHIViewport default_viewport = {};
+        RHIRect default_scissor = {};
 
         struct PooledSubresource
         {

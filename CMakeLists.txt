@@ -528,7 +528,9 @@ set(SHADERS_HLSL
     Source/Shaders/ObjectPS_forward_masked.hlsl
     Source/Shaders/ObjectPS_forwardplus_masked.hlsl
     Source/Shaders/ObjectPS_unlit_masked.hlsl
-    Source/Shaders/SpritePS.hlsl
+    Source/Shaders/SpritePS.hlsli
+    Source/Shaders/SpritePS_default.hlsl
+    Source/Shaders/SpritePS_masked.hlsl
     Source/Shaders/TextPS.hlsl
     Source/Shaders/DDGIProbeUpdateCS.hlsl
     Source/Shaders/LightCullCS.hlsl

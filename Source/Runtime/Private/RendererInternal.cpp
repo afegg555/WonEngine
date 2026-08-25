@@ -2907,6 +2907,7 @@ namespace won::rendering
         scissor.y = 0;
         scissor.width = targets.width;
         scissor.height = targets.height;
+        frame_graph.SetDefaultViewport(viewport, scissor);
 
         const FrameResourceId view_constants_id = frame_graph.Import(*view.view_constants.buffer);
         const FrameResourceAccess view_constants_read = { view_constants_id, RHIResourceState::ConstantBuffer, FrameResourceAccess::Type::Read };
