@@ -31,7 +31,8 @@ namespace won
     static console::ConsoleVariable r_debug_show_bvh("r.debug.show.bvh", -1, "override the scene BVH overlay of every view: -1=off 0=hide 1=show", console::ConsoleVariableFlagNone);
     static console::ConsoleVariable r_debug_show_ddgi("r.debug.show.ddgi", -1, "override the DDGI volume and probe overlay of every view: -1=off 0=hide 1=show", console::ConsoleVariableFlagNone);
     static console::ConsoleVariable r_debug_show_colliders("r.debug.show.colliders", -1, "override the physics collider overlay of every view: -1=off 0=hide 1=show", console::ConsoleVariableFlagNone);
-    static console::ConsoleVariable r_debug_freeze_culling("r.debug.freeze_culling", false, "freeze the culling frustum at its current state", console::ConsoleVariableFlagNone);
+    static console::ConsoleVariable r_debug_show_occlusion("r.debug.show.occlusion", -1, "override the occluded bounds overlay of every view: -1=off 0=hide 1=show", console::ConsoleVariableFlagNone);
+    static console::ConsoleVariable r_debug_freeze_culling("r.debug.freeze_culling", -1, "override the culling freeze of every view: -1=off 0=unfreeze 1=freeze", console::ConsoleVariableFlagNone);
 #endif
 
 	// currently uses a hash of the schema filename to derive the save file name... maybe changed ??
@@ -503,6 +504,7 @@ namespace won
                         { r_debug_show_bvh, rendering::Show_BVH },
                         { r_debug_show_ddgi, rendering::Show_DDGI },
                         { r_debug_show_colliders, rendering::Show_Colliders },
+                        { r_debug_show_occlusion, rendering::Show_Occlusion },
                     };
                     for (const auto& override_entry : show_flag_overrides)
                     {
@@ -516,7 +518,11 @@ namespace won
                             view_ptr->show_flags &= ~override_entry.flag;
                         }
                     }
-                    view_ptr->freeze_culling = r_debug_freeze_culling.GetBool();
+                    const int freeze_culling = r_debug_freeze_culling.GetInt();
+                    if (freeze_culling >= 0)
+                    {
+                        view_ptr->freeze_culling = freeze_culling > 0;
+                    }
 #endif
 
                     renderer->Render(*view_ptr);

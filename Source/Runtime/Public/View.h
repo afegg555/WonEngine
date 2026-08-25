@@ -4,6 +4,7 @@
 #include "Types.h"
 #include "RHIResource.h"
 #include "RHISwapchain.h"
+#include "RHIQueryHeap.h"
 #include "FrameGraph.h"
 
 namespace won::rendering
@@ -32,6 +33,7 @@ namespace won::rendering
             ViewResizePolicy resize_policy = ViewResizePolicy::MatchWindow;
             bool update_camera_aspect = true;
             bool enable_frustum_culling = true;
+            bool enable_occlusion_culling = false;
             bool enable_viewport_culling = true; // 2D sprites only
             AntiAliasingMode aa_mode = AntiAliasingMode::None;
             TonemapMode tonemap_mode = TonemapMode::Reinhard;
@@ -99,6 +101,43 @@ namespace won::rendering
             bool probe_data_readback_valid = false;
         };
 
+        struct OcclusionResources
+        {
+            struct RenderableKey
+            {
+                ecs::Entity entity = ecs::INVALID_ENTITY;
+                uint32 geometry_index = 0;
+
+                bool operator==(const RenderableKey& other) const
+                {
+                    return entity == other.entity && geometry_index == other.geometry_index;
+                }
+            };
+
+            struct RenderableKeyHasher
+            {
+                Size operator()(const RenderableKey& key) const
+                {
+                    return static_cast<Size>(key.entity) ^ (static_cast<Size>(key.geometry_index) << 32);
+                }
+            };
+
+            struct VisibilityEntry
+            {
+                uint8 history = 0xffu;
+                uint8 queried = 0xffu;
+
+                bool IsOccluded() const { return history == 0; }
+                bool IsDead() const { return queried == 0; }
+            };
+
+            std::unique_ptr<RHIQueryHeap> query_heap;
+            std::array<std::unique_ptr<RHIResource>, max_frames_in_flight> readback_buffers = {};
+            std::array<Vector<RenderableKey>, max_frames_in_flight> issued_keys = {};
+            std::unordered_map<RenderableKey, VisibilityEntry, RenderableKeyHasher> visibility;
+            bool active = false;
+        };
+
         struct RenderTargets
         {
             FrameGraphResourceRef color[2] = { invalid_frame_resource, invalid_frame_resource };
@@ -160,6 +199,7 @@ namespace won::rendering
         ShadowResources shadow_resources = {};
         InstanceResources instance_resources = {};
         DDGIDebugResources ddgi_debug_resources = {};
+        OcclusionResources occlusion_resources = {};
         Rect viewport = {};
         Rect scissor = {};
         uint32 ui_layer_mask = 0xFFFFFFFF;
@@ -167,7 +207,8 @@ namespace won::rendering
 
         // renderable indices
         Vector<uint32> sorted_shadow_caster_indices; // per shadow slice, concatenated in slice order; each range is in batch-key order
-        Vector<uint32> sorted_opaque_indices;       // batch-key order
+        Vector<uint32> sorted_opaque_indices;       // batch-key order, occlusion applied
+        Vector<uint32> occlusion_query_indices;     // frustum survivors, occlusion NOT applied
         Vector<uint32> sorted_transparent_indices;  // back-to-front
         Vector<uint32> sorted_sprite_3d_indices;    // back-to-front
         Vector<uint32> sorted_sprite_2d_indices;    // by layer

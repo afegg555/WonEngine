@@ -1,4 +1,4 @@
-﻿#include "RendererInternal.h"
+#include "RendererInternal.h"
 #include "ShaderInterop_Sprite.h"
 #include "ShaderInterop_Decal.h"
 #include "ShaderInterop_Water.h"
@@ -29,6 +29,7 @@
 #include "ShaderInterop.h"
 #include "ShaderInterop_PostProcess.h"
 #include "ShaderInterop_LightCull.h"
+#include "ShaderInterop_Occlusion.h"
 
 #include <algorithm>
 #include <cstring>
@@ -308,6 +309,7 @@ namespace won::rendering
 
     static won::console::ConsoleVariable r_upload_budget("r.upload_budget", 8, "max queued resource uploads per frame, 0 = unlimited", won::console::ConsoleVariableFlagNone);
     static won::console::ConsoleVariable r_cluster_depth_slices("r.cluster.depth_slices", 32, "Forward+ cluster depth slices (1 = 2D tiled)", won::console::ConsoleVariableFlagArchive);
+    static won::console::ConsoleVariable r_occlusion_culling("r.occlusion_culling", 0, "force hardware occlusion culling on for every view (0 = follow the per-view option)", won::console::ConsoleVariableFlagNone);
 
     bool RendererInternal::UploadSceneData(FrameContext& frame_context, ecs::Scene& scene, GPUScene& gpu_scene)
     {
@@ -2041,6 +2043,21 @@ namespace won::rendering
             }
         }
 
+        if ((view.show_flags & Show_Occlusion) != 0 && view.occlusion_resources.active)
+        {
+            for (uint32 renderable_index : view.occlusion_query_indices)
+            {
+                const Renderable& renderable = gpu_scene.opaque_renderables[renderable_index];
+                const View::OcclusionResources::RenderableKey key = { renderable.entity, renderable.push_constants.geometry_index };
+                const auto entry = view.occlusion_resources.visibility.find(key);
+                if (entry == view.occlusion_resources.visibility.end() || !entry->second.IsOccluded())
+                {
+                    continue;
+                }
+                debugdraw::Box3D(renderable.aabb.min, renderable.aabb.max, debugdraw::color::occluded);
+            }
+        }
+
         if ((view.show_flags & Show_BVH) != 0)
         {
             const math::bvh::BVH& cpu_bvh = view.scene->GetSceneBVH();
@@ -3059,14 +3076,119 @@ namespace won::rendering
             });
         }
 
-        // prepass
+        View::OcclusionResources& occlusion = view.occlusion_resources;
+        const bool occlusion_enabled = view.options.enable_occlusion_culling || r_occlusion_culling.GetInt() != 0;
+        occlusion.active = occlusion_enabled;
+
+        if (occlusion_enabled && !view.freeze_culling && occlusion.readback_buffers[current_frame_slot])
+        {
+            const Vector<View::OcclusionResources::RenderableKey>& resolved_keys = occlusion.issued_keys[current_frame_slot];
+            const uint64* results = static_cast<const uint64*>(occlusion.readback_buffers[current_frame_slot]->GetMappedData());
+            if (results)
+            {
+                for (auto entry = occlusion.visibility.begin(); entry != occlusion.visibility.end(); )
+                {
+                    entry->second.history <<= 1;
+                    entry->second.queried <<= 1;
+                    entry = entry->second.IsDead() ? occlusion.visibility.erase(entry) : std::next(entry);
+                }
+
+                for (Size i = 0; i < resolved_keys.size(); ++i)
+                {
+                    View::OcclusionResources::VisibilityEntry& entry = occlusion.visibility[resolved_keys[i]];
+                    entry.queried |= 1u;
+                    if (results[i] > 0)
+                    {
+                        entry.history |= 1u;
+                    }
+                }
+            }
+        }
+
+        if (occlusion_enabled)
+        {
+            const uint32 required_queries = static_cast<uint32>(gpu_scene.opaque_renderables.size());
+            const uint32 current_capacity = occlusion.query_heap ? occlusion.query_heap->GetDesc().query_count : 0;
+            if (required_queries > current_capacity)
+            {
+                const uint32 new_capacity = static_cast<uint32>(math::Align(static_cast<Size>(required_queries) * 2, static_cast<Size>(1024)));
+
+                RHIQueryHeapDesc query_desc = {};
+                query_desc.type = RHIQueryType::BinaryOcclusion; // for early termination
+                query_desc.query_count = new_capacity;
+                std::unique_ptr<RHIQueryHeap> new_heap = device->CreateQueryHeap(query_desc);
+
+                RHIBufferDesc readback_desc = {};
+                readback_desc.usage = RHIResourceUsage::Readback;
+                readback_desc.size = static_cast<Size>(new_capacity) * sizeof(uint64);
+
+                std::array<std::unique_ptr<RHIResource>, max_frames_in_flight> new_readback_buffers = {};
+                bool readback_buffers_created = true;
+                for (uint32 i = 0; i < max_frames_in_flight; ++i)
+                {
+                    new_readback_buffers[i] = device->CreateBuffer(readback_desc);
+                    if (!new_readback_buffers[i])
+                    {
+                        readback_buffers_created = false;
+                        break;
+                    }
+                    new_readback_buffers[i]->SetName("Occlusion Query Readback Buffer " + std::to_string(i));
+                }
+
+                if (new_heap && readback_buffers_created)
+                {
+                    new_heap->SetName("Occlusion Query Heap");
+                    if (occlusion.query_heap)
+                    {
+                        frame_context.RemoveResourceDeferred(std::move(occlusion.query_heap));
+                    }
+                    for (auto& buffer : occlusion.readback_buffers)
+                    {
+                        if (buffer)
+                        {
+                            frame_context.RemoveResourceDeferred(std::move(buffer));
+                        }
+                    }
+                    for (auto& keys : occlusion.issued_keys)
+                    {
+                        keys.clear();
+                    }
+                    occlusion.visibility.clear();
+                    occlusion.query_heap = std::move(new_heap);
+                    occlusion.readback_buffers = std::move(new_readback_buffers);
+                    wonlog("Occlusion culling: query capacity %u", new_capacity);
+                }
+                else
+                {
+                    wonlog_warning("Occlusion culling: failed to create query resources");
+                }
+            }
+        }
+        else if (occlusion.query_heap)
+        {
+            frame_context.RemoveResourceDeferred(std::move(occlusion.query_heap));
+            for (auto& buffer : occlusion.readback_buffers)
+            {
+                if (buffer)
+                {
+                    frame_context.RemoveResourceDeferred(std::move(buffer));
+                }
+            }
+            for (auto& keys : occlusion.issued_keys)
+            {
+                keys.clear();
+            }
+            occlusion.visibility.clear();
+        }
+
+        // depth only prepass
         if ((view.show_flags & Show_Opaque) != 0)
         {
-            frame_graph.AddPass("Prepass", { { depth_id, RHIResourceState::DepthWrite, FrameResourceAccess::Type::ReadWrite }, view_constants_read, sort_buffer_read },
+            frame_graph.AddPass("Depth Only Prepass", { { depth_id, RHIResourceState::DepthWrite, FrameResourceAccess::Type::ReadWrite }, view_constants_read, sort_buffer_read },
                 [this, &view, &targets, &frame_context, viewport, scissor](const FrameGraphPassContext& pass_context)
             {
-                auto gpu_range = profiler::ScopedRangeGPU("Prepass", (*pass_context.command_list));
-                auto cpu_range = profiler::ScopedRangeCPU("Prepass");
+                auto gpu_range = profiler::ScopedRangeGPU("Depth Only Prepass", (*pass_context.command_list));
+                auto cpu_range = profiler::ScopedRangeCPU("Depth Only Prepass");
                 const RHISubresourceBinding depth_binding = { pass_context.GetResource(targets.depth), targets.depth_dsv };
                 pass_context.command_list->SetViewport(viewport);
                 pass_context.command_list->SetScissor(scissor);
@@ -3180,6 +3302,114 @@ namespace won::rendering
                 pass_context.command_list->SetScissor(scissor);
                 pass_context.command_list->SetRenderTargets({ { pass_context.GetResource(targets.color[0]), targets.color_rtv[0] } }, &depth_binding);
                 DrawScene(frame_context, view, RenderPassType::MainPass, main_pass_flags, (*pass_context.command_list));
+            });
+        }
+
+        if (occlusion_enabled && occlusion.query_heap && occlusion.readback_buffers[current_frame_slot]
+            && (view.show_flags & Show_Opaque) != 0 && !view.occlusion_query_indices.empty())
+        {
+            // occlusion query should be performed after main pass becuase depth buffer might be updated on main pass(transparent, masked ..)
+            float3 camera_eye = {};
+            float camera_near = 0.0f;
+            if (const ecs::CameraComponent* occlusion_camera = view.scene->GetComponent<ecs::CameraComponent>(view.camera_entity))
+            {
+                camera_eye = occlusion_camera->eye;
+                camera_near = occlusion_camera->near_plane;
+            }
+
+            const FrameResourceId occlusion_readback_id = frame_graph.Import(*occlusion.readback_buffers[current_frame_slot]);
+            frame_graph.MarkNoCull(occlusion_readback_id);
+            const uint32 occlusion_frame_slot = current_frame_slot;
+
+            frame_graph.AddPass("Occlusion Query",
+                { { depth_id, RHIResourceState::DepthRead, FrameResourceAccess::Type::Read },
+                  { occlusion_readback_id, RHIResourceState::CopyDest, FrameResourceAccess::Type::Write },
+                  view_constants_read },
+                [this, &view, &targets, viewport, scissor, camera_eye, camera_near, occlusion_frame_slot](const FrameGraphPassContext& pass_context)
+            {
+                auto gpu_range = profiler::ScopedRangeGPU("Occlusion Query", (*pass_context.command_list));
+                auto cpu_range = profiler::ScopedRangeCPU("Occlusion Query");
+
+                GraphicsPipelineHash occlusion_hash = {};
+                occlusion_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::OcclusionQueryPass);
+                occlusion_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
+                occlusion_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
+                occlusion_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
+                occlusion_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
+                RHIPipeline* occlusion_pipeline = shader_library.GetPipeline(occlusion_hash);
+                if (!occlusion_pipeline)
+                {
+                    return;
+                }
+
+                View::OcclusionResources& occlusion_resources = view.occlusion_resources;
+                Vector<View::OcclusionResources::RenderableKey>& issued_keys = occlusion_resources.issued_keys[occlusion_frame_slot];
+                issued_keys.clear();
+
+                const GPUScene& gpu_scene = view.scene->GetGPUScene();
+                const uint32 query_capacity = occlusion_resources.query_heap->GetDesc().query_count;
+                RHICommandList& command_list = *pass_context.command_list;
+
+                RHISubresourceBinding frame_binding = {};
+                frame_binding.resource = shader_frame_buffer.get();
+                frame_binding.subresource = shader_frame_buffer_cbv;
+
+                RHISubresourceBinding view_binding = {};
+                view_binding.resource = view.view_constants.buffer.get();
+                view_binding.subresource = view.view_constants.cbv;
+
+                const RHISubresourceBinding depth_binding = { pass_context.GetResource(targets.depth), targets.depth_readonly_dsv };
+                command_list.SetViewport(viewport);
+                command_list.SetScissor(scissor);
+                command_list.SetRenderTargets({}, &depth_binding);
+                command_list.SetGraphicsPipeline(*occlusion_pipeline);
+                command_list.SetConstantBuffer(RHIShaderStage::Vertex, 0, frame_binding);
+                command_list.SetConstantBuffer(RHIShaderStage::Vertex, 1, view_binding);
+                command_list.SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
+                command_list.ResetQuery(*occlusion_resources.query_heap, 0, query_capacity);
+
+                for (uint32 renderable_index : view.occlusion_query_indices)
+                {
+                    if (static_cast<uint32>(issued_keys.size()) >= query_capacity)
+                    {
+                        break;
+                    }
+
+                    const Renderable& renderable = gpu_scene.opaque_renderables[renderable_index];
+                    if (!renderable.aabb.IsValid())
+                    {
+                        continue;
+                    }
+
+                    const float3 closest_point = {
+                        (std::max)(renderable.aabb.min.x, (std::min)(camera_eye.x, renderable.aabb.max.x)),
+                        (std::max)(renderable.aabb.min.y, (std::min)(camera_eye.y, renderable.aabb.max.y)),
+                        (std::max)(renderable.aabb.min.z, (std::min)(camera_eye.z, renderable.aabb.max.z))
+                    };
+                    if (math::DistanceSquared(closest_point, camera_eye) <= camera_near * camera_near)
+                    {
+                        continue;
+                    }
+
+                    OcclusionPushConstants occlusion_push = {};
+                    occlusion_push.Init();
+                    occlusion_push.aabb_min = renderable.aabb.min;
+                    occlusion_push.aabb_max = renderable.aabb.max;
+
+                    const uint32 query_index = static_cast<uint32>(issued_keys.size());
+                    command_list.PushConstants(RHIShaderStage::Vertex, &occlusion_push, sizeof(OcclusionPushConstants), 0);
+                    command_list.BeginQuery(*occlusion_resources.query_heap, query_index);
+                    command_list.Draw(36, 1, 0, 0);
+                    command_list.EndQuery(*occlusion_resources.query_heap, query_index);
+
+                    issued_keys.push_back({ renderable.entity, renderable.push_constants.geometry_index });
+                }
+
+                if (!issued_keys.empty())
+                {
+                    command_list.ResolveQuery(*occlusion_resources.query_heap, 0, static_cast<uint32>(issued_keys.size()),
+                        *occlusion_resources.readback_buffers[occlusion_frame_slot], 0);
+                }
             });
         }
 
@@ -3899,3 +4129,4 @@ namespace won::rendering
         device = nullptr;
     }
 }
+

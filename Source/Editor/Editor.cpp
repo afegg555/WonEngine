@@ -1331,6 +1331,7 @@ namespace won::editor
 		{
 			editor_viewport.view->show_flags = editor_viewport.debug_settings.show_flags;
 			editor_viewport.view->view_mode = editor_viewport.debug_settings.view_mode;
+			editor_viewport.view->freeze_culling = editor_viewport.debug_settings.freeze_culling;
 		}
 		if (won::io::IsPressed(io::Button('R')))
 		{
@@ -3160,6 +3161,7 @@ namespace won::editor
 					{ rendering::Show_Colliders,   editor_key::label_show_colliders },
 					{ rendering::Show_BVH,         editor_key::label_show_bvh },
 					{ rendering::Show_DDGI,        editor_key::label_show_ddgi },
+					{ rendering::Show_Occlusion,   editor_key::label_show_occlusion },
 				};
 				for (const auto& item : show_flag_items)
 				{
@@ -3176,6 +3178,9 @@ namespace won::editor
 						}
 					}
 				}
+
+				ImGui::Separator();
+				ImGui::Checkbox(EditorText(editor_key::label_freeze_culling), &editor_viewport.debug_settings.freeze_culling);
 
 				ImGui::Separator();
 				if (ImGui::Button(EditorText(editor_key::action_close))) ImGui::CloseCurrentPopup();

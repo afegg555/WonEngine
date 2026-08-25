@@ -53,6 +53,7 @@ namespace won::rendering
         Show_Colliders = 1 << 17,
         Show_BVH = 1 << 18,
         Show_DDGI = 1 << 19,
+        Show_Occlusion = 1 << 20,
 
         Show_Default = Show_Opaque | Show_Transparent | Show_Decals | Show_Particles | Show_Sprites3D | Show_Sprites2D | Show_Shadows | Show_Water,
     };

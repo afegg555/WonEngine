@@ -8,7 +8,8 @@ namespace won::rendering
     enum class RHIQueryType
     {
         Timestamp,
-        Occlusion,
+        Occlusion, // count of passed fragments
+        BinaryOcclusion, // boolean
     };
 
     struct RHIQueryHeapDesc

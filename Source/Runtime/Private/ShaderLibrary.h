@@ -25,6 +25,7 @@ namespace won::resource
         GridPass,
         DebugDraw2DPass,
         DebugDraw3DPass,
+        OcclusionQueryPass,
         Count
     };
 

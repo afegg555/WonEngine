@@ -385,6 +385,7 @@ namespace won::rendering
 
                         const resource::MaterialSlot& material_slot = material_comp.material->slots[submesh.material_slot];
                         Renderable renderable = {};
+                        renderable.entity = entity;
                         ObjectPushConstants& push_constants = renderable.push_constants;
                         push_constants.Init();
                         push_constants.geometry_index = geometry_comp.geometry_offset + (uint)i;

@@ -567,6 +567,7 @@ namespace won::rendering
         switch (desc.type)
         {
         case RHIQueryType::Occlusion:
+        case RHIQueryType::BinaryOcclusion:
             query_heap_desc.Type = D3D12_QUERY_HEAP_TYPE_OCCLUSION;
             break;
         case RHIQueryType::Timestamp:

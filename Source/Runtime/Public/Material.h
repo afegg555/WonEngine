@@ -19,7 +19,7 @@ namespace won::resource
     enum class MaterialBlendMode : uint32
     {
         Opaque, // dst = src.rgb, blending off so alpha is unused
-        Masked, // dst = src.rgb after clip(alpha - cutoff), which disables early depth writes for the draw
+        Masked, // dst = src.rgb after clip(alpha - cutoff), which disables early depth test for the draw
         Transparent, // dst = src.rgb * src.a + dst * (1 - src.a)
         Additive, // dst = src.rgb * src.a + dst, order independent so no sorting
         Premultiplied, // dst = src.rgb + dst * (1 - src.a), alpha already applied to rgb
