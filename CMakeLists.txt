@@ -469,6 +469,7 @@ set(SHADERS_INTEROP
     Source/Shaders/ShaderInterop_Decal.h
     Source/Shaders/ShaderInterop_Water.h
     Source/Shaders/ShaderInterop_DebugDraw.h
+    Source/Shaders/ShaderInterop_Occlusion.h
 )
 
 set(SHADERS_HLSL
@@ -502,6 +503,7 @@ set(SHADERS_HLSL
     Source/Shaders/ObjectVS_simple.hlsl
     Source/Shaders/ObjectVS_common.hlsl
     Source/Shaders/ObjectVS_prepass.hlsl
+    Source/Shaders/OcclusionBoxVS.hlsl
     Source/Shaders/SpriteCommon.hlsli
     Source/Shaders/Sprite2DVS.hlsl
     Source/Shaders/Sprite3DVS.hlsl
