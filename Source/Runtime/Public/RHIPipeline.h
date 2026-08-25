@@ -56,6 +56,12 @@ namespace won::rendering
         RHICullMode cull_mode = RHICullMode::None;
         bool front_ccw = false;
         bool depth_clip_enable = true;
+        int32 depth_bias = 0;
+        float depth_bias_clamp = 0.0f;
+        float slope_scaled_depth_bias = 0.0f;
+        bool multisample_enable = false;
+        bool antialiased_line_enable = false;
+        bool conservative_raster = false;
     };
 
     struct RHIDepthStencilDesc

@@ -1295,6 +1295,14 @@ namespace won::rendering
         pso_desc.RasterizerState.CullMode = ToCullMode(desc.raster.cull_mode);
         pso_desc.RasterizerState.FrontCounterClockwise = desc.raster.front_ccw ? TRUE : FALSE;
         pso_desc.RasterizerState.DepthClipEnable = desc.raster.depth_clip_enable ? TRUE : FALSE;
+        pso_desc.RasterizerState.DepthBias = static_cast<INT>(desc.raster.depth_bias);
+        pso_desc.RasterizerState.DepthBiasClamp = desc.raster.depth_bias_clamp;
+        pso_desc.RasterizerState.SlopeScaledDepthBias = desc.raster.slope_scaled_depth_bias;
+        pso_desc.RasterizerState.MultisampleEnable = desc.raster.multisample_enable ? TRUE : FALSE;
+        pso_desc.RasterizerState.AntialiasedLineEnable = desc.raster.antialiased_line_enable ? TRUE : FALSE;
+        pso_desc.RasterizerState.ConservativeRaster = desc.raster.conservative_raster
+            ? D3D12_CONSERVATIVE_RASTERIZATION_MODE_ON
+            : D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
         pso_desc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
         const DXGI_FORMAT dsv_format = ToDXGIFormat(desc.depth_stencil_format);
         const bool has_depth_stencil = dsv_format != DXGI_FORMAT_UNKNOWN;
