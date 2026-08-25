@@ -24,7 +24,8 @@ namespace won::console
 
     // A developer tunable declared next to the code that reads it (live-bound, no key lookup), changed at runtime via console commands or launch args.
 	// usage example(use static for lifetime):
-    // static console::ConsoleVariable g_test_float("r.testfloat", 1.0f, "temp console overlay verification", console::ConsoleVariableFlagArchive);
+    // static console::ConsoleVariable r_shadow_resolution("r.shadow.resolution", 2048, "directional shadow map resolution", console::ConsoleVariableFlagArchive);
+
     class WONENGINE_API ConsoleVariable
     {
     public:
@@ -93,6 +94,8 @@ namespace won::console
     WONENGINE_API ConsoleVariable* Find(StringView name);
     WONENGINE_API bool SetFromString(StringView name, StringView value);
     WONENGINE_API void ForEach(const std::function<void(const ConsoleVariable&)>& fn);
+    // Registered variable and command names starting with prefix, in sorted order.
+    WONENGINE_API Vector<String> FindNamesWithPrefix(StringView prefix);
 
     WONENGINE_API void Execute(StringView line);
 

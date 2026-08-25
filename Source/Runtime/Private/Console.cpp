@@ -293,6 +293,19 @@ namespace won::console
         }
     }
 
+    Vector<String> FindNamesWithPrefix(StringView prefix)
+    {
+        Vector<String> names;
+        for (const auto& pair : Registry())
+        {
+            if (pair.first.compare(0, prefix.size(), prefix) == 0)
+            {
+                names.push_back(pair.first);
+            }
+        }
+        return names;
+    }
+
     void Execute(StringView line)
     {
         const Vector<String> tokens = utils::Tokenize(line);

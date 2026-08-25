@@ -5,6 +5,9 @@
 #include "Console.h"
 #include "DebugDraw.h"
 #include "Input.h"
+#include "Platform.h"
+
+#include <algorithm>
 
 #ifndef WON_SHIPPING
 namespace won::console
@@ -28,9 +31,23 @@ namespace won::console
 
         if (open)
         {
+            const bool control_down = io::IsDown(io::KEYBOARD_BUTTON_LCONTROL) || io::IsDown(io::KEYBOARD_BUTTON_RCONTROL);
+
             for (const char c : io::GetTextInput())
             {
                 if (c == '`' || c == '~')
+                {
+                    continue;
+                }
+                if (c == '\b')
+                {
+                    if (!input_line.empty())
+                    {
+                        input_line.pop_back();
+                    }
+                    continue;
+                }
+                if (control_down)
                 {
                     continue;
                 }
@@ -40,9 +57,48 @@ namespace won::console
                 }
             }
 
-            if (io::IsPressed(io::KEYBOARD_BUTTON_BACKSPACE) && !input_line.empty())
+            if (control_down && io::IsPressed(io::Button('V')))
             {
-                input_line.pop_back();
+                String clipboard_text;
+                if (platform::GetClipboardText(clipboard_text))
+                {
+                    for (const char c : clipboard_text)
+                    {
+                        if (c >= 0x20 && c < 0x7f)
+                        {
+                            input_line += c;
+                        }
+                    }
+                }
+            }
+
+            if (io::IsPressed(io::KEYBOARD_BUTTON_TAB) && !input_line.empty())
+            {
+                const Vector<String> candidates = FindNamesWithPrefix(input_line);
+                if (candidates.size() == 1)
+                {
+                    input_line = candidates[0] + ' ';
+                }
+                else if (!candidates.empty())
+                {
+                    Size common = candidates[0].size();
+                    for (Size i = 1; i < candidates.size(); ++i)
+                    {
+                        common = (std::min)(common, candidates[i].size());
+                        while (common > 0 && candidates[i].compare(0, common, candidates[0], 0, common) != 0)
+                        {
+                            --common;
+                        }
+                    }
+                    input_line = candidates[0].substr(0, common);
+
+                    String line;
+                    for (const String& candidate : candidates)
+                    {
+                        line += line.empty() ? candidate : "  " + candidate;
+                    }
+                    backlog::Post(line);
+                }
             }
 
             if (io::IsPressed(io::KEYBOARD_BUTTON_ENTER) && !input_line.empty())
