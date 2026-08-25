@@ -17,6 +17,9 @@ namespace won::resource
         VSDebugDraw2D,
         VSDebugDraw3D,
         VSGrid,
+        VSWater,
+        VSWaterInfo,
+        VSWaterRippleSplat,
 
         PSSky,
         PSObjectForward,
@@ -33,6 +36,10 @@ namespace won::resource
         PSDebugDraw2D,
         PSDebugDraw3D,
         PSGrid,
+        PSWaterInfo,
+        PSWaterRippleSplat,
+        PSWaterForward,
+        PSWaterForwardPlus,
 
         CSFXAA,
         CSTonemap,
@@ -44,6 +51,7 @@ namespace won::resource
         CSSpecularPrefilter,
         CSDDGIProbeUpdate,
         CSLightCull,
+        CSWaterRippleStep,
         CSTextureMipGen,
         CSGPUBVHBuildGeneratePrimitives,
         CSGPUBVHBuildSortPrimitives,
@@ -71,6 +79,9 @@ namespace won::resource
         case ShaderId::VSDebugDraw2D: return "VSDebugDraw2D";
         case ShaderId::VSDebugDraw3D: return "VSDebugDraw3D";
         case ShaderId::VSGrid: return "VSGrid";
+        case ShaderId::VSWater: return "VSWater";
+        case ShaderId::VSWaterInfo: return "VSWaterInfo";
+        case ShaderId::VSWaterRippleSplat: return "VSWaterRippleSplat";
         case ShaderId::PSSky: return "PSSky";
         case ShaderId::PSObjectForward: return "PSObjectForward";
         case ShaderId::PSObjectForwardPlus: return "PSObjectForwardPlus";
@@ -86,6 +97,10 @@ namespace won::resource
         case ShaderId::PSDebugDraw2D: return "PSDebugDraw2D";
         case ShaderId::PSDebugDraw3D: return "PSDebugDraw3D";
         case ShaderId::PSGrid: return "PSGrid";
+        case ShaderId::PSWaterInfo: return "PSWaterInfo";
+        case ShaderId::PSWaterRippleSplat: return "PSWaterRippleSplat";
+        case ShaderId::PSWaterForward: return "PSWaterForward";
+        case ShaderId::PSWaterForwardPlus: return "PSWaterForwardPlus";
         case ShaderId::CSFXAA: return "CSFXAA";
         case ShaderId::CSTonemap: return "CSTonemap";
         case ShaderId::CSLuminanceReduce: return "CSLuminanceReduce";
@@ -96,6 +111,7 @@ namespace won::resource
         case ShaderId::CSSpecularPrefilter: return "CSSpecularPrefilter";
         case ShaderId::CSDDGIProbeUpdate: return "CSDDGIProbeUpdate";
         case ShaderId::CSLightCull: return "CSLightCull";
+        case ShaderId::CSWaterRippleStep: return "CSWaterRippleStep";
         case ShaderId::CSTextureMipGen: return "CSTextureMipGen";
         case ShaderId::CSGPUBVHBuildGeneratePrimitives: return "CSGPUBVHBuildGeneratePrimitives";
         case ShaderId::CSGPUBVHBuildSortPrimitives: return "CSGPUBVHBuildSortPrimitives";

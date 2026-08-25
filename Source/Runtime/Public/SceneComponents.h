@@ -38,6 +38,8 @@
 #include "BehaviorTreeComponent.h"
 #include "NavAgentComponent.h"
 #include "SequenceComponent.h"
+#include "WaterBodyComponent.h"
+#include "WaterZoneComponent.h"
 
 namespace won::ecs
 {
@@ -86,7 +88,9 @@ namespace won::ecs
         Joint,
         BehaviorTree,
         NavAgent,
-        Sequence
+        Sequence,
+        Water,
+        WaterZone
     };
 
     constexpr ComponentMask ComponentMaskFromBit(SceneComponentBit bit)
@@ -130,6 +134,8 @@ namespace won::ecs
     inline constexpr ComponentMask behavior_tree_component_mask = ComponentMaskFromBit(SceneComponentBit::BehaviorTree);
     inline constexpr ComponentMask nav_agent_component_mask = ComponentMaskFromBit(SceneComponentBit::NavAgent);
     inline constexpr ComponentMask sequence_component_mask = ComponentMaskFromBit(SceneComponentBit::Sequence);
+    inline constexpr ComponentMask water_body_component_mask = ComponentMaskFromBit(SceneComponentBit::Water);
+    inline constexpr ComponentMask water_zone_component_mask = ComponentMaskFromBit(SceneComponentBit::WaterZone);
 
     template <typename Component>
     constexpr ComponentMask ComponentMaskFromType()
@@ -169,6 +175,8 @@ namespace won::ecs
         else if constexpr (std::is_same_v<Component, BehaviorTreeComponent>) { return behavior_tree_component_mask; }
         else if constexpr (std::is_same_v<Component, NavAgentComponent>) { return nav_agent_component_mask; }
         else if constexpr (std::is_same_v<Component, SequenceComponent>) { return sequence_component_mask; }
+        else if constexpr (std::is_same_v<Component, WaterBodyComponent>) { return water_body_component_mask; }
+        else if constexpr (std::is_same_v<Component, WaterZoneComponent>) { return water_zone_component_mask; }
         else { return none_component_mask; }
     }
 }

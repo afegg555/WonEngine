@@ -50,6 +50,8 @@ namespace won::ecs
             case reflection::TypeMeta<BehaviorTreeComponent>::type_id: return behavior_tree_component_mask;
             case reflection::TypeMeta<NavAgentComponent>::type_id: return nav_agent_component_mask;
             case reflection::TypeMeta<SequenceComponent>::type_id: return sequence_component_mask;
+            case reflection::TypeMeta<WaterBodyComponent>::type_id: return water_body_component_mask;
+            case reflection::TypeMeta<WaterZoneComponent>::type_id: return water_zone_component_mask;
             default: return none_component_mask;
             }
         }
@@ -104,6 +106,8 @@ namespace won::ecs
         component_manager.RegisterComponent<BehaviorTreeComponent>();
         component_manager.RegisterComponent<NavAgentComponent>();
         component_manager.RegisterComponent<SequenceComponent>();
+        component_manager.RegisterComponent<WaterBodyComponent>();
+        component_manager.RegisterComponent<WaterZoneComponent>();
 
         if (desc.script_runtime && desc.enable_simulation)
         {
@@ -135,6 +139,10 @@ namespace won::ecs
         if (desc.enable_simulation)
         {
             AddSystem(std::make_unique<ParticleUpdateSystem>());
+        }
+        if (desc.enable_simulation)
+        {
+            AddSystem(std::make_unique<WaterSimulationSystem>());
         }
         if (desc.enable_simulation)
         {
@@ -442,6 +450,7 @@ namespace won::ecs
         std::swap(animation_event_queue, other.animation_event_queue);
         std::swap(sequence_event_queue, other.sequence_event_queue);
         std::swap(prefab_spawn_queue, other.prefab_spawn_queue);
+        std::swap(water_ripple_queue, other.water_ripple_queue);
         std::swap(nav_mesh, other.nav_mesh);
 
         physics_world->Clear();

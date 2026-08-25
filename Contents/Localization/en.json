@@ -2402,6 +2402,11 @@
             "text": "Decals",
             "comment": "label"
         },
+        "editor.label.show_water": {
+            "source": "Water",
+            "text": "Water",
+            "comment": "label"
+        },
         "editor.label.show_particles": {
             "source": "Particles",
             "text": "Particles",

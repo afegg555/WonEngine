@@ -91,6 +91,9 @@ namespace won::physics
         void AddImpulse(won::ecs::Entity entity, const float3& impulse);
         void AddTorque(won::ecs::Entity entity, const float3& torque);
 
+        float GetFixedStepSeconds() const;
+        int GetMaxStepsPerFrame() const;
+
         bool RayCast(const float3& origin, const float3& direction, float max_distance, RayCastHit& out_hit, uint32_t layer_mask = 0xFFFFFFFFu) const;
         bool SphereCast(const float3& origin, const float3& direction, float radius, float max_distance, RayCastHit& out_hit, uint32_t layer_mask = 0xFFFFFFFFu) const;
         void OverlapSphere(const float3& center, float radius, Vector<won::ecs::Entity>& out_entities, uint32_t layer_mask = 0xFFFFFFFFu) const;

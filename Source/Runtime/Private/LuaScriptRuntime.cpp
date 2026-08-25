@@ -13,6 +13,8 @@
 #include "View.h"
 #include "SceneComponents.h"
 #include "Sound.h"
+#include "WaterSurface.h"
+#include "ShaderInterop_Renderer.h"
 
 extern "C"
 {
@@ -1100,6 +1102,83 @@ namespace won::script
         runtime->current_context.scene->AddComponent<ecs::BehaviorTreeComponent>(entity);
         lua_pushboolean(state, true);
         return 1;
+    }
+
+    int LuaScriptRuntime::LuaWaterAddRipple(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        ecs::Scene& scene = *runtime->current_context.scene;
+
+        ecs::WaterRippleRequest request = {};
+        request.position = {
+            static_cast<float>(luaL_checknumber(state, 1)),
+            static_cast<float>(luaL_checknumber(state, 2)),
+            static_cast<float>(luaL_checknumber(state, 3))
+        };
+        request.strength = static_cast<float>(luaL_optnumber(state, 4, 1.0));
+        scene.QueueWaterRipple(request);
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaWaterSampleHeight(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        const float2 world_xz = {
+            static_cast<float>(luaL_checknumber(state, 1)),
+            static_cast<float>(luaL_checknumber(state, 2))
+        };
+        const water::SurfaceSample sample = water::SampleSurface(*runtime->current_context.scene, world_xz);
+        if (!sample.valid)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        lua_pushnumber(state, sample.height);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaWaterSampleSurface(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        const float2 world_xz = {
+            static_cast<float>(luaL_checknumber(state, 1)),
+            static_cast<float>(luaL_checknumber(state, 2))
+        };
+        const water::SurfaceSample sample = water::SampleSurface(*runtime->current_context.scene, world_xz);
+        if (!sample.valid)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        lua_pushnumber(state, sample.height);
+        lua_pushnumber(state, sample.normal.x);
+        lua_pushnumber(state, sample.normal.y);
+        lua_pushnumber(state, sample.normal.z);
+        lua_pushnumber(state, sample.velocity.x);
+        lua_pushnumber(state, sample.velocity.y);
+        lua_pushnumber(state, sample.velocity.z);
+        return 7;
     }
 
     int LuaScriptRuntime::LuaAISetTree(lua_State* state)
@@ -4644,6 +4723,18 @@ namespace won::script
         lua_pushcclosure(lua_state, LuaNavIsReady, 1);
         lua_setfield(lua_state, -2, "is_ready");
         lua_setfield(lua_state, -2, "nav");
+
+        lua_newtable(lua_state);
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaWaterAddRipple, 1);
+        lua_setfield(lua_state, -2, "add_ripple");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaWaterSampleHeight, 1);
+        lua_setfield(lua_state, -2, "sample_height");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaWaterSampleSurface, 1);
+        lua_setfield(lua_state, -2, "sample_surface");
+        lua_setfield(lua_state, -2, "water");
 
         lua_newtable(lua_state);
         lua_pushlightuserdata(lua_state, this);

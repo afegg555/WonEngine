@@ -60,6 +60,9 @@ namespace won::reflection
         RegisterType(TypeMeta<ecs::FogVolumeComponent>::Get());
         RegisterType(TypeMeta<ecs::DDGIVolumeComponent>::Get());
         RegisterType(TypeMeta<ecs::ReflectionProbeComponent>::Get());
+        RegisterType(TypeMeta<ecs::WaterBodyComponent::Type>::Get());
+        RegisterType(TypeMeta<ecs::WaterBodyComponent>::Get());
+        RegisterType(TypeMeta<ecs::WaterZoneComponent>::Get());
         RegisterType(TypeMeta<ecs::GeometryComponent>::Get());
         RegisterType(TypeMeta<ecs::Sprite2DComponent>::Get());
         RegisterType(TypeMeta<ecs::Canvas2DComponent>::Get());

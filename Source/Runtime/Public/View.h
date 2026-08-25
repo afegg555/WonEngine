@@ -35,6 +35,7 @@ namespace won::rendering
             bool enable_viewport_culling = true; // 2D sprites only
             AntiAliasingMode aa_mode = AntiAliasingMode::None;
             TonemapMode tonemap_mode = TonemapMode::Reinhard;
+            float shadow_resolution_scale = 1.0f;
         };
 
         struct LightResources
@@ -107,7 +108,11 @@ namespace won::rendering
 
             FrameGraphResourceRef depth = invalid_frame_resource;
             RHISubresourceHandle depth_dsv = {};
+            RHISubresourceHandle depth_readonly_dsv = {};
             RHISubresourceHandle depth_srv = {};
+
+            FrameGraphResourceRef scene_color_snapshot = invalid_frame_resource;
+            RHISubresourceHandle scene_color_snapshot_srv = {};
 
             uint32 width = 0;
             uint32 height = 0;
@@ -124,6 +129,20 @@ namespace won::rendering
             std::unique_ptr<RHIResource> luminance_readback_buffer;
         };
 
+        struct WaterResources
+        {
+            struct TileRange
+            {
+                uint32 first_tile = 0;
+                uint32 tile_count = 0;
+            };
+
+			Vector<ShaderWaterTile> tiles; // flattened list of all water tiles for all zones
+			Vector<TileRange> zone_tile_ranges; // TileRange per water zone
+            FrameGraphResourceRef tile_buffer = invalid_frame_resource;
+            RHISubresourceHandle tile_srv = {};
+        };
+
         ecs::Entity camera_entity = {};
         uint32 viewer_index = 0;
         bool manual_camera = false;
@@ -136,6 +155,7 @@ namespace won::rendering
         RenderTargets render_targets = {};
         ViewConstants view_constants = {};
         ExposureResources exposure_resources = {};
+        WaterResources water_resources = {};
         LightResources light_resources = {};
         ShadowResources shadow_resources = {};
         InstanceResources instance_resources = {};
@@ -152,15 +172,19 @@ namespace won::rendering
         Vector<uint32> sorted_sprite_3d_indices;    // back-to-front
         Vector<uint32> sorted_sprite_2d_indices;    // by layer
 
-        void UpdateUIInteraction();
-        void BuildShadowSlices(float shadow_resolution_scale);
-        void BuildSortedIndices();
-        void BuildForwardLightList();
-        ecs::Entity ResolveCamera() const;
+        void Update(float delta_time, uint64 update_index, bool simulation_paused);
         bool RayCast(float2 screen_position, ecs::RayCastHit& out_hit, bool use_local_bvh = true, uint32 layer_mask = 0xFFFFFFFF) const;
         bool ScreenToRay(float2 screen_position, math::Ray& out_ray) const;
 
     private:
+        void UpdateUIInteraction();
+        void BuildShadowSlices();
+        void BuildSortedIndices();
+        void BuildForwardLightList();
+
+        void BuildWaterTiles();
+        ecs::Entity ResolveCamera() const;
+
         ecs::Entity HitTestUI(float2 pointer) const;
         bool HasPointerFocus() const;
 

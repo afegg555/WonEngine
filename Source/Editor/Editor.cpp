@@ -284,6 +284,8 @@ namespace won::editor
 				{ reflection::TypeMeta<LightComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id } },
 				{ reflection::TypeMeta<CameraComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id } },
 				{ reflection::TypeMeta<ReflectionProbeComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id } },
+				{ reflection::TypeMeta<WaterBodyComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id } },
+				{ reflection::TypeMeta<WaterZoneComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id } },
 				{ reflection::TypeMeta<AudioSourceComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id } },
 				{ reflection::TypeMeta<DecalComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id, reflection::TypeMeta<MaterialComponent>::type_id } },
 				{ reflection::TypeMeta<ParticleEmitter3DComponent>::type_id, { reflection::TypeMeta<TransformComponent>::type_id, reflection::TypeMeta<MaterialComponent>::type_id } },
@@ -350,6 +352,32 @@ namespace won::editor
 
 			void* value = component_data + field.offset;
 			const char* label = EditorFieldText(field.name);
+
+			if (field.flag_values && field.flag_value_count > 0 && field.size == sizeof(uint32))
+			{
+				uint32* bits = static_cast<uint32*>(value);
+				bool changed = false;
+				ImGui::TextUnformatted(label);
+				ImGui::Indent();
+				for (uint32 i = 0; i < field.flag_value_count; ++i)
+				{
+					const won::EnumValueDesc& flag = field.flag_values[i];
+					const uint32 mask = static_cast<uint32>(flag.value);
+					if (mask == 0)
+					{
+						continue;
+					}
+					bool enabled = (*bits & mask) != 0;
+					if (ImGui::Checkbox(EditorFieldText(flag.name), &enabled))
+					{
+						*bits = enabled ? (*bits | mask) : (*bits & ~mask);
+						changed = true;
+					}
+				}
+				ImGui::Unindent();
+				return changed;
+			}
+
 			switch (field.value_type)
 			{
 			case won::ValueType::Bool:
@@ -3123,6 +3151,7 @@ namespace won::editor
 					{ rendering::Show_Opaque,      editor_key::label_show_opaque },
 					{ rendering::Show_Transparent, editor_key::label_show_transparent },
 					{ rendering::Show_Decals,      editor_key::label_show_decals },
+					{ rendering::Show_Water,       editor_key::label_show_water },
 					{ rendering::Show_Particles,   editor_key::label_show_particles },
 					{ rendering::Show_Sprites3D,   editor_key::label_show_sprites_3d },
 					{ rendering::Show_Sprites2D,   editor_key::label_show_sprites_2d },

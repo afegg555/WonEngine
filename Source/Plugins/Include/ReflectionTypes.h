@@ -86,6 +86,8 @@ namespace won
         uint32_t offset;
         uint32_t size;
         uint32_t flags;
+        const EnumValueDesc* flag_values;
+        uint32_t flag_value_count;
     };
 
     using ConstructFn = void (WON_PLUGIN_CALL*)(void* memory);

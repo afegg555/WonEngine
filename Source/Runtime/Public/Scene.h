@@ -3,7 +3,7 @@
 #include "Entity.h"
 #include "System.h"
 #include "SceneComponents.h"
-#include "PrefabSpawnRequest.h"
+#include "SceneRequest.h"
 #include "BuiltinTypeMeta.h"
 #include "Systems.h"
 #include "PhysicsWorld.h"
@@ -316,6 +316,53 @@ namespace won::ecs
             sequence_event_queue.clear();
         }
 
+        struct SimulationState
+        {
+            double elapsed_seconds = 0.0;
+        };
+
+        SimulationState& GetSimulation()
+        {
+            return simulation;
+        }
+
+        const SimulationState& GetSimulation() const
+        {
+            return simulation;
+        }
+
+        struct WaterSimulationState
+        {
+            double step_accumulator = 0.0; // internal delta time accumulator to compute step count
+            uint64 step_count = 0; // total step count
+            uint32 pending_steps = 0; // current frame step count
+        };
+
+        WaterSimulationState& GetWaterSimulation()
+        {
+            return water_simulation;
+        }
+
+        const WaterSimulationState& GetWaterSimulation() const
+        {
+            return water_simulation;
+        }
+
+        void QueueWaterRipple(const WaterRippleRequest& request)
+        {
+            water_ripple_queue.push_back(request);
+        }
+
+        const Vector<WaterRippleRequest>& GetWaterRippleQueue() const
+        {
+            return water_ripple_queue;
+        }
+
+        void ClearWaterRippleQueue()
+        {
+            water_ripple_queue.clear();
+        }
+
         void QueuePrefabSpawn(const PrefabSpawnRequest& request)
         {
             prefab_spawn_queue.push_back(request);
@@ -369,5 +416,8 @@ namespace won::ecs
         Vector<std::pair<Entity, String>> animation_event_queue;
         Vector<std::pair<Entity, String>> sequence_event_queue;
         Vector<PrefabSpawnRequest> prefab_spawn_queue;
+        Vector<WaterRippleRequest> water_ripple_queue;
+        SimulationState simulation = {};
+        WaterSimulationState water_simulation = {};
     };
 }

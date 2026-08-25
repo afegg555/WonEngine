@@ -145,6 +145,7 @@ namespace won::rendering
         ShaderWrite,
         RenderTarget,
         DepthWrite,
+        DepthRead,
         Present
     };
 
@@ -171,6 +172,7 @@ namespace won::rendering
         Size buffer_offset = 0;
         Size buffer_size = 0;
         Size buffer_stride = 0;
+        bool read_only = false;
     };
 
     inline bool operator==(const RHISubresourceDesc& lhs, const RHISubresourceDesc& rhs)
@@ -183,7 +185,8 @@ namespace won::rendering
             && lhs.mip_count == rhs.mip_count
             && lhs.buffer_offset == rhs.buffer_offset
             && lhs.buffer_size == rhs.buffer_size
-            && lhs.buffer_stride == rhs.buffer_stride;
+            && lhs.buffer_stride == rhs.buffer_stride
+            && lhs.read_only == rhs.read_only;
     }
 
     struct RHISubresourceHandle

@@ -4,6 +4,7 @@
 #include "Common.hlsli"
 #include "BRDFCommon.hlsli"
 #include "SkyCommon.hlsli"
+#include "DDGICommon.hlsli"
 #include "ShaderInterop_LightCull.h"
 
 //#define PCSS_SHADOW
@@ -24,9 +25,11 @@ struct Surface
     half roughness;
     half occlusion;
     half3 emissive_color;
+    bool receive_shadow;
 
     inline void Init()
     {
+        receive_shadow = true;
         P = float3(0.0f, 0.0f, 0.0f);
         V = float3(0.0f, 0.0f, 0.0f);
         N = float3(0.0f, 0.0f, 0.0f);
@@ -164,7 +167,13 @@ half3 GetDiffuseBRDF(in Surface surface, in LightingContext lighting_context)
 
 inline float SampleDirectionalShadowCascade(in ShaderShadowCascade cascade, in float3 world_position, in half3 N, in half NoL)
 {
-    world_position += (float3) N * cascade.texel_world_size * 2.0f;
+    const float shadow_n_dot_l = max((float)NoL, 0.0001f);
+    const float shadow_sin_theta = sqrt(saturate(1.0f - shadow_n_dot_l * shadow_n_dot_l));
+    const float shadow_tan_theta = min(shadow_sin_theta / shadow_n_dot_l, 10.0f);
+
+    const float normal_bias_factor = 1.0f + shadow_sin_theta * 1.5f;
+    world_position += (float3) N * (cascade.texel_world_size * normal_bias_factor);
+
     float4 shadow_pos = mul(cascade.shadow_view_projection, float4(world_position, 1.0f));
     float3 shadow_ndc = shadow_pos.xyz / shadow_pos.w;
     float2 shadow_uv = shadow_ndc.xy * float2(0.5f, -0.5f) + 0.5f;
@@ -183,7 +192,11 @@ inline float SampleDirectionalShadowCascade(in ShaderShadowCascade cascade, in f
     float2 atlas_texel = 1.0f / float2(atlas_width, atlas_height);
     float2 atlas_uv_min = cascade.shadow_atlas_scale_bias.zw;
     float2 atlas_uv_max = cascade.shadow_atlas_scale_bias.xy + cascade.shadow_atlas_scale_bias.zw;
-    float shadow_bias = max(0.0005f * (1.0f - NoL), 0.00005f);
+
+    const float depth_range = max(cascade.depth_range, 1.0f);
+    const float world_bias = cascade.texel_world_size * (0.05f + 0.2f * shadow_tan_theta);
+    const float shadow_bias = clamp(world_bias / depth_range, 0.00002f, 0.005f);
+
     float visibility = 0.0f;
     Texture2D shadow_map = bindless_textures[DescriptorIndex(GetView().shadow_atlas)];
     float2 filter_step = atlas_texel;
@@ -246,7 +259,7 @@ inline void LightDirectional(in ShaderLight light, uint light_index, float3 radi
     half3 light_color = (half3) (light.GetColor().xyz * radiance_scale * GetCamera().exposure); // pre exposure to avoid precision issues with small values
     
 	[branch]
-    if (light.IsCastingShadow() && GetMaterial().IsReceiveShadow())
+    if (light.IsCastingShadow() && surface.receive_shadow)
     {
         uint shadow_slice = (GetView().light_shadow_slice_buffer >= 0)
             ? bindless_buffers_uint[DescriptorIndex(GetView().light_shadow_slice_buffer)][light_index] : 0u;
@@ -524,11 +537,90 @@ inline void ForwardLighting(in Surface surface, inout Lighting lighting, float2 
 #endif
 }
 
+inline float3 EvaluateVolumeTransmittance(float3 extinction_coefficient, float path_length)
+{
+    return exp(-extinction_coefficient * max(path_length, 0.0f));
+}
+
 inline void EvaluateDirectLighting(in Surface surface, inout Lighting lighting, float2 pixel_position)
 {
 #ifdef FORWARD
     ForwardLighting(surface, lighting, pixel_position);
 #endif
+}
+
+inline void EvaluateIndirectLighting(in Surface surface, inout Lighting lighting)
+{
+    float3 ambient = float3(0.0, 0.0, 0.0);
+    ShaderEnvironment environment_lighting = GetEnvironment();
+    if (environment_lighting.GetDiffuseGIMode() == SHADER_DIFFUSE_GI_MODE_AMBIENT)
+    {
+        ambient = environment_lighting.GetAmbientColor() * environment_lighting.GetAmbientIntensity();
+    }
+    else if (environment_lighting.GetDiffuseGIMode() == SHADER_DIFFUSE_GI_MODE_DDGI)
+    {
+        ShaderDDGIVolume ddgi_volume = GetDDGIVolume();
+        if (ddgi_volume.IsActive() && ddgi_volume.HasIrradianceTexture())
+        {
+            float3 sample_position = surface.P + surface.N * ddgi_volume.normal_bias + surface.V * ddgi_volume.view_bias;
+            if (IsInsideDDGIVolume(ddgi_volume, sample_position))
+            {
+                ambient = SampleDDGI(ddgi_volume, sample_position, surface.N);
+                ambient *= environment_lighting.GetIndirectDiffuseScale();
+            }
+
+        }
+    }
+    else if (environment_lighting.GetDiffuseGIMode() == SHADER_DIFFUSE_GI_MODE_CUBEMAP
+        || environment_lighting.GetDiffuseGIMode() == SHADER_DIFFUSE_GI_MODE_SKY)
+    {
+        if (environment_lighting.HasIrradianceCubemap())
+        {
+            ambient = bindless_cubemaps[DescriptorIndex(environment_lighting.irradiance_cubemap)].SampleLevel(sampler_linear_clamp, surface.N, 0).rgb;
+            ambient *= environment_lighting.GetIndirectDiffuseScale();
+        }
+    }
+    float3 indirect_specular = float3(0.0, 0.0, 0.0);
+    if (environment_lighting.GetReflectionMode() == SHADER_REFLECTION_MODE_CUBEMAP
+        || environment_lighting.GetReflectionMode() == SHADER_REFLECTION_MODE_SKY)
+    {
+        float3 reflection_direction = reflect(-surface.V, surface.N);
+        float perceptual_roughness = sqrt(surface.roughness);
+
+        float3 reflection_radiance = float3(0.0, 0.0, 0.0);
+        bool has_reflection = false;
+        if (environment_lighting.HasSpecularCubemap())
+        {
+            float lod = perceptual_roughness * max(environment_lighting.specular_mip_count - 1.0, 0.0);
+            reflection_radiance = bindless_cubemaps[DescriptorIndex(environment_lighting.specular_cubemap)].SampleLevel(sampler_linear_clamp, reflection_direction, lod).rgb;
+            has_reflection = true;
+        }
+
+        ShaderReflectionProbe reflection_probe = GetReflectionProbe();
+        if (reflection_probe.IsActive() && reflection_probe.HasCubemap())
+        {
+            float distance_to_probe = distance(surface.P, reflection_probe.position);
+            float probe_attenuation = reflection_probe.influence_radius > 0.0
+                ? saturate(1.0 - distance_to_probe / reflection_probe.influence_radius)
+                : 1.0;
+            if (probe_attenuation > 0.0)
+            {
+                float lod = perceptual_roughness * max(reflection_probe.cubemap_mip_count - 1.0, 0.0);
+                float3 probe_radiance = bindless_cubemaps[DescriptorIndex(reflection_probe.cubemap_texture)].SampleLevel(sampler_linear_clamp, reflection_direction, lod).rgb * reflection_probe.intensity;
+                reflection_radiance = lerp(reflection_radiance, probe_radiance, probe_attenuation);
+                has_reflection = true;
+            }
+        }
+
+        if (has_reflection)
+        {
+            indirect_specular = reflection_radiance * EnvBRDF(environment_lighting.brdf_lut, surface.f0, perceptual_roughness, surface.NoV);
+            indirect_specular *= environment_lighting.GetIndirectSpecularScale();
+        }
+    }
+
+    lighting.indirect.diffuse = ambient * GetCamera().exposure;
+    lighting.indirect.specular = indirect_specular * GetCamera().exposure;
 }
 
 #ifndef WON_SHIPPING

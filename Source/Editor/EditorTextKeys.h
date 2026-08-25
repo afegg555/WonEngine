@@ -352,6 +352,7 @@ namespace won::editor::editor_key
     constexpr const char* label_show_opaque = "editor.label.show_opaque";
     constexpr const char* label_show_transparent = "editor.label.show_transparent";
     constexpr const char* label_show_decals = "editor.label.show_decals";
+    constexpr const char* label_show_water = "editor.label.show_water";
     constexpr const char* label_show_particles = "editor.label.show_particles";
     constexpr const char* label_show_sprites_3d = "editor.label.show_sprites_3d";
     constexpr const char* label_show_sprites_2d = "editor.label.show_sprites_2d";

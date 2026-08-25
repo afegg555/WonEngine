@@ -26,7 +26,6 @@ namespace won::rendering
         void SetClearColor(const RHIClearColor& color) override;
         RHIClearColor GetClearColor() const override;
         void SetVSync(bool enabled) override;
-        void SetShadowResolutionScale(float scale) override;
         bool GetCurrentBackBufferBinding(RHISubresourceBinding& out_binding) const override;
         FrameGraph& GetFrameGraph() override;
     private:
@@ -45,7 +44,7 @@ namespace won::rendering
         bool CreateBackBufferSubresources();
 
         // gpu call
-        bool UploadSceneData(FrameContext& frame_context, GPUScene& gpu_scene);
+        bool UploadSceneData(FrameContext& frame_context, ecs::Scene& scene, GPUScene& gpu_scene);
         bool UploadViewData(FrameContext& frame_context, View& view);
         bool UpdateFrameConstants(FrameContext& frame_context, const View& view);
         bool DrawScene(const FrameContext& frame_context, const View& view, resource::RenderPassType pass, uint32 flags, RHICommandList& command_list, uint32 shadow_slice_index = 0);
@@ -95,8 +94,8 @@ namespace won::rendering
         RHIClearColor clear_color = {};
         bool vsync_enabled = true;
         bool vsync_requested = true;
-        float shadow_resolution_scale = 1.0f;
-        double frame_time_seconds = 0.0;
+
+        double frame_delta_seconds = 0.0;
 
 		Vector<uint32> sort_upload_scratch; // not to allocate every frame !!
         FrameGraph frame_graph;

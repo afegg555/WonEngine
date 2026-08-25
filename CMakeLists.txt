@@ -331,7 +331,9 @@ set(RUNTIME_ECS
     Source/Runtime/Public/System.h
     Source/Runtime/Public/PhysicsWorld.h
     Source/Runtime/Private/PhysicsWorld.cpp
-    Source/Runtime/Public/PrefabSpawnRequest.h
+    Source/Runtime/Public/WaterSurface.h
+    Source/Runtime/Private/WaterSurface.cpp
+    Source/Runtime/Public/SceneRequest.h
 )
 
 
@@ -356,6 +358,8 @@ set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/FogVolumeComponent.h
     Source/Runtime/Public/DDGIVolumeComponent.h
     Source/Runtime/Public/ReflectionProbeComponent.h
+    Source/Runtime/Public/WaterBodyComponent.h
+    Source/Runtime/Public/WaterZoneComponent.h
     Source/Runtime/Public/AnimationComponent.h
     Source/Runtime/Public/AnimationStateMachineComponent.h
     Source/Runtime/Public/BehaviorTreeComponent.h
@@ -398,6 +402,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Public/SequenceSystem.h
     Source/Runtime/Public/TransformUpdateSystem.h
     Source/Runtime/Public/ParticleUpdateSystem.h
+    Source/Runtime/Public/WaterSimulationSystem.h
     Source/Runtime/Public/ScriptUpdateSystem.h
     Source/Runtime/Public/ScriptEventDispatchSystem.h
     Source/Runtime/Public/PhysicsUpdateSystem.h
@@ -412,6 +417,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Private/SequenceSystem.cpp
     Source/Runtime/Private/TransformUpdateSystem.cpp
     Source/Runtime/Private/ParticleUpdateSystem.cpp
+    Source/Runtime/Private/WaterSimulationSystem.cpp
     Source/Runtime/Private/ScriptUpdateSystem.cpp
     Source/Runtime/Private/ScriptEventDispatchSystem.cpp
     Source/Runtime/Private/PhysicsUpdateSystem.cpp
@@ -461,6 +467,7 @@ set(SHADERS_INTEROP
     Source/Shaders/ShaderInterop_PostProcess.h
     Source/Shaders/ShaderInterop_LightCull.h
     Source/Shaders/ShaderInterop_Decal.h
+    Source/Shaders/ShaderInterop_Water.h
     Source/Shaders/ShaderInterop_DebugDraw.h
 )
 
@@ -501,6 +508,16 @@ set(SHADERS_HLSL
     Source/Shaders/DecalCommon.hlsli
     Source/Shaders/DecalVS.hlsl
     Source/Shaders/DecalPS.hlsl
+    Source/Shaders/WaterCommon.hlsli
+    Source/Shaders/WaterVS.hlsl
+    Source/Shaders/WaterInfoVS.hlsl
+    Source/Shaders/WaterInfoPS.hlsl
+    Source/Shaders/WaterPS.hlsli
+    Source/Shaders/WaterPS_forward.hlsl
+    Source/Shaders/WaterPS_forwardplus.hlsl
+    Source/Shaders/WaterRippleStepCS.hlsl
+    Source/Shaders/WaterRippleSplatVS.hlsl
+    Source/Shaders/WaterRippleSplatPS.hlsl
     Source/Shaders/ObjectPS.hlsli
     Source/Shaders/ObjectPS_unlit.hlsl
     Source/Shaders/ObjectPS_forward.hlsl

@@ -1,12 +1,14 @@
 #ifndef WON_COMMON
 #define WON_COMMON
 
+#include "ShaderInterop.h"
+
 inline int DescriptorIndex(in int descriptor_index)
 {
     return descriptor_index;
 }
 
-#define PI 3.14159265358979323846
+
 #define SQRT2 1.41421356237309504880
 #define FLT_MAX 3.402823466e+38
 #define FLT_EPSILON 1.192092896e-07
@@ -87,6 +89,7 @@ inline float Luminance(float3 linear_color) // Rec.709 relative luminance from l
 		"UAV(u0, space = 113, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
 		"UAV(u0, space = 114, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
 		"UAV(u0, space = 115, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"UAV(u0, space = 116, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
         "SRV(t0, space = 200, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
         "SRV(t0, space = 201, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
         "SRV(t0, space = 202, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
@@ -95,7 +98,11 @@ inline float Luminance(float3 linear_color) // Rec.709 relative luminance from l
         "SRV(t0, space = 205, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
         "SRV(t0, space = 206, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
         "SRV(t0, space = 207, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
-        "SRV(t0, space = 208, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE) " \
+        "SRV(t0, space = 208, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
+        "SRV(t0, space = 209, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
+        "SRV(t0, space = 210, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
+        "SRV(t0, space = 211, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
+        "SRV(t0, space = 212, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE) " \
     "), " \
     "StaticSampler(s100, addressU = TEXTURE_ADDRESS_CLAMP, addressV = TEXTURE_ADDRESS_CLAMP, addressW = TEXTURE_ADDRESS_CLAMP, filter = FILTER_MIN_MAG_MIP_LINEAR)," \
 	"StaticSampler(s101, addressU = TEXTURE_ADDRESS_WRAP, addressV = TEXTURE_ADDRESS_WRAP, addressW = TEXTURE_ADDRESS_WRAP, filter = FILTER_MIN_MAG_MIP_LINEAR)," \
@@ -244,6 +251,7 @@ RWTexture2D<uint> bindless_rwtextures_uint[] : register(u0, space112);
 RWTexture2D<uint2> bindless_rwtextures_uint2[] : register(u0, space113);
 RWTexture2D<uint3> bindless_rwtextures_uint3[] : register(u0, space114);
 RWTexture2D<uint4> bindless_rwtextures_uint4[] : register(u0, space115);
+RWTexture2D<float> bindless_rwtextures_float[] : register(u0, space116);
 
 #include "ShaderInterop_Renderer.h"
 
@@ -256,6 +264,10 @@ StructuredBuffer<ShaderBVHNode> bindless_structured_bvh_node[] : register(t0, sp
 StructuredBuffer<ShaderBVHPrimitive> bindless_structured_bvh_primitive[] : register(t0, space206);
 StructuredBuffer<ShaderBVHInstance> bindless_structured_bvh_instance[] : register(t0, space207);
 StructuredBuffer<ShaderDecal> bindless_structured_decal[] : register(t0, space208);
+StructuredBuffer<ShaderWaterRipple> bindless_structured_water_ripple[] : register(t0, space209);
+StructuredBuffer<ShaderWaterBody> bindless_structured_water_body[] : register(t0, space210);
+StructuredBuffer<ShaderWaterZone> bindless_structured_water_zone[] : register(t0, space211);
+StructuredBuffer<ShaderWaterTile> bindless_structured_water_tile[] : register(t0, space212);
 
 // static samplers
 SamplerState sampler_linear_clamp : register(s100);
@@ -374,10 +386,25 @@ inline ShaderShadowCascade GetShadowCascade(uint cascade_index)
     return bindless_structured_shadow_cascade[DescriptorIndex(GetView().shadow_cascade_buffer)][cascade_index];
 }
 
+inline float2 ScreenUVToNDC(float2 screen_uv)
+{
+    return float2(screen_uv.x * 2.0f - 1.0f, 1.0f - screen_uv.y * 2.0f);
+}
+
+inline float3 NDCToWorld(float2 ndc, float device_depth)
+{
+    const float4 world = mul(GetCamera().inv_view_projection, float4(ndc, device_depth, 1.0f));
+    return world.xyz / max(abs(world.w), FLT_EPSILON);
+}
+
+inline float3 ScreenUVToWorld(float2 screen_uv, float device_depth)
+{
+    return NDCToWorld(ScreenUVToNDC(screen_uv), device_depth);
+}
+
 inline float3 UnprojectRay(float2 ndc)
 {
-    float4 h = mul(GetCamera().inv_view_projection, float4(ndc, 0.0, 1.0));
-    return h.xyz / h.w;
+    return NDCToWorld(ndc, 0.0f);
 }
 
 #endif // WON_COMMON

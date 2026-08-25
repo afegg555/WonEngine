@@ -13,4 +13,10 @@ namespace won::ecs
         Entity parent = INVALID_ENTITY;
         Entity reserved_root = INVALID_ENTITY;
     };
+
+    struct WaterRippleRequest
+    {
+        float3 position = { 0.0f, 0.0f, 0.0f };
+        float strength = 0.0f;
+    };
 }

@@ -672,6 +672,7 @@ namespace won::rendering
         const RHIFormat logical_format = desc.format != RHIFormat::Unknown ? desc.format : resource_desc.texture_desc.format;
         D3D12_DEPTH_STENCIL_VIEW_DESC dsv_desc = {};
         dsv_desc.Format = resource_dx12::ToNative(logical_format, resource_dx12::NativeFormatUsage::DepthStencil);
+        dsv_desc.Flags = desc.read_only ? D3D12_DSV_FLAG_READ_ONLY_DEPTH : D3D12_DSV_FLAG_NONE;
         const uint32 slice_count = desc.slice_count > 0 ? desc.slice_count : 1;
         if (native_desc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE2D)
         {

@@ -149,6 +149,9 @@ template<> struct TypeMeta<type> { \
     static const won::TypeDesc* Get() { return &desc; } \
 };
 
+#define WON_REFLECT_FLAGS_FIELD(member, flags_value, flag_enum_type) \
+        { sizeof(won::FieldDesc), won::StableHash(#member), #member, FieldTypeInfo<decltype(std::declval<ReflectedType>().member)>::value_type, FieldTypeInfo<decltype(std::declval<ReflectedType>().member)>::array_desc, static_cast<uint32_t>(offsetof(ReflectedType, member)), static_cast<uint32_t>(sizeof(std::declval<ReflectedType>().member)), flags_value, TypeMeta<flag_enum_type>::enum_values, static_cast<uint32_t>(sizeof(TypeMeta<flag_enum_type>::enum_values) / sizeof(TypeMeta<flag_enum_type>::enum_values[0])) },
+
 #define WON_REFLECT_ENUM(type, display_name_value) \
 template<> struct TypeMeta<type> { \
     using ReflectedType = type; \

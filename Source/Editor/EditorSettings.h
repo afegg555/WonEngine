@@ -10,6 +10,27 @@ namespace won::editor
     inline constexpr const char* editor_default_language = "en";
     inline constexpr const char* editor_layout_file_name = "EditorLayout.ini";
 
+    struct ShowFlagSetting
+    {
+        uint32 flag;
+        const char* key;
+    };
+
+    inline constexpr ShowFlagSetting show_flag_settings[] = {
+        { rendering::Show_Opaque,      "editor.viewport.show.opaque" },
+        { rendering::Show_Transparent, "editor.viewport.show.transparent" },
+        { rendering::Show_Decals,      "editor.viewport.show.decals" },
+        { rendering::Show_Water,       "editor.viewport.show.water" },
+        { rendering::Show_Particles,   "editor.viewport.show.particles" },
+        { rendering::Show_Sprites3D,   "editor.viewport.show.sprites_3d" },
+        { rendering::Show_Sprites2D,   "editor.viewport.show.sprites_2d" },
+        { rendering::Show_Shadows,     "editor.viewport.show.shadows" },
+        { rendering::Show_Grid,        "editor.viewport.show.grid" },
+        { rendering::Show_Colliders,   "editor.viewport.show.colliders" },
+        { rendering::Show_BVH,         "editor.viewport.show.bvh" },
+        { rendering::Show_DDGI,        "editor.viewport.show.ddgi" },
+    };
+
     struct EditorSettings
     {
         String settings_path;
@@ -57,9 +78,20 @@ namespace won::editor
         {
             settings.content_tile_size = float_value;
         }
-        if (configuration.GetInt("editor.viewport.show_flags", int_value))
+        for (const ShowFlagSetting& item : show_flag_settings)
         {
-            settings.viewport_show_flags = static_cast<uint32>(int_value);
+            if (!configuration.GetBool(item.key, bool_value))
+            {
+                continue;
+            }
+            if (bool_value)
+            {
+                settings.viewport_show_flags |= item.flag;
+            }
+            else
+            {
+                settings.viewport_show_flags &= ~item.flag;
+            }
         }
         if (configuration.GetInt("editor.viewport.view_mode", int_value))
         {
@@ -112,7 +144,10 @@ namespace won::editor
         configuration.SetString("editor.content.current_folder", settings.content_current_folder.c_str());
         configuration.SetInt("editor.content.type_filter", settings.content_type_filter);
         configuration.SetFloat("editor.content.tile_size", settings.content_tile_size);
-        configuration.SetInt("editor.viewport.show_flags", static_cast<int>(settings.viewport_show_flags));
+        for (const ShowFlagSetting& item : show_flag_settings)
+        {
+            configuration.SetBool(item.key, (settings.viewport_show_flags & item.flag) != 0);
+        }
         configuration.SetInt("editor.viewport.view_mode", settings.viewport_view_mode);
         configuration.SetFloat("editor.camera.speed", settings.camera_speed);
         configuration.SetBool("editor.camera.auto_exposure", settings.editor_camera_auto_exposure);

@@ -10,6 +10,7 @@
 #include "NavAgentSystem.h"
 #include "SequenceSystem.h"
 #include "ParticleUpdateSystem.h"
+#include "WaterSimulationSystem.h"
 #include "ScriptUpdateSystem.h"
 #include "ScriptEventDispatchSystem.h"
 #include "AudioUpdateSystem.h"
