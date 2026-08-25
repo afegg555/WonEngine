@@ -574,6 +574,14 @@
             "source": "DDGI",
             "text": "DDGI"
         },
+        "editor.label.show_occlusion": {
+            "source": "Occluded Bounds",
+            "text": "Limites occultées"
+        },
+        "editor.label.freeze_culling": {
+            "source": "Freeze Culling",
+            "text": "Figer le culling"
+        },
         "editor.menu.delete_entity": {
             "source": "Delete Entity",
             "text": "Supprimer l’entité"

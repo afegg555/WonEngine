@@ -362,6 +362,16 @@
             "text": "DDGI",
             "comment": "label"
         },
+        "editor.label.show_occlusion": {
+            "source": "Occluded Bounds",
+            "text": "Occluded Bounds",
+            "comment": "label"
+        },
+        "editor.label.freeze_culling": {
+            "source": "Freeze Culling",
+            "text": "Freeze Culling",
+            "comment": "label"
+        },
         "editor.action.close": {
             "source": "Close",
             "text": "Close",

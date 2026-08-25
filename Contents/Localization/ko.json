@@ -1237,6 +1237,16 @@
             "text": "DDGI",
             "comment": "label"
         },
+        "editor.label.show_occlusion": {
+            "source": "Occluded Bounds",
+            "text": "가려진 물체 영역",
+            "comment": "label"
+        },
+        "editor.label.freeze_culling": {
+            "source": "Freeze Culling",
+            "text": "컬링 고정",
+            "comment": "label"
+        },
         "editor.label.direct_sun_active": {
             "source": "Direct Sun Active",
             "text": "직사광 활성",
