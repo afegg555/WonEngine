@@ -438,6 +438,9 @@ namespace won::rendering
 
         Vector<std::shared_ptr<resource::Mesh>> updated_meshes;
         rendering::utils::TakeEnqueuedVertexStreamUpdates(updated_meshes);
+
+        Vector<std::shared_ptr<resource::Mesh>> normal_meshes;
+        Vector<FrameResourceAccess> normal_accesses;
         for (const std::shared_ptr<resource::Mesh>& mesh : updated_meshes)
         {
             const resource::Mesh::RenderData& render_data = mesh->render_data;
@@ -457,10 +460,46 @@ namespace won::rendering
             frame_graph.MarkNoCull(mesh_buffer_id);
             frame_graph.QueueBufferUpload(mesh_buffer_id, mesh->positions.data(), positions_size, render_data.positions.offset + current_frame_slot * positions_size);
 
-            const Size normals_size = mesh->normals.size() * sizeof(float3);
-            if (render_data.normals.IsValid() && normals_size == render_data.normals.size / slot_count)
+            if (mesh->dynamic_vertex_streams && render_data.normals.uav.IsValid() && render_data.adjacency_ranges.IsValid() && render_data.adjacency_triangles.IsValid())
             {
-                frame_graph.QueueBufferUpload(mesh_buffer_id, mesh->normals.data(), normals_size, render_data.normals.offset + current_frame_slot * normals_size);
+                normal_meshes.push_back(mesh);
+                normal_accesses.push_back({ mesh_buffer_id, RHIResourceState::Undefined, FrameResourceAccess::Type::ReadWrite });
+            }
+        }
+
+        if (!normal_meshes.empty())
+        {
+            if (RHIPipeline* mesh_normal_pipeline = shader_library.GetPipeline(ComputePipelineHash(ShaderId::CSMeshNormal)))
+            {
+                const uint32 vertex_slot = current_frame_slot;
+                frame_graph.AddPass("Mesh Normal Pass", std::move(normal_accesses),
+                    [this, mesh_normal_pipeline, normal_meshes, vertex_slot](const FrameGraphPassContext& pass_context)
+                {
+                    auto gpu_range = profiler::ScopedRangeGPU("Mesh Normal Pass", (*pass_context.command_list));
+
+                    pass_context.command_list->SetComputePipeline(*mesh_normal_pipeline);
+                    for (const std::shared_ptr<resource::Mesh>& mesh : normal_meshes)
+                    {
+                        const resource::Mesh::RenderData& render_data = mesh->render_data;
+
+                        MeshNormalPushConstants mesh_normal_push = {};
+                        mesh_normal_push.Init();
+                        mesh_normal_push.position_descriptor = static_cast<uint32>(render_data.positions.srv.descriptor_index);
+                        mesh_normal_push.index_descriptor = static_cast<uint32>(render_data.indices.srv.descriptor_index);
+                        mesh_normal_push.adjacency_range_descriptor = static_cast<uint32>(render_data.adjacency_ranges.srv.descriptor_index);
+                        mesh_normal_push.adjacency_triangle_descriptor = static_cast<uint32>(render_data.adjacency_triangles.srv.descriptor_index);
+                        mesh_normal_push.normal_uav_descriptor = static_cast<uint32>(render_data.normals.uav.descriptor_index);
+                        mesh_normal_push.vertex_count = static_cast<uint32>(mesh->positions.size());
+                        mesh_normal_push.stream_offset = vertex_slot * static_cast<uint32>(mesh->positions.size());
+
+                        pass_context.command_list->PushConstants(RHIShaderStage::Compute, &mesh_normal_push, sizeof(mesh_normal_push), 0);
+                        pass_context.command_list->Dispatch((mesh_normal_push.vertex_count + DISPATCH_THREAD_GROUP_1D - 1) / DISPATCH_THREAD_GROUP_1D, 1u, 1u);
+                    }
+                    for (const std::shared_ptr<resource::Mesh>& mesh : normal_meshes)
+                    {
+                        pass_context.command_list->UAVBarrier(*mesh->render_data.buffer);
+                    }
+                });
             }
         }
 

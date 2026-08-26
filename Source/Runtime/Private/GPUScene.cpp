@@ -154,20 +154,20 @@ namespace won::rendering
 
                     if (mesh_render_data.IsValid())
                     {
-                        shader_geometry.position_buffer_descriptor = mesh_render_data.positions.handle.descriptor_index;
-                        shader_geometry.color_buffer_descriptor = mesh_render_data.colors.handle.descriptor_index;
-                        shader_geometry.normal_buffer_descriptor = mesh_render_data.normals.handle.descriptor_index;
-                        shader_geometry.texcoord_buffer_descriptor = mesh_render_data.texcoords.handle.descriptor_index;
-                        shader_geometry.tangent_buffer_descriptor = mesh_render_data.tangents.handle.descriptor_index;
-                        shader_geometry.index_buffer_descriptor = mesh_render_data.indices.handle.descriptor_index;
+                        shader_geometry.position_buffer_descriptor = mesh_render_data.positions.srv.descriptor_index;
+                        shader_geometry.color_buffer_descriptor = mesh_render_data.colors.srv.descriptor_index;
+                        shader_geometry.normal_buffer_descriptor = mesh_render_data.normals.srv.descriptor_index;
+                        shader_geometry.texcoord_buffer_descriptor = mesh_render_data.texcoords.srv.descriptor_index;
+                        shader_geometry.tangent_buffer_descriptor = mesh_render_data.tangents.srv.descriptor_index;
+                        shader_geometry.index_buffer_descriptor = mesh_render_data.indices.srv.descriptor_index;
                         shader_geometry.index_count = mesh->submeshes[i].index_count;
                         shader_geometry.first_index = mesh->submeshes[i].first_index;
                         shader_geometry.dynamic_stream_stride = mesh->dynamic_vertex_streams ? static_cast<uint32>(mesh->positions.size()) : 0u;
 
                         if (mesh_render_data.bone_indices.IsValid() && mesh_render_data.bone_weights.IsValid())
                         {
-                            shader_geometry.bone_indices_buffer_descriptor = mesh_render_data.bone_indices.handle.descriptor_index;
-                            shader_geometry.bone_weights_buffer_descriptor = mesh_render_data.bone_weights.handle.descriptor_index;
+                            shader_geometry.bone_indices_buffer_descriptor = mesh_render_data.bone_indices.srv.descriptor_index;
+                            shader_geometry.bone_weights_buffer_descriptor = mesh_render_data.bone_weights.srv.descriptor_index;
                             shader_geometry.flags |= SHADER_GEOMETRY_FLAG_SKINNED;
                         }
                     }

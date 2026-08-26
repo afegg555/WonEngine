@@ -147,6 +147,34 @@ struct alignas(16) ShaderTextureSlot
 
 };
 
+struct MeshNormalPushConstants
+{
+    uint position_descriptor;
+    uint index_descriptor;
+    uint adjacency_range_descriptor;
+    uint adjacency_triangle_descriptor;
+    uint normal_uav_descriptor;
+    uint vertex_count;
+    uint stream_offset; // ring slot base in vertices
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        position_descriptor = 0;
+        index_descriptor = 0;
+        adjacency_range_descriptor = 0;
+        adjacency_triangle_descriptor = 0;
+        normal_uav_descriptor = 0;
+        vertex_count = 0;
+        stream_offset = 0;
+    }
+#endif
+};
+
+#ifdef WON_MESH_NORMAL_PUSHCONSTANT
+PUSHCONSTANT(meshnormalpush, MeshNormalPushConstants);
+#endif
+
 struct alignas(16) ShaderGeometry // per submesh
 {
     // Vertex pulling path: stream descriptors are resolved from bindless SRVs, not IA bindings.
