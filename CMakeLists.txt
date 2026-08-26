@@ -405,6 +405,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Public/WaterSimulationSystem.h
     Source/Runtime/Public/ScriptUpdateSystem.h
     Source/Runtime/Public/ScriptEventDispatchSystem.h
+    Source/Runtime/Public/MeshUpdateSystem.h
     Source/Runtime/Public/PhysicsUpdateSystem.h
     Source/Runtime/Public/AudioUpdateSystem.h
     Source/Runtime/Public/LocalizeTextSystem.h
@@ -420,6 +421,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Private/WaterSimulationSystem.cpp
     Source/Runtime/Private/ScriptUpdateSystem.cpp
     Source/Runtime/Private/ScriptEventDispatchSystem.cpp
+    Source/Runtime/Private/MeshUpdateSystem.cpp
     Source/Runtime/Private/PhysicsUpdateSystem.cpp
     Source/Runtime/Private/AudioUpdateSystem.cpp
     Source/Runtime/Private/LocalizeTextSystem.cpp
