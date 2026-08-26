@@ -95,10 +95,23 @@ namespace won::editor
 		return editor_locale.GetText(it->second).c_str();
 	}
 
-	template <typename EnumType>
-	static bool DrawEnumCombo(const char* label, EnumType& value)
+	static bool DrawEnumComboValue(const char* label, const won::TypeDesc* type_desc, void* value, uint32 value_size)
 	{
-		const won::TypeDesc* type_desc = reflection::TypeMeta<EnumType>::Get();
+		if (!type_desc || !type_desc->enum_values || type_desc->enum_value_count == 0 || !value)
+		{
+			return false;
+		}
+
+		int64 current = 0;
+		switch (value_size)
+		{
+		case 1: current = *static_cast<int8*>(value); break;
+		case 2: current = *static_cast<int16*>(value); break;
+		case 4: current = *static_cast<int32*>(value); break;
+		case 8: current = *static_cast<int64*>(value); break;
+		default: return false;
+		}
+
 		Vector<const char*> items;
 		items.reserve(type_desc->enum_value_count);
 		int current_index = -1;
@@ -106,7 +119,7 @@ namespace won::editor
 		{
 			const won::EnumValueDesc& enum_value = type_desc->enum_values[i];
 			items.push_back(EditorEnumText(type_desc->display_name, enum_value.name));
-			if (static_cast<int64>(value) == enum_value.value)
+			if (current == enum_value.value)
 			{
 				current_index = static_cast<int>(i);
 			}
@@ -117,8 +130,21 @@ namespace won::editor
 			return false;
 		}
 
-		value = static_cast<EnumType>(type_desc->enum_values[current_index].value);
+		const int64 selected = type_desc->enum_values[current_index].value;
+		switch (value_size)
+		{
+		case 1: *static_cast<int8*>(value) = static_cast<int8>(selected); break;
+		case 2: *static_cast<int16*>(value) = static_cast<int16>(selected); break;
+		case 4: *static_cast<int32*>(value) = static_cast<int32>(selected); break;
+		case 8: *static_cast<int64*>(value) = selected; break;
+		}
 		return true;
+	}
+
+	template <typename EnumType>
+	static bool DrawEnumCombo(const char* label, EnumType& value)
+	{
+		return DrawEnumComboValue(label, reflection::TypeMeta<EnumType>::Get(), &value, static_cast<uint32>(sizeof(EnumType)));
 	}
 
 	static const char* EditorLabel(const char* key, const char* stable_id)
@@ -339,6 +365,8 @@ namespace won::editor
 			return open;
 		}
 
+		static constexpr const char* reflected_float_format = "%.6f";
+
 		bool DrawReflectedField(const won::FieldDesc& field, uint8* component_data, uint32 component_size)
 		{
 			if (field.struct_size < sizeof(won::FieldDesc) || (field.flags & won::FieldFlagEditable) == 0 || !component_data)
@@ -399,7 +427,7 @@ namespace won::editor
 			case won::ValueType::UInt64:
 				return ImGui::InputScalar(label, ImGuiDataType_U64, value);
 			case won::ValueType::Float32:
-				return ImGui::DragFloat(label, static_cast<float*>(value), 0.01f);
+				return ImGui::DragFloat(label, static_cast<float*>(value), 0.01f, 0.0f, 0.0f, reflected_float_format);
 			case won::ValueType::Float64:
 				return ImGui::InputScalar(label, ImGuiDataType_Double, value);
 			case won::ValueType::Int32x2:
@@ -415,11 +443,13 @@ namespace won::editor
 			case won::ValueType::UInt32x4:
 				return ImGui::InputScalarN(label, ImGuiDataType_U32, value, 4);
 			case won::ValueType::Float32x2:
-				return ImGui::DragFloat2(label, static_cast<float*>(value), 0.01f);
+				return ImGui::DragFloat2(label, static_cast<float*>(value), 0.01f, 0.0f, 0.0f, reflected_float_format);
 			case won::ValueType::Float32x3:
-				return ImGui::DragFloat3(label, static_cast<float*>(value), 0.01f);
+				return ImGui::DragFloat3(label, static_cast<float*>(value), 0.01f, 0.0f, 0.0f, reflected_float_format);
 			case won::ValueType::Float32x4:
-				return ImGui::DragFloat4(label, static_cast<float*>(value), 0.01f);
+				return ImGui::DragFloat4(label, static_cast<float*>(value), 0.01f, 0.0f, 0.0f, reflected_float_format);
+			case won::ValueType::Enum:
+				return DrawEnumComboValue(label, reflection::FindType(field.type_id), value, field.size);
 			case won::ValueType::String:
 			{
 				String& text = *static_cast<String*>(value);
@@ -438,7 +468,7 @@ namespace won::editor
 			}
 		}
 
-		bool DrawReflectedComponent(ecs::Scene& scene, ecs::Entity entity, const won::TypeDesc* type_desc)
+		bool DrawReflectedComponent(ecs::Scene& scene, ecs::Entity entity, const won::TypeDesc* type_desc, bool* out_changed = nullptr)
 		{
 			if (!type_desc || IsDefaultComponent(type_desc->type_id))
 			{
@@ -458,9 +488,14 @@ namespace won::editor
 			if (!remove_component && component_open && type_desc->fields && type_desc->field_count > 0)
 			{
 				uint8* component_data = static_cast<uint8*>(component);
+				bool changed = false;
 				for (uint32 field_index = 0; field_index < type_desc->field_count; ++field_index)
 				{
-					DrawReflectedField(type_desc->fields[field_index], component_data, type_desc->size);
+					changed |= DrawReflectedField(type_desc->fields[field_index], component_data, type_desc->size);
+				}
+				if (out_changed)
+				{
+					*out_changed = changed;
 				}
 			}
 			ImGui::PopID();
@@ -5593,13 +5628,21 @@ namespace won::editor
 						continue;
 					}
 
-					if (DrawReflectedComponent(*editor_viewport.view->scene, editor_viewport.picked_entity, type_desc))
+					bool component_changed = false;
+					if (DrawReflectedComponent(*editor_viewport.view->scene, editor_viewport.picked_entity, type_desc, &component_changed))
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						const won::TypeId type_id = type_desc->type_id;
 						eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, entity, type_id](const won::function::Value&) {
 							editor_viewport.view->scene->RemoveComponent(entity, type_id);
 						});
+					}
+					else if (component_changed && type_desc->type_id == reflection::TypeMeta<SoftBodyComponent>::type_id)
+					{
+						if (SoftBodyComponent* soft_body = editor_viewport.view->scene->GetComponent<SoftBodyComponent>(editor_viewport.picked_entity))
+						{
+							soft_body->SetTopologyDirty();
+						}
 					}
 					else if (type_desc->type_id == reflection::TypeMeta<TerrainComponent>::type_id)
 					{
