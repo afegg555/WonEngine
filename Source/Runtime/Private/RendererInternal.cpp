@@ -147,6 +147,7 @@ namespace won::rendering
         ShaderView shader_view{};
         shader_view.Init();
         rendering::GPUScene& gpu_scene = view.scene->GetGPUScene();
+        shader_frame.frame_slot = current_frame_slot;
         shader_frame.scene.instancebuffer = gpu_scene.instance_buffer.srv.descriptor_index;
         shader_frame.scene.geometrybuffer = gpu_scene.geometry_buffer.srv.descriptor_index;
         shader_frame.scene.materialbuffer = gpu_scene.material_buffer.srv.descriptor_index;
@@ -434,6 +435,34 @@ namespace won::rendering
         UploadBuffer(gpu_scene.water.zone_buffer, "Scene Water Zone Buffer", frame_context, gpu_scene.water.shader_zones.data(), gpu_scene.water.shader_zones.size() * sizeof(ShaderWaterZone), sizeof(ShaderWaterZone), *device, frame_graph);
         UploadBuffer(gpu_scene.bvh_node_buffer, "Scene BVH Node Buffer", frame_context, gpu_scene.shader_bvh_nodes.data(), gpu_scene.shader_bvh_nodes.size() * sizeof(ShaderBVHNode), sizeof(ShaderBVHNode), *device, frame_graph);
         UploadBuffer(gpu_scene.bvh_instance_buffer, "Scene BVH Instance Buffer", frame_context, gpu_scene.shader_bvh_instances.data(), gpu_scene.shader_bvh_instances.size() * sizeof(ShaderBVHInstance), sizeof(ShaderBVHInstance), *device, frame_graph);
+
+        Vector<std::shared_ptr<resource::Mesh>> updated_meshes;
+        rendering::utils::TakeEnqueuedVertexStreamUpdates(updated_meshes);
+        for (const std::shared_ptr<resource::Mesh>& mesh : updated_meshes)
+        {
+            const resource::Mesh::RenderData& render_data = mesh->render_data;
+            if (!render_data.IsValid())
+            {
+                continue;
+            }
+
+            const Size slot_count = mesh->dynamic_vertex_streams ? static_cast<Size>(max_frames_in_flight) : 1;
+            const Size positions_size = mesh->positions.size() * sizeof(float3);
+            if (positions_size != render_data.positions.size / slot_count)
+            {
+                continue;
+            }
+
+            const FrameResourceId mesh_buffer_id = frame_graph.Import(*render_data.buffer);
+            frame_graph.MarkNoCull(mesh_buffer_id);
+            frame_graph.QueueBufferUpload(mesh_buffer_id, mesh->positions.data(), positions_size, render_data.positions.offset + current_frame_slot * positions_size);
+
+            const Size normals_size = mesh->normals.size() * sizeof(float3);
+            if (render_data.normals.IsValid() && normals_size == render_data.normals.size / slot_count)
+            {
+                frame_graph.QueueBufferUpload(mesh_buffer_id, mesh->normals.data(), normals_size, render_data.normals.offset + current_frame_slot * normals_size);
+            }
+        }
 
         const bool use_sky_lighting = gpu_scene.shader_environment.sky_type != SHADER_SKY_TYPE_NONE
             && (gpu_scene.shader_environment.diffuse_gi_mode == SHADER_DIFFUSE_GI_MODE_SKY

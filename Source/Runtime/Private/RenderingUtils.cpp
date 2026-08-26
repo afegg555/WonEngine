@@ -43,8 +43,11 @@ namespace won::rendering::utils
         Vector<PendingImageUpload> pending_image_upload;
         std::mutex pending_resource_upload_mutex;
 
+        Vector<std::weak_ptr<resource::Mesh>> pending_vertex_stream_update;
+        std::mutex pending_vertex_stream_update_mutex;
+
         template<typename T>
-        void PackBufferSubresource(const Vector<T>& source, Vector<uint8>& packed_data, Size& out_offset, Size data_size, Size alignment, Size& current_offset)
+        void PackBufferSubresource(const Vector<T>& source, Vector<uint8>& packed_data, Size& out_offset, Size data_size, Size alignment, Size& current_offset, Size slot_count = 1)
         {
             if (data_size == 0)
             {
@@ -54,7 +57,11 @@ namespace won::rendering::utils
 
             current_offset = math::Align(current_offset, alignment);
             out_offset = current_offset;
-            std::memcpy(packed_data.data() + out_offset, source.data(), data_size);
+            const Size slot_size = data_size / slot_count;
+            for (Size slot = 0; slot < slot_count; ++slot)
+            {
+                std::memcpy(packed_data.data() + out_offset + slot * slot_size, source.data(), slot_size);
+            }
             current_offset += data_size;
         }
 
@@ -625,6 +632,38 @@ namespace won::rendering::utils
         pending_mesh_upload.push_back(mesh);
     }
 
+    void EnqueueVertexStreamUpdate(const std::shared_ptr<resource::Mesh>& mesh)
+    {
+        if (!mesh || !mesh->render_data.IsValid())
+        {
+            return;
+        }
+        std::lock_guard<std::mutex> lock(pending_vertex_stream_update_mutex);
+        for (const std::weak_ptr<resource::Mesh>& pending : pending_vertex_stream_update)
+        {
+            if (pending.lock().get() == mesh.get())
+            {
+                return;
+            }
+        }
+        pending_vertex_stream_update.push_back(mesh);
+    }
+
+    void TakeEnqueuedVertexStreamUpdates(Vector<std::shared_ptr<resource::Mesh>>& out_meshes)
+    {
+        out_meshes.clear();
+        std::lock_guard<std::mutex> lock(pending_vertex_stream_update_mutex);
+        out_meshes.reserve(pending_vertex_stream_update.size());
+        for (const std::weak_ptr<resource::Mesh>& pending : pending_vertex_stream_update)
+        {
+            if (std::shared_ptr<resource::Mesh> mesh = pending.lock())
+            {
+                out_meshes.push_back(std::move(mesh));
+            }
+        }
+        pending_vertex_stream_update.clear();
+    }
+
     void EnqueueResourceUpload(const std::shared_ptr<resource::Font>& font)
     {
         if (!font)
@@ -982,9 +1021,10 @@ namespace won::rendering::utils
             return false;
         }
 
-        const Size positions_size = mesh.positions.size() * sizeof(float3);
+        const Size stream_slots = mesh.dynamic_vertex_streams ? static_cast<Size>(max_frames_in_flight) : 1;
+        const Size positions_size = mesh.positions.size() * sizeof(float3) * stream_slots;
         const Size colors_size = mesh.colors.size() * sizeof(float4);
-        const Size normals_size = mesh.normals.size() * sizeof(float3);
+        const Size normals_size = mesh.normals.size() * sizeof(float3) * stream_slots;
         const Size tangents_size = mesh.tangents.size() * sizeof(float4);
         const Size texcoords_size = mesh.texcoords.size() * sizeof(float2);
         const bool has_skinning_stream = mesh.bone_indices.size() == mesh.positions.size() && mesh.bone_weights.size() == mesh.positions.size();
@@ -1020,9 +1060,9 @@ namespace won::rendering::utils
         Size bone_weights_offset = 0;
         Size indices_offset = 0;
 
-        PackBufferSubresource(mesh.positions, packed_data, positions_offset, positions_size, sizeof(float3), offset);
+        PackBufferSubresource(mesh.positions, packed_data, positions_offset, positions_size, sizeof(float3), offset, stream_slots);
         PackBufferSubresource(mesh.colors, packed_data, colors_offset, colors_size, sizeof(float4), offset);
-        PackBufferSubresource(mesh.normals, packed_data, normals_offset, normals_size, sizeof(float3), offset);
+        PackBufferSubresource(mesh.normals, packed_data, normals_offset, normals_size, sizeof(float3), offset, stream_slots);
         PackBufferSubresource(mesh.tangents, packed_data, tangents_offset, tangents_size, sizeof(float4), offset);
         PackBufferSubresource(mesh.texcoords, packed_data, texcoords_offset, texcoords_size, sizeof(float2), offset);
         PackBufferSubresource(mesh.bone_indices, packed_data, bone_indices_offset, bone_indices_size, sizeof(uint4), offset);

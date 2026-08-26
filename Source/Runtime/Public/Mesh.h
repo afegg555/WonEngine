@@ -92,6 +92,7 @@ namespace won::resource
         Vector<Submesh> submeshes;
         std::shared_ptr<Skeleton> skeleton;
         Vector<std::shared_ptr<AnimationClip>> animation_clips; // run, jump...
+        bool dynamic_vertex_streams = false; // vertex streams are rewritten every frame, so the gpu copies are ring buffered per frame in flight
         math::bvh::BVH cpu_bvh; // local space bvh
         GPUBVH gpu_bvh = {}; // BLAS
         RenderData render_data = {};

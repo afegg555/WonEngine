@@ -162,6 +162,7 @@ namespace won::rendering
                         shader_geometry.index_buffer_descriptor = mesh_render_data.indices.handle.descriptor_index;
                         shader_geometry.index_count = mesh->submeshes[i].index_count;
                         shader_geometry.first_index = mesh->submeshes[i].first_index;
+                        shader_geometry.dynamic_stream_stride = mesh->dynamic_vertex_streams ? static_cast<uint32>(mesh->positions.size()) : 0u;
 
                         if (mesh_render_data.bone_indices.IsValid() && mesh_render_data.bone_weights.IsValid())
                         {
