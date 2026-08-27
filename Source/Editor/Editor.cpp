@@ -411,43 +411,62 @@ namespace won::editor
 			case won::ValueType::Bool:
 				return ImGui::Checkbox(label, static_cast<bool*>(value));
 			case won::ValueType::Int8:
-				return ImGui::InputScalar(label, ImGuiDataType_S8, value);
+				ImGui::InputScalar(label, ImGuiDataType_S8, value);
+				return ImGui::IsItemDeactivatedAfterEdit();
 			case won::ValueType::UInt8:
-				return ImGui::InputScalar(label, ImGuiDataType_U8, value);
+				ImGui::InputScalar(label, ImGuiDataType_U8, value);
+				return ImGui::IsItemDeactivatedAfterEdit();
 			case won::ValueType::Int16:
-				return ImGui::InputScalar(label, ImGuiDataType_S16, value);
+				ImGui::InputScalar(label, ImGuiDataType_S16, value);
+				return ImGui::IsItemDeactivatedAfterEdit();
 			case won::ValueType::UInt16:
-				return ImGui::InputScalar(label, ImGuiDataType_U16, value);
+				ImGui::InputScalar(label, ImGuiDataType_U16, value);
+				return ImGui::IsItemDeactivatedAfterEdit();
 			case won::ValueType::Int32:
-				return ImGui::InputScalar(label, ImGuiDataType_S32, value);
+				ImGui::InputScalar(label, ImGuiDataType_S32, value);
+				return ImGui::IsItemDeactivatedAfterEdit();
 			case won::ValueType::UInt32:
-				return ImGui::InputScalar(label, ImGuiDataType_U32, value);
+				ImGui::InputScalar(label, ImGuiDataType_U32, value);
+				return ImGui::IsItemDeactivatedAfterEdit();
 			case won::ValueType::Int64:
-				return ImGui::InputScalar(label, ImGuiDataType_S64, value);
+				ImGui::InputScalar(label, ImGuiDataType_S64, value);
+				return ImGui::IsItemDeactivatedAfterEdit();
 			case won::ValueType::UInt64:
-				return ImGui::InputScalar(label, ImGuiDataType_U64, value);
+				ImGui::InputScalar(label, ImGuiDataType_U64, value);
+				return ImGui::IsItemDeactivatedAfterEdit();
 			case won::ValueType::Float32:
-				return ImGui::DragFloat(label, static_cast<float*>(value), 0.01f, 0.0f, 0.0f, reflected_float_format);
+				ImGui::DragFloat(label, static_cast<float*>(value), 0.01f, 0.0f, 0.0f, reflected_float_format);
+				return ImGui::IsItemDeactivatedAfterEdit();
 			case won::ValueType::Float64:
-				return ImGui::InputScalar(label, ImGuiDataType_Double, value);
+				ImGui::InputScalar(label, ImGuiDataType_Double, value);
+				return ImGui::IsItemDeactivatedAfterEdit();
 			case won::ValueType::Int32x2:
-				return ImGui::InputScalarN(label, ImGuiDataType_S32, value, 2);
+				ImGui::InputScalarN(label, ImGuiDataType_S32, value, 2);
+				return ImGui::IsItemDeactivatedAfterEdit();
 			case won::ValueType::Int32x3:
-				return ImGui::InputScalarN(label, ImGuiDataType_S32, value, 3);
+				ImGui::InputScalarN(label, ImGuiDataType_S32, value, 3);
+				return ImGui::IsItemDeactivatedAfterEdit();
 			case won::ValueType::Int32x4:
-				return ImGui::InputScalarN(label, ImGuiDataType_S32, value, 4);
+				ImGui::InputScalarN(label, ImGuiDataType_S32, value, 4);
+				return ImGui::IsItemDeactivatedAfterEdit();
 			case won::ValueType::UInt32x2:
-				return ImGui::InputScalarN(label, ImGuiDataType_U32, value, 2);
+				ImGui::InputScalarN(label, ImGuiDataType_U32, value, 2);
+				return ImGui::IsItemDeactivatedAfterEdit();
 			case won::ValueType::UInt32x3:
-				return ImGui::InputScalarN(label, ImGuiDataType_U32, value, 3);
+				ImGui::InputScalarN(label, ImGuiDataType_U32, value, 3);
+				return ImGui::IsItemDeactivatedAfterEdit();
 			case won::ValueType::UInt32x4:
-				return ImGui::InputScalarN(label, ImGuiDataType_U32, value, 4);
+				ImGui::InputScalarN(label, ImGuiDataType_U32, value, 4);
+				return ImGui::IsItemDeactivatedAfterEdit();
 			case won::ValueType::Float32x2:
-				return ImGui::DragFloat2(label, static_cast<float*>(value), 0.01f, 0.0f, 0.0f, reflected_float_format);
+				ImGui::DragFloat2(label, static_cast<float*>(value), 0.01f, 0.0f, 0.0f, reflected_float_format);
+				return ImGui::IsItemDeactivatedAfterEdit();
 			case won::ValueType::Float32x3:
-				return ImGui::DragFloat3(label, static_cast<float*>(value), 0.01f, 0.0f, 0.0f, reflected_float_format);
+				ImGui::DragFloat3(label, static_cast<float*>(value), 0.01f, 0.0f, 0.0f, reflected_float_format);
+				return ImGui::IsItemDeactivatedAfterEdit();
 			case won::ValueType::Float32x4:
-				return ImGui::DragFloat4(label, static_cast<float*>(value), 0.01f, 0.0f, 0.0f, reflected_float_format);
+				ImGui::DragFloat4(label, static_cast<float*>(value), 0.01f, 0.0f, 0.0f, reflected_float_format);
+				return ImGui::IsItemDeactivatedAfterEdit();
 			case won::ValueType::Enum:
 				return DrawEnumComboValue(label, reflection::FindType(field.type_id), value, field.size);
 			case won::ValueType::String:
