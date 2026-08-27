@@ -1402,6 +1402,70 @@
             "source": "Sound",
             "text": "声音"
         },
+        "editor.field.attachment_mode": {
+            "source": "Attachment Mode",
+            "text": "固定方式"
+        },
+        "editor.field.divisions_x": {
+            "source": "Divisions X",
+            "text": "细分 X"
+        },
+        "editor.field.divisions_y": {
+            "source": "Divisions Y",
+            "text": "细分 Y"
+        },
+        "editor.field.size_x": {
+            "source": "Size X",
+            "text": "尺寸 X"
+        },
+        "editor.field.size_y": {
+            "source": "Size Y",
+            "text": "尺寸 Y"
+        },
+        "editor.field.mass": {
+            "source": "Mass",
+            "text": "质量"
+        },
+        "editor.field.edge_compliance": {
+            "source": "Edge Compliance",
+            "text": "边顺应性"
+        },
+        "editor.field.shear_compliance": {
+            "source": "Shear Compliance",
+            "text": "剪切顺应性"
+        },
+        "editor.field.bend_compliance": {
+            "source": "Bend Compliance",
+            "text": "弯曲顺应性"
+        },
+        "editor.field.bend_type": {
+            "source": "Bend Type",
+            "text": "弯曲类型"
+        },
+        "editor.field.lra_type": {
+            "source": "LRA Type",
+            "text": "LRA 类型"
+        },
+        "editor.field.lra_max_distance_multiplier": {
+            "source": "LRA Max Distance Multiplier",
+            "text": "LRA 最大距离倍数"
+        },
+        "editor.field.linear_damping": {
+            "source": "Linear Damping",
+            "text": "线性阻尼"
+        },
+        "editor.field.friction": {
+            "source": "Friction",
+            "text": "摩擦"
+        },
+        "editor.field.restitution": {
+            "source": "Restitution",
+            "text": "弹性"
+        },
+        "editor.field.solver_iterations": {
+            "source": "Solver Iterations",
+            "text": "求解器迭代次数"
+        },
         "editor.field.agent_height": {
             "source": "Agent Height",
             "text": "代理高度"
@@ -1693,6 +1757,42 @@
         "editor.label.cloud_direction": {
             "source": "Cloud Direction",
             "text": "云方向"
+        },
+        "editor.enum.SoftBodyAttachmentMode.None": {
+            "source": "None",
+            "text": "无"
+        },
+        "editor.enum.SoftBodyAttachmentMode.TopRow": {
+            "source": "Top Row",
+            "text": "顶行"
+        },
+        "editor.enum.SoftBodyAttachmentMode.TopCorners": {
+            "source": "Top Corners",
+            "text": "顶部角"
+        },
+        "editor.enum.SoftBodyBendType.None": {
+            "source": "None",
+            "text": "无"
+        },
+        "editor.enum.SoftBodyBendType.Distance": {
+            "source": "Distance",
+            "text": "距离"
+        },
+        "editor.enum.SoftBodyBendType.Dihedral": {
+            "source": "Dihedral",
+            "text": "二面角"
+        },
+        "editor.enum.SoftBodyLRAType.None": {
+            "source": "None",
+            "text": "无"
+        },
+        "editor.enum.SoftBodyLRAType.EuclideanDistance": {
+            "source": "Euclidean Distance",
+            "text": "欧氏距离"
+        },
+        "editor.enum.SoftBodyLRAType.GeodesicDistance": {
+            "source": "Geodesic Distance",
+            "text": "测地距离"
         },
         "editor.enum.MaterialType.Unlit": {
             "source": "Unlit",

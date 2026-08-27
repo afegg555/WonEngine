@@ -1737,6 +1737,86 @@
             "text": "Sheen 러프니스 맵",
             "comment": "label"
         },
+        "editor.field.attachment_mode": {
+            "source": "Attachment Mode",
+            "text": "고정 방식",
+            "comment": "field"
+        },
+        "editor.field.divisions_x": {
+            "source": "Divisions X",
+            "text": "분할 X",
+            "comment": "field"
+        },
+        "editor.field.divisions_y": {
+            "source": "Divisions Y",
+            "text": "분할 Y",
+            "comment": "field"
+        },
+        "editor.field.size_x": {
+            "source": "Size X",
+            "text": "크기 X",
+            "comment": "field"
+        },
+        "editor.field.size_y": {
+            "source": "Size Y",
+            "text": "크기 Y",
+            "comment": "field"
+        },
+        "editor.field.mass": {
+            "source": "Mass",
+            "text": "질량",
+            "comment": "field"
+        },
+        "editor.field.edge_compliance": {
+            "source": "Edge Compliance",
+            "text": "Edge Compliance",
+            "comment": "field"
+        },
+        "editor.field.shear_compliance": {
+            "source": "Shear Compliance",
+            "text": "Shear Compliance",
+            "comment": "field"
+        },
+        "editor.field.bend_compliance": {
+            "source": "Bend Compliance",
+            "text": "Bend Compliance",
+            "comment": "field"
+        },
+        "editor.field.bend_type": {
+            "source": "Bend Type",
+            "text": "Bend 방식",
+            "comment": "field"
+        },
+        "editor.field.lra_type": {
+            "source": "LRA Type",
+            "text": "LRA 방식",
+            "comment": "field"
+        },
+        "editor.field.lra_max_distance_multiplier": {
+            "source": "LRA Max Distance Multiplier",
+            "text": "LRA 최대 거리 배수",
+            "comment": "field"
+        },
+        "editor.field.linear_damping": {
+            "source": "Linear Damping",
+            "text": "선형 감쇠",
+            "comment": "field"
+        },
+        "editor.field.friction": {
+            "source": "Friction",
+            "text": "마찰",
+            "comment": "field"
+        },
+        "editor.field.restitution": {
+            "source": "Restitution",
+            "text": "반발",
+            "comment": "field"
+        },
+        "editor.field.solver_iterations": {
+            "source": "Solver Iterations",
+            "text": "Solver 반복 수",
+            "comment": "field"
+        },
         "editor.field.agent_height": {
             "source": "Agent Height",
             "text": "에이전트 높이",
@@ -2136,6 +2216,51 @@
             "source": "Cloud Direction",
             "text": "구름 방향",
             "comment": "label"
+        },
+        "editor.enum.SoftBodyAttachmentMode.None": {
+            "source": "None",
+            "text": "없음",
+            "comment": "enum"
+        },
+        "editor.enum.SoftBodyAttachmentMode.TopRow": {
+            "source": "Top Row",
+            "text": "윗줄 전체",
+            "comment": "enum"
+        },
+        "editor.enum.SoftBodyAttachmentMode.TopCorners": {
+            "source": "Top Corners",
+            "text": "윗쪽 두 모서리",
+            "comment": "enum"
+        },
+        "editor.enum.SoftBodyBendType.None": {
+            "source": "None",
+            "text": "없음",
+            "comment": "enum"
+        },
+        "editor.enum.SoftBodyBendType.Distance": {
+            "source": "Distance",
+            "text": "거리",
+            "comment": "enum"
+        },
+        "editor.enum.SoftBodyBendType.Dihedral": {
+            "source": "Dihedral",
+            "text": "이면각",
+            "comment": "enum"
+        },
+        "editor.enum.SoftBodyLRAType.None": {
+            "source": "None",
+            "text": "없음",
+            "comment": "enum"
+        },
+        "editor.enum.SoftBodyLRAType.EuclideanDistance": {
+            "source": "Euclidean Distance",
+            "text": "직선 거리",
+            "comment": "enum"
+        },
+        "editor.enum.SoftBodyLRAType.GeodesicDistance": {
+            "source": "Geodesic Distance",
+            "text": "측지 거리",
+            "comment": "enum"
         },
         "editor.enum.MaterialType.Unlit": {
             "source": "Unlit",

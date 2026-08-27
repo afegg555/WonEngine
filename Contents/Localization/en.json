@@ -1772,6 +1772,86 @@
             "text": "Sound",
             "comment": "content browser asset type"
         },
+        "editor.field.attachment_mode": {
+            "source": "Attachment Mode",
+            "text": "Attachment Mode",
+            "comment": "field"
+        },
+        "editor.field.divisions_x": {
+            "source": "Divisions X",
+            "text": "Divisions X",
+            "comment": "field"
+        },
+        "editor.field.divisions_y": {
+            "source": "Divisions Y",
+            "text": "Divisions Y",
+            "comment": "field"
+        },
+        "editor.field.size_x": {
+            "source": "Size X",
+            "text": "Size X",
+            "comment": "field"
+        },
+        "editor.field.size_y": {
+            "source": "Size Y",
+            "text": "Size Y",
+            "comment": "field"
+        },
+        "editor.field.mass": {
+            "source": "Mass",
+            "text": "Mass",
+            "comment": "field"
+        },
+        "editor.field.edge_compliance": {
+            "source": "Edge Compliance",
+            "text": "Edge Compliance",
+            "comment": "field"
+        },
+        "editor.field.shear_compliance": {
+            "source": "Shear Compliance",
+            "text": "Shear Compliance",
+            "comment": "field"
+        },
+        "editor.field.bend_compliance": {
+            "source": "Bend Compliance",
+            "text": "Bend Compliance",
+            "comment": "field"
+        },
+        "editor.field.bend_type": {
+            "source": "Bend Type",
+            "text": "Bend Type",
+            "comment": "field"
+        },
+        "editor.field.lra_type": {
+            "source": "LRA Type",
+            "text": "LRA Type",
+            "comment": "field"
+        },
+        "editor.field.lra_max_distance_multiplier": {
+            "source": "LRA Max Distance Multiplier",
+            "text": "LRA Max Distance Multiplier",
+            "comment": "field"
+        },
+        "editor.field.linear_damping": {
+            "source": "Linear Damping",
+            "text": "Linear Damping",
+            "comment": "field"
+        },
+        "editor.field.friction": {
+            "source": "Friction",
+            "text": "Friction",
+            "comment": "field"
+        },
+        "editor.field.restitution": {
+            "source": "Restitution",
+            "text": "Restitution",
+            "comment": "field"
+        },
+        "editor.field.solver_iterations": {
+            "source": "Solver Iterations",
+            "text": "Solver Iterations",
+            "comment": "field"
+        },
         "editor.field.agent_height": {
             "source": "Agent Height",
             "text": "Agent Height",
@@ -2136,6 +2216,51 @@
             "source": "Cloud Direction",
             "text": "Cloud Direction",
             "comment": "label"
+        },
+        "editor.enum.SoftBodyAttachmentMode.None": {
+            "source": "None",
+            "text": "None",
+            "comment": "enum"
+        },
+        "editor.enum.SoftBodyAttachmentMode.TopRow": {
+            "source": "Top Row",
+            "text": "Top Row",
+            "comment": "enum"
+        },
+        "editor.enum.SoftBodyAttachmentMode.TopCorners": {
+            "source": "Top Corners",
+            "text": "Top Corners",
+            "comment": "enum"
+        },
+        "editor.enum.SoftBodyBendType.None": {
+            "source": "None",
+            "text": "None",
+            "comment": "enum"
+        },
+        "editor.enum.SoftBodyBendType.Distance": {
+            "source": "Distance",
+            "text": "Distance",
+            "comment": "enum"
+        },
+        "editor.enum.SoftBodyBendType.Dihedral": {
+            "source": "Dihedral",
+            "text": "Dihedral",
+            "comment": "enum"
+        },
+        "editor.enum.SoftBodyLRAType.None": {
+            "source": "None",
+            "text": "None",
+            "comment": "enum"
+        },
+        "editor.enum.SoftBodyLRAType.EuclideanDistance": {
+            "source": "Euclidean Distance",
+            "text": "Euclidean Distance",
+            "comment": "enum"
+        },
+        "editor.enum.SoftBodyLRAType.GeodesicDistance": {
+            "source": "Geodesic Distance",
+            "text": "Geodesic Distance",
+            "comment": "enum"
         },
         "editor.enum.MaterialType.Unlit": {
             "source": "Unlit",
