@@ -42,6 +42,9 @@ namespace won::reflection
         RegisterType(TypeMeta<ecs::Canvas2DComponent::RenderMode>::Get());
         RegisterType(TypeMeta<ecs::Rigidbody3DComponent::MotionType>::Get());
         RegisterType(TypeMeta<ecs::JointComponent::JointType>::Get());
+        RegisterType(TypeMeta<ecs::SoftBodyComponent::AttachmentMode>::Get());
+        RegisterType(TypeMeta<ecs::SoftBodyComponent::BendType>::Get());
+        RegisterType(TypeMeta<ecs::SoftBodyComponent::LRAType>::Get());
         RegisterType(TypeMeta<ecs::AnimationParameter::Type>::Get());
         RegisterType(TypeMeta<ecs::TransitionCondition::Op>::Get());
         RegisterType(TypeMeta<ecs::SequenceTrackType>::Get());
@@ -81,6 +84,7 @@ namespace won::reflection
         RegisterType(TypeMeta<ecs::Collider3DComponent>::Get());
         RegisterType(TypeMeta<ecs::Rigidbody3DComponent>::Get());
         RegisterType(TypeMeta<ecs::JointComponent>::Get());
+        RegisterType(TypeMeta<ecs::SoftBodyComponent>::Get());
         RegisterType(TypeMeta<ecs::BehaviorTreeComponent>::Get());
         RegisterType(TypeMeta<ecs::NavAgentComponent>::Get());
         RegisterType(TypeMeta<ecs::SequenceKey>::Get());

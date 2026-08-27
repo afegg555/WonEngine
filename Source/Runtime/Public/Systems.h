@@ -9,6 +9,7 @@
 #include "BehaviorTreeSystem.h"
 #include "NavAgentSystem.h"
 #include "SequenceSystem.h"
+#include "MeshUpdateSystem.h"
 #include "ParticleUpdateSystem.h"
 #include "WaterSimulationSystem.h"
 #include "ScriptUpdateSystem.h"

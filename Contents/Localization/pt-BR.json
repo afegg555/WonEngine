@@ -1050,6 +1050,70 @@
             "source": "Sound",
             "text": "Som"
         },
+        "editor.field.attachment_mode": {
+            "source": "Attachment Mode",
+            "text": "Modo de fixação"
+        },
+        "editor.field.divisions_x": {
+            "source": "Divisions X",
+            "text": "Divisões X"
+        },
+        "editor.field.divisions_y": {
+            "source": "Divisions Y",
+            "text": "Divisões Y"
+        },
+        "editor.field.size_x": {
+            "source": "Size X",
+            "text": "Tamanho X"
+        },
+        "editor.field.size_y": {
+            "source": "Size Y",
+            "text": "Tamanho Y"
+        },
+        "editor.field.mass": {
+            "source": "Mass",
+            "text": "Massa"
+        },
+        "editor.field.edge_compliance": {
+            "source": "Edge Compliance",
+            "text": "Compliance de arestas"
+        },
+        "editor.field.shear_compliance": {
+            "source": "Shear Compliance",
+            "text": "Compliance de cisalhamento"
+        },
+        "editor.field.bend_compliance": {
+            "source": "Bend Compliance",
+            "text": "Compliance de dobra"
+        },
+        "editor.field.bend_type": {
+            "source": "Bend Type",
+            "text": "Tipo de dobra"
+        },
+        "editor.field.lra_type": {
+            "source": "LRA Type",
+            "text": "Tipo de LRA"
+        },
+        "editor.field.lra_max_distance_multiplier": {
+            "source": "LRA Max Distance Multiplier",
+            "text": "Multiplicador de distância máx. LRA"
+        },
+        "editor.field.linear_damping": {
+            "source": "Linear Damping",
+            "text": "Amortecimento linear"
+        },
+        "editor.field.friction": {
+            "source": "Friction",
+            "text": "Atrito"
+        },
+        "editor.field.restitution": {
+            "source": "Restitution",
+            "text": "Restituição"
+        },
+        "editor.field.solver_iterations": {
+            "source": "Solver Iterations",
+            "text": "Iterações do solver"
+        },
         "editor.field.agent_height": {
             "source": "Agent Height",
             "text": "Altura do agente"
@@ -1693,6 +1757,42 @@
         "editor.label.cloud_direction": {
             "source": "Cloud Direction",
             "text": "Direção das nuvens"
+        },
+        "editor.enum.SoftBodyAttachmentMode.None": {
+            "source": "None",
+            "text": "Nenhum"
+        },
+        "editor.enum.SoftBodyAttachmentMode.TopRow": {
+            "source": "Top Row",
+            "text": "Linha superior"
+        },
+        "editor.enum.SoftBodyAttachmentMode.TopCorners": {
+            "source": "Top Corners",
+            "text": "Cantos superiores"
+        },
+        "editor.enum.SoftBodyBendType.None": {
+            "source": "None",
+            "text": "Nenhum"
+        },
+        "editor.enum.SoftBodyBendType.Distance": {
+            "source": "Distance",
+            "text": "Distância"
+        },
+        "editor.enum.SoftBodyBendType.Dihedral": {
+            "source": "Dihedral",
+            "text": "Diedro"
+        },
+        "editor.enum.SoftBodyLRAType.None": {
+            "source": "None",
+            "text": "Nenhum"
+        },
+        "editor.enum.SoftBodyLRAType.EuclideanDistance": {
+            "source": "Euclidean Distance",
+            "text": "Distância euclidiana"
+        },
+        "editor.enum.SoftBodyLRAType.GeodesicDistance": {
+            "source": "Geodesic Distance",
+            "text": "Distância geodésica"
         },
         "editor.enum.MaterialType.Unlit": {
             "source": "Unlit",

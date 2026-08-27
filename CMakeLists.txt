@@ -203,6 +203,8 @@ set(RUNTIME_RESOURCE
     Source/Runtime/Public/Mesh.h
     Source/Runtime/Public/TerrainGenerator.h
     Source/Runtime/Private/TerrainGenerator.cpp
+    Source/Runtime/Public/SoftBodyGenerator.h
+    Source/Runtime/Private/SoftBodyGenerator.cpp
     Source/Runtime/Public/NavMesh.h
     Source/Runtime/Private/NavMesh.cpp
     Source/Runtime/Public/BehaviorTree.h
@@ -369,6 +371,7 @@ set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/Collider3DComponent.h
     Source/Runtime/Public/Rigidbody3DComponent.h
     Source/Runtime/Public/JointComponent.h
+    Source/Runtime/Public/SoftBodyComponent.h
     Source/Runtime/Public/AudioSourceComponent.h
     Source/Runtime/Public/AudioListenerComponent.h
     Source/Runtime/Public/VisibilityLayerComponent.h
@@ -405,6 +408,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Public/WaterSimulationSystem.h
     Source/Runtime/Public/ScriptUpdateSystem.h
     Source/Runtime/Public/ScriptEventDispatchSystem.h
+    Source/Runtime/Public/MeshUpdateSystem.h
     Source/Runtime/Public/PhysicsUpdateSystem.h
     Source/Runtime/Public/AudioUpdateSystem.h
     Source/Runtime/Public/LocalizeTextSystem.h
@@ -420,6 +424,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Private/WaterSimulationSystem.cpp
     Source/Runtime/Private/ScriptUpdateSystem.cpp
     Source/Runtime/Private/ScriptEventDispatchSystem.cpp
+    Source/Runtime/Private/MeshUpdateSystem.cpp
     Source/Runtime/Private/PhysicsUpdateSystem.cpp
     Source/Runtime/Private/AudioUpdateSystem.cpp
     Source/Runtime/Private/LocalizeTextSystem.cpp
@@ -481,6 +486,7 @@ set(SHADERS_HLSL
     Source/Shaders/LuminanceReduceCS.hlsl
     Source/Shaders/LuminanceResolveCS.hlsl
     Source/Shaders/BRDFIntegrationCS.hlsl
+    Source/Shaders/MeshNormalCS.hlsl
     Source/Shaders/SkyCaptureCS.hlsl
     Source/Shaders/IrradianceConvolveCS.hlsl
     Source/Shaders/SpecularPrefilterCS.hlsl
@@ -528,7 +534,9 @@ set(SHADERS_HLSL
     Source/Shaders/ObjectPS_forward_masked.hlsl
     Source/Shaders/ObjectPS_forwardplus_masked.hlsl
     Source/Shaders/ObjectPS_unlit_masked.hlsl
-    Source/Shaders/SpritePS.hlsl
+    Source/Shaders/SpritePS.hlsli
+    Source/Shaders/SpritePS_default.hlsl
+    Source/Shaders/SpritePS_masked.hlsl
     Source/Shaders/TextPS.hlsl
     Source/Shaders/DDGIProbeUpdateCS.hlsl
     Source/Shaders/LightCullCS.hlsl

@@ -147,6 +147,34 @@ struct alignas(16) ShaderTextureSlot
 
 };
 
+struct MeshNormalPushConstants
+{
+    uint position_descriptor;
+    uint index_descriptor;
+    uint adjacency_range_descriptor;
+    uint adjacency_triangle_descriptor;
+    uint normal_uav_descriptor;
+    uint vertex_count;
+    uint stream_offset; // ring slot base in vertices
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        position_descriptor = 0;
+        index_descriptor = 0;
+        adjacency_range_descriptor = 0;
+        adjacency_triangle_descriptor = 0;
+        normal_uav_descriptor = 0;
+        vertex_count = 0;
+        stream_offset = 0;
+    }
+#endif
+};
+
+#ifdef WON_MESH_NORMAL_PUSHCONSTANT
+PUSHCONSTANT(meshnormalpush, MeshNormalPushConstants);
+#endif
+
 struct alignas(16) ShaderGeometry // per submesh
 {
     // Vertex pulling path: stream descriptors are resolved from bindless SRVs, not IA bindings.
@@ -163,7 +191,7 @@ struct alignas(16) ShaderGeometry // per submesh
     uint first_index;
     uint index_count;
     uint flags;
-    uint padding;
+    uint dynamic_stream_stride; // vertices per ring slot; 0 when the streams are static
 
     float3 bounds_min;
     uint padding0;
@@ -184,7 +212,7 @@ struct alignas(16) ShaderGeometry // per submesh
         first_index = 0;
         index_count = 0;
         flags = SHADER_GEOMETRY_FLAG_NONE;
-        padding = 0;
+        dynamic_stream_stride = 0;
         padding0 = 0;
         padding1 = 0;
     }
@@ -747,7 +775,7 @@ struct alignas(16) ShaderFrame
     ShaderReflectionProbe reflection_probe;
 
 	float time; // accumulated time in seconds
-    float _frame_padding0;
+    uint frame_slot;
     float _frame_padding1;
     float _frame_padding2;
 
@@ -759,6 +787,7 @@ struct alignas(16) ShaderFrame
         ddgi_volume.Init();
         reflection_probe.Init();
         time = 0.0f;
+        frame_slot = 0;
     }
 #endif
 };

@@ -33,7 +33,7 @@ namespace won::rendering
             ViewResizePolicy resize_policy = ViewResizePolicy::MatchWindow;
             bool update_camera_aspect = true;
             bool enable_frustum_culling = true;
-            bool enable_occlusion_culling = false;
+            bool enable_occlusion_culling = true;
             bool enable_viewport_culling = true; // 2D sprites only
             AntiAliasingMode aa_mode = AntiAliasingMode::None;
             TonemapMode tonemap_mode = TonemapMode::Reinhard;

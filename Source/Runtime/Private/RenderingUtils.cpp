@@ -43,8 +43,13 @@ namespace won::rendering::utils
         Vector<PendingImageUpload> pending_image_upload;
         std::mutex pending_resource_upload_mutex;
 
+        Vector<std::weak_ptr<resource::Mesh>> pending_vertex_stream_update;
+        std::mutex pending_vertex_stream_update_mutex;
+        Vector<std::shared_ptr<resource::Mesh>> pending_mesh_release;
+        std::mutex pending_mesh_release_mutex;
+
         template<typename T>
-        void PackBufferSubresource(const Vector<T>& source, Vector<uint8>& packed_data, Size& out_offset, Size data_size, Size alignment, Size& current_offset)
+        void PackBufferSubresource(const Vector<T>& source, Vector<uint8>& packed_data, Size& out_offset, Size data_size, Size alignment, Size& current_offset, Size slot_count = 1)
         {
             if (data_size == 0)
             {
@@ -54,7 +59,11 @@ namespace won::rendering::utils
 
             current_offset = math::Align(current_offset, alignment);
             out_offset = current_offset;
-            std::memcpy(packed_data.data() + out_offset, source.data(), data_size);
+            const Size slot_size = data_size / slot_count;
+            for (Size slot = 0; slot < slot_count; ++slot)
+            {
+                std::memcpy(packed_data.data() + out_offset + slot * slot_size, source.data(), slot_size);
+            }
             current_offset += data_size;
         }
 
@@ -427,8 +436,8 @@ namespace won::rendering::utils
                 command_list.TransitionResource(*counter_buffer, RHIResourceState::Undefined, RHIResourceState::ShaderWrite);
 
                 command_list.SetComputePipeline(*gpu_bvh_build_pipelines[static_cast<uint32>(GPUBVHBuildPipelineType::GeneratePrimitives)]);
-                command_list.SetShaderResource(RHIShaderStage::Compute, 0, { mesh.render_data.buffer.get(), mesh.render_data.positions.handle });
-                command_list.SetShaderResource(RHIShaderStage::Compute, 1, { mesh.render_data.buffer.get(), mesh.render_data.indices.handle });
+                command_list.SetShaderResource(RHIShaderStage::Compute, 0, { mesh.render_data.buffer.get(), mesh.render_data.positions.srv });
+                command_list.SetShaderResource(RHIShaderStage::Compute, 1, { mesh.render_data.buffer.get(), mesh.render_data.indices.srv });
                 command_list.SetUnorderedAccess(RHIShaderStage::Compute, 0, { gpu_bvh.primitive_buffer.get(), gpu_bvh.primitive_uav });
                 command_list.SetUnorderedAccess(RHIShaderStage::Compute, 2, { sort_buffer.get(), sort_uav });
                 uint32 primitive_offset = 0;
@@ -623,6 +632,55 @@ namespace won::rendering::utils
             }
         }
         pending_mesh_upload.push_back(mesh);
+    }
+
+    void EnqueueVertexStreamUpdate(const std::shared_ptr<resource::Mesh>& mesh)
+    {
+        if (!mesh || !mesh->render_data.IsValid())
+        {
+            return;
+        }
+        std::lock_guard<std::mutex> lock(pending_vertex_stream_update_mutex);
+        for (const std::weak_ptr<resource::Mesh>& pending : pending_vertex_stream_update)
+        {
+            if (pending.lock().get() == mesh.get())
+            {
+                return;
+            }
+        }
+        pending_vertex_stream_update.push_back(mesh);
+    }
+
+    void TakeEnqueuedVertexStreamUpdates(Vector<std::shared_ptr<resource::Mesh>>& out_meshes)
+    {
+        out_meshes.clear();
+        std::lock_guard<std::mutex> lock(pending_vertex_stream_update_mutex);
+        out_meshes.reserve(pending_vertex_stream_update.size());
+        for (const std::weak_ptr<resource::Mesh>& pending : pending_vertex_stream_update)
+        {
+            if (std::shared_ptr<resource::Mesh> mesh = pending.lock())
+            {
+                out_meshes.push_back(std::move(mesh));
+            }
+        }
+        pending_vertex_stream_update.clear();
+    }
+
+    void EnqueueMeshRelease(const std::shared_ptr<resource::Mesh>& mesh)
+    {
+        if (!mesh || !mesh->render_data.IsValid())
+        {
+            return;
+        }
+        std::lock_guard<std::mutex> lock(pending_mesh_release_mutex);
+        pending_mesh_release.push_back(mesh);
+    }
+
+    void TakeEnqueuedMeshReleases(Vector<std::shared_ptr<resource::Mesh>>& out_meshes)
+    {
+        out_meshes.clear();
+        std::lock_guard<std::mutex> lock(pending_mesh_release_mutex);
+        out_meshes.swap(pending_mesh_release);
     }
 
     void EnqueueResourceUpload(const std::shared_ptr<resource::Font>& font)
@@ -982,15 +1040,58 @@ namespace won::rendering::utils
             return false;
         }
 
-        const Size positions_size = mesh.positions.size() * sizeof(float3);
+        const Size stream_slots = mesh.dynamic_vertex_streams ? static_cast<Size>(max_frames_in_flight) : 1;
+        const Size positions_size = mesh.positions.size() * sizeof(float3) * stream_slots;
         const Size colors_size = mesh.colors.size() * sizeof(float4);
-        const Size normals_size = mesh.normals.size() * sizeof(float3);
+        const Size normals_size = mesh.normals.size() * sizeof(float3) * stream_slots;
         const Size tangents_size = mesh.tangents.size() * sizeof(float4);
         const Size texcoords_size = mesh.texcoords.size() * sizeof(float2);
         const bool has_skinning_stream = mesh.bone_indices.size() == mesh.positions.size() && mesh.bone_weights.size() == mesh.positions.size();
         const Size bone_indices_size = has_skinning_stream ? mesh.bone_indices.size() * sizeof(uint4) : 0;
         const Size bone_weights_size = has_skinning_stream ? mesh.bone_weights.size() * sizeof(float4) : 0;
         const Size indices_size = mesh.indices.size() * sizeof(uint32);
+
+        Vector<uint2> adjacency_ranges; // per vertex (start_index, count)
+        Vector<uint32> adjacency_triangles; // flattened triangle indices
+        if (mesh.dynamic_vertex_streams)
+        {
+            const Size triangle_count = mesh.indices.size() / 3;
+            adjacency_ranges.assign(mesh.positions.size(), uint2(0, 0));
+            for (Size triangle = 0; triangle < triangle_count; ++triangle)
+            {
+                for (Size corner = 0; corner < 3; ++corner)
+                {
+                    const uint32 vertex = mesh.indices[triangle * 3 + corner];
+                    if (vertex < adjacency_ranges.size())
+                    {
+                        ++adjacency_ranges[vertex].y; // count triangles
+                    }
+                }
+            }
+            uint32 running = 0;
+            // prefix sum
+            for (uint2& range : adjacency_ranges)
+            {
+                range.x = running;
+                running += range.y;
+                range.y = 0; // will reuse this
+            }
+            adjacency_triangles.resize(running);
+            for (Size triangle = 0; triangle < triangle_count; ++triangle)
+            {
+                for (Size corner = 0; corner < 3; ++corner)
+                {
+                    const uint32 vertex = mesh.indices[triangle * 3 + corner];
+                    if (vertex < adjacency_ranges.size())
+                    {
+                        adjacency_triangles[adjacency_ranges[vertex].x + adjacency_ranges[vertex].y] = static_cast<uint32>(triangle);
+                        ++adjacency_ranges[vertex].y;
+                    }
+                }
+            }
+        }
+        const Size adjacency_ranges_size = adjacency_ranges.size() * sizeof(uint2);
+        const Size adjacency_triangles_size = adjacency_triangles.size() * sizeof(uint32);
         Size total_size = 0;
         total_size = math::Align(total_size, static_cast<Size>(sizeof(float3))) + positions_size;
         total_size = math::Align(total_size, static_cast<Size>(sizeof(float4))) + colors_size;
@@ -1000,6 +1101,8 @@ namespace won::rendering::utils
         total_size = math::Align(total_size, static_cast<Size>(sizeof(uint4))) + bone_indices_size;
         total_size = math::Align(total_size, static_cast<Size>(sizeof(float4))) + bone_weights_size;
         total_size = math::Align(total_size, static_cast<Size>(sizeof(uint32))) + indices_size;
+        total_size = math::Align(total_size, static_cast<Size>(sizeof(uint2))) + adjacency_ranges_size;
+        total_size = math::Align(total_size, static_cast<Size>(sizeof(uint32))) + adjacency_triangles_size;
         if (total_size == 0)
         {
             return false;
@@ -1019,20 +1122,28 @@ namespace won::rendering::utils
         Size bone_indices_offset = 0;
         Size bone_weights_offset = 0;
         Size indices_offset = 0;
+        Size adjacency_ranges_offset = 0;
+        Size adjacency_triangles_offset = 0;
 
-        PackBufferSubresource(mesh.positions, packed_data, positions_offset, positions_size, sizeof(float3), offset);
+        PackBufferSubresource(mesh.positions, packed_data, positions_offset, positions_size, sizeof(float3), offset, stream_slots);
         PackBufferSubresource(mesh.colors, packed_data, colors_offset, colors_size, sizeof(float4), offset);
-        PackBufferSubresource(mesh.normals, packed_data, normals_offset, normals_size, sizeof(float3), offset);
+        PackBufferSubresource(mesh.normals, packed_data, normals_offset, normals_size, sizeof(float3), offset, stream_slots);
         PackBufferSubresource(mesh.tangents, packed_data, tangents_offset, tangents_size, sizeof(float4), offset);
         PackBufferSubresource(mesh.texcoords, packed_data, texcoords_offset, texcoords_size, sizeof(float2), offset);
         PackBufferSubresource(mesh.bone_indices, packed_data, bone_indices_offset, bone_indices_size, sizeof(uint4), offset);
         PackBufferSubresource(mesh.bone_weights, packed_data, bone_weights_offset, bone_weights_size, sizeof(float4), offset);
         PackBufferSubresource(mesh.indices, packed_data, indices_offset, indices_size, sizeof(uint32), offset);
+        PackBufferSubresource(adjacency_ranges, packed_data, adjacency_ranges_offset, adjacency_ranges_size, sizeof(uint2), offset);
+        PackBufferSubresource(adjacency_triangles, packed_data, adjacency_triangles_offset, adjacency_triangles_size, sizeof(uint32), offset);
 
         RHIBufferDesc buffer_desc = {};
         buffer_desc.size = total_size;
         buffer_desc.usage = RHIResourceUsage::Default;
         buffer_desc.bind_flags = RHIBindFlags::VertexBuffer | RHIBindFlags::IndexBuffer | RHIBindFlags::ShaderResource;
+        if (mesh.dynamic_vertex_streams)
+        {
+            buffer_desc.bind_flags = buffer_desc.bind_flags | RHIBindFlags::UnorderedAccess;
+        }
         new_render_data.buffer = device.CreateBuffer(buffer_desc, packed_data.data(), packed_data.size());
         if (!new_render_data.buffer)
         {
@@ -1040,7 +1151,7 @@ namespace won::rendering::utils
         }
         new_render_data.buffer->SetName(mesh.name.empty() ? String("Mesh Vertex Index Buffer") : "Mesh Vertex Index Buffer (" + mesh.name + ")");
 
-        auto create_subresource = [&](RHISubresourceType type, Size buffer_offset, Size buffer_size, Size buffer_stride, resource::Mesh::VBSubresource& out_subresource) -> bool
+        auto create_subresource = [&](Size buffer_offset, Size buffer_size, Size buffer_stride, bool with_uav, resource::Mesh::VBSubresource& out_subresource) -> bool
         {
             if (buffer_size == 0)
             {
@@ -1051,42 +1162,61 @@ namespace won::rendering::utils
             out_subresource.size = static_cast<uint32>(buffer_size);
 
             RHISubresourceDesc subresource_desc = {};
-            subresource_desc.type = type;
+            subresource_desc.type = RHISubresourceType::ShaderResource;
             subresource_desc.buffer_offset = buffer_offset;
             subresource_desc.buffer_size = buffer_size;
             subresource_desc.buffer_stride = buffer_stride;
-            return device.CreateSubresource(*new_render_data.buffer, subresource_desc, &out_subresource.handle);
+            if (!device.CreateSubresource(*new_render_data.buffer, subresource_desc, &out_subresource.srv))
+            {
+                return false;
+            }
+
+            if (!with_uav)
+            {
+                return true;
+            }
+
+            subresource_desc.type = RHISubresourceType::UnorderedAccess;
+            return device.CreateSubresource(*new_render_data.buffer, subresource_desc, &out_subresource.uav);
         };
 
-        if (!create_subresource(RHISubresourceType::ShaderResource, positions_offset, positions_size, sizeof(float3), new_render_data.positions))
+        if (!create_subresource(positions_offset, positions_size, sizeof(float3), false, new_render_data.positions))
         {
             return false;
         }
-        if (!create_subresource(RHISubresourceType::ShaderResource, colors_offset, colors_size, sizeof(float4), new_render_data.colors))
+        if (!create_subresource(colors_offset, colors_size, sizeof(float4), false, new_render_data.colors))
         {
             return false;
         }
-        if (!create_subresource(RHISubresourceType::ShaderResource, normals_offset, normals_size, sizeof(float3), new_render_data.normals))
+        if (!create_subresource(normals_offset, normals_size, sizeof(float3), mesh.dynamic_vertex_streams, new_render_data.normals))
         {
             return false;
         }
-        if (!create_subresource(RHISubresourceType::ShaderResource, tangents_offset, tangents_size, sizeof(float4), new_render_data.tangents))
+        if (!create_subresource(tangents_offset, tangents_size, sizeof(float4), false, new_render_data.tangents))
         {
             return false;
         }
-        if (!create_subresource(RHISubresourceType::ShaderResource, texcoords_offset, texcoords_size, sizeof(float2), new_render_data.texcoords))
+        if (!create_subresource(texcoords_offset, texcoords_size, sizeof(float2), false, new_render_data.texcoords))
         {
             return false;
         }
-        if (!create_subresource(RHISubresourceType::ShaderResource, bone_indices_offset, bone_indices_size, sizeof(uint4), new_render_data.bone_indices))
+        if (!create_subresource(bone_indices_offset, bone_indices_size, sizeof(uint4), false, new_render_data.bone_indices))
         {
             return false;
         }
-        if (!create_subresource(RHISubresourceType::ShaderResource, bone_weights_offset, bone_weights_size, sizeof(float4), new_render_data.bone_weights))
+        if (!create_subresource(adjacency_ranges_offset, adjacency_ranges_size, sizeof(uint2), false, new_render_data.adjacency_ranges))
         {
             return false;
         }
-        if (!create_subresource(RHISubresourceType::ShaderResource, indices_offset, indices_size, sizeof(uint32), new_render_data.indices))
+        if (!create_subresource(adjacency_triangles_offset, adjacency_triangles_size, sizeof(uint32), false, new_render_data.adjacency_triangles))
+        {
+            return false;
+        }
+        if (!create_subresource(bone_weights_offset, bone_weights_size, sizeof(float4), false, new_render_data.bone_weights))
+        {
+            return false;
+        }
+        if (!create_subresource(indices_offset, indices_size, sizeof(uint32), false, new_render_data.indices))
         {
             return false;
         }

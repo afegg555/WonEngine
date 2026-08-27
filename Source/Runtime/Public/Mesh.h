@@ -53,13 +53,14 @@ namespace won::resource
 
         struct VBSubresource
         {
-            rendering::RHISubresourceHandle handle = {};
+            rendering::RHISubresourceHandle srv = {};
+            rendering::RHISubresourceHandle uav = {};
             uint32 size = 0;
             uint32 offset = 0;
 
             bool IsValid() const
             {
-                return handle.IsValid();
+                return srv.IsValid();
             }
         };
 
@@ -74,6 +75,9 @@ namespace won::resource
             VBSubresource bone_indices = {};
             VBSubresource bone_weights = {};
             VBSubresource indices = {};
+            // built for dynamic meshes so normals can be recomputed on the gpu
+            VBSubresource adjacency_ranges = {};
+            VBSubresource adjacency_triangles = {};
 
             bool IsValid() const
             {
@@ -92,6 +96,7 @@ namespace won::resource
         Vector<Submesh> submeshes;
         std::shared_ptr<Skeleton> skeleton;
         Vector<std::shared_ptr<AnimationClip>> animation_clips; // run, jump...
+        bool dynamic_vertex_streams = false; // vertex streams are rewritten every frame, so the gpu copies are ring buffered per frame in flight
         math::bvh::BVH cpu_bvh; // local space bvh
         GPUBVH gpu_bvh = {}; // BLAS
         RenderData render_data = {};

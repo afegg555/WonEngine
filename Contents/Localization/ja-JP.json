@@ -1402,6 +1402,70 @@
             "source": "Sound",
             "text": "サウンド"
         },
+        "editor.field.attachment_mode": {
+            "source": "Attachment Mode",
+            "text": "固定モード"
+        },
+        "editor.field.divisions_x": {
+            "source": "Divisions X",
+            "text": "分割数 X"
+        },
+        "editor.field.divisions_y": {
+            "source": "Divisions Y",
+            "text": "分割数 Y"
+        },
+        "editor.field.size_x": {
+            "source": "Size X",
+            "text": "サイズ X"
+        },
+        "editor.field.size_y": {
+            "source": "Size Y",
+            "text": "サイズ Y"
+        },
+        "editor.field.mass": {
+            "source": "Mass",
+            "text": "質量"
+        },
+        "editor.field.edge_compliance": {
+            "source": "Edge Compliance",
+            "text": "エッジ コンプライアンス"
+        },
+        "editor.field.shear_compliance": {
+            "source": "Shear Compliance",
+            "text": "シアー コンプライアンス"
+        },
+        "editor.field.bend_compliance": {
+            "source": "Bend Compliance",
+            "text": "ベンド コンプライアンス"
+        },
+        "editor.field.bend_type": {
+            "source": "Bend Type",
+            "text": "ベンド タイプ"
+        },
+        "editor.field.lra_type": {
+            "source": "LRA Type",
+            "text": "LRA タイプ"
+        },
+        "editor.field.lra_max_distance_multiplier": {
+            "source": "LRA Max Distance Multiplier",
+            "text": "LRA 最大距離の倍率"
+        },
+        "editor.field.linear_damping": {
+            "source": "Linear Damping",
+            "text": "線形ダンピング"
+        },
+        "editor.field.friction": {
+            "source": "Friction",
+            "text": "摩擦"
+        },
+        "editor.field.restitution": {
+            "source": "Restitution",
+            "text": "反発"
+        },
+        "editor.field.solver_iterations": {
+            "source": "Solver Iterations",
+            "text": "ソルバー反復回数"
+        },
         "editor.field.agent_height": {
             "source": "Agent Height",
             "text": "エージェント高さ"
@@ -1693,6 +1757,42 @@
         "editor.label.cloud_direction": {
             "source": "Cloud Direction",
             "text": "雲の方向"
+        },
+        "editor.enum.SoftBodyAttachmentMode.None": {
+            "source": "None",
+            "text": "なし"
+        },
+        "editor.enum.SoftBodyAttachmentMode.TopRow": {
+            "source": "Top Row",
+            "text": "上端の行"
+        },
+        "editor.enum.SoftBodyAttachmentMode.TopCorners": {
+            "source": "Top Corners",
+            "text": "上端の角"
+        },
+        "editor.enum.SoftBodyBendType.None": {
+            "source": "None",
+            "text": "なし"
+        },
+        "editor.enum.SoftBodyBendType.Distance": {
+            "source": "Distance",
+            "text": "距離"
+        },
+        "editor.enum.SoftBodyBendType.Dihedral": {
+            "source": "Dihedral",
+            "text": "二面角"
+        },
+        "editor.enum.SoftBodyLRAType.None": {
+            "source": "None",
+            "text": "なし"
+        },
+        "editor.enum.SoftBodyLRAType.EuclideanDistance": {
+            "source": "Euclidean Distance",
+            "text": "ユークリッド距離"
+        },
+        "editor.enum.SoftBodyLRAType.GeodesicDistance": {
+            "source": "Geodesic Distance",
+            "text": "測地距離"
         },
         "editor.enum.MaterialType.Unlit": {
             "source": "Unlit",

@@ -2,12 +2,18 @@
 #include "Types.h"
 #include "RuntimeExport.h"
 
+namespace won::resource
+{
+    struct Mesh;
+}
+
 namespace won::ecs
 {
     struct TransformComponent;
     struct Collider3DComponent;
     struct Rigidbody3DComponent;
     struct JointComponent;
+    struct SoftBodyComponent;
     using Entity = uint64;
 }
 
@@ -77,6 +83,9 @@ namespace won::physics
         void AddBody(won::ecs::Entity entity, const won::ecs::TransformComponent& transform, won::ecs::Collider3DComponent& collider, won::ecs::Rigidbody3DComponent* rb, uint32_t collision_layer = 0, const HeightFieldShapeDesc* height_field = nullptr);
         void RemoveBody(won::ecs::Entity entity);
         bool HasBody(won::ecs::Entity entity) const;
+
+        void AddSoftBody(won::ecs::Entity entity, const won::ecs::TransformComponent& transform, won::ecs::SoftBodyComponent& soft_body, const won::resource::Mesh& mesh, uint32_t collision_layer = 0);
+        void GetSoftBodyVertices(won::ecs::Entity entity, Vector<float3>& out_positions) const;
 
         bool IsDynamic(won::ecs::Entity entity) const;
 

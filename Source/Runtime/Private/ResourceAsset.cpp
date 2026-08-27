@@ -11,7 +11,6 @@
 #include "Scene.h"
 #include "SceneComponents.h"
 #include "TransformUpdateSystem.h"
-#include "TerrainGenerator.h"
 #include "NavMesh.h"
 #include "StableHash.h"
 #include "ShaderInterop_Renderer.h"
@@ -1045,25 +1044,6 @@ namespace won::resource
         }
     }
 
-    static void BuildTerrainMeshes(ecs::Scene& scene)
-    {
-        auto terrain_array = scene.GetComponentArray<ecs::TerrainComponent>();
-        if (!terrain_array)
-        {
-            return;
-        }
-        for (Size i = 0; i < terrain_array->GetSize(); ++i)
-        {
-            const ecs::Entity entity = terrain_array->index_to_entity[i];
-            if (ecs::GeometryComponent* geometry = scene.GetComponent<ecs::GeometryComponent>(entity))
-            {
-                auto mesh = ecs::GenerateTerrainMesh(terrain_array->data[i]);
-                geometry->SetMesh(mesh);
-                rendering::utils::EnqueueResourceUpload(mesh);
-            }
-        }
-    }
-
     static bool SaveNavMeshBinary(const String& path, const nav::NavMesh& nav_mesh, uint64 source_hash)
     {
         const uint8* data = nav_mesh.GetData();
@@ -1295,17 +1275,12 @@ namespace won::resource
         jobsystem::Context ctx;
         jobsystem::Context mesh_ctx;
 
-        BuildTerrainMeshes(scene);
         BuildSceneNavMesh(scene, content_root);
 
         if (auto geometry_array = scene.GetComponentArray<ecs::GeometryComponent>())
         {
             DispatchLoadJobs(parallel, mesh_ctx, static_cast<uint32>(geometry_array->GetSize()), [geometry_array, &scene, &content_root](jobsystem::JobArgs args)
             {
-                if (scene.HasComponent<ecs::TerrainComponent>(geometry_array->index_to_entity[args.job_index]))
-                {
-                    return;
-                }
                 LoadMeshResource(geometry_array->data[args.job_index], content_root);
             });
         }
@@ -1402,16 +1377,7 @@ namespace won::resource
         {
             if (ecs::GeometryComponent* geometry = scene.GetComponent<ecs::GeometryComponent>(entity))
             {
-                if (ecs::TerrainComponent* terrain = scene.GetComponent<ecs::TerrainComponent>(entity))
-                {
-                    auto mesh = ecs::GenerateTerrainMesh(*terrain);
-                    geometry->SetMesh(mesh);
-                    rendering::utils::EnqueueResourceUpload(mesh);
-                }
-                else
-                {
-                    LoadMeshResource(*geometry, content_root);
-                }
+                LoadMeshResource(*geometry, content_root);
             }
 
             BindAnimationClips(scene, entity);

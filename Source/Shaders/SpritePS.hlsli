@@ -9,6 +9,10 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
         final_color *= material.textures[BASECOLORMAP].Sample(sampler_sprite, input.uvsets);
     }
     final_color *= input.color;
-    
+
+#ifdef ALPHATEST
+    clip(final_color.a - material.GetAlphaCutoff());
+#endif // ALPHATEST
+
     return final_color;
 }

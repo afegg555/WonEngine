@@ -31,9 +31,14 @@ struct VertexInput
     }
 
 #ifndef WON_DISABLE_RENDERER_PUSHCONSTANT
+    uint GetStreamVertexID()
+    {
+        return GetVertexID() + GetFrame().frame_slot * GetGeometry().dynamic_stream_stride;
+    }
+
     float3 GetPosition()
     {
-        return bindless_buffers_float3[DescriptorIndex(GetGeometry().position_buffer_descriptor)][GetVertexID()];
+        return bindless_buffers_float3[DescriptorIndex(GetGeometry().position_buffer_descriptor)][GetStreamVertexID()];
     }
 
     half4 GetVertexColor()
@@ -49,7 +54,7 @@ struct VertexInput
 		[branch]
         if (GetGeometry().normal_buffer_descriptor < 0)
             return 1;
-        return bindless_buffers_float3[DescriptorIndex(GetGeometry().normal_buffer_descriptor)][GetVertexID()];
+        return bindless_buffers_float3[DescriptorIndex(GetGeometry().normal_buffer_descriptor)][GetStreamVertexID()];
     }
     
     float2 GetUVSets()

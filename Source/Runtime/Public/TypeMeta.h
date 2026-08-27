@@ -29,8 +29,18 @@ namespace won::reflection
             return won::ValueType::Unknown;
         }
 
+        static constexpr won::TypeId GetTypeId()
+        {
+            if constexpr (TypeMeta<T>::reflected)
+            {
+                return TypeMeta<T>::type_id;
+            }
+            return 0;
+        }
+
         inline static constexpr won::ValueType value_type = GetValueType();
         inline static constexpr const won::ArrayDesc* array_desc = nullptr;
+        inline static constexpr won::TypeId type_id = GetTypeId();
     };
 
     template <typename Element>
@@ -71,6 +81,7 @@ namespace won::reflection
         inline static constexpr won::ArrayDesc desc = { sizeof(won::ArrayDesc), GetElementTypeId(), &GetSize, &Resize, &GetElement, &GetConstElement };
         inline static constexpr won::ValueType value_type = won::ValueType::Array;
         inline static constexpr const won::ArrayDesc* array_desc = &desc;
+        inline static constexpr won::TypeId type_id = 0;
     };
 
     template <typename Element, size_t Count>
@@ -104,6 +115,7 @@ namespace won::reflection
         inline static constexpr won::ArrayDesc desc = { sizeof(won::ArrayDesc), GetElementTypeId(), &GetSize, nullptr, &GetElement, &GetConstElement };
         inline static constexpr won::ValueType value_type = won::ValueType::Array;
         inline static constexpr const won::ArrayDesc* array_desc = &desc;
+        inline static constexpr won::TypeId type_id = 0;
     };
 }
 
@@ -137,10 +149,10 @@ template<> struct TypeMeta<type> { \
     inline static constexpr won::FieldDesc fields[] = {
 
 #define WON_REFLECT_FIELD(member, flags_value) \
-        { sizeof(won::FieldDesc), won::StableHash(#member), #member, FieldTypeInfo<decltype(std::declval<ReflectedType>().member)>::value_type, FieldTypeInfo<decltype(std::declval<ReflectedType>().member)>::array_desc, static_cast<uint32_t>(offsetof(ReflectedType, member)), static_cast<uint32_t>(sizeof(std::declval<ReflectedType>().member)), flags_value },
+        { sizeof(won::FieldDesc), won::StableHash(#member), #member, FieldTypeInfo<decltype(std::declval<ReflectedType>().member)>::value_type, FieldTypeInfo<decltype(std::declval<ReflectedType>().member)>::array_desc, static_cast<uint32_t>(offsetof(ReflectedType, member)), static_cast<uint32_t>(sizeof(std::declval<ReflectedType>().member)), flags_value, nullptr, 0, FieldTypeInfo<decltype(std::declval<ReflectedType>().member)>::type_id },
 
 #define WON_REFLECT_STRUCT_END() \
-        { sizeof(won::FieldDesc), 0, "", ValueType::Unknown, nullptr, 0, 0, FieldFlagNone } \
+        { sizeof(won::FieldDesc), 0, "", ValueType::Unknown, nullptr, 0, 0, FieldFlagNone, nullptr, 0, 0 } \
     }; \
     static void Construct(void* memory) { new (memory) ReflectedType(); } \
     static void Destruct(void* memory) { static_cast<ReflectedType*>(memory)->~ReflectedType(); } \
@@ -150,7 +162,7 @@ template<> struct TypeMeta<type> { \
 };
 
 #define WON_REFLECT_FLAGS_FIELD(member, flags_value, flag_enum_type) \
-        { sizeof(won::FieldDesc), won::StableHash(#member), #member, FieldTypeInfo<decltype(std::declval<ReflectedType>().member)>::value_type, FieldTypeInfo<decltype(std::declval<ReflectedType>().member)>::array_desc, static_cast<uint32_t>(offsetof(ReflectedType, member)), static_cast<uint32_t>(sizeof(std::declval<ReflectedType>().member)), flags_value, TypeMeta<flag_enum_type>::enum_values, static_cast<uint32_t>(sizeof(TypeMeta<flag_enum_type>::enum_values) / sizeof(TypeMeta<flag_enum_type>::enum_values[0])) },
+        { sizeof(won::FieldDesc), won::StableHash(#member), #member, FieldTypeInfo<decltype(std::declval<ReflectedType>().member)>::value_type, FieldTypeInfo<decltype(std::declval<ReflectedType>().member)>::array_desc, static_cast<uint32_t>(offsetof(ReflectedType, member)), static_cast<uint32_t>(sizeof(std::declval<ReflectedType>().member)), flags_value, TypeMeta<flag_enum_type>::enum_values, static_cast<uint32_t>(sizeof(TypeMeta<flag_enum_type>::enum_values) / sizeof(TypeMeta<flag_enum_type>::enum_values[0])), FieldTypeInfo<decltype(std::declval<ReflectedType>().member)>::type_id },
 
 #define WON_REFLECT_ENUM(type, display_name_value) \
 template<> struct TypeMeta<type> { \

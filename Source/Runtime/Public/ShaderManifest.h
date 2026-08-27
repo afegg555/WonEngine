@@ -31,6 +31,7 @@ namespace won::resource
         PSObjectForwardPlusMasked,
         PSObjectUnlitMasked,
         PSSprite,
+        PSSpriteMasked,
         PSText3D,
         PSComposite,
         PSDecal,
@@ -47,6 +48,7 @@ namespace won::resource
         CSLuminanceReduce,
         CSLuminanceResolve,
         CSBRDFIntegration,
+        CSMeshNormal,
         CSSkyCapture,
         CSIrradianceConvolve,
         CSSpecularPrefilter,
@@ -93,6 +95,7 @@ namespace won::resource
         case ShaderId::PSObjectForwardPlusMasked: return "PSObjectForwardPlusMasked";
         case ShaderId::PSObjectUnlitMasked: return "PSObjectUnlitMasked";
         case ShaderId::PSSprite: return "PSSprite";
+        case ShaderId::PSSpriteMasked: return "PSSpriteMasked";
         case ShaderId::PSText3D: return "PSText3D";
         case ShaderId::PSComposite: return "PSComposite";
         case ShaderId::PSDecal: return "PSDecal";
@@ -108,6 +111,7 @@ namespace won::resource
         case ShaderId::CSLuminanceReduce: return "CSLuminanceReduce";
         case ShaderId::CSLuminanceResolve: return "CSLuminanceResolve";
         case ShaderId::CSBRDFIntegration: return "CSBRDFIntegration";
+        case ShaderId::CSMeshNormal: return "CSMeshNormal";
         case ShaderId::CSSkyCapture: return "CSSkyCapture";
         case ShaderId::CSIrradianceConvolve: return "CSIrradianceConvolve";
         case ShaderId::CSSpecularPrefilter: return "CSSpecularPrefilter";

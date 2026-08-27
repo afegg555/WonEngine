@@ -147,6 +147,7 @@ namespace won::rendering
         ShaderView shader_view{};
         shader_view.Init();
         rendering::GPUScene& gpu_scene = view.scene->GetGPUScene();
+        shader_frame.frame_slot = current_frame_slot;
         shader_frame.scene.instancebuffer = gpu_scene.instance_buffer.srv.descriptor_index;
         shader_frame.scene.geometrybuffer = gpu_scene.geometry_buffer.srv.descriptor_index;
         shader_frame.scene.materialbuffer = gpu_scene.material_buffer.srv.descriptor_index;
@@ -434,6 +435,88 @@ namespace won::rendering
         UploadBuffer(gpu_scene.water.zone_buffer, "Scene Water Zone Buffer", frame_context, gpu_scene.water.shader_zones.data(), gpu_scene.water.shader_zones.size() * sizeof(ShaderWaterZone), sizeof(ShaderWaterZone), *device, frame_graph);
         UploadBuffer(gpu_scene.bvh_node_buffer, "Scene BVH Node Buffer", frame_context, gpu_scene.shader_bvh_nodes.data(), gpu_scene.shader_bvh_nodes.size() * sizeof(ShaderBVHNode), sizeof(ShaderBVHNode), *device, frame_graph);
         UploadBuffer(gpu_scene.bvh_instance_buffer, "Scene BVH Instance Buffer", frame_context, gpu_scene.shader_bvh_instances.data(), gpu_scene.shader_bvh_instances.size() * sizeof(ShaderBVHInstance), sizeof(ShaderBVHInstance), *device, frame_graph);
+
+        Vector<std::shared_ptr<resource::Mesh>> released_meshes;
+        rendering::utils::TakeEnqueuedMeshReleases(released_meshes);
+        for (const std::shared_ptr<resource::Mesh>& mesh : released_meshes)
+        {
+            frame_context.RemoveSharedResourceDeferred(mesh->render_data.buffer);
+            if (mesh->gpu_bvh.node_buffer)
+            {
+                frame_context.RemoveSharedResourceDeferred(mesh->gpu_bvh.node_buffer);
+            }
+            if (mesh->gpu_bvh.primitive_buffer)
+            {
+                frame_context.RemoveSharedResourceDeferred(mesh->gpu_bvh.primitive_buffer);
+            }
+        }
+
+        Vector<std::shared_ptr<resource::Mesh>> updated_meshes;
+        rendering::utils::TakeEnqueuedVertexStreamUpdates(updated_meshes);
+
+        Vector<std::shared_ptr<resource::Mesh>> normal_meshes;
+        Vector<FrameResourceAccess> normal_accesses;
+        for (const std::shared_ptr<resource::Mesh>& mesh : updated_meshes)
+        {
+            const resource::Mesh::RenderData& render_data = mesh->render_data;
+            if (!render_data.IsValid())
+            {
+                continue;
+            }
+
+            const Size slot_count = mesh->dynamic_vertex_streams ? static_cast<Size>(max_frames_in_flight) : 1;
+            const Size positions_size = mesh->positions.size() * sizeof(float3);
+            if (positions_size != render_data.positions.size / slot_count)
+            {
+                continue;
+            }
+
+            const FrameResourceId mesh_buffer_id = frame_graph.Import(*render_data.buffer);
+            frame_graph.MarkNoCull(mesh_buffer_id);
+            frame_graph.QueueBufferUpload(mesh_buffer_id, mesh->positions.data(), positions_size, render_data.positions.offset + current_frame_slot * positions_size);
+
+            if (mesh->dynamic_vertex_streams && render_data.normals.uav.IsValid() && render_data.adjacency_ranges.IsValid() && render_data.adjacency_triangles.IsValid())
+            {
+                normal_meshes.push_back(mesh);
+                normal_accesses.push_back({ mesh_buffer_id, RHIResourceState::Undefined, FrameResourceAccess::Type::ReadWrite });
+            }
+        }
+
+        if (!normal_meshes.empty())
+        {
+            if (RHIPipeline* mesh_normal_pipeline = shader_library.GetPipeline(ComputePipelineHash(ShaderId::CSMeshNormal)))
+            {
+                const uint32 vertex_slot = current_frame_slot;
+                frame_graph.AddPass("Mesh Normal Pass", std::move(normal_accesses),
+                    [this, mesh_normal_pipeline, normal_meshes, vertex_slot](const FrameGraphPassContext& pass_context)
+                {
+                    auto gpu_range = profiler::ScopedRangeGPU("Mesh Normal Pass", (*pass_context.command_list));
+
+                    pass_context.command_list->SetComputePipeline(*mesh_normal_pipeline);
+                    for (const std::shared_ptr<resource::Mesh>& mesh : normal_meshes)
+                    {
+                        const resource::Mesh::RenderData& render_data = mesh->render_data;
+
+                        MeshNormalPushConstants mesh_normal_push = {};
+                        mesh_normal_push.Init();
+                        mesh_normal_push.position_descriptor = static_cast<uint32>(render_data.positions.srv.descriptor_index);
+                        mesh_normal_push.index_descriptor = static_cast<uint32>(render_data.indices.srv.descriptor_index);
+                        mesh_normal_push.adjacency_range_descriptor = static_cast<uint32>(render_data.adjacency_ranges.srv.descriptor_index);
+                        mesh_normal_push.adjacency_triangle_descriptor = static_cast<uint32>(render_data.adjacency_triangles.srv.descriptor_index);
+                        mesh_normal_push.normal_uav_descriptor = static_cast<uint32>(render_data.normals.uav.descriptor_index);
+                        mesh_normal_push.vertex_count = static_cast<uint32>(mesh->positions.size());
+                        mesh_normal_push.stream_offset = vertex_slot * static_cast<uint32>(mesh->positions.size());
+
+                        pass_context.command_list->PushConstants(RHIShaderStage::Compute, &mesh_normal_push, sizeof(mesh_normal_push), 0);
+                        pass_context.command_list->Dispatch((mesh_normal_push.vertex_count + DISPATCH_THREAD_GROUP_1D - 1) / DISPATCH_THREAD_GROUP_1D, 1u, 1u);
+                    }
+                    for (const std::shared_ptr<resource::Mesh>& mesh : normal_meshes)
+                    {
+                        pass_context.command_list->UAVBarrier(*mesh->render_data.buffer);
+                    }
+                });
+            }
+        }
 
         const bool use_sky_lighting = gpu_scene.shader_environment.sky_type != SHADER_SKY_TYPE_NONE
             && (gpu_scene.shader_environment.diffuse_gi_mode == SHADER_DIFFUSE_GI_MODE_SKY
@@ -2907,6 +2990,7 @@ namespace won::rendering
         scissor.y = 0;
         scissor.width = targets.width;
         scissor.height = targets.height;
+        frame_graph.SetDefaultViewport(viewport, scissor);
 
         const FrameResourceId view_constants_id = frame_graph.Import(*view.view_constants.buffer);
         const FrameResourceAccess view_constants_read = { view_constants_id, RHIResourceState::ConstantBuffer, FrameResourceAccess::Type::Read };
@@ -4115,6 +4199,7 @@ namespace won::rendering
             {
                 std::scoped_lock lock(frame_context.deferred_res_removal_mutex);
                 frame_context.deferred_res_removal.clear();
+                frame_context.deferred_shared_res_removal.clear();
             }
         }
         current_frame_slot = 0;
