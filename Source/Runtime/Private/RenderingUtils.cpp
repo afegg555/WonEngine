@@ -45,6 +45,8 @@ namespace won::rendering::utils
 
         Vector<std::weak_ptr<resource::Mesh>> pending_vertex_stream_update;
         std::mutex pending_vertex_stream_update_mutex;
+        Vector<std::shared_ptr<resource::Mesh>> pending_mesh_release;
+        std::mutex pending_mesh_release_mutex;
 
         template<typename T>
         void PackBufferSubresource(const Vector<T>& source, Vector<uint8>& packed_data, Size& out_offset, Size data_size, Size alignment, Size& current_offset, Size slot_count = 1)
@@ -662,6 +664,23 @@ namespace won::rendering::utils
             }
         }
         pending_vertex_stream_update.clear();
+    }
+
+    void EnqueueMeshRelease(const std::shared_ptr<resource::Mesh>& mesh)
+    {
+        if (!mesh || !mesh->render_data.IsValid())
+        {
+            return;
+        }
+        std::lock_guard<std::mutex> lock(pending_mesh_release_mutex);
+        pending_mesh_release.push_back(mesh);
+    }
+
+    void TakeEnqueuedMeshReleases(Vector<std::shared_ptr<resource::Mesh>>& out_meshes)
+    {
+        out_meshes.clear();
+        std::lock_guard<std::mutex> lock(pending_mesh_release_mutex);
+        out_meshes.swap(pending_mesh_release);
     }
 
     void EnqueueResourceUpload(const std::shared_ptr<resource::Font>& font)

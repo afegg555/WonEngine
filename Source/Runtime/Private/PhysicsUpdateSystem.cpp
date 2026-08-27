@@ -115,6 +115,47 @@ namespace won::ecs
             jobsystem::Wait(sub_ctx);
         }
 
+        auto soft_body_array = scene.GetComponentArray<SoftBodyComponent>().get();
+        if (soft_body_array && soft_body_array->GetSize() > 0)
+        {
+            for (Size soft_body_index = 0; soft_body_index < soft_body_array->GetSize(); ++soft_body_index)
+            {
+                const Entity entity = soft_body_array->index_to_entity[soft_body_index];
+                SoftBodyComponent& soft_body = soft_body_array->data[soft_body_index];
+
+                if (!soft_body.IsEnabled())
+                {
+                    if (physics_world->HasBody(entity))
+                    {
+                        physics_world->RemoveBody(entity);
+                    }
+                    continue;
+                }
+
+                if (!transform_array->HasData(entity))
+                {
+                    continue;
+                }
+
+                if (physics_world->HasBody(entity) && soft_body.IsDirty())
+                {
+                    physics_world->RemoveBody(entity);
+                }
+
+                if (!physics_world->HasBody(entity))
+                {
+                    const GeometryComponent* geometry = scene.GetComponent<GeometryComponent>(entity);
+                    if (!geometry || !geometry->mesh)
+                    {
+                        continue;
+                    }
+
+                    const uint32_t collision_layer = (collision_layer_array && collision_layer_array->HasData(entity)) ? collision_layer_array->GetData(entity).layer : 0;
+                    physics_world->AddSoftBody(entity, transform_array->GetData(entity), soft_body, *geometry->mesh, collision_layer);
+                }
+            }
+        }
+
         // step physics simulation
         physics_world->Step(delta_time);
 

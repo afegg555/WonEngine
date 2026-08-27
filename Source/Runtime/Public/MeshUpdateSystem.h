@@ -10,7 +10,7 @@ namespace won::ecs
     {
     public:
         ComponentMask GetReadOnlyMask() const override { return transform_component_mask | terrain_component_mask; }
-        ComponentMask GetWriteMask() const override { return geometry_component_mask; }
+        ComponentMask GetWriteMask() const override { return geometry_component_mask | soft_body_component_mask; }
         SystemPhase GetPhase() const override { return SystemPhase::PostSimulation; }
 
         void Update(Scene& scene, float delta_time) override;

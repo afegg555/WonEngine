@@ -32,6 +32,9 @@ namespace won::rendering::utils
     WONENGINE_API void EnqueueVertexStreamUpdate(const std::shared_ptr<resource::Mesh>& mesh);
     WONENGINE_API void TakeEnqueuedVertexStreamUpdates(Vector<std::shared_ptr<resource::Mesh>>& out_meshes);
 
+    WONENGINE_API void EnqueueMeshRelease(const std::shared_ptr<resource::Mesh>& mesh);
+    WONENGINE_API void TakeEnqueuedMeshReleases(Vector<std::shared_ptr<resource::Mesh>>& out_meshes);
+
     WONENGINE_API bool CompressTextureBC(RHIDevice& device, Renderer& renderer, const resource::Image& image, RHIFormat format, Vector<uint8>& out_blocks, uint32& out_mip_levels);
     WONENGINE_API bool CreateRenderData(RHIDevice& device, resource::Mesh& mesh);
     WONENGINE_API bool CreateRenderData(RHIDevice& device, resource::Image& image, RHIFormat format = RHIFormat::R8G8B8A8UnormSrgb, bool generate_mips = false);

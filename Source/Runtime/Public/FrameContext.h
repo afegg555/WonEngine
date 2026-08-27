@@ -44,6 +44,7 @@ namespace won::rendering
             {
                 std::scoped_lock lock(deferred_res_removal_mutex);
                 deferred_res_removal.clear();
+                deferred_shared_res_removal.clear();
             }
 
             for (std::atomic<Size>& command_list_count : command_list_counts)
@@ -163,6 +164,12 @@ namespace won::rendering
             deferred_res_removal.push_back(std::move(object));
         }
 
+        void RemoveSharedResourceDeferred(std::shared_ptr<RHIObject> object)
+        {
+            std::scoped_lock lock(deferred_res_removal_mutex);
+            deferred_shared_res_removal.push_back(std::move(object));
+        }
+
         Vector<FrameCommandList> command_lists[static_cast<Size>(RHIQueueType::Count)];
         std::atomic<Size> command_list_counts[static_cast<Size>(RHIQueueType::Count)] = {};
         std::mutex command_lists_mutex;
@@ -174,5 +181,6 @@ namespace won::rendering
         uint64 fence_value = 0;
 
         std::vector<std::unique_ptr<RHIObject>> deferred_res_removal;
+        std::vector<std::shared_ptr<RHIObject>> deferred_shared_res_removal;
     };
 }

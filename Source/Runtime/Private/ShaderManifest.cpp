@@ -48,6 +48,7 @@ namespace won::resource
             { ShaderId::CSLuminanceReduce, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "LuminanceReduceCS.hlsl", "main" } },
             { ShaderId::CSLuminanceResolve, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "LuminanceResolveCS.hlsl", "main" } },
             { ShaderId::CSBRDFIntegration, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "BRDFIntegrationCS.hlsl", "main" } },
+            { ShaderId::CSMeshNormal, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "MeshNormalCS.hlsl", "main" } },
             { ShaderId::CSSkyCapture, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "SkyCaptureCS.hlsl", "main" } },
             { ShaderId::CSIrradianceConvolve, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "IrradianceConvolveCS.hlsl", "main" } },
             { ShaderId::CSSpecularPrefilter, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "SpecularPrefilterCS.hlsl", "main" } },

@@ -5,6 +5,8 @@
 #include "Collider3DComponent.h"
 #include "Rigidbody3DComponent.h"
 #include "JointComponent.h"
+#include "SoftBodyComponent.h"
+#include "Mesh.h"
 #include "JobSystem.h"
 
 #include <Jolt/Jolt.h>
@@ -35,6 +37,9 @@
 #include <Jolt/Physics/Constraints/TwoBodyConstraint.h>
 #include <Jolt/Physics/Constraints/FixedConstraint.h>
 #include <Jolt/Physics/Constraints/HingeConstraint.h>
+#include <Jolt/Physics/SoftBody/SoftBodyCreationSettings.h>
+#include <Jolt/Physics/SoftBody/SoftBodySharedSettings.h>
+#include <Jolt/Physics/SoftBody/SoftBodyMotionProperties.h>
 
 #include <mutex>
 #include <shared_mutex>
@@ -622,6 +627,155 @@ namespace won::physics
     {
         std::shared_lock lock(impl->bodies_mutex);
         return impl->entity_to_body.find(entity) != impl->entity_to_body.end();
+    }
+
+    static constexpr float soft_body_vertex_radius_ratio = 0.02f;
+
+    void PhysicsWorld::AddSoftBody(won::ecs::Entity entity, const won::ecs::TransformComponent& transform, won::ecs::SoftBodyComponent& soft_body, const won::resource::Mesh& mesh, uint32_t collision_layer)
+    {
+        const uint32 vertices_x = (std::max)(1u, soft_body.divisions_x) + 1u;
+        const uint32 vertices_y = (std::max)(1u, soft_body.divisions_y) + 1u;
+        const Size vertex_count = static_cast<Size>(vertices_x) * static_cast<Size>(vertices_y);
+        if (mesh.positions.size() != vertex_count || mesh.indices.size() < 3)
+        {
+            wonlog_warning("[PhysicsWorld] SoftBody on entity %llu does not match its mesh, body skipped", static_cast<unsigned long long>(entity));
+            return;
+        }
+
+        const float total_mass = (std::max)(0.0f, soft_body.mass);
+        const float distributed_mass = total_mass / static_cast<float>(vertex_count);
+        const float free_inv_mass = 1.0f / (1.0f + distributed_mass);
+
+        const XMMATRIX world = transform.GetWorldTransform();
+
+        JPH::Ref<JPH::SoftBodySharedSettings> shared_settings = new JPH::SoftBodySharedSettings();
+        shared_settings->mVertices.resize(vertex_count);
+        for (uint32 y = 0; y < vertices_y; ++y)
+        {
+            for (uint32 x = 0; x < vertices_x; ++x)
+            {
+                const Size index = static_cast<Size>(y) * vertices_x + x;
+                XMFLOAT3 world_position;
+                XMStoreFloat3(&world_position, XMVector3TransformCoord(XMLoadFloat3(&mesh.positions[index]), world));
+
+                bool attached = false;
+                if (soft_body.attachment_mode == won::ecs::SoftBodyComponent::AttachmentMode::TopRow)
+                {
+                    attached = (y == 0);
+                }
+                else if (soft_body.attachment_mode == won::ecs::SoftBodyComponent::AttachmentMode::TopCorners)
+                {
+                    attached = (y == 0) && (x == 0 || x == vertices_x - 1u);
+                }
+
+                shared_settings->mVertices[index] = JPH::SoftBodySharedSettings::Vertex(JPH::Float3(world_position.x, world_position.y, world_position.z), JPH::Float3(0.0f, 0.0f, 0.0f), attached ? 0.0f : free_inv_mass);
+            }
+        }
+        for (Size index = 0; index + 2 < mesh.indices.size(); index += 3)
+        {
+            shared_settings->AddFace(JPH::SoftBodySharedSettings::Face(mesh.indices[index], mesh.indices[index + 1], mesh.indices[index + 2]));
+        }
+
+        const JPH::Vec3 first_vertex(shared_settings->mVertices[0].mPosition);
+        const float spacing_x = (JPH::Vec3(shared_settings->mVertices[1].mPosition) - first_vertex).Length();
+        const float spacing_y = (JPH::Vec3(shared_settings->mVertices[vertices_x].mPosition) - first_vertex).Length();
+        const float vertex_spacing = (std::min)(spacing_x, spacing_y);
+
+        JPH::SoftBodySharedSettings::ELRAType lra_type = JPH::SoftBodySharedSettings::ELRAType::None;
+        switch (soft_body.lra_type)
+        {
+        case won::ecs::SoftBodyComponent::LRAType::EuclideanDistance: lra_type = JPH::SoftBodySharedSettings::ELRAType::EuclideanDistance; break;
+        case won::ecs::SoftBodyComponent::LRAType::GeodesicDistance: lra_type = JPH::SoftBodySharedSettings::ELRAType::GeodesicDistance; break;
+        default: break;
+        }
+
+        JPH::SoftBodySharedSettings::EBendType bend_type = JPH::SoftBodySharedSettings::EBendType::None;
+        switch (soft_body.bend_type)
+        {
+        case won::ecs::SoftBodyComponent::BendType::Distance: bend_type = JPH::SoftBodySharedSettings::EBendType::Distance; break;
+        case won::ecs::SoftBodyComponent::BendType::Dihedral: bend_type = JPH::SoftBodySharedSettings::EBendType::Dihedral; break;
+        default: break;
+        }
+
+        const JPH::SoftBodySharedSettings::VertexAttributes attributes(
+            soft_body.edge_compliance,
+            soft_body.shear_compliance,
+            soft_body.bend_compliance,
+            lra_type,
+            (std::max)(1.0f, soft_body.lra_max_distance_multiplier)
+        );
+        shared_settings->CreateConstraints(&attributes, 1, bend_type);
+        shared_settings->Optimize();
+
+        JPH::SoftBodyCreationSettings settings(
+            shared_settings,
+            JPH::RVec3::sZero(),
+            JPH::Quat::sIdentity(),
+            Detail::ObjectLayers::MOVING
+        );
+
+        settings.mNumIterations = (std::max)(1u, soft_body.solver_iterations);
+        settings.mLinearDamping = (std::max)(0.0f, soft_body.linear_damping);
+        settings.mFriction = soft_body.friction;
+        settings.mRestitution = soft_body.restitution;
+        settings.mVertexRadius = vertex_spacing * soft_body_vertex_radius_ratio;
+        settings.mUpdatePosition = false;
+        settings.mUserData = static_cast<JPH::uint64>(collision_layer);
+
+        JPH::BodyInterface& body_interface = impl->physics_system->GetBodyInterface();
+        JPH::BodyID body_id = body_interface.CreateAndAddSoftBody(settings, JPH::EActivation::Activate);
+        if (body_id.IsInvalid())
+        {
+            wonlog_warning("[PhysicsWorld] SoftBody creation failed for entity %llu", static_cast<unsigned long long>(entity));
+            return;
+        }
+
+        soft_body.SetDirty(false);
+
+        {
+            std::unique_lock lock(impl->bodies_mutex);
+            impl->entity_to_body[entity] = body_id;
+            impl->body_to_entity[body_id] = entity;
+        }
+    }
+
+    void PhysicsWorld::GetSoftBodyVertices(won::ecs::Entity entity, Vector<float3>& out_positions) const
+    {
+        JPH::BodyID body_id;
+        {
+            std::shared_lock lock(impl->bodies_mutex);
+            auto it = impl->entity_to_body.find(entity);
+            if (it == impl->entity_to_body.end())
+            {
+                out_positions.clear();
+                return;
+            }
+            body_id = it->second;
+        }
+
+        JPH::BodyLockRead body_lock(impl->physics_system->GetBodyLockInterface(), body_id);
+        if (!body_lock.Succeeded())
+        {
+            out_positions.clear();
+            return;
+        }
+
+        const JPH::Body& body = body_lock.GetBody();
+        if (!body.IsSoftBody())
+        {
+            out_positions.clear();
+            return;
+        }
+
+        const JPH::SoftBodyMotionProperties* motion_properties = static_cast<const JPH::SoftBodyMotionProperties*>(body.GetMotionProperties());
+        const JPH::Array<JPH::SoftBodyVertex>& vertices = motion_properties->GetVertices();
+
+        out_positions.resize(vertices.size());
+        for (Size index = 0; index < vertices.size(); ++index)
+        {
+            const JPH::Vec3& world_position = vertices[index].mPosition;
+            out_positions[index] = { world_position.GetX(), world_position.GetY(), world_position.GetZ() };
+        }
     }
 
     bool PhysicsWorld::IsDynamic(won::ecs::Entity entity) const

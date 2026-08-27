@@ -203,6 +203,8 @@ set(RUNTIME_RESOURCE
     Source/Runtime/Public/Mesh.h
     Source/Runtime/Public/TerrainGenerator.h
     Source/Runtime/Private/TerrainGenerator.cpp
+    Source/Runtime/Public/SoftBodyGenerator.h
+    Source/Runtime/Private/SoftBodyGenerator.cpp
     Source/Runtime/Public/NavMesh.h
     Source/Runtime/Private/NavMesh.cpp
     Source/Runtime/Public/BehaviorTree.h
@@ -369,6 +371,7 @@ set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/Collider3DComponent.h
     Source/Runtime/Public/Rigidbody3DComponent.h
     Source/Runtime/Public/JointComponent.h
+    Source/Runtime/Public/SoftBodyComponent.h
     Source/Runtime/Public/AudioSourceComponent.h
     Source/Runtime/Public/AudioListenerComponent.h
     Source/Runtime/Public/VisibilityLayerComponent.h

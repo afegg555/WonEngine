@@ -436,6 +436,21 @@ namespace won::rendering
         UploadBuffer(gpu_scene.bvh_node_buffer, "Scene BVH Node Buffer", frame_context, gpu_scene.shader_bvh_nodes.data(), gpu_scene.shader_bvh_nodes.size() * sizeof(ShaderBVHNode), sizeof(ShaderBVHNode), *device, frame_graph);
         UploadBuffer(gpu_scene.bvh_instance_buffer, "Scene BVH Instance Buffer", frame_context, gpu_scene.shader_bvh_instances.data(), gpu_scene.shader_bvh_instances.size() * sizeof(ShaderBVHInstance), sizeof(ShaderBVHInstance), *device, frame_graph);
 
+        Vector<std::shared_ptr<resource::Mesh>> released_meshes;
+        rendering::utils::TakeEnqueuedMeshReleases(released_meshes);
+        for (const std::shared_ptr<resource::Mesh>& mesh : released_meshes)
+        {
+            frame_context.RemoveSharedResourceDeferred(mesh->render_data.buffer);
+            if (mesh->gpu_bvh.node_buffer)
+            {
+                frame_context.RemoveSharedResourceDeferred(mesh->gpu_bvh.node_buffer);
+            }
+            if (mesh->gpu_bvh.primitive_buffer)
+            {
+                frame_context.RemoveSharedResourceDeferred(mesh->gpu_bvh.primitive_buffer);
+            }
+        }
+
         Vector<std::shared_ptr<resource::Mesh>> updated_meshes;
         rendering::utils::TakeEnqueuedVertexStreamUpdates(updated_meshes);
 
@@ -4184,6 +4199,7 @@ namespace won::rendering
             {
                 std::scoped_lock lock(frame_context.deferred_res_removal_mutex);
                 frame_context.deferred_res_removal.clear();
+                frame_context.deferred_shared_res_removal.clear();
             }
         }
         current_frame_slot = 0;
