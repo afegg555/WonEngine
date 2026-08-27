@@ -85,6 +85,9 @@ namespace won::reflection
         RegisterType(TypeMeta<ecs::Rigidbody3DComponent>::Get());
         RegisterType(TypeMeta<ecs::JointComponent>::Get());
         RegisterType(TypeMeta<ecs::SoftBodyComponent>::Get());
+        RegisterType(TypeMeta<ecs::VehiclePreset>::Get());
+        RegisterType(TypeMeta<ecs::VehicleWheel>::Get());
+        RegisterType(TypeMeta<ecs::VehicleComponent>::Get());
         RegisterType(TypeMeta<ecs::BehaviorTreeComponent>::Get());
         RegisterType(TypeMeta<ecs::NavAgentComponent>::Get());
         RegisterType(TypeMeta<ecs::SequenceKey>::Get());

@@ -24,6 +24,7 @@
 #include "Rigidbody3DComponent.h"
 #include "JointComponent.h"
 #include "SoftBodyComponent.h"
+#include "VehicleComponent.h"
 #include "AudioSourceComponent.h"
 #include "AudioListenerComponent.h"
 #include "VisibilityLayerComponent.h"
@@ -92,7 +93,8 @@ namespace won::ecs
         Sequence,
         Water,
         WaterZone,
-        SoftBody
+        SoftBody,
+        Vehicle
     };
 
     constexpr ComponentMask ComponentMaskFromBit(SceneComponentBit bit)
@@ -139,6 +141,7 @@ namespace won::ecs
     inline constexpr ComponentMask water_body_component_mask = ComponentMaskFromBit(SceneComponentBit::Water);
     inline constexpr ComponentMask water_zone_component_mask = ComponentMaskFromBit(SceneComponentBit::WaterZone);
     inline constexpr ComponentMask soft_body_component_mask = ComponentMaskFromBit(SceneComponentBit::SoftBody);
+    inline constexpr ComponentMask vehicle_component_mask = ComponentMaskFromBit(SceneComponentBit::Vehicle);
 
     template <typename Component>
     constexpr ComponentMask ComponentMaskFromType()
@@ -165,6 +168,7 @@ namespace won::ecs
         else if constexpr (std::is_same_v<Component, Rigidbody3DComponent>) { return rigidbody_3d_component_mask; }
         else if constexpr (std::is_same_v<Component, JointComponent>) { return joint_component_mask; }
         else if constexpr (std::is_same_v<Component, SoftBodyComponent>) { return soft_body_component_mask; }
+        else if constexpr (std::is_same_v<Component, VehicleComponent>) { return vehicle_component_mask; }
         else if constexpr (std::is_same_v<Component, AudioSourceComponent>) { return audio_source_component_mask; }
         else if constexpr (std::is_same_v<Component, AudioListenerComponent>) { return audio_listener_component_mask; }
         else if constexpr (std::is_same_v<Component, VisibilityLayerComponent>) { return layer_component_mask; }

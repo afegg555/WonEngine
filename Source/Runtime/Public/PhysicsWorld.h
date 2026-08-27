@@ -14,6 +14,7 @@ namespace won::ecs
     struct Rigidbody3DComponent;
     struct JointComponent;
     struct SoftBodyComponent;
+    struct VehicleComponent;
     using Entity = uint64;
 }
 
@@ -106,6 +107,13 @@ namespace won::physics
         bool RayCast(const float3& origin, const float3& direction, float max_distance, RayCastHit& out_hit, uint32_t layer_mask = 0xFFFFFFFFu) const;
         bool SphereCast(const float3& origin, const float3& direction, float radius, float max_distance, RayCastHit& out_hit, uint32_t layer_mask = 0xFFFFFFFFu) const;
         void OverlapSphere(const float3& center, float radius, Vector<won::ecs::Entity>& out_entities, uint32_t layer_mask = 0xFFFFFFFFu) const;
+
+        void AddVehicle(won::ecs::Entity entity, const won::ecs::VehicleComponent& vehicle);
+        void RemoveVehicle(won::ecs::Entity entity);
+        bool HasVehicle(won::ecs::Entity entity) const;
+        void SetVehicleInput(won::ecs::Entity entity, float forward, float right, float brake, float hand_brake);
+        bool SetVehicleGear(won::ecs::Entity entity, int gear);
+        void ReadVehicleState(won::ecs::Entity entity, won::ecs::VehicleComponent& vehicle) const;
 
         void AddJoint(won::ecs::Entity owner_entity, const won::ecs::JointComponent& joint);
         void RemoveJoint(won::ecs::Entity owner_entity);

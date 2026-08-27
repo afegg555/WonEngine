@@ -37,6 +37,7 @@ namespace won::ecs
             case reflection::TypeMeta<Rigidbody3DComponent>::type_id: return rigidbody_3d_component_mask;
             case reflection::TypeMeta<JointComponent>::type_id: return joint_component_mask;
             case reflection::TypeMeta<SoftBodyComponent>::type_id: return soft_body_component_mask;
+            case reflection::TypeMeta<VehicleComponent>::type_id: return vehicle_component_mask;
             case reflection::TypeMeta<AudioSourceComponent>::type_id: return audio_source_component_mask;
             case reflection::TypeMeta<AudioListenerComponent>::type_id: return audio_listener_component_mask;
             case reflection::TypeMeta<VisibilityLayerComponent>::type_id: return layer_component_mask;
@@ -97,6 +98,7 @@ namespace won::ecs
         component_manager.RegisterComponent<Rigidbody3DComponent>();
         component_manager.RegisterComponent<JointComponent>();
         component_manager.RegisterComponent<SoftBodyComponent>();
+        component_manager.RegisterComponent<VehicleComponent>();
         component_manager.RegisterComponent<AudioSourceComponent>();
         component_manager.RegisterComponent<AudioListenerComponent>();
         component_manager.RegisterComponent<VisibilityLayerComponent>();

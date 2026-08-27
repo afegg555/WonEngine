@@ -2126,6 +2126,41 @@ namespace won::rendering
             }
         }
 
+        if ((view.show_flags & Show_Vehicles) != 0)
+        {
+            auto vehicle_array = view.scene->GetComponentArray<ecs::VehicleComponent>().get();
+            auto transform_array = view.scene->GetComponentArray<ecs::TransformComponent>().get();
+            if (vehicle_array && transform_array)
+            {
+                for (Size vehicle_index = 0; vehicle_index < vehicle_array->GetSize(); ++vehicle_index)
+                {
+                    const ecs::Entity entity = vehicle_array->index_to_entity[vehicle_index];
+                    if (!transform_array->HasData(entity))
+                    {
+                        continue;
+                    }
+
+                    const ecs::VehicleComponent& vehicle = vehicle_array->data[vehicle_index];
+                    if (!vehicle.IsEnabled())
+                    {
+                        continue;
+                    }
+
+                    const DirectX::XMMATRIX world = transform_array->GetData(entity).GetWorldTransform();
+                    for (const ecs::VehicleWheel& wheel : vehicle.wheels)
+                    {
+                        const DirectX::XMVECTOR attachment = DirectX::XMVector3TransformCoord(DirectX::XMLoadFloat3(&wheel.attachment_position), world);
+                        float3 attachment_position = {};
+                        DirectX::XMStoreFloat3(&attachment_position, attachment);
+
+                        const uint32 color = wheel.has_contact ? debugdraw::color::vehicle_wheel_contact : debugdraw::color::vehicle_wheel;
+                        debugdraw::Line3D(attachment_position, wheel.world_position, color);
+                        debugdraw::Sphere3D(wheel.world_position, wheel.radius, color);
+                    }
+                }
+            }
+        }
+
         if ((view.show_flags & Show_Occlusion) != 0 && view.occlusion_resources.active)
         {
             for (uint32 renderable_index : view.occlusion_query_indices)
