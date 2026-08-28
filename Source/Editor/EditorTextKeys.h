@@ -220,6 +220,7 @@ namespace won::editor::editor_key
     constexpr const char* label_friction = "editor.label.friction";
     constexpr const char* label_gi_mode = "editor.label.gi_mode";
     constexpr const char* label_gravity_factor = "editor.label.gravity_factor";
+    constexpr const char* label_center_of_mass_offset = "editor.label.center_of_mass_offset";
     constexpr const char* label_ground_color = "editor.label.ground_color";
     constexpr const char* label_ground_falloff = "editor.label.ground_falloff";
     constexpr const char* label_ground_horizon_color = "editor.label.ground_horizon_color";
@@ -361,6 +362,10 @@ namespace won::editor::editor_key
     constexpr const char* label_show_bvh = "editor.label.show_bvh";
     constexpr const char* label_show_ddgi = "editor.label.show_ddgi";
     constexpr const char* label_show_occlusion = "editor.label.show_occlusion";
+    constexpr const char* label_show_vehicles = "editor.label.show_vehicles";
+    constexpr const char* label_automatic_transmission = "editor.label.automatic_transmission";
+    constexpr const char* label_vehicle_preset = "editor.label.vehicle_preset";
+    constexpr const char* action_apply_vehicle_preset = "editor.action.apply_vehicle_preset";
     constexpr const char* label_freeze_culling = "editor.label.freeze_culling";
     constexpr const char* label_view_mode = "editor.label.view_mode";
     constexpr const char* label_vsync = "editor.label.vsync";

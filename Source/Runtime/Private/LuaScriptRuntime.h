@@ -224,6 +224,13 @@ namespace won::script
         static int LuaSceneUnloadAdditive(lua_State* state);
         static int LuaSceneIsLoading(lua_State* state);
 
+        static int LuaVehicleSetInput(lua_State* state);
+        static int LuaVehicleSetGear(lua_State* state);
+        static int LuaVehicleGetSpeed(lua_State* state);
+        static int LuaVehicleGetRPM(lua_State* state);
+        static int LuaVehicleGetGear(lua_State* state);
+        static int LuaVehicleIsShiftingGear(lua_State* state);
+
         static int LuaNavFindPath(lua_State* state);
         static int LuaNavNearestPoint(lua_State* state);
         static int LuaNavIsReady(lua_State* state);

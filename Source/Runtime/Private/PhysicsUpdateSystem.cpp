@@ -1,4 +1,5 @@
 #include "PhysicsUpdateSystem.h"
+#include "Backlog.h"
 #include "Scene.h"
 #include "PhysicsWorld.h"
 #include "TerrainGenerator.h"
@@ -118,8 +119,9 @@ namespace won::ecs
         auto soft_body_array = scene.GetComponentArray<SoftBodyComponent>().get();
         if (soft_body_array && soft_body_array->GetSize() > 0)
         {
-            for (Size soft_body_index = 0; soft_body_index < soft_body_array->GetSize(); ++soft_body_index)
+            jobsystem::Dispatch(sub_ctx, static_cast<uint32>(soft_body_array->GetSize()), jobsystem::groupsize_heavy, [&](jobsystem::JobArgs args)
             {
+                const Size soft_body_index = args.job_index;
                 const Entity entity = soft_body_array->index_to_entity[soft_body_index];
                 SoftBodyComponent& soft_body = soft_body_array->data[soft_body_index];
 
@@ -129,12 +131,12 @@ namespace won::ecs
                     {
                         physics_world->RemoveBody(entity);
                     }
-                    continue;
+                    return;
                 }
 
                 if (!transform_array->HasData(entity))
                 {
-                    continue;
+                    return;
                 }
 
                 if (physics_world->HasBody(entity) && soft_body.IsDirty())
@@ -147,17 +149,137 @@ namespace won::ecs
                     const GeometryComponent* geometry = scene.GetComponent<GeometryComponent>(entity);
                     if (!geometry || !geometry->mesh)
                     {
-                        continue;
+                        return;
                     }
 
                     const uint32_t collision_layer = (collision_layer_array && collision_layer_array->HasData(entity)) ? collision_layer_array->GetData(entity).layer : 0;
                     physics_world->AddSoftBody(entity, transform_array->GetData(entity), soft_body, *geometry->mesh, collision_layer);
                 }
-            }
+            });
+            jobsystem::Wait(sub_ctx);
+        }
+
+        auto vehicle_array = scene.GetComponentArray<VehicleComponent>().get();
+        if (vehicle_array && vehicle_array->GetSize() > 0)
+        {
+            jobsystem::Dispatch(sub_ctx, static_cast<uint32>(vehicle_array->GetSize()), jobsystem::groupsize_heavy, [&](jobsystem::JobArgs args)
+            {
+                const Size vehicle_index = args.job_index;
+                const Entity entity = vehicle_array->index_to_entity[vehicle_index];
+                VehicleComponent& vehicle = vehicle_array->data[vehicle_index];
+
+                if (!vehicle.IsEnabled())
+                {
+                    if (physics_world->HasVehicle(entity))
+                    {
+                        physics_world->RemoveVehicle(entity);
+                    }
+                    return;
+                }
+
+                if (vehicle.IsDirty() && physics_world->HasVehicle(entity))
+                {
+                    physics_world->RemoveVehicle(entity);
+                }
+
+                if (!physics_world->HasVehicle(entity))
+                {
+                    if (!physics_world->HasBody(entity) || !physics_world->IsDynamic(entity))
+                    {
+                        return;
+                    }
+
+                    if (transform_array->HasData(entity))
+                    {
+                        XMVECTOR scale_vec, rotation_vec, position_vec;
+                        XMMatrixDecompose(&scale_vec, &rotation_vec, &position_vec, transform_array->GetData(entity).GetWorldTransform());
+                        float3 scale;
+                        XMStoreFloat3(&scale, scale_vec);
+                        if (std::abs(scale.x - 1.0f) > 1e-3f || std::abs(scale.y - 1.0f) > 1e-3f || std::abs(scale.z - 1.0f) > 1e-3f)
+                        {
+                            wonlog_warning("[PhysicsUpdateSystem] vehicle entity %llu has world scale %.3f %.3f %.3f, wheel sizes ignore transform scale", static_cast<unsigned long long>(entity), scale.x, scale.y, scale.z);
+                        }
+                    }
+
+                    physics_world->AddVehicle(entity, vehicle);
+                    if (!physics_world->HasVehicle(entity))
+                    {
+                        return;
+                    }
+                    vehicle.SetDirty(false);
+                }
+
+                physics_world->SetVehicleInput(entity, vehicle.throttle_input, vehicle.steer_input, vehicle.brake_input, vehicle.hand_brake_input);
+            });
+            jobsystem::Wait(sub_ctx);
         }
 
         // step physics simulation
         physics_world->Step(delta_time);
+
+        if (vehicle_array && vehicle_array->GetSize() > 0)
+        {
+            jobsystem::Context vehicle_state_ctx;
+            jobsystem::Dispatch(vehicle_state_ctx, static_cast<uint32>(vehicle_array->GetSize()), jobsystem::groupsize_heavy, [&](jobsystem::JobArgs args)
+            {
+                const Size vehicle_index = args.job_index;
+                const Entity entity = vehicle_array->index_to_entity[vehicle_index];
+                VehicleComponent& vehicle = vehicle_array->data[vehicle_index];
+                physics_world->ReadVehicleState(entity, vehicle);
+
+                if (!physics_world->HasVehicle(entity))
+                {
+                    return;
+                }
+
+                XMMATRIX chassis_world = XMMatrixIdentity();
+                if (transform_array->HasData(entity))
+                {
+                    float3 body_pos;
+                    float4 body_rot;
+                    physics_world->GetBodyTransform(entity, body_pos, body_rot);
+                    const XMMATRIX body_matrix = XMMatrixRotationQuaternion(XMVectorSet(body_rot.x, body_rot.y, body_rot.z, body_rot.w)) * XMMatrixTranslation(body_pos.x, body_pos.y, body_pos.z);
+                    const float3 offset = collider_array->HasData(entity) ? collider_array->GetData(entity).offset : float3(0.0f, 0.0f, 0.0f);
+                    chassis_world = XMMatrixTranslation(-offset.x, -offset.y, -offset.z) * body_matrix;
+                }
+
+                for (const VehicleWheel& wheel : vehicle.wheels)
+                {
+                    if (wheel.visual_entity == INVALID_ENTITY || !transform_array->HasData(wheel.visual_entity))
+                    {
+                        continue;
+                    }
+
+                    const XMMATRIX wheel_world = XMMatrixRotationQuaternion(XMVectorSet(wheel.world_rotation.x, wheel.world_rotation.y, wheel.world_rotation.z, wheel.world_rotation.w))
+                        * XMMatrixTranslation(wheel.world_position.x, wheel.world_position.y, wheel.world_position.z);
+
+                    XMMATRIX parent_world = XMMatrixIdentity();
+                    if (hierarchy_array && hierarchy_array->HasData(wheel.visual_entity))
+                    {
+                        const Entity parent = hierarchy_array->GetData(wheel.visual_entity).parent_id;
+                        if (parent == entity)
+                        {
+                            parent_world = chassis_world;
+                        }
+                        else if (parent != INVALID_ENTITY && transform_array->HasData(parent))
+                        {
+                            parent_world = transform_array->GetData(parent).GetWorldTransform();
+                        }
+                    }
+
+                    const XMMATRIX wheel_local = wheel_world * XMMatrixInverse(nullptr, parent_world);
+                    XMVECTOR S, R, T;
+                    if (XMMatrixDecompose(&S, &R, &T, wheel_local))
+                    {
+                        TransformComponent& wheel_transform = transform_array->GetData(wheel.visual_entity);
+                        XMStoreFloat3(&wheel_transform.position, T);
+                        XMStoreFloat4(&wheel_transform.rotation, R);
+                        wheel_transform.SetDirty();
+                    }
+                }
+            });
+            jobsystem::Wait(vehicle_state_ctx);
+        }
 
         jobsystem::Context post_ctx;
         jobsystem::Dispatch(post_ctx, (uint32_t)collider_array->GetSize(), jobsystem::groupsize_heavy, [&](jobsystem::JobArgs args)

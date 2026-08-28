@@ -737,6 +737,11 @@
             "text": "중력 계수",
             "comment": "label"
         },
+        "editor.label.center_of_mass_offset": {
+            "source": "Center of Mass Offset",
+            "text": "무게중심 오프셋",
+            "comment": "label"
+        },
         "editor.label.min_distance": {
             "source": "Min Distance",
             "text": "최소 거리",
@@ -1241,6 +1246,41 @@
             "source": "Occluded Bounds",
             "text": "가려진 물체 영역",
             "comment": "label"
+        },
+        "editor.label.show_vehicles": {
+            "source": "Vehicle Wheels",
+            "text": "차량 바퀴",
+            "comment": "label"
+        },
+        "editor.label.automatic_transmission": {
+            "source": "Automatic Transmission",
+            "text": "자동 변속기",
+            "comment": "label"
+        },
+        "editor.label.vehicle_preset": {
+            "source": "Vehicle Preset",
+            "text": "차량 프리셋",
+            "comment": "label"
+        },
+        "editor.action.apply_vehicle_preset": {
+            "source": "Apply Preset",
+            "text": "프리셋 적용",
+            "comment": "action"
+        },
+        "editor.enum.VehiclePreset.Sedan": {
+            "source": "Sedan",
+            "text": "승용차",
+            "comment": "enum"
+        },
+        "editor.enum.VehiclePreset.Sports": {
+            "source": "Sports",
+            "text": "스포츠카",
+            "comment": "enum"
+        },
+        "editor.enum.VehiclePreset.Offroad": {
+            "source": "Offroad",
+            "text": "오프로드",
+            "comment": "enum"
         },
         "editor.label.freeze_culling": {
             "source": "Freeze Culling",

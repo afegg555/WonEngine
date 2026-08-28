@@ -3216,6 +3216,7 @@ namespace won::editor
 					{ rendering::Show_BVH,         editor_key::label_show_bvh },
 					{ rendering::Show_DDGI,        editor_key::label_show_ddgi },
 					{ rendering::Show_Occlusion,   editor_key::label_show_occlusion },
+					{ rendering::Show_Vehicles,    editor_key::label_show_vehicles },
 				};
 				for (const auto& item : show_flag_items)
 				{
@@ -4362,6 +4363,13 @@ namespace won::editor
 
 						if (ImGui::InputFloat(EditorText(editor_key::label_gravity_factor), &rigidbody_3d_comp->gravity_factor))
 						{
+							rigidbody_3d_comp->SetDirty();
+						}
+
+						float center_of_mass[3] = { rigidbody_3d_comp->center_of_mass_offset.x, rigidbody_3d_comp->center_of_mass_offset.y, rigidbody_3d_comp->center_of_mass_offset.z };
+						if (ImGui::InputFloat3(EditorText(editor_key::label_center_of_mass_offset), center_of_mass))
+						{
+							rigidbody_3d_comp->center_of_mass_offset = { center_of_mass[0], center_of_mass[1], center_of_mass[2] };
 							rigidbody_3d_comp->SetDirty();
 						}
 
@@ -5662,6 +5670,39 @@ namespace won::editor
 						{
 							soft_body->SetTopologyDirty();
 						}
+					}
+					else if (type_desc->type_id == reflection::TypeMeta<VehicleComponent>::type_id)
+					{
+						VehicleComponent* vehicle = editor_viewport.view->scene->GetComponent<VehicleComponent>(editor_viewport.picked_entity);
+						if (vehicle && component_changed)
+						{
+							vehicle->SetDirty();
+						}
+
+						if (vehicle)
+						{
+							bool automatic_transmission = vehicle->IsAutomaticTransmission();
+							if (ImGui::Checkbox(EditorText(editor_key::label_automatic_transmission), &automatic_transmission))
+							{
+								vehicle->SetAutomaticTransmission(automatic_transmission);
+							}
+						}
+
+						ImGui::PushID("VehiclePreset");
+						static VehiclePreset selected_preset = VehiclePreset::Sedan;
+						DrawEnumCombo(EditorText(editor_key::label_vehicle_preset), selected_preset);
+						if (ImGui::Button(EditorText(editor_key::action_apply_vehicle_preset)) && vehicle)
+						{
+							VehicleComponent preset = MakeVehiclePreset(selected_preset);
+							const Size shared_wheel_count = (std::min)(preset.wheels.size(), vehicle->wheels.size());
+							for (Size wheel_index = 0; wheel_index < shared_wheel_count; ++wheel_index)
+							{
+								preset.wheels[wheel_index].visual_entity = vehicle->wheels[wheel_index].visual_entity;
+							}
+							*vehicle = preset;
+							vehicle->SetDirty();
+						}
+						ImGui::PopID();
 					}
 					else if (type_desc->type_id == reflection::TypeMeta<TerrainComponent>::type_id)
 					{

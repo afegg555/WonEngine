@@ -578,6 +578,41 @@
             "source": "Occluded Bounds",
             "text": "遮蔽バウンド"
         },
+        "editor.label.show_vehicles": {
+            "source": "Vehicle Wheels",
+            "text": "車両ホイール",
+            "comment": "label"
+        },
+        "editor.label.automatic_transmission": {
+            "source": "Automatic Transmission",
+            "text": "オートマチックトランスミッション",
+            "comment": "label"
+        },
+        "editor.label.vehicle_preset": {
+            "source": "Vehicle Preset",
+            "text": "車両プリセット",
+            "comment": "label"
+        },
+        "editor.action.apply_vehicle_preset": {
+            "source": "Apply Preset",
+            "text": "プリセットを適用",
+            "comment": "action"
+        },
+        "editor.enum.VehiclePreset.Sedan": {
+            "source": "Sedan",
+            "text": "セダン",
+            "comment": "enum"
+        },
+        "editor.enum.VehiclePreset.Sports": {
+            "source": "Sports",
+            "text": "スポーツ",
+            "comment": "enum"
+        },
+        "editor.enum.VehiclePreset.Offroad": {
+            "source": "Offroad",
+            "text": "オフロード",
+            "comment": "enum"
+        },
         "editor.label.freeze_culling": {
             "source": "Freeze Culling",
             "text": "カリング固定"
@@ -829,6 +864,11 @@
         "editor.label.gravity_factor": {
             "source": "Gravity Factor",
             "text": "重力係数"
+        },
+        "editor.label.center_of_mass_offset": {
+            "source": "Center of Mass Offset",
+            "text": "重心オフセット",
+            "comment": "label"
         },
         "editor.label.linear_velocity": {
             "source": "Linear Velocity",

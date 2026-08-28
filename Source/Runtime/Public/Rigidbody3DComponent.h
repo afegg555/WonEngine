@@ -25,6 +25,8 @@ namespace won::ecs
         float mass = 1.0f;
         float gravity_factor = 1.0f;
 
+        float3 center_of_mass_offset = {};
+
         float3 linear_velocity = {};
         float3 angular_velocity = {};
 

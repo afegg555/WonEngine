@@ -372,6 +372,7 @@ set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/Rigidbody3DComponent.h
     Source/Runtime/Public/JointComponent.h
     Source/Runtime/Public/SoftBodyComponent.h
+    Source/Runtime/Public/VehicleComponent.h
     Source/Runtime/Public/AudioSourceComponent.h
     Source/Runtime/Public/AudioListenerComponent.h
     Source/Runtime/Public/VisibilityLayerComponent.h

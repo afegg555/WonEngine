@@ -24,6 +24,8 @@ namespace won::debugdraw
         inline constexpr uint32 collider = PackRGBA8(0x40, 0xd0, 0xff);
         inline constexpr uint32 collider_trigger = PackRGBA8(0xff, 0xd0, 0x40);
         inline constexpr uint32 occluded = PackRGBA8(0xff, 0x40, 0xa0);
+        inline constexpr uint32 vehicle_wheel = PackRGBA8(0xff, 0xd0, 0x40);
+        inline constexpr uint32 vehicle_wheel_contact = PackRGBA8(0x60, 0xff, 0x60);
     }
 
     struct Item3D

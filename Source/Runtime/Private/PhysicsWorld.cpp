@@ -6,6 +6,7 @@
 #include "Rigidbody3DComponent.h"
 #include "JointComponent.h"
 #include "SoftBodyComponent.h"
+#include "VehicleComponent.h"
 #include "Mesh.h"
 #include "JobSystem.h"
 
@@ -19,6 +20,7 @@
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/Collision/Shape/HeightFieldShape.h>
+#include <Jolt/Physics/Collision/Shape/OffsetCenterOfMassShape.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Body/BodyInterface.h>
 #include <Jolt/Physics/Body/BodyLock.h>
@@ -37,6 +39,9 @@
 #include <Jolt/Physics/Constraints/TwoBodyConstraint.h>
 #include <Jolt/Physics/Constraints/FixedConstraint.h>
 #include <Jolt/Physics/Constraints/HingeConstraint.h>
+#include <Jolt/Physics/Vehicle/VehicleConstraint.h>
+#include <Jolt/Physics/Vehicle/WheeledVehicleController.h>
+#include <Jolt/Physics/Vehicle/VehicleCollisionTester.h>
 #include <Jolt/Physics/SoftBody/SoftBodyCreationSettings.h>
 #include <Jolt/Physics/SoftBody/SoftBodySharedSettings.h>
 #include <Jolt/Physics/SoftBody/SoftBodyMotionProperties.h>
@@ -300,6 +305,15 @@ namespace won::physics
         mutable std::mutex joints_mutex;
         UnorderedMap<won::ecs::Entity, JointRecord> joints;
 
+        struct VehicleRecord
+        {
+            JPH::Ref<JPH::VehicleConstraint> constraint;
+            JPH::Ref<JPH::VehicleCollisionTester> collision_tester;
+            JPH::BodyID body;
+        };
+        mutable std::mutex vehicles_mutex;
+        UnorderedMap<won::ecs::Entity, VehicleRecord> vehicles;
+
         Vector<ActiveTriggerPair> active_trigger_pairs;
         Vector<Collider3DTriggerEvent> trigger_events;
 
@@ -338,6 +352,16 @@ namespace won::physics
 
         void Clear()
         {
+            for (auto& [entity, record] : vehicles)
+            {
+                if (record.constraint != nullptr)
+                {
+                    physics_system->RemoveStepListener(record.constraint);
+                    physics_system->RemoveConstraint(record.constraint);
+                }
+            }
+            vehicles.clear();
+
             for (auto& [entity, record] : joints)
             {
                 if (record.constraint != nullptr)
@@ -512,6 +536,27 @@ namespace won::physics
             shape = new JPH::BoxShape(JPH::Vec3(extent.x, extent.y, extent.z));
         }
 
+        if (rb && collider.shape_type != won::ecs::Collider3DComponent::ShapeType::HeightField)
+        {
+            const JPH::Vec3 center_of_mass_offset(
+                rb->center_of_mass_offset.x * world_scale.x,
+                rb->center_of_mass_offset.y * world_scale.y,
+                rb->center_of_mass_offset.z * world_scale.z);
+            if (!center_of_mass_offset.IsNearZero())
+            {
+                JPH::OffsetCenterOfMassShapeSettings settings(center_of_mass_offset, shape);
+                JPH::ShapeSettings::ShapeResult result = settings.Create();
+                if (result.HasError())
+                {
+                    wonlog_warning("[PhysicsWorld] center of mass offset failed for entity %llu: %s", static_cast<unsigned long long>(entity), result.GetError().c_str());
+                }
+                else
+                {
+                    shape = result.Get();
+                }
+            }
+        }
+
         JPH::EMotionType motion_type = JPH::EMotionType::Static;
         if (rb && collider.shape_type != won::ecs::Collider3DComponent::ShapeType::HeightField)
         {
@@ -597,6 +642,26 @@ namespace won::physics
             body_id = it->second;
             impl->body_to_entity.erase(body_id);
             impl->entity_to_body.erase(it);
+        }
+
+        {
+            std::lock_guard lock(impl->vehicles_mutex);
+            for (auto it = impl->vehicles.begin(); it != impl->vehicles.end(); )
+            {
+                if (it->second.body == body_id)
+                {
+                    if (it->second.constraint != nullptr)
+                    {
+                        impl->physics_system->RemoveStepListener(it->second.constraint);
+                        impl->physics_system->RemoveConstraint(it->second.constraint);
+                    }
+                    it = impl->vehicles.erase(it);
+                }
+                else
+                {
+                    ++it;
+                }
+            }
         }
 
         {
@@ -1209,6 +1274,269 @@ namespace won::physics
     {
         std::lock_guard lock(impl->joints_mutex);
         return impl->joints.find(owner_entity) != impl->joints.end();
+    }
+
+
+    void PhysicsWorld::AddVehicle(won::ecs::Entity entity, const won::ecs::VehicleComponent& vehicle)
+    {
+        if (vehicle.wheels.empty())
+        {
+            return;
+        }
+
+        JPH::BodyID body_id;
+        {
+            std::shared_lock lock(impl->bodies_mutex);
+            auto it = impl->entity_to_body.find(entity);
+            if (it == impl->entity_to_body.end())
+            {
+                return;
+            }
+            body_id = it->second;
+        }
+
+        const JPH::BodyLockInterface& lock_interface = impl->physics_system->GetBodyLockInterfaceNoLock();
+        JPH::Body* body = lock_interface.TryGetBody(body_id);
+        if (body == nullptr || !body->IsDynamic())
+        {
+            return;
+        }
+
+        JPH::Vec3 up(vehicle.up.x, vehicle.up.y, vehicle.up.z);
+        if (up.LengthSq() < 1e-8f)
+        {
+            up = JPH::Vec3::sAxisY();
+        }
+        up = up.Normalized();
+
+        JPH::Vec3 forward(vehicle.forward.x, vehicle.forward.y, vehicle.forward.z);
+        if (forward.LengthSq() < 1e-8f)
+        {
+            forward = JPH::Vec3::sAxisZ();
+        }
+        forward = forward.Normalized();
+
+        JPH::VehicleConstraintSettings settings;
+        settings.mUp = up;
+        settings.mForward = forward;
+        settings.mMaxPitchRollAngle = vehicle.max_pitch_roll_angle_radians;
+        settings.mWheels.reserve(static_cast<JPH::uint>(vehicle.wheels.size()));
+
+        for (const won::ecs::VehicleWheel& wheel : vehicle.wheels)
+        {
+            JPH::WheelSettingsWV* wheel_settings = new JPH::WheelSettingsWV();
+            wheel_settings->mPosition = JPH::Vec3(wheel.attachment_position.x, wheel.attachment_position.y, wheel.attachment_position.z);
+            wheel_settings->mSuspensionDirection = -up;
+            wheel_settings->mSteeringAxis = up;
+            wheel_settings->mWheelUp = up;
+            wheel_settings->mWheelForward = forward;
+            wheel_settings->mSuspensionMinLength = wheel.suspension_min_length;
+            wheel_settings->mSuspensionMaxLength = (std::max)(wheel.suspension_min_length, wheel.suspension_max_length);
+            wheel_settings->mSuspensionSpring.mFrequency = wheel.suspension_frequency;
+            wheel_settings->mSuspensionSpring.mDamping = wheel.suspension_damping;
+            wheel_settings->mRadius = wheel.radius;
+            wheel_settings->mWidth = wheel.width;
+            wheel_settings->mMaxSteerAngle = wheel.max_steer_angle_radians;
+            wheel_settings->mMaxBrakeTorque = wheel.max_brake_torque;
+            wheel_settings->mMaxHandBrakeTorque = wheel.max_hand_brake_torque;
+            settings.mWheels.push_back(wheel_settings);
+        }
+
+        JPH::Array<JPH::VehicleDifferentialSettings> differentials;
+        const Size axle_count = (vehicle.wheels.size() + 1) / 2;
+        for (Size axle = 0; axle < axle_count; ++axle)
+        {
+            const Size left_index = axle * 2;
+            const Size right_index = left_index + 1;
+            const bool left_driven = vehicle.wheels[left_index].driven;
+            const bool right_driven = right_index < vehicle.wheels.size() && vehicle.wheels[right_index].driven;
+            if (!left_driven && !right_driven)
+            {
+                continue;
+            }
+
+            JPH::VehicleDifferentialSettings differential;
+            differential.mLeftWheel = left_driven ? static_cast<int>(left_index) : -1;
+            differential.mRightWheel = right_driven ? static_cast<int>(right_index) : -1;
+            differential.mDifferentialRatio = vehicle.differential_ratio;
+            differentials.push_back(differential);
+        }
+
+        if (differentials.empty())
+        {
+            return;
+        }
+
+        const float engine_torque_ratio = 1.0f / static_cast<float>(differentials.size());
+        for (JPH::VehicleDifferentialSettings& differential : differentials)
+        {
+            differential.mEngineTorqueRatio = engine_torque_ratio;
+        }
+
+        JPH::WheeledVehicleControllerSettings* controller_settings = new JPH::WheeledVehicleControllerSettings();
+        controller_settings->mEngine.mMaxTorque = vehicle.engine_max_torque;
+        controller_settings->mEngine.mMinRPM = (std::max)(vehicle.engine_min_rpm, 0.0f);
+        controller_settings->mEngine.mMaxRPM = (std::max)((std::max)(controller_settings->mEngine.mMinRPM + 1.0f, vehicle.engine_max_rpm), 3.0f);
+        controller_settings->mTransmission.mMode = vehicle.IsAutomaticTransmission() ? JPH::ETransmissionMode::Auto : JPH::ETransmissionMode::Manual;
+        JPH::Array<float> forward_gear_ratios;
+        for (float ratio : vehicle.forward_gear_ratios)
+        {
+            if (ratio > 0.0f)
+            {
+                forward_gear_ratios.push_back(ratio);
+            }
+        }
+        if (!forward_gear_ratios.empty())
+        {
+            controller_settings->mTransmission.mGearRatios = std::move(forward_gear_ratios);
+        }
+        JPH::Array<float> reverse_gear_ratios;
+        for (float ratio : vehicle.reverse_gear_ratios)
+        {
+            if (ratio < 0.0f)
+            {
+                reverse_gear_ratios.push_back(ratio);
+            }
+        }
+        if (!reverse_gear_ratios.empty())
+        {
+            controller_settings->mTransmission.mReverseGearRatios = std::move(reverse_gear_ratios);
+        }
+        const float maximum_shift_rpm = controller_settings->mEngine.mMaxRPM - 1.0f;
+        controller_settings->mTransmission.mShiftDownRPM = std::clamp(vehicle.shift_down_rpm, 1.0f, maximum_shift_rpm - 1.0f);
+        controller_settings->mTransmission.mShiftUpRPM = std::clamp(vehicle.shift_up_rpm, controller_settings->mTransmission.mShiftDownRPM + 1.0f, maximum_shift_rpm);
+        const float shift_duration = (std::max)(vehicle.shift_duration, 0.0f);
+        controller_settings->mTransmission.mSwitchTime = shift_duration;
+        controller_settings->mTransmission.mClutchReleaseTime = shift_duration * 0.6f;
+        controller_settings->mTransmission.mSwitchLatency = shift_duration;
+        controller_settings->mTransmission.mClutchStrength = 10.0f;
+        controller_settings->mDifferentials = differentials;
+        settings.mController = controller_settings;
+
+        PhysicsWorldImpl::VehicleRecord record;
+        record.constraint = new JPH::VehicleConstraint(*body, settings);
+        record.collision_tester = new JPH::VehicleCollisionTesterCastCylinder(Detail::ObjectLayers::MOVING);
+        record.body = body_id;
+        record.constraint->SetVehicleCollisionTester(record.collision_tester);
+
+        std::lock_guard lock(impl->vehicles_mutex);
+        auto existing = impl->vehicles.find(entity);
+        if (existing != impl->vehicles.end())
+        {
+            if (existing->second.constraint != nullptr)
+            {
+                impl->physics_system->RemoveStepListener(existing->second.constraint);
+                impl->physics_system->RemoveConstraint(existing->second.constraint);
+            }
+            existing->second = record;
+        }
+        else
+        {
+            impl->vehicles[entity] = record;
+        }
+        impl->physics_system->AddConstraint(record.constraint);
+        impl->physics_system->AddStepListener(record.constraint);
+    }
+
+    void PhysicsWorld::RemoveVehicle(won::ecs::Entity entity)
+    {
+        std::lock_guard lock(impl->vehicles_mutex);
+        auto it = impl->vehicles.find(entity);
+        if (it == impl->vehicles.end())
+        {
+            return;
+        }
+        if (it->second.constraint != nullptr)
+        {
+            impl->physics_system->RemoveStepListener(it->second.constraint);
+            impl->physics_system->RemoveConstraint(it->second.constraint);
+        }
+        impl->vehicles.erase(it);
+    }
+
+    bool PhysicsWorld::HasVehicle(won::ecs::Entity entity) const
+    {
+        std::lock_guard lock(impl->vehicles_mutex);
+        return impl->vehicles.find(entity) != impl->vehicles.end();
+    }
+
+    void PhysicsWorld::SetVehicleInput(won::ecs::Entity entity, float forward, float right, float brake, float hand_brake)
+    {
+        std::lock_guard lock(impl->vehicles_mutex);
+        auto it = impl->vehicles.find(entity);
+        if (it == impl->vehicles.end() || it->second.constraint == nullptr)
+        {
+            return;
+        }
+
+        JPH::WheeledVehicleController* controller = static_cast<JPH::WheeledVehicleController*>(it->second.constraint->GetController());
+        controller->SetDriverInput(forward, right, brake, hand_brake);
+
+        if (forward != 0.0f || right != 0.0f || brake != 0.0f || hand_brake != 0.0f)
+        {
+            impl->physics_system->GetBodyInterface().ActivateBody(it->second.body);
+        }
+    }
+
+    bool PhysicsWorld::SetVehicleGear(won::ecs::Entity entity, int gear)
+    {
+        std::lock_guard lock(impl->vehicles_mutex);
+        auto it = impl->vehicles.find(entity);
+        if (it == impl->vehicles.end() || it->second.constraint == nullptr)
+        {
+            return false;
+        }
+
+        JPH::WheeledVehicleController* controller = static_cast<JPH::WheeledVehicleController*>(it->second.constraint->GetController());
+        JPH::VehicleTransmission& transmission = controller->GetTransmission();
+        if (transmission.mMode != JPH::ETransmissionMode::Manual)
+        {
+            return false;
+        }
+
+        const int minimum_gear = -static_cast<int>(transmission.mReverseGearRatios.size());
+        const int maximum_gear = static_cast<int>(transmission.mGearRatios.size());
+        transmission.Set(std::clamp(gear, minimum_gear, maximum_gear), 1.0f);
+        impl->physics_system->GetBodyInterface().ActivateBody(it->second.body);
+        return true;
+    }
+
+    void PhysicsWorld::ReadVehicleState(won::ecs::Entity entity, won::ecs::VehicleComponent& vehicle) const
+    {
+        std::lock_guard lock(impl->vehicles_mutex);
+        auto it = impl->vehicles.find(entity);
+        if (it == impl->vehicles.end() || it->second.constraint == nullptr)
+        {
+            return;
+        }
+
+        const JPH::VehicleConstraint& constraint = *it->second.constraint;
+        const Size wheel_count = (std::min)(vehicle.wheels.size(), static_cast<Size>(constraint.GetWheels().size()));
+        for (Size wheel_index = 0; wheel_index < wheel_count; ++wheel_index)
+        {
+            const JPH::Wheel* wheel = constraint.GetWheel(static_cast<JPH::uint>(wheel_index));
+            const JPH::RMat44 wheel_transform = constraint.GetWheelWorldTransform(static_cast<JPH::uint>(wheel_index), JPH::Vec3::sAxisX(), JPH::Vec3::sAxisY());
+            const JPH::RVec3 wheel_position = wheel_transform.GetTranslation();
+            const JPH::Quat wheel_rotation = wheel_transform.GetQuaternion();
+
+            won::ecs::VehicleWheel& target = vehicle.wheels[wheel_index];
+            target.world_position = { wheel_position.GetX(), wheel_position.GetY(), wheel_position.GetZ() };
+            target.world_rotation = { wheel_rotation.GetX(), wheel_rotation.GetY(), wheel_rotation.GetZ(), wheel_rotation.GetW() };
+            target.suspension_length = wheel->GetSuspensionLength();
+            target.has_contact = wheel->HasContact();
+        }
+
+        const JPH::WheeledVehicleController* controller = static_cast<const JPH::WheeledVehicleController*>(constraint.GetController());
+        vehicle.engine_rpm = controller->GetEngine().GetCurrentRPM();
+        vehicle.current_gear = controller->GetTransmission().GetCurrentGear();
+        vehicle.shifting_gear = controller->GetTransmission().IsSwitchingGear();
+
+        const JPH::Body* body = impl->physics_system->GetBodyLockInterfaceNoLock().TryGetBody(it->second.body);
+        if (body != nullptr)
+        {
+            const JPH::Vec3 body_forward = body->GetRotation() * JPH::Vec3(vehicle.forward.x, vehicle.forward.y, vehicle.forward.z);
+            vehicle.speed = body->GetLinearVelocity().Dot(body_forward);
+        }
     }
 
     const Vector<Collider3DTriggerEvent>& PhysicsWorld::GetTriggerEvents() const

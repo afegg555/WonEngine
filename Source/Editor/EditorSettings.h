@@ -29,6 +29,7 @@ namespace won::editor
         { rendering::Show_Colliders,   "editor.viewport.show.colliders" },
         { rendering::Show_BVH,         "editor.viewport.show.bvh" },
         { rendering::Show_DDGI,        "editor.viewport.show.ddgi" },
+        { rendering::Show_Vehicles,    "editor.viewport.show.vehicles" },
     };
 
     struct EditorSettings

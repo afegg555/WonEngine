@@ -3661,6 +3661,135 @@ namespace won::script
         return 1;
     }
 
+    int LuaScriptRuntime::LuaVehicleSetInput(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const bool has_entity_arg = lua_gettop(state) >= 5;
+        const ecs::Entity entity = has_entity_arg ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        const int value_index = has_entity_arg ? 2 : 1;
+        ecs::VehicleComponent* vehicle = runtime->current_context.scene->GetComponent<ecs::VehicleComponent>(entity);
+        if (!vehicle)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        vehicle->throttle_input = static_cast<float>(luaL_checknumber(state, value_index));
+        vehicle->steer_input = static_cast<float>(luaL_checknumber(state, value_index + 1));
+        vehicle->brake_input = static_cast<float>(luaL_checknumber(state, value_index + 2));
+        vehicle->hand_brake_input = static_cast<float>(luaL_optnumber(state, value_index + 3, 0.0));
+        lua_pushboolean(state, true);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaVehicleGetSpeed(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        ecs::VehicleComponent* vehicle = runtime->current_context.scene->GetComponent<ecs::VehicleComponent>(entity);
+        if (!vehicle)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        lua_pushnumber(state, vehicle->speed);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaVehicleSetGear(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushboolean(state, false);
+            return 1;
+        }
+
+        const bool has_entity_arg = lua_gettop(state) >= 2;
+        const ecs::Entity entity = has_entity_arg ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        const int gear_index = has_entity_arg ? 2 : 1;
+        physics::PhysicsWorld* physics_world = runtime->current_context.scene->GetPhysicsWorld();
+        const bool changed = physics_world && physics_world->SetVehicleGear(entity, static_cast<int>(luaL_checkinteger(state, gear_index)));
+        lua_pushboolean(state, changed);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaVehicleGetRPM(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        ecs::VehicleComponent* vehicle = runtime->current_context.scene->GetComponent<ecs::VehicleComponent>(entity);
+        if (!vehicle)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        lua_pushnumber(state, vehicle->engine_rpm);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaVehicleGetGear(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        ecs::VehicleComponent* vehicle = runtime->current_context.scene->GetComponent<ecs::VehicleComponent>(entity);
+        if (!vehicle)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        lua_pushinteger(state, vehicle->current_gear);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaVehicleIsShiftingGear(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        const ecs::Entity entity = lua_gettop(state) >= 1 ? static_cast<ecs::Entity>(luaL_checkinteger(state, 1)) : runtime->current_context.entity;
+        ecs::VehicleComponent* vehicle = runtime->current_context.scene->GetComponent<ecs::VehicleComponent>(entity);
+        if (!vehicle)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        lua_pushboolean(state, vehicle->shifting_gear);
+        return 1;
+    }
+
     int LuaScriptRuntime::LuaPhysicsAddForce(lua_State* state)
     {
         LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
@@ -4711,6 +4840,27 @@ namespace won::script
         lua_pushcclosure(lua_state, LuaPhysicsOverlapSphere, 1);
         lua_setfield(lua_state, -2, "overlap_sphere");
         lua_setfield(lua_state, -2, "physics");
+
+        lua_newtable(lua_state);
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaVehicleSetInput, 1);
+        lua_setfield(lua_state, -2, "set_input");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaVehicleSetGear, 1);
+        lua_setfield(lua_state, -2, "set_gear");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaVehicleGetSpeed, 1);
+        lua_setfield(lua_state, -2, "get_speed");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaVehicleGetRPM, 1);
+        lua_setfield(lua_state, -2, "get_rpm");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaVehicleGetGear, 1);
+        lua_setfield(lua_state, -2, "get_gear");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaVehicleIsShiftingGear, 1);
+        lua_setfield(lua_state, -2, "is_shifting_gear");
+        lua_setfield(lua_state, -2, "vehicle");
 
         lua_newtable(lua_state);
         lua_pushlightuserdata(lua_state, this);
