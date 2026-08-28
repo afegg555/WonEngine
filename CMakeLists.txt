@@ -786,6 +786,10 @@ target_include_directories(Runtime
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins/Include>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Runtime/Public>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Shaders>
+)
+
+target_include_directories(Runtime SYSTEM
+    PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Vendor>
     PRIVATE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Vendor/lua/src>
@@ -922,7 +926,7 @@ target_compile_definitions(PackageTool
 )
 
 if(MSVC)
-    target_compile_options(Runtime PRIVATE /W4 /permissive-)
+    target_compile_options(Runtime PRIVATE /W4 /permissive- /external:W0 /wd4324)
     target_link_options(Editor PRIVATE /ENTRY:mainCRTStartup)
     target_link_options(Player PRIVATE /ENTRY:mainCRTStartup)
     set_source_files_properties(${LUA_SOURCES} PROPERTIES COMPILE_OPTIONS "/W3")
