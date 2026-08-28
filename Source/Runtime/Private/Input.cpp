@@ -1012,7 +1012,7 @@ namespace won::io
     bool IsReleased(Button button)
     {
         const uint32 button_index = static_cast<uint32>(button);
-        if (button_index <= static_cast<uint32>(BUTTON_NONE) || button_index >= static_cast<uint32>(BUTTON_COUNT))
+        if (!input_active || input_suppressed || button_index <= static_cast<uint32>(BUTTON_NONE) || button_index >= static_cast<uint32>(BUTTON_COUNT))
         {
             return false;
         }
@@ -1062,7 +1062,7 @@ namespace won::io
 
     bool IsDoubleClicked()
     {
-        return double_click;
+        return !input_suppressed && double_click;
     }
 
     void SetDoubleClickInterval(double seconds)
@@ -1195,7 +1195,8 @@ namespace won::io
 
     const String& GetTextInput()
     {
-        return text_input;
+        static const String empty_text_input;
+        return input_suppressed ? empty_text_input : text_input;
     }
 
     void SetInputSuppressed(bool suppressed)
@@ -1210,16 +1211,30 @@ namespace won::io
 
     const KeyboardState& GetKeyboardState()
     {
-        return keyboard;
+        static const KeyboardState neutral_keyboard;
+        return input_suppressed ? neutral_keyboard : keyboard;
     }
 
     const MouseState& GetMouseState()
     {
-        return mouse;
+        if (!input_suppressed)
+        {
+            return mouse;
+        }
+
+        static MouseState neutral_mouse;
+        neutral_mouse = MouseState();
+        neutral_mouse.position = mouse.position;
+        return neutral_mouse;
     }
 
     const GamepadState* GetGamepadState(uint32 device_index)
     {
-        return device_index < max_gamepad_count ? &gamepads[device_index] : nullptr;
+        static const GamepadState neutral_gamepad;
+        if (device_index >= max_gamepad_count)
+        {
+            return nullptr;
+        }
+        return input_suppressed ? &neutral_gamepad : &gamepads[device_index];
     }
 }

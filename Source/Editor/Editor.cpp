@@ -1113,6 +1113,10 @@ namespace won::editor
 #ifdef _WIN32
 		window->SetPlatformMessageHandler([](void* hwnd, uint32 message, Size wparam, Size lparam) -> bool
 			{
+				if (io::IsInputSuppressed())
+				{
+					return false;
+				}
 				return ImGui_ImplWin32_WndProcHandler(static_cast<HWND>(hwnd), message, static_cast<WPARAM>(wparam), static_cast<LPARAM>(lparam)) != 0;
 			});
 		ImGui_ImplWin32_Init(window->GetNativeHandle());
@@ -2482,6 +2486,12 @@ namespace won::editor
 #endif
 		ImGui::NewFrame();
 		//ImGui::ShowDemoWindow();
+
+		if (won::io::IsInputSuppressed())
+		{
+			ImGui::GetIO().ClearInputKeys();
+			ImGui::GetIO().ClearInputMouse();
+		}
 
 		ImGuiIO& io = ImGui::GetIO();
 

@@ -311,6 +311,7 @@ namespace won::rendering
     static won::console::ConsoleVariable r_upload_budget("r.upload_budget", 8, "max queued resource uploads per frame, 0 = unlimited", won::console::ConsoleVariableFlagNone);
     static won::console::ConsoleVariable r_cluster_depth_slices("r.cluster.depth_slices", 32, "Forward+ cluster depth slices (1 = 2D tiled)", won::console::ConsoleVariableFlagArchive);
     static won::console::ConsoleVariable r_occlusion_enabled("r.occlusion.enabled", 0, "force hardware occlusion culling on for every view (0 = follow the per-view option)", won::console::ConsoleVariableFlagNone);
+    static won::console::ConsoleVariable r_occlusion_bounds_expand("r.occlusion.bounds_expand", 0.005f, "occlusion query bounds expansion as a fraction of the distance to the bounds", won::console::ConsoleVariableFlagNone);
 
     bool RendererInternal::UploadSceneData(FrameContext& frame_context, ecs::Scene& scene, GPUScene& gpu_scene)
     {
@@ -3505,15 +3506,26 @@ namespace won::rendering
                         (std::max)(renderable.aabb.min.y, (std::min)(camera_eye.y, renderable.aabb.max.y)),
                         (std::max)(renderable.aabb.min.z, (std::min)(camera_eye.z, renderable.aabb.max.z))
                     };
-                    if (math::DistanceSquared(closest_point, camera_eye) <= camera_near * camera_near)
+                    const float distance_squared = math::DistanceSquared(closest_point, camera_eye);
+                    if (distance_squared <= camera_near * camera_near)
                     {
                         continue;
                     }
 
+                    const float bounds_expand = std::sqrt(distance_squared) * r_occlusion_bounds_expand.GetFloat();
+
                     OcclusionPushConstants occlusion_push = {};
                     occlusion_push.Init();
-                    occlusion_push.aabb_min = renderable.aabb.min;
-                    occlusion_push.aabb_max = renderable.aabb.max;
+                    occlusion_push.aabb_min = {
+                        renderable.aabb.min.x - bounds_expand,
+                        renderable.aabb.min.y - bounds_expand,
+                        renderable.aabb.min.z - bounds_expand
+                    };
+                    occlusion_push.aabb_max = {
+                        renderable.aabb.max.x + bounds_expand,
+                        renderable.aabb.max.y + bounds_expand,
+                        renderable.aabb.max.z + bounds_expand
+                    };
 
                     const uint32 query_index = static_cast<uint32>(issued_keys.size());
                     command_list.PushConstants(RHIShaderStage::Vertex, &occlusion_push, sizeof(OcclusionPushConstants), 0);
