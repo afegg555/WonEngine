@@ -427,6 +427,16 @@
             "text": "현재 씬을 저장할까요?",
             "comment": "label"
         },
+        "editor.label.texture_srgb": {
+            "source": "sRGB",
+            "text": "sRGB",
+            "comment": "label"
+        },
+        "editor.label.texture_generate_mipmaps": {
+            "source": "Generate Mipmaps",
+            "text": "밉맵 생성",
+            "comment": "label"
+        },
         "editor.label.import_content_asset_message": {
             "source": "Import this asset to Scene?",
             "text": "이 에셋을 씬에 추가할까요?",

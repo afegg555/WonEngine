@@ -333,6 +333,8 @@ namespace won::editor::editor_key
     constexpr const char* label_sun_glow_intensity = "editor.label.sun_glow_intensity";
     constexpr const char* label_sun_intensity = "editor.label.sun_intensity";
     constexpr const char* label_text = "editor.label.text";
+    constexpr const char* label_texture_generate_mipmaps = "editor.label.texture_generate_mipmaps";
+    constexpr const char* label_texture_srgb = "editor.label.texture_srgb";
     constexpr const char* label_textures = "editor.label.textures";
     constexpr const char* label_time = "editor.label.time";
     constexpr const char* label_tonemap_mode = "editor.label.tonemap_mode";

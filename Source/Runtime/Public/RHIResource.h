@@ -135,6 +135,79 @@ namespace won::rendering
         BC7UnormSrgb
     };
 
+    inline const char* GetRHIFormatName(RHIFormat format)
+    {
+        switch (format)
+        {
+        case RHIFormat::Unknown: return "Unknown";
+        case RHIFormat::R32G32B32A32Float: return "R32G32B32A32Float";
+        case RHIFormat::R32G32B32A32Uint: return "R32G32B32A32Uint";
+        case RHIFormat::R32G32B32A32Sint: return "R32G32B32A32Sint";
+        case RHIFormat::R32G32B32Float: return "R32G32B32Float";
+        case RHIFormat::R32G32B32Uint: return "R32G32B32Uint";
+        case RHIFormat::R32G32B32Sint: return "R32G32B32Sint";
+        case RHIFormat::R16G16B16A16Float: return "R16G16B16A16Float";
+        case RHIFormat::R16G16B16A16Unorm: return "R16G16B16A16Unorm";
+        case RHIFormat::R16G16B16A16Uint: return "R16G16B16A16Uint";
+        case RHIFormat::R16G16B16A16Snorm: return "R16G16B16A16Snorm";
+        case RHIFormat::R16G16B16A16Sint: return "R16G16B16A16Sint";
+        case RHIFormat::R32G32Float: return "R32G32Float";
+        case RHIFormat::R32G32Uint: return "R32G32Uint";
+        case RHIFormat::R32G32Sint: return "R32G32Sint";
+        case RHIFormat::D32FloatS8X24Uint: return "D32FloatS8X24Uint";
+        case RHIFormat::R10G10B10A2Unorm: return "R10G10B10A2Unorm";
+        case RHIFormat::R10G10B10A2Uint: return "R10G10B10A2Uint";
+        case RHIFormat::R11G11B10Float: return "R11G11B10Float";
+        case RHIFormat::R8G8B8A8Unorm: return "R8G8B8A8Unorm";
+        case RHIFormat::R8G8B8A8UnormSrgb: return "R8G8B8A8UnormSrgb";
+        case RHIFormat::R8G8B8A8Uint: return "R8G8B8A8Uint";
+        case RHIFormat::R8G8B8A8Snorm: return "R8G8B8A8Snorm";
+        case RHIFormat::R8G8B8A8Sint: return "R8G8B8A8Sint";
+        case RHIFormat::B8G8R8A8Unorm: return "B8G8R8A8Unorm";
+        case RHIFormat::B8G8R8A8UnormSrgb: return "B8G8R8A8UnormSrgb";
+        case RHIFormat::R16G16Float: return "R16G16Float";
+        case RHIFormat::R16G16Unorm: return "R16G16Unorm";
+        case RHIFormat::R16G16Uint: return "R16G16Uint";
+        case RHIFormat::R16G16Snorm: return "R16G16Snorm";
+        case RHIFormat::R16G16Sint: return "R16G16Sint";
+        case RHIFormat::D32Float: return "D32Float";
+        case RHIFormat::R32Float: return "R32Float";
+        case RHIFormat::R32Uint: return "R32Uint";
+        case RHIFormat::R32Sint: return "R32Sint";
+        case RHIFormat::D24UnormS8Uint: return "D24UnormS8Uint";
+        case RHIFormat::R9G9B9E5Sharedexp: return "R9G9B9E5Sharedexp";
+        case RHIFormat::R8G8Unorm: return "R8G8Unorm";
+        case RHIFormat::R8G8Uint: return "R8G8Uint";
+        case RHIFormat::R8G8Snorm: return "R8G8Snorm";
+        case RHIFormat::R8G8Sint: return "R8G8Sint";
+        case RHIFormat::R16Float: return "R16Float";
+        case RHIFormat::D16Unorm: return "D16Unorm";
+        case RHIFormat::R16Unorm: return "R16Unorm";
+        case RHIFormat::R16Uint: return "R16Uint";
+        case RHIFormat::R16Snorm: return "R16Snorm";
+        case RHIFormat::R16Sint: return "R16Sint";
+        case RHIFormat::R8Unorm: return "R8Unorm";
+        case RHIFormat::R8Uint: return "R8Uint";
+        case RHIFormat::R8Snorm: return "R8Snorm";
+        case RHIFormat::R8Sint: return "R8Sint";
+        case RHIFormat::BC1Unorm: return "BC1Unorm";
+        case RHIFormat::BC1UnormSrgb: return "BC1UnormSrgb";
+        case RHIFormat::BC2Unorm: return "BC2Unorm";
+        case RHIFormat::BC2UnormSrgb: return "BC2UnormSrgb";
+        case RHIFormat::BC3Unorm: return "BC3Unorm";
+        case RHIFormat::BC3UnormSrgb: return "BC3UnormSrgb";
+        case RHIFormat::BC4Unorm: return "BC4Unorm";
+        case RHIFormat::BC4Snorm: return "BC4Snorm";
+        case RHIFormat::BC5Unorm: return "BC5Unorm";
+        case RHIFormat::BC5Snorm: return "BC5Snorm";
+        case RHIFormat::BC6HUf16: return "BC6HUf16";
+        case RHIFormat::BC6HSf16: return "BC6HSf16";
+        case RHIFormat::BC7Unorm: return "BC7Unorm";
+        case RHIFormat::BC7UnormSrgb: return "BC7UnormSrgb";
+        }
+        return "Unknown";
+    }
+
     enum class RHIResourceState
     {
         Undefined,

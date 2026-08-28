@@ -6,6 +6,7 @@
 #include "JobSystem.h"
 #include "Localization.h"
 #include "Plugin.h"
+#include "ResourceAsset.h"
 #include "Entity.h"
 #include "Mesh.h"
 #include "MaterialComponent.h"
@@ -131,6 +132,7 @@ namespace won::editor
 			bool needs_reimport = false; // source changed since last import
 			bool has_broken_reference = false;
 			String broken_reason;
+			String import_info;
 		};
 
 		struct ContentBrowserState
@@ -148,6 +150,7 @@ namespace won::editor
 			String pending_import_disk_path;
 			ContentAssetType pending_import_type = ContentAssetType::Unknown;
 			bool pending_import_add_to_scene = false;
+			resource::TextureImportSettings pending_import_texture_settings;
 		};
 
 		void RebuildContentBrowser();
