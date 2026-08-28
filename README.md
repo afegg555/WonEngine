@@ -1,4 +1,9 @@
 # WonEngine
+
+<p align="center">
+  <a href="https://github.com/afegg555/WonEngine/actions/workflows/build-windows.yml"><img src="https://github.com/afegg555/WonEngine/actions/workflows/build-windows.yml/badge.svg?branch=main" alt="Build (Windows)"></a>
+</p>
+
 <p align="center">
   <img src="Docs/logo.webp" width="360" alt="WonEngine Logo">
 </p>
