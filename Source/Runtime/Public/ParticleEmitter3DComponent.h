@@ -37,6 +37,7 @@ namespace won::ecs
         float3 velocity = { 0.0f, 3.0f, 0.0f }; // base spawn velocity (world space)
         float velocity_variation = 1.5f; // random +/- added per axis at spawn
         float3 gravity = { 0.0f, -1.0f, 0.0f }; // constant acceleration
+        float wind_influence = 1.0f;
         float emit_radius = 0.5f; // spawn disc radius around the emitter origin
 
         uint32 seed = 0; // deterministic per-emitter randomization

@@ -406,6 +406,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Public/SequenceSystem.h
     Source/Runtime/Public/TransformUpdateSystem.h
     Source/Runtime/Public/ParticleUpdateSystem.h
+    Source/Runtime/Public/Wind.h
     Source/Runtime/Public/WaterSimulationSystem.h
     Source/Runtime/Public/ScriptUpdateSystem.h
     Source/Runtime/Public/ScriptEventDispatchSystem.h
@@ -422,6 +423,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Private/SequenceSystem.cpp
     Source/Runtime/Private/TransformUpdateSystem.cpp
     Source/Runtime/Private/ParticleUpdateSystem.cpp
+    Source/Runtime/Private/Wind.cpp
     Source/Runtime/Private/WaterSimulationSystem.cpp
     Source/Runtime/Private/ScriptUpdateSystem.cpp
     Source/Runtime/Private/ScriptEventDispatchSystem.cpp

@@ -115,6 +115,7 @@ namespace won::script
         static int LuaEnvironmentSetCloud(lua_State* state);
         static int LuaEnvironmentSetCloudColor(lua_State* state);
         static int LuaEnvironmentSetCloudMotion(lua_State* state);
+        static int LuaEnvironmentSetWind(lua_State* state);
 
         static int LuaParticleEmitter3DAdd(lua_State* state);
         static int LuaParticleEmitter3DHas(lua_State* state);

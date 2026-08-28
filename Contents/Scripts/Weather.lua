@@ -10,6 +10,8 @@ local presets = {
         cloud_coverage = 0.15,
         cloud_density = 0.8,
         cloud_color = { 1.0, 1.0, 1.0 },
+        wind_direction = { 1.0, 0.0, 0.35 },
+        wind_speed = 1.5,
     },
     Cloudy = {
         sun_intensity = 55000.0,
@@ -20,6 +22,8 @@ local presets = {
         cloud_coverage = 0.62,
         cloud_density = 1.0,
         cloud_color = { 0.97, 0.98, 1.0 },
+        wind_direction = { 1.0, 0.0, 0.35 },
+        wind_speed = 4.0,
     },
     Rain = {
         sun_intensity = 22000.0,
@@ -30,6 +34,8 @@ local presets = {
         cloud_coverage = 0.9,
         cloud_density = 1.0,
         cloud_color = { 0.72, 0.74, 0.80 },
+        wind_direction = { 1.0, 0.0, 0.35 },
+        wind_speed = 9.0,
     },
 }
 
@@ -58,6 +64,8 @@ local function copy_preset(preset)
         cloud_coverage = preset.cloud_coverage,
         cloud_density = preset.cloud_density,
         cloud_color = { preset.cloud_color[1], preset.cloud_color[2], preset.cloud_color[3] },
+        wind_direction = { preset.wind_direction[1], preset.wind_direction[2], preset.wind_direction[3] },
+        wind_speed = preset.wind_speed,
     }
 end
 
@@ -83,6 +91,12 @@ local function blend_preset(from, to, t)
             mix(from.cloud_color[2], to.cloud_color[2], t),
             mix(from.cloud_color[3], to.cloud_color[3], t),
         },
+        wind_direction = {
+            mix(from.wind_direction[1], to.wind_direction[1], t),
+            mix(from.wind_direction[2], to.wind_direction[2], t),
+            mix(from.wind_direction[3], to.wind_direction[3], t),
+        },
+        wind_speed = mix(from.wind_speed, to.wind_speed, t),
     }
 end
 
@@ -92,6 +106,7 @@ local function push_to_environment(state)
     won.environment.set_atmosphere(state.turbidity, state.mie_eccentricity)
     won.environment.set_cloud(state.cloud_coverage, state.cloud_density)
     won.environment.set_cloud_color(state.cloud_color[1], state.cloud_color[2], state.cloud_color[3])
+    won.environment.set_wind(state.wind_direction[1], state.wind_direction[2], state.wind_direction[3], state.wind_speed)
 end
 
 function script.OnCreate(self)
