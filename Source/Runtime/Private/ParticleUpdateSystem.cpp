@@ -1,5 +1,6 @@
 #include "ParticleUpdateSystem.h"
 #include "Scene.h"
+#include "Wind.h"
 #include "MathUtils.h"
 #include "Random.h"
 
@@ -15,6 +16,8 @@ namespace won::ecs
         {
             return;
         }
+
+        const wind::WindField wind_field = wind::BuildWindField(scene);
 
         jobsystem::Context sub_ctx;
         const uint32 emitter_count = static_cast<uint32>(emitter_array->GetSize());
@@ -76,9 +79,10 @@ namespace won::ecs
                     emitter.particles.pop_back();
                     continue;
                 }
-                particle.velocity.x += emitter.gravity.x * delta_time;
-                particle.velocity.y += emitter.gravity.y * delta_time;
-                particle.velocity.z += emitter.gravity.z * delta_time;
+                const float3 wind_velocity = wind_field.Sample(particle.position);
+                particle.velocity.x += (emitter.gravity.x + wind_velocity.x * emitter.wind_influence) * delta_time;
+                particle.velocity.y += (emitter.gravity.y + wind_velocity.y * emitter.wind_influence) * delta_time;
+                particle.velocity.z += (emitter.gravity.z + wind_velocity.z * emitter.wind_influence) * delta_time;
                 particle.position.x += particle.velocity.x * delta_time;
                 particle.position.y += particle.velocity.y * delta_time;
                 particle.position.z += particle.velocity.z * delta_time;

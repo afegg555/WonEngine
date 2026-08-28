@@ -81,6 +81,10 @@ namespace won::ecs
         float3 cloud_color = { 1.0f, 1.0f, 1.0f };
 		float2 cloud_direction = { 1.0f, 0.3f }; // only direction matters, will be normalized internally
 
+        // Wind
+        float3 wind_direction = { 1.0f, 0.0f, 0.0f };
+        float wind_speed = 0.0f; // in world units per second
+
         // Cubemap sky
         String sky_cubemap_asset_path;
 
