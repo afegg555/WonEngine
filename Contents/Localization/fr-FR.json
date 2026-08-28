@@ -578,6 +578,41 @@
             "source": "Occluded Bounds",
             "text": "Limites occultées"
         },
+        "editor.label.show_vehicles": {
+            "source": "Vehicle Wheels",
+            "text": "Roues du véhicule",
+            "comment": "label"
+        },
+        "editor.label.automatic_transmission": {
+            "source": "Automatic Transmission",
+            "text": "Transmission automatique",
+            "comment": "label"
+        },
+        "editor.label.vehicle_preset": {
+            "source": "Vehicle Preset",
+            "text": "Préréglage de véhicule",
+            "comment": "label"
+        },
+        "editor.action.apply_vehicle_preset": {
+            "source": "Apply Preset",
+            "text": "Appliquer le préréglage",
+            "comment": "action"
+        },
+        "editor.enum.VehiclePreset.Sedan": {
+            "source": "Sedan",
+            "text": "Berline",
+            "comment": "enum"
+        },
+        "editor.enum.VehiclePreset.Sports": {
+            "source": "Sports",
+            "text": "Sportive",
+            "comment": "enum"
+        },
+        "editor.enum.VehiclePreset.Offroad": {
+            "source": "Offroad",
+            "text": "Tout-terrain",
+            "comment": "enum"
+        },
         "editor.label.freeze_culling": {
             "source": "Freeze Culling",
             "text": "Figer le culling"
@@ -829,6 +864,11 @@
         "editor.label.gravity_factor": {
             "source": "Gravity Factor",
             "text": "Facteur de gravité"
+        },
+        "editor.label.center_of_mass_offset": {
+            "source": "Center of Mass Offset",
+            "text": "Décalage du centre de masse",
+            "comment": "label"
         },
         "editor.label.linear_velocity": {
             "source": "Linear Velocity",
