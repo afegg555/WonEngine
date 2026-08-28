@@ -20,6 +20,17 @@ namespace won::resource
         bool generate_mipmaps = true;
     };
 
+    struct TextureImportInfo
+    {
+        uint32 width = 0;
+        uint32 height = 0;
+        uint32 mip_levels = 0;
+        bool is_cube = false;
+        String format;
+        uint64 source_hash = 0;
+        String import_error;
+    };
+
     struct MeshImportSettings
     {
         float scale = 1.0f;
@@ -39,6 +50,7 @@ namespace won::resource
         String binary_path; // generated runtime-loadable file
         uint64 source_timestamp = 0;
         TextureImportSettings texture;
+        TextureImportInfo texture_info;
         MeshImportSettings mesh;
     };
 
@@ -48,6 +60,7 @@ namespace won::resource
     WONENGINE_API bool SaveMeshBinary(const String& path, const Mesh& mesh);
     WONENGINE_API std::shared_ptr<Mesh> LoadMeshBinary(const String& path);
 
+    WONENGINE_API rendering::RHIFormat RHIFormatFromDXGIFormat(uint32 dxgi_format);
     WONENGINE_API bool SaveTextureBinary(const String& path, uint32 width, uint32 height, uint32 mip_levels, rendering::RHIFormat format, const Vector<uint8>& pixels);
     WONENGINE_API std::shared_ptr<Image> LoadTextureBinary(const String& path);
 

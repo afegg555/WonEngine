@@ -537,6 +537,16 @@
             "text": "Folder is empty.",
             "comment": "label"
         },
+        "editor.label.texture_srgb": {
+            "source": "sRGB",
+            "text": "sRGB",
+            "comment": "label"
+        },
+        "editor.label.texture_generate_mipmaps": {
+            "source": "Generate Mipmaps",
+            "text": "Generate Mipmaps",
+            "comment": "label"
+        },
         "editor.label.import_content_asset_message": {
             "source": "Import this asset to Scene?",
             "text": "Import this asset to Scene?",

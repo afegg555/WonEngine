@@ -51,6 +51,28 @@ struct COMInitializer
                 DirectX::DDS_FLAGS_NONE, nullptr, out_image));
         }
 
+        uint64 HashFileContents(const String& path)
+        {
+            io::FileData file_data;
+            if (!io::ReadAllBytes(path, &file_data))
+            {
+                return 0;
+            }
+            return won::StableHash(reinterpret_cast<const char*>(file_data.bytes.data()), file_data.bytes.size());
+        }
+
+        DXGI_FORMAT ToDXGIFormat(rendering::RHIFormat format)
+        {
+            switch (format)
+            {
+            case rendering::RHIFormat::BC1Unorm:     return DXGI_FORMAT_BC1_UNORM;
+            case rendering::RHIFormat::BC1UnormSrgb: return DXGI_FORMAT_BC1_UNORM_SRGB;
+            case rendering::RHIFormat::BC3Unorm:     return DXGI_FORMAT_BC3_UNORM;
+            case rendering::RHIFormat::BC3UnormSrgb: return DXGI_FORMAT_BC3_UNORM_SRGB;
+            default:                                 return DXGI_FORMAT_UNKNOWN;
+            }
+        }
+
         bool SaveDDSImage(const String& path, DirectX::ScratchImage& image, bool is_srgb)
         {
             if (is_srgb)
@@ -831,25 +853,12 @@ struct COMInitializer
 #else
             const DXGI_FORMAT src_dxgi = (src.format == rendering::RHIFormat::R8G8B8A8UnormSrgb)
                 ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB : DXGI_FORMAT_R8G8B8A8_UNORM;
-            const DXGI_FORMAT dst_dxgi = [dst_format]() -> DXGI_FORMAT {
-                switch (dst_format)
-                {
-                case rendering::RHIFormat::BC1Unorm:     return DXGI_FORMAT_BC1_UNORM;
-                case rendering::RHIFormat::BC1UnormSrgb: return DXGI_FORMAT_BC1_UNORM_SRGB;
-                case rendering::RHIFormat::BC3Unorm:     return DXGI_FORMAT_BC3_UNORM;
-                case rendering::RHIFormat::BC3UnormSrgb: return DXGI_FORMAT_BC3_UNORM_SRGB;
-                default:                                 return DXGI_FORMAT_UNKNOWN;
-                }
-            }();
+            const DXGI_FORMAT dst_dxgi = ToDXGIFormat(dst_format);
 
-            std::cout << "DEBUG: CompressTexture formats: src.format=" << (int)src.format
-                      << " dst_format=" << (int)dst_format
-                      << " src_dxgi=" << src_dxgi
-                      << " dst_dxgi=" << dst_dxgi << "\n";
 
             if (dst_dxgi == DXGI_FORMAT_UNKNOWN)
             {
-                std::cout << "DEBUG:   dst_dxgi is unknown!\n";
+                std::cout << "WARNING: unsupported destination texture format\n";
                 return false;
             }
 
@@ -866,13 +875,11 @@ struct COMInitializer
             {
                 DirectX::ScratchImage mipChain;
                 HRESULT hr_mips = DirectX::GenerateMipMaps(dxtex, DirectX::TEX_FILTER_DEFAULT, 0, mipChain);
-                std::cout << "DEBUG:   GenerateMipMaps hr=" << std::hex << hr_mips << std::dec << "\n";
                 if (FAILED(hr_mips))
                 {
                     return false;
                 }
                 HRESULT hr_comp = DirectX::Compress(mipChain.GetImages(), mipChain.GetImageCount(), mipChain.GetMetadata(), dst_dxgi, DirectX::TEX_COMPRESS_DEFAULT, DirectX::TEX_THRESHOLD_DEFAULT, result);
-                std::cout << "DEBUG:   Compress (mips) hr=" << std::hex << hr_comp << std::dec << "\n";
                 if (FAILED(hr_comp))
                 {
                     return false;
@@ -882,7 +889,6 @@ struct COMInitializer
             else
             {
                 HRESULT hr_comp = DirectX::Compress(dxtex, dst_dxgi, DirectX::TEX_COMPRESS_DEFAULT, DirectX::TEX_THRESHOLD_DEFAULT, result);
-                std::cout << "DEBUG:   Compress (no mips) hr=" << std::hex << hr_comp << std::dec << "\n";
                 if (FAILED(hr_comp))
                 {
                     return false;
@@ -972,7 +978,6 @@ struct COMInitializer
 
             auto SaveTexture = [&](const resource::Image& image, const String& texture_full_path, const resource::TextureImportSettings& settings) -> bool
             {
-                std::cout << "DEBUG: SaveTexture to: " << texture_full_path << "\n";
                 bool has_alpha = false;
                 for (Size pixel_index = 3; pixel_index < image.pixels.size(); pixel_index += 4)
                 {
@@ -984,13 +989,10 @@ struct COMInitializer
                 Vector<uint8> compressed_pixels;
                 uint32 mip_levels = 1;
                 bool dirs_ok = io::CreateDirectories(io::GetDirectoryFromPath(texture_full_path));
-                std::cout << "DEBUG:   CreateDirectories=" << dirs_ok << "\n";
                 bool compress_ok = CompressTexture(image, bc_format, settings.generate_mipmaps, compressed_pixels, mip_levels);
-                std::cout << "DEBUG:   CompressTexture=" << compress_ok << " mips=" << mip_levels << "\n";
                 bool save_ok = resource::SaveTextureBinary(texture_full_path,
                     static_cast<uint32>(image.width), static_cast<uint32>(image.height),
                     mip_levels, bc_format, compressed_pixels);
-                std::cout << "DEBUG:   SaveTextureBinary=" << save_ok << "\n";
                 return dirs_ok && compress_ok && save_ok;
             };
 
@@ -1001,10 +1003,6 @@ struct COMInitializer
                     continue;
                 }
 
-                std::cout << "DEBUG: Texture binding: material=" << tex_data.material_index
-                          << " slot=" << tex_data.texture_slot
-                          << " type=" << tex_data.source_type
-                          << " source=" << tex_data.source << "\n";
 
                 const bool color_texture = tex_data.texture_slot == BASECOLORMAP || tex_data.texture_slot == EMISSIVEMAP || tex_data.texture_slot == SHEENCOLORMAP;
                 String texture_asset_path;
@@ -1083,7 +1081,6 @@ struct COMInitializer
                 }
                 else // embedded
                 {
-                    std::cout << "DEBUG: Searching embedded: " << tex_data.source << " (total embedded count=" << data.embedded_textures.size() << ")\n";
                     for (const auto& e : data.embedded_textures)
                     {
                         std::cout << "  Available embedded: " << e.source << " size=" << e.bytes.size() << " compressed=" << e.compressed << "\n";
@@ -1093,19 +1090,16 @@ struct COMInitializer
                         [&](const EmbeddedTexture& e) { return e.source == tex_data.source; });
                     if (emb_it != data.embedded_textures.end() && !emb_it->bytes.empty())
                     {
-                        std::cout << "DEBUG: Found embedded texture in data.embedded_textures\n";
                         const String texture_file_name = std::to_string(tex_data.material_index) + "_" + std::to_string(tex_data.texture_slot) + "." + resource::texture_binary_extension;
                         texture_asset_path = embedded_texture_directory + "/" + texture_file_name;
                         const String texture_full_path = io::CombinePath(content_root, texture_asset_path);
                         std::shared_ptr<resource::Image> image = nullptr;
                         if (emb_it->compressed)
                         {
-                            std::cout << "DEBUG: Decoding compressed image memory... size=" << emb_it->bytes.size() << "\n";
                             image = resource::LoadImageMemory(emb_it->bytes.data(), emb_it->bytes.size(), 4);
                         }
                         else if (emb_it->width > 0 && emb_it->height > 0 && emb_it->bytes.size() == static_cast<Size>(emb_it->width) * static_cast<Size>(emb_it->height) * 4)
                         {
-                            std::cout << "DEBUG: Constructing raw image " << emb_it->width << "x" << emb_it->height << "\n";
                             image = std::make_shared<resource::Image>();
                             image->width    = static_cast<int32>(emb_it->width);
                             image->height   = static_cast<int32>(emb_it->height);
@@ -1115,11 +1109,10 @@ struct COMInitializer
 
                         if (image)
                         {
-                            std::cout << "DEBUG: Image decoded. IsValid=" << image->IsValid() << " width=" << image->width << " height=" << image->height << "\n";
                         }
                         else
                         {
-                            std::cout << "DEBUG: Image decoding FAILED (image is null)\n";
+                            std::cout << "WARNING: failed to decode embedded texture image\n";
                         }
 
                         resource::TextureImportSettings settings;
@@ -1128,7 +1121,7 @@ struct COMInitializer
 
                         if (!image || !image->IsValid() || !SaveTexture(*image, texture_full_path, settings))
                         {
-                            std::cout << "DEBUG: Skipping texture save due to validation failure\n";
+                            std::cout << "WARNING: skipping texture save, image validation failed\n";
                             texture_asset_path.clear();
                         }
                         else
@@ -1201,19 +1194,19 @@ struct COMInitializer
 
         // Standalone image import: compress a source image to a GPU-friendly .wontex binary
         // (BC + mipmaps) and write its .wonmeta, the same output a mesh import produces for textures.
-        bool SaveImportedTexture(const String& content_root, const String& source_asset_path, bool is_srgb, String& out_error)
+        bool SaveImportedTexture(const String& content_root, const String& source_asset_path, String& out_error)
         {
             out_error.clear();
             std::shared_ptr<resource::Image> image = resource::LoadImageFile(source_asset_path, 4);
             if (!image || !image->IsValid())
             {
-                out_error = "Failed to load image: " + source_asset_path;
+                out_error = "Failed to load image";
                 return false;
             }
 
             if (!io::CreateDirectories(io::CombinePath(content_root, generated_asset_directory)))
             {
-                out_error = "Failed to create Generated directory.";
+                out_error = "Failed to create Generated directory";
                 return false;
             }
 
@@ -1229,15 +1222,23 @@ struct COMInitializer
             {
                 if (image->pixels[pixel_index] < 255) { has_alpha = true; break; }
             }
+            const String meta_path = resource::GetAssetMetaPath(source_asset_path);
+            resource::AssetMeta meta = {};
+            resource::TextureImportSettings settings;
+            settings.is_srgb = true;
+            if (resource::LoadAssetMeta(meta_path, meta))
+            {
+                settings = meta.texture;
+            }
             const rendering::RHIFormat bc_format = has_alpha
-                ? (is_srgb ? rendering::RHIFormat::BC3UnormSrgb : rendering::RHIFormat::BC3Unorm)
-                : (is_srgb ? rendering::RHIFormat::BC1UnormSrgb : rendering::RHIFormat::BC1Unorm);
+                ? (settings.is_srgb ? rendering::RHIFormat::BC3UnormSrgb : rendering::RHIFormat::BC3Unorm)
+                : (settings.is_srgb ? rendering::RHIFormat::BC1UnormSrgb : rendering::RHIFormat::BC1Unorm);
 
             Vector<uint8> compressed_pixels;
             uint32 mip_levels = 1;
-            if (!CompressTexture(*image, bc_format, true, compressed_pixels, mip_levels))
+            if (!CompressTexture(*image, bc_format, settings.generate_mipmaps, compressed_pixels, mip_levels))
             {
-                out_error = "Failed to compress texture.";
+                out_error = "Failed to compress texture";
                 return false;
             }
 
@@ -1245,22 +1246,29 @@ struct COMInitializer
             const String texture_full_path = io::CombinePath(content_root, texture_binary_path);
             if (!resource::SaveTextureBinary(texture_full_path, static_cast<uint32>(image->width), static_cast<uint32>(image->height), mip_levels, bc_format, compressed_pixels))
             {
-                out_error = "Failed to save texture binary.";
+                out_error = "Failed to write texture binary";
                 return false;
             }
 
-            resource::AssetMeta meta = {};
             meta.asset_id = asset_id;
             meta.asset_name = io::GetFilename(source_asset_path);
             meta.source_asset_path = source_rel;
             meta.asset_type = "texture";
             meta.binary_path = texture_binary_path;
             io::GetLastTimestamp(source_asset_path, &meta.source_timestamp);
-            meta.texture.is_srgb = is_srgb;
-            meta.texture.generate_mipmaps = true;
-            resource::SaveAssetMeta(resource::GetAssetMetaPath(source_asset_path), meta);
+            meta.texture = settings;
+            meta.texture_info.width = static_cast<uint32>(image->width);
+            meta.texture_info.height = static_cast<uint32>(image->height);
+            meta.texture_info.mip_levels = mip_levels;
+            meta.texture_info.is_cube = false;
+            meta.texture_info.format = rendering::GetRHIFormatName(bc_format);
+            meta.texture_info.source_hash = HashFileContents(source_asset_path);
+            meta.texture_info.import_error.clear();
+            resource::SaveAssetMeta(meta_path, meta);
 
             std::cout << "Imported texture: " << source_asset_path << "\n";
+            std::cout << "Format: " << meta.texture_info.format << " " << meta.texture_info.width << "x"
+                      << meta.texture_info.height << " mips=" << meta.texture_info.mip_levels << "\n";
             std::cout << "Asset id: " << asset_id << "\n";
             std::cout << "Texture: " << texture_full_path << "\n";
             std::cout << "Binary path: " << texture_binary_path << "\n";
@@ -1272,7 +1280,7 @@ struct COMInitializer
             out_error.clear();
             if (!io::CreateDirectories(io::CombinePath(content_root, generated_asset_directory)))
             {
-                out_error = "Failed to create Generated directory.";
+                out_error = "Failed to create Generated directory";
                 return false;
             }
 
@@ -1286,33 +1294,67 @@ struct COMInitializer
             const String texture_binary_path = String(generated_asset_directory) + "/" + asset_id + "." + resource::texture_binary_extension;
             const String texture_full_path = io::CombinePath(content_root, texture_binary_path);
 
-            resource::TextureImportSettings settings;
-            resource::AssetMeta existing_meta;
-            if (resource::LoadAssetMeta(resource::GetAssetMetaPath(source_asset_path), existing_meta))
-            {
-                settings = existing_meta.texture;
-            }
+            const String meta_path = resource::GetAssetMetaPath(source_asset_path);
+            resource::AssetMeta meta = {};
+            resource::LoadAssetMeta(meta_path, meta);
+            const resource::TextureImportSettings settings = meta.texture;
 
             DirectX::ScratchImage dds;
-            if (!LoadDDSImage(source_asset_path, dds) || !SaveDDSImage(texture_full_path, dds, settings.is_srgb))
+            if (!LoadDDSImage(source_asset_path, dds))
             {
-                out_error = "Failed to import dds as texture binary: " + source_asset_path;
+                out_error = "Failed to read dds file";
                 return false;
             }
 
-            resource::AssetMeta meta = {};
+            const DirectX::TexMetadata& dds_meta = dds.GetMetadata();
+            const bool is_cube = (dds_meta.miscFlags & DirectX::TEX_MISC_TEXTURECUBE) != 0;
+            if (is_cube && dds_meta.width != dds_meta.height)
+            {
+                out_error = "Cubemap faces must be square, got " + std::to_string(dds_meta.width) + "x"
+                    + std::to_string(dds_meta.height);
+                return false;
+            }
+
+            Size full_mip_count = 1;
+            for (Size extent = (std::max)(dds_meta.width, dds_meta.height); extent > 1; extent /= 2)
+            {
+                ++full_mip_count;
+            }
+            if (dds_meta.mipLevels != 1 && dds_meta.mipLevels != full_mip_count)
+            {
+                out_error = "Incomplete mip chain: " + std::to_string(dds_meta.mipLevels) + " levels, expected 1 or "
+                    + std::to_string(full_mip_count);
+                return false;
+            }
+
+            if (!SaveDDSImage(texture_full_path, dds, settings.is_srgb))
+            {
+                out_error = "Failed to write texture binary";
+                return false;
+            }
+
             meta.asset_id = asset_id;
             meta.asset_name = io::GetFilename(source_asset_path);
             meta.source_asset_path = source_rel;
             meta.asset_type = "texture";
             meta.binary_path = texture_binary_path;
             meta.texture = settings;
+            meta.texture_info.width = static_cast<uint32>(dds_meta.width);
+            meta.texture_info.height = static_cast<uint32>(dds_meta.height);
+            meta.texture_info.mip_levels = static_cast<uint32>(dds_meta.mipLevels);
+            meta.texture_info.is_cube = is_cube;
+            meta.texture_info.format = rendering::GetRHIFormatName(resource::RHIFormatFromDXGIFormat(static_cast<uint32>(dds_meta.format)));
+            meta.texture_info.source_hash = HashFileContents(source_asset_path);
+            meta.texture_info.import_error.clear();
             io::GetLastTimestamp(source_asset_path, &meta.source_timestamp);
-            resource::SaveAssetMeta(resource::GetAssetMetaPath(source_asset_path), meta);
+            resource::SaveAssetMeta(meta_path, meta);
 
             std::cout << "Imported texture (dds passthrough): " << source_asset_path << "\n";
             std::cout << "Asset id: " << asset_id << "\n";
             std::cout << "Binary path: " << texture_binary_path << "\n";
+            std::cout << "Format: " << meta.texture_info.format << " " << meta.texture_info.width << "x"
+                      << meta.texture_info.height << " mips=" << meta.texture_info.mip_levels
+                      << " cube=" << (is_cube ? 1 : 0) << "\n";
             return true;
         }
 
@@ -1367,22 +1409,24 @@ int main(int argc, char** argv)
 
     // Standalone image asset: import as a texture (.wontex) and stop.
     const String asset_ext = utils::ToLower(io::GetExtension(source_asset_path));
-    if (asset_ext == "dds")
-    {
-        String dds_error;
-        if (!SaveImportedDDS(content_root, source_asset_path, dds_error))
-        {
-            std::cout << dds_error << "\n";
-            return 1;
-        }
-        return 0;
-    }
-    if (asset_ext == "png" || asset_ext == "jpg" || asset_ext == "jpeg" || asset_ext == "tga" || asset_ext == "bmp")
+    const bool is_dds = asset_ext == "dds";
+    if (is_dds || asset_ext == "png" || asset_ext == "jpg" || asset_ext == "jpeg" || asset_ext == "tga" || asset_ext == "bmp")
     {
         String texture_error;
-        if (!SaveImportedTexture(content_root, source_asset_path, true, texture_error))
+        const bool imported = is_dds
+            ? SaveImportedDDS(content_root, source_asset_path, texture_error)
+            : SaveImportedTexture(content_root, source_asset_path, texture_error);
+        if (!imported)
         {
-            std::cout << texture_error << "\n";
+            std::cout << texture_error << ": " << source_asset_path << "\n";
+
+            const String meta_path = resource::GetAssetMetaPath(source_asset_path);
+            resource::AssetMeta meta = {};
+            resource::LoadAssetMeta(meta_path, meta);
+            meta.asset_name = io::GetFilename(source_asset_path);
+            meta.asset_type = "texture";
+            meta.texture_info.import_error = texture_error;
+            resource::SaveAssetMeta(meta_path, meta);
             return 1;
         }
         return 0;

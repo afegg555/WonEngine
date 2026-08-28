@@ -1856,7 +1856,7 @@ namespace won::editor
 	static AssetImportKind GetAssetImportKind(const String& extension)
 	{
 		const String ext = won::utils::ToLower(extension);
-		if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "tga" || ext == "bmp") return AssetImportKind::Image;
+		if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "tga" || ext == "bmp" || ext == "dds") return AssetImportKind::Image;
 		if (ext == "fbx" || ext == "obj" || ext == "gltf" || ext == "glb" || ext == "stl") return AssetImportKind::Mesh;
 		return AssetImportKind::None;
 	}
@@ -1871,7 +1871,7 @@ namespace won::editor
 		auto guess_type = [](const String& extension) -> ContentAssetType
 		{
 			const String ext = won::utils::ToLower(extension);
-			if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "tga" || ext == "bmp" || ext == resource::texture_binary_extension) return ContentAssetType::Texture;
+			if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "tga" || ext == "bmp" || ext == "dds" || ext == resource::texture_binary_extension) return ContentAssetType::Texture;
 			if (ext == resource::material_binary_extension) return ContentAssetType::Material;
 			if (ext == "fbx" || ext == "obj" || ext == "gltf" || ext == "glb" || ext == "stl" || ext == resource::mesh_binary_extension) return ContentAssetType::Mesh;
 			if (ext == resource::scene_file_extension) return ContentAssetType::Scene;
@@ -1948,17 +1948,35 @@ namespace won::editor
 			if (GetAssetImportKind(extension) != AssetImportKind::None)
 			{
 				resource::AssetMeta meta = {};
-				if (resource::LoadAssetMeta(resource::GetAssetMetaPath(asset.disk_path), meta) && !meta.binary_path.empty())
+				if (resource::LoadAssetMeta(resource::GetAssetMetaPath(asset.disk_path), meta))
 				{
-					if (!io::Exists(resolve_content_path(meta.binary_path)))
+					if (!meta.binary_path.empty())
+					{
+						if (!io::Exists(resolve_content_path(meta.binary_path)))
+						{
+							asset.has_broken_reference = true;
+							asset.broken_reason = EditorText(editor_key::message_asset_binary_missing);
+						}
+						uint64 source_timestamp = 0;
+						if (io::GetLastTimestamp(asset.disk_path, &source_timestamp) && source_timestamp > meta.source_timestamp)
+						{
+							asset.needs_reimport = true;
+						}
+					}
+					if (!meta.texture_info.import_error.empty())
 					{
 						asset.has_broken_reference = true;
-						asset.broken_reason = EditorText(editor_key::message_asset_binary_missing);
+						asset.broken_reason = meta.texture_info.import_error;
 					}
-					uint64 source_timestamp = 0;
-					if (io::GetLastTimestamp(asset.disk_path, &source_timestamp) && source_timestamp > meta.source_timestamp)
+					if (meta.texture_info.width > 0)
 					{
-						asset.needs_reimport = true;
+						asset.import_info = std::to_string(meta.texture_info.width) + "x" + std::to_string(meta.texture_info.height)
+							+ "  " + meta.texture_info.format
+							+ "  mips " + std::to_string(meta.texture_info.mip_levels);
+						if (meta.texture_info.is_cube)
+						{
+							asset.import_info += "  cube";
+						}
 					}
 				}
 			}
@@ -2225,6 +2243,10 @@ namespace won::editor
 			ImGui::BeginTooltip();
 			ImGui::TextUnformatted(asset.virtual_path.c_str());
 			ImGui::TextDisabled("%s", asset.disk_path.c_str());
+			if (!asset.import_info.empty())
+			{
+				ImGui::TextDisabled("%s", asset.import_info.c_str());
+			}
 			if (asset.has_broken_reference)
 			{
 				ImGui::TextColored(to_vec4(theme::asset_broken_color), "%s", asset.broken_reason.c_str());
@@ -2441,6 +2463,15 @@ namespace won::editor
 		{
 			ImGui::OpenPopup(editor_popup_id::import_content_asset);
 			content_browser.open_import_confirm = false;
+
+			content_browser.pending_import_texture_settings = {};
+			content_browser.pending_import_texture_settings.is_srgb =
+				won::utils::ToLower(io::GetExtension(content_browser.pending_import_disk_path)) != "dds";
+			resource::AssetMeta pending_meta;
+			if (resource::LoadAssetMeta(resource::GetAssetMetaPath(content_browser.pending_import_disk_path), pending_meta))
+			{
+				content_browser.pending_import_texture_settings = pending_meta.texture;
+			}
 		}
 
 		if (ImGui::BeginPopup(editor_popup_id::import_content_asset, ImGuiWindowFlags_AlwaysAutoResize))
@@ -2448,13 +2479,33 @@ namespace won::editor
 			ImGui::TextUnformatted(EditorText(editor_key::label_import_content_asset_message));
 			ImGui::TextUnformatted(content_browser.pending_import_name.c_str());
 			ImGui::TextDisabled("%s", content_browser.pending_import_virtual_path.c_str());
-			const bool can_import = !content_browser.pending_import_disk_path.empty() && GetAssetImportKind(io::GetExtension(content_browser.pending_import_disk_path)) != AssetImportKind::None;
+			const String pending_extension = won::utils::ToLower(io::GetExtension(content_browser.pending_import_disk_path));
+			const AssetImportKind pending_kind = GetAssetImportKind(pending_extension);
+			const bool can_import = !content_browser.pending_import_disk_path.empty() && pending_kind != AssetImportKind::None;
+			if (pending_kind == AssetImportKind::Image)
+			{
+				ImGui::Separator();
+				ImGui::Checkbox(EditorText(editor_key::label_texture_srgb), &content_browser.pending_import_texture_settings.is_srgb);
+				if (pending_extension != "dds")
+				{
+					ImGui::Checkbox(EditorText(editor_key::label_texture_generate_mipmaps), &content_browser.pending_import_texture_settings.generate_mipmaps);
+				}
+				ImGui::Separator();
+			}
 			if (!can_import)
 			{
 				ImGui::BeginDisabled();
 			}
 			if (ImGui::Button(EditorText(editor_key::menu_import)))
 			{
+				if (pending_kind == AssetImportKind::Image)
+				{
+					const String meta_path = resource::GetAssetMetaPath(content_browser.pending_import_disk_path);
+					resource::AssetMeta meta;
+					resource::LoadAssetMeta(meta_path, meta);
+					meta.texture = content_browser.pending_import_texture_settings;
+					resource::SaveAssetMeta(meta_path, meta);
+				}
 				StartAssetImport(content_browser.pending_import_disk_path, content_browser.pending_import_add_to_scene);
 				content_browser.pending_import_name.clear();
 				content_browser.pending_import_virtual_path.clear();

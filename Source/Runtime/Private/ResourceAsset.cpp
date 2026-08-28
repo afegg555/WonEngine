@@ -115,33 +115,6 @@ namespace won::resource
         static_assert(sizeof(DDSHeader) == 124);
         static_assert(sizeof(DDSHeaderDXT10) == 20);
 
-        rendering::RHIFormat RHIFormatFromDXGIFormat(uint32 format)
-        {
-            switch (format)
-            {
-            case dds_dxgi_format_r16g16b16a16_float: return rendering::RHIFormat::R16G16B16A16Float;
-            case dds_dxgi_format_r8g8b8a8_unorm: return rendering::RHIFormat::R8G8B8A8Unorm;
-            case dds_dxgi_format_r8g8b8a8_unorm_srgb: return rendering::RHIFormat::R8G8B8A8UnormSrgb;
-            case dds_dxgi_format_b8g8r8a8_unorm: return rendering::RHIFormat::B8G8R8A8Unorm;
-            case dds_dxgi_format_b8g8r8a8_unorm_srgb: return rendering::RHIFormat::B8G8R8A8UnormSrgb;
-            case dds_dxgi_format_bc1_unorm: return rendering::RHIFormat::BC1Unorm;
-            case dds_dxgi_format_bc1_unorm_srgb: return rendering::RHIFormat::BC1UnormSrgb;
-            case dds_dxgi_format_bc2_unorm: return rendering::RHIFormat::BC2Unorm;
-            case dds_dxgi_format_bc2_unorm_srgb: return rendering::RHIFormat::BC2UnormSrgb;
-            case dds_dxgi_format_bc3_unorm: return rendering::RHIFormat::BC3Unorm;
-            case dds_dxgi_format_bc3_unorm_srgb: return rendering::RHIFormat::BC3UnormSrgb;
-            case dds_dxgi_format_bc4_unorm: return rendering::RHIFormat::BC4Unorm;
-            case dds_dxgi_format_bc4_snorm: return rendering::RHIFormat::BC4Snorm;
-            case dds_dxgi_format_bc5_unorm: return rendering::RHIFormat::BC5Unorm;
-            case dds_dxgi_format_bc5_snorm: return rendering::RHIFormat::BC5Snorm;
-            case dds_dxgi_format_bc6h_uf16: return rendering::RHIFormat::BC6HUf16;
-            case dds_dxgi_format_bc6h_sf16: return rendering::RHIFormat::BC6HSf16;
-            case dds_dxgi_format_bc7_unorm: return rendering::RHIFormat::BC7Unorm;
-            case dds_dxgi_format_bc7_unorm_srgb: return rendering::RHIFormat::BC7UnormSrgb;
-            default: return rendering::RHIFormat::Unknown;
-            }
-        }
-
         uint32 DXGIFormatFromRHIFormat(rendering::RHIFormat format)
         {
             switch (format)
@@ -295,6 +268,33 @@ namespace won::resource
         UnorderedMap<String, std::weak_ptr<Material>> material_cache;
     }
 
+    rendering::RHIFormat RHIFormatFromDXGIFormat(uint32 format)
+    {
+        switch (format)
+        {
+        case dds_dxgi_format_r16g16b16a16_float: return rendering::RHIFormat::R16G16B16A16Float;
+        case dds_dxgi_format_r8g8b8a8_unorm: return rendering::RHIFormat::R8G8B8A8Unorm;
+        case dds_dxgi_format_r8g8b8a8_unorm_srgb: return rendering::RHIFormat::R8G8B8A8UnormSrgb;
+        case dds_dxgi_format_b8g8r8a8_unorm: return rendering::RHIFormat::B8G8R8A8Unorm;
+        case dds_dxgi_format_b8g8r8a8_unorm_srgb: return rendering::RHIFormat::B8G8R8A8UnormSrgb;
+        case dds_dxgi_format_bc1_unorm: return rendering::RHIFormat::BC1Unorm;
+        case dds_dxgi_format_bc1_unorm_srgb: return rendering::RHIFormat::BC1UnormSrgb;
+        case dds_dxgi_format_bc2_unorm: return rendering::RHIFormat::BC2Unorm;
+        case dds_dxgi_format_bc2_unorm_srgb: return rendering::RHIFormat::BC2UnormSrgb;
+        case dds_dxgi_format_bc3_unorm: return rendering::RHIFormat::BC3Unorm;
+        case dds_dxgi_format_bc3_unorm_srgb: return rendering::RHIFormat::BC3UnormSrgb;
+        case dds_dxgi_format_bc4_unorm: return rendering::RHIFormat::BC4Unorm;
+        case dds_dxgi_format_bc4_snorm: return rendering::RHIFormat::BC4Snorm;
+        case dds_dxgi_format_bc5_unorm: return rendering::RHIFormat::BC5Unorm;
+        case dds_dxgi_format_bc5_snorm: return rendering::RHIFormat::BC5Snorm;
+        case dds_dxgi_format_bc6h_uf16: return rendering::RHIFormat::BC6HUf16;
+        case dds_dxgi_format_bc6h_sf16: return rendering::RHIFormat::BC6HSf16;
+        case dds_dxgi_format_bc7_unorm: return rendering::RHIFormat::BC7Unorm;
+        case dds_dxgi_format_bc7_unorm_srgb: return rendering::RHIFormat::BC7UnormSrgb;
+        default: return rendering::RHIFormat::Unknown;
+        }
+    }
+
     String GetAssetMetaPath(const String& source_path)
     {
         return source_path.empty() ? String() : source_path + "." + asset_metadata_extension;
@@ -322,6 +322,17 @@ namespace won::resource
             {
                 archive.Field("is_srgb", out_meta.texture.is_srgb);
                 archive.Field("generate_mipmaps", out_meta.texture.generate_mipmaps);
+                archive.EndObject();
+            }
+            if (archive.BeginObject("texture_info"))
+            {
+                archive.Field("width", out_meta.texture_info.width);
+                archive.Field("height", out_meta.texture_info.height);
+                archive.Field("mip_levels", out_meta.texture_info.mip_levels);
+                archive.Field("is_cube", out_meta.texture_info.is_cube);
+                archive.Field("format", out_meta.texture_info.format);
+                archive.Field("source_hash", out_meta.texture_info.source_hash);
+                archive.Field("import_error", out_meta.texture_info.import_error);
                 archive.EndObject();
             }
             if (archive.BeginObject("mesh"))
@@ -352,6 +363,13 @@ namespace won::resource
         uint64 source_timestamp = meta.source_timestamp;
         bool is_srgb = meta.texture.is_srgb;
         bool generate_mipmaps = meta.texture.generate_mipmaps;
+        uint32 texture_width = meta.texture_info.width;
+        uint32 texture_height = meta.texture_info.height;
+        uint32 texture_mip_levels = meta.texture_info.mip_levels;
+        bool texture_is_cube = meta.texture_info.is_cube;
+        String texture_format = meta.texture_info.format;
+        uint64 texture_source_hash = meta.texture_info.source_hash;
+        String texture_import_error = meta.texture_info.import_error;
         float mesh_scale = meta.mesh.scale;
         bool import_animations = meta.mesh.import_animations;
         bool import_normals = meta.mesh.import_normals;
@@ -367,6 +385,15 @@ namespace won::resource
         archive.BeginObject("texture");
         archive.Field("is_srgb", is_srgb);
         archive.Field("generate_mipmaps", generate_mipmaps);
+        archive.EndObject();
+        archive.BeginObject("texture_info");
+        archive.Field("width", texture_width);
+        archive.Field("height", texture_height);
+        archive.Field("mip_levels", texture_mip_levels);
+        archive.Field("is_cube", texture_is_cube);
+        archive.Field("format", texture_format);
+        archive.Field("source_hash", texture_source_hash);
+        archive.Field("import_error", texture_import_error);
         archive.EndObject();
         archive.BeginObject("mesh");
         archive.Field("scale", mesh_scale);
