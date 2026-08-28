@@ -1,0 +1,26 @@
+name: Source Ignore Guard
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  source-ignore-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fail if any file under Source/ is matched by an ignore rule
+        run: |
+          matched=$(git ls-files Source | git check-ignore --no-index -v --stdin || true)
+          if [ -n "$matched" ]; then
+            echo "These committed files are matched by an ignore rule:"
+            echo "$matched"
+            echo
+            echo "Build-output rules must be anchored to the repository root (leading '/')"
+            echo "so they cannot match directories inside Source/, including Source/Vendor."
+            exit 1
+          fi
+          echo "No committed file under Source/ is matched by an ignore rule."
