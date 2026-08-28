@@ -274,34 +274,34 @@ namespace won::jobsystem
                 }
 
                 DWORD_PTR affinity_mask = 1ull << core;
-                DWORD_PTR affinity_result = SetThreadAffinityMask(handle, affinity_mask);
+                [[maybe_unused]] DWORD_PTR affinity_result = SetThreadAffinityMask(handle, affinity_mask);
                 assert(affinity_result > 0);
 
                 if (priority == Priority::High)
                 {
-                    BOOL priority_result = SetThreadPriority(handle, THREAD_PRIORITY_NORMAL);
+                    [[maybe_unused]] BOOL priority_result = SetThreadPriority(handle, THREAD_PRIORITY_NORMAL);
                     assert(priority_result != 0);
 
                     WString thread_name = L"won::job_" + std::to_wstring(thread_id);
-                    HRESULT hr = SetThreadDescription(handle, thread_name.c_str());
+                    [[maybe_unused]] HRESULT hr = SetThreadDescription(handle, thread_name.c_str());
                     assert(SUCCEEDED(hr));
                 }
                 else if (priority == Priority::Low)
                 {
-                    BOOL priority_result = SetThreadPriority(handle, THREAD_PRIORITY_LOWEST);
+                    [[maybe_unused]] BOOL priority_result = SetThreadPriority(handle, THREAD_PRIORITY_LOWEST);
                     assert(priority_result != 0);
 
                     WString thread_name = L"won::job_lo_" + std::to_wstring(thread_id);
-                    HRESULT hr = SetThreadDescription(handle, thread_name.c_str());
+                    [[maybe_unused]] HRESULT hr = SetThreadDescription(handle, thread_name.c_str());
                     assert(SUCCEEDED(hr));
                 }
                 else if (priority == Priority::Streaming)
                 {
-                    BOOL priority_result = SetThreadPriority(handle, THREAD_PRIORITY_BELOW_NORMAL);
+                    [[maybe_unused]] BOOL priority_result = SetThreadPriority(handle, THREAD_PRIORITY_BELOW_NORMAL);
                     assert(priority_result != 0);
 
                     WString thread_name = L"won::job_st_" + std::to_wstring(thread_id);
-                    HRESULT hr = SetThreadDescription(handle, thread_name.c_str());
+                    [[maybe_unused]] HRESULT hr = SetThreadDescription(handle, thread_name.c_str());
                     assert(SUCCEEDED(hr));
                 }
 #endif
