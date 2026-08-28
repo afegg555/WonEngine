@@ -1,12 +1,15 @@
-.vs/
-Binary/
-Packages/
-CompiledShaders/
-build/
-Contents/Generated/
-Contents/Models/
-Projects/FeatureValidation/
+/.vs/
+/Binary/
+/Packages/
+/build/
+/Build/
+/Contents/Generated/
+/Contents/Models/
+/Projects/FeatureValidation/
 
-*.ini
+Projects/*/CompiledShaders/
+
 *.log
 log.txt
+EditorLayout.ini
+imgui.ini
