@@ -123,17 +123,17 @@ void main(uint3 dispatch_thread_id : SV_DispatchThreadID,
 
     float blend = 0.0f;
     float3 history_ycocg = current_ycocg;
-    if (taacb.history_valid != 0)
+    if (taacb.history_valid != 0) // has history
     {
-        const float4 previous_clip = mul(GetCamera().previous_view_projection, float4(world_position, 1.0f));
-        if (previous_clip.w > 0.0f)
+        const float4 previous_clip = mul(GetCamera().previous_view_projection, float4(world_position, 1.0f)); // prev clip space position of this world pos
+        if (previous_clip.w > 0.0f) // ahead of camera
         {
             const float2 previous_ndc = previous_clip.xy / previous_clip.w;
             const float2 previous_uv = NDCToScreenUV(previous_ndc);
-            if (all(previous_uv > 0.0f) && all(previous_uv < 1.0f))
+            if (all(previous_uv > 0.0f) && all(previous_uv < 1.0f)) // in screen
             {
                 const float previous_view_depth = dot(world_position - GetCamera().previous_position, GetCamera().previous_forward);
-                const float stored_view_depth = depth_history.SampleLevel(sampler_point_clamp, previous_uv, 0).r;
+                const float stored_view_depth = depth_history.SampleLevel(sampler_point_clamp, previous_uv, 0).r; // prev position
                 const float depth_tolerance = taa_depth_reject_absolute + taa_depth_reject_relative * abs(previous_view_depth);
                 if (abs(previous_view_depth - stored_view_depth) <= depth_tolerance)
                 {
@@ -141,6 +141,7 @@ void main(uint3 dispatch_thread_id : SV_DispatchThreadID,
                     history_ycocg = TAAClipToAABB(RGBToYCoCg(TAALuminanceCompress(history_rgb)), clip_min, clip_max);
                     blend = taacb.history_blend;
                 }
+                // blend = 0 for disocclusion
             }
         }
     }
