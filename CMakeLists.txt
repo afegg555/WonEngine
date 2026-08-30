@@ -485,6 +485,7 @@ set(SHADERS_HLSL
     Source/Shaders/FullTriangleVS.hlsl
     Source/Shaders/SkyPS.hlsl
     Source/Shaders/FXAACS.hlsl
+    Source/Shaders/TAACS.hlsl
     Source/Shaders/TonemapCS.hlsl
     Source/Shaders/LuminanceReduceCS.hlsl
     Source/Shaders/LuminanceResolveCS.hlsl

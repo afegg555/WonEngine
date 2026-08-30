@@ -44,8 +44,7 @@ namespace won::settings
         }
         if (const char* string_value = configuration.GetString("aa_mode"))
         {
-            const String aa_mode = string_value;
-            out_settings.aa_mode = aa_mode == "FXAA" ? rendering::AntiAliasingMode::FXAA : rendering::AntiAliasingMode::None;
+            out_settings.aa_mode = rendering::ParseAntiAliasingMode(string_value);
         }
         if (configuration.GetFloat("shadow_resolution_scale", float_value))
         {
@@ -73,7 +72,7 @@ namespace won::settings
         }
         if (settings.aa_mode.has_value())
         {
-            configuration.SetString("aa_mode", settings.aa_mode.value() == rendering::AntiAliasingMode::FXAA ? "FXAA" : "None");
+            configuration.SetString("aa_mode", rendering::ToString(settings.aa_mode.value()));
         }
         if (settings.shadow_resolution_scale.has_value())
         {

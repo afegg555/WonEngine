@@ -176,7 +176,7 @@ inline float SampleDirectionalShadowCascade(in ShaderShadowCascade cascade, in f
 
     float4 shadow_pos = mul(cascade.shadow_view_projection, float4(world_position, 1.0f));
     float3 shadow_ndc = shadow_pos.xyz / shadow_pos.w;
-    float2 shadow_uv = shadow_ndc.xy * float2(0.5f, -0.5f) + 0.5f;
+    float2 shadow_uv = NDCToScreenUV(shadow_ndc.xy);
 
     if (shadow_uv.x < 0.0f || shadow_uv.x > 1.0f ||
         shadow_uv.y < 0.0f || shadow_uv.y > 1.0f ||

@@ -243,13 +243,11 @@ namespace won::project
         }
         if (const char* string_value = configuration.GetString("aa_mode"))
         {
-            String aa_mode = string_value;
-            settings.aa_mode = aa_mode == "FXAA" ? rendering::AntiAliasingMode::FXAA : rendering::AntiAliasingMode::None;
+            settings.aa_mode = rendering::ParseAntiAliasingMode(string_value);
         }
         if (const char* string_value = configuration.GetString("tonemap_mode"))
         {
-            String tonemap_mode = string_value;
-            settings.tonemap_mode = tonemap_mode == "ACES" ? rendering::TonemapMode::ACES : rendering::TonemapMode::Reinhard;
+            settings.tonemap_mode = rendering::ParseTonemapMode(string_value);
         }
         if (configuration.GetBool("splash_enabled", bool_value))
         {
@@ -355,8 +353,8 @@ namespace won::project
         configuration.SetFloat("clear_color_r", settings.clear_color.r);
         configuration.SetFloat("clear_color_g", settings.clear_color.g);
         configuration.SetFloat("clear_color_b", settings.clear_color.b);
-        configuration.SetString("aa_mode", settings.aa_mode == rendering::AntiAliasingMode::FXAA ? "FXAA" : "None");
-        configuration.SetString("tonemap_mode", settings.tonemap_mode == rendering::TonemapMode::ACES ? "ACES" : "Reinhard");
+        configuration.SetString("aa_mode", rendering::ToString(settings.aa_mode));
+        configuration.SetString("tonemap_mode", rendering::ToString(settings.tonemap_mode));
         configuration.SetBool("splash_enabled", settings.splash_enabled);
         configuration.SetString("splash_title", settings.splash_title.c_str());
         configuration.SetString("splash_status", settings.splash_status.c_str());

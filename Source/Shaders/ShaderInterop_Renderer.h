@@ -815,6 +815,14 @@ struct alignas(16) ShaderCamera
     float _camera_padding0;
     uint2 viewport_offset;
 
+    float4x4 previous_view_projection;
+
+    float3 previous_position;
+    float jitter_x;
+
+    float3 previous_forward;
+    float jitter_y;
+
 #ifdef __cplusplus
     inline void Init()
     {
@@ -825,7 +833,11 @@ struct alignas(16) ShaderCamera
         exposure = 1.0f;
         _camera_padding0 = 0.0f;
         viewport_offset = { 0, 0 };
-
+        previous_view_projection = won::math::IDENTITY_MATRIX;
+        previous_position = { 0.0f, 0.0f, 0.0f };
+        jitter_x = 0.0f;
+        previous_forward = { 0.0f, 0.0f, 1.0f };
+        jitter_y = 0.0f;
     }
 #endif
 };
@@ -1165,8 +1177,8 @@ static_assert(sizeof(ShaderWaterBody) == 144, "ShaderWaterBody layout mismatch")
 static_assert(sizeof(ShaderWaterZone) == 80, "ShaderWaterZone layout mismatch");
 static_assert(sizeof(ShaderWaterTile) == 16, "ShaderWaterTile layout mismatch");
 static_assert(sizeof(ShaderFrame) == 448, "ShaderFrame layout mismatch");
-static_assert(sizeof(ShaderCamera) == 336, "ShaderCamera layout mismatch");
-static_assert(sizeof(ShaderView) == 400, "ShaderView layout mismatch");
+static_assert(sizeof(ShaderCamera) == 432, "ShaderCamera layout mismatch");
+static_assert(sizeof(ShaderView) == 496, "ShaderView layout mismatch");
 static_assert(sizeof(ShaderLight) == 64, "ShaderLight layout mismatch");
 static_assert(sizeof(ShaderShadowCascade) == 96, "ShaderShadowCascade layout mismatch");
 static_assert(sizeof(ObjectPushConstants) == 16, "ObjectPushConstants layout mismatch");

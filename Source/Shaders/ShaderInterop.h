@@ -47,7 +47,7 @@ static const float PI = won::math::PI;
 
 // On demand buffers:
 // These are bound on demand and alive until another is bound at the same slot
-#define CBSLOT_RENDERER_FORWARD_LIGHTMASK		2
+#define CBSLOT_RENDERER_PASS					2
 #define CBSLOT_RENDERER_VOLUMELIGHT				3
 #define CBSLOT_RENDERER_VOXELIZER				3
 #define CBSLOT_RENDERER_TRACED					2

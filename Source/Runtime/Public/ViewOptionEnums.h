@@ -13,7 +13,8 @@ namespace won::rendering
     {
         None,
         FXAA,
-        // TAA, MSAA: future
+        TAA,
+        // MSAA: needed?
     };
 
     enum class TonemapMode : uint8
@@ -58,4 +59,55 @@ namespace won::rendering
 
         Show_Default = Show_Opaque | Show_Transparent | Show_Decals | Show_Particles | Show_Sprites3D | Show_Sprites2D | Show_Shadows | Show_Water,
     };
+}
+
+
+namespace won::rendering
+{
+    inline const char* ToString(AntiAliasingMode mode)
+    {
+        switch (mode)
+        {
+        case AntiAliasingMode::FXAA:
+            return "FXAA";
+        case AntiAliasingMode::TAA:
+            return "TAA";
+        default:
+            return "None";
+        }
+    }
+
+    inline AntiAliasingMode ParseAntiAliasingMode(const String& name)
+    {
+        if (name == "FXAA")
+        {
+            return AntiAliasingMode::FXAA;
+        }
+        if (name == "TAA")
+        {
+            return AntiAliasingMode::TAA;
+        }
+        return AntiAliasingMode::None;
+    }
+
+    inline const char* ToString(TonemapMode mode)
+    {
+        switch (mode)
+        {
+        case TonemapMode::ACES:
+            return "ACES";
+        default:
+            return "Reinhard";
+        }
+    }
+
+    inline TonemapMode ParseTonemapMode(const String& name)
+    {
+        if (name == "ACES")
+        {
+            return TonemapMode::ACES;
+        }
+        return TonemapMode::Reinhard;
+    }
+
 }

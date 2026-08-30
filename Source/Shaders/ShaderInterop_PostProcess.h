@@ -29,6 +29,47 @@ static_assert(sizeof(FXAAPushConstants) == 24, "FXAAPushConstants layout mismatc
 PUSHCONSTANT(fxaapush, FXAAPushConstants);
 #endif
 
+struct TAAConstants
+{
+    uint current_descriptor;
+    uint history_descriptor;
+    uint output_descriptor;
+    uint history_output_descriptor;
+
+    uint depth_descriptor;
+    uint depth_history_descriptor;
+    uint depth_history_output_descriptor;
+    uint history_valid;
+
+    uint2 resolution;
+    float history_blend;
+    float padding;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        current_descriptor = 0;
+        history_descriptor = 0;
+        output_descriptor = 0;
+        history_output_descriptor = 0;
+        depth_descriptor = 0;
+        depth_history_descriptor = 0;
+        depth_history_output_descriptor = 0;
+        history_valid = 0;
+        resolution = uint2(0, 0);
+        history_blend = 0.9f;
+    }
+#endif
+};
+
+#ifdef __cplusplus
+static_assert(sizeof(TAAConstants) == 48, "TAAConstants layout mismatch");
+#endif
+
+#ifdef WON_TAA_CONSTANTBUFFER
+CONSTANTBUFFER(taacb, TAAConstants, CBSLOT_RENDERER_PASS);
+#endif
+
 struct CompositePushConstants
 {
     uint input_descriptor;

@@ -73,6 +73,7 @@ namespace won::rendering
         // Applied to every pass command list opened after this call; passes only override it when they need a sub-rect.
         void SetDefaultViewport(const RHIViewport& viewport, const RHIRect& scissor);
 
+        // Note: currently ShaderFrame should be read in all passes, so we don't add it to accesses.
         void AddPass(const char* name, Vector<FrameResourceAccess> accesses, std::function<void(const FrameGraphPassContext&)> execute);
 
         void Compile();

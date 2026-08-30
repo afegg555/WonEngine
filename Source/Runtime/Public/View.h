@@ -140,10 +140,10 @@ namespace won::rendering
 
         struct RenderTargets
         {
-            FrameGraphResourceRef color[2] = { invalid_frame_resource, invalid_frame_resource };
-            RHISubresourceHandle color_rtv[2] = {};
-            RHISubresourceHandle color_srv[2] = {};
-            RHISubresourceHandle color_uav[2] = {};
+            FrameGraphResourceRef scene_color = invalid_frame_resource;
+            RHISubresourceHandle scene_color_rtv = {};
+            RHISubresourceHandle scene_color_srv = {};
+            RHISubresourceHandle scene_color_uav = {};
 
             FrameGraphResourceRef depth = invalid_frame_resource;
             RHISubresourceHandle depth_dsv = {};
@@ -161,11 +161,30 @@ namespace won::rendering
         {
             std::unique_ptr<RHIResource> buffer;
             RHISubresourceHandle cbv = {};
+            ShaderCamera camera = {};
         };
 
         struct ExposureResources
         {
             std::unique_ptr<RHIResource> luminance_readback_buffer;
+            float measured_luminance = -1.0f;
+        };
+
+        struct TemporalAAResources
+        {
+            std::unique_ptr<RHIResource> history_texture[2] = {};
+            RHISubresourceHandle history_srv[2] = {};
+            RHISubresourceHandle history_uav[2] = {};
+            std::unique_ptr<RHIResource> depth_history_texture[2] = {};
+            RHISubresourceHandle depth_history_srv[2] = {};
+            RHISubresourceHandle depth_history_uav[2] = {};
+            float4x4 previous_view_projection = math::IDENTITY_MATRIX;
+            float3 previous_position = { 0.0f, 0.0f, 0.0f };
+            float3 previous_forward = { 0.0f, 0.0f, 1.0f };
+            ecs::Entity history_camera_entity = ecs::INVALID_ENTITY;
+            uint32 history_index = 0; // = read_index    write_index = read_index ^ 1u
+            uint32 jitter_index = 0;
+            bool history_valid = false;
         };
 
         struct WaterResources
@@ -183,6 +202,7 @@ namespace won::rendering
         };
 
         ecs::Entity camera_entity = {};
+        ecs::CameraComponent cached_camera = {};
         uint32 viewer_index = 0;
         bool manual_camera = false;
         ecs::Scene* scene = nullptr;
@@ -194,6 +214,7 @@ namespace won::rendering
         RenderTargets render_targets = {};
         ViewConstants view_constants = {};
         ExposureResources exposure_resources = {};
+        TemporalAAResources temporal_aa_resources = {};
         WaterResources water_resources = {};
         LightResources light_resources = {};
         ShadowResources shadow_resources = {};

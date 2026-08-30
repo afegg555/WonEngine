@@ -43,6 +43,9 @@ namespace won::rendering
 {
     namespace
     {
+        constexpr uint32 temporal_jitter_sample_count = 8;
+        constexpr float temporal_history_blend = 0.9f;
+
         RHIPrimitiveTopology ToRHIPrimitiveTopology(resource::PrimitiveTopology topology)
         {
             switch (topology)
@@ -140,7 +143,7 @@ namespace won::rendering
         return true;
     }
 
-    bool RendererInternal::UpdateFrameConstants(FrameContext& frame_context, const View& view)
+    bool RendererInternal::UpdateFrameConstants(FrameContext& frame_context, View& view)
     {
         ShaderFrame shader_frame{};
         shader_frame.Init();
@@ -212,30 +215,53 @@ namespace won::rendering
         shader_frame.ddgi_volume.probes_per_frame = gpu_scene.ddgi.history_valid ? (std::min)(shader_frame.ddgi_volume.probes_per_frame, shader_frame.ddgi_volume.total_probe_count) : shader_frame.ddgi_volume.total_probe_count;
         shader_frame.ddgi_volume.probe_update_dispatch_width = (std::min)(shader_frame.ddgi_volume.probes_per_frame, 65535u);
 
-        ShaderCamera& shader_camera = shader_view.camera;
+        ShaderCamera& shader_camera = view.view_constants.camera;
+        shader_camera.Init();
         if (view.camera_entity != ecs::INVALID_ENTITY)
         {
-            const ecs::CameraComponent* camera_component = view.scene->GetComponent<ecs::CameraComponent>(view.camera_entity);
-            if (camera_component)
+            const ecs::CameraComponent& camera = view.cached_camera;
+            shader_camera.position = camera.eye;
+            shader_camera.forward = camera.forward;
+            shader_camera.up = camera.up;
+            shader_camera.z_near = camera.near_plane;
+            shader_camera.z_far = camera.far_plane;
+            shader_camera.internal_resolution = { static_cast<uint32>(view.viewport.width), static_cast<uint32>(view.viewport.height) };
+            shader_camera.internal_resolution_rcp = {
+                view.viewport.width > 0 ? 1.0f / static_cast<float>(view.viewport.width) : 0.0f,
+                view.viewport.height > 0 ? 1.0f / static_cast<float>(view.viewport.height) : 0.0f
+            };
+            shader_camera.viewport_offset = { static_cast<uint32>(view.viewport.x), static_cast<uint32>(view.viewport.y) };
+            shader_camera.view = camera.view;
+            shader_camera.projection = camera.projection;
+            shader_camera.view_projection = camera.view_projection;
+            shader_camera.inv_view_projection = camera.inv_view_projection;
+            shader_camera.exposure = camera.exposure_multiplier * std::exp2(camera.exposure_compensation);
+
+            View::TemporalAAResources& temporal_aa = view.temporal_aa_resources;
+            if (temporal_aa.history_texture[0] && view.options.aa_mode == AntiAliasingMode::TAA)
             {
-                shader_camera.position = camera_component->eye;
-                shader_camera.forward = camera_component->forward;
-                shader_camera.up = camera_component->up;
-                shader_camera.z_near = camera_component->near_plane;
-                shader_camera.z_far = camera_component->far_plane;
-                shader_camera.internal_resolution = { static_cast<uint32>(view.viewport.width), static_cast<uint32>(view.viewport.height) };
-                shader_camera.internal_resolution_rcp = {
-                    view.viewport.width > 0 ? 1.0f / static_cast<float>(view.viewport.width) : 0.0f,
-                    view.viewport.height > 0 ? 1.0f / static_cast<float>(view.viewport.height) : 0.0f
+                const float2 halton = math::Halton2D(temporal_aa.jitter_index + 1); // [0, 1) pixel
+                const float2 jitter = {
+                    (halton.x - 0.5f) * 2.0f / static_cast<float>(view.render_targets.width), // [-0.5, 0.5) pixel
+                    -(halton.y - 0.5f) * 2.0f / static_cast<float>(view.render_targets.height) // multiply (2 / width) for pixel -> NDC size
                 };
-                shader_camera.viewport_offset = { static_cast<uint32>(view.viewport.x), static_cast<uint32>(view.viewport.y) };
-                shader_camera.view = camera_component->view;
-                shader_camera.projection = camera_component->projection;
-                shader_camera.view_projection = camera_component->view_projection;
-                shader_camera.inv_view_projection = camera_component->inv_view_projection;
-				shader_camera.exposure = camera_component->exposure_multiplier * std::exp2(camera_component->exposure_compensation);
+                shader_camera.jitter_x = jitter.x;
+                shader_camera.jitter_y = jitter.y;
+                const XMMATRIX jittered_projection = XMMatrixMultiply(XMLoadFloat4x4(&camera.projection), XMMatrixTranslation(jitter.x, jitter.y, 0.0f));
+                const XMMATRIX jittered_view_projection = XMMatrixMultiply(XMLoadFloat4x4(&camera.view), jittered_projection);
+                XMStoreFloat4x4(&shader_camera.projection, jittered_projection);
+                XMStoreFloat4x4(&shader_camera.view_projection, jittered_view_projection);
+                XMStoreFloat4x4(&shader_camera.inv_view_projection, XMMatrixInverse(nullptr, jittered_view_projection));
+                temporal_aa.jitter_index = (temporal_aa.jitter_index + 1) % temporal_jitter_sample_count;
             }
+            shader_camera.previous_view_projection = temporal_aa.previous_view_projection;
+            shader_camera.previous_position = temporal_aa.previous_position;
+            shader_camera.previous_forward = temporal_aa.previous_forward;
+            temporal_aa.previous_view_projection = camera.view_projection;
+            temporal_aa.previous_position = camera.eye;
+            temporal_aa.previous_forward = camera.forward;
         }
+        shader_view.camera = shader_camera;
 
         const FrameResourceId frame_constants_id = frame_graph.Import(*shader_frame_buffer);
         frame_graph.MarkNoCull(frame_constants_id);
@@ -1006,7 +1032,6 @@ namespace won::rendering
         depth_subresource_desc.type = RHISubresourceType::ShaderResource;
         targets.depth_srv = frame_graph.CreateSubresource(targets.depth, depth_subresource_desc);
 
-        for (uint32 i = 0; i < 2; ++i)
         {
             RHITextureDesc color_desc = {};
             color_desc.width = width;
@@ -1022,7 +1047,7 @@ namespace won::rendering
             color_desc.clear_color[1] = clear_color.g;
             color_desc.clear_color[2] = clear_color.b;
             color_desc.clear_color[3] = clear_color.a;
-            targets.color[i] = frame_graph.CreateTexture(view.viewer_index, i == 0 ? "View Color Buffer" : "View Post Color Buffer", color_desc);
+            targets.scene_color = frame_graph.CreateTexture(view.viewer_index, "View Color Buffer", color_desc);
 
             RHISubresourceDesc srv_desc = {};
             srv_desc.type = RHISubresourceType::ShaderResource;
@@ -1037,9 +1062,114 @@ namespace won::rendering
             rtv_desc.type = RHISubresourceType::RenderTarget;
             rtv_desc.format = color_desc.format;
 
-            targets.color_srv[i] = frame_graph.CreateSubresource(targets.color[i], srv_desc);
-            targets.color_uav[i] = frame_graph.CreateSubresource(targets.color[i], uav_desc);
-            targets.color_rtv[i] = frame_graph.CreateSubresource(targets.color[i], rtv_desc);
+            targets.scene_color_srv = frame_graph.CreateSubresource(targets.scene_color, srv_desc);
+            targets.scene_color_uav = frame_graph.CreateSubresource(targets.scene_color, uav_desc);
+            targets.scene_color_rtv = frame_graph.CreateSubresource(targets.scene_color, rtv_desc);
+        }
+
+        View::TemporalAAResources& temporal_aa = view.temporal_aa_resources;
+        const bool temporal_aa_requested = view.options.aa_mode == AntiAliasingMode::TAA;
+        const bool history_size_matches = temporal_aa.history_texture[0]
+            && temporal_aa.history_texture[0]->GetDesc().texture_desc.width == width
+            && temporal_aa.history_texture[0]->GetDesc().texture_desc.height == height;
+        if (temporal_aa.history_camera_entity != view.camera_entity || !history_size_matches)
+        {
+            temporal_aa.history_camera_entity = view.camera_entity;
+            temporal_aa.history_valid = false;
+        }
+
+        if (!temporal_aa_requested || !history_size_matches)
+        {
+            for (uint32 i = 0; i < 2; ++i)
+            {
+                if (temporal_aa.history_texture[i])
+                {
+                    frame_context.RemoveResourceDeferred(std::move(temporal_aa.history_texture[i]));
+                }
+                if (temporal_aa.depth_history_texture[i])
+                {
+                    frame_context.RemoveResourceDeferred(std::move(temporal_aa.depth_history_texture[i]));
+                }
+                temporal_aa.history_srv[i] = {};
+                temporal_aa.history_uav[i] = {};
+                temporal_aa.depth_history_srv[i] = {};
+                temporal_aa.depth_history_uav[i] = {};
+            }
+        }
+
+        if (temporal_aa_requested && !temporal_aa.history_texture[0])
+        {
+            RHITextureDesc history_desc = {};
+            history_desc.width = width;
+            history_desc.height = height;
+            history_desc.depth = 1;
+            history_desc.mip_levels = 1;
+            history_desc.array_layers = 1;
+            history_desc.sample_count = 1;
+            history_desc.format = HDR_COLOR_BUFFER_FORMAT;
+            history_desc.usage = RHIResourceUsage::Default;
+            history_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
+
+            RHISubresourceDesc history_srv_desc = {};
+            history_srv_desc.type = RHISubresourceType::ShaderResource;
+            history_srv_desc.format = history_desc.format;
+            history_srv_desc.first_mip = 0;
+            history_srv_desc.mip_count = 1;
+            history_srv_desc.first_slice = 0;
+            history_srv_desc.slice_count = 1;
+            RHISubresourceDesc history_uav_desc = history_srv_desc;
+            history_uav_desc.type = RHISubresourceType::UnorderedAccess;
+
+            RHITextureDesc depth_history_desc = history_desc;
+            depth_history_desc.format = RHIFormat::R32Float;
+
+            RHISubresourceDesc depth_history_srv_desc = history_srv_desc;
+            depth_history_srv_desc.format = depth_history_desc.format;
+            RHISubresourceDesc depth_history_uav_desc = history_uav_desc;
+            depth_history_uav_desc.format = depth_history_desc.format;
+
+            bool history_created = true;
+            for (uint32 i = 0; i < 2 && history_created; ++i)
+            {
+                temporal_aa.history_texture[i] = device->CreateTexture(history_desc);
+                temporal_aa.depth_history_texture[i] = device->CreateTexture(depth_history_desc);
+                if (!temporal_aa.history_texture[i] || !temporal_aa.depth_history_texture[i])
+                {
+                    history_created = false;
+                    break;
+                }
+                temporal_aa.history_texture[i]->SetName(i == 0 ? "TAA History 0" : "TAA History 1");
+                temporal_aa.depth_history_texture[i]->SetName(i == 0 ? "TAA Depth History 0" : "TAA Depth History 1");
+                history_created = device->CreateSubresource(*temporal_aa.history_texture[i], history_srv_desc, &temporal_aa.history_srv[i])
+                    && device->CreateSubresource(*temporal_aa.history_texture[i], history_uav_desc, &temporal_aa.history_uav[i])
+                    && device->CreateSubresource(*temporal_aa.depth_history_texture[i], depth_history_srv_desc, &temporal_aa.depth_history_srv[i])
+                    && device->CreateSubresource(*temporal_aa.depth_history_texture[i], depth_history_uav_desc, &temporal_aa.depth_history_uav[i]);
+            }
+
+            if (history_created)
+            {
+                temporal_aa.history_index = 0;
+                temporal_aa.jitter_index = 0;
+            }
+            else
+            {
+                for (uint32 i = 0; i < 2; ++i)
+                {
+                    if (temporal_aa.history_texture[i])
+                    {
+                        frame_context.RemoveResourceDeferred(std::move(temporal_aa.history_texture[i]));
+                    }
+                    if (temporal_aa.depth_history_texture[i])
+                    {
+                        frame_context.RemoveResourceDeferred(std::move(temporal_aa.depth_history_texture[i]));
+                    }
+                    temporal_aa.history_srv[i] = {};
+                    temporal_aa.history_uav[i] = {};
+                    temporal_aa.depth_history_srv[i] = {};
+                    temporal_aa.depth_history_uav[i] = {};
+                }
+                backlog::Post("TAA history allocation failed, temporal anti-aliasing is disabled for this view", backlog::LogLevel::Warning);
+            }
         }
 
         rendering::GPUScene& gpu_scene = view.scene->GetGPUScene();
@@ -2617,28 +2747,13 @@ namespace won::rendering
         }
         
         // TODO : check fence
-        if (ecs::CameraComponent* exposure_camera = view.scene->GetComponent<ecs::CameraComponent>(view.camera_entity))
         {
             View::ExposureResources& exposure = view.exposure_resources;
-            if (exposure_camera->IsAutoExposure() && exposure.luminance_readback_buffer)
+            if (exposure.luminance_readback_buffer)
             {
-                const float* mapped_luminance = static_cast<const float*>(exposure.luminance_readback_buffer->GetMappedData());
-                if (mapped_luminance)
+                if (const float* mapped_luminance = static_cast<const float*>(exposure.luminance_readback_buffer->GetMappedData()))
                 {
-                    const float measured = (std::max)(1e-4f, mapped_luminance[0]);
-
-                    // measured(y) = scene luminance(k) * current_exposure(x)
-                    // if we want to make measured as 0.18(middle gray)
-                    // (left) y * (0.18 / y) = 0.18
-                    // (right) k * x * (0.18 / y)
-
-                    // target_exposure(x') = x * (0.18 / y)
-                    float target = exposure_camera->exposure_multiplier * (ecs::CameraComponent::auto_exposure_target / measured);
-                    const float exposure_low = ecs::CameraComponent::ExposureFromEV100(exposure_camera->auto_exposure_max_ev);
-                    const float exposure_high = ecs::CameraComponent::ExposureFromEV100(exposure_camera->auto_exposure_min_ev);
-                    target = (std::min)((std::max)(target, exposure_low), exposure_high);
-                    const float lerp_factor = (std::min)(1.0f, (std::max)(0.0f, exposure_camera->auto_exposure_speed * 0.02f));
-                    exposure_camera->exposure_multiplier += (target - exposure_camera->exposure_multiplier) * lerp_factor;
+                    exposure.measured_luminance = mapped_luminance[0];
                 }
             }
         }
@@ -3001,14 +3116,11 @@ namespace won::rendering
         View::RenderTargets& targets = view.render_targets;
         View::ExposureResources& exposure = view.exposure_resources;
         if (targets.depth == invalid_frame_resource
-            || targets.color[0] == invalid_frame_resource
-            || targets.color[1] == invalid_frame_resource)
+            || targets.scene_color == invalid_frame_resource)
         {
             return;
         }
 
-        // The scene always renders into the view's color[0]; the post chain ping-pongs between the
-        // view targets and the result is composited into the backbuffer at the view's viewport rect.
         RHISubresourceBinding shader_frame_binding = {};
         shader_frame_binding.resource = shader_frame_buffer.get();
         shader_frame_binding.subresource = shader_frame_buffer_cbv;
@@ -3045,19 +3157,16 @@ namespace won::rendering
             });
         }
 
-        const FrameResourceId depth_id = targets.depth;
-        const FrameResourceId color_id[2] = { targets.color[0], targets.color[1] };
-        const FrameResourceId scene_color_id = color_id[0];
         const FrameResourceId back_buffer_id = frame_graph.Import(*back_buffer_binding.resource);
         FrameResourceId shadow_atlas_id = invalid_frame_resource;
 
 
         frame_graph.AddPass("Clear View Targets",
-            { { scene_color_id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::Write },
-              { depth_id, RHIResourceState::DepthWrite, FrameResourceAccess::Type::Write } },
+            { { targets.scene_color, RHIResourceState::RenderTarget, FrameResourceAccess::Type::Write },
+              { targets.depth, RHIResourceState::DepthWrite, FrameResourceAccess::Type::Write } },
             [this, &targets, viewport, scissor](const FrameGraphPassContext& pass_context)
         {
-            pass_context.command_list->ClearRenderTarget({ pass_context.GetResource(targets.color[0]), targets.color_rtv[0] }, clear_color);
+            pass_context.command_list->ClearRenderTarget({ pass_context.GetResource(targets.scene_color), targets.scene_color_rtv }, clear_color);
             pass_context.command_list->ClearDepthStencil({ pass_context.GetResource(targets.depth), targets.depth_dsv }, 0.0f, 0u);
             pass_context.command_list->SetViewport(viewport);
             pass_context.command_list->SetScissor(scissor);
@@ -3065,7 +3174,7 @@ namespace won::rendering
 
         if (gpu_scene.shader_environment.sky_type != SHADER_SKY_TYPE_NONE)
         {
-            frame_graph.AddPass("Sky Pass", { { scene_color_id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::Write }, view_constants_read },
+            frame_graph.AddPass("Sky Pass", { { targets.scene_color, RHIResourceState::RenderTarget, FrameResourceAccess::Type::Write }, view_constants_read },
                 [this, &view, &targets, viewport, scissor, shader_frame_binding](const FrameGraphPassContext& pass_context)
             {
                 auto gpu_range = profiler::ScopedRangeGPU("Sky Pass", (*pass_context.command_list));
@@ -3073,7 +3182,7 @@ namespace won::rendering
                 const RHISubresourceBinding shader_view_binding = { view.view_constants.buffer.get(), view.view_constants.cbv };
                 command_list->SetViewport(viewport);
                 command_list->SetScissor(scissor);
-                command_list->SetRenderTargets({ { pass_context.GetResource(targets.color[0]), targets.color_rtv[0] } }, nullptr);
+                command_list->SetRenderTargets({ { pass_context.GetResource(targets.scene_color), targets.scene_color_rtv } }, nullptr);
                 GraphicsPipelineHash sky_pipeline_hash = {};
                 sky_pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::SkyPass);
                 sky_pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
@@ -3157,37 +3266,7 @@ namespace won::rendering
                 }
 
                 command_list->BeginEvent("Restore Render State");
-                ShaderCamera shader_camera{};
-                shader_camera.Init();
-                shader_camera.view = IDENTITY_MATRIX;
-                shader_camera.projection = IDENTITY_MATRIX;
-                shader_camera.view_projection = IDENTITY_MATRIX;
-                shader_camera.inv_view_projection = IDENTITY_MATRIX;
-                if (view.camera_entity != ecs::INVALID_ENTITY)
-                {
-                    const ecs::CameraComponent* camera_component = view.scene->GetComponent<ecs::CameraComponent>(view.camera_entity);
-                    if (camera_component)
-                    {
-                        shader_camera.position = camera_component->eye;
-                        shader_camera.forward = camera_component->forward;
-                        shader_camera.up = camera_component->up;
-                        shader_camera.z_near = camera_component->near_plane;
-                        shader_camera.z_far = camera_component->far_plane;
-                        shader_camera.internal_resolution = { static_cast<uint32>(view.viewport.width), static_cast<uint32>(view.viewport.height) };
-                        shader_camera.internal_resolution_rcp = {
-                            view.viewport.width > 0 ? 1.0f / static_cast<float>(view.viewport.width) : 0.0f,
-                            view.viewport.height > 0 ? 1.0f / static_cast<float>(view.viewport.height) : 0.0f
-                        };
-                        shader_camera.viewport_offset = { static_cast<uint32>(view.viewport.x), static_cast<uint32>(view.viewport.y) };
-                        shader_camera.view = camera_component->view;
-                        shader_camera.projection = camera_component->projection;
-                        shader_camera.view_projection = camera_component->view_projection;
-                        shader_camera.inv_view_projection = camera_component->inv_view_projection;
-                        shader_camera.exposure = camera_component->exposure_multiplier * std::exp2(camera_component->exposure_compensation);
-                    }
-                }
-
-                if (!UpdateDefaultBuffer(frame_context, *view_constants_resource, &shader_camera, sizeof(ShaderCamera), RHIResourceState::ConstantBuffer, 0, *command_list))
+                if (!UpdateDefaultBuffer(frame_context, *view_constants_resource, &view.view_constants.camera, sizeof(ShaderCamera), RHIResourceState::ConstantBuffer, 0, *command_list))
                 {
                     return;
                 }
@@ -3304,7 +3383,7 @@ namespace won::rendering
         // depth only prepass
         if ((view.show_flags & Show_Opaque) != 0)
         {
-            frame_graph.AddPass("Depth Only Prepass", { { depth_id, RHIResourceState::DepthWrite, FrameResourceAccess::Type::ReadWrite }, view_constants_read, sort_buffer_read },
+            frame_graph.AddPass("Depth Only Prepass", { { targets.depth, RHIResourceState::DepthWrite, FrameResourceAccess::Type::ReadWrite }, view_constants_read, sort_buffer_read },
                 [this, &view, &targets, &frame_context, viewport, scissor](const FrameGraphPassContext& pass_context)
             {
                 auto gpu_range = profiler::ScopedRangeGPU("Depth Only Prepass", (*pass_context.command_list));
@@ -3385,8 +3464,8 @@ namespace won::rendering
             Vector<FrameResourceAccess> main_pass_accesses = {
                 view_constants_read,
                 sort_buffer_read,
-                { scene_color_id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite },
-				{ depth_id, RHIResourceState::DepthWrite, FrameResourceAccess::Type::ReadWrite }, // depth buffer is written in the main pass for transparent or masked objects
+                { targets.scene_color, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite },
+				{ targets.depth, RHIResourceState::DepthWrite, FrameResourceAccess::Type::ReadWrite }, // depth buffer is written in the main pass for transparent or masked objects
             };
             if (shadow_atlas_id != invalid_frame_resource)
             {
@@ -3420,7 +3499,7 @@ namespace won::rendering
                 const RHISubresourceBinding depth_binding = { pass_context.GetResource(targets.depth), targets.depth_dsv };
                 pass_context.command_list->SetViewport(viewport);
                 pass_context.command_list->SetScissor(scissor);
-                pass_context.command_list->SetRenderTargets({ { pass_context.GetResource(targets.color[0]), targets.color_rtv[0] } }, &depth_binding);
+                pass_context.command_list->SetRenderTargets({ { pass_context.GetResource(targets.scene_color), targets.scene_color_rtv } }, &depth_binding);
                 DrawScene(frame_context, view, RenderPassType::MainPass, main_pass_flags, (*pass_context.command_list));
             });
         }
@@ -3429,20 +3508,15 @@ namespace won::rendering
             && (view.show_flags & Show_Opaque) != 0 && !view.occlusion_query_indices.empty())
         {
             // occlusion query should be performed after main pass becuase depth buffer might be updated on main pass(transparent, masked ..)
-            float3 camera_eye = {};
-            float camera_near = 0.0f;
-            if (const ecs::CameraComponent* occlusion_camera = view.scene->GetComponent<ecs::CameraComponent>(view.camera_entity))
-            {
-                camera_eye = occlusion_camera->eye;
-                camera_near = occlusion_camera->near_plane;
-            }
+            const float3 camera_eye = view.cached_camera.eye;
+            const float camera_near = view.cached_camera.near_plane;
 
             const FrameResourceId occlusion_readback_id = frame_graph.Import(*occlusion.readback_buffers[current_frame_slot]);
             frame_graph.MarkNoCull(occlusion_readback_id);
             const uint32 occlusion_frame_slot = current_frame_slot;
 
             frame_graph.AddPass("Occlusion Query",
-                { { depth_id, RHIResourceState::DepthRead, FrameResourceAccess::Type::Read },
+                { { targets.depth, RHIResourceState::DepthRead, FrameResourceAccess::Type::Read },
                   { occlusion_readback_id, RHIResourceState::CopyDest, FrameResourceAccess::Type::Write },
                   view_constants_read },
                 [this, &view, &targets, viewport, scissor, camera_eye, camera_near, occlusion_frame_slot](const FrameGraphPassContext& pass_context)
@@ -3548,13 +3622,13 @@ namespace won::rendering
         if ((view.show_flags & Show_Decals) != 0 && !gpu_scene.shader_decals.empty() && gpu_scene.decal_buffer.srv.IsValid() && view.render_targets.depth_srv.IsValid())
         {
             frame_graph.AddPass("Decal Pass",
-                { { scene_color_id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite }, { depth_id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read }, view_constants_read, sort_buffer_read },
+                { { targets.scene_color, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite }, { targets.depth, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read }, view_constants_read, sort_buffer_read },
                 [this, &view, &targets, &frame_context, viewport, scissor](const FrameGraphPassContext& pass_context)
             {
                 auto gpu_range = profiler::ScopedRangeGPU("Decal Pass", (*pass_context.command_list));
                 RHICommandList* command_list = pass_context.command_list;
 
-                command_list->SetRenderTargets({ { pass_context.GetResource(targets.color[0]), targets.color_rtv[0] } }, nullptr);
+                command_list->SetRenderTargets({ { pass_context.GetResource(targets.scene_color), targets.scene_color_rtv } }, nullptr);
                 command_list->SetViewport(viewport);
                 command_list->SetScissor(scissor);
                 DrawScene(frame_context, view, RenderPassType::DecalPass, DrawScene_Decal, *command_list);
@@ -3595,13 +3669,13 @@ namespace won::rendering
                 targets.scene_color_snapshot_srv = frame_graph.CreateSubresource(targets.scene_color_snapshot, snapshot_srv_desc);
 
                 frame_graph.AddPass("Copy Scene Color",
-                    { { scene_color_id, RHIResourceState::CopySource, FrameResourceAccess::Type::Read },
+                    { { targets.scene_color, RHIResourceState::CopySource, FrameResourceAccess::Type::Read },
                       { targets.scene_color_snapshot, RHIResourceState::CopyDest, FrameResourceAccess::Type::Write } },
                     [&targets](const FrameGraphPassContext& pass_context)
                 {
                     auto gpu_range = profiler::ScopedRangeGPU("Copy Scene Color", (*pass_context.command_list));
                     pass_context.command_list->CopyResource(*pass_context.GetResource(targets.scene_color_snapshot),
-                        *pass_context.GetResource(targets.color[0]));
+                        *pass_context.GetResource(targets.scene_color));
                 });
             }
         }
@@ -3621,8 +3695,8 @@ namespace won::rendering
             {
                 Vector<FrameResourceAccess> water_pass_accesses = {
                     view_constants_read,
-                    { scene_color_id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite },
-                    { depth_id, RHIResourceState::DepthRead, FrameResourceAccess::Type::Read },
+                    { targets.scene_color, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite },
+                    { targets.depth, RHIResourceState::DepthRead, FrameResourceAccess::Type::Read },
                     { targets.scene_color_snapshot, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read },
                 };
                 if (shadow_atlas_id != invalid_frame_resource)
@@ -3776,7 +3850,7 @@ namespace won::rendering
 
                     command_list->SetViewport(viewport);
                     command_list->SetScissor(scissor);
-                    command_list->SetRenderTargets({ { pass_context.GetResource(targets.color[0]), targets.color_rtv[0] } }, &depth_binding);
+                    command_list->SetRenderTargets({ { pass_context.GetResource(targets.scene_color), targets.scene_color_rtv } }, &depth_binding);
                     command_list->SetGraphicsPipeline(*water_pipeline);
                     command_list->SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
                     command_list->SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_view_binding);
@@ -3811,8 +3885,55 @@ namespace won::rendering
             }
         }
 
-        // Ping-pong index of the view color buffer holding the current image.
-        uint32 src = 0;
+        struct PostTarget
+        {
+            FrameResourceId id = invalid_frame_resource;
+            RHISubresourceHandle srv = {};
+            RHISubresourceHandle uav = {};
+            RHISubresourceHandle rtv = {};
+        };
+
+        // maybe changed in post chains
+        PostTarget post_target = { targets.scene_color, targets.scene_color_srv, targets.scene_color_uav, targets.scene_color_rtv }; // starting values
+
+        auto create_post_target = [this, &view, &frame_graph = frame_graph](const char* name) -> PostTarget
+        {
+            RHITextureDesc desc = {};
+            desc.width = view.render_targets.width;
+            desc.height = view.render_targets.height;
+            desc.depth = 1;
+            desc.mip_levels = 1;
+            desc.array_layers = 1;
+            desc.sample_count = 1;
+            desc.format = HDR_COLOR_BUFFER_FORMAT;
+            desc.usage = RHIResourceUsage::Default;
+            desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess | RHIBindFlags::RenderTarget;
+            desc.clear_color[0] = clear_color.r;
+            desc.clear_color[1] = clear_color.g;
+            desc.clear_color[2] = clear_color.b;
+            desc.clear_color[3] = clear_color.a;
+
+            PostTarget target = {};
+            target.id = frame_graph.CreateTexture(view.viewer_index, name, desc);
+
+            RHISubresourceDesc srv_desc = {};
+            srv_desc.type = RHISubresourceType::ShaderResource;
+            srv_desc.format = desc.format;
+            srv_desc.first_slice = 0;
+            srv_desc.slice_count = 1;
+            srv_desc.first_mip = 0;
+            srv_desc.mip_count = 1;
+            RHISubresourceDesc uav_desc = srv_desc;
+            uav_desc.type = RHISubresourceType::UnorderedAccess;
+            RHISubresourceDesc rtv_desc = {};
+            rtv_desc.type = RHISubresourceType::RenderTarget;
+            rtv_desc.format = desc.format;
+
+            target.srv = frame_graph.CreateSubresource(target.id, srv_desc);
+            target.uav = frame_graph.CreateSubresource(target.id, uav_desc);
+            target.rtv = frame_graph.CreateSubresource(target.id, rtv_desc);
+            return target;
+        };
 
         GraphicsPipelineHash composite_pipeline_hash = {};
         composite_pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::CompositePass);
@@ -3826,8 +3947,7 @@ namespace won::rendering
             const uint32 width = targets.width;
             const uint32 height = targets.height;
 
-            const ecs::CameraComponent* camera_component = view.scene->GetComponent<ecs::CameraComponent>(view.camera_entity);
-            const bool auto_exposure_active = camera_component && camera_component->IsAutoExposure();
+            const bool auto_exposure_active = view.cached_camera.IsAutoExposure();
 
             RHIPipeline* tonemap_pipeline = shader_library.GetPipeline(ComputePipelineHash(ShaderId::CSTonemap));
 
@@ -3890,7 +4010,10 @@ namespace won::rendering
             const bool use_fxaa = view.options.aa_mode == AntiAliasingMode::FXAA;
             RHIPipeline* fxaa_pipeline = use_fxaa ? shader_library.GetPipeline(ComputePipelineHash(ShaderId::CSFXAA)) : nullptr;
 
-            const bool use_post_chain = tonemap_pipeline || (use_fxaa && fxaa_pipeline);
+            View::TemporalAAResources& temporal_aa = view.temporal_aa_resources;
+            const bool use_taa = view.options.aa_mode == AntiAliasingMode::TAA
+                && temporal_aa.history_texture[0] && temporal_aa.depth_history_texture[0];
+            RHIPipeline* taa_pipeline = use_taa ? shader_library.GetPipeline(ComputePipelineHash(ShaderId::CSTAA)) : nullptr;
 
             if (auto_exposure_active && luminance_reduce_pipeline && luminance_resolve_pipeline
                 && partial_id != invalid_frame_resource && luminance_id != invalid_frame_resource && exposure.luminance_readback_buffer)
@@ -3899,14 +4022,14 @@ namespace won::rendering
                 frame_graph.MarkNoCull(luminance_readback_id);
 
                 frame_graph.AddPass("Reduce Luminance",
-                    { { color_id[src], RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read }, { partial_id, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write } },
-                    [&view, &targets, src, partial_id, luminance_reduce_pipeline, luminance_partial_uav](const FrameGraphPassContext& pass_context)
+                    { { post_target.id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read }, { partial_id, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write } },
+                    [&view, post_target, partial_id, luminance_reduce_pipeline, luminance_partial_uav](const FrameGraphPassContext& pass_context)
                 {
                     RHICommandList* command_list = pass_context.command_list;
                     command_list->SetComputePipeline(*luminance_reduce_pipeline);
                     LuminanceReducePushConstants reduce_push = {};
                     reduce_push.Init();
-                    reduce_push.input_descriptor = static_cast<uint32>(targets.color_srv[src].descriptor_index);
+                    reduce_push.input_descriptor = static_cast<uint32>(post_target.srv.descriptor_index);
                     reduce_push.output_descriptor = static_cast<uint32>(luminance_partial_uav.descriptor_index);
                     reduce_push.viewport_size = uint2(static_cast<uint32>(view.viewport.width), static_cast<uint32>(view.viewport.height));
                     reduce_push.viewport_offset = uint2(static_cast<uint32>(view.viewport.x), static_cast<uint32>(view.viewport.y));
@@ -3940,22 +4063,85 @@ namespace won::rendering
 
             }
 
-            if (use_post_chain)
+            if (use_taa && taa_pipeline)
             {
-                frame_graph.AddPass("Init Post Color",
-                    { { color_id[1], RHIResourceState::RenderTarget, FrameResourceAccess::Type::Write } },
-                    [this, &targets](const FrameGraphPassContext& pass_context)
+                const PostTarget taa_output = create_post_target("TAA Output");
+                const uint32 history_read = temporal_aa.history_index;
+                const uint32 history_write = history_read ^ 1u;
+                const bool history_valid = temporal_aa.history_valid;
+
+                const FrameResourceId history_read_id = frame_graph.Import(*temporal_aa.history_texture[history_read]);
+                const FrameResourceId history_write_id = frame_graph.Import(*temporal_aa.history_texture[history_write]);
+                const FrameResourceId depth_history_read_id = frame_graph.Import(*temporal_aa.depth_history_texture[history_read]);
+                const FrameResourceId depth_history_write_id = frame_graph.Import(*temporal_aa.depth_history_texture[history_write]);
+                frame_graph.MarkNoCull(history_read_id);
+                frame_graph.MarkNoCull(history_write_id);
+                frame_graph.MarkNoCull(depth_history_read_id);
+                frame_graph.MarkNoCull(depth_history_write_id);
+
+                RHIBufferDesc taa_constants_desc = {};
+                taa_constants_desc.size = sizeof(TAAConstants);
+                taa_constants_desc.usage = RHIResourceUsage::Default;
+                taa_constants_desc.bind_flags = RHIBindFlags::ConstantBuffer;
+                const FrameResourceId taa_constants_id = frame_graph.CreateBuffer(view.viewer_index, "TAA Constants", taa_constants_desc);
+
+                RHISubresourceDesc taa_cbv_desc = {};
+                taa_cbv_desc.type = RHISubresourceType::ConstantBuffer;
+                taa_cbv_desc.buffer_offset = 0;
+                taa_cbv_desc.buffer_size = sizeof(TAAConstants);
+                const RHISubresourceHandle taa_cbv = frame_graph.CreateSubresource(taa_constants_id, taa_cbv_desc);
+
+                TAAConstants taa_constants = {};
+                taa_constants.Init();
+                taa_constants.current_descriptor = static_cast<uint32>(post_target.srv.descriptor_index);
+                taa_constants.history_descriptor = static_cast<uint32>(temporal_aa.history_srv[history_read].descriptor_index);
+                taa_constants.output_descriptor = static_cast<uint32>(taa_output.uav.descriptor_index);
+                taa_constants.history_output_descriptor = static_cast<uint32>(temporal_aa.history_uav[history_write].descriptor_index);
+                taa_constants.depth_descriptor = static_cast<uint32>(targets.depth_srv.descriptor_index);
+                taa_constants.depth_history_descriptor = static_cast<uint32>(temporal_aa.depth_history_srv[history_read].descriptor_index);
+                taa_constants.depth_history_output_descriptor = static_cast<uint32>(temporal_aa.depth_history_uav[history_write].descriptor_index);
+                taa_constants.history_valid = history_valid ? 1u : 0u;
+                taa_constants.resolution = uint2(width, height);
+                taa_constants.history_blend = temporal_history_blend;
+                if (!frame_graph.QueueBufferUpload(taa_constants_id, &taa_constants, sizeof(taa_constants)))
                 {
-                    pass_context.command_list->ClearRenderTarget({ pass_context.GetResource(targets.color[1]), targets.color_rtv[1] }, clear_color);
+                    return;
+                }
+
+                frame_graph.AddPass("TAA Resolve",
+                    { { post_target.id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read },
+                      { taa_output.id, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write },
+                      { targets.depth, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read },
+                      { history_read_id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read },
+                      { history_write_id, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write },
+                      { depth_history_read_id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read },
+                      { depth_history_write_id, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write },
+                      { taa_constants_id, RHIResourceState::ConstantBuffer, FrameResourceAccess::Type::Read },
+                      view_constants_read },
+                    [&view, taa_output, shader_frame_binding, taa_constants_id, taa_cbv, taa_pipeline, width, height](const FrameGraphPassContext& pass_context)
+                {
+                    auto gpu_range = profiler::ScopedRangeGPU("TAA Resolve", (*pass_context.command_list));
+                    RHICommandList* command_list = pass_context.command_list;
+                    command_list->SetComputePipeline(*taa_pipeline);
+                    command_list->SetConstantBuffer(RHIShaderStage::Compute, 0, shader_frame_binding);
+                    command_list->SetConstantBuffer(RHIShaderStage::Compute, 1, { view.view_constants.buffer.get(), view.view_constants.cbv });
+                    command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_PASS, { pass_context.GetResource(taa_constants_id), taa_cbv });
+                    command_list->Dispatch((width + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D,
+                                           (height + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D, 1u);
+                    command_list->UAVBarrier(*pass_context.GetResource(taa_output.id));
                 });
+
+                temporal_aa.history_index = history_write;
+                temporal_aa.history_valid = true;
+                post_target = taa_output;
             }
 
             if (tonemap_pipeline)
             {
-                const uint32 dst = src ^ 1u;
+                const PostTarget tonemap_output = create_post_target("Tonemap Output");
                 frame_graph.AddPass("Tonemap",
-                    { { color_id[src], RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read }, { color_id[dst], RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write }, view_constants_read },
-                    [&view, &targets, shader_frame_binding, src, dst, tonemap_pipeline, width, height](const FrameGraphPassContext& pass_context)
+                    { { post_target.id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read }, { tonemap_output.id, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write }, view_constants_read },
+                    [&view, post_target, tonemap_output, shader_frame_binding, tonemap_pipeline, width, height](const FrameGraphPassContext& pass_context)
                 {
                     RHICommandList* command_list = pass_context.command_list;
                     command_list->SetComputePipeline(*tonemap_pipeline);
@@ -3963,8 +4149,8 @@ namespace won::rendering
                     command_list->SetConstantBuffer(RHIShaderStage::Compute, 1, { view.view_constants.buffer.get(), view.view_constants.cbv });
                     TonemapPushConstants tonemap_push = {};
                     tonemap_push.Init();
-                    tonemap_push.input_descriptor = static_cast<uint32>(targets.color_srv[src].descriptor_index);
-                    tonemap_push.output_descriptor = static_cast<uint32>(targets.color_uav[dst].descriptor_index);
+                    tonemap_push.input_descriptor = static_cast<uint32>(post_target.srv.descriptor_index);
+                    tonemap_push.output_descriptor = static_cast<uint32>(tonemap_output.uav.descriptor_index);
                     tonemap_push.resolution = uint2(width, height);
                     tonemap_push.tonemap_type = view.options.tonemap_mode == TonemapMode::ACES ? TONEMAP_TYPE_ACES : TONEMAP_TYPE_REINHARD;
                     if (view.view_mode != ViewMode::Lit && view.view_mode != ViewMode::Wireframe)
@@ -3974,18 +4160,18 @@ namespace won::rendering
                     command_list->PushConstants(RHIShaderStage::Compute, &tonemap_push, sizeof(tonemap_push), 0);
                     command_list->Dispatch((width + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D,
                                            (height + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D, 1u);
-                    command_list->UAVBarrier(*pass_context.GetResource(targets.color[dst]));
+                    command_list->UAVBarrier(*pass_context.GetResource(tonemap_output.id));
                 });
 
-                src = dst;
+                post_target = tonemap_output;
             }
 
             if (use_fxaa && fxaa_pipeline)
             {
-                const uint32 dst = src ^ 1u;
+                const PostTarget fxaa_output = create_post_target("FXAA Output");
                 frame_graph.AddPass("FXAA",
-                    { { color_id[src], RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read }, { color_id[dst], RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write }, view_constants_read },
-                    [&view, &targets, shader_frame_binding, src, dst, fxaa_pipeline, width, height](const FrameGraphPassContext& pass_context)
+                    { { post_target.id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read }, { fxaa_output.id, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write }, view_constants_read },
+                    [&view, post_target, fxaa_output, shader_frame_binding, fxaa_pipeline, width, height](const FrameGraphPassContext& pass_context)
                 {
                     RHICommandList* command_list = pass_context.command_list;
                     command_list->SetComputePipeline(*fxaa_pipeline);
@@ -3993,21 +4179,20 @@ namespace won::rendering
                     command_list->SetConstantBuffer(RHIShaderStage::Compute, 1, { view.view_constants.buffer.get(), view.view_constants.cbv });
                     FXAAPushConstants fxaa_push = {};
                     fxaa_push.Init();
-                    fxaa_push.input_descriptor = static_cast<uint32>(targets.color_srv[src].descriptor_index);
-                    fxaa_push.output_descriptor = static_cast<uint32>(targets.color_uav[dst].descriptor_index);
+                    fxaa_push.input_descriptor = static_cast<uint32>(post_target.srv.descriptor_index);
+                    fxaa_push.output_descriptor = static_cast<uint32>(fxaa_output.uav.descriptor_index);
                     fxaa_push.rcp_resolution = float2(1.0f / static_cast<float>(width), 1.0f / static_cast<float>(height));
                     fxaa_push.resolution = uint2(width, height);
                     command_list->PushConstants(RHIShaderStage::Compute, &fxaa_push, sizeof(fxaa_push), 0);
                     command_list->Dispatch((width + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D,
                                            (height + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D, 1u);
-                    command_list->UAVBarrier(*pass_context.GetResource(targets.color[dst]));
+                    command_list->UAVBarrier(*pass_context.GetResource(fxaa_output.id));
                 });
 
-                src = dst;
+                post_target = fxaa_output;
             }
         }
 
-        const FrameResourceId view_output_id = color_id[src];
 
         if ((view.show_flags & Show_Grid) != 0)
         {
@@ -4021,8 +4206,8 @@ namespace won::rendering
             if (RHIPipeline* grid_pipeline = shader_library.GetPipeline(grid_pipeline_hash))
             {
                 frame_graph.AddPass("Grid Pass",
-                    { { view_output_id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite }, { depth_id, RHIResourceState::DepthWrite, FrameResourceAccess::Type::ReadWrite }, view_constants_read },
-                    [&view, &targets, viewport, scissor, src, grid_pipeline, shader_frame_binding](const FrameGraphPassContext& pass_context)
+                    { { post_target.id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite }, { targets.depth, RHIResourceState::DepthWrite, FrameResourceAccess::Type::ReadWrite }, view_constants_read },
+                    [&view, &targets, post_target, viewport, scissor, grid_pipeline, shader_frame_binding](const FrameGraphPassContext& pass_context)
                 {
                     auto gpu_range = profiler::ScopedRangeGPU("Grid Pass", (*pass_context.command_list));
                     RHICommandList* command_list = pass_context.command_list;
@@ -4031,7 +4216,7 @@ namespace won::rendering
                     const RHISubresourceBinding depth_binding = { pass_context.GetResource(targets.depth), targets.depth_dsv };
                     command_list->SetViewport(viewport);
                     command_list->SetScissor(scissor);
-                    command_list->SetRenderTargets({ { pass_context.GetResource(targets.color[src]), targets.color_rtv[src] } }, &depth_binding);
+                    command_list->SetRenderTargets({ { pass_context.GetResource(post_target.id), post_target.rtv } }, &depth_binding);
                     command_list->SetGraphicsPipeline(*grid_pipeline);
                     command_list->SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
                     command_list->SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_view_binding);
@@ -4045,8 +4230,8 @@ namespace won::rendering
 
         // primitive (line/point) pass: depth-tested against the scene
         frame_graph.AddPass("Primitive Pass",
-            { { view_output_id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite }, { depth_id, RHIResourceState::DepthWrite, FrameResourceAccess::Type::ReadWrite }, view_constants_read, sort_buffer_read },
-            [this, &view, &targets, &frame_context, viewport, scissor, src](const FrameGraphPassContext& pass_context)
+            { { post_target.id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite }, { targets.depth, RHIResourceState::DepthWrite, FrameResourceAccess::Type::ReadWrite }, view_constants_read, sort_buffer_read },
+            [this, &view, &targets, &frame_context, post_target, viewport, scissor](const FrameGraphPassContext& pass_context)
         {
             auto gpu_range = profiler::ScopedRangeGPU("Primitive Pass", (*pass_context.command_list));
             auto cpu_range = profiler::ScopedRangeCPU("Primitive Pass");
@@ -4054,7 +4239,7 @@ namespace won::rendering
             const RHISubresourceBinding depth_binding = { pass_context.GetResource(targets.depth), targets.depth_dsv };
             pass_context.command_list->SetViewport(viewport);
             pass_context.command_list->SetScissor(scissor);
-            pass_context.command_list->SetRenderTargets({ { pass_context.GetResource(targets.color[src]), targets.color_rtv[src] } }, &depth_binding);
+            pass_context.command_list->SetRenderTargets({ { pass_context.GetResource(post_target.id), post_target.rtv } }, &depth_binding);
             DrawScene(frame_context, view, RenderPassType::PrimitivePass, DrawScene_Primitive, (*pass_context.command_list));
         });
 
@@ -4062,14 +4247,14 @@ namespace won::rendering
         if ((view.show_flags & Show_Sprites3D) != 0)
         {
             frame_graph.AddPass("Sprite/Text3D Pass",
-                { { view_output_id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite }, { depth_id, RHIResourceState::DepthWrite, FrameResourceAccess::Type::ReadWrite }, view_constants_read, sort_buffer_read },
-                [this, &view, &targets, &frame_context, src](const FrameGraphPassContext& pass_context)
+                { { post_target.id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite }, { targets.depth, RHIResourceState::DepthWrite, FrameResourceAccess::Type::ReadWrite }, view_constants_read, sort_buffer_read },
+                [this, &view, &targets, &frame_context, post_target](const FrameGraphPassContext& pass_context)
             {
                 auto gpu_range = profiler::ScopedRangeGPU("Sprite/Text3D Pass", (*pass_context.command_list));
                 auto cpu_range = profiler::ScopedRangeCPU("Sprite/Text3D Pass");
 
                 const RHISubresourceBinding depth_binding = { pass_context.GetResource(targets.depth), targets.depth_dsv };
-                pass_context.command_list->SetRenderTargets({ { pass_context.GetResource(targets.color[src]), targets.color_rtv[src] } }, &depth_binding);
+                pass_context.command_list->SetRenderTargets({ { pass_context.GetResource(post_target.id), post_target.rtv } }, &depth_binding);
                 DrawScene(frame_context, view, RenderPassType::Sprite3DPass, DrawScene_3DSprite, (*pass_context.command_list));
             });
         }
@@ -4077,13 +4262,13 @@ namespace won::rendering
 #ifndef WON_SHIPPING
         // drawn after tonemap so debug colors are authored and displayed in LDR
         frame_graph.AddPass("DebugDraw3D Pass",
-            { { view_output_id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite }, { depth_id, RHIResourceState::DepthWrite, FrameResourceAccess::Type::ReadWrite }, view_constants_read },
-            [this, &view, &targets, src](const FrameGraphPassContext& pass_context)
+            { { post_target.id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite }, { targets.depth, RHIResourceState::DepthWrite, FrameResourceAccess::Type::ReadWrite }, view_constants_read },
+            [this, &view, &targets, post_target](const FrameGraphPassContext& pass_context)
         {
             auto gpu_range = profiler::ScopedRangeGPU("DebugDraw3D Pass", (*pass_context.command_list));
 
             const RHISubresourceBinding depth_binding = { pass_context.GetResource(targets.depth), targets.depth_dsv };
-            pass_context.command_list->SetRenderTargets({ { pass_context.GetResource(targets.color[src]), targets.color_rtv[src] } }, &depth_binding);
+            pass_context.command_list->SetRenderTargets({ { pass_context.GetResource(post_target.id), post_target.rtv } }, &depth_binding);
             BuildDebug3D(view);
             DrawDebug3D(view, (*pass_context.command_list));
         });
@@ -4092,13 +4277,13 @@ namespace won::rendering
         // sprite 2d pass
         if ((view.show_flags & Show_Sprites2D) != 0)
         {
-            frame_graph.AddPass("Sprite2D Pass", { { view_output_id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite }, view_constants_read, sort_buffer_read },
-                [this, &view, &targets, &frame_context, src](const FrameGraphPassContext& pass_context)
+            frame_graph.AddPass("Sprite2D Pass", { { post_target.id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite }, view_constants_read, sort_buffer_read },
+                [this, &view, &targets, &frame_context, post_target](const FrameGraphPassContext& pass_context)
             {
                 auto gpu_range = profiler::ScopedRangeGPU("Sprite2D Pass", (*pass_context.command_list));
                 auto cpu_range = profiler::ScopedRangeCPU("Sprite2D Pass");
 
-                pass_context.command_list->SetRenderTargets({ { pass_context.GetResource(targets.color[src]), targets.color_rtv[src] } }, nullptr);
+                pass_context.command_list->SetRenderTargets({ { pass_context.GetResource(post_target.id), post_target.rtv } }, nullptr);
                 DrawScene(frame_context, view, RenderPassType::Sprite2DPass, DrawScene_2DSprite, (*pass_context.command_list));
             });
         }
@@ -4107,8 +4292,8 @@ namespace won::rendering
         if (composite_pipeline)
         {
             frame_graph.AddPass("Composite",
-                { { view_output_id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read }, { back_buffer_id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite }, view_constants_read },
-                [&view, &targets, back_buffer_binding, composite_pipeline, src](const FrameGraphPassContext& pass_context)
+                { { post_target.id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read }, { back_buffer_id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite }, view_constants_read },
+                [&view, post_target, back_buffer_binding, composite_pipeline](const FrameGraphPassContext& pass_context)
             {
             auto gpu_range = profiler::ScopedRangeGPU("Composite", (*pass_context.command_list));
             RHICommandList* command_list = pass_context.command_list;
@@ -4135,7 +4320,7 @@ namespace won::rendering
 
             CompositePushConstants composite_push = {};
             composite_push.Init();
-            composite_push.input_descriptor = static_cast<uint32>(targets.color_srv[src].descriptor_index);
+            composite_push.input_descriptor = static_cast<uint32>(post_target.srv.descriptor_index);
             command_list->PushConstants(RHIShaderStage::Pixel, &composite_push, sizeof(composite_push), 0);
 
             command_list->SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);

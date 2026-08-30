@@ -141,9 +141,10 @@ inline float4 UnpackRGBA8(in uint value)
                   value & 0xffu) / 255.0f;
 }
 
-inline float RadicalInverseVdC(uint bits)
+inline float RadicalInverseVdC(uint idx)
 {
     // invert all bits and normalize by 2^32 (result in range[0,1))
+    uint bits = idx;
     bits = (bits << 16u) | (bits >> 16u);
     bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
     bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
@@ -391,6 +392,11 @@ inline float2 ScreenUVToNDC(float2 screen_uv)
     return float2(screen_uv.x * 2.0f - 1.0f, 1.0f - screen_uv.y * 2.0f);
 }
 
+inline float2 NDCToScreenUV(float2 ndc)
+{
+    return ndc * float2(0.5f, -0.5f) + 0.5f;
+}
+
 inline float3 NDCToWorld(float2 ndc, float device_depth)
 {
     const float4 world = mul(GetCamera().inv_view_projection, float4(ndc, device_depth, 1.0f));
@@ -405,6 +411,37 @@ inline float3 ScreenUVToWorld(float2 screen_uv, float device_depth)
 inline float3 UnprojectRay(float2 ndc)
 {
     return NDCToWorld(ndc, 0.0f);
+}
+
+// custom software sampler (5 samples)
+inline float3 SampleTextureCatmullRom5Tap(Texture2D source, float2 uv, float2 resolution)
+{
+    const float2 rcp_resolution = 1.0f / resolution;
+    const float2 sample_position = uv * resolution;
+    const float2 texel_center = floor(sample_position - 0.5f) + 0.5f;
+    const float2 f = sample_position - texel_center;
+
+    const float2 w0 = f * (-0.5f + f * (1.0f - 0.5f * f));
+    const float2 w1 = 1.0f + f * f * (-2.5f + 1.5f * f);
+    const float2 w2 = f * (0.5f + f * (2.0f - 1.5f * f));
+    const float2 w3 = f * f * (-0.5f + 0.5f * f);
+
+    const float2 w12 = w1 + w2;
+    const float2 offset12 = w2 / max(w12, 1e-5f);
+
+    const float2 uv0 = (texel_center - 1.0f) * rcp_resolution;
+    const float2 uv3 = (texel_center + 2.0f) * rcp_resolution;
+    const float2 uv12 = (texel_center + offset12) * rcp_resolution;
+
+    float3 result = 0.0f;
+    result += source.SampleLevel(sampler_linear_clamp, float2(uv12.x, uv0.y), 0).rgb * (w12.x * w0.y);
+    result += source.SampleLevel(sampler_linear_clamp, float2(uv0.x, uv12.y), 0).rgb * (w0.x * w12.y);
+    result += source.SampleLevel(sampler_linear_clamp, float2(uv12.x, uv12.y), 0).rgb * (w12.x * w12.y);
+    result += source.SampleLevel(sampler_linear_clamp, float2(uv3.x, uv12.y), 0).rgb * (w3.x * w12.y);
+    result += source.SampleLevel(sampler_linear_clamp, float2(uv12.x, uv3.y), 0).rgb * (w12.x * w3.y);
+
+    const float total = (w12.x * w0.y) + (w0.x * w12.y) + (w12.x * w12.y) + (w3.x * w12.y) + (w12.x * w3.y);
+    return result / max(total, 1e-5f);
 }
 
 #endif // WON_COMMON

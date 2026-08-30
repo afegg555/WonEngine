@@ -1661,7 +1661,7 @@ namespace won::script
         if (key == "aa_mode")
         {
             const rendering::AntiAliasingMode aa_mode = user.aa_mode.value_or(project.aa_mode);
-            lua_pushstring(state, aa_mode == rendering::AntiAliasingMode::FXAA ? "FXAA" : "None");
+            lua_pushstring(state, rendering::ToString(aa_mode));
             return 1;
         }
         if (key == "shadow_resolution_scale")
@@ -1693,9 +1693,9 @@ namespace won::script
         else if (key == "aa_mode")
         {
             const String value = luaL_checkstring(state, 2);
-            if (value == "FXAA" || value == "None")
+            if (value == "None" || value == "FXAA" || value == "TAA")
             {
-                user.aa_mode = value == "FXAA" ? rendering::AntiAliasingMode::FXAA : rendering::AntiAliasingMode::None;
+                user.aa_mode = rendering::ParseAntiAliasingMode(value);
                 applied = true;
             }
         }

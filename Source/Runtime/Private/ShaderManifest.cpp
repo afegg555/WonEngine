@@ -44,6 +44,7 @@ namespace won::resource
             { ShaderId::PSWaterForward, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "WaterPS_forward.hlsl", "main" } },
             { ShaderId::PSWaterForwardPlus, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "WaterPS_forwardplus.hlsl", "main" } },
             { ShaderId::CSFXAA, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "FXAACS.hlsl", "main" } },
+            { ShaderId::CSTAA, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TAACS.hlsl", "main" } },
             { ShaderId::CSTonemap, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TonemapCS.hlsl", "main" } },
             { ShaderId::CSLuminanceReduce, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "LuminanceReduceCS.hlsl", "main" } },
             { ShaderId::CSLuminanceResolve, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "LuminanceResolveCS.hlsl", "main" } },

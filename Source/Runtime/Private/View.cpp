@@ -126,11 +126,11 @@ namespace won::rendering
             return false;
         }
 
-        ecs::CameraComponent* camera = scene->GetComponent<ecs::CameraComponent>(camera_entity);
-        if (!camera)
+        if (camera_entity == ecs::INVALID_ENTITY)
         {
             return false;
         }
+        const ecs::CameraComponent* camera = &cached_camera;
 
         const float viewport_x = static_cast<float>(viewport.x);
         const float viewport_y = static_cast<float>(viewport.y);
@@ -203,6 +203,31 @@ namespace won::rendering
         }
 
         camera_entity = ResolveCamera();
+        if (ecs::CameraComponent* camera = scene->GetComponent<ecs::CameraComponent>(camera_entity))
+        {
+            if (camera->IsAutoExposure() && exposure_resources.measured_luminance >= 0.0f)
+            {
+                const float measured = (std::max)(1e-4f, exposure_resources.measured_luminance);
+
+                // measured(y) = scene luminance(k) * current_exposure(x)
+                // if we want to make measured as 0.18(middle gray)
+                // (left) y * (0.18 / y) = 0.18
+                // (right) k * x * (0.18 / y)
+
+                // target_exposure(x') = x * (0.18 / y)
+                float target = camera->exposure_multiplier * (ecs::CameraComponent::auto_exposure_target / measured);
+                const float exposure_low = ecs::CameraComponent::ExposureFromEV100(camera->auto_exposure_max_ev);
+                const float exposure_high = ecs::CameraComponent::ExposureFromEV100(camera->auto_exposure_min_ev);
+                target = (std::min)((std::max)(target, exposure_low), exposure_high);
+                const float lerp_factor = (std::min)(1.0f, (std::max)(0.0f, camera->auto_exposure_speed * 0.02f));
+                camera->exposure_multiplier += (target - camera->exposure_multiplier) * lerp_factor;
+            }
+            cached_camera = *camera;
+        }
+        else
+        {
+            camera_entity = ecs::INVALID_ENTITY;
+        }
 
         BuildShadowSlices();
         {
@@ -268,7 +293,7 @@ namespace won::rendering
             return;
         }
 
-        const ecs::CameraComponent* camera = scene->GetComponent<ecs::CameraComponent>(camera_entity);
+        const ecs::CameraComponent* camera = camera_entity != ecs::INVALID_ENTITY ? &cached_camera : nullptr;
         if (!camera)
         {
             return;
@@ -399,7 +424,7 @@ namespace won::rendering
         shadow_resources.render_shadow_slices.clear();
         shadow_resources.shadow_map_atlas_size = { 0, 0 };
 
-        const ecs::CameraComponent* camera = scene->GetComponent<ecs::CameraComponent>(camera_entity);
+        const ecs::CameraComponent* camera = camera_entity != ecs::INVALID_ENTITY ? &cached_camera : nullptr;
         auto light_array = scene->GetComponentArray<ecs::LightComponent>().get();
         rendering::GPUScene& gpu_scene = scene->GetGPUScene();
         if ((show_flags & Show_Shadows) != 0 && camera)
@@ -659,7 +684,7 @@ namespace won::rendering
         {
             light_resources.visible_forward_lights.clear();
 
-            const ecs::CameraComponent* camera = scene ? scene->GetComponent<ecs::CameraComponent>(camera_entity) : nullptr;
+            const ecs::CameraComponent* camera = camera_entity != ecs::INVALID_ENTITY ? &cached_camera : nullptr;
             if (!camera)
             {
                 return;
@@ -690,7 +715,7 @@ namespace won::rendering
             return;
 
         GPUScene& gpu_scene = scene->GetGPUScene();
-        const ecs::CameraComponent* camera = scene->GetComponent<ecs::CameraComponent>(camera_entity);
+        const ecs::CameraComponent* camera = camera_entity != ecs::INVALID_ENTITY ? &cached_camera : nullptr;
         const float3 eye = camera ? camera->eye : float3{};
         const math::Frustum* frustum = nullptr;
         if (options.enable_frustum_culling && camera)

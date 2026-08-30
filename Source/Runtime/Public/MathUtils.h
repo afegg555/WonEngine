@@ -323,20 +323,53 @@ namespace won::math
 		return ++x;
 	}
 
-	// A uniform 2D random generator for hemisphere sampling: http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
-	//	idx	: iteration index
-	//	num	: number of iterations in total
-	constexpr float2 Hammersley2D(uint idx, uint num) {
+	// Van der Corput sequence(base-2 radical inverse)
+	constexpr float RadicalInverseVdC(uint idx)
+	{
+		// same with RadicalInverse(idx, 2) but this is more efficient
 		uint bits = idx;
 		bits = (bits << 16u) | (bits >> 16u);
 		bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
 		bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
 		bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
 		bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
-		const float radicalInverse_VdC = float(bits) * 2.3283064365386963e-10f; // / 0x100000000
-
-		return float2(float(idx) / float(num), radicalInverse_VdC);
+		return float(bits) * 2.3283064365386963e-10f; // / 0x100000000
 	}
+
+	// ex) base 2
+	//  0     0
+	//	1     0.5
+	//	2     0.25
+	//	3     0.75
+	//	4     0.125
+	//	5     0.625
+	//	6     0.375
+	//	7     0.875
+	constexpr float RadicalInverse(uint idx, uint base)
+	{
+		float result = 0.0f;
+		float fraction = 1.0f / float(base);
+		while (idx > 0)
+		{
+			result += float(idx % base) * fraction;
+			idx /= base;
+			fraction /= float(base);
+		}
+		return result;
+	}
+
+	// A uniform 2D random generator for hemisphere sampling: http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
+	//	idx	: iteration index
+	//	num	: number of iterations in total
+	constexpr float2 Hammersley2D(uint idx, uint num) {
+		return float2(float(idx) / float(num), RadicalInverseVdC(idx));
+	}
+
+	constexpr float2 Halton2D(uint idx)
+	{
+		return float2(RadicalInverse(idx, 2), RadicalInverse(idx, 3));
+	}
+
 	inline XMMATRIX GetTangentSpace(const float3& N)
 	{
 		// Choose a helper vector for the cross product
