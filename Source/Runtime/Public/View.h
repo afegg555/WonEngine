@@ -134,6 +134,7 @@ namespace won::rendering
             std::unique_ptr<RHIQueryHeap> query_heap;
             std::array<std::unique_ptr<RHIResource>, max_frames_in_flight> readback_buffers = {};
             std::array<Vector<RenderableKey>, max_frames_in_flight> issued_keys = {};
+            Vector<ShaderOcclusionBox> query_boxes; // 1:1 with View::occlusion_query_indices
             std::unordered_map<RenderableKey, VisibilityEntry, RenderableKeyHasher> visibility;
             bool active = false;
         };
@@ -187,6 +188,14 @@ namespace won::rendering
             bool history_valid = false;
         };
 
+        struct SpriteResources
+        {
+            Vector<ShaderSprite> sprites_3d; // 1:1 with View::sorted_sprite_3d_indices
+            Vector<ShaderSprite> sprites_2d; // 1:1 with View::sorted_sprite_2d_indices
+            RHISubresourceHandle sprite_3d_srv = {};
+            RHISubresourceHandle sprite_2d_srv = {};
+        };
+
         struct WaterResources
         {
             struct TileRange
@@ -215,6 +224,7 @@ namespace won::rendering
         ViewConstants view_constants = {};
         ExposureResources exposure_resources = {};
         TemporalAAResources temporal_aa_resources = {};
+        SpriteResources sprite_resources = {};
         WaterResources water_resources = {};
         LightResources light_resources = {};
         ShadowResources shadow_resources = {};

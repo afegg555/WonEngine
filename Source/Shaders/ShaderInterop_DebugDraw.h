@@ -5,18 +5,14 @@
 
 struct DebugDraw2DPushConstants
 {
-    float4 rect;    // normalized screen-space quad: x, y (top-left), w, h in [0,1]
-    float4 uv_rect; // atlas uv: min.xy, max.zw
-    uint color;     // 0xRRGGBBAA
-    uint atlas_index;
+    uint item_buffer_descriptor;
+    uint item_index;
 
 #ifdef __cplusplus
     inline void Init()
     {
-        rect = { 0.0f, 0.0f, 0.0f, 0.0f };
-        uv_rect = { 0.0f, 0.0f, 1.0f, 1.0f };
-        color = 0xffffffffu;
-        atlas_index = 0;
+        item_buffer_descriptor = 0;
+        item_index = 0;
     }
 #endif
 };
@@ -34,7 +30,7 @@ struct DebugDraw3DPushConstants
 };
 
 #ifdef __cplusplus
-static_assert(sizeof(DebugDraw2DPushConstants) == 40, "DebugDraw2DPushConstants layout mismatch");
+static_assert(sizeof(DebugDraw2DPushConstants) == 8, "DebugDraw2DPushConstants layout mismatch");
 static_assert(sizeof(DebugDraw3DPushConstants) == 4, "DebugDraw3DPushConstants layout mismatch");
 #endif
 

@@ -7,7 +7,7 @@ static const uint LIGHTCULL_TILE_SIZE = 16;
 static const uint MAX_LIGHTS_PER_CLUSTER = 32;
 static const uint MAX_DEPTH_SLICES = 32;
 
-struct LightCullPushConstants
+struct LightCullConstants
 {
     uint2 cluster_count;
     uint cluster_light_count_uav;
@@ -30,7 +30,7 @@ struct LightCullPushConstants
 };
 
 #ifdef __cplusplus
-static_assert(sizeof(LightCullPushConstants) == 28, "LightCullPushConstants layout mismatch");
+static_assert(sizeof(LightCullConstants) == 28, "LightCullConstants layout mismatch");
 #endif
 
 #ifndef __cplusplus
@@ -47,8 +47,8 @@ float ClusterSliceViewZ(uint slice, float z_near, float z_far, uint slice_count)
 }
 #endif
 
-#ifdef WON_LIGHTCULL_PUSHCONSTANT
-PUSHCONSTANT(lightcullpush, LightCullPushConstants);
+#ifdef WON_LIGHTCULL_CONSTANTBUFFER
+CONSTANTBUFFER(lightcullcb, LightCullConstants, CBSLOT_RENDERER_PASS);
 #endif
 
 #endif // WON_SHADERINTEROP_LIGHTCULL_H

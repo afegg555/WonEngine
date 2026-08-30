@@ -27,8 +27,6 @@ struct WaterInfoPushConstants
     uint zone_buffer_descriptor;
     uint body_buffer_descriptor;
     uint zone_index;
-    uint first_body;
-    float max_vertex_spacing;
     uint writes_body_index;
 
 #ifdef __cplusplus
@@ -37,24 +35,21 @@ struct WaterInfoPushConstants
         zone_buffer_descriptor = 0;
         body_buffer_descriptor = 0;
         zone_index = 0;
-        first_body = 0;
-        max_vertex_spacing = 0.0f;
         writes_body_index = 0;
     }
 #endif
 };
 
-struct WaterPushConstants
+struct WaterConstants
 {
     uint depth_descriptor;
     uint scene_color_descriptor;
     uint body_buffer_descriptor;
     uint zone_buffer_descriptor;
-    uint zone_index;
-    uint info_texture_descriptor;
     uint tile_buffer_descriptor;
-    uint first_tile;
-    uint tile_resolution;
+    uint padding0;
+    uint padding1;
+    uint padding2;
 
 #ifdef __cplusplus
     inline void Init()
@@ -63,34 +58,62 @@ struct WaterPushConstants
         scene_color_descriptor = 0;
         body_buffer_descriptor = 0;
         zone_buffer_descriptor = 0;
+        tile_buffer_descriptor = 0;
+        padding0 = 0;
+        padding1 = 0;
+        padding2 = 0;
+    }
+#endif
+};
+
+struct WaterPushConstants
+{
+    uint zone_index;
+    uint info_texture_descriptor;
+    uint first_tile;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
         zone_index = 0;
         info_texture_descriptor = 0;
-        tile_buffer_descriptor = 0;
         first_tile = 0;
-        tile_resolution = 0;
+    }
+#endif
+};
+
+struct WaterRippleStepConstants
+{
+    uint zone_buffer_descriptor;
+    float step_seconds;
+    uint padding0;
+    uint padding1;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        zone_buffer_descriptor = 0;
+        step_seconds = 0.0f;
+        padding0 = 0;
+        padding1 = 0;
     }
 #endif
 };
 
 struct WaterRippleStepPushConstants
 {
-    uint zone_buffer_descriptor;
     uint zone_index;
-
     uint height_current_descriptor;
     uint height_previous_descriptor;
     uint wetness_descriptor;
-    float step_seconds;
 
 #ifdef __cplusplus
     inline void Init()
     {
-        zone_buffer_descriptor = 0;
         zone_index = 0;
         height_current_descriptor = 0;
         height_previous_descriptor = 0;
         wetness_descriptor = 0;
-        step_seconds = 0.0f;
     }
 #endif
 };
@@ -181,9 +204,19 @@ inline WaterSurfaceSample EvaluateWaterSurface(float2 world_xz, float2 base_dire
 }
 
 #ifdef __cplusplus
-static_assert(sizeof(WaterPushConstants) == 36, "WaterPushConstants layout mismatch");
-static_assert(sizeof(WaterRippleStepPushConstants) == 24, "WaterRippleStepPushConstants layout mismatch");
+static_assert(sizeof(WaterConstants) == 32, "WaterConstants layout mismatch");
+static_assert(sizeof(WaterPushConstants) == 12, "WaterPushConstants layout mismatch");
+static_assert(sizeof(WaterRippleStepConstants) == 16, "WaterRippleStepConstants layout mismatch");
+static_assert(sizeof(WaterRippleStepPushConstants) == 16, "WaterRippleStepPushConstants layout mismatch");
 static_assert(sizeof(WaterRippleSplatPushConstants) == 12, "WaterRippleSplatPushConstants layout mismatch");
+#endif
+
+#ifdef WON_WATER_CONSTANTBUFFER
+CONSTANTBUFFER(watercb, WaterConstants, CBSLOT_RENDERER_PASS);
+#endif
+
+#ifdef WON_WATER_RIPPLE_STEP_CONSTANTBUFFER
+CONSTANTBUFFER(waterripplestepcb, WaterRippleStepConstants, CBSLOT_RENDERER_PASS);
 #endif
 
 #endif

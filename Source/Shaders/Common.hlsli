@@ -37,9 +37,10 @@ inline float Luminance(float3 linear_color) // Rec.709 relative luminance from l
 // Root descriptors (64-bit GPU virtual addresses) cost 2 DWORDs each.
 // Static samplers do not have any cost in the size of the root signature
 
+// !! Keep under 13 DWORDs to avoid spilling from register to VRAM on AMD RDNA architecture(RX 9070XT, 7900 XTX...)
 #define DEFAULT_ROOTSIGNATURE \
     "RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT), " \
-    "RootConstants(num32BitConstants = 11, b999), " \
+    "RootConstants(num32BitConstants = 4, b999), " \
     "CBV(b0), " \
     "CBV(b1), " \
     "DescriptorTable( " \
@@ -102,7 +103,11 @@ inline float Luminance(float3 linear_color) // Rec.709 relative luminance from l
         "SRV(t0, space = 209, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
         "SRV(t0, space = 210, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
         "SRV(t0, space = 211, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
-        "SRV(t0, space = 212, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE) " \
+        "SRV(t0, space = 212, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
+        "SRV(t0, space = 213, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
+        "SRV(t0, space = 214, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
+        "SRV(t0, space = 215, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
+        "SRV(t0, space = 216, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE) " \
     "), " \
     "StaticSampler(s100, addressU = TEXTURE_ADDRESS_CLAMP, addressV = TEXTURE_ADDRESS_CLAMP, addressW = TEXTURE_ADDRESS_CLAMP, filter = FILTER_MIN_MAG_MIP_LINEAR)," \
 	"StaticSampler(s101, addressU = TEXTURE_ADDRESS_WRAP, addressV = TEXTURE_ADDRESS_WRAP, addressW = TEXTURE_ADDRESS_WRAP, filter = FILTER_MIN_MAG_MIP_LINEAR)," \
@@ -269,6 +274,10 @@ StructuredBuffer<ShaderWaterRipple> bindless_structured_water_ripple[] : registe
 StructuredBuffer<ShaderWaterBody> bindless_structured_water_body[] : register(t0, space210);
 StructuredBuffer<ShaderWaterZone> bindless_structured_water_zone[] : register(t0, space211);
 StructuredBuffer<ShaderWaterTile> bindless_structured_water_tile[] : register(t0, space212);
+StructuredBuffer<ShaderMeshNormal> bindless_structured_mesh_normal[] : register(t0, space213);
+StructuredBuffer<ShaderOcclusionBox> bindless_structured_occlusion_box[] : register(t0, space214);
+StructuredBuffer<ShaderDebugDraw2DItem> bindless_structured_debugdraw_2d_item[] : register(t0, space215);
+StructuredBuffer<ShaderSprite> bindless_structured_sprite[] : register(t0, space216);
 
 // static samplers
 SamplerState sampler_linear_clamp : register(s100);

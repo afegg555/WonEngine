@@ -40,17 +40,11 @@ static const float PI = won::math::PI;
 
 // Common buffers:
 // These are usable by all shaders
-#define CBSLOT_IMAGE							0
-#define CBSLOT_FONT								0
 #define CBSLOT_RENDERER_FRAME					0
 #define CBSLOT_RENDERER_CAMERA					1
 
 // On demand buffers:
 // These are bound on demand and alive until another is bound at the same slot
 #define CBSLOT_RENDERER_PASS					2
-#define CBSLOT_RENDERER_VOLUMELIGHT				3
-#define CBSLOT_RENDERER_VOXELIZER				3
-#define CBSLOT_RENDERER_TRACED					2
-#define CBSLOT_RENDERER_MISC					3
 
 #endif // WON_SHADERINTEROP_H

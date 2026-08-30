@@ -40,7 +40,7 @@ float4 main(VertexOutput input) : SV_Target0
     ShaderWaterBody water = GetWaterBody((uint)body_index);
     ShaderCamera camera = GetCamera();
 
-    const float scene_depth = bindless_textures[DescriptorIndex(waterpush.depth_descriptor)].Load(int3((int2)input.position.xy, 0)).r;
+    const float scene_depth = bindless_textures[DescriptorIndex(watercb.depth_descriptor)].Load(int3((int2)input.position.xy, 0)).r;
     const float2 screen_uv = input.position.xy * camera.internal_resolution_rcp;
     const float3 scene_world = ScreenUVToWorld(screen_uv, scene_depth);
 
@@ -122,7 +122,7 @@ float4 main(VertexOutput input) : SV_Target0
            * saturate(scene_depth_below_plane / water_refraction_fade_distance));
     const float2 distorted_uv = clamp(screen_uv + distortion, 0.0f, 1.0f);
 
-    const float sample_depth = bindless_textures[DescriptorIndex(waterpush.depth_descriptor)].SampleLevel(sampler_point_clamp, distorted_uv, 0).r;
+    const float sample_depth = bindless_textures[DescriptorIndex(watercb.depth_descriptor)].SampleLevel(sampler_point_clamp, distorted_uv, 0).r;
     const float3 sample_world = ScreenUVToWorld(distorted_uv, sample_depth);
     const float2 sample_info = bindless_textures[DescriptorIndex(waterpush.info_texture_descriptor)].SampleLevel(sampler_point_clamp, WaterZoneUV(zone, sample_world), 0).rg;
 
@@ -130,9 +130,9 @@ float4 main(VertexOutput input) : SV_Target0
     const float under_surface = saturate((sample_info.r - sample_world.y) / water_refraction_fade_distance);
     const float2 background_uv = lerp(screen_uv, distorted_uv, is_water * under_surface);
 
-    const float3 background = bindless_textures[DescriptorIndex(waterpush.scene_color_descriptor)].SampleLevel(sampler_linear_clamp, background_uv, 0).rgb;
+    const float3 background = bindless_textures[DescriptorIndex(watercb.scene_color_descriptor)].SampleLevel(sampler_linear_clamp, background_uv, 0).rgb;
 
-    const float background_depth = bindless_textures[DescriptorIndex(waterpush.depth_descriptor)].SampleLevel(sampler_point_clamp, background_uv, 0).r;
+    const float background_depth = bindless_textures[DescriptorIndex(watercb.depth_descriptor)].SampleLevel(sampler_point_clamp, background_uv, 0).r;
     const float3 background_world = ScreenUVToWorld(background_uv, background_depth);
     const float2 background_info = bindless_textures[DescriptorIndex(waterpush.info_texture_descriptor)].SampleLevel(sampler_point_clamp, WaterZoneUV(zone, background_world), 0).rg;
 

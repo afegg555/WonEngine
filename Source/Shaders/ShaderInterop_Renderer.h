@@ -147,15 +147,17 @@ struct alignas(16) ShaderTextureSlot
 
 };
 
-struct MeshNormalPushConstants
+struct alignas(16) ShaderMeshNormal
 {
     uint position_descriptor;
     uint index_descriptor;
     uint adjacency_range_descriptor;
     uint adjacency_triangle_descriptor;
+
     uint normal_uav_descriptor;
     uint vertex_count;
     uint stream_offset; // ring slot base in vertices
+    uint padding0;
 
 #ifdef __cplusplus
     inline void Init()
@@ -167,6 +169,21 @@ struct MeshNormalPushConstants
         normal_uav_descriptor = 0;
         vertex_count = 0;
         stream_offset = 0;
+        padding0 = 0;
+    }
+#endif
+};
+
+struct MeshNormalPushConstants
+{
+    uint mesh_buffer_descriptor;
+    uint mesh_index;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        mesh_buffer_descriptor = 0;
+        mesh_index = 0;
     }
 #endif
 };
@@ -309,9 +326,9 @@ struct alignas(16) ShaderScene
     int ltc_matrix_lut;
 
     int ltc_fresnel_lut;
+    int particlebuffer;
     int _scene_padding0;
     int _scene_padding1;
-    int _scene_padding2;
 #ifdef __cplusplus
     inline void Init()
     {
@@ -331,9 +348,9 @@ struct alignas(16) ShaderScene
         ltc_matrix_lut = -1;
 
         ltc_fresnel_lut = -1;
+        particlebuffer = -1;
         _scene_padding0 = 0;
         _scene_padding1 = 0;
-        _scene_padding2 = 0;
     }
 #endif
 };
@@ -767,6 +784,91 @@ struct alignas(16) ShaderWaterZone
 #endif
 };
 
+enum SHADER_SPRITE_FLAGS
+{
+    SHADER_SPRITE_FLAG_NONE = 0,
+    SHADER_SPRITE_FLAG_BILLBOARD = 1 << 0,
+    SHADER_SPRITE_FLAG_PARTICLE = 1 << 1, // billboard center + color come from the bindless particle buffer (GetResourceIndex), indexed by instance_index
+};
+
+struct alignas(16) ShaderSprite
+{
+    float4 size_pivot;
+    float4 uv_rect;
+
+    uint instance_index;
+    uint flags;
+    uint material_index;
+    uint padding0;
+
+    uint GetFlags()
+    {
+        return flags & 0xFFu;
+    }
+
+    uint GetResourceIndex()
+    {
+        return flags >> 8u;
+    }
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        size_pivot = { 1.0f, 1.0f, 0.5f, 0.5f };
+        uv_rect = { 0.0f, 0.0f, 1.0f, 1.0f };
+        instance_index = 0;
+        flags = SHADER_SPRITE_FLAG_NONE;
+        material_index = 0;
+        padding0 = 0;
+    }
+
+    inline void SetResourceIndex(uint resource_index)
+    {
+        flags = (flags & 0xFFu) | (resource_index << 8u);
+    }
+#endif
+};
+
+struct alignas(16) ShaderDebugDraw2DItem
+{
+    float4 rect;    // normalized screen-space quad: x, y (top-left), w, h in [0,1]
+    float4 uv_rect; // atlas uv: min.xy, max.zw
+
+    uint color;     // 0xRRGGBBAA
+    uint atlas_index;
+    uint2 padding0;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        rect = { 0.0f, 0.0f, 0.0f, 0.0f };
+        uv_rect = { 0.0f, 0.0f, 1.0f, 1.0f };
+        color = 0xffffffffu;
+        atlas_index = 0;
+        padding0 = { 0, 0 };
+    }
+#endif
+};
+
+struct alignas(16) ShaderOcclusionBox
+{
+    float3 aabb_min;
+    float padding0;
+
+    float3 aabb_max;
+    float padding1;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        aabb_min = float3(0.0f, 0.0f, 0.0f);
+        padding0 = 0.0f;
+        aabb_max = float3(0.0f, 0.0f, 0.0f);
+        padding1 = 0.0f;
+    }
+#endif
+};
+
 struct alignas(16) ShaderFrame
 {
     ShaderScene scene;
@@ -1159,11 +1261,6 @@ CONSTANTBUFFER(g_view, ShaderView, CBSLOT_RENDERER_CAMERA);
 PUSHCONSTANT(push, ObjectPushConstants);
 #endif
 
-//CBUFFER(ForwardLightMaskCB, CBSLOT_RENDERER_FORWARD_LIGHTMASK)
-//{
-//    uint4 forward_light_mask;	// supports indexing 128 lights
-//};
-
 #ifdef __cplusplus
 static_assert(sizeof(ShaderTextureSlot) == 16, "ShaderTextureSlot layout mismatch");
 static_assert(sizeof(ShaderGeometry) == 80, "ShaderGeometry layout mismatch");
@@ -1181,6 +1278,11 @@ static_assert(sizeof(ShaderCamera) == 432, "ShaderCamera layout mismatch");
 static_assert(sizeof(ShaderView) == 496, "ShaderView layout mismatch");
 static_assert(sizeof(ShaderLight) == 64, "ShaderLight layout mismatch");
 static_assert(sizeof(ShaderShadowCascade) == 96, "ShaderShadowCascade layout mismatch");
+static_assert(sizeof(ShaderSprite) == 48, "ShaderSprite layout mismatch");
+static_assert(sizeof(ShaderDebugDraw2DItem) == 48, "ShaderDebugDraw2DItem layout mismatch");
+static_assert(sizeof(ShaderOcclusionBox) == 32, "ShaderOcclusionBox layout mismatch");
+static_assert(sizeof(ShaderMeshNormal) == 32, "ShaderMeshNormal layout mismatch");
+static_assert(sizeof(MeshNormalPushConstants) == 8, "MeshNormalPushConstants layout mismatch");
 static_assert(sizeof(ObjectPushConstants) == 16, "ObjectPushConstants layout mismatch");
 static_assert(sizeof(ShaderInstance) == 112, "ShaderInstance layout mismatch");
 #endif // __cplusplus

@@ -155,6 +155,7 @@ namespace won::rendering
         shader_frame.scene.geometrybuffer = gpu_scene.geometry_buffer.srv.descriptor_index;
         shader_frame.scene.materialbuffer = gpu_scene.material_buffer.srv.descriptor_index;
         shader_frame.scene.lightbuffer = gpu_scene.light_buffer.srv.descriptor_index;
+        shader_frame.scene.particlebuffer = gpu_scene.particle_buffer.srv.descriptor_index;
         shader_frame.scene.directional_count = gpu_scene.directional_count;
         shader_frame.scene.light_count = static_cast<uint32>(gpu_scene.shader_lights.size()) - (gpu_scene.has_derived_sun ? 1u : 0u);
         if (view.render_path_type == RenderPathType::Forward && view.light_resources.forward_index_buffer != invalid_frame_resource && view.light_resources.forward_light_count > 0)
@@ -337,7 +338,6 @@ namespace won::rendering
     static won::console::ConsoleVariable r_upload_budget("r.upload_budget", 8, "max queued resource uploads per frame, 0 = unlimited", won::console::ConsoleVariableFlagNone);
     static won::console::ConsoleVariable r_cluster_depth_slices("r.cluster.depth_slices", 32, "Forward+ cluster depth slices (1 = 2D tiled)", won::console::ConsoleVariableFlagArchive);
     static won::console::ConsoleVariable r_occlusion_enabled("r.occlusion.enabled", 0, "force hardware occlusion culling on for every view (0 = follow the per-view option)", won::console::ConsoleVariableFlagNone);
-    static won::console::ConsoleVariable r_occlusion_bounds_expand("r.occlusion.bounds_expand", 0.005f, "occlusion query bounds expansion as a fraction of the distance to the bounds", won::console::ConsoleVariableFlagNone);
 
     bool RendererInternal::UploadSceneData(FrameContext& frame_context, ecs::Scene& scene, GPUScene& gpu_scene)
     {
@@ -513,29 +513,44 @@ namespace won::rendering
         {
             if (RHIPipeline* mesh_normal_pipeline = shader_library.GetPipeline(ComputePipelineHash(ShaderId::CSMeshNormal)))
             {
-                const uint32 vertex_slot = current_frame_slot;
+                Vector<ShaderMeshNormal> shader_mesh_normals;
+                shader_mesh_normals.reserve(normal_meshes.size());
+                for (const std::shared_ptr<resource::Mesh>& mesh : normal_meshes)
+                {
+                    const resource::Mesh::RenderData& render_data = mesh->render_data;
+
+                    ShaderMeshNormal shader_mesh_normal = {};
+                    shader_mesh_normal.Init();
+                    shader_mesh_normal.position_descriptor = static_cast<uint32>(render_data.positions.srv.descriptor_index);
+                    shader_mesh_normal.index_descriptor = static_cast<uint32>(render_data.indices.srv.descriptor_index);
+                    shader_mesh_normal.adjacency_range_descriptor = static_cast<uint32>(render_data.adjacency_ranges.srv.descriptor_index);
+                    shader_mesh_normal.adjacency_triangle_descriptor = static_cast<uint32>(render_data.adjacency_triangles.srv.descriptor_index);
+                    shader_mesh_normal.normal_uav_descriptor = static_cast<uint32>(render_data.normals.uav.descriptor_index);
+                    shader_mesh_normal.vertex_count = static_cast<uint32>(mesh->positions.size());
+                    shader_mesh_normal.stream_offset = current_frame_slot * static_cast<uint32>(mesh->positions.size());
+                    shader_mesh_normals.push_back(shader_mesh_normal);
+                }
+
+                RHISubresourceHandle mesh_normal_srv = {};
+                const FrameResourceId mesh_normal_id = frame_graph.CreateStructuredBuffer(0, "Mesh Normal Buffer",
+                    shader_mesh_normals.data(), shader_mesh_normals.size(), mesh_normal_srv);
+                normal_accesses.push_back({ mesh_normal_id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read });
+
                 frame_graph.AddPass("Mesh Normal Pass", std::move(normal_accesses),
-                    [this, mesh_normal_pipeline, normal_meshes, vertex_slot](const FrameGraphPassContext& pass_context)
+                    [mesh_normal_pipeline, normal_meshes, shader_mesh_normals = std::move(shader_mesh_normals), mesh_normal_srv](const FrameGraphPassContext& pass_context)
                 {
                     auto gpu_range = profiler::ScopedRangeGPU("Mesh Normal Pass", (*pass_context.command_list));
 
                     pass_context.command_list->SetComputePipeline(*mesh_normal_pipeline);
-                    for (const std::shared_ptr<resource::Mesh>& mesh : normal_meshes)
+                    for (Size mesh_index = 0; mesh_index < shader_mesh_normals.size(); ++mesh_index)
                     {
-                        const resource::Mesh::RenderData& render_data = mesh->render_data;
-
                         MeshNormalPushConstants mesh_normal_push = {};
                         mesh_normal_push.Init();
-                        mesh_normal_push.position_descriptor = static_cast<uint32>(render_data.positions.srv.descriptor_index);
-                        mesh_normal_push.index_descriptor = static_cast<uint32>(render_data.indices.srv.descriptor_index);
-                        mesh_normal_push.adjacency_range_descriptor = static_cast<uint32>(render_data.adjacency_ranges.srv.descriptor_index);
-                        mesh_normal_push.adjacency_triangle_descriptor = static_cast<uint32>(render_data.adjacency_triangles.srv.descriptor_index);
-                        mesh_normal_push.normal_uav_descriptor = static_cast<uint32>(render_data.normals.uav.descriptor_index);
-                        mesh_normal_push.vertex_count = static_cast<uint32>(mesh->positions.size());
-                        mesh_normal_push.stream_offset = vertex_slot * static_cast<uint32>(mesh->positions.size());
+                        mesh_normal_push.mesh_buffer_descriptor = static_cast<uint32>(mesh_normal_srv.descriptor_index);
+                        mesh_normal_push.mesh_index = static_cast<uint32>(mesh_index);
 
                         pass_context.command_list->PushConstants(RHIShaderStage::Compute, &mesh_normal_push, sizeof(mesh_normal_push), 0);
-                        pass_context.command_list->Dispatch((mesh_normal_push.vertex_count + DISPATCH_THREAD_GROUP_1D - 1) / DISPATCH_THREAD_GROUP_1D, 1u, 1u);
+                        pass_context.command_list->Dispatch((shader_mesh_normals[mesh_index].vertex_count + DISPATCH_THREAD_GROUP_1D - 1) / DISPATCH_THREAD_GROUP_1D, 1u, 1u);
                     }
                     for (const std::shared_ptr<resource::Mesh>& mesh : normal_meshes)
                     {
@@ -1583,10 +1598,10 @@ namespace won::rendering
                         if (!pipeline)
                             continue;
                         command_list.SetGraphicsPipeline(*pipeline);
-                        command_list.SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
-                        command_list.SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_view_binding);
-                        command_list.SetConstantBuffer(RHIShaderStage::Pixel, 0, shader_frame_binding);
-                        command_list.SetConstantBuffer(RHIShaderStage::Pixel, 1, shader_view_binding);
+                        command_list.SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                        command_list.SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_CAMERA, shader_view_binding);
+                        command_list.SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                        command_list.SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_CAMERA, shader_view_binding);
                         current_hash = renderable_hash;
                         has_pipeline = true;
                     }
@@ -1638,10 +1653,10 @@ namespace won::rendering
                     if (!pipeline)
                         continue;
                     command_list.SetGraphicsPipeline(*pipeline);
-                    command_list.SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
-                    command_list.SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_view_binding);
-                    command_list.SetConstantBuffer(RHIShaderStage::Pixel, 0, shader_frame_binding);
-                    command_list.SetConstantBuffer(RHIShaderStage::Pixel, 1, shader_view_binding);
+                    command_list.SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                    command_list.SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_CAMERA, shader_view_binding);
+                    command_list.SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                    command_list.SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_CAMERA, shader_view_binding);
                     current_hash = renderable_hash;
                     has_pipeline = true;
                 }
@@ -1662,10 +1677,10 @@ namespace won::rendering
             if (line_pipeline)
             {
                 command_list.SetGraphicsPipeline(*line_pipeline);
-                command_list.SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
-                command_list.SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_view_binding);
-                command_list.SetConstantBuffer(RHIShaderStage::Pixel, 0, shader_frame_binding);
-                command_list.SetConstantBuffer(RHIShaderStage::Pixel, 1, shader_view_binding);
+                command_list.SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                command_list.SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_CAMERA, shader_view_binding);
+                command_list.SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                command_list.SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_CAMERA, shader_view_binding);
 
                 for (const auto& renderable : gpu_scene.line_renderables)
                 {
@@ -1686,10 +1701,10 @@ namespace won::rendering
             if (point_pipeline)
             {
                 command_list.SetGraphicsPipeline(*point_pipeline);
-                command_list.SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
-                command_list.SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_view_binding);
-                command_list.SetConstantBuffer(RHIShaderStage::Pixel, 0, shader_frame_binding);
-                command_list.SetConstantBuffer(RHIShaderStage::Pixel, 1, shader_view_binding);
+                command_list.SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                command_list.SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_CAMERA, shader_view_binding);
+                command_list.SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                command_list.SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_CAMERA, shader_view_binding);
 
                 for (const auto& renderable : gpu_scene.point_renderables)
                 {
@@ -1715,10 +1730,10 @@ namespace won::rendering
             if (decal_pipeline)
             {
                 command_list.SetGraphicsPipeline(*decal_pipeline);
-                command_list.SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
-                command_list.SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_view_binding);
-                command_list.SetConstantBuffer(RHIShaderStage::Pixel, 0, shader_frame_binding);
-                command_list.SetConstantBuffer(RHIShaderStage::Pixel, 1, shader_view_binding);
+                command_list.SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                command_list.SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_CAMERA, shader_view_binding);
+                command_list.SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                command_list.SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_CAMERA, shader_view_binding);
                 command_list.SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
 
                 for (uint32 decal_index = 0; decal_index < static_cast<uint32>(gpu_scene.shader_decals.size()); ++decal_index)
@@ -1746,9 +1761,9 @@ namespace won::rendering
             command_list.SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
             GraphicsPipelineHash active_hash = {};
             bool has_active_pipeline = false;
-            for (uint32 idx : view.sorted_sprite_3d_indices)
+            for (uint32 sprite_index = 0; sprite_index < static_cast<uint32>(view.sorted_sprite_3d_indices.size()); ++sprite_index)
             {
-                const Sprite3DRenderable& renderable = gpu_scene.sprite_3d_renderables[idx];
+                const Sprite3DRenderable& renderable = gpu_scene.sprite_3d_renderables[view.sorted_sprite_3d_indices[sprite_index]];
                 if (renderable.IsParticle() && (view.show_flags & Show_Particles) == 0)
                 {
                     continue;
@@ -1771,56 +1786,24 @@ namespace won::rendering
                     active_hash = renderable_hash;
                     has_active_pipeline = true;
                     command_list.SetGraphicsPipeline(*pipeline);
-                    command_list.SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
-                    command_list.SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_view_binding);
-                    command_list.SetConstantBuffer(RHIShaderStage::Pixel, 0, shader_frame_binding);
-                    command_list.SetConstantBuffer(RHIShaderStage::Pixel, 1, shader_view_binding);
+                    command_list.SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                    command_list.SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_CAMERA, shader_view_binding);
+                    command_list.SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                    command_list.SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_CAMERA, shader_view_binding);
                 }
 
-                if (!renderable.IsText())
+                if (renderable.IsText() && (!renderable.font || !renderable.font->render_data.IsValid()
+                    || renderable.size.x <= 0.0f || renderable.size.y <= 0.0f))
                 {
-                    SpritePushConstants push_constants = {};
-                    push_constants.Init();
-                    push_constants.size_pivot = { renderable.size.x, renderable.size.y, renderable.pivot.x, renderable.pivot.y };
-                    push_constants.uv_rect = renderable.uv_rect;
-                    push_constants.instance_index = renderable.instance_index;
-                    push_constants.material_index = renderable.material_index;
-                    if (renderable.IsBillboard())
-                    {
-                        push_constants.flags |= SHADER_SPRITE_FLAG_BILLBOARD;
-                    }
-                    if (renderable.IsParticle())
-                    {
-                        push_constants.flags |= SHADER_SPRITE_FLAG_PARTICLE;
-                        push_constants.SetResourceIndex(static_cast<uint32>(gpu_scene.particle_buffer.srv.descriptor_index));
-                    }
-                    command_list.PushConstants(RHIShaderStage::Vertex, &push_constants, sizeof(SpritePushConstants), 0);
-                    command_list.Draw(6, 1, 0, 0);
+                    continue;
                 }
-                else
-                {
-                    if (!renderable.font || !utils::CreateRenderData(*device, *renderable.font) || !renderable.font->render_data.IsValid())
-                    {
-                        continue;
-                    }
-                    if (renderable.size.x <= 0.0f || renderable.size.y <= 0.0f)
-                    {
-                        continue;
-                    }
-                    SpritePushConstants push_constants = {};
-                    push_constants.Init();
-                    push_constants.size_pivot = { renderable.size.x, renderable.size.y, renderable.pivot.x, renderable.pivot.y };
-                    push_constants.uv_rect = renderable.uv_rect;
-                    push_constants.instance_index = renderable.instance_index;
-                    if (renderable.IsBillboard())
-                    {
-                        push_constants.flags |= SHADER_SPRITE_FLAG_BILLBOARD;
-                    }
-                    push_constants.material_index = renderable.material_index;
-                    push_constants.SetResourceIndex(static_cast<uint32>(renderable.font->render_data.atlas_srv.descriptor_index));
-                    command_list.PushConstants(RHIShaderStage::Vertex, &push_constants, sizeof(SpritePushConstants), 0);
-                    command_list.Draw(6, 1, 0, 0);
-                }
+
+                SpritePushConstants push_constants = {};
+                push_constants.Init();
+                push_constants.sprite_buffer_descriptor = static_cast<uint32>(view.sprite_resources.sprite_3d_srv.descriptor_index);
+                push_constants.sprite_index = sprite_index;
+                command_list.PushConstants(RHIShaderStage::Vertex, &push_constants, sizeof(SpritePushConstants), 0);
+                command_list.Draw(6, 1, 0, 0);
             }
         }
 
@@ -1844,71 +1827,35 @@ namespace won::rendering
                 return false;
             }
 
-            const float2 viewport_size = { static_cast<float>(view.viewport.width), static_cast<float>(view.viewport.height) };
-            auto pack_sprite_2d_position = [&](const float2& anchor, const float2& position)
-            {
-                const float2 pixel_position = { anchor.x * viewport_size.x + position.x, anchor.y * viewport_size.y + position.y };
-                const float normalized_x = viewport_size.x > 0.0f ? pixel_position.x / viewport_size.x : 0.0f;
-                const float normalized_y = viewport_size.y > 0.0f ? pixel_position.y / viewport_size.y : 0.0f;
-                return static_cast<uint32>(XMConvertFloatToHalf(normalized_x)) | (static_cast<uint32>(XMConvertFloatToHalf(normalized_y)) << 16);
-            };
-
             command_list.SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
             bool active_is_text_2d = false;
             bool has_active_pipeline = false;
-            for (uint32 idx : view.sorted_sprite_2d_indices)
+            for (uint32 sprite_index = 0; sprite_index < static_cast<uint32>(view.sorted_sprite_2d_indices.size()); ++sprite_index)
             {
-                const Sprite2DRenderable& renderable = gpu_scene.sprite_2d_renderables[idx];
-                float2 ui_scale = { 1.0f, 1.0f };
-                if (renderable.reference_resolution.x > 0.0f && renderable.reference_resolution.y > 0.0f)
-                {
-                    const float s = std::pow(viewport_size.x / renderable.reference_resolution.x, 1.0f - renderable.match) * std::pow(viewport_size.y / renderable.reference_resolution.y, renderable.match);
-                    ui_scale = { s, s };
-                }
-                const float2 scaled_size = { renderable.size.x * ui_scale.x, renderable.size.y * ui_scale.y };
-                const float2 scaled_position = { renderable.position.x * ui_scale.x, renderable.position.y * ui_scale.y };
+                const Sprite2DRenderable& renderable = gpu_scene.sprite_2d_renderables[view.sorted_sprite_2d_indices[sprite_index]];
                 if (!has_active_pipeline || active_is_text_2d != renderable.IsText())
                 {
                     active_is_text_2d = renderable.IsText();
                     has_active_pipeline = true;
                     command_list.SetGraphicsPipeline(renderable.IsText() ? *text_2d_pipeline : *sprite_2d_pipeline);
-                    command_list.SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
-                    command_list.SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_view_binding);
-                    command_list.SetConstantBuffer(RHIShaderStage::Pixel, 0, shader_frame_binding);
-                    command_list.SetConstantBuffer(RHIShaderStage::Pixel, 1, shader_view_binding);
+                    command_list.SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                    command_list.SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_CAMERA, shader_view_binding);
+                    command_list.SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                    command_list.SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_CAMERA, shader_view_binding);
                 }
 
-                if (!renderable.IsText())
+                if (renderable.IsText() && (!renderable.font || !renderable.font->render_data.IsValid()
+                    || renderable.size.x <= 0.0f || renderable.size.y <= 0.0f))
                 {
-                    SpritePushConstants push_constants = {};
-                    push_constants.Init();
-                    push_constants.size_pivot = { scaled_size.x, scaled_size.y, renderable.pivot.x, renderable.pivot.y };
-                    push_constants.uv_rect = renderable.uv_rect;
-                    push_constants.instance_index = pack_sprite_2d_position(renderable.anchor, scaled_position);
-                    push_constants.material_index = renderable.material_index;
-                    command_list.PushConstants(RHIShaderStage::Vertex, &push_constants, sizeof(SpritePushConstants), 0);
-                    command_list.Draw(6, 1, 0, 0);
+                    continue;
                 }
-                else
-                {
-                    if (!renderable.font || !utils::CreateRenderData(*device, *renderable.font) || !renderable.font->render_data.IsValid())
-                    {
-                        continue;
-                    }
-                    if (renderable.size.x <= 0.0f || renderable.size.y <= 0.0f)
-                    {
-                        continue;
-                    }
-                    SpritePushConstants push_constants = {};
-                    push_constants.Init();
-                    push_constants.size_pivot = { scaled_size.x, scaled_size.y, renderable.pivot.x, renderable.pivot.y };
-                    push_constants.uv_rect = renderable.uv_rect;
-                    push_constants.instance_index = pack_sprite_2d_position(renderable.anchor, scaled_position);
-                    push_constants.material_index = renderable.material_index;
-                    push_constants.SetResourceIndex(static_cast<uint32>(renderable.font->render_data.atlas_srv.descriptor_index));
-                    command_list.PushConstants(RHIShaderStage::Vertex, &push_constants, sizeof(SpritePushConstants), 0);
-                    command_list.Draw(6, 1, 0, 0);
-                }
+
+                SpritePushConstants push_constants = {};
+                push_constants.Init();
+                push_constants.sprite_buffer_descriptor = static_cast<uint32>(view.sprite_resources.sprite_2d_srv.descriptor_index);
+                push_constants.sprite_index = sprite_index;
+                command_list.PushConstants(RHIShaderStage::Vertex, &push_constants, sizeof(SpritePushConstants), 0);
+                command_list.Draw(6, 1, 0, 0);
             }
         }
 
@@ -2151,8 +2098,8 @@ namespace won::rendering
         RHISubresourceBinding shader_view_binding = {};
         shader_view_binding.resource = view.view_constants.buffer.get();
         shader_view_binding.subresource = view.view_constants.cbv;
-        command_list.SetConstantBuffer(RHIShaderStage::Compute, 0, shader_frame_binding);
-        command_list.SetConstantBuffer(RHIShaderStage::Compute, 1, shader_view_binding);
+        command_list.SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+        command_list.SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_CAMERA, shader_view_binding);
         command_list.Dispatch(dispatch_groups.x, dispatch_groups.y, dispatch_groups.z);
 
         command_list.UAVBarrier(*gpu_scene.ddgi.irradiance_texture);
@@ -2458,8 +2405,8 @@ namespace won::rendering
         shader_view_binding.subresource = view.view_constants.cbv;
 
         command_list.SetGraphicsPipeline(*debug_3d_pipeline);
-        command_list.SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
-        command_list.SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_view_binding);
+        command_list.SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+        command_list.SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_CAMERA, shader_view_binding);
         command_list.SetPrimitiveTopology(RHIPrimitiveTopology::LineList);
 
         DebugDraw3DPushConstants push = {};
@@ -2472,24 +2419,11 @@ namespace won::rendering
 #endif
 
 #ifndef WON_SHIPPING
-    void RendererInternal::DrawDebug2D(RHICommandList& command_list)
+    void RendererInternal::RenderDebug2D()
     {
         const Vector<debugdraw::Item2D>& items = debugdraw::GetItems2D();
         RHISubresourceBinding back_buffer_binding = {};
         if (items.empty() || !builtinfont::IsReady() || !GetCurrentBackBufferBinding(back_buffer_binding))
-        {
-            debugdraw::Clear2D();
-            return;
-        }
-
-        GraphicsPipelineHash debug_2d_pipeline_hash = {};
-        debug_2d_pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::DebugDraw2DPass);
-        debug_2d_pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
-        debug_2d_pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
-        debug_2d_pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
-        debug_2d_pipeline_hash.storage.bits.blend_mode = static_cast<uint64>(resource::MaterialBlendMode::Transparent);
-        RHIPipeline* debug_2d_pipeline = shader_library.GetPipeline(debug_2d_pipeline_hash);
-        if (!debug_2d_pipeline)
         {
             debugdraw::Clear2D();
             return;
@@ -2503,41 +2437,21 @@ namespace won::rendering
             return;
         }
 
-        RHIViewport viewport = {};
-        viewport.x = 0.0f;
-        viewport.y = 0.0f;
-        viewport.width = bb_width;
-        viewport.height = bb_height;
-        viewport.min_depth = 0.0f;
-        viewport.max_depth = 1.0f;
-
-        RHIRect scissor = {};
-        scissor.x = 0;
-        scissor.y = 0;
-        scissor.width = back_buffer_binding.resource->GetDesc().texture_desc.width;
-        scissor.height = back_buffer_binding.resource->GetDesc().texture_desc.height;
-
-        command_list.SetRenderTargets({ back_buffer_binding }, nullptr);
-        command_list.SetViewport(viewport);
-        command_list.SetScissor(scissor);
-        command_list.SetGraphicsPipeline(*debug_2d_pipeline);
-        command_list.SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
-
-        const uint32 atlas_index = static_cast<uint32>(builtinfont::GetAtlasSRV().descriptor_index);
+        const uint32 font_atlas_index = static_cast<uint32>(builtinfont::GetAtlasSRV().descriptor_index);
         const float cell_u = static_cast<float>(builtinfont::glyph_width) / static_cast<float>(builtinfont::atlas_width);
         const float cell_v = static_cast<float>(builtinfont::glyph_height) / static_cast<float>(builtinfont::atlas_height);
 
+        Vector<ShaderDebugDraw2DItem> shader_items;
         for (const debugdraw::Item2D& item : items)
         {
             if (item.is_rect)
             {
-                DebugDraw2DPushConstants push = {};
-                push.Init();
-                push.rect = { item.position.x / bb_width, item.position.y / bb_height, item.size.x / bb_width, item.size.y / bb_height };
-                push.color = item.color;
-                push.atlas_index = 0xffffffffu;
-                command_list.PushConstants(RHIShaderStage::Vertex, &push, sizeof(push), 0);
-                command_list.Draw(6, 1, 0, 0);
+                ShaderDebugDraw2DItem shader_item = {};
+                shader_item.Init();
+                shader_item.rect = { item.position.x / bb_width, item.position.y / bb_height, item.size.x / bb_width, item.size.y / bb_height };
+                shader_item.color = item.color;
+                shader_item.atlas_index = 0xffffffffu;
+                shader_items.push_back(shader_item);
                 continue;
             }
 
@@ -2557,45 +2471,66 @@ namespace won::rendering
                 const int col = ch % builtinfont::atlas_cols;
                 const int row = ch / builtinfont::atlas_cols;
 
-                DebugDraw2DPushConstants push = {};
-                push.Init();
-                push.rect = { pen_x / bb_width, pen_y / bb_height, glyph_w / bb_width, glyph_h / bb_height };
-                push.uv_rect = { col * cell_u, row * cell_v, (col + 1) * cell_u, (row + 1) * cell_v };
-                push.color = item.color;
-                push.atlas_index = atlas_index;
-                command_list.PushConstants(RHIShaderStage::Vertex, &push, sizeof(push), 0);
-                command_list.Draw(6, 1, 0, 0);
+                ShaderDebugDraw2DItem shader_item = {};
+                shader_item.Init();
+                shader_item.rect = { pen_x / bb_width, pen_y / bb_height, glyph_w / bb_width, glyph_h / bb_height };
+                shader_item.uv_rect = { col * cell_u, row * cell_v, (col + 1) * cell_u, (row + 1) * cell_v };
+                shader_item.color = item.color;
+                shader_item.atlas_index = font_atlas_index;
+                shader_items.push_back(shader_item);
 
                 pen_x += glyph_w;
             }
         }
-
         debugdraw::Clear2D();
-    }
-#endif
 
-#ifndef WON_SHIPPING
-    void RendererInternal::RenderDebug2D()
-    {
-        if (debugdraw::GetItems2D().empty())
+        if (shader_items.empty())
         {
             return;
         }
 
-        RHISubresourceBinding back_buffer_binding = {};
-        if (!GetCurrentBackBufferBinding(back_buffer_binding))
+        RHISubresourceHandle item_srv = {};
+        const FrameResourceId item_buffer_id = frame_graph.CreateStructuredBuffer(0, "DebugDraw2D Item Buffer",
+            shader_items.data(), shader_items.size(), item_srv);
+
+        GraphicsPipelineHash debug_2d_pipeline_hash = {};
+        debug_2d_pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::DebugDraw2DPass);
+        debug_2d_pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
+        debug_2d_pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
+        debug_2d_pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
+        debug_2d_pipeline_hash.storage.bits.blend_mode = static_cast<uint64>(resource::MaterialBlendMode::Transparent);
+        RHIPipeline* debug_2d_pipeline = shader_library.GetPipeline(debug_2d_pipeline_hash);
+        if (!debug_2d_pipeline)
         {
-            debugdraw::Clear2D();
             return;
         }
 
+        const uint32 item_count = static_cast<uint32>(shader_items.size());
+        const RHISubresourceHandle back_buffer_rtv = back_buffer_binding.subresource;
         const FrameResourceId back_buffer_id = frame_graph.Import(*back_buffer_binding.resource);
         frame_graph.AddPass("DebugDraw2D Pass",
-            { { back_buffer_id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite } },
-            [this](const FrameGraphPassContext& pass_context)
+            { { back_buffer_id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite },
+              { item_buffer_id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read } },
+            [back_buffer_id, back_buffer_rtv, item_srv, item_count, debug_2d_pipeline, bb_width, bb_height](const FrameGraphPassContext& pass_context)
         {
-            auto gpu_range = profiler::ScopedRangeGPU("DebugDraw2D Pass", (*pass_context.command_list));
-            DrawDebug2D((*pass_context.command_list));
+            RHICommandList& command_list = *pass_context.command_list;
+            auto gpu_range = profiler::ScopedRangeGPU("DebugDraw2D Pass", command_list);
+
+            command_list.SetRenderTargets({ { pass_context.GetResource(back_buffer_id), back_buffer_rtv } }, nullptr);
+            command_list.SetViewport({ 0.0f, 0.0f, bb_width, bb_height, 0.0f, 1.0f });
+            command_list.SetScissor({ 0, 0, static_cast<int32>(bb_width), static_cast<int32>(bb_height) });
+            command_list.SetGraphicsPipeline(*debug_2d_pipeline);
+            command_list.SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
+
+            for (uint32 item_index = 0; item_index < item_count; ++item_index)
+            {
+                DebugDraw2DPushConstants push = {};
+                push.Init();
+                push.item_buffer_descriptor = static_cast<uint32>(item_srv.descriptor_index);
+                push.item_index = item_index;
+                command_list.PushConstants(RHIShaderStage::Vertex, &push, sizeof(push), 0);
+                command_list.Draw(6, 1, 0, 0);
+            }
         });
     }
 #endif
@@ -2841,9 +2776,19 @@ namespace won::rendering
                     }
 
                     gpu_scene.water.simulated_index = scene.GetUpdateIndex();
+
+                    WaterRippleStepConstants ripple_constants = {};
+                    ripple_constants.Init();
+                    ripple_constants.zone_buffer_descriptor = zone_buffer_descriptor;
+                    ripple_constants.step_seconds = step_seconds;
+
+                    RHISubresourceHandle ripple_cbv = {};
+                    const FrameResourceId ripple_constants_id = frame_graph.CreateConstants(view.viewer_index, "Water Ripple Step Constants", ripple_constants, ripple_cbv);
+                    ripple_accesses.push_back({ ripple_constants_id, RHIResourceState::ConstantBuffer, FrameResourceAccess::Type::Read });
+
                     frame_graph.AddPass("Water Ripple", std::move(ripple_accesses),
                         [&gpu_scene, ripple_pipeline, splat_pipeline, step_count, first_step_index, zone_buffer_descriptor,
-                         step_seconds, injection_count, injection_srv](const FrameGraphPassContext& pass_context)
+                         ripple_constants_id, ripple_cbv, injection_count, injection_srv](const FrameGraphPassContext& pass_context)
                     {
                         auto gpu_range = profiler::ScopedRangeGPU("Water Ripple", (*pass_context.command_list));
                         RHICommandList* command_list = pass_context.command_list;
@@ -2884,6 +2829,7 @@ namespace won::rendering
                         }
 
                         command_list->SetComputePipeline(*ripple_pipeline);
+                        command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_PASS, { pass_context.GetResource(ripple_constants_id), ripple_cbv });
                         for (Size zone_index = 0; zone_index < gpu_scene.water.zone_simulations.size(); ++zone_index)
                         {
                             const GPUScene::WaterResources::ZoneSimulation& zone_simulation = gpu_scene.water.zone_simulations[zone_index];
@@ -2908,9 +2854,7 @@ namespace won::rendering
 
                                 WaterRippleStepPushConstants ripple_push = {};
                                 ripple_push.Init();
-                                ripple_push.zone_buffer_descriptor = zone_buffer_descriptor;
                                 ripple_push.zone_index = static_cast<uint32>(zone_index);
-                                ripple_push.step_seconds = step_seconds;
                                 ripple_push.height_current_descriptor = static_cast<uint32>(zone_simulation.height_uav[height_current].descriptor_index);
                                 ripple_push.height_previous_descriptor = static_cast<uint32>(zone_simulation.height_uav[height_previous].descriptor_index);
                                 ripple_push.wetness_descriptor = static_cast<uint32>(zone_simulation.wetness_uav.descriptor_index);
@@ -2995,7 +2939,7 @@ namespace won::rendering
         {
             command_list.TransitionResource(*sky_lighting.capture_texture, RHIResourceState::Undefined, RHIResourceState::ShaderWrite);
             command_list.SetComputePipeline(*capture_pipeline);
-            command_list.SetConstantBuffer(RHIShaderStage::Compute, 0, shader_frame_binding);
+            command_list.SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_FRAME, shader_frame_binding);
 
             SkyCapturePushConstants capture_push = {};
             capture_push.Init();
@@ -3022,7 +2966,7 @@ namespace won::rendering
 
             command_list.TransitionResource(*sky_lighting.irradiance_texture, RHIResourceState::Undefined, RHIResourceState::ShaderWrite);
             command_list.SetComputePipeline(*irradiance_pipeline);
-            command_list.SetConstantBuffer(RHIShaderStage::Compute, 0, shader_frame_binding);
+            command_list.SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_FRAME, shader_frame_binding);
 
             SkyCapturePushConstants irradiance_push = {};
             irradiance_push.Init();
@@ -3050,15 +2994,13 @@ namespace won::rendering
 
                 command_list.TransitionResource(*sky_lighting.specular_texture, RHIResourceState::Undefined, RHIResourceState::ShaderWrite);
                 command_list.SetComputePipeline(*prefilter_pipeline);
-                command_list.SetConstantBuffer(RHIShaderStage::Compute, 0, shader_frame_binding);
+                command_list.SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_FRAME, shader_frame_binding);
 
                 SkyPrefilterPushConstants prefilter_push = {};
                 prefilter_push.Init();
                 prefilter_push.output_descriptor = static_cast<uint32>(sky_lighting.specular_mip_uav[mip].descriptor_index);
-                prefilter_push.face_resolution = mip_resolution;
                 prefilter_push.source_cubemap = static_cast<uint32>(sky_lighting.capture_srv.descriptor_index);
-                prefilter_push.perceptual_roughness = static_cast<float>(mip) / static_cast<float>(sky_specular_mip_count - 1);
-                prefilter_push.source_mip = static_cast<float>(mip) * 0.5f;
+                prefilter_push.mip = mip;
                 command_list.PushConstants(RHIShaderStage::Compute, &prefilter_push, sizeof(prefilter_push), 0);
 
                 const uint32 prefilter_group_count = (mip_resolution + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D;
@@ -3195,10 +3137,10 @@ namespace won::rendering
                     return;
                 }
                 command_list->SetGraphicsPipeline(*sky_pipeline);
-                command_list->SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
-                command_list->SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_view_binding);
-                command_list->SetConstantBuffer(RHIShaderStage::Pixel, 0, shader_frame_binding);
-                command_list->SetConstantBuffer(RHIShaderStage::Pixel, 1, shader_view_binding);
+                command_list->SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                command_list->SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_CAMERA, shader_view_binding);
+                command_list->SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                command_list->SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_CAMERA, shader_view_binding);
                 command_list->SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
                 command_list->Draw(3, 1, 0, 0);
             });
@@ -3411,11 +3353,25 @@ namespace won::rendering
                 cluster_count_id = view.light_resources.cluster_light_count_buffer;
                 cluster_offset_id = view.light_resources.cluster_light_offset_buffer;
                 cluster_index_id = view.light_resources.cluster_light_index_buffer;
+
+                LightCullConstants light_cull_constants = {};
+                light_cull_constants.Init();
+                light_cull_constants.cluster_light_count_uav = static_cast<uint32>(view.light_resources.cluster_light_count_uav.descriptor_index);
+                light_cull_constants.cluster_light_offset_uav = static_cast<uint32>(view.light_resources.cluster_light_offset_uav.descriptor_index);
+                light_cull_constants.cluster_light_index_uav = static_cast<uint32>(view.light_resources.cluster_light_index_uav.descriptor_index);
+                light_cull_constants.cluster_count = view.light_resources.cluster_dims;
+                light_cull_constants.light_count = static_cast<uint32>(gpu_scene.shader_lights.size()) - (gpu_scene.has_derived_sun ? 1u : 0u);
+                light_cull_constants.depth_slice_count = view.light_resources.depth_slice_count;
+
+                RHISubresourceHandle light_cull_cbv = {};
+                const FrameResourceId light_cull_constants_id = frame_graph.CreateConstants(view.viewer_index, "Light Cull Constants", light_cull_constants, light_cull_cbv);
+
                 frame_graph.AddPass("Cull Lights",
                     { { cluster_count_id, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write }, view_constants_read,
                       { cluster_offset_id, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write },
-                      { cluster_index_id, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write } },
-                    [this, &view, &gpu_scene, light_cull_pipeline](const FrameGraphPassContext& pass_context)
+                      { cluster_index_id, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write },
+                      { light_cull_constants_id, RHIResourceState::ConstantBuffer, FrameResourceAccess::Type::Read } },
+                    [this, &view, light_cull_constants_id, light_cull_cbv, light_cull_pipeline](const FrameGraphPassContext& pass_context)
                 {
                     auto gpu_range = profiler::ScopedRangeGPU("Cull Lights", (*pass_context.command_list));
                     RHICommandList* command_list = pass_context.command_list;
@@ -3427,18 +3383,10 @@ namespace won::rendering
                     RHISubresourceBinding light_cull_camera_binding = {};
                     light_cull_camera_binding.resource = view.view_constants.buffer.get();
                     light_cull_camera_binding.subresource = view.view_constants.cbv;
-                    command_list->SetConstantBuffer(RHIShaderStage::Compute, 0, light_cull_frame_binding);
-                    command_list->SetConstantBuffer(RHIShaderStage::Compute, 1, light_cull_camera_binding);
+                    command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_FRAME, light_cull_frame_binding);
+                    command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_CAMERA, light_cull_camera_binding);
 
-                    LightCullPushConstants light_cull_push = {};
-                    light_cull_push.Init();
-                    light_cull_push.cluster_light_count_uav = static_cast<uint32>(view.light_resources.cluster_light_count_uav.descriptor_index);
-                    light_cull_push.cluster_light_offset_uav = static_cast<uint32>(view.light_resources.cluster_light_offset_uav.descriptor_index);
-                    light_cull_push.cluster_light_index_uav = static_cast<uint32>(view.light_resources.cluster_light_index_uav.descriptor_index);
-                    light_cull_push.cluster_count = view.light_resources.cluster_dims;
-                    light_cull_push.light_count = static_cast<uint32>(gpu_scene.shader_lights.size()) - (gpu_scene.has_derived_sun ? 1u : 0u);
-                    light_cull_push.depth_slice_count = view.light_resources.depth_slice_count;
-                    command_list->PushConstants(RHIShaderStage::Compute, &light_cull_push, sizeof(light_cull_push), 0);
+                    command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_PASS, { pass_context.GetResource(light_cull_constants_id), light_cull_cbv });
 
                     command_list->Dispatch(view.light_resources.cluster_dims.x, view.light_resources.cluster_dims.y, 1u);
 
@@ -3508,114 +3456,88 @@ namespace won::rendering
             && (view.show_flags & Show_Opaque) != 0 && !view.occlusion_query_indices.empty())
         {
             // occlusion query should be performed after main pass becuase depth buffer might be updated on main pass(transparent, masked ..)
-            const float3 camera_eye = view.cached_camera.eye;
-            const float camera_near = view.cached_camera.near_plane;
-
             const FrameResourceId occlusion_readback_id = frame_graph.Import(*occlusion.readback_buffers[current_frame_slot]);
             frame_graph.MarkNoCull(occlusion_readback_id);
             const uint32 occlusion_frame_slot = current_frame_slot;
 
-            frame_graph.AddPass("Occlusion Query",
-                { { targets.depth, RHIResourceState::DepthRead, FrameResourceAccess::Type::Read },
-                  { occlusion_readback_id, RHIResourceState::CopyDest, FrameResourceAccess::Type::Write },
-                  view_constants_read },
-                [this, &view, &targets, viewport, scissor, camera_eye, camera_near, occlusion_frame_slot](const FrameGraphPassContext& pass_context)
+            const Vector<ShaderOcclusionBox>& query_boxes = view.occlusion_resources.query_boxes;
+            const uint32 occlusion_box_count = (std::min)(static_cast<uint32>(query_boxes.size()),
+                occlusion.query_heap->GetDesc().query_count);
+
+            Vector<View::OcclusionResources::RenderableKey>& issued_keys = view.occlusion_resources.issued_keys[occlusion_frame_slot];
+            issued_keys.clear();
+            issued_keys.reserve(occlusion_box_count);
+            for (uint32 box_index = 0; box_index < occlusion_box_count; ++box_index)
             {
-                auto gpu_range = profiler::ScopedRangeGPU("Occlusion Query", (*pass_context.command_list));
-                auto cpu_range = profiler::ScopedRangeCPU("Occlusion Query");
+                const Renderable& renderable = gpu_scene.opaque_renderables[view.occlusion_query_indices[box_index]];
+                issued_keys.push_back({ renderable.entity, renderable.push_constants.geometry_index });
+            }
 
-                GraphicsPipelineHash occlusion_hash = {};
-                occlusion_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::OcclusionQueryPass);
-                occlusion_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
-                occlusion_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
-                occlusion_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
-                occlusion_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
-                RHIPipeline* occlusion_pipeline = shader_library.GetPipeline(occlusion_hash);
-                if (!occlusion_pipeline)
+            if (occlusion_box_count > 0)
+            {
+                RHISubresourceHandle occlusion_box_srv = {};
+                const FrameResourceId occlusion_box_id = frame_graph.CreateStructuredBuffer(view.viewer_index, "Occlusion Box Buffer",
+                    query_boxes.data(), occlusion_box_count, occlusion_box_srv);
+                frame_graph.AddPass("Occlusion Query",
+                    { { targets.depth, RHIResourceState::DepthRead, FrameResourceAccess::Type::Read },
+                      { occlusion_readback_id, RHIResourceState::CopyDest, FrameResourceAccess::Type::Write },
+                      { occlusion_box_id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read },
+                      view_constants_read },
+                    [this, &view, &targets, viewport, scissor, occlusion_frame_slot, occlusion_box_srv, occlusion_box_count](const FrameGraphPassContext& pass_context)
                 {
-                    return;
-                }
+                    auto gpu_range = profiler::ScopedRangeGPU("Occlusion Query", (*pass_context.command_list));
+                    auto cpu_range = profiler::ScopedRangeCPU("Occlusion Query");
 
-                View::OcclusionResources& occlusion_resources = view.occlusion_resources;
-                Vector<View::OcclusionResources::RenderableKey>& issued_keys = occlusion_resources.issued_keys[occlusion_frame_slot];
-                issued_keys.clear();
-
-                const GPUScene& gpu_scene = view.scene->GetGPUScene();
-                const uint32 query_capacity = occlusion_resources.query_heap->GetDesc().query_count;
-                RHICommandList& command_list = *pass_context.command_list;
-
-                RHISubresourceBinding frame_binding = {};
-                frame_binding.resource = shader_frame_buffer.get();
-                frame_binding.subresource = shader_frame_buffer_cbv;
-
-                RHISubresourceBinding view_binding = {};
-                view_binding.resource = view.view_constants.buffer.get();
-                view_binding.subresource = view.view_constants.cbv;
-
-                const RHISubresourceBinding depth_binding = { pass_context.GetResource(targets.depth), targets.depth_readonly_dsv };
-                command_list.SetViewport(viewport);
-                command_list.SetScissor(scissor);
-                command_list.SetRenderTargets({}, &depth_binding);
-                command_list.SetGraphicsPipeline(*occlusion_pipeline);
-                command_list.SetConstantBuffer(RHIShaderStage::Vertex, 0, frame_binding);
-                command_list.SetConstantBuffer(RHIShaderStage::Vertex, 1, view_binding);
-                command_list.SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
-                command_list.ResetQuery(*occlusion_resources.query_heap, 0, query_capacity);
-
-                for (uint32 renderable_index : view.occlusion_query_indices)
-                {
-                    if (static_cast<uint32>(issued_keys.size()) >= query_capacity)
+                    GraphicsPipelineHash occlusion_hash = {};
+                    occlusion_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::OcclusionQueryPass);
+                    occlusion_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
+                    occlusion_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
+                    occlusion_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
+                    occlusion_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
+                    RHIPipeline* occlusion_pipeline = shader_library.GetPipeline(occlusion_hash);
+                    if (!occlusion_pipeline)
                     {
-                        break;
+                        return;
                     }
 
-                    const Renderable& renderable = gpu_scene.opaque_renderables[renderable_index];
-                    if (!renderable.aabb.IsValid())
+                    View::OcclusionResources& occlusion_resources = view.occlusion_resources;
+                    RHICommandList& command_list = *pass_context.command_list;
+
+                    RHISubresourceBinding frame_binding = {};
+                    frame_binding.resource = shader_frame_buffer.get();
+                    frame_binding.subresource = shader_frame_buffer_cbv;
+
+                    RHISubresourceBinding view_binding = {};
+                    view_binding.resource = view.view_constants.buffer.get();
+                    view_binding.subresource = view.view_constants.cbv;
+
+                    const RHISubresourceBinding depth_binding = { pass_context.GetResource(targets.depth), targets.depth_readonly_dsv };
+                    command_list.SetViewport(viewport);
+                    command_list.SetScissor(scissor);
+                    command_list.SetRenderTargets({}, &depth_binding);
+                    command_list.SetGraphicsPipeline(*occlusion_pipeline);
+                    command_list.SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_FRAME, frame_binding);
+                    command_list.SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_CAMERA, view_binding);
+                    command_list.SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
+                    command_list.ResetQuery(*occlusion_resources.query_heap, 0, occlusion_resources.query_heap->GetDesc().query_count);
+
+                    for (uint32 query_index = 0; query_index < occlusion_box_count; ++query_index)
                     {
-                        continue;
+                        OcclusionPushConstants occlusion_push = {};
+                        occlusion_push.Init();
+                        occlusion_push.box_buffer_descriptor = static_cast<uint32>(occlusion_box_srv.descriptor_index);
+                        occlusion_push.box_index = query_index;
+
+                        command_list.PushConstants(RHIShaderStage::Vertex, &occlusion_push, sizeof(OcclusionPushConstants), 0);
+                        command_list.BeginQuery(*occlusion_resources.query_heap, query_index);
+                        command_list.Draw(36, 1, 0, 0);
+                        command_list.EndQuery(*occlusion_resources.query_heap, query_index);
                     }
 
-                    const float3 closest_point = {
-                        (std::max)(renderable.aabb.min.x, (std::min)(camera_eye.x, renderable.aabb.max.x)),
-                        (std::max)(renderable.aabb.min.y, (std::min)(camera_eye.y, renderable.aabb.max.y)),
-                        (std::max)(renderable.aabb.min.z, (std::min)(camera_eye.z, renderable.aabb.max.z))
-                    };
-                    const float distance_squared = math::DistanceSquared(closest_point, camera_eye);
-                    if (distance_squared <= camera_near * camera_near)
-                    {
-                        continue;
-                    }
-
-                    const float bounds_expand = std::sqrt(distance_squared) * r_occlusion_bounds_expand.GetFloat();
-
-                    OcclusionPushConstants occlusion_push = {};
-                    occlusion_push.Init();
-                    occlusion_push.aabb_min = {
-                        renderable.aabb.min.x - bounds_expand,
-                        renderable.aabb.min.y - bounds_expand,
-                        renderable.aabb.min.z - bounds_expand
-                    };
-                    occlusion_push.aabb_max = {
-                        renderable.aabb.max.x + bounds_expand,
-                        renderable.aabb.max.y + bounds_expand,
-                        renderable.aabb.max.z + bounds_expand
-                    };
-
-                    const uint32 query_index = static_cast<uint32>(issued_keys.size());
-                    command_list.PushConstants(RHIShaderStage::Vertex, &occlusion_push, sizeof(OcclusionPushConstants), 0);
-                    command_list.BeginQuery(*occlusion_resources.query_heap, query_index);
-                    command_list.Draw(36, 1, 0, 0);
-                    command_list.EndQuery(*occlusion_resources.query_heap, query_index);
-
-                    issued_keys.push_back({ renderable.entity, renderable.push_constants.geometry_index });
-                }
-
-                if (!issued_keys.empty())
-                {
-                    command_list.ResolveQuery(*occlusion_resources.query_heap, 0, static_cast<uint32>(issued_keys.size()),
+                    command_list.ResolveQuery(*occlusion_resources.query_heap, 0, occlusion_box_count,
                         *occlusion_resources.readback_buffers[occlusion_frame_slot], 0);
-                }
-            });
+                });
+            }
         }
 
         // decal pass: project decal volumes onto the scene depth, blending into the HDR color target.
@@ -3788,13 +3710,11 @@ namespace won::rendering
                         info_dsv_desc.format = info_depth_desc.format;
                         const RHISubresourceHandle info_dsv = frame_graph.CreateSubresource(info_depth_id, info_dsv_desc);
 
-                        const uint32 first_body = zone.first_body;
                         const uint32 body_count = zone.body_count;
-                        const float max_vertex_spacing = (std::max)(zone.extent.x, zone.extent.y) / static_cast<float>(zone.tile_resolution); // each vertex is dilated in first pass
                         frame_graph.AddPass("Water Info Pass",
                             { { info_id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::Write },
                               { info_depth_id, RHIResourceState::DepthWrite, FrameResourceAccess::Type::Write } },
-                            [water_info_pipeline, info_id, info_rtv, info_depth_id, info_dsv, info_resolution, zone_index, first_body, body_count, max_vertex_spacing,
+                            [water_info_pipeline, info_id, info_rtv, info_depth_id, info_dsv, info_resolution, zone_index, body_count,
                              water_body_buffer_descriptor, water_zone_buffer_descriptor](const FrameGraphPassContext& pass_context)
                         {
                             
@@ -3817,16 +3737,13 @@ namespace won::rendering
                             info_push.zone_buffer_descriptor = water_zone_buffer_descriptor;
                             info_push.body_buffer_descriptor = water_body_buffer_descriptor;
                             info_push.zone_index = zone_index;
-                            info_push.first_body = first_body;
 
 							// first pass for "expanded" height, each vertex is dilated
-							info_push.max_vertex_spacing = max_vertex_spacing; // biggest vertex spacing for the body quads
                             info_push.writes_body_index = 0u;
                             command_list->PushConstants(RHIShaderStage::Vertex, &info_push, sizeof(WaterInfoPushConstants), 0);
                             command_list->Draw(6, body_count, 0, 0);
 
 							// second pass for body index
-                            info_push.max_vertex_spacing = 0.0f;
                             info_push.writes_body_index = 1u;
                             command_list->PushConstants(RHIShaderStage::Vertex, &info_push, sizeof(WaterInfoPushConstants), 0);
                             command_list->Draw(6, body_count, 0, 0);
@@ -3839,9 +3756,21 @@ namespace won::rendering
                     water_pass_accesses.push_back({ view.water_resources.tile_buffer, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read });
                 }
 
+                WaterConstants water_constants = {};
+                water_constants.Init();
+                water_constants.depth_descriptor = static_cast<uint32>(view.render_targets.depth_srv.descriptor_index);
+                water_constants.scene_color_descriptor = static_cast<uint32>(view.render_targets.scene_color_snapshot_srv.descriptor_index);
+                water_constants.body_buffer_descriptor = water_body_buffer_descriptor;
+                water_constants.zone_buffer_descriptor = water_zone_buffer_descriptor;
+                water_constants.tile_buffer_descriptor = static_cast<uint32>(view.water_resources.tile_srv.descriptor_index);
+
+                RHISubresourceHandle water_cbv = {};
+                const FrameResourceId water_constants_id = frame_graph.CreateConstants(view.viewer_index, "Water Constants", water_constants, water_cbv);
+                water_pass_accesses.push_back({ water_constants_id, RHIResourceState::ConstantBuffer, FrameResourceAccess::Type::Read });
+
                 frame_graph.AddPass("Water Pass", std::move(water_pass_accesses),
-                    [&view, &targets, &gpu_scene, viewport, scissor, water_pipeline, shader_frame_binding,
-                     water_body_buffer_descriptor, water_zone_buffer_descriptor, zone_info_descriptors = std::move(zone_info_descriptors)](const FrameGraphPassContext& pass_context)
+                    [&view, &targets, &gpu_scene, viewport, scissor, water_pipeline, shader_frame_binding, water_constants_id, water_cbv,
+                     zone_info_descriptors = std::move(zone_info_descriptors)](const FrameGraphPassContext& pass_context)
                 {
                     auto gpu_range = profiler::ScopedRangeGPU("Water Pass", (*pass_context.command_list));
                     RHICommandList* command_list = pass_context.command_list;
@@ -3852,19 +3781,18 @@ namespace won::rendering
                     command_list->SetScissor(scissor);
                     command_list->SetRenderTargets({ { pass_context.GetResource(targets.scene_color), targets.scene_color_rtv } }, &depth_binding);
                     command_list->SetGraphicsPipeline(*water_pipeline);
-                    command_list->SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
-                    command_list->SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_view_binding);
-                    command_list->SetConstantBuffer(RHIShaderStage::Pixel, 0, shader_frame_binding);
-                    command_list->SetConstantBuffer(RHIShaderStage::Pixel, 1, shader_view_binding);
+                    command_list->SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                    command_list->SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_CAMERA, shader_view_binding);
+                    command_list->SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                    command_list->SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_CAMERA, shader_view_binding);
                     command_list->SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
+
+                    const RHISubresourceBinding water_constants_binding = { pass_context.GetResource(water_constants_id), water_cbv };
+                    command_list->SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_PASS, water_constants_binding);
+                    command_list->SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_PASS, water_constants_binding);
 
                     WaterPushConstants water_push = {};
                     water_push.Init();
-                    water_push.depth_descriptor = static_cast<uint32>(view.render_targets.depth_srv.descriptor_index);
-                    water_push.scene_color_descriptor = static_cast<uint32>(view.render_targets.scene_color_snapshot_srv.descriptor_index);
-                    water_push.body_buffer_descriptor = water_body_buffer_descriptor;
-                    water_push.zone_buffer_descriptor = water_zone_buffer_descriptor;
-                    water_push.tile_buffer_descriptor = static_cast<uint32>(view.water_resources.tile_srv.descriptor_index);
                     for (uint32 zone_index = 0; zone_index < static_cast<uint32>(gpu_scene.water.shader_zones.size()); ++zone_index)
                     {
                         const View::WaterResources::TileRange& tile_range = view.water_resources.zone_tile_ranges[zone_index];
@@ -3877,7 +3805,6 @@ namespace won::rendering
                         water_push.zone_index = zone_index;
                         water_push.info_texture_descriptor = zone_info_descriptors[zone_index];
                         water_push.first_tile = tile_range.first_tile;
-                        water_push.tile_resolution = tile_resolution;
                         command_list->PushConstants(RHIShaderStage::Vertex, &water_push, sizeof(WaterPushConstants), 0);
                         command_list->Draw(tile_resolution * tile_resolution * 6, tile_range.tile_count, 0, 0);
                     }
@@ -4021,34 +3948,44 @@ namespace won::rendering
                 const FrameResourceId luminance_readback_id = frame_graph.Import(*exposure.luminance_readback_buffer);
                 frame_graph.MarkNoCull(luminance_readback_id);
 
+                LuminanceReduceConstants reduce_constants = {};
+                reduce_constants.Init();
+                reduce_constants.input_descriptor = static_cast<uint32>(post_target.srv.descriptor_index);
+                reduce_constants.output_descriptor = static_cast<uint32>(luminance_partial_uav.descriptor_index);
+                reduce_constants.viewport_size = uint2(static_cast<uint32>(view.viewport.width), static_cast<uint32>(view.viewport.height));
+                reduce_constants.viewport_offset = uint2(static_cast<uint32>(view.viewport.x), static_cast<uint32>(view.viewport.y));
+
+                RHISubresourceHandle reduce_cbv = {};
+                const FrameResourceId reduce_constants_id = frame_graph.CreateConstants(view.viewer_index, "Luminance Reduce Constants", reduce_constants, reduce_cbv);
+
                 frame_graph.AddPass("Reduce Luminance",
-                    { { post_target.id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read }, { partial_id, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write } },
-                    [&view, post_target, partial_id, luminance_reduce_pipeline, luminance_partial_uav](const FrameGraphPassContext& pass_context)
+                    { { post_target.id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read }, { partial_id, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write },
+                      { reduce_constants_id, RHIResourceState::ConstantBuffer, FrameResourceAccess::Type::Read } },
+                    [partial_id, reduce_constants_id, reduce_cbv, luminance_reduce_pipeline](const FrameGraphPassContext& pass_context)
                 {
                     RHICommandList* command_list = pass_context.command_list;
                     command_list->SetComputePipeline(*luminance_reduce_pipeline);
-                    LuminanceReducePushConstants reduce_push = {};
-                    reduce_push.Init();
-                    reduce_push.input_descriptor = static_cast<uint32>(post_target.srv.descriptor_index);
-                    reduce_push.output_descriptor = static_cast<uint32>(luminance_partial_uav.descriptor_index);
-                    reduce_push.viewport_size = uint2(static_cast<uint32>(view.viewport.width), static_cast<uint32>(view.viewport.height));
-                    reduce_push.viewport_offset = uint2(static_cast<uint32>(view.viewport.x), static_cast<uint32>(view.viewport.y));
-                    command_list->PushConstants(RHIShaderStage::Compute, &reduce_push, sizeof(reduce_push), 0);
+                    command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_PASS, { pass_context.GetResource(reduce_constants_id), reduce_cbv });
 					    command_list->Dispatch(luminance_reduce_group_count, 1u, 1u); // reduce to luminance_reduce_group_count groups of 1D data
                     command_list->UAVBarrier(*pass_context.GetResource(partial_id));
                 });
 
+                LuminanceReduceConstants resolve_constants = {};
+                resolve_constants.Init();
+                resolve_constants.input_descriptor = static_cast<uint32>(luminance_partial_srv.descriptor_index);
+                resolve_constants.output_descriptor = static_cast<uint32>(luminance_uav.descriptor_index);
+
+                RHISubresourceHandle resolve_cbv = {};
+                const FrameResourceId resolve_constants_id = frame_graph.CreateConstants(view.viewer_index, "Luminance Resolve Constants", resolve_constants, resolve_cbv);
+
                 frame_graph.AddPass("Resolve Luminance",
-                    { { partial_id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read }, { luminance_id, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write } },
-                    [luminance_resolve_pipeline, luminance_id, luminance_partial_srv, luminance_uav](const FrameGraphPassContext& pass_context)
+                    { { partial_id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read }, { luminance_id, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write },
+                      { resolve_constants_id, RHIResourceState::ConstantBuffer, FrameResourceAccess::Type::Read } },
+                    [luminance_resolve_pipeline, luminance_id, resolve_constants_id, resolve_cbv](const FrameGraphPassContext& pass_context)
                 {
                     RHICommandList* command_list = pass_context.command_list;
                     command_list->SetComputePipeline(*luminance_resolve_pipeline);
-                    LuminanceReducePushConstants resolve_push = {};
-                    resolve_push.Init();
-                    resolve_push.input_descriptor = static_cast<uint32>(luminance_partial_srv.descriptor_index);
-                    resolve_push.output_descriptor = static_cast<uint32>(luminance_uav.descriptor_index);
-                    command_list->PushConstants(RHIShaderStage::Compute, &resolve_push, sizeof(resolve_push), 0);
+                    command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_PASS, { pass_context.GetResource(resolve_constants_id), resolve_cbv });
                     command_list->Dispatch(1u, 1u, 1u);
                     command_list->UAVBarrier(*pass_context.GetResource(luminance_id));
                 });
@@ -4079,18 +4016,6 @@ namespace won::rendering
                 frame_graph.MarkNoCull(depth_history_read_id);
                 frame_graph.MarkNoCull(depth_history_write_id);
 
-                RHIBufferDesc taa_constants_desc = {};
-                taa_constants_desc.size = sizeof(TAAConstants);
-                taa_constants_desc.usage = RHIResourceUsage::Default;
-                taa_constants_desc.bind_flags = RHIBindFlags::ConstantBuffer;
-                const FrameResourceId taa_constants_id = frame_graph.CreateBuffer(view.viewer_index, "TAA Constants", taa_constants_desc);
-
-                RHISubresourceDesc taa_cbv_desc = {};
-                taa_cbv_desc.type = RHISubresourceType::ConstantBuffer;
-                taa_cbv_desc.buffer_offset = 0;
-                taa_cbv_desc.buffer_size = sizeof(TAAConstants);
-                const RHISubresourceHandle taa_cbv = frame_graph.CreateSubresource(taa_constants_id, taa_cbv_desc);
-
                 TAAConstants taa_constants = {};
                 taa_constants.Init();
                 taa_constants.current_descriptor = static_cast<uint32>(post_target.srv.descriptor_index);
@@ -4103,7 +4028,10 @@ namespace won::rendering
                 taa_constants.history_valid = history_valid ? 1u : 0u;
                 taa_constants.resolution = uint2(width, height);
                 taa_constants.history_blend = temporal_history_blend;
-                if (!frame_graph.QueueBufferUpload(taa_constants_id, &taa_constants, sizeof(taa_constants)))
+
+                RHISubresourceHandle taa_cbv = {};
+                const FrameResourceId taa_constants_id = frame_graph.CreateConstants(view.viewer_index, "TAA Constants", taa_constants, taa_cbv);
+                if (taa_constants_id == invalid_frame_resource)
                 {
                     return;
                 }
@@ -4123,8 +4051,8 @@ namespace won::rendering
                     auto gpu_range = profiler::ScopedRangeGPU("TAA Resolve", (*pass_context.command_list));
                     RHICommandList* command_list = pass_context.command_list;
                     command_list->SetComputePipeline(*taa_pipeline);
-                    command_list->SetConstantBuffer(RHIShaderStage::Compute, 0, shader_frame_binding);
-                    command_list->SetConstantBuffer(RHIShaderStage::Compute, 1, { view.view_constants.buffer.get(), view.view_constants.cbv });
+                    command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                    command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_CAMERA, { view.view_constants.buffer.get(), view.view_constants.cbv });
                     command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_PASS, { pass_context.GetResource(taa_constants_id), taa_cbv });
                     command_list->Dispatch((width + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D,
                                            (height + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D, 1u);
@@ -4139,25 +4067,34 @@ namespace won::rendering
             if (tonemap_pipeline)
             {
                 const PostTarget tonemap_output = create_post_target("Tonemap Output");
+                TonemapConstants tonemap_constants = {};
+                tonemap_constants.Init();
+                tonemap_constants.input_descriptor = static_cast<uint32>(post_target.srv.descriptor_index);
+                tonemap_constants.output_descriptor = static_cast<uint32>(tonemap_output.uav.descriptor_index);
+                tonemap_constants.resolution = uint2(width, height);
+                tonemap_constants.tonemap_type = view.options.tonemap_mode == TonemapMode::ACES ? TONEMAP_TYPE_ACES : TONEMAP_TYPE_REINHARD;
+                if (view.view_mode != ViewMode::Lit && view.view_mode != ViewMode::Wireframe)
+                {
+                    tonemap_constants.tonemap_type = TONEMAP_TYPE_NONE;
+                }
+
+                RHISubresourceHandle tonemap_cbv = {};
+                const FrameResourceId tonemap_constants_id = frame_graph.CreateConstants(view.viewer_index, "Tonemap Constants", tonemap_constants, tonemap_cbv);
+                if (tonemap_constants_id == invalid_frame_resource)
+                {
+                    return;
+                }
+
                 frame_graph.AddPass("Tonemap",
-                    { { post_target.id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read }, { tonemap_output.id, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write }, view_constants_read },
-                    [&view, post_target, tonemap_output, shader_frame_binding, tonemap_pipeline, width, height](const FrameGraphPassContext& pass_context)
+                    { { post_target.id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read }, { tonemap_output.id, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write },
+                      { tonemap_constants_id, RHIResourceState::ConstantBuffer, FrameResourceAccess::Type::Read }, view_constants_read },
+                    [&view, tonemap_output, tonemap_constants_id, tonemap_cbv, shader_frame_binding, tonemap_pipeline, width, height](const FrameGraphPassContext& pass_context)
                 {
                     RHICommandList* command_list = pass_context.command_list;
                     command_list->SetComputePipeline(*tonemap_pipeline);
-                    command_list->SetConstantBuffer(RHIShaderStage::Compute, 0, shader_frame_binding);
-                    command_list->SetConstantBuffer(RHIShaderStage::Compute, 1, { view.view_constants.buffer.get(), view.view_constants.cbv });
-                    TonemapPushConstants tonemap_push = {};
-                    tonemap_push.Init();
-                    tonemap_push.input_descriptor = static_cast<uint32>(post_target.srv.descriptor_index);
-                    tonemap_push.output_descriptor = static_cast<uint32>(tonemap_output.uav.descriptor_index);
-                    tonemap_push.resolution = uint2(width, height);
-                    tonemap_push.tonemap_type = view.options.tonemap_mode == TonemapMode::ACES ? TONEMAP_TYPE_ACES : TONEMAP_TYPE_REINHARD;
-                    if (view.view_mode != ViewMode::Lit && view.view_mode != ViewMode::Wireframe)
-                    {
-                        tonemap_push.tonemap_type = TONEMAP_TYPE_NONE;
-                    }
-                    command_list->PushConstants(RHIShaderStage::Compute, &tonemap_push, sizeof(tonemap_push), 0);
+                    command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                    command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_CAMERA, { view.view_constants.buffer.get(), view.view_constants.cbv });
+                    command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_PASS, { pass_context.GetResource(tonemap_constants_id), tonemap_cbv });
                     command_list->Dispatch((width + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D,
                                            (height + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D, 1u);
                     command_list->UAVBarrier(*pass_context.GetResource(tonemap_output.id));
@@ -4169,21 +4106,30 @@ namespace won::rendering
             if (use_fxaa && fxaa_pipeline)
             {
                 const PostTarget fxaa_output = create_post_target("FXAA Output");
+                FXAAConstants fxaa_constants = {};
+                fxaa_constants.Init();
+                fxaa_constants.input_descriptor = static_cast<uint32>(post_target.srv.descriptor_index);
+                fxaa_constants.output_descriptor = static_cast<uint32>(fxaa_output.uav.descriptor_index);
+                fxaa_constants.rcp_resolution = float2(1.0f / static_cast<float>(width), 1.0f / static_cast<float>(height));
+                fxaa_constants.resolution = uint2(width, height);
+
+                RHISubresourceHandle fxaa_cbv = {};
+                const FrameResourceId fxaa_constants_id = frame_graph.CreateConstants(view.viewer_index, "FXAA Constants", fxaa_constants, fxaa_cbv);
+                if (fxaa_constants_id == invalid_frame_resource)
+                {
+                    return;
+                }
+
                 frame_graph.AddPass("FXAA",
-                    { { post_target.id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read }, { fxaa_output.id, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write }, view_constants_read },
-                    [&view, post_target, fxaa_output, shader_frame_binding, fxaa_pipeline, width, height](const FrameGraphPassContext& pass_context)
+                    { { post_target.id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read }, { fxaa_output.id, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write },
+                      { fxaa_constants_id, RHIResourceState::ConstantBuffer, FrameResourceAccess::Type::Read }, view_constants_read },
+                    [&view, fxaa_output, fxaa_constants_id, fxaa_cbv, shader_frame_binding, fxaa_pipeline, width, height](const FrameGraphPassContext& pass_context)
                 {
                     RHICommandList* command_list = pass_context.command_list;
                     command_list->SetComputePipeline(*fxaa_pipeline);
-                    command_list->SetConstantBuffer(RHIShaderStage::Compute, 0, shader_frame_binding);
-                    command_list->SetConstantBuffer(RHIShaderStage::Compute, 1, { view.view_constants.buffer.get(), view.view_constants.cbv });
-                    FXAAPushConstants fxaa_push = {};
-                    fxaa_push.Init();
-                    fxaa_push.input_descriptor = static_cast<uint32>(post_target.srv.descriptor_index);
-                    fxaa_push.output_descriptor = static_cast<uint32>(fxaa_output.uav.descriptor_index);
-                    fxaa_push.rcp_resolution = float2(1.0f / static_cast<float>(width), 1.0f / static_cast<float>(height));
-                    fxaa_push.resolution = uint2(width, height);
-                    command_list->PushConstants(RHIShaderStage::Compute, &fxaa_push, sizeof(fxaa_push), 0);
+                    command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                    command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_CAMERA, { view.view_constants.buffer.get(), view.view_constants.cbv });
+                    command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_PASS, { pass_context.GetResource(fxaa_constants_id), fxaa_cbv });
                     command_list->Dispatch((width + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D,
                                            (height + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D, 1u);
                     command_list->UAVBarrier(*pass_context.GetResource(fxaa_output.id));
@@ -4218,10 +4164,10 @@ namespace won::rendering
                     command_list->SetScissor(scissor);
                     command_list->SetRenderTargets({ { pass_context.GetResource(post_target.id), post_target.rtv } }, &depth_binding);
                     command_list->SetGraphicsPipeline(*grid_pipeline);
-                    command_list->SetConstantBuffer(RHIShaderStage::Vertex, 0, shader_frame_binding);
-                    command_list->SetConstantBuffer(RHIShaderStage::Vertex, 1, shader_view_binding);
-                    command_list->SetConstantBuffer(RHIShaderStage::Pixel, 0, shader_frame_binding);
-                    command_list->SetConstantBuffer(RHIShaderStage::Pixel, 1, shader_view_binding);
+                    command_list->SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                    command_list->SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_CAMERA, shader_view_binding);
+                    command_list->SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                    command_list->SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_CAMERA, shader_view_binding);
                     command_list->SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
                     command_list->Draw(3, 1, 0, 0);
                 });
@@ -4244,10 +4190,15 @@ namespace won::rendering
         });
 
         // sprite/text 3d pass
-        if ((view.show_flags & Show_Sprites3D) != 0)
+        if ((view.show_flags & Show_Sprites3D) != 0 && !view.sorted_sprite_3d_indices.empty())
         {
+            const Vector<ShaderSprite>& sprites_3d = view.sprite_resources.sprites_3d;
+            const FrameResourceId sprite_3d_id = frame_graph.CreateStructuredBuffer(view.viewer_index, "Sprite3D Buffer",
+                sprites_3d.data(), sprites_3d.size(), view.sprite_resources.sprite_3d_srv);
+
             frame_graph.AddPass("Sprite/Text3D Pass",
-                { { post_target.id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite }, { targets.depth, RHIResourceState::DepthWrite, FrameResourceAccess::Type::ReadWrite }, view_constants_read, sort_buffer_read },
+                { { post_target.id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite }, { targets.depth, RHIResourceState::DepthWrite, FrameResourceAccess::Type::ReadWrite },
+                  { sprite_3d_id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read }, view_constants_read, sort_buffer_read },
                 [this, &view, &targets, &frame_context, post_target](const FrameGraphPassContext& pass_context)
             {
                 auto gpu_range = profiler::ScopedRangeGPU("Sprite/Text3D Pass", (*pass_context.command_list));
@@ -4275,9 +4226,15 @@ namespace won::rendering
 #endif
 
         // sprite 2d pass
-        if ((view.show_flags & Show_Sprites2D) != 0)
+        if ((view.show_flags & Show_Sprites2D) != 0 && !view.sorted_sprite_2d_indices.empty())
         {
-            frame_graph.AddPass("Sprite2D Pass", { { post_target.id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite }, view_constants_read, sort_buffer_read },
+            const Vector<ShaderSprite>& sprites_2d = view.sprite_resources.sprites_2d;
+            const FrameResourceId sprite_2d_id = frame_graph.CreateStructuredBuffer(view.viewer_index, "Sprite2D Buffer",
+                sprites_2d.data(), sprites_2d.size(), view.sprite_resources.sprite_2d_srv);
+
+            frame_graph.AddPass("Sprite2D Pass",
+                { { post_target.id, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite },
+                  { sprite_2d_id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read }, view_constants_read, sort_buffer_read },
                 [this, &view, &targets, &frame_context, post_target](const FrameGraphPassContext& pass_context)
             {
                 auto gpu_range = profiler::ScopedRangeGPU("Sprite2D Pass", (*pass_context.command_list));

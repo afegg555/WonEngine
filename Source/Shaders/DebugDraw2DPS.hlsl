@@ -11,10 +11,12 @@ struct PixelInput
 
 float4 main(PixelInput input) : SV_Target0
 {
-    float4 color = UnpackRGBA8(debugdraw2dpush.color);
-    if (debugdraw2dpush.atlas_index != 0xffffffffu)
+    const ShaderDebugDraw2DItem item = bindless_structured_debugdraw_2d_item[DescriptorIndex(debugdraw2dpush.item_buffer_descriptor)][debugdraw2dpush.item_index];
+
+    float4 color = UnpackRGBA8(item.color);
+    if (item.atlas_index != 0xffffffffu)
     {
-        const float coverage = bindless_textures[DescriptorIndex((int)debugdraw2dpush.atlas_index)].Sample(sampler_point_clamp, input.uv).r;
+        const float coverage = bindless_textures[DescriptorIndex((int)item.atlas_index)].Sample(sampler_point_clamp, input.uv).r;
         color.a *= coverage;
     }
     return color;

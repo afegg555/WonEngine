@@ -8,15 +8,18 @@ void main(uint3 dispatch_thread_id : SV_DispatchThreadID)
 {
     const bool is_srgb = (mipgenpush.flags & MIPGEN_FLAGS_IS_SRGB) != 0;
     const uint destination_uav = mipgenpush.destination_mip_uav;
-    if (dispatch_thread_id.x >= mipgenpush.destination_width || dispatch_thread_id.y >= mipgenpush.destination_height)
-    {
-        return;
-    }
 
     Texture2D input_texture = bindless_textures[DescriptorIndex((int)mipgenpush.source_mip_srv)];
     RWTexture2D<float4> output_texture = bindless_rwtextures[DescriptorIndex((int)destination_uav)];
 
-    float2 output_resolution = float2(mipgenpush.destination_width, mipgenpush.destination_height);
+    uint2 destination_size;
+    output_texture.GetDimensions(destination_size.x, destination_size.y);
+    if (dispatch_thread_id.x >= destination_size.x || dispatch_thread_id.y >= destination_size.y)
+    {
+        return;
+    }
+
+    float2 output_resolution = float2(destination_size);
     float2 uv = (float2(dispatch_thread_id.xy) + 0.5f) / output_resolution;
     float4 color = input_texture.SampleLevel(sampler_linear_clamp, uv, 0.0f);
 

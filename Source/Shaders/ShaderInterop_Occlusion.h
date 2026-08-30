@@ -5,22 +5,20 @@
 
 struct OcclusionPushConstants
 {
-    float3 aabb_min;
-    float padding0;
-    float3 aabb_max;
+    uint box_buffer_descriptor;
+    uint box_index;
 
 #ifdef __cplusplus
     inline void Init()
     {
-        aabb_min = float3(0.0f, 0.0f, 0.0f);
-        padding0 = 0.0f;
-        aabb_max = float3(0.0f, 0.0f, 0.0f);
+        box_buffer_descriptor = 0;
+        box_index = 0;
     }
 #endif
 };
 
 #ifdef __cplusplus
-static_assert(sizeof(OcclusionPushConstants) == 28, "OcclusionPushConstants layout mismatch");
+static_assert(sizeof(OcclusionPushConstants) == 8, "OcclusionPushConstants layout mismatch");
 #endif
 
 #ifdef WON_OCCLUSION_PUSHCONSTANT

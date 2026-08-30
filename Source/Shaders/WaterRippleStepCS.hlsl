@@ -1,3 +1,4 @@
+#define WON_WATER_RIPPLE_STEP_CONSTANTBUFFER
 #include "WaterCommon.hlsli"
 
 PUSHCONSTANT(waterripplesteppush, WaterRippleStepPushConstants);
@@ -10,7 +11,7 @@ static const float water_wetness_gain = 4.0f;
 [numthreads(WATER_RIPPLE_GROUP_SIZE, WATER_RIPPLE_GROUP_SIZE, 1)]
 void main(uint3 thread_id : SV_DispatchThreadID)
 {
-    ShaderWaterZone zone = bindless_structured_water_zone[DescriptorIndex(waterripplesteppush.zone_buffer_descriptor)][waterripplesteppush.zone_index];
+    ShaderWaterZone zone = bindless_structured_water_zone[DescriptorIndex(waterripplestepcb.zone_buffer_descriptor)][waterripplesteppush.zone_index];
 
     const int resolution = (int)zone.ripple_resolution;
     const int2 texel = (int2)thread_id.xy;
@@ -32,7 +33,7 @@ void main(uint3 thread_id : SV_DispatchThreadID)
 
     const float2 texel_size = WaterRippleTexelSize(zone.extent, zone.ripple_resolution);
     const float grid_spacing = min(texel_size.x, texel_size.y);
-    const float courant = zone.ripple_speed * waterripplesteppush.step_seconds / grid_spacing;
+    const float courant = zone.ripple_speed * waterripplestepcb.step_seconds / grid_spacing;
     const float wave_factor = min(courant * courant, water_ripple_max_wave_factor);
 
     // Wave simulation update equation : h[t+1] = 2 * h[t] - h[t-1] + c^2 * (L + R + U + D - 4 * h[t])

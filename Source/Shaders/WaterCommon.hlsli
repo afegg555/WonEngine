@@ -1,6 +1,7 @@
 #ifndef WATER_COMMON
 #define WATER_COMMON
 
+#define WON_WATER_CONSTANTBUFFER
 #include "ShaderInterop_Water.h"
 #include "Common.hlsli"
 
@@ -45,17 +46,17 @@ struct WaterInfoOutput
 
 inline ShaderWaterBody GetWaterBody(uint body_index)
 {
-    return bindless_structured_water_body[DescriptorIndex(waterpush.body_buffer_descriptor)][body_index];
+    return bindless_structured_water_body[DescriptorIndex(watercb.body_buffer_descriptor)][body_index];
 }
 
 inline ShaderWaterZone GetWaterZone()
 {
-    return bindless_structured_water_zone[DescriptorIndex(waterpush.zone_buffer_descriptor)][waterpush.zone_index];
+    return bindless_structured_water_zone[DescriptorIndex(watercb.zone_buffer_descriptor)][waterpush.zone_index];
 }
 
 inline ShaderWaterTile GetWaterTile(uint instance_id)
 {
-    return bindless_structured_water_tile[DescriptorIndex(waterpush.tile_buffer_descriptor)][waterpush.first_tile + instance_id];
+    return bindless_structured_water_tile[DescriptorIndex(watercb.tile_buffer_descriptor)][waterpush.first_tile + instance_id];
 }
 
 inline float2 WaterZoneUV(in ShaderWaterZone zone, float3 world_position)

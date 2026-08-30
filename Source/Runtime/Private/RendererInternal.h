@@ -55,7 +55,6 @@ namespace won::rendering
 #ifndef WON_SHIPPING
         void BuildDebug3D(const View& view);
         void DrawDebug3D(const View& view, RHICommandList& command_list);
-        void DrawDebug2D(RHICommandList& command_list);
 #endif
 
         // etc

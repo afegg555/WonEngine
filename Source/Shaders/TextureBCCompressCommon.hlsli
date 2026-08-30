@@ -9,7 +9,7 @@
 
 float GetBCCompressQuality()
 {
-    return bccompresspush.quality > 0.0f ? bccompresspush.quality : CMP_QUALITY0;
+    return CMP_QUALITY0;
 }
 
 bool IsBCCompressSRGB()
@@ -17,9 +17,16 @@ bool IsBCCompressSRGB()
     return (bccompresspush.flags & TEXTURE_BC_COMPRESS_FLAGS_IS_SRGB) != 0;
 }
 
+uint2 GetBCSourceSize()
+{
+    uint2 size;
+    bindless_textures[DescriptorIndex((int)bccompresspush.source_srv)].GetDimensions(size.x, size.y);
+    return size;
+}
+
 uint2 GetBCBlockCount()
 {
-    return uint2((bccompresspush.width + 3u) / 4u, (bccompresspush.height + 3u) / 4u);
+    return (GetBCSourceSize() + 3u) / 4u;
 }
 
 uint GetBCBlockIndex(uint2 block_id)
@@ -30,7 +37,7 @@ uint GetBCBlockIndex(uint2 block_id)
 void LoadBCColorBlock(uint2 block_id, out CGU_Vec3f block_rgb[BLOCK_SIZE_4X4], out CGU_FLOAT block_alpha[BLOCK_SIZE_4X4])
 {
     Texture2D source_texture = bindless_textures[DescriptorIndex((int)bccompresspush.source_srv)];
-    const uint2 max_texel = uint2(bccompresspush.width - 1u, bccompresspush.height - 1u);
+    const uint2 max_texel = GetBCSourceSize() - 1u;
     [unroll]
     for (uint y = 0u; y < 4u; ++y)
     {
@@ -48,7 +55,7 @@ void LoadBCColorBlock(uint2 block_id, out CGU_Vec3f block_rgb[BLOCK_SIZE_4X4], o
 void LoadBCChannelBlock(uint2 block_id, out CGU_FLOAT block_r[BLOCK_SIZE_4X4], out CGU_FLOAT block_g[BLOCK_SIZE_4X4])
 {
     Texture2D source_texture = bindless_textures[DescriptorIndex((int)bccompresspush.source_srv)];
-    const uint2 max_texel = uint2(bccompresspush.width - 1u, bccompresspush.height - 1u);
+    const uint2 max_texel = GetBCSourceSize() - 1u;
     [unroll]
     for (uint y = 0u; y < 4u; ++y)
     {
