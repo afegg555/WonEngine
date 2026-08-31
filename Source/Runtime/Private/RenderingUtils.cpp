@@ -166,8 +166,6 @@ namespace won::rendering::utils
                 {
                     push_constants.flags |= MIPGEN_FLAGS_IS_SRGB;
                 }
-                push_constants.destination_width = destination_width;
-                push_constants.destination_height = destination_height;
 
                 command_list.PushConstants(RHIShaderStage::Compute, &push_constants, sizeof(push_constants), 0);
                 command_list.Dispatch((destination_width + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D, (destination_height + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D, 1u);
@@ -435,11 +433,8 @@ namespace won::rendering::utils
                 command_list.TransitionResource(*parent_buffer, RHIResourceState::Undefined, RHIResourceState::ShaderWrite);
                 command_list.TransitionResource(*counter_buffer, RHIResourceState::Undefined, RHIResourceState::ShaderWrite);
 
-                command_list.SetComputePipeline(*gpu_bvh_build_pipelines[static_cast<uint32>(GPUBVHBuildPipelineType::GeneratePrimitives)]);
-                command_list.SetShaderResource(RHIShaderStage::Compute, 0, { mesh.render_data.buffer.get(), mesh.render_data.positions.srv });
-                command_list.SetShaderResource(RHIShaderStage::Compute, 1, { mesh.render_data.buffer.get(), mesh.render_data.indices.srv });
-                command_list.SetUnorderedAccess(RHIShaderStage::Compute, 0, { gpu_bvh.primitive_buffer.get(), gpu_bvh.primitive_uav });
-                command_list.SetUnorderedAccess(RHIShaderStage::Compute, 2, { sort_buffer.get(), sort_uav });
+                Vector<ShaderBVHBuildSubmesh> build_submeshes;
+                build_submeshes.reserve(mesh.submeshes.size());
                 uint32 primitive_offset = 0;
                 for (Size submesh_index = 0; submesh_index < mesh.submeshes.size(); ++submesh_index)
                 {
@@ -456,17 +451,40 @@ namespace won::rendering::utils
                         continue;
                     }
 
-                    BVHGeneratePrimitivesPushConstants push_constants = {};
-                    push_constants.first_index = submesh.first_index;
-                    push_constants.primitive_offset = primitive_offset;
-                    push_constants.triangle_count = triangle_count;
-                    push_constants.submesh_index = static_cast<uint32>(submesh_index);
-                    push_constants.material_slot = submesh.material_slot;
-                    push_constants.bounds_min = mesh_bounds.min;
-                    push_constants.bounds_rcp_extent = bounds_rcp_extent;
-                    command_list.PushConstants(RHIShaderStage::Compute, &push_constants, sizeof(push_constants), 0);
-                    command_list.Dispatch((triangle_count + BVH_BUILDER_GROUPSIZE - 1) / BVH_BUILDER_GROUPSIZE, 1, 1);
+                    ShaderBVHBuildSubmesh build_submesh = {};
+                    build_submesh.bounds_min = mesh_bounds.min;
+                    build_submesh.bounds_rcp_extent = bounds_rcp_extent;
+                    build_submesh.first_index = submesh.first_index;
+                    build_submesh.primitive_offset = primitive_offset;
+                    build_submesh.triangle_count = triangle_count;
+                    build_submesh.submesh_index = static_cast<uint32>(submesh_index);
+                    build_submesh.material_slot = submesh.material_slot;
+                    build_submeshes.push_back(build_submesh);
                     primitive_offset += triangle_count;
+                }
+
+                RHISubresourceHandle build_submesh_srv = {};
+                std::unique_ptr<RHIResource> build_submesh_buffer = create_structured_buffer("Mesh GPU BVH Build Submesh Buffer",
+                    build_submeshes.size() * sizeof(ShaderBVHBuildSubmesh), sizeof(ShaderBVHBuildSubmesh),
+                    RHIBindFlags::ShaderResource, build_submeshes.data(), &build_submesh_srv, nullptr);
+                if (!build_submesh_buffer)
+                {
+                    succeeded = false;
+                    continue;
+                }
+
+                command_list.SetComputePipeline(*gpu_bvh_build_pipelines[static_cast<uint32>(GPUBVHBuildPipelineType::GeneratePrimitives)]);
+                command_list.SetShaderResource(RHIShaderStage::Compute, 0, { mesh.render_data.buffer.get(), mesh.render_data.positions.srv });
+                command_list.SetShaderResource(RHIShaderStage::Compute, 1, { mesh.render_data.buffer.get(), mesh.render_data.indices.srv });
+                command_list.SetShaderResource(RHIShaderStage::Compute, 2, { build_submesh_buffer.get(), build_submesh_srv });
+                command_list.SetUnorderedAccess(RHIShaderStage::Compute, 0, { gpu_bvh.primitive_buffer.get(), gpu_bvh.primitive_uav });
+                command_list.SetUnorderedAccess(RHIShaderStage::Compute, 2, { sort_buffer.get(), sort_uav });
+                for (Size build_index = 0; build_index < build_submeshes.size(); ++build_index)
+                {
+                    BVHGeneratePrimitivesPushConstants push_constants = {};
+                    push_constants.build_submesh_index = static_cast<uint32>(build_index);
+                    command_list.PushConstants(RHIShaderStage::Compute, &push_constants, sizeof(push_constants), 0);
+                    command_list.Dispatch((build_submeshes[build_index].triangle_count + BVH_BUILDER_GROUPSIZE - 1) / BVH_BUILDER_GROUPSIZE, 1, 1);
                 }
                 command_list.UAVBarrier(*gpu_bvh.primitive_buffer);
                 command_list.UAVBarrier(*sort_buffer);
@@ -517,6 +535,7 @@ namespace won::rendering::utils
                     command_list.UAVBarrier(*gpu_bvh.node_buffer);
                 }
 
+                scratch_resources.push_back(std::move(build_submesh_buffer));
                 scratch_resources.push_back(std::move(sort_buffer));
                 scratch_resources.push_back(std::move(parent_buffer));
                 scratch_resources.push_back(std::move(counter_buffer));
@@ -988,8 +1007,6 @@ namespace won::rendering::utils
             TextureBCCompressPushConstants push_constants = {};
             push_constants.source_srv = static_cast<uint>(mip_srvs[mip_index].descriptor_index);
             push_constants.output_uav = static_cast<uint>(output_uav.descriptor_index);
-            push_constants.width = mip_widths[mip_index];
-            push_constants.height = mip_heights[mip_index];
             push_constants.output_offset = static_cast<uint>(mip_offsets[mip_index] / sizeof(uint32));
             if (is_srgb)
             {

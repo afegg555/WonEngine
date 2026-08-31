@@ -14,11 +14,13 @@ static const uint occlusion_box_corners[36] = {
 
 float4 main(uint vertex_id : SV_VertexID) : SV_Position
 {
+    const ShaderOcclusionBox box = bindless_structured_occlusion_box[DescriptorIndex(occlusionpush.box_buffer_descriptor)][occlusionpush.box_index];
+
     const uint corner = occlusion_box_corners[vertex_id];
     const float3 position = float3(
-        (corner & 1u) != 0u ? occlusionpush.aabb_max.x : occlusionpush.aabb_min.x,
-        (corner & 2u) != 0u ? occlusionpush.aabb_max.y : occlusionpush.aabb_min.y,
-        (corner & 4u) != 0u ? occlusionpush.aabb_max.z : occlusionpush.aabb_min.z);
+        (corner & 1u) != 0u ? box.aabb_max.x : box.aabb_min.x,
+        (corner & 2u) != 0u ? box.aabb_max.y : box.aabb_min.y,
+        (corner & 4u) != 0u ? box.aabb_max.z : box.aabb_min.z);
 
     return mul(GetCamera().view_projection, float4(position, 1.0f));
 }

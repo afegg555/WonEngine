@@ -70,9 +70,70 @@ namespace won::rendering
 		void MarkNoCull(FrameResourceId resource); // this resource will not be culled even if it is not used in any pass. and this resource is not aliased
         bool QueueBufferUpload(FrameResourceId destination, const void* data, Size size, Size destination_offset = 0);
 
+        template<typename T>
+        FrameResourceId CreateConstants(uint32 scope, const char* name, const T& constants, RHISubresourceHandle& out_cbv)
+        {
+            RHIBufferDesc desc = {};
+            desc.size = sizeof(T);
+            desc.usage = RHIResourceUsage::Default;
+            desc.bind_flags = RHIBindFlags::ConstantBuffer;
+
+            const FrameResourceId id = CreateBuffer(scope, name, desc);
+            if (id == invalid_frame_resource)
+            {
+                return invalid_frame_resource;
+            }
+
+            RHISubresourceDesc cbv_desc = {};
+            cbv_desc.type = RHISubresourceType::ConstantBuffer;
+            cbv_desc.buffer_offset = 0;
+            cbv_desc.buffer_size = sizeof(T);
+            out_cbv = CreateSubresource(id, cbv_desc);
+
+            if (!QueueBufferUpload(id, &constants, sizeof(T)))
+            {
+                return invalid_frame_resource;
+            }
+            return id;
+        }
+
+        template<typename T>
+        FrameResourceId CreateStructuredBuffer(uint32 scope, const char* name, const T* elements, Size count, RHISubresourceHandle& out_srv)
+        {
+            if (count == 0)
+            {
+                return invalid_frame_resource;
+            }
+
+            RHIBufferDesc desc = {};
+            desc.size = sizeof(T) * count;
+            desc.usage = RHIResourceUsage::Default;
+            desc.bind_flags = RHIBindFlags::ShaderResource;
+
+            const FrameResourceId id = CreateBuffer(scope, name, desc);
+            if (id == invalid_frame_resource)
+            {
+                return invalid_frame_resource;
+            }
+
+            RHISubresourceDesc srv_desc = {};
+            srv_desc.type = RHISubresourceType::ShaderResource;
+            srv_desc.buffer_offset = 0;
+            srv_desc.buffer_size = desc.size;
+            srv_desc.buffer_stride = sizeof(T);
+            out_srv = CreateSubresource(id, srv_desc);
+
+            if (!QueueBufferUpload(id, elements, desc.size))
+            {
+                return invalid_frame_resource;
+            }
+            return id;
+        }
+
         // Applied to every pass command list opened after this call; passes only override it when they need a sub-rect.
         void SetDefaultViewport(const RHIViewport& viewport, const RHIRect& scissor);
 
+        // Note: currently ShaderFrame should be read in all passes, so we don't add it to accesses.
         void AddPass(const char* name, Vector<FrameResourceAccess> accesses, std::function<void(const FrameGraphPassContext&)> execute);
 
         void Compile();
@@ -97,7 +158,8 @@ namespace won::rendering
         {
             RHISubresourceDesc desc;
             RHISubresourceHandle handle;
-            bool realized = false;
+            bool realized = false; // if connected with rhiresource in Compile
+            bool versioned_this_frame = false; // called CreateSubresource in this frame
         };
 
         struct PooledResource

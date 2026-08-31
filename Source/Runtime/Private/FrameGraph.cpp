@@ -49,6 +49,10 @@ namespace won::rendering
         {
             PooledResource& pooled = pooled_iterator->second;
             pooled.frame_resource = invalid_frame_resource;
+            for (PooledSubresource& subresource : pooled.subresources)
+            {
+                subresource.versioned_this_frame = false;
+            }
             ++pooled.unused_frames;
 			if (pooled.unused_frames <= max_frames_in_flight * 2) // heuristic: keep resources for a few frames
             {
@@ -58,7 +62,7 @@ namespace won::rendering
 
             for (const PooledSubresource& subresource : pooled.subresources)
             {
-                device->ReleaseSubresource(subresource.desc, subresource.handle);
+                device->ReleaseSubresource(subresource.desc.type, subresource.handle);
             }
             frame_context->RemoveResourceDeferred(std::move(pooled.resource));
             pooled_iterator = pooled_resources.erase(pooled_iterator);
@@ -173,12 +177,29 @@ namespace won::rendering
         }
 
 		PooledResource& pooled = CreatePooledResource(frame_resource.scope, frame_resource.name); // if exists, will return existing pooled resource
-        for (const PooledSubresource& subresource : pooled.subresources)
+        for (PooledSubresource& subresource : pooled.subresources)
         {
-            if (subresource.desc == pooled_desc)
+            if (!(subresource.desc == pooled_desc))
+            {
+                continue;
+            }
+
+            if (subresource.versioned_this_frame)
             {
                 return subresource.handle;
             }
+
+            RHISubresourceHandle versioned_handle = {};
+            if (!device->ReserveSubresource(pooled_desc, &versioned_handle))
+            {
+                return {};
+            }
+
+            frame_context->RemoveSubresourceDeferred(subresource.desc.type, subresource.handle);
+            subresource.handle = versioned_handle;
+            subresource.realized = false;
+            subresource.versioned_this_frame = true;
+            return versioned_handle;
         }
 
         RHISubresourceHandle handle = {};
@@ -190,6 +211,7 @@ namespace won::rendering
         PooledSubresource& subresource = pooled.subresources.emplace_back();
         subresource.desc = pooled_desc;
         subresource.handle = handle;
+        subresource.versioned_this_frame = true;
         return handle;
     }
 
@@ -489,11 +511,6 @@ namespace won::rendering
                 }
                 pooled.resource->SetName(pooled.name + " (View " + std::to_string(pooled.scope) + ")");
                 pooled.state = RHIResourceState::Undefined;
-
-                for (PooledSubresource& subresource : pooled.subresources)
-                {
-                    subresource.realized = false;
-                }
             }
 
             pooled.heap_index = placement.heap_index;

@@ -90,10 +90,13 @@ namespace won::physics
 
         bool IsDynamic(won::ecs::Entity entity) const;
 
-        void SyncTransformToPhysics(won::ecs::Entity entity, const won::ecs::TransformComponent& transform, const won::ecs::Collider3DComponent& collider);
+        void ApplySceneTransformToBody(won::ecs::Entity entity, const won::ecs::TransformComponent& transform, const won::ecs::Collider3DComponent& collider);
         
-        void GetBodyTransform(won::ecs::Entity entity, float3& out_position, float4& out_rotation) const;
+        void GetSimulatedBodyTransform(won::ecs::Entity entity, float3& out_position, float4& out_rotation) const; // latest simulated transform without interpolation
+        void GetInterpolatedBodyTransform(won::ecs::Entity entity, float3& out_position, float4& out_rotation) const; // render transform interpolated for dynamic bodies
+        void SetLastPhysicsOutputTransform(won::ecs::Entity entity, const float3& local_position, const float4& local_rotation); // sets the last transform written back from physics
         void GetBodyVelocity(won::ecs::Entity entity, float3& out_linear, float3& out_angular) const;
+        void SetBodyVelocity(won::ecs::Entity entity, const float3& linear, const float3& angular); // updates velocity without rebuilding the body
 
         void SetBodyCollisionLayer(won::ecs::Entity entity, uint32_t collision_layer);
 

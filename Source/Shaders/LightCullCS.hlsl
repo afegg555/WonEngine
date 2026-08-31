@@ -1,6 +1,6 @@
 #define WON_DISABLE_RENDERER_PUSHCONSTANT
 #include "Common.hlsli"
-#define WON_LIGHTCULL_PUSHCONSTANT
+#define WON_LIGHTCULL_CONSTANTBUFFER
 #include "ShaderInterop_LightCull.h"
 
 groupshared uint gs_slice_count[MAX_DEPTH_SLICES];
@@ -45,15 +45,15 @@ bool CullLightToSlices(uint li, float3 cam, float3 fwd, float3 planes[4], float 
 [numthreads(LIGHTCULL_TILE_SIZE, LIGHTCULL_TILE_SIZE, 1)]
 void main(uint3 group_id : SV_GroupID, uint group_index : SV_GroupIndex)
 {
-    if (group_id.x >= lightcullpush.cluster_count.x || group_id.y >= lightcullpush.cluster_count.y)
+    if (group_id.x >= lightcullcb.cluster_count.x || group_id.y >= lightcullcb.cluster_count.y)
     {
         return;
     }
 
-    const uint slice_count = min(lightcullpush.depth_slice_count, MAX_DEPTH_SLICES);
+    const uint slice_count = min(lightcullcb.depth_slice_count, MAX_DEPTH_SLICES);
     const uint total_threads = LIGHTCULL_TILE_SIZE * LIGHTCULL_TILE_SIZE;
-    const uint cluster_tiles = lightcullpush.cluster_count.x * lightcullpush.cluster_count.y;
-    const uint tile_index = group_id.y * lightcullpush.cluster_count.x + group_id.x;
+    const uint cluster_tiles = lightcullcb.cluster_count.x * lightcullcb.cluster_count.y;
+    const uint tile_index = group_id.y * lightcullcb.cluster_count.x + group_id.x;
     const uint tile_region = slice_count * MAX_LIGHTS_PER_CLUSTER; // froxels in one tile share this budget
     const uint tile_base = tile_index * tile_region;
 
@@ -100,7 +100,7 @@ void main(uint3 group_id : SV_GroupID, uint group_index : SV_GroupIndex)
     const float cam_far = GetCamera().z_far;
 
     // 1. count lights per slice pass
-    for (uint li = group_index; li < lightcullpush.light_count; li += total_threads)
+    for (uint li = group_index; li < lightcullcb.light_count; li += total_threads)
     {
         uint slice_min;
         uint slice_max;
@@ -123,8 +123,8 @@ void main(uint3 group_id : SV_GroupID, uint group_index : SV_GroupIndex)
             const uint cnt = min(gs_slice_count[s], avail);
             const uint froxel_index = s * cluster_tiles + tile_index;
             
-            bindless_rwbuffers_uint[DescriptorIndex((int) lightcullpush.cluster_light_count_uav)][froxel_index] = cnt;
-            bindless_rwbuffers_uint[DescriptorIndex((int)lightcullpush.cluster_light_offset_uav)][froxel_index] = tile_base + running; // prefix sum offset
+            bindless_rwbuffers_uint[DescriptorIndex((int) lightcullcb.cluster_light_count_uav)][froxel_index] = cnt;
+            bindless_rwbuffers_uint[DescriptorIndex((int)lightcullcb.cluster_light_offset_uav)][froxel_index] = tile_base + running; // prefix sum offset
             gs_slice_offset[s] = running;
             gs_slice_cursor[s] = running;
             gs_slice_count[s] = cnt;
@@ -134,7 +134,7 @@ void main(uint3 group_id : SV_GroupID, uint group_index : SV_GroupIndex)
     GroupMemoryBarrierWithGroupSync();
 
     // 2. write light indices to slices pass
-    for (uint lj = group_index; lj < lightcullpush.light_count; lj += total_threads)
+    for (uint lj = group_index; lj < lightcullcb.light_count; lj += total_threads)
     {
         uint slice_min;
         uint slice_max;
@@ -148,7 +148,7 @@ void main(uint3 group_id : SV_GroupID, uint group_index : SV_GroupIndex)
             InterlockedAdd(gs_slice_cursor[s], 1, slot);
             if (slot < gs_slice_offset[s] + gs_slice_count[s])
             {
-                bindless_rwbuffers_uint[DescriptorIndex((int)lightcullpush.cluster_light_index_uav)][tile_base + slot] = lj;
+                bindless_rwbuffers_uint[DescriptorIndex((int)lightcullcb.cluster_light_index_uav)][tile_base + slot] = lj;
             }
         }
     }

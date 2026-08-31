@@ -8,18 +8,19 @@ static const uint specular_prefilter_sample_count = 64u;
 [numthreads(DISPATCH_THREAD_GROUP_2D, DISPATCH_THREAD_GROUP_2D, 1)]
 void main(uint3 dispatch_thread_id : SV_DispatchThreadID)
 {
-    const uint resolution = skyprefilterpush.face_resolution;
+    const uint mip = skyprefilterpush.mip;
+    const uint resolution = sky_specular_resolution >> mip;
     if (dispatch_thread_id.x >= resolution || dispatch_thread_id.y >= resolution)
     {
         return;
     }
 
     const float2 uv = (float2(dispatch_thread_id.xy) + 0.5) / float(resolution);
-    const uint face = skyprefilterpush.face_offset + dispatch_thread_id.z;
+    const uint face = dispatch_thread_id.z;
     const float3 normal = CubeFaceDirection(face, uv);
     TextureCube source = bindless_cubemaps[DescriptorIndex((int)skyprefilterpush.source_cubemap)];
 
-    const float perceptual_roughness = skyprefilterpush.perceptual_roughness;
+    const float perceptual_roughness = float(mip) / float(sky_specular_mip_count - 1u);
     float3 prefiltered;
     if (perceptual_roughness <= 0.0)
     {
@@ -38,7 +39,7 @@ void main(uint3 dispatch_thread_id : SV_DispatchThreadID)
             float nol = dot(normal, l);
             if (nol > 0.0)
             {
-                sum += source.SampleLevel(sampler_linear_clamp, l, skyprefilterpush.source_mip).rgb * nol;
+                sum += source.SampleLevel(sampler_linear_clamp, l, float(mip) * 0.5).rgb * nol;
                 weight += nol;
             }
         }

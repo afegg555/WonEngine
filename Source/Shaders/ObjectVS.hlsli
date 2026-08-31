@@ -3,8 +3,8 @@
 PixelInput main(VertexInput input)
 {
     PixelInput output;
-    uint stable_index = bindless_buffers_uint[DescriptorIndex(GetView().instance_sort_buffer)][push.draw_offset + input.instance_id];
-    ShaderInstance instance = GetInstance(stable_index);
+    uint transform_index = bindless_buffers_uint[DescriptorIndex(GetView().transform_index_buffer)][push.draw_offset + input.instance_id];
+    ShaderTransform transform = GetTransform(transform_index);
     ShaderGeometry geometry = GetGeometry();
     float3 local_position = input.GetPosition();
     
@@ -17,7 +17,7 @@ PixelInput main(VertexInput input)
 #endif // OBJECTSHADER_USE_TANGENT
 
     [branch]
-    if ((geometry.flags & SHADER_GEOMETRY_FLAG_SKINNED) != 0 && geometry.bone_indices_buffer_descriptor >= 0 && geometry.bone_weights_buffer_descriptor >= 0 && GetScene().bone_matrix_buffer >= 0 && instance.bone_count > 0)
+    if ((geometry.flags & SHADER_GEOMETRY_FLAG_SKINNED) != 0 && geometry.bone_indices_buffer_descriptor >= 0 && geometry.bone_weights_buffer_descriptor >= 0 && GetScene().bone_matrix_buffer >= 0 && transform.bone_count > 0)
     {
         uint4 bone_indices = bindless_buffers_uint4[DescriptorIndex(geometry.bone_indices_buffer_descriptor)][input.GetVertexID()];
         float4 bone_weights = bindless_buffers_float4[DescriptorIndex(geometry.bone_weights_buffer_descriptor)][input.GetVertexID()];
@@ -38,12 +38,12 @@ PixelInput main(VertexInput input)
         {
             const uint bone_index = bone_indices[influence_index];
             const float bone_weight = bone_weights[influence_index];
-            if (bone_weight <= 0.0f || bone_index >= instance.bone_count)
+            if (bone_weight <= 0.0f || bone_index >= transform.bone_count)
             {
                 continue;
             }
 
-            const uint matrix_offset = (instance.bone_matrix_offset + bone_index) * 4;
+            const uint matrix_offset = (transform.bone_matrix_offset + bone_index) * 4;
             float4x4 bone_matrix = float4x4(
                 bone_matrices[matrix_offset],
                 bone_matrices[matrix_offset + 1],
@@ -79,10 +79,26 @@ PixelInput main(VertexInput input)
         }
     }
 
-    output.pos = mul(instance.world_transform, float4(local_position, 1.0f));
+    output.pos = mul(transform.world_transform, float4(local_position, 1.0f));
     ShaderCamera camera = GetCamera();
     output.worldpos = output.pos.xyz;
     output.pos = mul(camera.view_projection, output.pos);
+
+#ifdef OBJECTSHADER_OUTPUT_MOTION
+    output.current_clip_position = output.pos;
+    ShaderPreviousTransform previous_transform = GetPreviousTransform(transform_index);
+    const float4 local_position_h = float4(local_position, 1.0f);
+    const float3 previous_world_position = float3(
+        dot(previous_transform.world_transform_row0, local_position_h),
+        dot(previous_transform.world_transform_row1, local_position_h),
+        dot(previous_transform.world_transform_row2, local_position_h));
+    output.previous_clip_position = mul(camera.previous_view_projection, float4(previous_world_position, 1.0f));
+    output.previous_view_depth = dot(previous_world_position - camera.previous_position, camera.previous_forward);
+    if ((transform.flags & shader_transform_flag_history_valid) == 0)
+    {
+        output.previous_clip_position.w = 0.0f;
+    }
+#endif
     
 #ifdef OBJECTSHADER_USE_COLOR
     output.color = half4(1.0, 1.0, 1.0, 1.0);
@@ -95,7 +111,7 @@ PixelInput main(VertexInput input)
     
 #endif // OBJECTSHADER_USE_COLOR
 
-    float3x3 normal_mat = float3x3(instance.normal_transform_row0, instance.normal_transform_row1, instance.normal_transform_row2);
+    float3x3 normal_mat = float3x3(transform.normal_transform_row0, transform.normal_transform_row1, transform.normal_transform_row2);
     
 #ifdef OBJECTSHADER_USE_UVSETS
 	output.uvsets = input.GetUVSets();

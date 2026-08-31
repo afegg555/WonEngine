@@ -2,7 +2,9 @@
 
 float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
 {
-    ShaderMaterial material = GetMaterial(push.material_index);
+    const ShaderSprite sprite = bindless_structured_sprite[DescriptorIndex(push.sprite_buffer_descriptor)][push.sprite_index];
+
+    ShaderMaterial material = GetMaterial(sprite.material_index);
     half4 final_color = material.GetBaseColor();
     if (material.textures[BASECOLORMAP].IsValid())
     {

@@ -123,6 +123,7 @@ namespace won::reflection
     WON_REFLECT_ENUM(won::rendering::AntiAliasingMode, "AntiAliasingMode")
         WON_REFLECT_ENUM_VALUE("None", won::rendering::AntiAliasingMode::None)
         WON_REFLECT_ENUM_VALUE("FXAA", won::rendering::AntiAliasingMode::FXAA)
+        WON_REFLECT_ENUM_VALUE("TAA", won::rendering::AntiAliasingMode::TAA)
     WON_REFLECT_ENUM_END()
 
     WON_REFLECT_ENUM(won::rendering::TonemapMode, "TonemapMode")

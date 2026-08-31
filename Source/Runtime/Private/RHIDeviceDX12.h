@@ -61,7 +61,7 @@ namespace won::rendering
         bool UpdateSubresource(RHIResource& resource,
             const RHISubresourceDesc& desc,
             RHISubresourceHandle handle) override;
-        void ReleaseSubresource(const RHISubresourceDesc& desc,
+        void ReleaseSubresource(RHISubresourceType type,
             RHISubresourceHandle handle) override;
 
         std::unique_ptr<RHIPipeline> CreateGraphicsPipeline(

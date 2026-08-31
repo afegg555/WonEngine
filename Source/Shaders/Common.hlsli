@@ -13,7 +13,6 @@ inline int DescriptorIndex(in int descriptor_index)
 #define FLT_MAX 3.402823466e+38
 #define FLT_EPSILON 1.192092896e-07
 #define GOLDEN_RATIO 1.6180339887
-#define MEDIUMP_FLT_MAX 65504.0
 #define saturateMediump(x) min(x, MEDIUMP_FLT_MAX)
 
 inline float Luminance(float3 linear_color) // Rec.709 relative luminance from linear RGB
@@ -37,9 +36,10 @@ inline float Luminance(float3 linear_color) // Rec.709 relative luminance from l
 // Root descriptors (64-bit GPU virtual addresses) cost 2 DWORDs each.
 // Static samplers do not have any cost in the size of the root signature
 
+// !! Keep under 13 DWORDs to avoid spilling from register to VRAM on AMD RDNA architecture(RX 9070XT, 7900 XTX...)
 #define DEFAULT_ROOTSIGNATURE \
     "RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT), " \
-    "RootConstants(num32BitConstants = 11, b999), " \
+    "RootConstants(num32BitConstants = 4, b999), " \
     "CBV(b0), " \
     "CBV(b1), " \
     "DescriptorTable( " \
@@ -102,7 +102,12 @@ inline float Luminance(float3 linear_color) // Rec.709 relative luminance from l
         "SRV(t0, space = 209, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
         "SRV(t0, space = 210, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
         "SRV(t0, space = 211, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
-        "SRV(t0, space = 212, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE) " \
+        "SRV(t0, space = 212, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
+        "SRV(t0, space = 213, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
+        "SRV(t0, space = 214, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
+        "SRV(t0, space = 215, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
+        "SRV(t0, space = 216, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
+        "SRV(t0, space = 217, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE) " \
     "), " \
     "StaticSampler(s100, addressU = TEXTURE_ADDRESS_CLAMP, addressV = TEXTURE_ADDRESS_CLAMP, addressW = TEXTURE_ADDRESS_CLAMP, filter = FILTER_MIN_MAG_MIP_LINEAR)," \
 	"StaticSampler(s101, addressU = TEXTURE_ADDRESS_WRAP, addressV = TEXTURE_ADDRESS_WRAP, addressW = TEXTURE_ADDRESS_WRAP, filter = FILTER_MIN_MAG_MIP_LINEAR)," \
@@ -141,9 +146,10 @@ inline float4 UnpackRGBA8(in uint value)
                   value & 0xffu) / 255.0f;
 }
 
-inline float RadicalInverseVdC(uint bits)
+inline float RadicalInverseVdC(uint idx)
 {
     // invert all bits and normalize by 2^32 (result in range[0,1))
+    uint bits = idx;
     bits = (bits << 16u) | (bits >> 16u);
     bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
     bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
@@ -255,7 +261,7 @@ RWTexture2D<float> bindless_rwtextures_float[] : register(u0, space116);
 
 #include "ShaderInterop_Renderer.h"
 
-StructuredBuffer<ShaderInstance> bindless_structured_instance[] : register(t0, space200);
+StructuredBuffer<ShaderTransform> bindless_structured_transform[] : register(t0, space200);
 StructuredBuffer<ShaderGeometry> bindless_structured_geometry[] : register(t0, space201);
 StructuredBuffer<ShaderMaterial> bindless_structured_material[] : register(t0, space202);
 StructuredBuffer<ShaderLight> bindless_structured_light[] : register(t0, space203);
@@ -268,6 +274,11 @@ StructuredBuffer<ShaderWaterRipple> bindless_structured_water_ripple[] : registe
 StructuredBuffer<ShaderWaterBody> bindless_structured_water_body[] : register(t0, space210);
 StructuredBuffer<ShaderWaterZone> bindless_structured_water_zone[] : register(t0, space211);
 StructuredBuffer<ShaderWaterTile> bindless_structured_water_tile[] : register(t0, space212);
+StructuredBuffer<ShaderMeshNormal> bindless_structured_mesh_normal[] : register(t0, space213);
+StructuredBuffer<ShaderOcclusionBox> bindless_structured_occlusion_box[] : register(t0, space214);
+StructuredBuffer<ShaderDebugDraw2DItem> bindless_structured_debugdraw_2d_item[] : register(t0, space215);
+StructuredBuffer<ShaderSprite> bindless_structured_sprite[] : register(t0, space216);
+StructuredBuffer<ShaderPreviousTransform> bindless_structured_previous_transform[] : register(t0, space217);
 
 // static samplers
 SamplerState sampler_linear_clamp : register(s100);
@@ -320,15 +331,20 @@ inline ShaderCamera GetCamera()
     return g_view.camera;
 }
 
-inline ShaderInstance GetInstance(uint instance_index)
+inline ShaderTransform GetTransform(uint transform_index)
 {
-    return bindless_structured_instance[DescriptorIndex(GetScene().instancebuffer)][instance_index];
+    return bindless_structured_transform[DescriptorIndex(GetScene().transform_buffer)][transform_index];
+}
+
+inline ShaderPreviousTransform GetPreviousTransform(uint transform_index)
+{
+    return bindless_structured_previous_transform[DescriptorIndex(GetScene().previous_transform_buffer)][transform_index];
 }
 
 #ifndef WON_DISABLE_RENDERER_PUSHCONSTANT
-inline ShaderInstance GetInstance()
+inline ShaderTransform GetTransform()
 {
-    return GetInstance(push.draw_offset);
+    return GetTransform(push.draw_offset);
 }
 #endif
 
@@ -391,6 +407,11 @@ inline float2 ScreenUVToNDC(float2 screen_uv)
     return float2(screen_uv.x * 2.0f - 1.0f, 1.0f - screen_uv.y * 2.0f);
 }
 
+inline float2 NDCToScreenUV(float2 ndc)
+{
+    return ndc * float2(0.5f, -0.5f) + 0.5f;
+}
+
 inline float3 NDCToWorld(float2 ndc, float device_depth)
 {
     const float4 world = mul(GetCamera().inv_view_projection, float4(ndc, device_depth, 1.0f));
@@ -405,6 +426,37 @@ inline float3 ScreenUVToWorld(float2 screen_uv, float device_depth)
 inline float3 UnprojectRay(float2 ndc)
 {
     return NDCToWorld(ndc, 0.0f);
+}
+
+// custom software sampler (5 samples)
+inline float3 SampleTextureCatmullRom5Tap(Texture2D source, float2 uv, float2 resolution)
+{
+    const float2 rcp_resolution = 1.0f / resolution;
+    const float2 sample_position = uv * resolution;
+    const float2 texel_center = floor(sample_position - 0.5f) + 0.5f;
+    const float2 f = sample_position - texel_center;
+
+    const float2 w0 = f * (-0.5f + f * (1.0f - 0.5f * f));
+    const float2 w1 = 1.0f + f * f * (-2.5f + 1.5f * f);
+    const float2 w2 = f * (0.5f + f * (2.0f - 1.5f * f));
+    const float2 w3 = f * f * (-0.5f + 0.5f * f);
+
+    const float2 w12 = w1 + w2;
+    const float2 offset12 = w2 / max(w12, 1e-5f);
+
+    const float2 uv0 = (texel_center - 1.0f) * rcp_resolution;
+    const float2 uv3 = (texel_center + 2.0f) * rcp_resolution;
+    const float2 uv12 = (texel_center + offset12) * rcp_resolution;
+
+    float3 result = 0.0f;
+    result += source.SampleLevel(sampler_linear_clamp, float2(uv12.x, uv0.y), 0).rgb * (w12.x * w0.y);
+    result += source.SampleLevel(sampler_linear_clamp, float2(uv0.x, uv12.y), 0).rgb * (w0.x * w12.y);
+    result += source.SampleLevel(sampler_linear_clamp, float2(uv12.x, uv12.y), 0).rgb * (w12.x * w12.y);
+    result += source.SampleLevel(sampler_linear_clamp, float2(uv3.x, uv12.y), 0).rgb * (w3.x * w12.y);
+    result += source.SampleLevel(sampler_linear_clamp, float2(uv12.x, uv3.y), 0).rgb * (w12.x * w3.y);
+
+    const float total = (w12.x * w0.y) + (w0.x * w12.y) + (w12.x * w12.y) + (w3.x * w12.y) + (w12.x * w3.y);
+    return result / max(total, 1e-5f);
 }
 
 #endif // WON_COMMON

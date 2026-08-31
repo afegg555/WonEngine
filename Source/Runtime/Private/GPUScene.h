@@ -135,8 +135,19 @@ namespace won::rendering
 
         GPUBuffer light_buffer;
 
-        Vector<ShaderInstance> shader_instances;
-        GPUBuffer instance_buffer;
+        Vector<ShaderTransform> shader_transforms;
+        GPUBuffer transform_buffer;
+        Vector<ShaderPreviousTransform> shader_previous_transforms;
+        GPUBuffer previous_transform_buffer;
+
+        struct TransformHistory
+        {
+            Vector<ecs::Entity> entities;
+            Vector<float4x4> world_transforms;
+            UnorderedMap<ecs::Entity, uint32> entity_to_index;
+        };
+
+        TransformHistory transform_history;
 
         Vector<ShaderGeometry> shader_geometries;
         GPUBuffer geometry_buffer;

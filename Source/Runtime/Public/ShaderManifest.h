@@ -11,6 +11,8 @@ namespace won::resource
         VSObjectCommon,
         VSObjectSimple,
         VSObjectPrepass,
+        VSObjectMotion,
+        VSObjectMotionMasked,
         VSSprite2D,
         VSSprite3D,
         VSDecal,
@@ -27,6 +29,8 @@ namespace won::resource
         PSObjectForwardPlus,
         PSObjectUnlit,
         PSObjectPrepass,
+        PSObjectMotion,
+        PSObjectMotionMasked,
         PSObjectForwardMasked,
         PSObjectForwardPlusMasked,
         PSObjectUnlitMasked,
@@ -44,6 +48,7 @@ namespace won::resource
         PSWaterForwardPlus,
 
         CSFXAA,
+        CSTAA,
         CSTonemap,
         CSLuminanceReduce,
         CSLuminanceResolve,
@@ -76,6 +81,8 @@ namespace won::resource
         case ShaderId::VSObjectCommon: return "VSObjectCommon";
         case ShaderId::VSObjectSimple: return "VSObjectSimple";
         case ShaderId::VSObjectPrepass: return "VSObjectPrepass";
+        case ShaderId::VSObjectMotion: return "VSObjectMotion";
+        case ShaderId::VSObjectMotionMasked: return "VSObjectMotionMasked";
         case ShaderId::VSSprite2D: return "VSSprite2D";
         case ShaderId::VSSprite3D: return "VSSprite3D";
         case ShaderId::VSDecal: return "VSDecal";
@@ -91,6 +98,8 @@ namespace won::resource
         case ShaderId::PSObjectForwardPlus: return "PSObjectForwardPlus";
         case ShaderId::PSObjectUnlit: return "PSObjectUnlit";
         case ShaderId::PSObjectPrepass: return "PSObjectPrepass";
+        case ShaderId::PSObjectMotion: return "PSObjectMotion";
+        case ShaderId::PSObjectMotionMasked: return "PSObjectMotionMasked";
         case ShaderId::PSObjectForwardMasked: return "PSObjectForwardMasked";
         case ShaderId::PSObjectForwardPlusMasked: return "PSObjectForwardPlusMasked";
         case ShaderId::PSObjectUnlitMasked: return "PSObjectUnlitMasked";
@@ -107,6 +116,7 @@ namespace won::resource
         case ShaderId::PSWaterForward: return "PSWaterForward";
         case ShaderId::PSWaterForwardPlus: return "PSWaterForwardPlus";
         case ShaderId::CSFXAA: return "CSFXAA";
+        case ShaderId::CSTAA: return "CSTAA";
         case ShaderId::CSTonemap: return "CSTonemap";
         case ShaderId::CSLuminanceReduce: return "CSLuminanceReduce";
         case ShaderId::CSLuminanceResolve: return "CSLuminanceResolve";

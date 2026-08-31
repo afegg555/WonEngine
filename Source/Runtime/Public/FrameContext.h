@@ -28,7 +28,7 @@ namespace won::rendering
 
     struct FrameContext
     {
-        void BeginFrame()
+        void BeginFrame(RHIDevice& device)
         {
             if (fence_value > 0)
             {
@@ -45,6 +45,11 @@ namespace won::rendering
                 std::scoped_lock lock(deferred_res_removal_mutex);
                 deferred_res_removal.clear();
                 deferred_shared_res_removal.clear();
+                for (const DeferredSubresourceRelease& release : deferred_subresource_removal)
+                {
+                    device.ReleaseSubresource(release.type, release.handle);
+                }
+                deferred_subresource_removal.clear();
             }
 
             for (std::atomic<Size>& command_list_count : command_list_counts)
@@ -170,6 +175,12 @@ namespace won::rendering
             deferred_shared_res_removal.push_back(std::move(object));
         }
 
+        void RemoveSubresourceDeferred(RHISubresourceType type, RHISubresourceHandle handle)
+        {
+            std::scoped_lock lock(deferred_res_removal_mutex);
+            deferred_subresource_removal.push_back({ type, handle });
+        }
+
         Vector<FrameCommandList> command_lists[static_cast<Size>(RHIQueueType::Count)];
         std::atomic<Size> command_list_counts[static_cast<Size>(RHIQueueType::Count)] = {};
         std::mutex command_lists_mutex;
@@ -182,5 +193,12 @@ namespace won::rendering
 
         std::vector<std::unique_ptr<RHIObject>> deferred_res_removal;
         std::vector<std::shared_ptr<RHIObject>> deferred_shared_res_removal;
+
+        struct DeferredSubresourceRelease
+        {
+            RHISubresourceType type = RHISubresourceType::ShaderResource;
+            RHISubresourceHandle handle = {};
+        };
+        Vector<DeferredSubresourceRelease> deferred_subresource_removal;
     };
 }

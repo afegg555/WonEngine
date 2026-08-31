@@ -283,7 +283,8 @@ namespace won::rendering
             }
         }
 
-        void ExtractRenderables(const ecs::Scene& scene, Vector<ShaderInstance>& shader_instances,
+        void ExtractRenderables(const ecs::Scene& scene, Vector<ShaderTransform>& shader_transforms, Vector<ShaderPreviousTransform>& shader_previous_transforms,
+            const GPUScene::TransformHistory& transform_history, bool transform_history_layout_matches,
             Vector<GPUScene::RenderableCullData>& opaque_cull_data, Vector<Renderable>& opaque_renderables, Vector<Renderable>& transparent_renderables,
             Vector<Renderable>& line_renderables, Vector<Renderable>& point_renderables,
             math::AABB& shadow_caster_world_bound)
@@ -305,7 +306,8 @@ namespace won::rendering
             const auto animation_array = scene.GetComponentArray<AnimationComponent>().get();
             const auto layer_array = scene.GetComponentArray<VisibilityLayerComponent>().get();
 
-            shader_instances.resize(transform_array->GetSize());
+            shader_transforms.resize(transform_array->GetSize());
+            shader_previous_transforms.resize(transform_array->GetSize());
 
             opaque_renderables.clear();
             transparent_renderables.clear();
@@ -323,9 +325,35 @@ namespace won::rendering
                 RenderableBucket& bucket = renderable_buckets[args.group_id];
 
                 const TransformComponent& transform = transform_array->data[args.job_index];
-                ShaderInstance& shader_instance = shader_instances[args.job_index];
-                shader_instance.Init();
-                shader_instance.world_transform = transform.world_transform;
+                ShaderTransform& shader_transform = shader_transforms[args.job_index];
+                shader_transform.Init();
+                shader_transform.world_transform = transform.world_transform;
+
+                const Entity entity = transform_array->index_to_entity[args.job_index];
+                const float4x4* previous_world_transform = nullptr;
+                if (transform_history_layout_matches)
+                {
+                    previous_world_transform = &transform_history.world_transforms[args.job_index];
+                }
+                else
+                {
+                    const auto history_it = transform_history.entity_to_index.find(entity);
+                    if (history_it != transform_history.entity_to_index.end())
+                    {
+                        previous_world_transform = &transform_history.world_transforms[history_it->second];
+                    }
+                }
+
+                const bool previous_transform_valid = previous_world_transform != nullptr;
+                const float4x4& previous_transform = previous_transform_valid ? *previous_world_transform : transform.world_transform;
+                ShaderPreviousTransform& shader_previous_transform = shader_previous_transforms[args.job_index];
+                shader_previous_transform.world_transform_row0 = { previous_transform._11, previous_transform._21, previous_transform._31, previous_transform._41 };
+                shader_previous_transform.world_transform_row1 = { previous_transform._12, previous_transform._22, previous_transform._32, previous_transform._42 };
+                shader_previous_transform.world_transform_row2 = { previous_transform._13, previous_transform._23, previous_transform._33, previous_transform._43 };
+                if (previous_transform_valid)
+                {
+                    shader_transform.flags |= shader_transform_flag_history_valid;
+                }
 
                 XMMATRIX x_normal_mat = XMLoadFloat4x4(&transform.world_transform);
                 x_normal_mat.r[3] = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
@@ -333,18 +361,22 @@ namespace won::rendering
                 x_normal_mat = XMMatrixTranspose(x_normal_mat);
                 XMFLOAT3X3 normal_mat_3x3;
                 XMStoreFloat3x3(&normal_mat_3x3, x_normal_mat);
-                shader_instance.normal_transform_row0 = { normal_mat_3x3._11, normal_mat_3x3._12, normal_mat_3x3._13 };
-                shader_instance.normal_transform_row1 = { normal_mat_3x3._21, normal_mat_3x3._22, normal_mat_3x3._23 };
-                shader_instance.normal_transform_row2 = { normal_mat_3x3._31, normal_mat_3x3._32, normal_mat_3x3._33 };
+                shader_transform.normal_transform_row0 = { normal_mat_3x3._11, normal_mat_3x3._12, normal_mat_3x3._13 };
+                shader_transform.normal_transform_row1 = { normal_mat_3x3._21, normal_mat_3x3._22, normal_mat_3x3._23 };
+                shader_transform.normal_transform_row2 = { normal_mat_3x3._31, normal_mat_3x3._32, normal_mat_3x3._33 };
 
-                Entity entity = transform_array->index_to_entity[args.job_index];
+                const math::AABB* skinned_local_bounds = nullptr;
                 if (animation_array && animation_array->HasData(entity))
                 {
                     const AnimationComponent& animation = animation_array->GetData(entity);
                     if (!animation.bone_matrices.empty())
                     {
-                        shader_instance.bone_matrix_offset = animation.bone_matrix_offset;
-                        shader_instance.bone_count = static_cast<uint32>(animation.bone_matrices.size());
+                        shader_transform.bone_matrix_offset = animation.bone_matrix_offset;
+                        shader_transform.bone_count = static_cast<uint32>(animation.bone_matrices.size());
+                        if (animation.skinned_local_bounds.IsValid())
+                        {
+                            skinned_local_bounds = &animation.skinned_local_bounds;
+                        }
                     }
                 }
 
@@ -364,11 +396,12 @@ namespace won::rendering
                     }
 
                     const float3 world_position = math::GetPosition(transform.world_transform);
+                    const math::AABB& entity_local_bounds = skinned_local_bounds ? *skinned_local_bounds : geometry_comp.local_bounds;
                     math::AABB world_aabb;
                     world_aabb.Invalidate();
-                    if (geometry_comp.local_bounds.IsValid())
+                    if (entity_local_bounds.IsValid())
                     {
-                        world_aabb = geometry_comp.local_bounds.TransformAABB(transform.world_transform);
+                        world_aabb = entity_local_bounds.TransformAABB(transform.world_transform);
                     }
 
                     if (geometry_comp.IsCastShadow() && world_aabb.IsValid())
@@ -391,7 +424,7 @@ namespace won::rendering
                         push_constants.Init();
                         push_constants.geometry_index = geometry_comp.geometry_offset + (uint)i;
                         push_constants.material_index = material_comp.material_offset + submesh.material_slot;
-						push_constants.draw_offset = (uint)args.job_index; // in here, we use the draw_offset to store the ShaderInstance index(per transform)
+						push_constants.draw_offset = (uint)args.job_index;
 
                         renderable.index_buffer = mesh_render_data.buffer.get();
                         renderable.index_buffer_offset = mesh_render_data.indices.offset;
@@ -399,7 +432,7 @@ namespace won::rendering
                         renderable.first_index = submesh.first_index;
                         renderable.index_count = submesh.index_count;
                         renderable.world_position = world_position;
-                        renderable.aabb = submesh.local_bounds.IsValid()
+                        renderable.aabb = (!skinned_local_bounds && submesh.local_bounds.IsValid())
                             ? submesh.local_bounds.TransformAABB(transform.world_transform)
                             : world_aabb;
                         renderable.primitive_topology = submesh.primitive_topology;
@@ -1493,8 +1526,16 @@ namespace won::rendering
         Vector<GlyphRequest> glyph_requests;
         Vector<Sprite3DRenderable> particle_sprite_3d;
 
+        const auto transform_array = scene.GetComponentArray<TransformComponent>().get();
+        const Size transform_count = transform_array->GetSize();
+        bool transform_history_layout_matches = transform_history.entities.size() == transform_count;
+        for (Size i = 0; transform_history_layout_matches && i < transform_count; ++i)
+        {
+            transform_history_layout_matches = transform_history.entities[i] == transform_array->index_to_entity[i];
+        }
+
         jobsystem::Context project_ctx;
-        jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractRenderables(scene, shader_instances, opaque_cull_data, opaque_renderables, transparent_renderables, line_renderables, point_renderables, shadow_caster_world_bound); });
+        jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractRenderables(scene, shader_transforms, shader_previous_transforms, transform_history, transform_history_layout_matches, opaque_cull_data, opaque_renderables, transparent_renderables, line_renderables, point_renderables, shadow_caster_world_bound); });
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractSprites(scene, sprite_2d_renderables, sprite_3d_renderables); });
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractText(scene, text_sprite_2d, text_sprite_3d, glyph_requests); });
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractParticles(scene, particle_instances, particle_sprite_3d); });
@@ -1502,6 +1543,24 @@ namespace won::rendering
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractWater(scene, water.shader_zones, water.shader_bodies, water.injections); });
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractEnvironment(scene, shader_environment, shader_ddgi_volume, shader_reflection_probe, ddgi_volume_entity, derived_sun, has_derived_sun, direct_sun_shadow); });
         jobsystem::Wait(project_ctx);
+
+        transform_history.world_transforms.resize(transform_count);
+        if (!transform_history_layout_matches)
+        {
+            transform_history.entities.resize(transform_count);
+            transform_history.entity_to_index.clear();
+            transform_history.entity_to_index.reserve(transform_count);
+        }
+        for (Size i = 0; i < transform_count; ++i)
+        {
+            transform_history.world_transforms[i] = transform_array->data[i].world_transform;
+            if (!transform_history_layout_matches)
+            {
+                const Entity entity = transform_array->index_to_entity[i];
+                transform_history.entities[i] = entity;
+                transform_history.entity_to_index.emplace(entity, static_cast<uint32>(i));
+            }
+        }
         if (scene.GetWaterSimulation().pending_steps > 0)
         {
             scene.ClearWaterRippleQueue();

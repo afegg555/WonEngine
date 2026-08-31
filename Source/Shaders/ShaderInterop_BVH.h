@@ -30,15 +30,23 @@ struct alignas(16) ShaderBVHPrimitive
     uint material_slot;
 };
 
-struct BVHGeneratePrimitivesPushConstants
+struct alignas(16) ShaderBVHBuildSubmesh
 {
+    float3 bounds_min;
     uint first_index;
+
+    float3 bounds_rcp_extent;
     uint primitive_offset;
+
     uint triangle_count;
     uint submesh_index;
-    float3 bounds_min;
     uint material_slot;
-    float3 bounds_rcp_extent;
+    uint padding;
+};
+
+struct BVHGeneratePrimitivesPushConstants
+{
+    uint build_submesh_index;
 };
 
 struct BVHSortPrimitivesPushConstants
@@ -75,7 +83,8 @@ struct alignas(16) ShaderBVHInstance
 #ifdef __cplusplus
 static_assert(sizeof(ShaderBVHNode) == 48, "ShaderBVHNode layout mismatch");
 static_assert(sizeof(ShaderBVHPrimitive) == 48, "ShaderBVHPrimitive layout mismatch");
-static_assert(sizeof(BVHGeneratePrimitivesPushConstants) == 44, "BVHGeneratePrimitivesPushConstants layout mismatch");
+static_assert(sizeof(ShaderBVHBuildSubmesh) == 48, "ShaderBVHBuildSubmesh layout mismatch");
+static_assert(sizeof(BVHGeneratePrimitivesPushConstants) == 4, "BVHGeneratePrimitivesPushConstants layout mismatch");
 static_assert(sizeof(BVHSortPrimitivesPushConstants) == 8, "BVHSortPrimitivesPushConstants layout mismatch");
 static_assert(sizeof(BVHPrimitiveCountPushConstants) == 4, "BVHPrimitiveCountPushConstants layout mismatch");
 static_assert(sizeof(ShaderBVHInstance) == 192, "ShaderBVHInstance layout mismatch");

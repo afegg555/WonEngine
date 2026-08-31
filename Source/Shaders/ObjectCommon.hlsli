@@ -20,6 +20,11 @@
 #define OBJECTSHADER_USE_EMISSIVE
 #endif // OBJECTSHADER_LAYOUT_COMMON
 
+#ifdef OBJECTSHADER_LAYOUT_MOTION_MASKED
+#define OBJECTSHADER_USE_UVSETS
+#define OBJECTSHADER_USE_COLOR
+#endif // OBJECTSHADER_LAYOUT_MOTION_MASKED
+
 struct VertexInput
 {
     uint vertex_id : SV_VertexID;
@@ -79,6 +84,12 @@ struct PixelInput
 {
     precise float4 pos : SV_Position;
     float3 worldpos : WORLDPOSITION;
+
+#ifdef OBJECTSHADER_OUTPUT_MOTION
+    float4 current_clip_position : CURRENT_CLIP_POSITION;
+    float4 previous_clip_position : PREVIOUS_CLIP_POSITION;
+    float previous_view_depth : PREVIOUS_VIEW_DEPTH;
+#endif
     
 #if defined(PREPASS)
 	uint primitive_id : PRIMITIVEID;

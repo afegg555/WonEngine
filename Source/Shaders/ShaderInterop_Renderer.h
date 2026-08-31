@@ -147,15 +147,17 @@ struct alignas(16) ShaderTextureSlot
 
 };
 
-struct MeshNormalPushConstants
+struct alignas(16) ShaderMeshNormal
 {
     uint position_descriptor;
     uint index_descriptor;
     uint adjacency_range_descriptor;
     uint adjacency_triangle_descriptor;
+
     uint normal_uav_descriptor;
     uint vertex_count;
     uint stream_offset; // ring slot base in vertices
+    uint padding0;
 
 #ifdef __cplusplus
     inline void Init()
@@ -167,6 +169,21 @@ struct MeshNormalPushConstants
         normal_uav_descriptor = 0;
         vertex_count = 0;
         stream_offset = 0;
+        padding0 = 0;
+    }
+#endif
+};
+
+struct MeshNormalPushConstants
+{
+    uint mesh_buffer_descriptor;
+    uint mesh_index;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        mesh_buffer_descriptor = 0;
+        mesh_index = 0;
     }
 #endif
 };
@@ -293,47 +310,47 @@ static const uint DEBUG_VIEW_MODE_OVERDRAW = 9;
 
 struct alignas(16) ShaderScene
 {
-    int instancebuffer;
+    int transform_buffer;
+    int previous_transform_buffer;
     int geometrybuffer;
     int materialbuffer;
-    int lightbuffer;
 
+    int lightbuffer;
     int bvh_node_buffer;
     int bvh_instance_buffer;
     uint bvh_node_count;
-    uint bvh_instance_count;
 
+    uint bvh_instance_count;
     int bone_matrix_buffer;
     uint directional_count;
     uint light_count;
-    int ltc_matrix_lut;
 
+    int ltc_matrix_lut;
     int ltc_fresnel_lut;
+    int particlebuffer;
     int _scene_padding0;
-    int _scene_padding1;
-    int _scene_padding2;
 #ifdef __cplusplus
     inline void Init()
     {
-        instancebuffer = -1;
+        transform_buffer = -1;
+        previous_transform_buffer = -1;
         geometrybuffer = -1;
         materialbuffer = -1;
-        lightbuffer = -1;
 
+        lightbuffer = -1;
         bvh_node_buffer = -1;
         bvh_instance_buffer = -1;
         bvh_node_count = 0;
-        bvh_instance_count = 0;
 
+        bvh_instance_count = 0;
         bone_matrix_buffer = -1;
         directional_count = 0;
         light_count = 0;
-        ltc_matrix_lut = -1;
 
+        ltc_matrix_lut = -1;
         ltc_fresnel_lut = -1;
+        particlebuffer = -1;
         _scene_padding0 = 0;
-        _scene_padding1 = 0;
-        _scene_padding2 = 0;
     }
 #endif
 };
@@ -767,6 +784,91 @@ struct alignas(16) ShaderWaterZone
 #endif
 };
 
+enum SHADER_SPRITE_FLAGS
+{
+    SHADER_SPRITE_FLAG_NONE = 0,
+    SHADER_SPRITE_FLAG_BILLBOARD = 1 << 0,
+    SHADER_SPRITE_FLAG_PARTICLE = 1 << 1, // billboard center + color come from the bindless particle buffer (GetResourceIndex), indexed by instance_index
+};
+
+struct alignas(16) ShaderSprite
+{
+    float4 size_pivot;
+    float4 uv_rect;
+
+    uint instance_index;
+    uint flags;
+    uint material_index;
+    uint padding0;
+
+    uint GetFlags()
+    {
+        return flags & 0xFFu;
+    }
+
+    uint GetResourceIndex()
+    {
+        return flags >> 8u;
+    }
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        size_pivot = { 1.0f, 1.0f, 0.5f, 0.5f };
+        uv_rect = { 0.0f, 0.0f, 1.0f, 1.0f };
+        instance_index = 0;
+        flags = SHADER_SPRITE_FLAG_NONE;
+        material_index = 0;
+        padding0 = 0;
+    }
+
+    inline void SetResourceIndex(uint resource_index)
+    {
+        flags = (flags & 0xFFu) | (resource_index << 8u);
+    }
+#endif
+};
+
+struct alignas(16) ShaderDebugDraw2DItem
+{
+    float4 rect;    // normalized screen-space quad: x, y (top-left), w, h in [0,1]
+    float4 uv_rect; // atlas uv: min.xy, max.zw
+
+    uint color;     // 0xRRGGBBAA
+    uint atlas_index;
+    uint2 padding0;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        rect = { 0.0f, 0.0f, 0.0f, 0.0f };
+        uv_rect = { 0.0f, 0.0f, 1.0f, 1.0f };
+        color = 0xffffffffu;
+        atlas_index = 0;
+        padding0 = { 0, 0 };
+    }
+#endif
+};
+
+struct alignas(16) ShaderOcclusionBox
+{
+    float3 aabb_min;
+    float padding0;
+
+    float3 aabb_max;
+    float padding1;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        aabb_min = float3(0.0f, 0.0f, 0.0f);
+        padding0 = 0.0f;
+        aabb_max = float3(0.0f, 0.0f, 0.0f);
+        padding1 = 0.0f;
+    }
+#endif
+};
+
 struct alignas(16) ShaderFrame
 {
     ShaderScene scene;
@@ -807,13 +909,21 @@ struct alignas(16) ShaderCamera
     float2 internal_resolution_rcp;
 
     float4x4 view;
-    float4x4 projection;
-    float4x4 view_projection;
-    float4x4 inv_view_projection;
+    float4x4 projection; // jittered
+    float4x4 view_projection; // jittered
+    float4x4 inv_view_projection; // jittered
 
     float exposure;
     float _camera_padding0;
     uint2 viewport_offset;
+
+    float4x4 previous_view_projection; // unjittered
+
+    float3 previous_position;
+    float jitter_x;
+
+    float3 previous_forward;
+    float jitter_y;
 
 #ifdef __cplusplus
     inline void Init()
@@ -825,7 +935,11 @@ struct alignas(16) ShaderCamera
         exposure = 1.0f;
         _camera_padding0 = 0.0f;
         viewport_offset = { 0, 0 };
-
+        previous_view_projection = won::math::IDENTITY_MATRIX;
+        previous_position = { 0.0f, 0.0f, 0.0f };
+        jitter_x = 0.0f;
+        previous_forward = { 0.0f, 0.0f, 1.0f };
+        jitter_y = 0.0f;
     }
 #endif
 };
@@ -834,7 +948,7 @@ struct alignas(16) ShaderView
 {
     ShaderCamera camera;
 
-    int instance_sort_buffer;
+    int transform_index_buffer;
     int forward_light_index_buffer;
     uint forward_light_count;
     uint debug_view_mode;
@@ -857,7 +971,7 @@ struct alignas(16) ShaderView
     {
         camera.Init();
 
-        instance_sort_buffer = -1;
+        transform_index_buffer = -1;
         forward_light_index_buffer = -1;
         forward_light_count = 0;
         debug_view_mode = DEBUG_VIEW_MODE_NONE;
@@ -1119,7 +1233,12 @@ struct ObjectPushConstants
 #endif
 };
 
-struct alignas(16) ShaderInstance // per transform
+static const uint shader_transform_flag_history_valid = 1 << 0;
+
+static const float motion_vector_unwritten_marker = MEDIUMP_FLT_MAX;
+static const float motion_vector_previous_transform_invalid_marker = -MEDIUMP_FLT_MAX;
+
+struct alignas(16) ShaderTransform
 {
     float4x4 world_transform;
 
@@ -1128,16 +1247,23 @@ struct alignas(16) ShaderInstance // per transform
     float3 normal_transform_row1;
     uint bone_matrix_offset;
     float3 normal_transform_row2;
-    uint instance_padding;
+    uint flags;
 
 #ifdef __cplusplus
     inline void Init()
     {
         bone_count = 0;
         bone_matrix_offset = 0;
-        instance_padding = 0;
+        flags = 0;
     }
 #endif
+};
+
+struct alignas(16) ShaderPreviousTransform
+{
+    float4 world_transform_row0;
+    float4 world_transform_row1;
+    float4 world_transform_row2;
 };
 
 CONSTANTBUFFER(g_frame, ShaderFrame, CBSLOT_RENDERER_FRAME);
@@ -1146,11 +1272,6 @@ CONSTANTBUFFER(g_view, ShaderView, CBSLOT_RENDERER_CAMERA);
 #ifndef WON_DISABLE_RENDERER_PUSHCONSTANT
 PUSHCONSTANT(push, ObjectPushConstants);
 #endif
-
-//CBUFFER(ForwardLightMaskCB, CBSLOT_RENDERER_FORWARD_LIGHTMASK)
-//{
-//    uint4 forward_light_mask;	// supports indexing 128 lights
-//};
 
 #ifdef __cplusplus
 static_assert(sizeof(ShaderTextureSlot) == 16, "ShaderTextureSlot layout mismatch");
@@ -1165,12 +1286,18 @@ static_assert(sizeof(ShaderWaterBody) == 144, "ShaderWaterBody layout mismatch")
 static_assert(sizeof(ShaderWaterZone) == 80, "ShaderWaterZone layout mismatch");
 static_assert(sizeof(ShaderWaterTile) == 16, "ShaderWaterTile layout mismatch");
 static_assert(sizeof(ShaderFrame) == 448, "ShaderFrame layout mismatch");
-static_assert(sizeof(ShaderCamera) == 336, "ShaderCamera layout mismatch");
-static_assert(sizeof(ShaderView) == 400, "ShaderView layout mismatch");
+static_assert(sizeof(ShaderCamera) == 432, "ShaderCamera layout mismatch");
+static_assert(sizeof(ShaderView) == 496, "ShaderView layout mismatch");
 static_assert(sizeof(ShaderLight) == 64, "ShaderLight layout mismatch");
 static_assert(sizeof(ShaderShadowCascade) == 96, "ShaderShadowCascade layout mismatch");
+static_assert(sizeof(ShaderSprite) == 48, "ShaderSprite layout mismatch");
+static_assert(sizeof(ShaderDebugDraw2DItem) == 48, "ShaderDebugDraw2DItem layout mismatch");
+static_assert(sizeof(ShaderOcclusionBox) == 32, "ShaderOcclusionBox layout mismatch");
+static_assert(sizeof(ShaderMeshNormal) == 32, "ShaderMeshNormal layout mismatch");
+static_assert(sizeof(MeshNormalPushConstants) == 8, "MeshNormalPushConstants layout mismatch");
 static_assert(sizeof(ObjectPushConstants) == 16, "ObjectPushConstants layout mismatch");
-static_assert(sizeof(ShaderInstance) == 112, "ShaderInstance layout mismatch");
+static_assert(sizeof(ShaderTransform) == 112, "ShaderTransform layout mismatch");
+static_assert(sizeof(ShaderPreviousTransform) == 48, "ShaderPreviousTransform layout mismatch");
 #endif // __cplusplus
 
 #endif // WON_SHADERINTEROP_RENDERER_H

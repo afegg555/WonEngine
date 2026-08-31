@@ -2,7 +2,7 @@
 
 VertexOutput main(uint vertex_id : SV_VertexID, uint instance_id : SV_InstanceID)
 {
-    const uint resolution = waterpush.tile_resolution;
+    const uint resolution = GetWaterZone().tile_resolution;
     const uint quad_index = vertex_id / 6u; // 0 ~ (resolution * resolution - 1)
     const uint2 quad_coord = uint2(quad_index % resolution, quad_index / resolution);
     uint2 vertex_coord = quad_coord + (uint2) GetQuadPosition(vertex_id); // 0 ~ resolution

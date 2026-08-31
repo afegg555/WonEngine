@@ -17,6 +17,8 @@
 
 namespace won::rendering
 {
+    static won::console::ConsoleVariable r_occlusion_bounds_expand("r.occlusion.bounds_expand", 0.005f, "occlusion query bounds expansion as a fraction of the distance to the bounds", won::console::ConsoleVariableFlagNone);
+
     static console::ConsoleVariable r_culling_log("r.culling.log", false, "log per-frame opaque culling counts for each stage", console::ConsoleVariableFlagNone);
 
     bool View::HasPointerFocus() const
@@ -126,11 +128,11 @@ namespace won::rendering
             return false;
         }
 
-        ecs::CameraComponent* camera = scene->GetComponent<ecs::CameraComponent>(camera_entity);
-        if (!camera)
+        if (camera_entity == ecs::INVALID_ENTITY)
         {
             return false;
         }
+        const ecs::CameraComponent* camera = &cached_camera;
 
         const float viewport_x = static_cast<float>(viewport.x);
         const float viewport_y = static_cast<float>(viewport.y);
@@ -203,6 +205,31 @@ namespace won::rendering
         }
 
         camera_entity = ResolveCamera();
+        if (ecs::CameraComponent* camera = scene->GetComponent<ecs::CameraComponent>(camera_entity))
+        {
+            if (camera->IsAutoExposure() && exposure_resources.measured_luminance >= 0.0f)
+            {
+                const float measured = (std::max)(1e-4f, exposure_resources.measured_luminance);
+
+                // measured(y) = scene luminance(k) * current_exposure(x)
+                // if we want to make measured as 0.18(middle gray)
+                // (left) y * (0.18 / y) = 0.18
+                // (right) k * x * (0.18 / y)
+
+                // target_exposure(x') = x * (0.18 / y)
+                float target = camera->exposure_multiplier * (ecs::CameraComponent::auto_exposure_target / measured);
+                const float exposure_low = ecs::CameraComponent::ExposureFromEV100(camera->auto_exposure_max_ev);
+                const float exposure_high = ecs::CameraComponent::ExposureFromEV100(camera->auto_exposure_min_ev);
+                target = (std::min)((std::max)(target, exposure_low), exposure_high);
+                const float lerp_factor = (std::min)(1.0f, (std::max)(0.0f, camera->auto_exposure_speed * 0.02f));
+                camera->exposure_multiplier += (target - camera->exposure_multiplier) * lerp_factor;
+            }
+            cached_camera = *camera;
+        }
+        else
+        {
+            camera_entity = ecs::INVALID_ENTITY;
+        }
 
         BuildShadowSlices();
         {
@@ -268,7 +295,7 @@ namespace won::rendering
             return;
         }
 
-        const ecs::CameraComponent* camera = scene->GetComponent<ecs::CameraComponent>(camera_entity);
+        const ecs::CameraComponent* camera = camera_entity != ecs::INVALID_ENTITY ? &cached_camera : nullptr;
         if (!camera)
         {
             return;
@@ -399,7 +426,7 @@ namespace won::rendering
         shadow_resources.render_shadow_slices.clear();
         shadow_resources.shadow_map_atlas_size = { 0, 0 };
 
-        const ecs::CameraComponent* camera = scene->GetComponent<ecs::CameraComponent>(camera_entity);
+        const ecs::CameraComponent* camera = camera_entity != ecs::INVALID_ENTITY ? &cached_camera : nullptr;
         auto light_array = scene->GetComponentArray<ecs::LightComponent>().get();
         rendering::GPUScene& gpu_scene = scene->GetGPUScene();
         if ((show_flags & Show_Shadows) != 0 && camera)
@@ -659,7 +686,7 @@ namespace won::rendering
         {
             light_resources.visible_forward_lights.clear();
 
-            const ecs::CameraComponent* camera = scene ? scene->GetComponent<ecs::CameraComponent>(camera_entity) : nullptr;
+            const ecs::CameraComponent* camera = camera_entity != ecs::INVALID_ENTITY ? &cached_camera : nullptr;
             if (!camera)
             {
                 return;
@@ -690,7 +717,7 @@ namespace won::rendering
             return;
 
         GPUScene& gpu_scene = scene->GetGPUScene();
-        const ecs::CameraComponent* camera = scene->GetComponent<ecs::CameraComponent>(camera_entity);
+        const ecs::CameraComponent* camera = camera_entity != ecs::INVALID_ENTITY ? &cached_camera : nullptr;
         const float3 eye = camera ? camera->eye : float3{};
         const math::Frustum* frustum = nullptr;
         if (options.enable_frustum_culling && camera)
@@ -721,8 +748,11 @@ namespace won::rendering
             const auto& renderables = gpu_scene.opaque_renderables;
             const auto& cull_data = gpu_scene.opaque_cull_data;
             const bool apply_occlusion = occlusion_resources.active;
+            const float near_plane = camera ? camera->near_plane : 0.0f;
+            const float bounds_expand_scale = r_occlusion_bounds_expand.GetFloat();
             sorted_opaque_indices.clear();
             occlusion_query_indices.clear();
+            occlusion_resources.query_boxes.clear();
             uint32 layer_culled = 0;
             uint32 frustum_culled = 0;
             for (uint32 i = 0; i < static_cast<uint32>(cull_data.size()); ++i)
@@ -745,9 +775,44 @@ namespace won::rendering
                     continue;
                 }
 
-                occlusion_query_indices.push_back(i);
-
                 const Renderable& renderable = renderables[i];
+                bool queryable = false;
+                if (renderable.aabb.IsValid())
+                {
+                    const float3 closest_point = {
+                        (std::max)(renderable.aabb.min.x, (std::min)(eye.x, renderable.aabb.max.x)),
+                        (std::max)(renderable.aabb.min.y, (std::min)(eye.y, renderable.aabb.max.y)),
+                        (std::max)(renderable.aabb.min.z, (std::min)(eye.z, renderable.aabb.max.z))
+                    };
+                    const float distance_squared = math::DistanceSquared(closest_point, eye);
+                    if (distance_squared > near_plane * near_plane)
+                    {
+                        const float bounds_expand = std::sqrt(distance_squared) * bounds_expand_scale;
+
+                        ShaderOcclusionBox box = {};
+                        box.Init();
+                        box.aabb_min = {
+                            renderable.aabb.min.x - bounds_expand,
+                            renderable.aabb.min.y - bounds_expand,
+                            renderable.aabb.min.z - bounds_expand
+                        };
+                        box.aabb_max = {
+                            renderable.aabb.max.x + bounds_expand,
+                            renderable.aabb.max.y + bounds_expand,
+                            renderable.aabb.max.z + bounds_expand
+                        };
+                        occlusion_query_indices.push_back(i);
+                        occlusion_resources.query_boxes.push_back(box);
+                        queryable = true;
+                    }
+                }
+
+                if (!queryable)
+                {
+                    sorted_opaque_indices.push_back(i);
+                    continue;
+                }
+
                 const OcclusionResources::RenderableKey key = { renderable.entity, renderable.push_constants.geometry_index };
                 const auto entry = occlusion_resources.visibility.find(key);
                 if (entry != occlusion_resources.visibility.end() && entry->second.IsOccluded())
@@ -882,6 +947,36 @@ namespace won::rendering
                     return math::DistanceSquared(renderables[a].world_position, eye) >
                            math::DistanceSquared(renderables[b].world_position, eye);
                 });
+
+            sprite_resources.sprites_3d.clear();
+            sprite_resources.sprites_3d.reserve(sorted_sprite_3d_indices.size());
+            for (uint32 idx : sorted_sprite_3d_indices)
+            {
+                const auto& r = renderables[idx];
+
+                ShaderSprite sprite = {};
+                sprite.Init();
+                sprite.size_pivot = { r.size.x, r.size.y, r.pivot.x, r.pivot.y };
+                sprite.uv_rect = r.uv_rect;
+                sprite.instance_index = r.instance_index;
+                sprite.material_index = r.material_index;
+                if (r.IsBillboard())
+                {
+                    sprite.flags |= SHADER_SPRITE_FLAG_BILLBOARD;
+                }
+                if (r.IsText())
+                {
+                    if (r.font && r.font->render_data.IsValid())
+                    {
+                        sprite.SetResourceIndex(static_cast<uint32>(r.font->render_data.atlas_srv.descriptor_index));
+                    }
+                }
+                else if (r.IsParticle())
+                {
+                    sprite.flags |= SHADER_SPRITE_FLAG_PARTICLE;
+                }
+                sprite_resources.sprites_3d.push_back(sprite);
+            }
         });
 
         jobsystem::Execute(ctx, [&](jobsystem::JobArgs)
@@ -922,6 +1017,33 @@ namespace won::rendering
                 {
                     return renderables[a].layer < renderables[b].layer;
                 });
+
+            sprite_resources.sprites_2d.clear();
+            sprite_resources.sprites_2d.reserve(sorted_sprite_2d_indices.size());
+            for (uint32 idx : sorted_sprite_2d_indices)
+            {
+                const auto& r = renderables[idx];
+                float s = 1.0f;
+                if (r.reference_resolution.x > 0.0f && r.reference_resolution.y > 0.0f)
+                {
+                    s = std::pow(vp_w / r.reference_resolution.x, 1.0f - r.match) * std::pow(vp_h / r.reference_resolution.y, r.match);
+                }
+                const float px = r.anchor.x * vp_w + r.position.x * s;
+                const float py = r.anchor.y * vp_h + r.position.y * s;
+
+                ShaderSprite sprite = {};
+                sprite.Init();
+                sprite.size_pivot = { r.size.x * s, r.size.y * s, r.pivot.x, r.pivot.y };
+                sprite.uv_rect = r.uv_rect;
+                sprite.instance_index = math::PackHalf2(vp_w > 0.0f ? px / vp_w : 0.0f,
+                                                        vp_h > 0.0f ? py / vp_h : 0.0f);
+                sprite.material_index = r.material_index;
+                if (r.IsText() && r.font && r.font->render_data.IsValid())
+                {
+                    sprite.SetResourceIndex(static_cast<uint32>(r.font->render_data.atlas_srv.descriptor_index));
+                }
+                sprite_resources.sprites_2d.push_back(sprite);
+            }
         });
 
         jobsystem::Wait(ctx);

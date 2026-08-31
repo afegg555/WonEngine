@@ -1,6 +1,6 @@
 #define WON_DISABLE_RENDERER_PUSHCONSTANT
 #include "Common.hlsli"
-#define WON_FXAA_PUSHCONSTANT
+#define WON_FXAA_CONSTANTBUFFER
 #include "ShaderInterop_PostProcess.h"
 
 // FXAA (Timothy Lottes, simplified luma-based edge AA). Operates on LDR color.
@@ -20,15 +20,15 @@ float FXAALuma(float3 rgb)
 [numthreads(DISPATCH_THREAD_GROUP_2D, DISPATCH_THREAD_GROUP_2D, 1)]
 void main(uint3 dispatch_thread_id : SV_DispatchThreadID)
 {
-    if (dispatch_thread_id.x >= fxaapush.resolution.x || dispatch_thread_id.y >= fxaapush.resolution.y)
+    if (dispatch_thread_id.x >= fxaacb.resolution.x || dispatch_thread_id.y >= fxaacb.resolution.y)
     {
         return;
     }
 
-    Texture2D source = bindless_textures[DescriptorIndex((int)fxaapush.input_descriptor)];
-    RWTexture2D<float4> destination = bindless_rwtextures[DescriptorIndex((int)fxaapush.output_descriptor)];
+    Texture2D source = bindless_textures[DescriptorIndex((int)fxaacb.input_descriptor)];
+    RWTexture2D<float4> destination = bindless_rwtextures[DescriptorIndex((int)fxaacb.output_descriptor)];
 
-    const float2 rcp_resolution = fxaapush.rcp_resolution;
+    const float2 rcp_resolution = fxaacb.rcp_resolution;
     const float2 uv = (float2(dispatch_thread_id.xy) + 0.5) * rcp_resolution;
 
     float4 center = source.SampleLevel(sampler_linear_clamp, uv, 0);

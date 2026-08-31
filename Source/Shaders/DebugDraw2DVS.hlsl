@@ -11,11 +11,13 @@ struct PixelInput
 
 PixelInput main(uint vertex_id : SV_VertexID)
 {
+    const ShaderDebugDraw2DItem item = bindless_structured_debugdraw_2d_item[DescriptorIndex(debugdraw2dpush.item_buffer_descriptor)][debugdraw2dpush.item_index];
+
     const float2 q = GetQuadUV(vertex_id);
-    const float2 screen = debugdraw2dpush.rect.xy + q * debugdraw2dpush.rect.zw;
+    const float2 screen = item.rect.xy + q * item.rect.zw;
 
     PixelInput output;
     output.pos = float4(screen.x * 2.0f - 1.0f, 1.0f - screen.y * 2.0f, 0.0f, 1.0f);
-    output.uv = lerp(debugdraw2dpush.uv_rect.xy, debugdraw2dpush.uv_rect.zw, q);
+    output.uv = lerp(item.uv_rect.xy, item.uv_rect.zw, q);
     return output;
 }

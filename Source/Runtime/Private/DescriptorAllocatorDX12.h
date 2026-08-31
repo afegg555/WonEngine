@@ -42,7 +42,7 @@ namespace won::rendering
         bool ReserveSubresourceDescriptor(const RHISubresourceDesc& desc,
             D3D12_DESCRIPTOR_HEAP_TYPE& out_heap_type,
             int& out_descriptor_index);
-        void ReleaseSubresourceDescriptor(const RHISubresourceDesc& desc,
+        void ReleaseSubresourceDescriptor(RHISubresourceType type,
             int descriptor_index);
         bool UpdateSubresourceDescriptor(RHIResourceDX12& resource,
             const RHISubresourceDesc& desc,

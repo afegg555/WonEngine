@@ -3,6 +3,7 @@
 
 Buffer<float3> bvh_build_positions : register(t0);
 Buffer<uint> bvh_build_indices : register(t1);
+StructuredBuffer<ShaderBVHBuildSubmesh> bvh_build_submeshes : register(t2);
 RWStructuredBuffer<ShaderBVHPrimitive> bvh_build_primitives : register(u0);
 RWStructuredBuffer<ShaderBVHNode> bvh_build_nodes : register(u1);
 RWStructuredBuffer<uint2> bvh_build_sort_keys : register(u2);

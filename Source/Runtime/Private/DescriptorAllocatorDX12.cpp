@@ -246,10 +246,10 @@ namespace won::rendering
         return true;
     }
 
-    void DescriptorAllocatorDX12::ReleaseSubresourceDescriptor(const RHISubresourceDesc& desc,
+    void DescriptorAllocatorDX12::ReleaseSubresourceDescriptor(RHISubresourceType type,
         int descriptor_index)
     {
-        DescriptorHeap* target_heap = GetDescriptorHeap(desc.type, false);
+        DescriptorHeap* target_heap = GetDescriptorHeap(type, false);
         if (target_heap)
         {
             ReleaseDescriptor(target_heap->heap_type, descriptor_index);

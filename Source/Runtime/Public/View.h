@@ -89,10 +89,10 @@ namespace won::rendering
             RHISubresourceHandle light_slice_srv = {};
         };
 
-        struct InstanceResources
+        struct TransformResources
         {
-            FrameGraphResourceRef sort_buffer = invalid_frame_resource;
-            RHISubresourceHandle sort_srv = {};
+            FrameGraphResourceRef transform_index_buffer = invalid_frame_resource;
+            RHISubresourceHandle transform_index_srv = {};
         };
 
         struct DDGIDebugResources
@@ -127,28 +127,33 @@ namespace won::rendering
                 uint8 history = 0xffu;
                 uint8 queried = 0xffu;
 
-                bool IsOccluded() const { return history == 0; }
+                bool IsOccluded() const { return history == 0 && (queried & 1u) != 0; }
                 bool IsDead() const { return queried == 0; }
             };
 
             std::unique_ptr<RHIQueryHeap> query_heap;
             std::array<std::unique_ptr<RHIResource>, max_frames_in_flight> readback_buffers = {};
             std::array<Vector<RenderableKey>, max_frames_in_flight> issued_keys = {};
+            Vector<ShaderOcclusionBox> query_boxes; // 1:1 with View::occlusion_query_indices
             std::unordered_map<RenderableKey, VisibilityEntry, RenderableKeyHasher> visibility;
             bool active = false;
         };
 
         struct RenderTargets
         {
-            FrameGraphResourceRef color[2] = { invalid_frame_resource, invalid_frame_resource };
-            RHISubresourceHandle color_rtv[2] = {};
-            RHISubresourceHandle color_srv[2] = {};
-            RHISubresourceHandle color_uav[2] = {};
+            FrameGraphResourceRef scene_color = invalid_frame_resource;
+            RHISubresourceHandle scene_color_rtv = {};
+            RHISubresourceHandle scene_color_srv = {};
+            RHISubresourceHandle scene_color_uav = {};
 
             FrameGraphResourceRef depth = invalid_frame_resource;
             RHISubresourceHandle depth_dsv = {};
             RHISubresourceHandle depth_readonly_dsv = {};
             RHISubresourceHandle depth_srv = {};
+
+            FrameGraphResourceRef motion_vectors = invalid_frame_resource;
+            RHISubresourceHandle motion_vectors_rtv = {};
+            RHISubresourceHandle motion_vectors_srv = {};
 
             FrameGraphResourceRef scene_color_snapshot = invalid_frame_resource;
             RHISubresourceHandle scene_color_snapshot_srv = {};
@@ -161,11 +166,38 @@ namespace won::rendering
         {
             std::unique_ptr<RHIResource> buffer;
             RHISubresourceHandle cbv = {};
+            ShaderCamera camera = {};
         };
 
         struct ExposureResources
         {
             std::unique_ptr<RHIResource> luminance_readback_buffer;
+            float measured_luminance = -1.0f;
+        };
+
+        struct TemporalAAResources
+        {
+            std::unique_ptr<RHIResource> history_texture[2] = {};
+            RHISubresourceHandle history_srv[2] = {};
+            RHISubresourceHandle history_uav[2] = {};
+            std::unique_ptr<RHIResource> depth_history_texture[2] = {};
+            RHISubresourceHandle depth_history_srv[2] = {};
+            RHISubresourceHandle depth_history_uav[2] = {};
+            float4x4 previous_view_projection = math::IDENTITY_MATRIX;
+            float3 previous_position = { 0.0f, 0.0f, 0.0f };
+            float3 previous_forward = { 0.0f, 0.0f, 1.0f };
+            ecs::Entity history_camera_entity = ecs::INVALID_ENTITY;
+            uint32 history_index = 0; // = read_index    write_index = read_index ^ 1u
+            uint32 jitter_index = 0;
+            bool history_valid = false;
+        };
+
+        struct SpriteResources
+        {
+            Vector<ShaderSprite> sprites_3d; // 1:1 with View::sorted_sprite_3d_indices
+            Vector<ShaderSprite> sprites_2d; // 1:1 with View::sorted_sprite_2d_indices
+            RHISubresourceHandle sprite_3d_srv = {};
+            RHISubresourceHandle sprite_2d_srv = {};
         };
 
         struct WaterResources
@@ -183,6 +215,7 @@ namespace won::rendering
         };
 
         ecs::Entity camera_entity = {};
+        ecs::CameraComponent cached_camera = {};
         uint32 viewer_index = 0;
         bool manual_camera = false;
         ecs::Scene* scene = nullptr;
@@ -194,10 +227,12 @@ namespace won::rendering
         RenderTargets render_targets = {};
         ViewConstants view_constants = {};
         ExposureResources exposure_resources = {};
+        TemporalAAResources temporal_aa_resources = {};
+        SpriteResources sprite_resources = {};
         WaterResources water_resources = {};
         LightResources light_resources = {};
         ShadowResources shadow_resources = {};
-        InstanceResources instance_resources = {};
+        TransformResources transform_resources = {};
         DDGIDebugResources ddgi_debug_resources = {};
         OcclusionResources occlusion_resources = {};
         Rect viewport = {};
