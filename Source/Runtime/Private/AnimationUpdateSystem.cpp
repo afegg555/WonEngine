@@ -15,6 +15,7 @@ namespace won::ecs
     {
         auto animation_array = scene.GetComponentArray<AnimationComponent>().get();
         auto geometry_array = scene.GetComponentArray<GeometryComponent>().get();
+        auto transform_array = scene.GetComponentArray<TransformComponent>().get();
         if (!animation_array || !geometry_array)
         {
             return;
@@ -275,14 +276,38 @@ namespace won::ecs
                 XMStoreFloat4x4(&animation.bone_matrices[bone_index], inverse_bind_matrix * global_matrix);
             }
 
+            const Vector<math::AABB>& bone_bounds = geometry.mesh->bone_bounds;
+            animation.skinned_local_bounds.Invalidate();
+            for (Size bone_index = 0; bone_index < bone_count && bone_index < bone_bounds.size(); ++bone_index)
+            {
+                animation.skinned_local_bounds.Merge(bone_bounds[bone_index].TransformAABB(animation.bone_matrices[bone_index]));
+            }
+
             animation.bone_matrices_dirty = false;
         });
 
         jobsystem::Wait(sub_ctx);
 
+        if (transform_array)
+        {
+            for (Size index = 0; index < animation_array->GetSize(); ++index)
+            {
+                const AnimationComponent& animation = animation_array->data[index];
+                const Entity entity = animation_array->index_to_entity[index];
+                if (animation.bone_matrices.empty() || !animation.skinned_local_bounds.IsValid() || !transform_array->HasData(entity))
+                {
+                    continue;
+                }
+
+                TransformComponent& transform = transform_array->GetData(entity);
+                transform.world_bounds = animation.skinned_local_bounds.TransformAABB(transform.world_transform);
+            }
+        }
+
         if (any_recomputed.load(std::memory_order_relaxed))
         {
             bones_dirty = true;
+            scene.SetBVHDirty(true);
         }
         if (bones_dirty)
         {

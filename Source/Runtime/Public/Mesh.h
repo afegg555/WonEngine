@@ -1,4 +1,5 @@
 #pragma once
+#include "Animation.h"
 #include "MathUtils.h"
 #include "Primitives.h"
 #include "BVH.h"
@@ -95,6 +96,7 @@ namespace won::resource
         Vector<uint32> indices;
         Vector<Submesh> submeshes;
         std::shared_ptr<Skeleton> skeleton;
+        Vector<math::AABB> bone_bounds;
         Vector<std::shared_ptr<AnimationClip>> animation_clips; // run, jump...
         bool dynamic_vertex_streams = false; // vertex streams are rewritten every frame, so the gpu copies are ring buffered per frame in flight
         math::bvh::BVH cpu_bvh; // local space bvh
@@ -147,6 +149,43 @@ namespace won::resource
 
             cpu_bvh.Build(primitives);
             backlog::Post("Mesh local BVH built: " + std::to_string(primitives.size()) + " triangles");
+        }
+
+        void BuildBoneBounds()
+        {
+            bone_bounds.clear();
+            if (!skeleton || bone_indices.size() != positions.size() || bone_weights.size() != positions.size())
+            {
+                return;
+            }
+
+            bone_bounds.resize(skeleton->bones.size());
+            for (math::AABB& bounds : bone_bounds)
+            {
+                bounds.Invalidate();
+            }
+
+            for (Size vertex = 0; vertex < positions.size(); ++vertex)
+            {
+                const uint4& influences = bone_indices[vertex];
+                const float4& weights = bone_weights[vertex];
+                const uint32 influence_indices[4] = { influences.x, influences.y, influences.z, influences.w };
+                const float influence_weights[4] = { weights.x, weights.y, weights.z, weights.w };
+
+                math::AABB vertex_bounds = {};
+                vertex_bounds.min = positions[vertex];
+                vertex_bounds.max = positions[vertex];
+
+                for (uint32 influence = 0; influence < 4; ++influence)
+                {
+                    if (influence_weights[influence] <= 0.0f || influence_indices[influence] >= bone_bounds.size())
+                    {
+                        continue;
+                    }
+
+                    bone_bounds[influence_indices[influence]].Merge(vertex_bounds);
+                }
+            }
         }
 
         void ClearRenderData()

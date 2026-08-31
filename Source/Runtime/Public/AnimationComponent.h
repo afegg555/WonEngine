@@ -1,5 +1,6 @@
 #pragma once
 #include "Animation.h"
+#include "Primitives.h"
 #include "Types.h"
 
 namespace won::ecs
@@ -20,6 +21,7 @@ namespace won::ecs
         bool blending = false;
 
         Vector<float4x4> bone_matrices;
+        math::AABB skinned_local_bounds = { XMFLOAT3(FLT_MAX, FLT_MAX, FLT_MAX), XMFLOAT3(-FLT_MAX, -FLT_MAX, -FLT_MAX) };
         uint32 bone_matrix_offset = 0;
         bool bone_matrices_dirty = true;
 

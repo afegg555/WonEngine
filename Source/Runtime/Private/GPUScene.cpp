@@ -338,6 +338,7 @@ namespace won::rendering
                 shader_instance.normal_transform_row2 = { normal_mat_3x3._31, normal_mat_3x3._32, normal_mat_3x3._33 };
 
                 Entity entity = transform_array->index_to_entity[args.job_index];
+                const math::AABB* skinned_local_bounds = nullptr;
                 if (animation_array && animation_array->HasData(entity))
                 {
                     const AnimationComponent& animation = animation_array->GetData(entity);
@@ -345,6 +346,10 @@ namespace won::rendering
                     {
                         shader_instance.bone_matrix_offset = animation.bone_matrix_offset;
                         shader_instance.bone_count = static_cast<uint32>(animation.bone_matrices.size());
+                        if (animation.skinned_local_bounds.IsValid())
+                        {
+                            skinned_local_bounds = &animation.skinned_local_bounds;
+                        }
                     }
                 }
 
@@ -364,11 +369,12 @@ namespace won::rendering
                     }
 
                     const float3 world_position = math::GetPosition(transform.world_transform);
+                    const math::AABB& entity_local_bounds = skinned_local_bounds ? *skinned_local_bounds : geometry_comp.local_bounds;
                     math::AABB world_aabb;
                     world_aabb.Invalidate();
-                    if (geometry_comp.local_bounds.IsValid())
+                    if (entity_local_bounds.IsValid())
                     {
-                        world_aabb = geometry_comp.local_bounds.TransformAABB(transform.world_transform);
+                        world_aabb = entity_local_bounds.TransformAABB(transform.world_transform);
                     }
 
                     if (geometry_comp.IsCastShadow() && world_aabb.IsValid())
@@ -399,7 +405,7 @@ namespace won::rendering
                         renderable.first_index = submesh.first_index;
                         renderable.index_count = submesh.index_count;
                         renderable.world_position = world_position;
-                        renderable.aabb = submesh.local_bounds.IsValid()
+                        renderable.aabb = (!skinned_local_bounds && submesh.local_bounds.IsValid())
                             ? submesh.local_bounds.TransformAABB(transform.world_transform)
                             : world_aabb;
                         renderable.primitive_topology = submesh.primitive_topology;
