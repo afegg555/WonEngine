@@ -335,6 +335,8 @@ namespace won::rendering
         }
     }
 
+    constexpr Size sort_buffer_element_granularity = 1024;
+
     static won::console::ConsoleVariable r_upload_budget("r.upload_budget", 8, "max queued resource uploads per frame, 0 = unlimited", won::console::ConsoleVariableFlagNone);
     static won::console::ConsoleVariable r_cluster_depth_slices("r.cluster.depth_slices", 32, "Forward+ cluster depth slices (1 = 2D tiled)", won::console::ConsoleVariableFlagArchive);
     static won::console::ConsoleVariable r_occlusion_enabled("r.occlusion.enabled", -1, "override hardware occlusion culling of every view: -1=off 0=disable 1=enable", won::console::ConsoleVariableFlagNone);
@@ -1283,7 +1285,8 @@ namespace won::rendering
             const uint32 opaque_count = static_cast<uint32>(view.sorted_opaque_indices.size());
             const uint32 transparent_count = static_cast<uint32>(view.sorted_transparent_indices.size());
             const uint32 shadow_caster_count = static_cast<uint32>(view.sorted_shadow_caster_indices.size());
-            const Size required_sort_buffer_size = (opaque_count + transparent_count + shadow_caster_count) * sizeof(uint32);
+            const Size used_sort_element_count = opaque_count + transparent_count + shadow_caster_count;
+            const Size required_sort_buffer_size = used_sort_element_count * sizeof(uint32);
 
             if (required_sort_buffer_size == 0)
             {
@@ -1293,7 +1296,7 @@ namespace won::rendering
             else
             {
                 RHIBufferDesc desc = {};
-                desc.size = required_sort_buffer_size;
+                desc.size = math::Align(used_sort_element_count, sort_buffer_element_granularity) * sizeof(uint32);
                 desc.usage = RHIResourceUsage::Default;
                 desc.bind_flags = RHIBindFlags::ShaderResource;
                 view.transform_resources.transform_index_buffer = frame_graph.CreateBuffer(view.viewer_index, "Shader Transform Index Buffer", desc);
@@ -4413,4 +4416,3 @@ namespace won::rendering
         device = nullptr;
     }
 }
-
