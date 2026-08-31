@@ -135,8 +135,8 @@ namespace won::rendering
 
         GPUBuffer light_buffer;
 
-        Vector<ShaderInstance> shader_instances;
-        GPUBuffer instance_buffer;
+        Vector<ShaderTransform> shader_transforms;
+        GPUBuffer transform_buffer;
 
         Vector<ShaderGeometry> shader_geometries;
         GPUBuffer geometry_buffer;

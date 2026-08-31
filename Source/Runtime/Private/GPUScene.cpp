@@ -283,7 +283,7 @@ namespace won::rendering
             }
         }
 
-        void ExtractRenderables(const ecs::Scene& scene, Vector<ShaderInstance>& shader_instances,
+        void ExtractRenderables(const ecs::Scene& scene, Vector<ShaderTransform>& shader_transforms,
             Vector<GPUScene::RenderableCullData>& opaque_cull_data, Vector<Renderable>& opaque_renderables, Vector<Renderable>& transparent_renderables,
             Vector<Renderable>& line_renderables, Vector<Renderable>& point_renderables,
             math::AABB& shadow_caster_world_bound)
@@ -305,7 +305,7 @@ namespace won::rendering
             const auto animation_array = scene.GetComponentArray<AnimationComponent>().get();
             const auto layer_array = scene.GetComponentArray<VisibilityLayerComponent>().get();
 
-            shader_instances.resize(transform_array->GetSize());
+            shader_transforms.resize(transform_array->GetSize());
 
             opaque_renderables.clear();
             transparent_renderables.clear();
@@ -323,9 +323,9 @@ namespace won::rendering
                 RenderableBucket& bucket = renderable_buckets[args.group_id];
 
                 const TransformComponent& transform = transform_array->data[args.job_index];
-                ShaderInstance& shader_instance = shader_instances[args.job_index];
-                shader_instance.Init();
-                shader_instance.world_transform = transform.world_transform;
+                ShaderTransform& shader_transform = shader_transforms[args.job_index];
+                shader_transform.Init();
+                shader_transform.world_transform = transform.world_transform;
 
                 XMMATRIX x_normal_mat = XMLoadFloat4x4(&transform.world_transform);
                 x_normal_mat.r[3] = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
@@ -333,9 +333,9 @@ namespace won::rendering
                 x_normal_mat = XMMatrixTranspose(x_normal_mat);
                 XMFLOAT3X3 normal_mat_3x3;
                 XMStoreFloat3x3(&normal_mat_3x3, x_normal_mat);
-                shader_instance.normal_transform_row0 = { normal_mat_3x3._11, normal_mat_3x3._12, normal_mat_3x3._13 };
-                shader_instance.normal_transform_row1 = { normal_mat_3x3._21, normal_mat_3x3._22, normal_mat_3x3._23 };
-                shader_instance.normal_transform_row2 = { normal_mat_3x3._31, normal_mat_3x3._32, normal_mat_3x3._33 };
+                shader_transform.normal_transform_row0 = { normal_mat_3x3._11, normal_mat_3x3._12, normal_mat_3x3._13 };
+                shader_transform.normal_transform_row1 = { normal_mat_3x3._21, normal_mat_3x3._22, normal_mat_3x3._23 };
+                shader_transform.normal_transform_row2 = { normal_mat_3x3._31, normal_mat_3x3._32, normal_mat_3x3._33 };
 
                 Entity entity = transform_array->index_to_entity[args.job_index];
                 const math::AABB* skinned_local_bounds = nullptr;
@@ -344,8 +344,8 @@ namespace won::rendering
                     const AnimationComponent& animation = animation_array->GetData(entity);
                     if (!animation.bone_matrices.empty())
                     {
-                        shader_instance.bone_matrix_offset = animation.bone_matrix_offset;
-                        shader_instance.bone_count = static_cast<uint32>(animation.bone_matrices.size());
+                        shader_transform.bone_matrix_offset = animation.bone_matrix_offset;
+                        shader_transform.bone_count = static_cast<uint32>(animation.bone_matrices.size());
                         if (animation.skinned_local_bounds.IsValid())
                         {
                             skinned_local_bounds = &animation.skinned_local_bounds;
@@ -397,7 +397,7 @@ namespace won::rendering
                         push_constants.Init();
                         push_constants.geometry_index = geometry_comp.geometry_offset + (uint)i;
                         push_constants.material_index = material_comp.material_offset + submesh.material_slot;
-						push_constants.draw_offset = (uint)args.job_index; // in here, we use the draw_offset to store the ShaderInstance index(per transform)
+						push_constants.draw_offset = (uint)args.job_index;
 
                         renderable.index_buffer = mesh_render_data.buffer.get();
                         renderable.index_buffer_offset = mesh_render_data.indices.offset;
@@ -1500,7 +1500,7 @@ namespace won::rendering
         Vector<Sprite3DRenderable> particle_sprite_3d;
 
         jobsystem::Context project_ctx;
-        jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractRenderables(scene, shader_instances, opaque_cull_data, opaque_renderables, transparent_renderables, line_renderables, point_renderables, shadow_caster_world_bound); });
+        jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractRenderables(scene, shader_transforms, opaque_cull_data, opaque_renderables, transparent_renderables, line_renderables, point_renderables, shadow_caster_world_bound); });
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractSprites(scene, sprite_2d_renderables, sprite_3d_renderables); });
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractText(scene, text_sprite_2d, text_sprite_3d, glyph_requests); });
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractParticles(scene, particle_instances, particle_sprite_3d); });

@@ -26,15 +26,15 @@ PixelInput main(VertexInput input)
     }
     else
     {
-        ShaderInstance instance = GetInstance(sprite.instance_index);
+        ShaderTransform transform = GetTransform(sprite.instance_index);
         if ((sprite_flags & SHADER_SPRITE_FLAG_BILLBOARD) != 0)
         {
-            const float3 center = mul(instance.world_transform, float4(0.0f, 0.0f, 0.0f, 1.0f)).xyz;
+            const float3 center = mul(transform.world_transform, float4(0.0f, 0.0f, 0.0f, 1.0f)).xyz;
             world_position = float4(BillboardCorner(center, local_position_2d, camera), 1.0f);
         }
         else
         {
-            world_position = mul(instance.world_transform, float4(local_position_2d.x, local_position_2d.y, 0.0f, 1.0f));
+            world_position = mul(transform.world_transform, float4(local_position_2d.x, local_position_2d.y, 0.0f, 1.0f));
         }
     }
 

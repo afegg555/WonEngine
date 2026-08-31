@@ -261,7 +261,7 @@ RWTexture2D<float> bindless_rwtextures_float[] : register(u0, space116);
 
 #include "ShaderInterop_Renderer.h"
 
-StructuredBuffer<ShaderInstance> bindless_structured_instance[] : register(t0, space200);
+StructuredBuffer<ShaderTransform> bindless_structured_transform[] : register(t0, space200);
 StructuredBuffer<ShaderGeometry> bindless_structured_geometry[] : register(t0, space201);
 StructuredBuffer<ShaderMaterial> bindless_structured_material[] : register(t0, space202);
 StructuredBuffer<ShaderLight> bindless_structured_light[] : register(t0, space203);
@@ -330,15 +330,15 @@ inline ShaderCamera GetCamera()
     return g_view.camera;
 }
 
-inline ShaderInstance GetInstance(uint instance_index)
+inline ShaderTransform GetTransform(uint transform_index)
 {
-    return bindless_structured_instance[DescriptorIndex(GetScene().instancebuffer)][instance_index];
+    return bindless_structured_transform[DescriptorIndex(GetScene().transform_buffer)][transform_index];
 }
 
 #ifndef WON_DISABLE_RENDERER_PUSHCONSTANT
-inline ShaderInstance GetInstance()
+inline ShaderTransform GetTransform()
 {
-    return GetInstance(push.draw_offset);
+    return GetTransform(push.draw_offset);
 }
 #endif
 

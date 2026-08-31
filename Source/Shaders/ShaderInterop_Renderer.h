@@ -310,7 +310,7 @@ static const uint DEBUG_VIEW_MODE_OVERDRAW = 9;
 
 struct alignas(16) ShaderScene
 {
-    int instancebuffer;
+    int transform_buffer;
     int geometrybuffer;
     int materialbuffer;
     int lightbuffer;
@@ -332,7 +332,7 @@ struct alignas(16) ShaderScene
 #ifdef __cplusplus
     inline void Init()
     {
-        instancebuffer = -1;
+        transform_buffer = -1;
         geometrybuffer = -1;
         materialbuffer = -1;
         lightbuffer = -1;
@@ -948,7 +948,7 @@ struct alignas(16) ShaderView
 {
     ShaderCamera camera;
 
-    int instance_sort_buffer;
+    int transform_index_buffer;
     int forward_light_index_buffer;
     uint forward_light_count;
     uint debug_view_mode;
@@ -971,7 +971,7 @@ struct alignas(16) ShaderView
     {
         camera.Init();
 
-        instance_sort_buffer = -1;
+        transform_index_buffer = -1;
         forward_light_index_buffer = -1;
         forward_light_count = 0;
         debug_view_mode = DEBUG_VIEW_MODE_NONE;
@@ -1233,7 +1233,7 @@ struct ObjectPushConstants
 #endif
 };
 
-struct alignas(16) ShaderInstance // per transform
+struct alignas(16) ShaderTransform
 {
     float4x4 world_transform;
 
@@ -1284,7 +1284,7 @@ static_assert(sizeof(ShaderOcclusionBox) == 32, "ShaderOcclusionBox layout misma
 static_assert(sizeof(ShaderMeshNormal) == 32, "ShaderMeshNormal layout mismatch");
 static_assert(sizeof(MeshNormalPushConstants) == 8, "MeshNormalPushConstants layout mismatch");
 static_assert(sizeof(ObjectPushConstants) == 16, "ObjectPushConstants layout mismatch");
-static_assert(sizeof(ShaderInstance) == 112, "ShaderInstance layout mismatch");
+static_assert(sizeof(ShaderTransform) == 112, "ShaderTransform layout mismatch");
 #endif // __cplusplus
 
 #endif // WON_SHADERINTEROP_RENDERER_H

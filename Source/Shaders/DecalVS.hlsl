@@ -24,10 +24,10 @@ VertexOutput main(uint vertex_id : SV_VertexID)
     };
 
     ShaderDecal decal = bindless_structured_decal[DescriptorIndex(decalpush.decal_buffer)][decalpush.decal_index];
-    ShaderInstance instance = GetInstance(decal.instance_index);
+    ShaderTransform transform = GetTransform(decal.instance_index);
 
     float3 local = cube_corners[cube_indices[vertex_id]];
-    float4 world_pos = mul(instance.world_transform, float4(local, 1.0f));
+    float4 world_pos = mul(transform.world_transform, float4(local, 1.0f));
 
     ShaderCamera camera = GetCamera();
     VertexOutput output;

@@ -89,10 +89,10 @@ namespace won::rendering
             RHISubresourceHandle light_slice_srv = {};
         };
 
-        struct InstanceResources
+        struct TransformResources
         {
-            FrameGraphResourceRef sort_buffer = invalid_frame_resource;
-            RHISubresourceHandle sort_srv = {};
+            FrameGraphResourceRef transform_index_buffer = invalid_frame_resource;
+            RHISubresourceHandle transform_index_srv = {};
         };
 
         struct DDGIDebugResources
@@ -228,7 +228,7 @@ namespace won::rendering
         WaterResources water_resources = {};
         LightResources light_resources = {};
         ShadowResources shadow_resources = {};
-        InstanceResources instance_resources = {};
+        TransformResources transform_resources = {};
         DDGIDebugResources ddgi_debug_resources = {};
         OcclusionResources occlusion_resources = {};
         Rect viewport = {};

@@ -151,7 +151,7 @@ namespace won::rendering
         shader_view.Init();
         rendering::GPUScene& gpu_scene = view.scene->GetGPUScene();
         shader_frame.frame_slot = current_frame_slot;
-        shader_frame.scene.instancebuffer = gpu_scene.instance_buffer.srv.descriptor_index;
+        shader_frame.scene.transform_buffer = gpu_scene.transform_buffer.srv.descriptor_index;
         shader_frame.scene.geometrybuffer = gpu_scene.geometry_buffer.srv.descriptor_index;
         shader_frame.scene.materialbuffer = gpu_scene.material_buffer.srv.descriptor_index;
         shader_frame.scene.lightbuffer = gpu_scene.light_buffer.srv.descriptor_index;
@@ -178,7 +178,7 @@ namespace won::rendering
         shader_frame.scene.bvh_instance_buffer = gpu_scene.bvh_instance_buffer.srv.descriptor_index;
         shader_frame.scene.bvh_node_count = static_cast<uint32>(gpu_scene.shader_bvh_nodes.size());
         shader_frame.scene.bvh_instance_count = static_cast<uint32>(gpu_scene.shader_bvh_instances.size());
-        shader_view.instance_sort_buffer = view.instance_resources.sort_srv.descriptor_index;
+        shader_view.transform_index_buffer = view.transform_resources.transform_index_srv.descriptor_index;
         shader_frame.scene.bone_matrix_buffer = gpu_scene.bone_buffer.srv.descriptor_index;
         shader_view.debug_view_mode = static_cast<uint32>(view.view_mode);
         shader_frame.scene.ltc_matrix_lut = ltc_matrix_lut ? static_cast<int>(ltc_matrix_lut_srv.descriptor_index) : -1;
@@ -455,7 +455,7 @@ namespace won::rendering
         UploadBuffer(gpu_scene.geometry_buffer, "Scene Geometry Buffer", frame_context, gpu_scene.shader_geometries.data(), gpu_scene.shader_geometries.size() * sizeof(ShaderGeometry), sizeof(ShaderGeometry), *device, frame_graph);
         UploadBuffer(gpu_scene.material_buffer, "Scene Material Buffer", frame_context, gpu_scene.shader_materials.data(), gpu_scene.shader_materials.size() * sizeof(ShaderMaterial), sizeof(ShaderMaterial), *device, frame_graph);
         UploadBuffer(gpu_scene.bone_buffer, "Scene Bone Matrix Buffer", frame_context, gpu_scene.shader_bone_matrices.data(), gpu_scene.shader_bone_matrices.size() * sizeof(float4), sizeof(float4), *device, frame_graph);
-        UploadBuffer(gpu_scene.instance_buffer, "Scene Instance Buffer", frame_context, gpu_scene.shader_instances.data(), gpu_scene.shader_instances.size() * sizeof(ShaderInstance), sizeof(ShaderInstance), *device, frame_graph);
+        UploadBuffer(gpu_scene.transform_buffer, "Scene Transform Buffer", frame_context, gpu_scene.shader_transforms.data(), gpu_scene.shader_transforms.size() * sizeof(ShaderTransform), sizeof(ShaderTransform), *device, frame_graph);
         UploadBuffer(gpu_scene.particle_buffer, "Scene Particle Buffer", frame_context, gpu_scene.particle_instances.data(), gpu_scene.particle_instances.size() * sizeof(float4), sizeof(float4), *device, frame_graph);
         UploadBuffer(gpu_scene.decal_buffer, "Scene Decal Buffer", frame_context, gpu_scene.shader_decals.data(), gpu_scene.shader_decals.size() * sizeof(ShaderDecal), sizeof(ShaderDecal), *device, frame_graph);
         UploadBuffer(gpu_scene.water.body_buffer, "Scene Water Body Buffer", frame_context, gpu_scene.water.shader_bodies.data(), gpu_scene.water.shader_bodies.size() * sizeof(ShaderWaterBody), sizeof(ShaderWaterBody), *device, frame_graph);
@@ -1287,8 +1287,8 @@ namespace won::rendering
 
             if (required_sort_buffer_size == 0)
             {
-                view.instance_resources.sort_buffer = invalid_frame_resource;
-                view.instance_resources.sort_srv = {};
+                view.transform_resources.transform_index_buffer = invalid_frame_resource;
+                view.transform_resources.transform_index_srv = {};
             }
             else
             {
@@ -1296,25 +1296,25 @@ namespace won::rendering
                 desc.size = required_sort_buffer_size;
                 desc.usage = RHIResourceUsage::Default;
                 desc.bind_flags = RHIBindFlags::ShaderResource;
-                view.instance_resources.sort_buffer = frame_graph.CreateBuffer(view.viewer_index, "Shader Instance Sort Default Buffer", desc);
+                view.transform_resources.transform_index_buffer = frame_graph.CreateBuffer(view.viewer_index, "Shader Transform Index Buffer", desc);
 
                 RHISubresourceDesc srv_desc = {};
                 srv_desc.type = RHISubresourceType::ShaderResource;
                 srv_desc.buffer_offset = 0;
                 srv_desc.buffer_size = desc.size;
                 srv_desc.buffer_stride = sizeof(uint32);
-                view.instance_resources.sort_srv = frame_graph.CreateSubresource(view.instance_resources.sort_buffer, srv_desc);
+                view.transform_resources.transform_index_srv = frame_graph.CreateSubresource(view.transform_resources.transform_index_buffer, srv_desc);
 
                 sort_upload_scratch.resize(opaque_count + transparent_count + shadow_caster_count);
                 uint32* mapped = sort_upload_scratch.data();
                 for (uint32 i = 0; i < opaque_count; ++i)
-					mapped[i] = opaque[view.sorted_opaque_indices[i]].push_constants.draw_offset; // renderable index -> ShaderInstance index, all submeshes share the same ShaderInstance index
+					mapped[i] = opaque[view.sorted_opaque_indices[i]].push_constants.draw_offset;
                 for (uint32 i = 0; i < transparent_count; ++i)
                     mapped[opaque_count + i] = transparent[view.sorted_transparent_indices[i]].push_constants.draw_offset;
                 for (uint32 i = 0; i < shadow_caster_count; ++i)
                     mapped[opaque_count + transparent_count + i] = opaque[view.sorted_shadow_caster_indices[i]].push_constants.draw_offset;
 
-                frame_graph.QueueBufferUpload(view.instance_resources.sort_buffer, sort_upload_scratch.data(), required_sort_buffer_size);
+                frame_graph.QueueBufferUpload(view.transform_resources.transform_index_buffer, sort_upload_scratch.data(), required_sort_buffer_size);
             }
         }
 
@@ -3085,7 +3085,7 @@ namespace won::rendering
         const FrameResourceId view_constants_id = frame_graph.Import(*view.view_constants.buffer);
         const FrameResourceAccess view_constants_read = { view_constants_id, RHIResourceState::ConstantBuffer, FrameResourceAccess::Type::Read };
         const FrameResourceAccess view_constants_write = { view_constants_id, RHIResourceState::ConstantBuffer, FrameResourceAccess::Type::ReadWrite };
-        const FrameResourceAccess sort_buffer_read = { view.instance_resources.sort_buffer, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read };
+        const FrameResourceAccess sort_buffer_read = { view.transform_resources.transform_index_buffer, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read };
 
         if (gpu_scene.ddgi.irradiance_texture)
         {
