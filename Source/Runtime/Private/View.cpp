@@ -776,6 +776,7 @@ namespace won::rendering
                 }
 
                 const Renderable& renderable = renderables[i];
+                bool queryable = false;
                 if (renderable.aabb.IsValid())
                 {
                     const float3 closest_point = {
@@ -802,7 +803,14 @@ namespace won::rendering
                         };
                         occlusion_query_indices.push_back(i);
                         occlusion_resources.query_boxes.push_back(box);
+                        queryable = true;
                     }
+                }
+
+                if (!queryable)
+                {
+                    sorted_opaque_indices.push_back(i);
+                    continue;
                 }
 
                 const OcclusionResources::RenderableKey key = { renderable.entity, renderable.push_constants.geometry_index };

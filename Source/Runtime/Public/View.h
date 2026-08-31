@@ -127,7 +127,7 @@ namespace won::rendering
                 uint8 history = 0xffu;
                 uint8 queried = 0xffu;
 
-                bool IsOccluded() const { return history == 0; }
+                bool IsOccluded() const { return history == 0 && (queried & 1u) != 0; }
                 bool IsDead() const { return queried == 0; }
             };
 

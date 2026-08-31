@@ -3238,7 +3238,6 @@ namespace won::rendering
             {
                 for (auto entry = occlusion.visibility.begin(); entry != occlusion.visibility.end(); )
                 {
-                    entry->second.history <<= 1;
                     entry->second.queried <<= 1;
                     entry = entry->second.IsDead() ? occlusion.visibility.erase(entry) : std::next(entry);
                 }
@@ -3247,12 +3246,15 @@ namespace won::rendering
                 {
                     View::OcclusionResources::VisibilityEntry& entry = occlusion.visibility[resolved_keys[i]];
                     entry.queried |= 1u;
+                    entry.history <<= 1;
                     if (results[i] > 0)
                     {
                         entry.history |= 1u;
                     }
                 }
             }
+
+            occlusion.issued_keys[current_frame_slot].clear();
         }
 
         if (occlusion_enabled)
@@ -3961,8 +3963,7 @@ namespace won::rendering
                 reduce_constants.Init();
                 reduce_constants.input_descriptor = static_cast<uint32>(post_target.srv.descriptor_index);
                 reduce_constants.output_descriptor = static_cast<uint32>(luminance_partial_uav.descriptor_index);
-                reduce_constants.viewport_size = uint2(static_cast<uint32>(view.viewport.width), static_cast<uint32>(view.viewport.height));
-                reduce_constants.viewport_offset = uint2(static_cast<uint32>(view.viewport.x), static_cast<uint32>(view.viewport.y));
+                reduce_constants.viewport_size = uint2(width, height);
 
                 RHISubresourceHandle reduce_cbv = {};
                 const FrameResourceId reduce_constants_id = frame_graph.CreateConstants(view.viewer_index, "Luminance Reduce Constants", reduce_constants, reduce_cbv);
