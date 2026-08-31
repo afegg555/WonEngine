@@ -18,6 +18,7 @@ namespace won::ecs
             Dirty = 1 << 0,
             Enabled = 1 << 1,
             LockRotation = 1 << 2, // dynamic body may only rotate around world Y (upright character)
+            VelocityDirty = 1 << 3, // velocity changed without requiring a body rebuild
         };
 
         uint32 flags = Dirty | Enabled;
@@ -32,6 +33,8 @@ namespace won::ecs
 
         constexpr void SetDirty(bool value = true) { if (value) { flags |= Dirty; } else { flags &= ~Dirty; } }
         constexpr bool IsDirty() const { return (flags & Dirty) != 0; }
+        constexpr void SetVelocityDirty(bool value = true) { if (value) { flags |= VelocityDirty; } else { flags &= ~VelocityDirty; } }
+        constexpr bool IsVelocityDirty() const { return (flags & VelocityDirty) != 0; }
         constexpr void SetEnabled(bool value = true) { if (IsEnabled() == value) { return; } if (value) { flags |= Enabled; } else { flags &= ~Enabled; } SetDirty(); }
         constexpr bool IsEnabled() const { return (flags & Enabled) != 0; }
     };

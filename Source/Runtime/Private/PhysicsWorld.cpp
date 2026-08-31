@@ -317,9 +317,47 @@ namespace won::physics
         Vector<ActiveTriggerPair> active_trigger_pairs;
         Vector<Collider3DTriggerEvent> trigger_events;
 
+        struct DynamicBodyTransformState // fixed-step transform snapshots for a dynamic body
+        {
+            float3 previous_position = {};
+            float4 previous_rotation = {};
+            float3 current_position = {};
+            float4 current_rotation = {};
+            float3 last_physics_output_position = {};
+            float4 last_physics_output_rotation = {};
+            bool has_physics_output = false;
+        };
+        mutable std::shared_mutex dynamic_body_transforms_mutex;
+        UnorderedMap<JPH::BodyID, DynamicBodyTransformState> dynamic_body_transforms; // dynamic bodies only
+        float interpolation_alpha = 0.0f; // remaining fixed-step fraction used for rendering
+
         float accumulator = 0.0f;
         float fixed_step;
         int max_steps_per_frame;
+
+        void ShiftDynamicBodyTransforms() // advances snapshots before a fixed step
+        {
+            std::unique_lock lock(dynamic_body_transforms_mutex);
+            for (auto& [body_id, state] : dynamic_body_transforms)
+            {
+                state.previous_position = state.current_position;
+                state.previous_rotation = state.current_rotation;
+            }
+        }
+
+        void CaptureDynamicBodyTransforms() // captures simulated transforms after a fixed step
+        {
+            const JPH::BodyInterface& body_interface = physics_system->GetBodyInterfaceNoLock();
+            std::unique_lock lock(dynamic_body_transforms_mutex);
+            for (auto& [body_id, state] : dynamic_body_transforms)
+            {
+                JPH::RVec3 position;
+                JPH::Quat rotation;
+                body_interface.GetPositionAndRotation(body_id, position, rotation);
+                state.current_position = { position.GetX(), position.GetY(), position.GetZ() };
+                state.current_rotation = { rotation.GetX(), rotation.GetY(), rotation.GetZ(), rotation.GetW() };
+            }
+        }
 
         PhysicsWorldImpl(const PhysicsWorldDesc& desc)
         {
@@ -382,6 +420,11 @@ namespace won::physics
             active_trigger_pairs.clear();
             trigger_events.clear();
             accumulator = 0.0f;
+            interpolation_alpha = 0.0f;
+            {
+                std::unique_lock lock(dynamic_body_transforms_mutex);
+                dynamic_body_transforms.clear();
+            }
         }
 
     };
@@ -406,11 +449,15 @@ namespace won::physics
 		// note: we use fixed timestep for stable simulation result
         while (impl->accumulator >= impl->fixed_step && steps_taken < impl->max_steps_per_frame)
         {
-			// so do not pass variable delta_time
+            impl->ShiftDynamicBodyTransforms();
+			// do not pass variable delta_time
             impl->physics_system->Update(impl->fixed_step, 1, impl->temp_allocator.get(), impl->job_system.get());
+            impl->CaptureDynamicBodyTransforms();
             impl->accumulator -= impl->fixed_step;
             ++steps_taken;
         }
+
+        impl->interpolation_alpha = impl->fixed_step > 0.0f ? (std::min)(impl->accumulator / impl->fixed_step, 1.0f) : 0.0f;
 
         // Generate trigger events
         Vector<ActiveTriggerPair> current_pairs;
@@ -621,6 +668,7 @@ namespace won::physics
         if (rb)
         {
             rb->SetDirty(false);
+            rb->SetVelocityDirty(false);
         }
         collider.SetDirty(false);
 
@@ -628,6 +676,22 @@ namespace won::physics
             std::unique_lock lock(impl->bodies_mutex);
             impl->entity_to_body[entity] = body_id;
             impl->body_to_entity[body_id] = entity;
+        }
+
+        if (motion_type == JPH::EMotionType::Dynamic)
+        {
+            JPH::RVec3 body_position;
+            JPH::Quat body_rotation;
+            body_interface.GetPositionAndRotation(body_id, body_position, body_rotation);
+
+            PhysicsWorldImpl::DynamicBodyTransformState state = {};
+            state.current_position = { body_position.GetX(), body_position.GetY(), body_position.GetZ() };
+            state.current_rotation = { body_rotation.GetX(), body_rotation.GetY(), body_rotation.GetZ(), body_rotation.GetW() };
+            state.previous_position = state.current_position;
+            state.previous_rotation = state.current_rotation;
+
+            std::unique_lock lock(impl->dynamic_body_transforms_mutex);
+            impl->dynamic_body_transforms[body_id] = state;
         }
     }
 
@@ -681,6 +745,11 @@ namespace won::physics
                     ++it;
                 }
             }
+        }
+
+        {
+            std::unique_lock lock(impl->dynamic_body_transforms_mutex);
+            impl->dynamic_body_transforms.erase(body_id);
         }
 
         JPH::BodyInterface& body_interface = impl->physics_system->GetBodyInterface();
@@ -856,7 +925,7 @@ namespace won::physics
         return impl->physics_system->GetBodyInterface().GetMotionType(body_id) == JPH::EMotionType::Dynamic;
     }
 
-    void PhysicsWorld::SyncTransformToPhysics(won::ecs::Entity entity, const won::ecs::TransformComponent& transform, const won::ecs::Collider3DComponent& collider)
+    void PhysicsWorld::ApplySceneTransformToBody(won::ecs::Entity entity, const won::ecs::TransformComponent& transform, const won::ecs::Collider3DComponent& collider)
     {
         JPH::BodyID body_id;
         {
@@ -877,12 +946,55 @@ namespace won::physics
         XMFLOAT3 pos; XMStoreFloat3(&pos, world_pos);
         XMFLOAT4 rot; XMStoreFloat4(&rot, world_rot_vec);
 
-        JPH::RVec3 current_pos;
-        JPH::Quat current_rot;
-        body_interface.GetPositionAndRotation(body_id, current_pos, current_rot);
+        bool has_dynamic_body_transform = false;
+        bool scene_transform_changed = true;
+        {
+            std::shared_lock lock(impl->dynamic_body_transforms_mutex);
+            auto it = impl->dynamic_body_transforms.find(body_id);
+            if (it != impl->dynamic_body_transforms.end())
+            {
+                const PhysicsWorldImpl::DynamicBodyTransformState& state = it->second;
+                has_dynamic_body_transform = true;
+                scene_transform_changed = !state.has_physics_output
+                    || std::abs(state.last_physics_output_position.x - transform.position.x) > 1e-6f
+                    || std::abs(state.last_physics_output_position.y - transform.position.y) > 1e-6f
+                    || std::abs(state.last_physics_output_position.z - transform.position.z) > 1e-6f
+                    || std::abs(state.last_physics_output_rotation.x - transform.rotation.x) > 1e-6f
+                    || std::abs(state.last_physics_output_rotation.y - transform.rotation.y) > 1e-6f
+                    || std::abs(state.last_physics_output_rotation.z - transform.rotation.z) > 1e-6f
+                    || std::abs(state.last_physics_output_rotation.w - transform.rotation.w) > 1e-6f;
+            }
+        }
 
-        float pos_diff = std::abs(current_pos.GetX() - pos.x) + std::abs(current_pos.GetY() - pos.y) + std::abs(current_pos.GetZ() - pos.z);
-        float rot_diff = std::abs(current_rot.GetX() - rot.x) + std::abs(current_rot.GetY() - rot.y) + std::abs(current_rot.GetZ() - rot.z) + std::abs(current_rot.GetW() - rot.w);
+        if (has_dynamic_body_transform)
+        {
+            if (!scene_transform_changed)
+            {
+                return;
+            }
+
+            body_interface.SetPositionAndRotation(body_id, JPH::RVec3(pos.x, pos.y, pos.z), JPH::Quat(rot.x, rot.y, rot.z, rot.w), JPH::EActivation::Activate);
+
+            std::unique_lock lock(impl->dynamic_body_transforms_mutex);
+            auto it = impl->dynamic_body_transforms.find(body_id);
+            if (it != impl->dynamic_body_transforms.end())
+            {
+                PhysicsWorldImpl::DynamicBodyTransformState& state = it->second;
+                state.current_position = { pos.x, pos.y, pos.z };
+                state.current_rotation = { rot.x, rot.y, rot.z, rot.w };
+                state.previous_position = state.current_position;
+                state.previous_rotation = state.current_rotation;
+                state.has_physics_output = false;
+            }
+            return;
+        }
+
+        JPH::RVec3 body_position;
+        JPH::Quat body_rotation;
+        body_interface.GetPositionAndRotation(body_id, body_position, body_rotation);
+
+        const float pos_diff = std::abs(body_position.GetX() - pos.x) + std::abs(body_position.GetY() - pos.y) + std::abs(body_position.GetZ() - pos.z);
+        const float rot_diff = std::abs(body_rotation.GetX() - rot.x) + std::abs(body_rotation.GetY() - rot.y) + std::abs(body_rotation.GetZ() - rot.z) + std::abs(body_rotation.GetW() - rot.w);
 
         if (pos_diff > 1e-5f || rot_diff > 1e-5f)
         {
@@ -890,7 +1002,31 @@ namespace won::physics
         }
     }
 
-    void PhysicsWorld::GetBodyTransform(won::ecs::Entity entity, float3& out_position, float4& out_rotation) const
+    void PhysicsWorld::SetLastPhysicsOutputTransform(won::ecs::Entity entity, const float3& local_position, const float4& local_rotation)
+    {
+        JPH::BodyID body_id;
+        {
+            std::shared_lock lock(impl->bodies_mutex);
+            auto it = impl->entity_to_body.find(entity);
+            if (it == impl->entity_to_body.end())
+                return;
+            body_id = it->second;
+        }
+
+        std::unique_lock lock(impl->dynamic_body_transforms_mutex);
+        auto it = impl->dynamic_body_transforms.find(body_id);
+        if (it == impl->dynamic_body_transforms.end())
+        {
+            return;
+        }
+
+        PhysicsWorldImpl::DynamicBodyTransformState& state = it->second;
+        state.last_physics_output_position = local_position;
+        state.last_physics_output_rotation = local_rotation;
+        state.has_physics_output = true;
+    }
+
+    void PhysicsWorld::GetSimulatedBodyTransform(won::ecs::Entity entity, float3& out_position, float4& out_rotation) const
     {
         JPH::BodyID body_id;
         {
@@ -907,6 +1043,36 @@ namespace won::physics
         out_rotation = { rot.GetX(), rot.GetY(), rot.GetZ(), rot.GetW() };
     }
 
+    void PhysicsWorld::GetInterpolatedBodyTransform(won::ecs::Entity entity, float3& out_position, float4& out_rotation) const
+    {
+        JPH::BodyID body_id;
+        {
+            std::shared_lock lock(impl->bodies_mutex);
+            auto it = impl->entity_to_body.find(entity);
+            if (it == impl->entity_to_body.end())
+                return;
+            body_id = it->second;
+        }
+
+        {
+            std::shared_lock lock(impl->dynamic_body_transforms_mutex);
+            auto it = impl->dynamic_body_transforms.find(body_id);
+            if (it != impl->dynamic_body_transforms.end())
+            {
+                const PhysicsWorldImpl::DynamicBodyTransformState& state = it->second;
+                out_position = math::Lerp(state.previous_position, state.current_position, impl->interpolation_alpha);
+                out_rotation = math::Slerp(state.previous_rotation, state.current_rotation, impl->interpolation_alpha);
+                return;
+            }
+        }
+
+        JPH::RVec3 position;
+        JPH::Quat rotation;
+        impl->physics_system->GetBodyInterface().GetPositionAndRotation(body_id, position, rotation);
+        out_position = { position.GetX(), position.GetY(), position.GetZ() };
+        out_rotation = { rotation.GetX(), rotation.GetY(), rotation.GetZ(), rotation.GetW() };
+    }
+
     void PhysicsWorld::GetBodyVelocity(won::ecs::Entity entity, float3& out_linear, float3& out_angular) const
     {
         JPH::BodyID body_id;
@@ -921,6 +1087,28 @@ namespace won::physics
         JPH::Vec3 ang = impl->physics_system->GetBodyInterface().GetAngularVelocity(body_id);
         out_linear = { lin.GetX(), lin.GetY(), lin.GetZ() };
         out_angular = { ang.GetX(), ang.GetY(), ang.GetZ() };
+    }
+
+    void PhysicsWorld::SetBodyVelocity(won::ecs::Entity entity, const float3& linear, const float3& angular)
+    {
+        JPH::BodyID body_id;
+        {
+            std::shared_lock lock(impl->bodies_mutex);
+            auto it = impl->entity_to_body.find(entity);
+            if (it == impl->entity_to_body.end())
+                return;
+            body_id = it->second;
+        }
+
+        JPH::BodyInterface& body_interface = impl->physics_system->GetBodyInterface();
+        if (body_interface.GetMotionType(body_id) == JPH::EMotionType::Static)
+        {
+            return;
+        }
+
+        body_interface.SetLinearVelocity(body_id, JPH::Vec3(linear.x, linear.y, linear.z));
+        body_interface.SetAngularVelocity(body_id, JPH::Vec3(angular.x, angular.y, angular.z));
+        body_interface.ActivateBody(body_id);
     }
 
     void PhysicsWorld::SetBodyCollisionLayer(won::ecs::Entity entity, uint32_t collision_layer)

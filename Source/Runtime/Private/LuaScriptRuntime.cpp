@@ -3635,7 +3635,7 @@ namespace won::script
         rb->linear_velocity.x = static_cast<float>(luaL_checknumber(state, value_index));
         rb->linear_velocity.y = static_cast<float>(luaL_checknumber(state, value_index + 1));
         rb->linear_velocity.z = static_cast<float>(luaL_checknumber(state, value_index + 2));
-        rb->SetDirty();
+        rb->SetVelocityDirty();
         lua_pushboolean(state, true);
         return 1;
     }
@@ -3686,7 +3686,7 @@ namespace won::script
         rb->angular_velocity.x = static_cast<float>(luaL_checknumber(state, value_index));
         rb->angular_velocity.y = static_cast<float>(luaL_checknumber(state, value_index + 1));
         rb->angular_velocity.z = static_cast<float>(luaL_checknumber(state, value_index + 2));
-        rb->SetDirty();
+        rb->SetVelocityDirty();
         lua_pushboolean(state, true);
         return 1;
     }

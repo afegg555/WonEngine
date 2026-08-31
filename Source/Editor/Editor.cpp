@@ -4438,14 +4438,14 @@ namespace won::editor
 						if (ImGui::InputFloat3(EditorText(editor_key::label_linear_velocity), linear_vel))
 						{
 							rigidbody_3d_comp->linear_velocity = { linear_vel[0], linear_vel[1], linear_vel[2] };
-							rigidbody_3d_comp->SetDirty();
+							rigidbody_3d_comp->SetVelocityDirty();
 						}
 
 						float angular_vel[3] = { rigidbody_3d_comp->angular_velocity.x, rigidbody_3d_comp->angular_velocity.y, rigidbody_3d_comp->angular_velocity.z };
 						if (ImGui::InputFloat3(EditorText(editor_key::label_angular_velocity), angular_vel))
 						{
 							rigidbody_3d_comp->angular_velocity = { angular_vel[0], angular_vel[1], angular_vel[2] };
-							rigidbody_3d_comp->SetDirty();
+							rigidbody_3d_comp->SetVelocityDirty();
 						}
 					}
 					else if (remove_component)

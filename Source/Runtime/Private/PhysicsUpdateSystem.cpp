@@ -69,7 +69,12 @@ namespace won::ecs
             else
             {
 				physics_world->SetBodyCollisionLayer(entity, collision_layer);
-				physics_world->SyncTransformToPhysics(entity, transform, collider); // sync kinematic / static body transform
+				physics_world->ApplySceneTransformToBody(entity, transform, collider);
+                if (rb && rb->IsVelocityDirty())
+                {
+                    physics_world->SetBodyVelocity(entity, rb->linear_velocity, rb->angular_velocity);
+                    rb->SetVelocityDirty(false);
+                }
             }
         });
         jobsystem::Wait(sub_ctx);
@@ -237,7 +242,7 @@ namespace won::ecs
                 {
                     float3 body_pos;
                     float4 body_rot;
-                    physics_world->GetBodyTransform(entity, body_pos, body_rot);
+                    physics_world->GetSimulatedBodyTransform(entity, body_pos, body_rot);
                     const XMMATRIX body_matrix = XMMatrixRotationQuaternion(XMVectorSet(body_rot.x, body_rot.y, body_rot.z, body_rot.w)) * XMMatrixTranslation(body_pos.x, body_pos.y, body_pos.z);
                     const float3 offset = collider_array->HasData(entity) ? collider_array->GetData(entity).offset : float3(0.0f, 0.0f, 0.0f);
                     chassis_world = XMMatrixTranslation(-offset.x, -offset.y, -offset.z) * body_matrix;
@@ -294,7 +299,7 @@ namespace won::ecs
 
                 float3 body_pos;
                 float4 body_rot;
-                physics_world->GetBodyTransform(entity, body_pos, body_rot);
+                physics_world->GetInterpolatedBodyTransform(entity, body_pos, body_rot);
 
                 XMVECTOR jolt_pos = XMVectorSet(body_pos.x, body_pos.y, body_pos.z, 1.0f);
                 XMVECTOR jolt_rot = XMVectorSet(body_rot.x, body_rot.y, body_rot.z, body_rot.w);
@@ -321,6 +326,7 @@ namespace won::ecs
                     XMStoreFloat3(&transform.position, T);
                     XMStoreFloat4(&transform.rotation, R);
                     transform.SetDirty();
+                    physics_world->SetLastPhysicsOutputTransform(entity, transform.position, transform.rotation);
                 }
 
                 if (rigidbody_array && rigidbody_array->HasData(entity))
