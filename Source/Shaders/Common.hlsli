@@ -13,7 +13,6 @@ inline int DescriptorIndex(in int descriptor_index)
 #define FLT_MAX 3.402823466e+38
 #define FLT_EPSILON 1.192092896e-07
 #define GOLDEN_RATIO 1.6180339887
-#define MEDIUMP_FLT_MAX 65504.0
 #define saturateMediump(x) min(x, MEDIUMP_FLT_MAX)
 
 inline float Luminance(float3 linear_color) // Rec.709 relative luminance from linear RGB
@@ -107,7 +106,8 @@ inline float Luminance(float3 linear_color) // Rec.709 relative luminance from l
         "SRV(t0, space = 213, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
         "SRV(t0, space = 214, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
         "SRV(t0, space = 215, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
-        "SRV(t0, space = 216, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE) " \
+        "SRV(t0, space = 216, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
+        "SRV(t0, space = 217, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE) " \
     "), " \
     "StaticSampler(s100, addressU = TEXTURE_ADDRESS_CLAMP, addressV = TEXTURE_ADDRESS_CLAMP, addressW = TEXTURE_ADDRESS_CLAMP, filter = FILTER_MIN_MAG_MIP_LINEAR)," \
 	"StaticSampler(s101, addressU = TEXTURE_ADDRESS_WRAP, addressV = TEXTURE_ADDRESS_WRAP, addressW = TEXTURE_ADDRESS_WRAP, filter = FILTER_MIN_MAG_MIP_LINEAR)," \
@@ -278,6 +278,7 @@ StructuredBuffer<ShaderMeshNormal> bindless_structured_mesh_normal[] : register(
 StructuredBuffer<ShaderOcclusionBox> bindless_structured_occlusion_box[] : register(t0, space214);
 StructuredBuffer<ShaderDebugDraw2DItem> bindless_structured_debugdraw_2d_item[] : register(t0, space215);
 StructuredBuffer<ShaderSprite> bindless_structured_sprite[] : register(t0, space216);
+StructuredBuffer<ShaderPreviousTransform> bindless_structured_previous_transform[] : register(t0, space217);
 
 // static samplers
 SamplerState sampler_linear_clamp : register(s100);
@@ -333,6 +334,11 @@ inline ShaderCamera GetCamera()
 inline ShaderTransform GetTransform(uint transform_index)
 {
     return bindless_structured_transform[DescriptorIndex(GetScene().transform_buffer)][transform_index];
+}
+
+inline ShaderPreviousTransform GetPreviousTransform(uint transform_index)
+{
+    return bindless_structured_previous_transform[DescriptorIndex(GetScene().previous_transform_buffer)][transform_index];
 }
 
 #ifndef WON_DISABLE_RENDERER_PUSHCONSTANT

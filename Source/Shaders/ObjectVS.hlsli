@@ -83,6 +83,22 @@ PixelInput main(VertexInput input)
     ShaderCamera camera = GetCamera();
     output.worldpos = output.pos.xyz;
     output.pos = mul(camera.view_projection, output.pos);
+
+#ifdef OBJECTSHADER_OUTPUT_MOTION
+    output.current_clip_position = output.pos;
+    ShaderPreviousTransform previous_transform = GetPreviousTransform(transform_index);
+    const float4 local_position_h = float4(local_position, 1.0f);
+    const float3 previous_world_position = float3(
+        dot(previous_transform.world_transform_row0, local_position_h),
+        dot(previous_transform.world_transform_row1, local_position_h),
+        dot(previous_transform.world_transform_row2, local_position_h));
+    output.previous_clip_position = mul(camera.previous_view_projection, float4(previous_world_position, 1.0f));
+    output.previous_view_depth = dot(previous_world_position - camera.previous_position, camera.previous_forward);
+    if ((transform.flags & shader_transform_flag_history_valid) == 0)
+    {
+        output.previous_clip_position.w = 0.0f;
+    }
+#endif
     
 #ifdef OBJECTSHADER_USE_COLOR
     output.color = half4(1.0, 1.0, 1.0, 1.0);

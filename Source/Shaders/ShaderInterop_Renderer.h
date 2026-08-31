@@ -311,46 +311,46 @@ static const uint DEBUG_VIEW_MODE_OVERDRAW = 9;
 struct alignas(16) ShaderScene
 {
     int transform_buffer;
+    int previous_transform_buffer;
     int geometrybuffer;
     int materialbuffer;
-    int lightbuffer;
 
+    int lightbuffer;
     int bvh_node_buffer;
     int bvh_instance_buffer;
     uint bvh_node_count;
-    uint bvh_instance_count;
 
+    uint bvh_instance_count;
     int bone_matrix_buffer;
     uint directional_count;
     uint light_count;
-    int ltc_matrix_lut;
 
+    int ltc_matrix_lut;
     int ltc_fresnel_lut;
     int particlebuffer;
     int _scene_padding0;
-    int _scene_padding1;
 #ifdef __cplusplus
     inline void Init()
     {
         transform_buffer = -1;
+        previous_transform_buffer = -1;
         geometrybuffer = -1;
         materialbuffer = -1;
-        lightbuffer = -1;
 
+        lightbuffer = -1;
         bvh_node_buffer = -1;
         bvh_instance_buffer = -1;
         bvh_node_count = 0;
-        bvh_instance_count = 0;
 
+        bvh_instance_count = 0;
         bone_matrix_buffer = -1;
         directional_count = 0;
         light_count = 0;
-        ltc_matrix_lut = -1;
 
+        ltc_matrix_lut = -1;
         ltc_fresnel_lut = -1;
         particlebuffer = -1;
         _scene_padding0 = 0;
-        _scene_padding1 = 0;
     }
 #endif
 };
@@ -909,15 +909,15 @@ struct alignas(16) ShaderCamera
     float2 internal_resolution_rcp;
 
     float4x4 view;
-    float4x4 projection;
-    float4x4 view_projection;
-    float4x4 inv_view_projection;
+    float4x4 projection; // jittered
+    float4x4 view_projection; // jittered
+    float4x4 inv_view_projection; // jittered
 
     float exposure;
     float _camera_padding0;
     uint2 viewport_offset;
 
-    float4x4 previous_view_projection;
+    float4x4 previous_view_projection; // unjittered
 
     float3 previous_position;
     float jitter_x;
@@ -1233,6 +1233,11 @@ struct ObjectPushConstants
 #endif
 };
 
+static const uint shader_transform_flag_history_valid = 1 << 0;
+
+static const float motion_vector_unwritten_marker = MEDIUMP_FLT_MAX;
+static const float motion_vector_previous_transform_invalid_marker = -MEDIUMP_FLT_MAX;
+
 struct alignas(16) ShaderTransform
 {
     float4x4 world_transform;
@@ -1242,16 +1247,23 @@ struct alignas(16) ShaderTransform
     float3 normal_transform_row1;
     uint bone_matrix_offset;
     float3 normal_transform_row2;
-    uint instance_padding;
+    uint flags;
 
 #ifdef __cplusplus
     inline void Init()
     {
         bone_count = 0;
         bone_matrix_offset = 0;
-        instance_padding = 0;
+        flags = 0;
     }
 #endif
+};
+
+struct alignas(16) ShaderPreviousTransform
+{
+    float4 world_transform_row0;
+    float4 world_transform_row1;
+    float4 world_transform_row2;
 };
 
 CONSTANTBUFFER(g_frame, ShaderFrame, CBSLOT_RENDERER_FRAME);
@@ -1285,6 +1297,7 @@ static_assert(sizeof(ShaderMeshNormal) == 32, "ShaderMeshNormal layout mismatch"
 static_assert(sizeof(MeshNormalPushConstants) == 8, "MeshNormalPushConstants layout mismatch");
 static_assert(sizeof(ObjectPushConstants) == 16, "ObjectPushConstants layout mismatch");
 static_assert(sizeof(ShaderTransform) == 112, "ShaderTransform layout mismatch");
+static_assert(sizeof(ShaderPreviousTransform) == 48, "ShaderPreviousTransform layout mismatch");
 #endif // __cplusplus
 
 #endif // WON_SHADERINTEROP_RENDERER_H

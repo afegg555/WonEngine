@@ -37,6 +37,7 @@ static const float PI = won::math::PI;
 #define DISPATCH_THREAD_GROUP_3D 4
 #define DISPATCH_THREAD_GROUP_2D 8
 #define DISPATCH_THREAD_GROUP_1D 64
+#define MEDIUMP_FLT_MAX 65504.0
 
 // Common buffers:
 // These are usable by all shaders

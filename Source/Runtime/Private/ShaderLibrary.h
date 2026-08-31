@@ -13,6 +13,7 @@ namespace won::resource
         SkyPass,
         ShadowPass,
         DepthPrepass,
+        MotionPrepass,
         MainPass,
         PrimitivePass,
         Sprite2DPass,

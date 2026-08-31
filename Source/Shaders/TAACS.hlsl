@@ -81,6 +81,7 @@ void main(uint3 dispatch_thread_id : SV_DispatchThreadID,
 
     Texture2D history_color = bindless_textures[DescriptorIndex((int)taacb.history_descriptor)];
     Texture2D depth_buffer = bindless_textures[DescriptorIndex((int)taacb.depth_descriptor)];
+    Texture2D motion_vectors = bindless_textures[DescriptorIndex((int)taacb.motion_vectors_descriptor)];
     Texture2D depth_history = bindless_textures[DescriptorIndex((int)taacb.depth_history_descriptor)];
     RWTexture2D<float4> destination = bindless_rwtextures[DescriptorIndex((int)taacb.output_descriptor)];
     RWTexture2D<float4> history_destination = bindless_rwtextures[DescriptorIndex((int)taacb.history_output_descriptor)];
@@ -118,31 +119,49 @@ void main(uint3 dispatch_thread_id : SV_DispatchThreadID,
     const float2 rcp_resolution = 1.0f / resolution;
     const float2 screen_uv = (float2(pixel) + 0.5f) * rcp_resolution;
     const float device_depth = depth_buffer.Load(int3(pixel, 0)).r;
+    const float4 motion_data = motion_vectors.Load(int3(pixel, 0));
+    const float2 motion = motion_data.rg; // uv diff
+    const bool previous_transform_invalid = all(motion == motion_vector_previous_transform_invalid_marker); // current pos exsits but couldn't find prev pos
+    const bool motion_vector_unwritten = all(motion == motion_vector_unwritten_marker); // motion prepass did not write this pixel(no current pos)
     const float3 world_position = NDCToWorld(ScreenUVToNDC(screen_uv) + float2(GetCamera().jitter_x, GetCamera().jitter_y), device_depth); // inv_view_projection contains jitter, so the result is unjittered world pos
     const float view_depth = dot(world_position - GetCamera().position, GetCamera().forward);
 
     float blend = 0.0f;
     float3 history_ycocg = current_ycocg;
-    if (taacb.history_valid != 0) // has history
+    if (taacb.history_valid != 0 && !previous_transform_invalid) // has motion or unwritten
     {
-        const float4 previous_clip = mul(GetCamera().previous_view_projection, float4(world_position, 1.0f)); // prev clip space position of this world pos
-        if (previous_clip.w > 0.0f) // ahead of camera
+        float2 previous_uv = 0.0f;
+        float previous_view_depth = 0.0f;
+        bool reprojection_valid = false;
+        if (!motion_vector_unwritten) // has motion
         {
-            const float2 previous_ndc = previous_clip.xy / previous_clip.w;
-            const float2 previous_uv = NDCToScreenUV(previous_ndc);
-            if (all(previous_uv > 0.0f) && all(previous_uv < 1.0f)) // in screen
+            previous_uv = screen_uv + motion;
+            previous_view_depth = motion_data.b;
+            reprojection_valid = true;
+        }
+        else // unwritten
+        {
+            // give chance for background/sky etc..
+            const float4 previous_clip = mul(GetCamera().previous_view_projection, float4(world_position, 1.0f)); // prev clip space position of this world pos
+            if (previous_clip.w > 0.0f) // ahead of camera
             {
-                const float previous_view_depth = dot(world_position - GetCamera().previous_position, GetCamera().previous_forward);
-                const float stored_view_depth = depth_history.SampleLevel(sampler_point_clamp, previous_uv, 0).r; // prev position
-                const float depth_tolerance = taa_depth_reject_absolute + taa_depth_reject_relative * abs(previous_view_depth);
-                if (abs(previous_view_depth - stored_view_depth) <= depth_tolerance)
-                {
-                    const float3 history_rgb = SampleTextureCatmullRom5Tap(history_color, previous_uv, resolution);
-                    history_ycocg = TAAClipToAABB(RGBToYCoCg(TAALuminanceCompress(history_rgb)), clip_min, clip_max);
-                    blend = taacb.history_blend;
-                }
-                // blend = 0 for disocclusion
+                previous_uv = NDCToScreenUV(previous_clip.xy / previous_clip.w);
+                previous_view_depth = dot(world_position - GetCamera().previous_position, GetCamera().previous_forward);
+                reprojection_valid = true;
             }
+        }
+
+        if (reprojection_valid && all(previous_uv > 0.0f) && all(previous_uv < 1.0f)) // in screen
+        {
+            const float stored_view_depth = depth_history.SampleLevel(sampler_point_clamp, previous_uv, 0).r; // prev position
+            const float depth_tolerance = taa_depth_reject_absolute + taa_depth_reject_relative * abs(previous_view_depth);
+            if (abs(previous_view_depth - stored_view_depth) <= depth_tolerance)
+            {
+                const float3 history_rgb = SampleTextureCatmullRom5Tap(history_color, previous_uv, resolution);
+                history_ycocg = TAAClipToAABB(RGBToYCoCg(TAALuminanceCompress(history_rgb)), clip_min, clip_max);
+                blend = taacb.history_blend;
+            }
+            // blend = 0 for disocclusion
         }
     }
 

@@ -151,6 +151,10 @@ namespace won::rendering
             RHISubresourceHandle depth_readonly_dsv = {};
             RHISubresourceHandle depth_srv = {};
 
+            FrameGraphResourceRef motion_vectors = invalid_frame_resource;
+            RHISubresourceHandle motion_vectors_rtv = {};
+            RHISubresourceHandle motion_vectors_srv = {};
+
             FrameGraphResourceRef scene_color_snapshot = invalid_frame_resource;
             RHISubresourceHandle scene_color_snapshot_srv = {};
 

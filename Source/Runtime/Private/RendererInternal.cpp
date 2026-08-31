@@ -152,6 +152,7 @@ namespace won::rendering
         rendering::GPUScene& gpu_scene = view.scene->GetGPUScene();
         shader_frame.frame_slot = current_frame_slot;
         shader_frame.scene.transform_buffer = gpu_scene.transform_buffer.srv.descriptor_index;
+        shader_frame.scene.previous_transform_buffer = gpu_scene.previous_transform_buffer.srv.descriptor_index;
         shader_frame.scene.geometrybuffer = gpu_scene.geometry_buffer.srv.descriptor_index;
         shader_frame.scene.materialbuffer = gpu_scene.material_buffer.srv.descriptor_index;
         shader_frame.scene.lightbuffer = gpu_scene.light_buffer.srv.descriptor_index;
@@ -458,6 +459,7 @@ namespace won::rendering
         UploadBuffer(gpu_scene.material_buffer, "Scene Material Buffer", frame_context, gpu_scene.shader_materials.data(), gpu_scene.shader_materials.size() * sizeof(ShaderMaterial), sizeof(ShaderMaterial), *device, frame_graph);
         UploadBuffer(gpu_scene.bone_buffer, "Scene Bone Matrix Buffer", frame_context, gpu_scene.shader_bone_matrices.data(), gpu_scene.shader_bone_matrices.size() * sizeof(float4), sizeof(float4), *device, frame_graph);
         UploadBuffer(gpu_scene.transform_buffer, "Scene Transform Buffer", frame_context, gpu_scene.shader_transforms.data(), gpu_scene.shader_transforms.size() * sizeof(ShaderTransform), sizeof(ShaderTransform), *device, frame_graph);
+        UploadBuffer(gpu_scene.previous_transform_buffer, "Scene Previous Transform Buffer", frame_context, gpu_scene.shader_previous_transforms.data(), gpu_scene.shader_previous_transforms.size() * sizeof(ShaderPreviousTransform), sizeof(ShaderPreviousTransform), *device, frame_graph);
         UploadBuffer(gpu_scene.particle_buffer, "Scene Particle Buffer", frame_context, gpu_scene.particle_instances.data(), gpu_scene.particle_instances.size() * sizeof(float4), sizeof(float4), *device, frame_graph);
         UploadBuffer(gpu_scene.decal_buffer, "Scene Decal Buffer", frame_context, gpu_scene.shader_decals.data(), gpu_scene.shader_decals.size() * sizeof(ShaderDecal), sizeof(ShaderDecal), *device, frame_graph);
         UploadBuffer(gpu_scene.water.body_buffer, "Scene Water Body Buffer", frame_context, gpu_scene.water.shader_bodies.data(), gpu_scene.water.shader_bodies.size() * sizeof(ShaderWaterBody), sizeof(ShaderWaterBody), *device, frame_graph);
@@ -1049,6 +1051,34 @@ namespace won::rendering
         depth_subresource_desc.type = RHISubresourceType::ShaderResource;
         targets.depth_srv = frame_graph.CreateSubresource(targets.depth, depth_subresource_desc);
 
+        targets.motion_vectors = invalid_frame_resource;
+        targets.motion_vectors_rtv = {};
+        targets.motion_vectors_srv = {};
+        if (view.options.aa_mode == AntiAliasingMode::TAA)
+        {
+            RHITextureDesc motion_desc = {};
+            motion_desc.width = width;
+            motion_desc.height = height;
+            motion_desc.depth = 1;
+            motion_desc.mip_levels = 1;
+            motion_desc.array_layers = 1;
+            motion_desc.sample_count = 1;
+            motion_desc.format = RHIFormat::R16G16B16A16Float;
+            motion_desc.usage = RHIResourceUsage::Default;
+            motion_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::RenderTarget;
+            motion_desc.clear_color[0] = motion_vector_unwritten_marker;
+            motion_desc.clear_color[1] = motion_vector_unwritten_marker;
+            targets.motion_vectors = frame_graph.CreateTexture(view.viewer_index, "View Motion Vectors", motion_desc);
+
+            RHISubresourceDesc motion_srv_desc = {};
+            motion_srv_desc.type = RHISubresourceType::ShaderResource;
+            motion_srv_desc.format = motion_desc.format;
+            RHISubresourceDesc motion_rtv_desc = motion_srv_desc;
+            motion_rtv_desc.type = RHISubresourceType::RenderTarget;
+            targets.motion_vectors_srv = frame_graph.CreateSubresource(targets.motion_vectors, motion_srv_desc);
+            targets.motion_vectors_rtv = frame_graph.CreateSubresource(targets.motion_vectors, motion_rtv_desc);
+        }
+
         {
             RHITextureDesc color_desc = {};
             color_desc.width = width;
@@ -1586,6 +1616,10 @@ namespace won::rendering
                             renderable_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
                         }
                     }
+                    else if (pass == RenderPassType::MotionPrepass)
+                    {
+                        renderable_hash.storage.bits.blend_mode = static_cast<uint64>(renderable.blend_mode);
+                    }
                     if (draw_overdraw)
                     {
                         renderable_hash.storage.bits.blend_mode = static_cast<uint64>(resource::MaterialBlendMode::Additive);
@@ -1979,7 +2013,7 @@ namespace won::rendering
         }
 
         // wait for fence here
-        frame_context.BeginFrame();
+        frame_context.BeginFrame(*device);
 
         RHICommandList* command_list = frame_context.BeginCommandList(*device);
         profiler::BeginFrameGPU(*device, frame_slot, *command_list);
@@ -3106,15 +3140,27 @@ namespace won::rendering
         FrameResourceId shadow_atlas_id = invalid_frame_resource;
 
 
-        frame_graph.AddPass("Clear View Targets",
-            { { targets.scene_color, RHIResourceState::RenderTarget, FrameResourceAccess::Type::Write },
-              { targets.depth, RHIResourceState::DepthWrite, FrameResourceAccess::Type::Write } },
+        Vector<FrameResourceAccess> clear_target_accesses = {
+            { targets.scene_color, RHIResourceState::RenderTarget, FrameResourceAccess::Type::Write },
+            { targets.depth, RHIResourceState::DepthWrite, FrameResourceAccess::Type::Write }
+        };
+        if (targets.motion_vectors != invalid_frame_resource)
+        {
+            clear_target_accesses.push_back({ targets.motion_vectors, RHIResourceState::RenderTarget, FrameResourceAccess::Type::Write });
+        }
+        frame_graph.AddPass("Clear View Targets", clear_target_accesses,
             [this, &targets, viewport, scissor](const FrameGraphPassContext& pass_context)
         {
             pass_context.command_list->ClearRenderTarget({ pass_context.GetResource(targets.scene_color), targets.scene_color_rtv }, clear_color);
             pass_context.command_list->ClearDepthStencil({ pass_context.GetResource(targets.depth), targets.depth_dsv }, 0.0f, 0u);
-            pass_context.command_list->SetViewport(viewport);
-            pass_context.command_list->SetScissor(scissor);
+            if (targets.motion_vectors != invalid_frame_resource)
+            {
+                pass_context.command_list->ClearRenderTarget(
+                    { pass_context.GetResource(targets.motion_vectors), targets.motion_vectors_rtv },
+                    { motion_vector_unwritten_marker, motion_vector_unwritten_marker, 0.0f, 0.0f });
+            }
+            //pass_context.command_list->SetViewport(viewport);
+            //pass_context.command_list->SetScissor(scissor);
         });
 
         if (gpu_scene.shader_environment.sky_type != SHADER_SKY_TYPE_NONE)
@@ -3336,19 +3382,33 @@ namespace won::rendering
             occlusion.visibility.clear();
         }
 
-        // depth only prepass
+        // depth prepass, with motion vectors when available
         if ((view.show_flags & Show_Opaque) != 0)
         {
-            frame_graph.AddPass("Depth Only Prepass", { { targets.depth, RHIResourceState::DepthWrite, FrameResourceAccess::Type::ReadWrite }, view_constants_read, sort_buffer_read },
-                [this, &view, &targets, &frame_context, viewport, scissor](const FrameGraphPassContext& pass_context)
+            const bool write_motion_vectors = targets.motion_vectors != invalid_frame_resource && targets.motion_vectors_rtv.IsValid();
+            const char* prepass_name = write_motion_vectors ? "Motion and Depth Prepass" : "Depth Only Prepass";
+            Vector<FrameResourceAccess> prepass_accesses = { { targets.depth, RHIResourceState::DepthWrite, FrameResourceAccess::Type::ReadWrite }, view_constants_read, sort_buffer_read };
+            if (write_motion_vectors)
             {
-                auto gpu_range = profiler::ScopedRangeGPU("Depth Only Prepass", (*pass_context.command_list));
-                auto cpu_range = profiler::ScopedRangeCPU("Depth Only Prepass");
+                prepass_accesses.push_back({ targets.motion_vectors, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite });
+            }
+            frame_graph.AddPass(prepass_name, prepass_accesses,
+                [this, &view, &targets, &frame_context, viewport, scissor, write_motion_vectors, prepass_name](const FrameGraphPassContext& pass_context)
+            {
+                auto gpu_range = profiler::ScopedRangeGPU(prepass_name, (*pass_context.command_list));
+                auto cpu_range = profiler::ScopedRangeCPU(prepass_name);
                 const RHISubresourceBinding depth_binding = { pass_context.GetResource(targets.depth), targets.depth_dsv };
                 pass_context.command_list->SetViewport(viewport);
                 pass_context.command_list->SetScissor(scissor);
-                pass_context.command_list->SetRenderTargets({}, &depth_binding);
-                DrawScene(frame_context, view, RenderPassType::DepthPrepass, DrawScene_Opaque, (*pass_context.command_list));
+                if (write_motion_vectors)
+                {
+                    pass_context.command_list->SetRenderTargets({ { pass_context.GetResource(targets.motion_vectors), targets.motion_vectors_rtv } }, &depth_binding);
+                }
+                else
+                {
+                    pass_context.command_list->SetRenderTargets({}, &depth_binding);
+                }
+                DrawScene(frame_context, view, write_motion_vectors ? RenderPassType::MotionPrepass : RenderPassType::DepthPrepass, DrawScene_Opaque, (*pass_context.command_list));
             });
         }
 
@@ -3953,7 +4013,8 @@ namespace won::rendering
 
             View::TemporalAAResources& temporal_aa = view.temporal_aa_resources;
             const bool use_taa = view.options.aa_mode == AntiAliasingMode::TAA
-                && temporal_aa.history_texture[0] && temporal_aa.depth_history_texture[0];
+                && temporal_aa.history_texture[0] && temporal_aa.depth_history_texture[0]
+                && targets.motion_vectors != invalid_frame_resource && targets.motion_vectors_srv.IsValid();
             RHIPipeline* taa_pipeline = use_taa ? shader_library.GetPipeline(ComputePipelineHash(ShaderId::CSTAA)) : nullptr;
 
             if (auto_exposure_active && luminance_reduce_pipeline && luminance_resolve_pipeline
@@ -4036,6 +4097,7 @@ namespace won::rendering
                 taa_constants.output_descriptor = static_cast<uint32>(taa_output.uav.descriptor_index);
                 taa_constants.history_output_descriptor = static_cast<uint32>(temporal_aa.history_uav[history_write].descriptor_index);
                 taa_constants.depth_descriptor = static_cast<uint32>(targets.depth_srv.descriptor_index);
+                taa_constants.motion_vectors_descriptor = static_cast<uint32>(targets.motion_vectors_srv.descriptor_index);
                 taa_constants.depth_history_descriptor = static_cast<uint32>(temporal_aa.depth_history_srv[history_read].descriptor_index);
                 taa_constants.depth_history_output_descriptor = static_cast<uint32>(temporal_aa.depth_history_uav[history_write].descriptor_index);
                 taa_constants.history_valid = history_valid ? 1u : 0u;
@@ -4053,6 +4115,7 @@ namespace won::rendering
                     { { post_target.id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read },
                       { taa_output.id, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write },
                       { targets.depth, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read },
+                      { targets.motion_vectors, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read },
                       { history_read_id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read },
                       { history_write_id, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write },
                       { depth_history_read_id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read },

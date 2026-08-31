@@ -1,0 +1,4 @@
+#define OBJECTSHADER_LAYOUT_MOTION_MASKED
+#define OBJECTSHADER_OUTPUT_MOTION
+
+#include "ObjectVS.hlsli"

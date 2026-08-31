@@ -38,13 +38,13 @@ struct TAAConstants
     uint history_output_descriptor;
 
     uint depth_descriptor;
+    uint motion_vectors_descriptor;
     uint depth_history_descriptor;
     uint depth_history_output_descriptor;
-    uint history_valid;
 
+    uint history_valid;
     uint2 resolution;
     float history_blend;
-    float padding;
 
 #ifdef __cplusplus
     inline void Init()
@@ -54,6 +54,7 @@ struct TAAConstants
         output_descriptor = 0;
         history_output_descriptor = 0;
         depth_descriptor = 0;
+        motion_vectors_descriptor = 0;
         depth_history_descriptor = 0;
         depth_history_output_descriptor = 0;
         history_valid = 0;
