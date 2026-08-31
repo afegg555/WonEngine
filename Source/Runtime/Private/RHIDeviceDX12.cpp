@@ -1201,7 +1201,7 @@ namespace won::rendering
             && descriptor_allocator->UpdateSubresourceDescriptor(*resource_dx12, desc, handle.descriptor_index);
     }
 
-    void RHIDeviceDX12::ReleaseSubresource(const RHISubresourceDesc& desc,
+    void RHIDeviceDX12::ReleaseSubresource(RHISubresourceType type,
         RHISubresourceHandle handle)
     {
         if (!descriptor_allocator || !handle.IsValid())
@@ -1209,7 +1209,7 @@ namespace won::rendering
             return;
         }
 
-        descriptor_allocator->ReleaseSubresourceDescriptor(desc, handle.descriptor_index);
+        descriptor_allocator->ReleaseSubresourceDescriptor(type, handle.descriptor_index);
     }
 
     bool RHIDeviceDX12::GetMemoryUsage(RHIMemoryUsage& out_usage)

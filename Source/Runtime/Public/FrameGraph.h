@@ -158,7 +158,8 @@ namespace won::rendering
         {
             RHISubresourceDesc desc;
             RHISubresourceHandle handle;
-            bool realized = false;
+            bool realized = false; // if connected with rhiresource in Compile
+            bool versioned_this_frame = false; // called CreateSubresource in this frame
         };
 
         struct PooledResource

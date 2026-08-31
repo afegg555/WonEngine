@@ -107,7 +107,7 @@ namespace won::rendering
         virtual bool UpdateSubresource(RHIResource& resource,
             const RHISubresourceDesc& desc,
             RHISubresourceHandle handle) = 0;
-        virtual void ReleaseSubresource(const RHISubresourceDesc& desc,
+        virtual void ReleaseSubresource(RHISubresourceType type,
             RHISubresourceHandle handle) = 0;
 
         virtual std::unique_ptr<RHIPipeline> CreateGraphicsPipeline(
