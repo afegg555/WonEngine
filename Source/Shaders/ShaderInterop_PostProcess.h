@@ -128,8 +128,7 @@ struct LuminanceReduceConstants
 {
     uint input_descriptor;   // pass 1: SRV of the HDR color buffer, pass 2: SRV of the partials buffer
     uint output_descriptor;  // pass 1: UAV of the partials buffer, pass 2: UAV of the luminance buffer [0]
-    uint2 viewport_size;     // pass 1: viewport extent to sample
-    uint2 viewport_offset;   // pass 1: viewport top-left inside the color buffer
+    uint2 viewport_size;     // pass 1: extent of the color buffer to sample
 
 #ifdef __cplusplus
     inline void Init()
@@ -137,13 +136,12 @@ struct LuminanceReduceConstants
         input_descriptor = 0;
         output_descriptor = 0;
         viewport_size = uint2(0, 0);
-        viewport_offset = uint2(0, 0);
     }
 #endif
 };
 
 #ifdef __cplusplus
-static_assert(sizeof(LuminanceReduceConstants) == 24, "LuminanceReduceConstants layout mismatch");
+static_assert(sizeof(LuminanceReduceConstants) == 16, "LuminanceReduceConstants layout mismatch");
 #endif
 
 #ifdef WON_LUMINANCE_REDUCE_CONSTANTBUFFER

@@ -21,8 +21,8 @@ void main(uint3 group_id : SV_GroupID, uint group_thread_index : SV_GroupIndex, 
     uint count = 0;
     for (uint idx = global_id; idx < pixel_count; idx += total_threads)
     {
-        const uint x = luminancereducecb.viewport_offset.x + (idx % vp_width);
-        const uint y = luminancereducecb.viewport_offset.y + (idx / vp_width);
+        const uint x = idx % vp_width;
+        const uint y = idx / vp_width;
         const float3 color = source.Load(int3(x, y, 0)).rgb;
         const float luminance = Luminance(color);
         sum_log += log(max(luminance, 1e-5));
