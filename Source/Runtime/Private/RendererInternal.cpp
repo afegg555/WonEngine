@@ -337,7 +337,7 @@ namespace won::rendering
 
     static won::console::ConsoleVariable r_upload_budget("r.upload_budget", 8, "max queued resource uploads per frame, 0 = unlimited", won::console::ConsoleVariableFlagNone);
     static won::console::ConsoleVariable r_cluster_depth_slices("r.cluster.depth_slices", 32, "Forward+ cluster depth slices (1 = 2D tiled)", won::console::ConsoleVariableFlagArchive);
-    static won::console::ConsoleVariable r_occlusion_enabled("r.occlusion.enabled", 0, "force hardware occlusion culling on for every view (0 = follow the per-view option)", won::console::ConsoleVariableFlagNone);
+    static won::console::ConsoleVariable r_occlusion_enabled("r.occlusion.enabled", -1, "override hardware occlusion culling of every view: -1=off 0=disable 1=enable", won::console::ConsoleVariableFlagNone);
 
     bool RendererInternal::UploadSceneData(FrameContext& frame_context, ecs::Scene& scene, GPUScene& gpu_scene)
     {
@@ -3218,7 +3218,16 @@ namespace won::rendering
         }
 
         View::OcclusionResources& occlusion = view.occlusion_resources;
-        const bool occlusion_enabled = view.options.enable_occlusion_culling || r_occlusion_enabled.GetInt() != 0;
+        const int occlusion_override = r_occlusion_enabled.GetInt();
+        const bool occlusion_enabled = occlusion_override >= 0 ? occlusion_override != 0 : view.options.enable_occlusion_culling;
+        if (occlusion.active && !occlusion_enabled)
+        {
+            occlusion.visibility.clear();
+            for (auto& keys : occlusion.issued_keys)
+            {
+                keys.clear();
+            }
+        }
         occlusion.active = occlusion_enabled;
 
         if (occlusion_enabled && !view.freeze_culling && occlusion.readback_buffers[current_frame_slot])

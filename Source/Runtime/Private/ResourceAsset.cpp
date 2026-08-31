@@ -489,6 +489,8 @@ namespace won::resource
             return nullptr;
         }
 
+        mesh->BuildBoneBounds();
+
         {
             std::lock_guard<std::mutex> lock(mesh_cache_mutex);
             auto it = mesh_cache.find(key);
