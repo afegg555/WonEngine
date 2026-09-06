@@ -1,4 +1,5 @@
 #include "Common.hlsli"
+#include "ColorSpace.hlsli"
 
 struct PixelInput
 {
@@ -84,7 +85,7 @@ PixelOutput main(PixelInput input)
     }
 
     PixelOutput output;
-    output.color = float4(color, saturate(alpha));
+    output.color = float4(SrgbToLinear(color), saturate(alpha));
     output.depth = saturate(depth);
     return output;
 }

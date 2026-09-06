@@ -573,7 +573,7 @@ namespace won::resource
         pipeline_desc.depth_stencil_format = RHIFormat::Unknown;
         pipeline_desc.depth_stencil.depth_test = false;
         pipeline_desc.depth_stencil.depth_write = false;
-        pipeline_desc.blend.enable = true;
+        pipeline_desc.blend.enable = false;
         pipeline_desc.raster.cull_mode = RHICullMode::None;
         pipeline_desc.render_target_formats = { ldr_rtv_format };
         pipeline_desc.topology = RHIPrimitiveTopology::TriangleList;

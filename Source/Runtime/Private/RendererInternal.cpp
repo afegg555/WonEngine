@@ -4354,6 +4354,7 @@ namespace won::rendering
             CompositePushConstants composite_push = {};
             composite_push.Init();
             composite_push.input_descriptor = static_cast<uint32>(post_target.srv.descriptor_index);
+            composite_push.output_encoding = output_encoding_srgb;
             command_list->PushConstants(RHIShaderStage::Pixel, &composite_push, sizeof(composite_push), 0);
 
             command_list->SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
