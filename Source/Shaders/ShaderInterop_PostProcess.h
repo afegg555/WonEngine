@@ -72,20 +72,25 @@ static_assert(sizeof(TAAConstants) == 48, "TAAConstants layout mismatch");
 CONSTANTBUFFER(taacb, TAAConstants, CBSLOT_RENDERER_PASS);
 #endif
 
+static const uint output_encoding_linear = 0;
+static const uint output_encoding_srgb = 1;
+
 struct CompositePushConstants
 {
     uint input_descriptor;
+    uint output_encoding;
 
 #ifdef __cplusplus
     inline void Init()
     {
         input_descriptor = 0;
+        output_encoding = output_encoding_srgb;
     }
 #endif
 };
 
 #ifdef __cplusplus
-static_assert(sizeof(CompositePushConstants) == 4, "CompositePushConstants layout mismatch");
+static_assert(sizeof(CompositePushConstants) == 8, "CompositePushConstants layout mismatch");
 #endif
 
 #ifdef WON_COMPOSITE_PUSHCONSTANT

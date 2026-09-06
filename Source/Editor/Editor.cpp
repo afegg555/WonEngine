@@ -13,6 +13,7 @@
 #include "Image.h"
 #include "ResourceAsset.h"
 #include "TerrainGenerator.h"
+#include "ColorSpace.h"
 #include "StringUtils.h"
 #include "Backlog.h"
 #include "Console.h"
@@ -5254,17 +5255,20 @@ namespace won::editor
 							material_changed |= ImGui::Checkbox(EditorText(editor_key::label_use_vertex_colors), &material_slot.use_vertex_colors);
 							material_changed |= ImGui::Checkbox(EditorText(editor_key::label_receive_shadow), &material_slot.receive_shadow);
 
-							float base_color[4] = { material_slot.base_color.x, material_slot.base_color.y, material_slot.base_color.z, material_slot.base_color.w };
+							const float3 base_color_srgb = color::LinearToSrgb({ material_slot.base_color.x, material_slot.base_color.y, material_slot.base_color.z });
+							float base_color[4] = { base_color_srgb.x, base_color_srgb.y, base_color_srgb.z, material_slot.base_color.w };
 							if (ImGui::ColorEdit4(EditorText(editor_key::label_base_color), base_color))
 							{
-								material_slot.base_color = { base_color[0], base_color[1], base_color[2], base_color[3] };
+								const float3 base_color_linear = color::SrgbToLinear({ base_color[0], base_color[1], base_color[2] });
+								material_slot.base_color = { base_color_linear.x, base_color_linear.y, base_color_linear.z, base_color[3] };
 								material_changed = true;
 							}
 
-							float emissive_color[3] = { material_slot.emissive_color.x, material_slot.emissive_color.y, material_slot.emissive_color.z };
+							const float3 emissive_color_srgb = color::LinearToSrgb(material_slot.emissive_color);
+							float emissive_color[3] = { emissive_color_srgb.x, emissive_color_srgb.y, emissive_color_srgb.z };
 							if (ImGui::ColorEdit3(EditorText(editor_key::label_emissive_color), emissive_color))
 							{
-								material_slot.emissive_color = { emissive_color[0], emissive_color[1], emissive_color[2] };
+								material_slot.emissive_color = color::SrgbToLinear({ emissive_color[0], emissive_color[1], emissive_color[2] });
 								material_changed = true;
 							}
 							material_changed |= ImGui::DragFloat(EditorText(editor_key::label_emissive_intensity), &material_slot.emissive_intensity, 0.1f, 0.0f, 1000000.0f);
@@ -5274,10 +5278,11 @@ namespace won::editor
 							material_changed |= ImGui::SliderFloat(EditorText(editor_key::label_reflectance), &material_slot.reflectance, 0.0f, 1.0f);
 							material_changed |= ImGui::SliderFloat(EditorText(editor_key::label_anisotropy), &material_slot.anisotropy, -1.0f, 1.0f);
 
-							float sheen_color[3] = { material_slot.sheen_color.x, material_slot.sheen_color.y, material_slot.sheen_color.z };
+							const float3 sheen_color_srgb = color::LinearToSrgb(material_slot.sheen_color);
+							float sheen_color[3] = { sheen_color_srgb.x, sheen_color_srgb.y, sheen_color_srgb.z };
 							if (ImGui::ColorEdit3(EditorText(editor_key::label_sheen_color), sheen_color))
 							{
-								material_slot.sheen_color = { sheen_color[0], sheen_color[1], sheen_color[2] };
+								material_slot.sheen_color = color::SrgbToLinear({ sheen_color[0], sheen_color[1], sheen_color[2] });
 								material_changed = true;
 							}
 
@@ -6896,9 +6901,21 @@ namespace won::editor
 				draw_label("VSync");
 				ImGui::Checkbox("##VSync", &loaded_project_settings.vsync_enabled);
 				draw_label("Clear Color");
-				if (ImGui::ColorEdit3("##Clear Color", &loaded_project_settings.clear_color.r) && renderer)
+				float3 clear_color_srgb = color::LinearToSrgb({
+					loaded_project_settings.clear_color.r,
+					loaded_project_settings.clear_color.g,
+					loaded_project_settings.clear_color.b
+				});
+				if (ImGui::ColorEdit3("##Clear Color", &clear_color_srgb.x))
 				{
-					renderer->SetClearColor(loaded_project_settings.clear_color);
+					const float3 clear_color_linear = color::SrgbToLinear(clear_color_srgb);
+					loaded_project_settings.clear_color.r = clear_color_linear.x;
+					loaded_project_settings.clear_color.g = clear_color_linear.y;
+					loaded_project_settings.clear_color.b = clear_color_linear.z;
+					if (renderer)
+					{
+						renderer->SetClearColor(loaded_project_settings.clear_color);
+					}
 				}
 
 				draw_label("Anti-Aliasing");

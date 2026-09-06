@@ -1,5 +1,6 @@
 #define WON_DISABLE_RENDERER_PUSHCONSTANT
 #include "Common.hlsli"
+#include "ColorSpace.hlsli"
 #define WON_DEBUGDRAW_3D_PUSHCONSTANT
 #include "ShaderInterop_DebugDraw.h"
 
@@ -23,5 +24,6 @@ PixelInput main(uint vertex_id : SV_VertexID)
         float((color >> 16) & 0xff) / 255.0f,
         float((color >> 8) & 0xff) / 255.0f,
         float(color & 0xff) / 255.0f);
+    output.color.rgb = SrgbToLinear(output.color.rgb);
     return output;
 }
