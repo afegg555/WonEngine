@@ -239,7 +239,7 @@ namespace won::rendering
             shader_camera.inv_view_projection = camera.inv_view_projection;
             shader_camera.exposure = camera.exposure_multiplier * std::exp2(camera.exposure_compensation);
 
-            View::TemporalAAResources& temporal_aa = view.temporal_aa_resources;
+            View::TAAResources& temporal_aa = view.taa_resources;
             if (temporal_aa.history_texture[0] && view.options.aa_mode == AntiAliasingMode::TAA)
             {
                 const float2 halton = math::Halton2D(temporal_aa.jitter_index + 1); // [0, 1) pixel
@@ -1114,7 +1114,7 @@ namespace won::rendering
             targets.scene_color_rtv = frame_graph.CreateSubresource(targets.scene_color, rtv_desc);
         }
 
-        View::TemporalAAResources& temporal_aa = view.temporal_aa_resources;
+        View::TAAResources& temporal_aa = view.taa_resources;
         const bool temporal_aa_requested = view.options.aa_mode == AntiAliasingMode::TAA;
         const bool history_size_matches = temporal_aa.history_texture[0]
             && temporal_aa.history_texture[0]->GetDesc().texture_desc.width == width
@@ -4011,7 +4011,7 @@ namespace won::rendering
             const bool use_fxaa = view.options.aa_mode == AntiAliasingMode::FXAA;
             RHIPipeline* fxaa_pipeline = use_fxaa ? shader_library.GetPipeline(ComputePipelineHash(ShaderId::CSFXAA)) : nullptr;
 
-            View::TemporalAAResources& temporal_aa = view.temporal_aa_resources;
+            View::TAAResources& temporal_aa = view.taa_resources;
             const bool use_taa = view.options.aa_mode == AntiAliasingMode::TAA
                 && temporal_aa.history_texture[0] && temporal_aa.depth_history_texture[0]
                 && targets.motion_vectors != invalid_frame_resource && targets.motion_vectors_srv.IsValid();

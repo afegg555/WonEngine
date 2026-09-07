@@ -175,7 +175,7 @@ namespace won::rendering
             float measured_luminance = -1.0f;
         };
 
-        struct TemporalAAResources
+        struct TAAResources
         {
             std::unique_ptr<RHIResource> history_texture[2] = {};
             RHISubresourceHandle history_srv[2] = {};
@@ -227,7 +227,7 @@ namespace won::rendering
         RenderTargets render_targets = {};
         ViewConstants view_constants = {};
         ExposureResources exposure_resources = {};
-        TemporalAAResources temporal_aa_resources = {};
+        TAAResources taa_resources = {};
         SpriteResources sprite_resources = {};
         WaterResources water_resources = {};
         LightResources light_resources = {};
