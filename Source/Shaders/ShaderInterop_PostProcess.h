@@ -3,31 +3,26 @@
 
 #include "ShaderInterop.h"
 
-struct FXAAConstants
+struct FXAAPushConstants
 {
     uint input_descriptor;  // SRV of the source color (current ping-pong buffer)
     uint output_descriptor; // UAV of the destination color (opposite ping-pong buffer)
-    float2 rcp_resolution;  // 1/width, 1/height
-
-    uint2 resolution;       // width, height (dispatch bound)
 
 #ifdef __cplusplus
     inline void Init()
     {
         input_descriptor = 0;
         output_descriptor = 0;
-        rcp_resolution = float2(0.0f, 0.0f);
-        resolution = uint2(0, 0);
     }
 #endif
 };
 
 #ifdef __cplusplus
-static_assert(sizeof(FXAAConstants) == 24, "FXAAConstants layout mismatch");
+static_assert(sizeof(FXAAPushConstants) == 8, "FXAAPushConstants layout mismatch");
 #endif
 
-#ifdef WON_FXAA_CONSTANTBUFFER
-CONSTANTBUFFER(fxaacb, FXAAConstants, CBSLOT_RENDERER_PASS);
+#ifdef WON_FXAA_PUSHCONSTANT
+PUSHCONSTANT(fxaapush, FXAAPushConstants);
 #endif
 
 struct TAAConstants

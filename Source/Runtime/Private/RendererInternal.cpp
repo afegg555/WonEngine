@@ -151,6 +151,7 @@ namespace won::rendering
         shader_view.Init();
         rendering::GPUScene& gpu_scene = view.scene->GetGPUScene();
         shader_frame.frame_slot = current_frame_slot;
+        shader_frame.frame_count = static_cast<uint32>(frame_count);
         shader_frame.scene.transform_buffer = gpu_scene.transform_buffer.srv.descriptor_index;
         shader_frame.scene.previous_transform_buffer = gpu_scene.previous_transform_buffer.srv.descriptor_index;
         shader_frame.scene.geometrybuffer = gpu_scene.geometry_buffer.srv.descriptor_index;
@@ -182,6 +183,11 @@ namespace won::rendering
         shader_view.transform_index_buffer = view.transform_resources.transform_index_srv.descriptor_index;
         shader_frame.scene.bone_matrix_buffer = gpu_scene.bone_buffer.srv.descriptor_index;
         shader_view.debug_view_mode = static_cast<uint32>(view.view_mode);
+        shader_view.linear_depth = (view.render_targets.linear_depth != invalid_frame_resource
+            && view.render_targets.linear_depth_srv.IsValid())
+            ? static_cast<int>(view.render_targets.linear_depth_srv.descriptor_index)
+            : -1;
+        shader_view.linear_depth_mip_count = view.render_targets.linear_depth_mip_count;
         shader_frame.scene.ltc_matrix_lut = ltc_matrix_lut ? static_cast<int>(ltc_matrix_lut_srv.descriptor_index) : -1;
         shader_frame.scene.ltc_fresnel_lut = ltc_fresnel_lut ? static_cast<int>(ltc_fresnel_lut_srv.descriptor_index) : -1;
         shader_frame.time = static_cast<float>(view.scene->GetSimulation().elapsed_seconds);
@@ -1115,7 +1121,8 @@ namespace won::rendering
         targets.motion_vectors = invalid_frame_resource;
         targets.motion_vectors_rtv = {};
         targets.motion_vectors_srv = {};
-        if (view.options.aa_mode == AntiAliasingMode::TAA)
+        const bool needs_motion_vectors = view.options.aa_mode == AntiAliasingMode::TAA || ambient_occlusion_active;
+        if (needs_motion_vectors)
         {
             RHITextureDesc motion_desc = {};
             motion_desc.width = width;
@@ -3557,8 +3564,8 @@ namespace won::rendering
                     command_list->UAVBarrier(*pass_context.GetResource(view.light_resources.cluster_light_offset_buffer));
                     command_list->UAVBarrier(*pass_context.GetResource(view.light_resources.cluster_light_index_buffer));
                 });
-        }
             }
+        }
 
         const bool linear_depth_ready = targets.linear_depth != invalid_frame_resource
             && targets.linear_depth_mip_count > 0;
@@ -4333,30 +4340,19 @@ namespace won::rendering
             if (use_fxaa && fxaa_pipeline)
             {
                 const PostTarget fxaa_output = create_post_target("FXAA Output");
-                FXAAConstants fxaa_constants = {};
-                fxaa_constants.Init();
-                fxaa_constants.input_descriptor = static_cast<uint32>(post_target.srv.descriptor_index);
-                fxaa_constants.output_descriptor = static_cast<uint32>(fxaa_output.uav.descriptor_index);
-                fxaa_constants.rcp_resolution = float2(1.0f / static_cast<float>(width), 1.0f / static_cast<float>(height));
-                fxaa_constants.resolution = uint2(width, height);
-
-                RHISubresourceHandle fxaa_cbv = {};
-                const FrameResourceId fxaa_constants_id = frame_graph.CreateConstants(view.viewer_index, "FXAA Constants", fxaa_constants, fxaa_cbv);
-                if (fxaa_constants_id == invalid_frame_resource)
-                {
-                    return;
-                }
+                FXAAPushConstants fxaa_push = {};
+                fxaa_push.Init();
+                fxaa_push.input_descriptor = static_cast<uint32>(post_target.srv.descriptor_index);
+                fxaa_push.output_descriptor = static_cast<uint32>(fxaa_output.uav.descriptor_index);
 
                 frame_graph.AddPass("FXAA",
                     { { post_target.id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read }, { fxaa_output.id, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write },
-                      { fxaa_constants_id, RHIResourceState::ConstantBuffer, FrameResourceAccess::Type::Read }, view_constants_read },
-                    [&view, fxaa_output, fxaa_constants_id, fxaa_cbv, shader_frame_binding, fxaa_pipeline, width, height](const FrameGraphPassContext& pass_context)
+                      view_constants_read },
+                    [fxaa_output, fxaa_push, fxaa_pipeline, width, height](const FrameGraphPassContext& pass_context)
                 {
                     RHICommandList* command_list = pass_context.command_list;
                     command_list->SetComputePipeline(*fxaa_pipeline);
-                    command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_FRAME, shader_frame_binding);
-                    command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_CAMERA, { view.view_constants.buffer.get(), view.view_constants.cbv });
-                    command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_PASS, { pass_context.GetResource(fxaa_constants_id), fxaa_cbv });
+                    command_list->PushConstants(RHIShaderStage::Compute, &fxaa_push, sizeof(fxaa_push), 0);
                     command_list->Dispatch((width + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D,
                                            (height + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D, 1u);
                     command_list->UAVBarrier(*pass_context.GetResource(fxaa_output.id));

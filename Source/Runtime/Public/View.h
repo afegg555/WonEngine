@@ -161,6 +161,11 @@ namespace won::rendering
             FrameGraphResourceRef scene_color_snapshot = invalid_frame_resource;
             RHISubresourceHandle scene_color_snapshot_srv = {};
 
+            FrameGraphResourceRef linear_depth = invalid_frame_resource;
+            RHISubresourceHandle linear_depth_srv = {};
+            RHISubresourceHandle linear_depth_mip_srv[linear_depth_max_mip_count] = {};
+            RHISubresourceHandle linear_depth_uav[linear_depth_max_mip_count] = {};
+            uint32 linear_depth_mip_count = 0;
             uint32 width = 0;
             uint32 height = 0;
         };
