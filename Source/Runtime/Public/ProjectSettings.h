@@ -37,6 +37,7 @@ namespace won::project
         rendering::RHIClearColor clear_color = { 0.0f, 0.3f, 0.3f, 1.0f };
         rendering::AntiAliasingMode aa_mode = rendering::AntiAliasingMode::None;
         rendering::TonemapMode tonemap_mode = rendering::TonemapMode::Reinhard;
+        rendering::AmbientOcclusionMode ao_mode = rendering::AmbientOcclusionMode::None;
         bool splash_enabled = true;
         String splash_title = "Won Engine";
         String splash_status = "Starting...";
@@ -249,6 +250,10 @@ namespace won::project
         {
             settings.tonemap_mode = rendering::ParseTonemapMode(string_value);
         }
+        if (const char* string_value = configuration.GetString("ao_mode"))
+        {
+            settings.ao_mode = rendering::ParseAmbientOcclusionMode(string_value);
+        }
         if (configuration.GetBool("splash_enabled", bool_value))
         {
             settings.splash_enabled = bool_value;
@@ -355,6 +360,7 @@ namespace won::project
         configuration.SetFloat("clear_color_b", settings.clear_color.b);
         configuration.SetString("aa_mode", rendering::ToString(settings.aa_mode));
         configuration.SetString("tonemap_mode", rendering::ToString(settings.tonemap_mode));
+        configuration.SetString("ao_mode", rendering::ToString(settings.ao_mode));
         configuration.SetBool("splash_enabled", settings.splash_enabled);
         configuration.SetString("splash_title", settings.splash_title.c_str());
         configuration.SetString("splash_status", settings.splash_status.c_str());

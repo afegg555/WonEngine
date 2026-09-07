@@ -132,6 +132,7 @@ namespace won::editor::editor_key
     constexpr const char* label_all_types = "editor.label.all_types";
     constexpr const char* label_ambient_color = "editor.label.ambient_color";
     constexpr const char* label_ambient_intensity = "editor.label.ambient_intensity";
+    constexpr const char* label_ambient_occlusion = "editor.label.ambient_occlusion";
     constexpr const char* label_anchor = "editor.label.anchor";
     constexpr const char* label_anchor_presets = "editor.label.anchor_presets";
     constexpr const char* label_angular_velocity = "editor.label.angular_velocity";

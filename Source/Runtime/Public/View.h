@@ -11,6 +11,8 @@ namespace won::rendering
 {
     using FrameGraphResourceRef = FrameResourceId;
 
+    inline constexpr uint32 linear_depth_max_mip_count = 5;
+
     enum class RenderPathType
     {
         Forward,
@@ -38,6 +40,7 @@ namespace won::rendering
             AntiAliasingMode aa_mode = AntiAliasingMode::None;
             TonemapMode tonemap_mode = TonemapMode::Reinhard;
             float shadow_resolution_scale = 1.0f;
+            AmbientOcclusionMode ao_mode = AmbientOcclusionMode::None;
         };
 
         struct LightResources

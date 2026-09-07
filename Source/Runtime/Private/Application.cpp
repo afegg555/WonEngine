@@ -541,6 +541,7 @@ namespace won
         views.back()->options.aa_mode = user_settings.aa_mode.value_or(project_settings.aa_mode);
         views.back()->options.shadow_resolution_scale = user_settings.shadow_resolution_scale.value_or(1.0f);
         views.back()->options.tonemap_mode = project_settings.tonemap_mode;
+        views.back()->options.ao_mode = project_settings.ao_mode;
         return view_index;
     }
 

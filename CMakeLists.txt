@@ -486,6 +486,8 @@ set(SHADERS_HLSL
     Source/Shaders/SkyPS.hlsl
     Source/Shaders/FXAACS.hlsl
     Source/Shaders/TAACS.hlsl
+    Source/Shaders/LinearizeDepthCS.hlsl
+    Source/Shaders/LinearDepthMipCS.hlsl
     Source/Shaders/ObjectVS_normal.hlsl
     Source/Shaders/ObjectPS_normal.hlsl
     Source/Shaders/ObjectVS_motion_normal.hlsl

@@ -1994,6 +1994,22 @@
             "source": "ACES",
             "text": "ACES"
         },
+        "editor.enum.AmbientOcclusionMode.None": {
+            "source": "None",
+            "text": "なし"
+        },
+        "editor.enum.AmbientOcclusionMode.SSAO": {
+            "source": "SSAO",
+            "text": "SSAO"
+        },
+        "editor.enum.AmbientOcclusionMode.GTAO": {
+            "source": "GTAO",
+            "text": "GTAO"
+        },
+        "editor.label.ambient_occlusion": {
+            "source": "Ambient Occlusion",
+            "text": "アンビエントオクルージョン"
+        },
         "editor.label.cloud_frequency": {
             "source": "Cloud Frequency",
             "text": "雲の周波数"

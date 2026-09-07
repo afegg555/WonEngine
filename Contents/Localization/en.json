@@ -2512,6 +2512,26 @@
             "text": "ACES",
             "comment": "enum"
         },
+        "editor.enum.AmbientOcclusionMode.None": {
+            "source": "None",
+            "text": "None",
+            "comment": "enum"
+        },
+        "editor.enum.AmbientOcclusionMode.SSAO": {
+            "source": "SSAO",
+            "text": "SSAO",
+            "comment": "enum"
+        },
+        "editor.enum.AmbientOcclusionMode.GTAO": {
+            "source": "GTAO",
+            "text": "GTAO",
+            "comment": "enum"
+        },
+        "editor.label.ambient_occlusion": {
+            "source": "Ambient Occlusion",
+            "text": "Ambient Occlusion",
+            "comment": "label"
+        },
         "editor.label.cloud_frequency": {
             "source": "Cloud Frequency",
             "text": "Cloud Frequency",

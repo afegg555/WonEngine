@@ -1994,6 +1994,22 @@
             "source": "ACES",
             "text": "ACES"
         },
+        "editor.enum.AmbientOcclusionMode.None": {
+            "source": "None",
+            "text": "Ninguno"
+        },
+        "editor.enum.AmbientOcclusionMode.SSAO": {
+            "source": "SSAO",
+            "text": "SSAO"
+        },
+        "editor.enum.AmbientOcclusionMode.GTAO": {
+            "source": "GTAO",
+            "text": "GTAO"
+        },
+        "editor.label.ambient_occlusion": {
+            "source": "Ambient Occlusion",
+            "text": "Oclusión ambiental"
+        },
         "editor.label.cloud_frequency": {
             "source": "Cloud Frequency",
             "text": "Frecuencia de nubes"

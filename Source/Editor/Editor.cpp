@@ -3203,6 +3203,9 @@ namespace won::editor
 
 					ImGui::SetNextItemWidth(120.0f);
 					DrawEnumCombo(EditorText(editor_key::label_tonemap_mode), editor_viewport.view->options.tonemap_mode);
+
+					ImGui::SetNextItemWidth(120.0f);
+					DrawEnumCombo(EditorText(editor_key::label_ambient_occlusion), editor_viewport.view->options.ao_mode);
 				}
 
 				ImGui::Separator();
@@ -6933,6 +6936,15 @@ namespace won::editor
 					if (editor_viewport.view)
 					{
 						editor_viewport.view->options.tonemap_mode = loaded_project_settings.tonemap_mode;
+					}
+				}
+
+				draw_label("Ambient Occlusion");
+				if (DrawEnumCombo("##Ambient Occlusion", loaded_project_settings.ao_mode))
+				{
+					if (editor_viewport.view)
+					{
+						editor_viewport.view->options.ao_mode = loaded_project_settings.ao_mode;
 					}
 				}
 

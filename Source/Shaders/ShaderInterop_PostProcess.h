@@ -72,6 +72,50 @@ static_assert(sizeof(TAAConstants) == 48, "TAAConstants layout mismatch");
 CONSTANTBUFFER(taacb, TAAConstants, CBSLOT_RENDERER_PASS);
 #endif
 
+struct LinearizeDepthPushConstants
+{
+    uint depth_descriptor;
+    uint output_descriptor;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        depth_descriptor = 0;
+        output_descriptor = 0;
+    }
+#endif
+};
+
+#ifdef __cplusplus
+static_assert(sizeof(LinearizeDepthPushConstants) == 8, "LinearizeDepthPushConstants layout mismatch");
+#endif
+
+#ifdef WON_LINEARIZE_DEPTH_PUSHCONSTANT
+PUSHCONSTANT(linearizedepthpush, LinearizeDepthPushConstants);
+#endif
+
+struct LinearDepthMipPushConstants
+{
+    uint input_descriptor;
+    uint output_descriptor;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        input_descriptor = 0;
+        output_descriptor = 0;
+    }
+#endif
+};
+
+#ifdef __cplusplus
+static_assert(sizeof(LinearDepthMipPushConstants) == 8, "LinearDepthMipPushConstants layout mismatch");
+#endif
+
+#ifdef WON_LINEAR_DEPTH_MIP_PUSHCONSTANT
+PUSHCONSTANT(lineardepthmippush, LinearDepthMipPushConstants);
+#endif
+
 static const uint output_encoding_linear = 0;
 static const uint output_encoding_srgb = 1;
 

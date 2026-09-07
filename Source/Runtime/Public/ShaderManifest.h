@@ -54,6 +54,8 @@ namespace won::resource
 
         CSFXAA,
         CSTAA,
+        CSLinearizeDepth,
+        CSLinearDepthMip,
         CSTonemap,
         CSLuminanceReduce,
         CSLuminanceResolve,
@@ -127,6 +129,8 @@ namespace won::resource
         case ShaderId::PSWaterForwardPlus: return "PSWaterForwardPlus";
         case ShaderId::CSFXAA: return "CSFXAA";
         case ShaderId::CSTAA: return "CSTAA";
+        case ShaderId::CSLinearizeDepth: return "CSLinearizeDepth";
+        case ShaderId::CSLinearDepthMip: return "CSLinearDepthMip";
         case ShaderId::CSTonemap: return "CSTonemap";
         case ShaderId::CSLuminanceReduce: return "CSLuminanceReduce";
         case ShaderId::CSLuminanceResolve: return "CSLuminanceResolve";

@@ -1051,6 +1051,67 @@ namespace won::rendering
         depth_subresource_desc.type = RHISubresourceType::ShaderResource;
         targets.depth_srv = frame_graph.CreateSubresource(targets.depth, depth_subresource_desc);
 
+        targets.linear_depth = invalid_frame_resource;
+        targets.linear_depth_srv = {};
+        for (uint32 mip = 0; mip < linear_depth_max_mip_count; ++mip)
+        {
+            targets.linear_depth_mip_srv[mip] = {};
+            targets.linear_depth_uav[mip] = {};
+        }
+        targets.linear_depth_mip_count = 0;
+        const bool ambient_occlusion_active = view.options.ao_mode != AmbientOcclusionMode::None;
+        const bool needs_linear_depth = ambient_occlusion_active;
+        if (needs_linear_depth)
+        {
+            uint32 mip_count = 1;
+            const uint32 min_dim = (std::min)(width, height);
+            while (mip_count < linear_depth_max_mip_count && (min_dim >> mip_count) >= 8u)
+            {
+                ++mip_count;
+            }
+            targets.linear_depth_mip_count = mip_count;
+
+            RHITextureDesc vdepth_desc = {};
+            vdepth_desc.width = width;
+            vdepth_desc.height = height;
+            vdepth_desc.depth = 1;
+            vdepth_desc.mip_levels = mip_count;
+            vdepth_desc.array_layers = 1;
+            vdepth_desc.sample_count = 1;
+            vdepth_desc.format = RHIFormat::R16Float;
+            vdepth_desc.usage = RHIResourceUsage::Default;
+            vdepth_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
+            targets.linear_depth = frame_graph.CreateTexture(view.viewer_index, "View Linear Depth", vdepth_desc);
+
+            RHISubresourceDesc vdepth_srv_desc = {};
+            vdepth_srv_desc.type = RHISubresourceType::ShaderResource;
+            vdepth_srv_desc.format = vdepth_desc.format;
+            vdepth_srv_desc.first_mip = 0;
+            vdepth_srv_desc.mip_count = mip_count;
+            vdepth_srv_desc.first_slice = 0;
+            vdepth_srv_desc.slice_count = 1;
+            targets.linear_depth_srv = frame_graph.CreateSubresource(targets.linear_depth, vdepth_srv_desc);
+            for (uint32 mip = 0; mip < mip_count; ++mip)
+            {
+                RHISubresourceDesc vdepth_mip_srv_desc = {};
+                vdepth_mip_srv_desc.type = RHISubresourceType::ShaderResource;
+                vdepth_mip_srv_desc.format = vdepth_desc.format;
+                vdepth_mip_srv_desc.first_mip = mip;
+                vdepth_mip_srv_desc.mip_count = 1;
+                vdepth_mip_srv_desc.first_slice = 0;
+                vdepth_mip_srv_desc.slice_count = 1;
+                targets.linear_depth_mip_srv[mip] = frame_graph.CreateSubresource(targets.linear_depth, vdepth_mip_srv_desc);
+
+                RHISubresourceDesc vdepth_uav_desc = {};
+                vdepth_uav_desc.type = RHISubresourceType::UnorderedAccess;
+                vdepth_uav_desc.format = vdepth_desc.format;
+                vdepth_uav_desc.first_mip = mip;
+                vdepth_uav_desc.mip_count = 1;
+                vdepth_uav_desc.first_slice = 0;
+                vdepth_uav_desc.slice_count = 1;
+                targets.linear_depth_uav[mip] = frame_graph.CreateSubresource(targets.linear_depth, vdepth_uav_desc);
+            }
+        }
         targets.motion_vectors = invalid_frame_resource;
         targets.motion_vectors_rtv = {};
         targets.motion_vectors_srv = {};
@@ -1509,8 +1570,28 @@ namespace won::rendering
                 depth_compare = RHICompareOp::Equal;
         }
 
+        const bool is_prepass = pass == RenderPassType::Prepass;
+        const bool prepass_writes_motion = is_prepass
+            && view.render_targets.motion_vectors != invalid_frame_resource && view.render_targets.motion_vectors_rtv.IsValid();
+        const bool prepass_writes_normal = is_prepass
+            && view.options.ao_mode != AmbientOcclusionMode::None && view.render_targets.ao_normal != invalid_frame_resource;
+        PrepassMode prepass_mode = PrepassMode::DepthOnly;
+        if (prepass_writes_motion && prepass_writes_normal)
+        {
+            prepass_mode = PrepassMode::MotionNormal;
+        }
+        else if (prepass_writes_motion)
+        {
+            prepass_mode = PrepassMode::Motion;
+        }
+        else if (prepass_writes_normal)
+        {
+            prepass_mode = PrepassMode::Normal;
+        }
+
         GraphicsPipelineHash pipeline_hash = {};
         pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(pass);
+        pipeline_hash.storage.bits.pass_mode = static_cast<uint64>(prepass_mode);
         pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
         pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::Back);
         pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(draw_wireframe ? RHIFillMode::Wireframe : RHIFillMode::Solid);
@@ -1588,7 +1669,7 @@ namespace won::rendering
                 const Renderable& renderable = gpu_scene.opaque_renderables[opaque_sort_indices[i]];
 
                 // The prepass has no alpha test, so masked materials write their own depth in the main pass.
-                if (pass == RenderPassType::DepthPrepass && renderable.blend_mode == resource::MaterialBlendMode::Masked)
+                if (is_prepass && !prepass_writes_motion && renderable.blend_mode == resource::MaterialBlendMode::Masked)
                 {
                     flush_batch(gpu_scene.opaque_renderables, opaque_sort_indices, opaque_sort_buffer_base, batch_start, batch_size);
                     batch_size = 0;
@@ -1616,7 +1697,7 @@ namespace won::rendering
                             renderable_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
                         }
                     }
-                    else if (pass == RenderPassType::MotionPrepass)
+                    else if (is_prepass && prepass_writes_motion)
                     {
                         renderable_hash.storage.bits.blend_mode = static_cast<uint64>(renderable.blend_mode);
                     }
@@ -3382,33 +3463,41 @@ namespace won::rendering
             occlusion.visibility.clear();
         }
 
-        // depth prepass, with motion vectors when available
+        // depth prepass
         if ((view.show_flags & Show_Opaque) != 0)
         {
             const bool write_motion_vectors = targets.motion_vectors != invalid_frame_resource && targets.motion_vectors_rtv.IsValid();
-            const char* prepass_name = write_motion_vectors ? "Motion and Depth Prepass" : "Depth Only Prepass";
+            const bool write_normals = view.options.ao_mode != AmbientOcclusionMode::None
+                && targets.ao_normal != invalid_frame_resource && targets.ao_normal_rtv.IsValid();
+
             Vector<FrameResourceAccess> prepass_accesses = { { targets.depth, RHIResourceState::DepthWrite, FrameResourceAccess::Type::ReadWrite }, view_constants_read, sort_buffer_read };
             if (write_motion_vectors)
             {
                 prepass_accesses.push_back({ targets.motion_vectors, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite });
             }
-            frame_graph.AddPass(prepass_name, prepass_accesses,
-                [this, &view, &targets, &frame_context, viewport, scissor, write_motion_vectors, prepass_name](const FrameGraphPassContext& pass_context)
+            if (write_normals)
             {
-                auto gpu_range = profiler::ScopedRangeGPU(prepass_name, (*pass_context.command_list));
-                auto cpu_range = profiler::ScopedRangeCPU(prepass_name);
+                prepass_accesses.push_back({ targets.ao_normal, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite });
+            }
+            frame_graph.AddPass("Prepass", prepass_accesses,
+                [this, &view, &targets, &frame_context, viewport, scissor, write_motion_vectors, write_normals](const FrameGraphPassContext& pass_context)
+            {
+                auto gpu_range = profiler::ScopedRangeGPU("Prepass", (*pass_context.command_list));
+                auto cpu_range = profiler::ScopedRangeCPU("Prepass");
                 const RHISubresourceBinding depth_binding = { pass_context.GetResource(targets.depth), targets.depth_dsv };
                 pass_context.command_list->SetViewport(viewport);
                 pass_context.command_list->SetScissor(scissor);
+                Vector<RHISubresourceBinding> render_targets;
                 if (write_motion_vectors)
                 {
-                    pass_context.command_list->SetRenderTargets({ { pass_context.GetResource(targets.motion_vectors), targets.motion_vectors_rtv } }, &depth_binding);
+                    render_targets.push_back({ pass_context.GetResource(targets.motion_vectors), targets.motion_vectors_rtv });
                 }
-                else
+                if (write_normals)
                 {
-                    pass_context.command_list->SetRenderTargets({}, &depth_binding);
+                    render_targets.push_back({ pass_context.GetResource(targets.ao_normal), targets.ao_normal_rtv });
                 }
-                DrawScene(frame_context, view, write_motion_vectors ? RenderPassType::MotionPrepass : RenderPassType::DepthPrepass, DrawScene_Opaque, (*pass_context.command_list));
+                pass_context.command_list->SetRenderTargets(render_targets, &depth_binding);
+                DrawScene(frame_context, view, RenderPassType::Prepass, DrawScene_Opaque, (*pass_context.command_list));
             });
         }
 
@@ -3468,6 +3557,68 @@ namespace won::rendering
                     command_list->UAVBarrier(*pass_context.GetResource(view.light_resources.cluster_light_offset_buffer));
                     command_list->UAVBarrier(*pass_context.GetResource(view.light_resources.cluster_light_index_buffer));
                 });
+        }
+            }
+
+        const bool linear_depth_ready = targets.linear_depth != invalid_frame_resource
+            && targets.linear_depth_mip_count > 0;
+        RHIPipeline* linearize_depth_pipeline = linear_depth_ready ? shader_library.GetPipeline(ComputePipelineHash(ShaderId::CSLinearizeDepth)) : nullptr;
+        RHIPipeline* linear_depth_mip_pipeline = linear_depth_ready ? shader_library.GetPipeline(ComputePipelineHash(ShaderId::CSLinearDepthMip)) : nullptr;
+        if (linear_depth_ready && linearize_depth_pipeline && linear_depth_mip_pipeline)
+        {
+            const uint32 ao_width = targets.width;
+            const uint32 ao_height = targets.height;
+            const uint32 ao_mip_count = targets.linear_depth_mip_count;
+
+            LinearizeDepthPushConstants prefilter_push = {};
+            prefilter_push.Init();
+            prefilter_push.depth_descriptor = static_cast<uint32>(targets.depth_srv.descriptor_index);
+            prefilter_push.output_descriptor = static_cast<uint32>(targets.linear_depth_uav[0].descriptor_index);
+
+            Vector<LinearDepthMipPushConstants> mip_pushes;
+            Vector<uint2> mip_dispatch;
+            for (uint32 mip = 1; mip < ao_mip_count; ++mip)
+            {
+                LinearDepthMipPushConstants mip_push = {};
+                mip_push.Init();
+                mip_push.input_descriptor = static_cast<uint32>(targets.linear_depth_mip_srv[mip - 1].descriptor_index);
+                mip_push.output_descriptor = static_cast<uint32>(targets.linear_depth_uav[mip].descriptor_index);
+                mip_pushes.push_back(mip_push);
+                mip_dispatch.push_back(uint2((std::max)(ao_width >> mip, 1u), (std::max)(ao_height >> mip, 1u)));
+            }
+
+            frame_graph.AddPass("Linearize Depth",
+                { { targets.depth, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read },
+                  { targets.linear_depth, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::ReadWrite },
+                  view_constants_read },
+                [&view, shader_frame_binding, prefilter_push, linearize_depth_pipeline, linear_depth_mip_pipeline,
+                 &targets, ao_width, ao_height, mip_pushes, mip_dispatch](const FrameGraphPassContext& pass_context)
+            {
+                auto gpu_range = profiler::ScopedRangeGPU("Linearize Depth", (*pass_context.command_list));
+                RHICommandList* command_list = pass_context.command_list;
+                RHIResource* linear_depth_resource = pass_context.GetResource(targets.linear_depth);
+
+                command_list->SetComputePipeline(*linearize_depth_pipeline);
+                command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_CAMERA, { view.view_constants.buffer.get(), view.view_constants.cbv });
+                command_list->PushConstants(RHIShaderStage::Compute, &prefilter_push, sizeof(prefilter_push), 0);
+                command_list->Dispatch((ao_width + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D,
+                                       (ao_height + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D, 1u);
+                command_list->UAVBarrier(*linear_depth_resource);
+
+                command_list->SetComputePipeline(*linear_depth_mip_pipeline);
+                for (uint32 i = 0; i < static_cast<uint32>(mip_pushes.size()); ++i)
+                {
+                    const uint32 src_mip = i;
+                    command_list->TransitionSubresource(*linear_depth_resource, RHIResourceState::ShaderWrite, RHIResourceState::ShaderRead, src_mip, 1, 0, 1);
+                    command_list->PushConstants(RHIShaderStage::Compute, &mip_pushes[i], sizeof(LinearDepthMipPushConstants), 0);
+                    command_list->Dispatch((mip_dispatch[i].x + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D,
+                                           (mip_dispatch[i].y + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D, 1u);
+                    command_list->UAVBarrier(*linear_depth_resource);
+                    command_list->TransitionSubresource(*linear_depth_resource, RHIResourceState::ShaderRead, RHIResourceState::ShaderWrite, src_mip, 1, 0, 1);
+                }
+            });
+        }
             }
         }
 
