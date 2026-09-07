@@ -1982,6 +1982,10 @@
             "source": "FXAA",
             "text": "FXAA"
         },
+        "editor.enum.AntiAliasingMode.TAA": {
+            "source": "TAA",
+            "text": "TAA"
+        },
         "editor.enum.TonemapMode.Reinhard": {
             "source": "Reinhard",
             "text": "ラインハルト"

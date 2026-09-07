@@ -2497,6 +2497,11 @@
             "text": "FXAA",
             "comment": "enum"
         },
+        "editor.enum.AntiAliasingMode.TAA": {
+            "source": "TAA",
+            "text": "TAA",
+            "comment": "enum"
+        },
         "editor.enum.TonemapMode.Reinhard": {
             "source": "Reinhard",
             "text": "Reinhard",
