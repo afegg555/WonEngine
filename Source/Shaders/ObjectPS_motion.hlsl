@@ -1,4 +1,2 @@
-#define OBJECTSHADER_LAYOUT_PREPASS
-#define OBJECTSHADER_OUTPUT_MOTION
-
-#include "ObjectPS_motion.hlsli"
+#define OBJECTSHADER_LAYOUT_PREPASS_MOTION
+#include "ObjectPS_prepass.hlsli"

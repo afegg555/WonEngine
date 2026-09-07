@@ -1,2 +1,1 @@
-#define OBJECTSHADER_LAYOUT_PREPASS
-#include "ObjectVS.hlsli"
+#include "ObjectVS.hlsli" // this is for depth only pass

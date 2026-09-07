@@ -486,6 +486,12 @@ set(SHADERS_HLSL
     Source/Shaders/SkyPS.hlsl
     Source/Shaders/FXAACS.hlsl
     Source/Shaders/TAACS.hlsl
+    Source/Shaders/ObjectVS_normal.hlsl
+    Source/Shaders/ObjectPS_normal.hlsl
+    Source/Shaders/ObjectVS_motion_normal.hlsl
+    Source/Shaders/ObjectPS_motion_normal.hlsl
+    Source/Shaders/ObjectVS_motion_normal_masked.hlsl
+    Source/Shaders/ObjectPS_motion_normal_masked.hlsl
     Source/Shaders/TonemapCS.hlsl
     Source/Shaders/LuminanceReduceCS.hlsl
     Source/Shaders/LuminanceResolveCS.hlsl
@@ -533,11 +539,10 @@ set(SHADERS_HLSL
     Source/Shaders/WaterRippleSplatVS.hlsl
     Source/Shaders/WaterRippleSplatPS.hlsl
     Source/Shaders/ObjectPS.hlsli
-    Source/Shaders/ObjectPS_motion.hlsli
+    Source/Shaders/ObjectPS_prepass.hlsli
     Source/Shaders/ObjectPS_unlit.hlsl
     Source/Shaders/ObjectPS_forward.hlsl
     Source/Shaders/ObjectPS_forwardplus.hlsl
-    Source/Shaders/ObjectPS_prepass.hlsl
     Source/Shaders/ObjectPS_motion.hlsl
     Source/Shaders/ObjectPS_motion_masked.hlsl
     Source/Shaders/ObjectPS_forward_masked.hlsl

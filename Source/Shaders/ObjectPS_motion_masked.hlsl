@@ -1,5 +1,2 @@
-#define OBJECTSHADER_LAYOUT_MOTION_MASKED
-#define OBJECTSHADER_OUTPUT_MOTION
-#define ALPHATEST
-
-#include "ObjectPS_motion.hlsli"
+#define OBJECTSHADER_LAYOUT_PREPASS_MOTION_MASKED
+#include "ObjectPS_prepass.hlsli"
