@@ -1072,6 +1072,18 @@ namespace won::editor
 		editor_view.scissor.height = project_settings.window_height;
 		uint32 editor_view_index = AddView(std::move(editor_view));
 		editor_viewport.view = &GetView(editor_view_index);
+		if (editor_settings.viewport_aa_mode >= 0)
+		{
+			editor_viewport.view->options.aa_mode = static_cast<rendering::AntiAliasingMode>((std::min)(editor_settings.viewport_aa_mode, static_cast<int>(rendering::AntiAliasingMode::TAA)));
+		}
+		if (editor_settings.viewport_tonemap_mode >= 0)
+		{
+			editor_viewport.view->options.tonemap_mode = static_cast<rendering::TonemapMode>((std::min)(editor_settings.viewport_tonemap_mode, static_cast<int>(rendering::TonemapMode::ACES)));
+		}
+		if (editor_settings.viewport_ao_mode >= 0)
+		{
+			editor_viewport.view->options.ao_mode = static_cast<rendering::AmbientOcclusionMode>((std::min)(editor_settings.viewport_ao_mode, static_cast<int>(rendering::AmbientOcclusionMode::GTAO)));
+		}
 
 		{
 			ShaderCompilerOptions compiler_options;
@@ -1827,6 +1839,12 @@ namespace won::editor
 		editor_settings.content_tile_size = content_browser.tile_size;
 		editor_settings.viewport_show_flags = editor_viewport.debug_settings.show_flags;
 		editor_settings.viewport_view_mode = static_cast<int>(editor_viewport.debug_settings.view_mode);
+		if (editor_viewport.view)
+		{
+			editor_settings.viewport_aa_mode = static_cast<int>(editor_viewport.view->options.aa_mode);
+			editor_settings.viewport_tonemap_mode = static_cast<int>(editor_viewport.view->options.tonemap_mode);
+			editor_settings.viewport_ao_mode = static_cast<int>(editor_viewport.view->options.ao_mode);
+		}
 		editor_settings.camera_speed = editor_camera_speed;
 		if (!current_scene_path.empty())
 		{
