@@ -488,6 +488,7 @@ set(SHADERS_HLSL
     Source/Shaders/TAACS.hlsl
     Source/Shaders/LinearizeDepthCS.hlsl
     Source/Shaders/LinearDepthMipCS.hlsl
+    Source/Shaders/GTAOCS.hlsl
     Source/Shaders/SSAOCS.hlsl
     Source/Shaders/TemporalResolveCS.hlsl
     Source/Shaders/ObjectVS_normal.hlsl

@@ -56,6 +56,7 @@ namespace won::resource
             { ShaderId::CSTAA, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TAACS.hlsl", "main" } },
             { ShaderId::CSLinearizeDepth, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "LinearizeDepthCS.hlsl", "main" } },
             { ShaderId::CSLinearDepthMip, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "LinearDepthMipCS.hlsl", "main" } },
+            { ShaderId::CSGTAO, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "GTAOCS.hlsl", "main" } },
             { ShaderId::CSSSAO, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "SSAOCS.hlsl", "main" } },
             { ShaderId::CSTemporalResolve, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TemporalResolveCS.hlsl", "main" } },
             { ShaderId::CSTonemap, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TonemapCS.hlsl", "main" } },

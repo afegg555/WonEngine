@@ -3775,7 +3775,7 @@ namespace won::rendering
 
         const ShaderId ao_main_shader = view.options.ao_mode == AmbientOcclusionMode::SSAO
             ? ShaderId::CSSSAO
-            : ShaderId::Count;
+            : ShaderId::CSGTAO;
         RHIPipeline* ao_pipeline = ao_enabled ? shader_library.GetPipeline(ComputePipelineHash(ao_main_shader)) : nullptr;
         RHIPipeline* temporal_resolve_pipeline = ao_enabled ? shader_library.GetPipeline(ComputePipelineHash(ShaderId::CSTemporalResolve)) : nullptr;
         if (ao_enabled && ao_pipeline && temporal_resolve_pipeline)
