@@ -105,7 +105,7 @@ float4 main(VertexOutput input) : SV_Target0
     Lighting lighting;
     lighting.Create(0, 0, 0, 0);
 
-    EvaluateIndirectLighting(surface, lighting);
+    EvaluateIndirectLighting(surface, lighting, input.position.xy);
     EvaluateDirectLighting(surface, lighting, input.position.xy);
 
     const half3 diffuse = (lighting.direct.diffuse + lighting.indirect.diffuse) * Fd_Lambert();

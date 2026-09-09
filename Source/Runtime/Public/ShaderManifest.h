@@ -56,6 +56,8 @@ namespace won::resource
         CSTAA,
         CSLinearizeDepth,
         CSLinearDepthMip,
+        CSSSAO,
+        CSTemporalResolve,
         CSTonemap,
         CSLuminanceReduce,
         CSLuminanceResolve,
@@ -131,6 +133,8 @@ namespace won::resource
         case ShaderId::CSTAA: return "CSTAA";
         case ShaderId::CSLinearizeDepth: return "CSLinearizeDepth";
         case ShaderId::CSLinearDepthMip: return "CSLinearDepthMip";
+        case ShaderId::CSSSAO: return "CSSSAO";
+        case ShaderId::CSTemporalResolve: return "CSTemporalResolve";
         case ShaderId::CSTonemap: return "CSTonemap";
         case ShaderId::CSLuminanceReduce: return "CSLuminanceReduce";
         case ShaderId::CSLuminanceResolve: return "CSLuminanceResolve";

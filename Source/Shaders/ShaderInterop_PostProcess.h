@@ -111,6 +111,59 @@ static_assert(sizeof(LinearDepthMipPushConstants) == 8, "LinearDepthMipPushConst
 PUSHCONSTANT(lineardepthmippush, LinearDepthMipPushConstants);
 #endif
 
+struct AOPushConstants
+{
+    uint normal_descriptor;
+    uint output_descriptor;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        normal_descriptor = 0;
+        output_descriptor = 0;
+    }
+#endif
+};
+
+#ifdef __cplusplus
+static_assert(sizeof(AOPushConstants) == 8, "AOPushConstants layout mismatch");
+#endif
+
+#ifdef WON_AO_PUSHCONSTANT
+PUSHCONSTANT(aopush, AOPushConstants);
+#endif
+
+struct TemporalResolveConstants
+{
+    uint current_descriptor;
+    uint history_descriptor;
+    int motion_descriptor;
+    uint output_descriptor;
+
+    uint history_output_descriptor;
+    uint2 resolution;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        current_descriptor = 0;
+        history_descriptor = 0;
+        motion_descriptor = -1;
+        output_descriptor = 0;
+        history_output_descriptor = 0;
+        resolution = uint2(0, 0);
+    }
+#endif
+};
+
+#ifdef __cplusplus
+static_assert(sizeof(TemporalResolveConstants) == 28, "TemporalResolveConstants layout mismatch");
+#endif
+
+#ifdef WON_TEMPORAL_RESOLVE_CONSTANTBUFFER
+CONSTANTBUFFER(temporalresolvecb, TemporalResolveConstants, CBSLOT_RENDERER_PASS);
+#endif
+
 static const uint output_encoding_linear = 0;
 static const uint output_encoding_srgb = 1;
 

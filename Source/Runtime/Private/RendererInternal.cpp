@@ -183,6 +183,11 @@ namespace won::rendering
         shader_view.transform_index_buffer = view.transform_resources.transform_index_srv.descriptor_index;
         shader_frame.scene.bone_matrix_buffer = gpu_scene.bone_buffer.srv.descriptor_index;
         shader_view.debug_view_mode = static_cast<uint32>(view.view_mode);
+        shader_view.ao_texture = (view.options.ao_mode != AmbientOcclusionMode::None
+            && view.render_targets.ao_final != invalid_frame_resource
+            && view.render_targets.ao_final_srv.IsValid())
+            ? static_cast<int>(view.render_targets.ao_final_srv.descriptor_index)
+            : -1;
         shader_view.linear_depth = (view.render_targets.linear_depth != invalid_frame_resource
             && view.render_targets.linear_depth_srv.IsValid())
             ? static_cast<int>(view.render_targets.linear_depth_srv.descriptor_index)
@@ -1057,6 +1062,9 @@ namespace won::rendering
         depth_subresource_desc.type = RHISubresourceType::ShaderResource;
         targets.depth_srv = frame_graph.CreateSubresource(targets.depth, depth_subresource_desc);
 
+        targets.ao_normal = invalid_frame_resource;
+        targets.ao_normal_srv = {};
+        targets.ao_normal_rtv = {};
         targets.linear_depth = invalid_frame_resource;
         targets.linear_depth_srv = {};
         for (uint32 mip = 0; mip < linear_depth_max_mip_count; ++mip)
@@ -1065,6 +1073,12 @@ namespace won::rendering
             targets.linear_depth_uav[mip] = {};
         }
         targets.linear_depth_mip_count = 0;
+        targets.ao_raw = invalid_frame_resource;
+        targets.ao_raw_srv = {};
+        targets.ao_raw_uav = {};
+        targets.ao_final = invalid_frame_resource;
+        targets.ao_final_srv = {};
+        targets.ao_final_uav = {};
         const bool ambient_occlusion_active = view.options.ao_mode != AmbientOcclusionMode::None;
         const bool needs_linear_depth = ambient_occlusion_active;
         if (needs_linear_depth)
@@ -1118,6 +1132,132 @@ namespace won::rendering
                 targets.linear_depth_uav[mip] = frame_graph.CreateSubresource(targets.linear_depth, vdepth_uav_desc);
             }
         }
+        if (ambient_occlusion_active)
+        {
+            RHITextureDesc normal_desc = {};
+            normal_desc.width = width;
+            normal_desc.height = height;
+            normal_desc.depth = 1;
+            normal_desc.mip_levels = 1;
+            normal_desc.array_layers = 1;
+            normal_desc.sample_count = 1;
+            normal_desc.format = RHIFormat::R16G16B16A16Float;
+            normal_desc.usage = RHIResourceUsage::Default;
+            normal_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::RenderTarget;
+            targets.ao_normal = frame_graph.CreateTexture(view.viewer_index, "View AO Normal", normal_desc);
+
+            RHISubresourceDesc normal_srv_desc = {};
+            normal_srv_desc.type = RHISubresourceType::ShaderResource;
+            normal_srv_desc.format = normal_desc.format;
+            RHISubresourceDesc normal_rtv_desc = normal_srv_desc;
+            normal_rtv_desc.type = RHISubresourceType::RenderTarget;
+            targets.ao_normal_srv = frame_graph.CreateSubresource(targets.ao_normal, normal_srv_desc);
+            targets.ao_normal_rtv = frame_graph.CreateSubresource(targets.ao_normal, normal_rtv_desc);
+
+            RHISubresourceDesc ao_srv_desc = {};
+            ao_srv_desc.type = RHISubresourceType::ShaderResource;
+            ao_srv_desc.format = RHIFormat::R8Unorm;
+            ao_srv_desc.first_slice = 0;
+            ao_srv_desc.slice_count = 1;
+            ao_srv_desc.first_mip = 0;
+            ao_srv_desc.mip_count = 1;
+            RHISubresourceDesc ao_uav_desc = ao_srv_desc;
+            ao_uav_desc.type = RHISubresourceType::UnorderedAccess;
+
+            RHITextureDesc ao_desc = {};
+            ao_desc.width = width;
+            ao_desc.height = height;
+            ao_desc.depth = 1;
+            ao_desc.mip_levels = 1;
+            ao_desc.array_layers = 1;
+            ao_desc.sample_count = 1;
+            ao_desc.format = RHIFormat::R8Unorm;
+            ao_desc.usage = RHIResourceUsage::Default;
+            ao_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
+
+            targets.ao_raw = frame_graph.CreateTexture(view.viewer_index, "View AO Raw", ao_desc);
+            targets.ao_raw_srv = frame_graph.CreateSubresource(targets.ao_raw, ao_srv_desc);
+            targets.ao_raw_uav = frame_graph.CreateSubresource(targets.ao_raw, ao_uav_desc);
+
+            targets.ao_final = frame_graph.CreateTexture(view.viewer_index, "View AO", ao_desc);
+            targets.ao_final_srv = frame_graph.CreateSubresource(targets.ao_final, ao_srv_desc);
+            targets.ao_final_uav = frame_graph.CreateSubresource(targets.ao_final, ao_uav_desc);
+        }
+
+        View::AOResources& ao_res = view.ao_resources;
+        const bool ao_history_size_matches = ao_res.history_texture[0]
+            && ao_res.width == width && ao_res.height == height;
+        if (!ambient_occlusion_active || !ao_history_size_matches)
+        {
+            for (uint32 i = 0; i < 2; ++i)
+            {
+                if (ao_res.history_texture[i])
+                {
+                    frame_context.RemoveResourceDeferred(std::move(ao_res.history_texture[i]));
+                }
+                ao_res.history_srv[i] = {};
+                ao_res.history_uav[i] = {};
+            }
+            ao_res.history_valid = false;
+        }
+        if (ambient_occlusion_active && !ao_res.history_texture[0])
+        {
+            RHITextureDesc ao_history_desc = {};
+            ao_history_desc.width = width;
+            ao_history_desc.height = height;
+            ao_history_desc.depth = 1;
+            ao_history_desc.mip_levels = 1;
+            ao_history_desc.array_layers = 1;
+            ao_history_desc.sample_count = 1;
+            ao_history_desc.format = RHIFormat::R8Unorm;
+            ao_history_desc.usage = RHIResourceUsage::Default;
+            ao_history_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
+
+            RHISubresourceDesc ao_history_srv_desc = {};
+            ao_history_srv_desc.type = RHISubresourceType::ShaderResource;
+            ao_history_srv_desc.format = ao_history_desc.format;
+            ao_history_srv_desc.first_mip = 0;
+            ao_history_srv_desc.mip_count = 1;
+            ao_history_srv_desc.first_slice = 0;
+            ao_history_srv_desc.slice_count = 1;
+            RHISubresourceDesc ao_history_uav_desc = ao_history_srv_desc;
+            ao_history_uav_desc.type = RHISubresourceType::UnorderedAccess;
+
+            bool ao_history_created = true;
+            for (uint32 i = 0; i < 2 && ao_history_created; ++i)
+            {
+                ao_res.history_texture[i] = device->CreateTexture(ao_history_desc);
+                if (!ao_res.history_texture[i])
+                {
+                    ao_history_created = false;
+                    break;
+                }
+                ao_res.history_texture[i]->SetName(i == 0 ? "AO History 0" : "AO History 1");
+                ao_history_created = device->CreateSubresource(*ao_res.history_texture[i], ao_history_srv_desc, &ao_res.history_srv[i])
+                    && device->CreateSubresource(*ao_res.history_texture[i], ao_history_uav_desc, &ao_res.history_uav[i]);
+            }
+            if (ao_history_created)
+            {
+                ao_res.width = width;
+                ao_res.height = height;
+                ao_res.history_index = 0;
+                ao_res.history_valid = false;
+            }
+            else
+            {
+                for (uint32 i = 0; i < 2; ++i)
+                {
+                    if (ao_res.history_texture[i])
+                    {
+                        frame_context.RemoveResourceDeferred(std::move(ao_res.history_texture[i]));
+                    }
+                    ao_res.history_srv[i] = {};
+                    ao_res.history_uav[i] = {};
+                }
+                backlog::Post("AO history allocation failed, temporal ambient occlusion is disabled for this view", backlog::LogLevel::Warning);
+            }
+        }
+
         targets.motion_vectors = invalid_frame_resource;
         targets.motion_vectors_rtv = {};
         targets.motion_vectors_srv = {};
@@ -3626,6 +3766,103 @@ namespace won::rendering
                 }
             });
         }
+
+        const bool ao_enabled = view.options.ao_mode != AmbientOcclusionMode::None
+            && targets.ao_raw != invalid_frame_resource
+            && targets.ao_final != invalid_frame_resource
+            && targets.ao_normal != invalid_frame_resource
+            && linear_depth_ready;
+
+        const ShaderId ao_main_shader = view.options.ao_mode == AmbientOcclusionMode::SSAO
+            ? ShaderId::CSSSAO
+            : ShaderId::Count;
+        RHIPipeline* ao_pipeline = ao_enabled ? shader_library.GetPipeline(ComputePipelineHash(ao_main_shader)) : nullptr;
+        RHIPipeline* temporal_resolve_pipeline = ao_enabled ? shader_library.GetPipeline(ComputePipelineHash(ShaderId::CSTemporalResolve)) : nullptr;
+        if (ao_enabled && ao_pipeline && temporal_resolve_pipeline)
+        {
+            View::AOResources& ao_res = view.ao_resources;
+            const uint32 ao_width = targets.width;
+            const uint32 ao_height = targets.height;
+
+            AOPushConstants ao_push = {};
+            ao_push.Init();
+            ao_push.normal_descriptor = static_cast<uint32>(targets.ao_normal_srv.descriptor_index);
+            ao_push.output_descriptor = static_cast<uint32>(targets.ao_raw_uav.descriptor_index); // write to
+
+            frame_graph.AddPass("Ambient Occlusion",
+                { { targets.linear_depth, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read },
+                  { targets.ao_normal, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read },
+                  { targets.ao_raw, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write },
+                  view_constants_read },
+                [&view, shader_frame_binding, ao_push, ao_pipeline, &targets, ao_width, ao_height](const FrameGraphPassContext& pass_context)
+            {
+                auto gpu_range = profiler::ScopedRangeGPU("Ambient Occlusion", (*pass_context.command_list));
+                RHICommandList* command_list = pass_context.command_list;
+                command_list->SetComputePipeline(*ao_pipeline);
+                command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_CAMERA, { view.view_constants.buffer.get(), view.view_constants.cbv });
+                command_list->PushConstants(RHIShaderStage::Compute, &ao_push, sizeof(ao_push), 0);
+                command_list->Dispatch((ao_width + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D,
+                                       (ao_height + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D, 1u);
+                command_list->UAVBarrier(*pass_context.GetResource(targets.ao_raw));
+            });
+
+            const uint32 ao_history_read = ao_res.history_index;
+            const uint32 ao_history_write = ao_history_read ^ 1u;
+            const bool ao_has_motion = targets.motion_vectors != invalid_frame_resource
+                && targets.motion_vectors_srv.IsValid()
+                && ao_res.history_valid
+                && ao_res.history_texture[ao_history_read]
+                && ao_res.history_texture[ao_history_write];
+
+            const bool ao_history_available = ao_res.history_texture[ao_history_read] && ao_res.history_texture[ao_history_write];
+            if (ao_history_available)
+            {
+                const FrameResourceId ao_hist_read_id = frame_graph.Import(*ao_res.history_texture[ao_history_read]);
+                const FrameResourceId ao_hist_write_id = frame_graph.Import(*ao_res.history_texture[ao_history_write]);
+                frame_graph.MarkNoCull(ao_hist_read_id);
+                frame_graph.MarkNoCull(ao_hist_write_id);
+
+                TemporalResolveConstants temporal_constants = {};
+                temporal_constants.Init();
+                temporal_constants.current_descriptor = static_cast<uint32>(targets.ao_raw_srv.descriptor_index);
+                temporal_constants.history_descriptor = static_cast<uint32>(ao_res.history_srv[ao_history_read].descriptor_index);
+                temporal_constants.motion_descriptor = ao_has_motion
+                    ? static_cast<int>(targets.motion_vectors_srv.descriptor_index)
+                    : -1;
+                temporal_constants.output_descriptor = static_cast<uint32>(targets.ao_final_uav.descriptor_index);
+                temporal_constants.history_output_descriptor = static_cast<uint32>(ao_res.history_uav[ao_history_write].descriptor_index);
+                temporal_constants.resolution = uint2(ao_width, ao_height);
+
+                RHISubresourceHandle temporal_cbv = {};
+                const FrameResourceId temporal_id = frame_graph.CreateConstants(view.viewer_index, "AO Temporal Constants", temporal_constants, temporal_cbv);
+
+                Vector<FrameResourceAccess> temporal_accesses = {
+                    { targets.ao_raw, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read },
+                    { targets.ao_final, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write },
+                    { ao_hist_read_id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read },
+                    { ao_hist_write_id, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write },
+                    { temporal_id, RHIResourceState::ConstantBuffer, FrameResourceAccess::Type::Read }
+                };
+                if (ao_has_motion)
+                {
+                    temporal_accesses.push_back({ targets.motion_vectors, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read });
+                }
+
+                frame_graph.AddPass("Ambient Occlusion Temporal", std::move(temporal_accesses),
+                    [temporal_id, temporal_cbv, temporal_resolve_pipeline, &targets, ao_width, ao_height](const FrameGraphPassContext& pass_context)
+                {
+                    auto gpu_range = profiler::ScopedRangeGPU("Ambient Occlusion Temporal", (*pass_context.command_list));
+                    RHICommandList* command_list = pass_context.command_list;
+                    command_list->SetComputePipeline(*temporal_resolve_pipeline);
+                    command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_PASS, { pass_context.GetResource(temporal_id), temporal_cbv });
+                    command_list->Dispatch((ao_width + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D,
+                                           (ao_height + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D, 1u);
+                    command_list->UAVBarrier(*pass_context.GetResource(targets.ao_final));
+                });
+
+                ao_res.history_index = ao_history_write;
+                ao_res.history_valid = true;
             }
         }
 
@@ -3647,6 +3884,10 @@ namespace won::rendering
                 { targets.scene_color, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite },
 				{ targets.depth, RHIResourceState::DepthWrite, FrameResourceAccess::Type::ReadWrite }, // depth buffer is written in the main pass for transparent or masked objects
             };
+            if (ao_enabled && targets.ao_final != invalid_frame_resource)
+            {
+                main_pass_accesses.push_back({ targets.ao_final, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read });
+            }
             if (shadow_atlas_id != invalid_frame_resource)
             {
                 main_pass_accesses.push_back({ shadow_atlas_id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read });

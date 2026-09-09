@@ -307,6 +307,7 @@ static const uint DEBUG_VIEW_MODE_LIGHT_COMPLEXITY = 6;
 static const uint DEBUG_VIEW_MODE_SHADOW_CASCADES = 7;
 static const uint DEBUG_VIEW_MODE_WIREFRAME = 8;
 static const uint DEBUG_VIEW_MODE_OVERDRAW = 9;
+static const uint DEBUG_VIEW_MODE_AMBIENT_OCCLUSION = 10;
 
 struct alignas(16) ShaderScene
 {
@@ -965,7 +966,7 @@ struct alignas(16) ShaderView
 
     uint cluster_depth_slices;
     int ao_texture;
-    int linear_depth;
+    int linear_depth; // view space z
     uint linear_depth_mip_count;
 #ifdef __cplusplus
     inline void Init()

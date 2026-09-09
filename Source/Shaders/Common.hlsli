@@ -428,6 +428,41 @@ inline float3 UnprojectRay(float2 ndc)
     return NDCToWorld(ndc, 0.0f);
 }
 
+inline float3 ScreenUVToView(float2 screen_uv, float view_z)
+{
+    const float2 ndc = ScreenUVToNDC(screen_uv);
+    float3 view_position;
+    view_position.z = view_z;
+    view_position.x = ndc.x * view_z / GetCamera().projection._11;
+    view_position.y = ndc.y * view_z / GetCamera().projection._22;
+    return view_position;
+}
+
+inline float2 ViewToScreenUV(float3 view_position)
+{
+    const float2 ndc = float2(
+        view_position.x * GetCamera().projection._11 / view_position.z,
+        view_position.y * GetCamera().projection._22 / view_position.z);
+    return NDCToScreenUV(ndc);
+}
+
+inline float SampleLinearDepth(Texture2D linear_depth, float2 uv, uint mip)
+{
+    return linear_depth.SampleLevel(sampler_point_clamp, uv, mip).r;
+}
+
+inline bool SampleViewNormal(Texture2D normal_texture, float2 uv, out float3 view_normal)
+{
+    const float3 raw = normal_texture.SampleLevel(sampler_point_clamp, uv, 0).xyz;
+    if (dot(raw, raw) <= FLT_EPSILON)
+    {
+        view_normal = float3(0.0f, 0.0f, 1.0f);
+        return false;
+    }
+    view_normal = normalize(raw);
+    return true;
+}
+
 // custom software sampler (5 samples)
 inline float3 SampleTextureCatmullRom5Tap(Texture2D source, float2 uv, float2 resolution)
 {

@@ -139,7 +139,7 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
     Lighting lighting;
     lighting.Create(0, 0, 0, 0);
     
-    EvaluateIndirectLighting(surface, lighting);
+    EvaluateIndirectLighting(surface, lighting, input.pos.xy);
     EvaluateDirectLighting(surface, lighting, input.pos.xy); // note: overflow can results in INF, but we will clamp
     
     half3 diffuse = (lighting.direct.diffuse + lighting.indirect.diffuse) * Fd_Lambert(); // apply fd here for efficiency

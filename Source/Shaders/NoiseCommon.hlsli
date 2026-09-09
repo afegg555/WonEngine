@@ -1,6 +1,12 @@
 #ifndef NOISE_COMMON
 #define NOISE_COMMON
 
+inline float InterleavedGradientNoise(float2 pixel, uint frame)
+{
+    const float base = frac(52.9829189f * frac(dot(pixel, float2(0.06711056f, 0.00583715f))));
+    return frac(base + float(frame) * 0.6180339887f);
+}
+
 inline float Hash(float2 position)
 {
     // !! Note: sin based hash might vary across driver implementations

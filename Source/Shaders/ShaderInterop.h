@@ -7,6 +7,8 @@
 #include "MathUtils.h"
 
 static const float PI = won::math::PI;
+static const float TWO_PI = won::math::PI * 2.0f;
+static const float HALF_PI = won::math::PI * 0.5f;
 
 #define CB_GETBINDSLOT(name) __CBUFFERBINDSLOT__##name##__
 #define CBUFFER(name, slot) static const int CB_GETBINDSLOT(name) = slot; struct alignas(16) name
@@ -18,6 +20,8 @@ static const float PI = won::math::PI;
 // Shader - side types:
 
 #define PI 3.14159265358979323846
+#define TWO_PI 6.28318530717958647692
+#define HALF_PI 1.57079632679489661923
 
 #define alignas(x)
 

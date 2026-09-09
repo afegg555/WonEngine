@@ -161,11 +161,21 @@ namespace won::rendering
             FrameGraphResourceRef scene_color_snapshot = invalid_frame_resource;
             RHISubresourceHandle scene_color_snapshot_srv = {};
 
+            FrameGraphResourceRef ao_normal = invalid_frame_resource;
+            RHISubresourceHandle ao_normal_srv = {};
+            RHISubresourceHandle ao_normal_rtv = {};
             FrameGraphResourceRef linear_depth = invalid_frame_resource;
             RHISubresourceHandle linear_depth_srv = {};
             RHISubresourceHandle linear_depth_mip_srv[linear_depth_max_mip_count] = {};
             RHISubresourceHandle linear_depth_uav[linear_depth_max_mip_count] = {};
             uint32 linear_depth_mip_count = 0;
+			FrameGraphResourceRef ao_raw = invalid_frame_resource; // computed from normal + depth, before history accumulation
+            RHISubresourceHandle ao_raw_srv = {};
+            RHISubresourceHandle ao_raw_uav = {};
+			FrameGraphResourceRef ao_final = invalid_frame_resource; // history accumulated AO, after temporal resolve
+            RHISubresourceHandle ao_final_srv = {};
+            RHISubresourceHandle ao_final_uav = {};
+
             uint32 width = 0;
             uint32 height = 0;
         };
@@ -197,6 +207,17 @@ namespace won::rendering
             ecs::Entity history_camera_entity = ecs::INVALID_ENTITY;
             uint32 history_index = 0; // = read_index    write_index = read_index ^ 1u
             uint32 jitter_index = 0;
+            bool history_valid = false;
+        };
+
+        struct AOResources
+        {
+            std::unique_ptr<RHIResource> history_texture[2] = {};
+            RHISubresourceHandle history_srv[2] = {};
+            RHISubresourceHandle history_uav[2] = {};
+            uint32 width = 0;
+            uint32 height = 0;
+            uint32 history_index = 0;
             bool history_valid = false;
         };
 
@@ -236,6 +257,7 @@ namespace won::rendering
         ViewConstants view_constants = {};
         ExposureResources exposure_resources = {};
         TAAResources taa_resources = {};
+        AOResources ao_resources = {};
         SpriteResources sprite_resources = {};
         WaterResources water_resources = {};
         LightResources light_resources = {};
