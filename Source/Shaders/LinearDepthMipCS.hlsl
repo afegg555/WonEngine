@@ -23,5 +23,5 @@ void main(uint3 dispatch_thread_id : SV_DispatchThreadID)
     const float d2 = source.Load(int3(base + int2(0, 1), 0)).r;
     const float d3 = source.Load(int3(base + int2(1, 1), 0)).r;
 
-    output[int2(dispatch_thread_id.xy)] = (d0 + d1 + d2 + d3) * 0.25f;
+    output[int2(dispatch_thread_id.xy)] = min(min(d0, d1), min(d2, d3));
 }
