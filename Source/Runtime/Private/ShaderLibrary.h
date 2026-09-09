@@ -12,8 +12,7 @@ namespace won::resource
     {
         SkyPass,
         ShadowPass,
-        DepthPrepass,
-        MotionPrepass,
+        Prepass,
         MainPass,
         PrimitivePass,
         Sprite2DPass,
@@ -28,6 +27,14 @@ namespace won::resource
         DebugDraw3DPass,
         OcclusionQueryPass,
         Count
+    };
+
+    enum class PrepassMode : uint8
+    {
+        DepthOnly,
+        Motion,
+        Normal,
+        MotionNormal
     };
 
     enum class Sprite3DPassMode : uint8
@@ -48,7 +55,7 @@ namespace won::resource
         struct Bits
         {
             uint64 render_pass_type : 5;
-            uint64 pass_mode : 4; // additional bits for render pass
+            uint64 pass_mode : 6; // additional bits for render pass
             uint64 topology : 3;
             uint64 depth_compare : 4;
             uint64 cull_mode : 2;
@@ -56,7 +63,7 @@ namespace won::resource
             uint64 shader_type : 4;
             uint64 blend_mode : 3;
             uint64 clustered : 1;
-            uint64 reserved : 37;
+            uint64 reserved : 35;
         };
 
         union Storage

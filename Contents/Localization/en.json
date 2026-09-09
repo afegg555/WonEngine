@@ -2497,6 +2497,11 @@
             "text": "FXAA",
             "comment": "enum"
         },
+        "editor.enum.AntiAliasingMode.TAA": {
+            "source": "TAA",
+            "text": "TAA",
+            "comment": "enum"
+        },
         "editor.enum.TonemapMode.Reinhard": {
             "source": "Reinhard",
             "text": "Reinhard",
@@ -2506,6 +2511,26 @@
             "source": "ACES",
             "text": "ACES",
             "comment": "enum"
+        },
+        "editor.enum.AmbientOcclusionMode.None": {
+            "source": "None",
+            "text": "None",
+            "comment": "enum"
+        },
+        "editor.enum.AmbientOcclusionMode.SSAO": {
+            "source": "SSAO",
+            "text": "SSAO",
+            "comment": "enum"
+        },
+        "editor.enum.AmbientOcclusionMode.GTAO": {
+            "source": "GTAO",
+            "text": "GTAO",
+            "comment": "enum"
+        },
+        "editor.label.ambient_occlusion": {
+            "source": "Ambient Occlusion",
+            "text": "Ambient Occlusion",
+            "comment": "label"
         },
         "editor.label.cloud_frequency": {
             "source": "Cloud Frequency",
@@ -2560,6 +2585,11 @@
         "editor.enum.ViewMode.Overdraw": {
             "source": "Overdraw",
             "text": "Overdraw",
+            "comment": "enum"
+        },
+        "editor.enum.ViewMode.AmbientOcclusion": {
+            "source": "Ambient Occlusion",
+            "text": "Ambient Occlusion",
             "comment": "enum"
         },
         "editor.label.view_mode": {

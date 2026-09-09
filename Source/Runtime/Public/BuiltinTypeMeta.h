@@ -131,6 +131,12 @@ namespace won::reflection
         WON_REFLECT_ENUM_VALUE("ACES", won::rendering::TonemapMode::ACES)
     WON_REFLECT_ENUM_END()
 
+    WON_REFLECT_ENUM(won::rendering::AmbientOcclusionMode, "AmbientOcclusionMode")
+        WON_REFLECT_ENUM_VALUE("None", won::rendering::AmbientOcclusionMode::None)
+        WON_REFLECT_ENUM_VALUE("SSAO", won::rendering::AmbientOcclusionMode::SSAO)
+        WON_REFLECT_ENUM_VALUE("GTAO", won::rendering::AmbientOcclusionMode::GTAO)
+    WON_REFLECT_ENUM_END()
+
     WON_REFLECT_ENUM(won::rendering::ViewMode, "ViewMode")
         WON_REFLECT_ENUM_VALUE("Lit", won::rendering::ViewMode::Lit)
         WON_REFLECT_ENUM_VALUE("Unlit", won::rendering::ViewMode::Unlit)
@@ -142,6 +148,7 @@ namespace won::reflection
         WON_REFLECT_ENUM_VALUE("ShadowCascades", won::rendering::ViewMode::ShadowCascades)
         WON_REFLECT_ENUM_VALUE("Wireframe", won::rendering::ViewMode::Wireframe)
         WON_REFLECT_ENUM_VALUE("Overdraw", won::rendering::ViewMode::Overdraw)
+        WON_REFLECT_ENUM_VALUE("AmbientOcclusion", won::rendering::ViewMode::AmbientOcclusion)
     WON_REFLECT_ENUM_END()
 
     WON_REFLECT_ENUM(won::ecs::UIScaleMode, "UIScaleMode")

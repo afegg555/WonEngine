@@ -549,7 +549,17 @@ inline void EvaluateDirectLighting(in Surface surface, inout Lighting lighting, 
 #endif
 }
 
-inline void EvaluateIndirectLighting(in Surface surface, inout Lighting lighting)
+inline half SampleAmbientOcclusion(in float2 pixel_position)
+{
+    const int ao_index = GetView().ao_texture;
+    if (ao_index < 0)
+    {
+        return 1.0h;
+    }
+    return (half)saturate(bindless_textures[DescriptorIndex(ao_index)].Load(int3(int2(pixel_position), 0)).r);
+}
+
+inline void EvaluateIndirectLighting(in Surface surface, inout Lighting lighting, in float2 pixel_position)
 {
     float3 ambient = float3(0.0, 0.0, 0.0);
     ShaderEnvironment environment_lighting = GetEnvironment();
@@ -619,7 +629,7 @@ inline void EvaluateIndirectLighting(in Surface surface, inout Lighting lighting
         }
     }
 
-    lighting.indirect.diffuse = ambient * GetCamera().exposure;
+    lighting.indirect.diffuse = ambient * GetCamera().exposure * SampleAmbientOcclusion(pixel_position);
     lighting.indirect.specular = indirect_specular * GetCamera().exposure;
 }
 
@@ -754,6 +764,12 @@ inline half4 ApplyDebugViewMode(in half4 lit_color, in Surface surface, in half4
     case DEBUG_VIEW_MODE_OVERDRAW:
         debug_color = half4(debug_overdraw_color, 1.0h);
         break;
+    case DEBUG_VIEW_MODE_AMBIENT_OCCLUSION:
+    {
+        const half ao = SampleAmbientOcclusion(pixel_position);
+        debug_color = half4(ao.xxx, lit_color.a);
+        break;
+    }
     }
     return debug_color;
 }

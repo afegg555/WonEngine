@@ -40,6 +40,9 @@ namespace won::editor
         float content_tile_size = 72.0f;
         uint32 viewport_show_flags = rendering::Show_Default | rendering::Show_Colliders;
         int viewport_view_mode = 0;
+        int viewport_aa_mode = -1;
+        int viewport_tonemap_mode = -1;
+        int viewport_ao_mode = -1;
         float camera_speed = 5.0f;
         bool editor_camera_auto_exposure = true;
         float editor_camera_fixed_ev100 = 10.965784f;
@@ -98,6 +101,18 @@ namespace won::editor
         {
             settings.viewport_view_mode = int_value;
         }
+        if (configuration.GetInt("editor.viewport.aa_mode", int_value))
+        {
+            settings.viewport_aa_mode = int_value;
+        }
+        if (configuration.GetInt("editor.viewport.tonemap_mode", int_value))
+        {
+            settings.viewport_tonemap_mode = int_value;
+        }
+        if (configuration.GetInt("editor.viewport.ao_mode", int_value))
+        {
+            settings.viewport_ao_mode = int_value;
+        }
         if (configuration.GetFloat("editor.camera.speed", float_value))
         {
             settings.camera_speed = float_value;
@@ -150,6 +165,9 @@ namespace won::editor
             configuration.SetBool(item.key, (settings.viewport_show_flags & item.flag) != 0);
         }
         configuration.SetInt("editor.viewport.view_mode", settings.viewport_view_mode);
+        configuration.SetInt("editor.viewport.aa_mode", settings.viewport_aa_mode);
+        configuration.SetInt("editor.viewport.tonemap_mode", settings.viewport_tonemap_mode);
+        configuration.SetInt("editor.viewport.ao_mode", settings.viewport_ao_mode);
         configuration.SetFloat("editor.camera.speed", settings.camera_speed);
         configuration.SetBool("editor.camera.auto_exposure", settings.editor_camera_auto_exposure);
         configuration.SetFloat("editor.camera.fixed_ev100", settings.editor_camera_fixed_ev100);

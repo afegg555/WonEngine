@@ -23,6 +23,13 @@ namespace won::rendering
         ACES
     };
 
+    enum class AmbientOcclusionMode : uint8
+    {
+        None,
+        SSAO,
+        GTAO
+    };
+
     enum class ViewMode : uint8
     {
         Lit,
@@ -35,6 +42,7 @@ namespace won::rendering
         ShadowCascades,
         Wireframe,
         Overdraw,
+        AmbientOcclusion,
 
         VIEWMODE_COUNT,
     };
@@ -88,6 +96,32 @@ namespace won::rendering
             return AntiAliasingMode::TAA;
         }
         return AntiAliasingMode::None;
+    }
+
+    inline const char* ToString(AmbientOcclusionMode mode)
+    {
+        switch (mode)
+        {
+        case AmbientOcclusionMode::SSAO:
+            return "SSAO";
+        case AmbientOcclusionMode::GTAO:
+            return "GTAO";
+        default:
+            return "None";
+        }
+    }
+
+    inline AmbientOcclusionMode ParseAmbientOcclusionMode(const String& name)
+    {
+        if (name == "SSAO")
+        {
+            return AmbientOcclusionMode::SSAO;
+        }
+        if (name == "GTAO")
+        {
+            return AmbientOcclusionMode::GTAO;
+        }
+        return AmbientOcclusionMode::None;
     }
 
     inline const char* ToString(TonemapMode mode)

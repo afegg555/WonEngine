@@ -11,8 +11,11 @@ namespace won::resource
         VSObjectCommon,
         VSObjectSimple,
         VSObjectPrepass,
+        VSObjectNormal,
         VSObjectMotion,
         VSObjectMotionMasked,
+        VSObjectMotionNormal,
+        VSObjectMotionNormalMasked,
         VSSprite2D,
         VSSprite3D,
         VSDecal,
@@ -28,9 +31,11 @@ namespace won::resource
         PSObjectForward,
         PSObjectForwardPlus,
         PSObjectUnlit,
-        PSObjectPrepass,
+        PSObjectNormal,
         PSObjectMotion,
         PSObjectMotionMasked,
+        PSObjectMotionNormal,
+        PSObjectMotionNormalMasked,
         PSObjectForwardMasked,
         PSObjectForwardPlusMasked,
         PSObjectUnlitMasked,
@@ -49,6 +54,12 @@ namespace won::resource
 
         CSFXAA,
         CSTAA,
+        CSLinearizeDepth,
+        CSLinearDepthMip,
+        CSGTAO,
+        CSSSAO,
+        CSTemporalResolve,
+        CSAODenoise,
         CSTonemap,
         CSLuminanceReduce,
         CSLuminanceResolve,
@@ -81,8 +92,11 @@ namespace won::resource
         case ShaderId::VSObjectCommon: return "VSObjectCommon";
         case ShaderId::VSObjectSimple: return "VSObjectSimple";
         case ShaderId::VSObjectPrepass: return "VSObjectPrepass";
+        case ShaderId::VSObjectNormal: return "VSObjectNormal";
         case ShaderId::VSObjectMotion: return "VSObjectMotion";
         case ShaderId::VSObjectMotionMasked: return "VSObjectMotionMasked";
+        case ShaderId::VSObjectMotionNormal: return "VSObjectMotionNormal";
+        case ShaderId::VSObjectMotionNormalMasked: return "VSObjectMotionNormalMasked";
         case ShaderId::VSSprite2D: return "VSSprite2D";
         case ShaderId::VSSprite3D: return "VSSprite3D";
         case ShaderId::VSDecal: return "VSDecal";
@@ -97,9 +111,11 @@ namespace won::resource
         case ShaderId::PSObjectForward: return "PSObjectForward";
         case ShaderId::PSObjectForwardPlus: return "PSObjectForwardPlus";
         case ShaderId::PSObjectUnlit: return "PSObjectUnlit";
-        case ShaderId::PSObjectPrepass: return "PSObjectPrepass";
+        case ShaderId::PSObjectNormal: return "PSObjectNormal";
         case ShaderId::PSObjectMotion: return "PSObjectMotion";
         case ShaderId::PSObjectMotionMasked: return "PSObjectMotionMasked";
+        case ShaderId::PSObjectMotionNormal: return "PSObjectMotionNormal";
+        case ShaderId::PSObjectMotionNormalMasked: return "PSObjectMotionNormalMasked";
         case ShaderId::PSObjectForwardMasked: return "PSObjectForwardMasked";
         case ShaderId::PSObjectForwardPlusMasked: return "PSObjectForwardPlusMasked";
         case ShaderId::PSObjectUnlitMasked: return "PSObjectUnlitMasked";
@@ -117,6 +133,12 @@ namespace won::resource
         case ShaderId::PSWaterForwardPlus: return "PSWaterForwardPlus";
         case ShaderId::CSFXAA: return "CSFXAA";
         case ShaderId::CSTAA: return "CSTAA";
+        case ShaderId::CSLinearizeDepth: return "CSLinearizeDepth";
+        case ShaderId::CSLinearDepthMip: return "CSLinearDepthMip";
+        case ShaderId::CSGTAO: return "CSGTAO";
+        case ShaderId::CSSSAO: return "CSSSAO";
+        case ShaderId::CSTemporalResolve: return "CSTemporalResolve";
+        case ShaderId::CSAODenoise: return "CSAODenoise";
         case ShaderId::CSTonemap: return "CSTonemap";
         case ShaderId::CSLuminanceReduce: return "CSLuminanceReduce";
         case ShaderId::CSLuminanceResolve: return "CSLuminanceResolve";

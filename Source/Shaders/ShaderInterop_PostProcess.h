@@ -3,31 +3,26 @@
 
 #include "ShaderInterop.h"
 
-struct FXAAConstants
+struct FXAAPushConstants
 {
     uint input_descriptor;  // SRV of the source color (current ping-pong buffer)
     uint output_descriptor; // UAV of the destination color (opposite ping-pong buffer)
-    float2 rcp_resolution;  // 1/width, 1/height
-
-    uint2 resolution;       // width, height (dispatch bound)
 
 #ifdef __cplusplus
     inline void Init()
     {
         input_descriptor = 0;
         output_descriptor = 0;
-        rcp_resolution = float2(0.0f, 0.0f);
-        resolution = uint2(0, 0);
     }
 #endif
 };
 
 #ifdef __cplusplus
-static_assert(sizeof(FXAAConstants) == 24, "FXAAConstants layout mismatch");
+static_assert(sizeof(FXAAPushConstants) == 8, "FXAAPushConstants layout mismatch");
 #endif
 
-#ifdef WON_FXAA_CONSTANTBUFFER
-CONSTANTBUFFER(fxaacb, FXAAConstants, CBSLOT_RENDERER_PASS);
+#ifdef WON_FXAA_PUSHCONSTANT
+PUSHCONSTANT(fxaapush, FXAAPushConstants);
 #endif
 
 struct TAAConstants
@@ -70,6 +65,127 @@ static_assert(sizeof(TAAConstants) == 48, "TAAConstants layout mismatch");
 
 #ifdef WON_TAA_CONSTANTBUFFER
 CONSTANTBUFFER(taacb, TAAConstants, CBSLOT_RENDERER_PASS);
+#endif
+
+struct LinearizeDepthPushConstants
+{
+    uint depth_descriptor;
+    uint output_descriptor;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        depth_descriptor = 0;
+        output_descriptor = 0;
+    }
+#endif
+};
+
+#ifdef __cplusplus
+static_assert(sizeof(LinearizeDepthPushConstants) == 8, "LinearizeDepthPushConstants layout mismatch");
+#endif
+
+#ifdef WON_LINEARIZE_DEPTH_PUSHCONSTANT
+PUSHCONSTANT(linearizedepthpush, LinearizeDepthPushConstants);
+#endif
+
+struct LinearDepthMipPushConstants
+{
+    uint input_descriptor;
+    uint output_descriptor;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        input_descriptor = 0;
+        output_descriptor = 0;
+    }
+#endif
+};
+
+#ifdef __cplusplus
+static_assert(sizeof(LinearDepthMipPushConstants) == 8, "LinearDepthMipPushConstants layout mismatch");
+#endif
+
+#ifdef WON_LINEAR_DEPTH_MIP_PUSHCONSTANT
+PUSHCONSTANT(lineardepthmippush, LinearDepthMipPushConstants);
+#endif
+
+struct AOPushConstants
+{
+    uint normal_descriptor;
+    uint output_descriptor;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        normal_descriptor = 0;
+        output_descriptor = 0;
+    }
+#endif
+};
+
+#ifdef __cplusplus
+static_assert(sizeof(AOPushConstants) == 8, "AOPushConstants layout mismatch");
+#endif
+
+#ifdef WON_AO_PUSHCONSTANT
+PUSHCONSTANT(aopush, AOPushConstants);
+#endif
+
+struct TemporalResolveConstants
+{
+    uint current_descriptor;
+    uint history_descriptor;
+    int motion_descriptor;
+    uint output_descriptor;
+
+    uint history_output_descriptor;
+    uint2 resolution;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        current_descriptor = 0;
+        history_descriptor = 0;
+        motion_descriptor = -1;
+        output_descriptor = 0;
+        history_output_descriptor = 0;
+        resolution = uint2(0, 0);
+    }
+#endif
+};
+
+#ifdef __cplusplus
+static_assert(sizeof(TemporalResolveConstants) == 28, "TemporalResolveConstants layout mismatch");
+#endif
+
+#ifdef WON_TEMPORAL_RESOLVE_CONSTANTBUFFER
+CONSTANTBUFFER(temporalresolvecb, TemporalResolveConstants, CBSLOT_RENDERER_PASS);
+#endif
+
+struct AODenoisePushConstants
+{
+    uint ao_descriptor;
+    uint normal_descriptor;
+    uint output_descriptor;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        ao_descriptor = 0;
+        normal_descriptor = 0;
+        output_descriptor = 0;
+    }
+#endif
+};
+
+#ifdef __cplusplus
+static_assert(sizeof(AODenoisePushConstants) == 12, "AODenoisePushConstants layout mismatch");
+#endif
+
+#ifdef WON_AO_DENOISE_PUSHCONSTANT
+PUSHCONSTANT(aodenoisepush, AODenoisePushConstants);
 #endif
 
 static const uint output_encoding_linear = 0;

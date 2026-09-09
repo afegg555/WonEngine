@@ -151,6 +151,7 @@ namespace won::rendering
         shader_view.Init();
         rendering::GPUScene& gpu_scene = view.scene->GetGPUScene();
         shader_frame.frame_slot = current_frame_slot;
+        shader_frame.frame_count = static_cast<uint32>(frame_count);
         shader_frame.scene.transform_buffer = gpu_scene.transform_buffer.srv.descriptor_index;
         shader_frame.scene.previous_transform_buffer = gpu_scene.previous_transform_buffer.srv.descriptor_index;
         shader_frame.scene.geometrybuffer = gpu_scene.geometry_buffer.srv.descriptor_index;
@@ -182,6 +183,16 @@ namespace won::rendering
         shader_view.transform_index_buffer = view.transform_resources.transform_index_srv.descriptor_index;
         shader_frame.scene.bone_matrix_buffer = gpu_scene.bone_buffer.srv.descriptor_index;
         shader_view.debug_view_mode = static_cast<uint32>(view.view_mode);
+        shader_view.ao_texture = (view.options.ao_mode != AmbientOcclusionMode::None
+            && view.render_targets.ao_final != invalid_frame_resource
+            && view.render_targets.ao_final_srv.IsValid())
+            ? static_cast<int>(view.render_targets.ao_final_srv.descriptor_index)
+            : -1;
+        shader_view.linear_depth = (view.render_targets.linear_depth != invalid_frame_resource
+            && view.render_targets.linear_depth_srv.IsValid())
+            ? static_cast<int>(view.render_targets.linear_depth_srv.descriptor_index)
+            : -1;
+        shader_view.linear_depth_mip_count = view.render_targets.linear_depth_mip_count;
         shader_frame.scene.ltc_matrix_lut = ltc_matrix_lut ? static_cast<int>(ltc_matrix_lut_srv.descriptor_index) : -1;
         shader_frame.scene.ltc_fresnel_lut = ltc_fresnel_lut ? static_cast<int>(ltc_fresnel_lut_srv.descriptor_index) : -1;
         shader_frame.time = static_cast<float>(view.scene->GetSimulation().elapsed_seconds);
@@ -239,7 +250,7 @@ namespace won::rendering
             shader_camera.inv_view_projection = camera.inv_view_projection;
             shader_camera.exposure = camera.exposure_multiplier * std::exp2(camera.exposure_compensation);
 
-            View::TemporalAAResources& temporal_aa = view.temporal_aa_resources;
+            View::TAAResources& temporal_aa = view.taa_resources;
             if (temporal_aa.history_texture[0] && view.options.aa_mode == AntiAliasingMode::TAA)
             {
                 const float2 halton = math::Halton2D(temporal_aa.jitter_index + 1); // [0, 1) pixel
@@ -1051,10 +1062,214 @@ namespace won::rendering
         depth_subresource_desc.type = RHISubresourceType::ShaderResource;
         targets.depth_srv = frame_graph.CreateSubresource(targets.depth, depth_subresource_desc);
 
+        targets.ao_normal = invalid_frame_resource;
+        targets.ao_normal_srv = {};
+        targets.ao_normal_rtv = {};
+        targets.linear_depth = invalid_frame_resource;
+        targets.linear_depth_srv = {};
+        for (uint32 mip = 0; mip < linear_depth_max_mip_count; ++mip)
+        {
+            targets.linear_depth_mip_srv[mip] = {};
+            targets.linear_depth_uav[mip] = {};
+        }
+        targets.linear_depth_mip_count = 0;
+        targets.ao_raw = invalid_frame_resource;
+        targets.ao_raw_srv = {};
+        targets.ao_raw_uav = {};
+        targets.ao_final = invalid_frame_resource;
+        targets.ao_final_srv = {};
+        targets.ao_final_uav = {};
+        targets.ao_denoised = invalid_frame_resource;
+        targets.ao_denoised_srv = {};
+        targets.ao_denoised_uav = {};
+        const bool ambient_occlusion_active = view.options.ao_mode != AmbientOcclusionMode::None;
+        const bool needs_linear_depth = ambient_occlusion_active;
+        if (needs_linear_depth)
+        {
+            uint32 mip_count = 1;
+            const uint32 min_dim = (std::min)(width, height);
+            while (mip_count < linear_depth_max_mip_count && (min_dim >> mip_count) >= 8u)
+            {
+                ++mip_count;
+            }
+            targets.linear_depth_mip_count = mip_count;
+
+            RHITextureDesc vdepth_desc = {};
+            vdepth_desc.width = width;
+            vdepth_desc.height = height;
+            vdepth_desc.depth = 1;
+            vdepth_desc.mip_levels = mip_count;
+            vdepth_desc.array_layers = 1;
+            vdepth_desc.sample_count = 1;
+            vdepth_desc.format = RHIFormat::R16Float;
+            vdepth_desc.usage = RHIResourceUsage::Default;
+            vdepth_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
+            targets.linear_depth = frame_graph.CreateTexture(view.viewer_index, "View Linear Depth", vdepth_desc);
+
+            RHISubresourceDesc vdepth_srv_desc = {};
+            vdepth_srv_desc.type = RHISubresourceType::ShaderResource;
+            vdepth_srv_desc.format = vdepth_desc.format;
+            vdepth_srv_desc.first_mip = 0;
+            vdepth_srv_desc.mip_count = mip_count;
+            vdepth_srv_desc.first_slice = 0;
+            vdepth_srv_desc.slice_count = 1;
+            targets.linear_depth_srv = frame_graph.CreateSubresource(targets.linear_depth, vdepth_srv_desc);
+            for (uint32 mip = 0; mip < mip_count; ++mip)
+            {
+                RHISubresourceDesc vdepth_mip_srv_desc = {};
+                vdepth_mip_srv_desc.type = RHISubresourceType::ShaderResource;
+                vdepth_mip_srv_desc.format = vdepth_desc.format;
+                vdepth_mip_srv_desc.first_mip = mip;
+                vdepth_mip_srv_desc.mip_count = 1;
+                vdepth_mip_srv_desc.first_slice = 0;
+                vdepth_mip_srv_desc.slice_count = 1;
+                targets.linear_depth_mip_srv[mip] = frame_graph.CreateSubresource(targets.linear_depth, vdepth_mip_srv_desc);
+
+                RHISubresourceDesc vdepth_uav_desc = {};
+                vdepth_uav_desc.type = RHISubresourceType::UnorderedAccess;
+                vdepth_uav_desc.format = vdepth_desc.format;
+                vdepth_uav_desc.first_mip = mip;
+                vdepth_uav_desc.mip_count = 1;
+                vdepth_uav_desc.first_slice = 0;
+                vdepth_uav_desc.slice_count = 1;
+                targets.linear_depth_uav[mip] = frame_graph.CreateSubresource(targets.linear_depth, vdepth_uav_desc);
+            }
+        }
+        if (ambient_occlusion_active)
+        {
+            RHITextureDesc normal_desc = {};
+            normal_desc.width = width;
+            normal_desc.height = height;
+            normal_desc.depth = 1;
+            normal_desc.mip_levels = 1;
+            normal_desc.array_layers = 1;
+            normal_desc.sample_count = 1;
+            normal_desc.format = RHIFormat::R16G16B16A16Float;
+            normal_desc.usage = RHIResourceUsage::Default;
+            normal_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::RenderTarget;
+            targets.ao_normal = frame_graph.CreateTexture(view.viewer_index, "View AO Normal", normal_desc);
+
+            RHISubresourceDesc normal_srv_desc = {};
+            normal_srv_desc.type = RHISubresourceType::ShaderResource;
+            normal_srv_desc.format = normal_desc.format;
+            RHISubresourceDesc normal_rtv_desc = normal_srv_desc;
+            normal_rtv_desc.type = RHISubresourceType::RenderTarget;
+            targets.ao_normal_srv = frame_graph.CreateSubresource(targets.ao_normal, normal_srv_desc);
+            targets.ao_normal_rtv = frame_graph.CreateSubresource(targets.ao_normal, normal_rtv_desc);
+
+            RHISubresourceDesc ao_srv_desc = {};
+            ao_srv_desc.type = RHISubresourceType::ShaderResource;
+            ao_srv_desc.format = RHIFormat::R8Unorm;
+            ao_srv_desc.first_slice = 0;
+            ao_srv_desc.slice_count = 1;
+            ao_srv_desc.first_mip = 0;
+            ao_srv_desc.mip_count = 1;
+            RHISubresourceDesc ao_uav_desc = ao_srv_desc;
+            ao_uav_desc.type = RHISubresourceType::UnorderedAccess;
+
+            RHITextureDesc ao_desc = {};
+            ao_desc.width = width;
+            ao_desc.height = height;
+            ao_desc.depth = 1;
+            ao_desc.mip_levels = 1;
+            ao_desc.array_layers = 1;
+            ao_desc.sample_count = 1;
+            ao_desc.format = RHIFormat::R8Unorm;
+            ao_desc.usage = RHIResourceUsage::Default;
+            ao_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
+
+            targets.ao_raw = frame_graph.CreateTexture(view.viewer_index, "View AO Raw", ao_desc);
+            targets.ao_raw_srv = frame_graph.CreateSubresource(targets.ao_raw, ao_srv_desc);
+            targets.ao_raw_uav = frame_graph.CreateSubresource(targets.ao_raw, ao_uav_desc);
+
+            targets.ao_final = frame_graph.CreateTexture(view.viewer_index, "View AO", ao_desc);
+            targets.ao_final_srv = frame_graph.CreateSubresource(targets.ao_final, ao_srv_desc);
+            targets.ao_final_uav = frame_graph.CreateSubresource(targets.ao_final, ao_uav_desc);
+
+            targets.ao_denoised = frame_graph.CreateTexture(view.viewer_index, "View AO Denoised", ao_desc);
+            targets.ao_denoised_srv = frame_graph.CreateSubresource(targets.ao_denoised, ao_srv_desc);
+            targets.ao_denoised_uav = frame_graph.CreateSubresource(targets.ao_denoised, ao_uav_desc);
+        }
+
+        View::AOResources& ao_res = view.ao_resources;
+        const bool ao_history_size_matches = ao_res.history_texture[0]
+            && ao_res.width == width && ao_res.height == height;
+        if (!ambient_occlusion_active || !ao_history_size_matches)
+        {
+            for (uint32 i = 0; i < 2; ++i)
+            {
+                if (ao_res.history_texture[i])
+                {
+                    frame_context.RemoveResourceDeferred(std::move(ao_res.history_texture[i]));
+                }
+                ao_res.history_srv[i] = {};
+                ao_res.history_uav[i] = {};
+            }
+            ao_res.history_valid = false;
+        }
+        if (ambient_occlusion_active && !ao_res.history_texture[0])
+        {
+            RHITextureDesc ao_history_desc = {};
+            ao_history_desc.width = width;
+            ao_history_desc.height = height;
+            ao_history_desc.depth = 1;
+            ao_history_desc.mip_levels = 1;
+            ao_history_desc.array_layers = 1;
+            ao_history_desc.sample_count = 1;
+            ao_history_desc.format = RHIFormat::R8Unorm;
+            ao_history_desc.usage = RHIResourceUsage::Default;
+            ao_history_desc.bind_flags = RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess;
+
+            RHISubresourceDesc ao_history_srv_desc = {};
+            ao_history_srv_desc.type = RHISubresourceType::ShaderResource;
+            ao_history_srv_desc.format = ao_history_desc.format;
+            ao_history_srv_desc.first_mip = 0;
+            ao_history_srv_desc.mip_count = 1;
+            ao_history_srv_desc.first_slice = 0;
+            ao_history_srv_desc.slice_count = 1;
+            RHISubresourceDesc ao_history_uav_desc = ao_history_srv_desc;
+            ao_history_uav_desc.type = RHISubresourceType::UnorderedAccess;
+
+            bool ao_history_created = true;
+            for (uint32 i = 0; i < 2 && ao_history_created; ++i)
+            {
+                ao_res.history_texture[i] = device->CreateTexture(ao_history_desc);
+                if (!ao_res.history_texture[i])
+                {
+                    ao_history_created = false;
+                    break;
+                }
+                ao_res.history_texture[i]->SetName(i == 0 ? "AO History 0" : "AO History 1");
+                ao_history_created = device->CreateSubresource(*ao_res.history_texture[i], ao_history_srv_desc, &ao_res.history_srv[i])
+                    && device->CreateSubresource(*ao_res.history_texture[i], ao_history_uav_desc, &ao_res.history_uav[i]);
+            }
+            if (ao_history_created)
+            {
+                ao_res.width = width;
+                ao_res.height = height;
+                ao_res.history_index = 0;
+                ao_res.history_valid = false;
+            }
+            else
+            {
+                for (uint32 i = 0; i < 2; ++i)
+                {
+                    if (ao_res.history_texture[i])
+                    {
+                        frame_context.RemoveResourceDeferred(std::move(ao_res.history_texture[i]));
+                    }
+                    ao_res.history_srv[i] = {};
+                    ao_res.history_uav[i] = {};
+                }
+                backlog::Post("AO history allocation failed, temporal ambient occlusion is disabled for this view", backlog::LogLevel::Warning);
+            }
+        }
+
         targets.motion_vectors = invalid_frame_resource;
         targets.motion_vectors_rtv = {};
         targets.motion_vectors_srv = {};
-        if (view.options.aa_mode == AntiAliasingMode::TAA)
+        const bool needs_motion_vectors = view.options.aa_mode == AntiAliasingMode::TAA || ambient_occlusion_active;
+        if (needs_motion_vectors)
         {
             RHITextureDesc motion_desc = {};
             motion_desc.width = width;
@@ -1114,7 +1329,7 @@ namespace won::rendering
             targets.scene_color_rtv = frame_graph.CreateSubresource(targets.scene_color, rtv_desc);
         }
 
-        View::TemporalAAResources& temporal_aa = view.temporal_aa_resources;
+        View::TAAResources& temporal_aa = view.taa_resources;
         const bool temporal_aa_requested = view.options.aa_mode == AntiAliasingMode::TAA;
         const bool history_size_matches = temporal_aa.history_texture[0]
             && temporal_aa.history_texture[0]->GetDesc().texture_desc.width == width
@@ -1509,8 +1724,28 @@ namespace won::rendering
                 depth_compare = RHICompareOp::Equal;
         }
 
+        const bool is_prepass = pass == RenderPassType::Prepass;
+        const bool prepass_writes_motion = is_prepass
+            && view.render_targets.motion_vectors != invalid_frame_resource && view.render_targets.motion_vectors_rtv.IsValid();
+        const bool prepass_writes_normal = is_prepass
+            && view.options.ao_mode != AmbientOcclusionMode::None && view.render_targets.ao_normal != invalid_frame_resource;
+        PrepassMode prepass_mode = PrepassMode::DepthOnly;
+        if (prepass_writes_motion && prepass_writes_normal)
+        {
+            prepass_mode = PrepassMode::MotionNormal;
+        }
+        else if (prepass_writes_motion)
+        {
+            prepass_mode = PrepassMode::Motion;
+        }
+        else if (prepass_writes_normal)
+        {
+            prepass_mode = PrepassMode::Normal;
+        }
+
         GraphicsPipelineHash pipeline_hash = {};
         pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(pass);
+        pipeline_hash.storage.bits.pass_mode = static_cast<uint64>(prepass_mode);
         pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
         pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::Back);
         pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(draw_wireframe ? RHIFillMode::Wireframe : RHIFillMode::Solid);
@@ -1588,7 +1823,7 @@ namespace won::rendering
                 const Renderable& renderable = gpu_scene.opaque_renderables[opaque_sort_indices[i]];
 
                 // The prepass has no alpha test, so masked materials write their own depth in the main pass.
-                if (pass == RenderPassType::DepthPrepass && renderable.blend_mode == resource::MaterialBlendMode::Masked)
+                if (is_prepass && !prepass_writes_motion && renderable.blend_mode == resource::MaterialBlendMode::Masked)
                 {
                     flush_batch(gpu_scene.opaque_renderables, opaque_sort_indices, opaque_sort_buffer_base, batch_start, batch_size);
                     batch_size = 0;
@@ -1616,7 +1851,7 @@ namespace won::rendering
                             renderable_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
                         }
                     }
-                    else if (pass == RenderPassType::MotionPrepass)
+                    else if (is_prepass && prepass_writes_motion)
                     {
                         renderable_hash.storage.bits.blend_mode = static_cast<uint64>(renderable.blend_mode);
                     }
@@ -3382,33 +3617,41 @@ namespace won::rendering
             occlusion.visibility.clear();
         }
 
-        // depth prepass, with motion vectors when available
+        // depth prepass
         if ((view.show_flags & Show_Opaque) != 0)
         {
             const bool write_motion_vectors = targets.motion_vectors != invalid_frame_resource && targets.motion_vectors_rtv.IsValid();
-            const char* prepass_name = write_motion_vectors ? "Motion and Depth Prepass" : "Depth Only Prepass";
+            const bool write_normals = view.options.ao_mode != AmbientOcclusionMode::None
+                && targets.ao_normal != invalid_frame_resource && targets.ao_normal_rtv.IsValid();
+
             Vector<FrameResourceAccess> prepass_accesses = { { targets.depth, RHIResourceState::DepthWrite, FrameResourceAccess::Type::ReadWrite }, view_constants_read, sort_buffer_read };
             if (write_motion_vectors)
             {
                 prepass_accesses.push_back({ targets.motion_vectors, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite });
             }
-            frame_graph.AddPass(prepass_name, prepass_accesses,
-                [this, &view, &targets, &frame_context, viewport, scissor, write_motion_vectors, prepass_name](const FrameGraphPassContext& pass_context)
+            if (write_normals)
             {
-                auto gpu_range = profiler::ScopedRangeGPU(prepass_name, (*pass_context.command_list));
-                auto cpu_range = profiler::ScopedRangeCPU(prepass_name);
+                prepass_accesses.push_back({ targets.ao_normal, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite });
+            }
+            frame_graph.AddPass("Prepass", prepass_accesses,
+                [this, &view, &targets, &frame_context, viewport, scissor, write_motion_vectors, write_normals](const FrameGraphPassContext& pass_context)
+            {
+                auto gpu_range = profiler::ScopedRangeGPU("Prepass", (*pass_context.command_list));
+                auto cpu_range = profiler::ScopedRangeCPU("Prepass");
                 const RHISubresourceBinding depth_binding = { pass_context.GetResource(targets.depth), targets.depth_dsv };
                 pass_context.command_list->SetViewport(viewport);
                 pass_context.command_list->SetScissor(scissor);
+                Vector<RHISubresourceBinding> render_targets;
                 if (write_motion_vectors)
                 {
-                    pass_context.command_list->SetRenderTargets({ { pass_context.GetResource(targets.motion_vectors), targets.motion_vectors_rtv } }, &depth_binding);
+                    render_targets.push_back({ pass_context.GetResource(targets.motion_vectors), targets.motion_vectors_rtv });
                 }
-                else
+                if (write_normals)
                 {
-                    pass_context.command_list->SetRenderTargets({}, &depth_binding);
+                    render_targets.push_back({ pass_context.GetResource(targets.ao_normal), targets.ao_normal_rtv });
                 }
-                DrawScene(frame_context, view, write_motion_vectors ? RenderPassType::MotionPrepass : RenderPassType::DepthPrepass, DrawScene_Opaque, (*pass_context.command_list));
+                pass_context.command_list->SetRenderTargets(render_targets, &depth_binding);
+                DrawScene(frame_context, view, RenderPassType::Prepass, DrawScene_Opaque, (*pass_context.command_list));
             });
         }
 
@@ -3471,6 +3714,191 @@ namespace won::rendering
             }
         }
 
+        const bool linear_depth_ready = targets.linear_depth != invalid_frame_resource
+            && targets.linear_depth_mip_count > 0;
+        RHIPipeline* linearize_depth_pipeline = linear_depth_ready ? shader_library.GetPipeline(ComputePipelineHash(ShaderId::CSLinearizeDepth)) : nullptr;
+        RHIPipeline* linear_depth_mip_pipeline = linear_depth_ready ? shader_library.GetPipeline(ComputePipelineHash(ShaderId::CSLinearDepthMip)) : nullptr;
+        if (linear_depth_ready && linearize_depth_pipeline && linear_depth_mip_pipeline)
+        {
+            const uint32 ao_width = targets.width;
+            const uint32 ao_height = targets.height;
+            const uint32 ao_mip_count = targets.linear_depth_mip_count;
+
+            LinearizeDepthPushConstants prefilter_push = {};
+            prefilter_push.Init();
+            prefilter_push.depth_descriptor = static_cast<uint32>(targets.depth_srv.descriptor_index);
+            prefilter_push.output_descriptor = static_cast<uint32>(targets.linear_depth_uav[0].descriptor_index);
+
+            Vector<LinearDepthMipPushConstants> mip_pushes;
+            Vector<uint2> mip_dispatch;
+            for (uint32 mip = 1; mip < ao_mip_count; ++mip)
+            {
+                LinearDepthMipPushConstants mip_push = {};
+                mip_push.Init();
+                mip_push.input_descriptor = static_cast<uint32>(targets.linear_depth_mip_srv[mip - 1].descriptor_index);
+                mip_push.output_descriptor = static_cast<uint32>(targets.linear_depth_uav[mip].descriptor_index);
+                mip_pushes.push_back(mip_push);
+                mip_dispatch.push_back(uint2((std::max)(ao_width >> mip, 1u), (std::max)(ao_height >> mip, 1u)));
+            }
+
+            frame_graph.AddPass("Linearize Depth",
+                { { targets.depth, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read },
+                  { targets.linear_depth, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::ReadWrite },
+                  view_constants_read },
+                [&view, shader_frame_binding, prefilter_push, linearize_depth_pipeline, linear_depth_mip_pipeline,
+                 &targets, ao_width, ao_height, mip_pushes, mip_dispatch](const FrameGraphPassContext& pass_context)
+            {
+                auto gpu_range = profiler::ScopedRangeGPU("Linearize Depth", (*pass_context.command_list));
+                RHICommandList* command_list = pass_context.command_list;
+                RHIResource* linear_depth_resource = pass_context.GetResource(targets.linear_depth);
+
+                command_list->SetComputePipeline(*linearize_depth_pipeline);
+                command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_CAMERA, { view.view_constants.buffer.get(), view.view_constants.cbv });
+                command_list->PushConstants(RHIShaderStage::Compute, &prefilter_push, sizeof(prefilter_push), 0);
+                command_list->Dispatch((ao_width + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D,
+                                       (ao_height + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D, 1u);
+                command_list->UAVBarrier(*linear_depth_resource);
+
+                command_list->SetComputePipeline(*linear_depth_mip_pipeline);
+                for (uint32 i = 0; i < static_cast<uint32>(mip_pushes.size()); ++i)
+                {
+                    const uint32 src_mip = i;
+                    command_list->TransitionSubresource(*linear_depth_resource, RHIResourceState::ShaderWrite, RHIResourceState::ShaderRead, src_mip, 1, 0, 1);
+                    command_list->PushConstants(RHIShaderStage::Compute, &mip_pushes[i], sizeof(LinearDepthMipPushConstants), 0);
+                    command_list->Dispatch((mip_dispatch[i].x + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D,
+                                           (mip_dispatch[i].y + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D, 1u);
+                    command_list->UAVBarrier(*linear_depth_resource);
+                    command_list->TransitionSubresource(*linear_depth_resource, RHIResourceState::ShaderRead, RHIResourceState::ShaderWrite, src_mip, 1, 0, 1);
+                }
+            });
+        }
+
+        const bool ao_enabled = view.options.ao_mode != AmbientOcclusionMode::None
+            && targets.ao_raw != invalid_frame_resource
+            && targets.ao_final != invalid_frame_resource
+            && targets.ao_denoised != invalid_frame_resource
+            && targets.ao_normal != invalid_frame_resource
+            && linear_depth_ready;
+
+        const ShaderId ao_main_shader = view.options.ao_mode == AmbientOcclusionMode::SSAO
+            ? ShaderId::CSSSAO
+            : ShaderId::CSGTAO;
+        RHIPipeline* ao_pipeline = ao_enabled ? shader_library.GetPipeline(ComputePipelineHash(ao_main_shader)) : nullptr;
+        RHIPipeline* temporal_resolve_pipeline = ao_enabled ? shader_library.GetPipeline(ComputePipelineHash(ShaderId::CSTemporalResolve)) : nullptr;
+        RHIPipeline* ao_denoise_pipeline = ao_enabled ? shader_library.GetPipeline(ComputePipelineHash(ShaderId::CSAODenoise)) : nullptr;
+        if (ao_enabled && ao_pipeline && temporal_resolve_pipeline && ao_denoise_pipeline)
+        {
+            View::AOResources& ao_res = view.ao_resources;
+            const uint32 ao_width = targets.width;
+            const uint32 ao_height = targets.height;
+
+            AOPushConstants ao_push = {};
+            ao_push.Init();
+            ao_push.normal_descriptor = static_cast<uint32>(targets.ao_normal_srv.descriptor_index);
+            ao_push.output_descriptor = static_cast<uint32>(targets.ao_raw_uav.descriptor_index); // write to
+
+            frame_graph.AddPass("Ambient Occlusion",
+                { { targets.linear_depth, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read },
+                  { targets.ao_normal, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read },
+                  { targets.ao_raw, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write },
+                  view_constants_read },
+                [&view, shader_frame_binding, ao_push, ao_pipeline, &targets, ao_width, ao_height](const FrameGraphPassContext& pass_context)
+            {
+                auto gpu_range = profiler::ScopedRangeGPU("Ambient Occlusion", (*pass_context.command_list));
+                RHICommandList* command_list = pass_context.command_list;
+                command_list->SetComputePipeline(*ao_pipeline);
+                command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_CAMERA, { view.view_constants.buffer.get(), view.view_constants.cbv });
+                command_list->PushConstants(RHIShaderStage::Compute, &ao_push, sizeof(ao_push), 0);
+                command_list->Dispatch((ao_width + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D,
+                                       (ao_height + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D, 1u);
+                command_list->UAVBarrier(*pass_context.GetResource(targets.ao_raw));
+            });
+
+            const uint32 ao_history_read = ao_res.history_index;
+            const uint32 ao_history_write = ao_history_read ^ 1u;
+            const bool ao_has_motion = targets.motion_vectors != invalid_frame_resource
+                && targets.motion_vectors_srv.IsValid()
+                && ao_res.history_valid
+                && ao_res.history_texture[ao_history_read]
+                && ao_res.history_texture[ao_history_write];
+
+            const bool ao_history_available = ao_res.history_texture[ao_history_read] && ao_res.history_texture[ao_history_write];
+            if (ao_history_available)
+            {
+                const FrameResourceId ao_hist_read_id = frame_graph.Import(*ao_res.history_texture[ao_history_read]);
+                const FrameResourceId ao_hist_write_id = frame_graph.Import(*ao_res.history_texture[ao_history_write]);
+                frame_graph.MarkNoCull(ao_hist_read_id);
+                frame_graph.MarkNoCull(ao_hist_write_id);
+
+                AODenoisePushConstants denoise_push = {};
+                denoise_push.Init();
+                denoise_push.ao_descriptor = static_cast<uint32>(targets.ao_raw_srv.descriptor_index);
+                denoise_push.normal_descriptor = static_cast<uint32>(targets.ao_normal_srv.descriptor_index);
+                denoise_push.output_descriptor = static_cast<uint32>(targets.ao_denoised_uav.descriptor_index);
+
+                frame_graph.AddPass("Ambient Occlusion Denoise",
+                    { { targets.ao_raw, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read },
+                      { targets.ao_normal, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read },
+                      { targets.linear_depth, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read },
+                      { targets.ao_denoised, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write },
+                      view_constants_read },
+                    [&view, denoise_push, ao_denoise_pipeline, &targets, ao_width, ao_height](const FrameGraphPassContext& pass_context)
+                {
+                    auto gpu_range = profiler::ScopedRangeGPU("Ambient Occlusion Denoise", (*pass_context.command_list));
+                    RHICommandList* command_list = pass_context.command_list;
+                    command_list->SetComputePipeline(*ao_denoise_pipeline);
+                    command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_CAMERA, { view.view_constants.buffer.get(), view.view_constants.cbv });
+                    command_list->PushConstants(RHIShaderStage::Compute, &denoise_push, sizeof(denoise_push), 0);
+                    command_list->Dispatch((ao_width + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D,
+                                           (ao_height + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D, 1u);
+                    command_list->UAVBarrier(*pass_context.GetResource(targets.ao_denoised));
+                });
+
+                TemporalResolveConstants temporal_constants = {};
+                temporal_constants.Init();
+                temporal_constants.current_descriptor = static_cast<uint32>(targets.ao_denoised_srv.descriptor_index);
+                temporal_constants.history_descriptor = static_cast<uint32>(ao_res.history_srv[ao_history_read].descriptor_index);
+                temporal_constants.motion_descriptor = ao_has_motion
+                    ? static_cast<int>(targets.motion_vectors_srv.descriptor_index)
+                    : -1;
+                temporal_constants.output_descriptor = static_cast<uint32>(targets.ao_final_uav.descriptor_index);
+                temporal_constants.history_output_descriptor = static_cast<uint32>(ao_res.history_uav[ao_history_write].descriptor_index);
+                temporal_constants.resolution = uint2(ao_width, ao_height);
+
+                RHISubresourceHandle temporal_cbv = {};
+                const FrameResourceId temporal_id = frame_graph.CreateConstants(view.viewer_index, "AO Temporal Constants", temporal_constants, temporal_cbv);
+
+                Vector<FrameResourceAccess> temporal_accesses = {
+                    { targets.ao_denoised, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read },
+                    { targets.ao_final, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write },
+                    { ao_hist_read_id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read },
+                    { ao_hist_write_id, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write },
+                    { temporal_id, RHIResourceState::ConstantBuffer, FrameResourceAccess::Type::Read }
+                };
+                if (ao_has_motion)
+                {
+                    temporal_accesses.push_back({ targets.motion_vectors, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read });
+                }
+
+                frame_graph.AddPass("Ambient Occlusion Temporal", std::move(temporal_accesses),
+                    [temporal_id, temporal_cbv, temporal_resolve_pipeline, &targets, ao_width, ao_height](const FrameGraphPassContext& pass_context)
+                {
+                    auto gpu_range = profiler::ScopedRangeGPU("Ambient Occlusion Temporal", (*pass_context.command_list));
+                    RHICommandList* command_list = pass_context.command_list;
+                    command_list->SetComputePipeline(*temporal_resolve_pipeline);
+                    command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_PASS, { pass_context.GetResource(temporal_id), temporal_cbv });
+                    command_list->Dispatch((ao_width + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D,
+                                           (ao_height + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D, 1u);
+                    command_list->UAVBarrier(*pass_context.GetResource(targets.ao_final));
+                });
+
+                ao_res.history_index = ao_history_write;
+                ao_res.history_valid = true;
+            }
+        }
+
         // main pass
         uint32 main_pass_flags = 0;
         if ((view.show_flags & Show_Opaque) != 0)
@@ -3489,6 +3917,10 @@ namespace won::rendering
                 { targets.scene_color, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite },
 				{ targets.depth, RHIResourceState::DepthWrite, FrameResourceAccess::Type::ReadWrite }, // depth buffer is written in the main pass for transparent or masked objects
             };
+            if (ao_enabled && targets.ao_final != invalid_frame_resource)
+            {
+                main_pass_accesses.push_back({ targets.ao_final, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read });
+            }
             if (shadow_atlas_id != invalid_frame_resource)
             {
                 main_pass_accesses.push_back({ shadow_atlas_id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read });
@@ -4011,7 +4443,7 @@ namespace won::rendering
             const bool use_fxaa = view.options.aa_mode == AntiAliasingMode::FXAA;
             RHIPipeline* fxaa_pipeline = use_fxaa ? shader_library.GetPipeline(ComputePipelineHash(ShaderId::CSFXAA)) : nullptr;
 
-            View::TemporalAAResources& temporal_aa = view.temporal_aa_resources;
+            View::TAAResources& temporal_aa = view.taa_resources;
             const bool use_taa = view.options.aa_mode == AntiAliasingMode::TAA
                 && temporal_aa.history_texture[0] && temporal_aa.depth_history_texture[0]
                 && targets.motion_vectors != invalid_frame_resource && targets.motion_vectors_srv.IsValid();
@@ -4182,30 +4614,19 @@ namespace won::rendering
             if (use_fxaa && fxaa_pipeline)
             {
                 const PostTarget fxaa_output = create_post_target("FXAA Output");
-                FXAAConstants fxaa_constants = {};
-                fxaa_constants.Init();
-                fxaa_constants.input_descriptor = static_cast<uint32>(post_target.srv.descriptor_index);
-                fxaa_constants.output_descriptor = static_cast<uint32>(fxaa_output.uav.descriptor_index);
-                fxaa_constants.rcp_resolution = float2(1.0f / static_cast<float>(width), 1.0f / static_cast<float>(height));
-                fxaa_constants.resolution = uint2(width, height);
-
-                RHISubresourceHandle fxaa_cbv = {};
-                const FrameResourceId fxaa_constants_id = frame_graph.CreateConstants(view.viewer_index, "FXAA Constants", fxaa_constants, fxaa_cbv);
-                if (fxaa_constants_id == invalid_frame_resource)
-                {
-                    return;
-                }
+                FXAAPushConstants fxaa_push = {};
+                fxaa_push.Init();
+                fxaa_push.input_descriptor = static_cast<uint32>(post_target.srv.descriptor_index);
+                fxaa_push.output_descriptor = static_cast<uint32>(fxaa_output.uav.descriptor_index);
 
                 frame_graph.AddPass("FXAA",
                     { { post_target.id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read }, { fxaa_output.id, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write },
-                      { fxaa_constants_id, RHIResourceState::ConstantBuffer, FrameResourceAccess::Type::Read }, view_constants_read },
-                    [&view, fxaa_output, fxaa_constants_id, fxaa_cbv, shader_frame_binding, fxaa_pipeline, width, height](const FrameGraphPassContext& pass_context)
+                      view_constants_read },
+                    [fxaa_output, fxaa_push, fxaa_pipeline, width, height](const FrameGraphPassContext& pass_context)
                 {
                     RHICommandList* command_list = pass_context.command_list;
                     command_list->SetComputePipeline(*fxaa_pipeline);
-                    command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_FRAME, shader_frame_binding);
-                    command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_CAMERA, { view.view_constants.buffer.get(), view.view_constants.cbv });
-                    command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_PASS, { pass_context.GetResource(fxaa_constants_id), fxaa_cbv });
+                    command_list->PushConstants(RHIShaderStage::Compute, &fxaa_push, sizeof(fxaa_push), 0);
                     command_list->Dispatch((width + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D,
                                            (height + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D, 1u);
                     command_list->UAVBarrier(*pass_context.GetResource(fxaa_output.id));

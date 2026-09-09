@@ -307,6 +307,7 @@ static const uint DEBUG_VIEW_MODE_LIGHT_COMPLEXITY = 6;
 static const uint DEBUG_VIEW_MODE_SHADOW_CASCADES = 7;
 static const uint DEBUG_VIEW_MODE_WIREFRAME = 8;
 static const uint DEBUG_VIEW_MODE_OVERDRAW = 9;
+static const uint DEBUG_VIEW_MODE_AMBIENT_OCCLUSION = 10;
 
 struct alignas(16) ShaderScene
 {
@@ -878,7 +879,7 @@ struct alignas(16) ShaderFrame
 
 	float time; // accumulated time in seconds
     uint frame_slot;
-    float _frame_padding1;
+    uint frame_count;
     float _frame_padding2;
 
 #ifdef __cplusplus
@@ -890,6 +891,7 @@ struct alignas(16) ShaderFrame
         reflection_probe.Init();
         time = 0.0f;
         frame_slot = 0;
+        frame_count = 0;
     }
 #endif
 };
@@ -963,9 +965,9 @@ struct alignas(16) ShaderView
     uint2 cluster_count;
 
     uint cluster_depth_slices;
-    uint _view_padding0;
-    uint _view_padding1;
-    uint _view_padding2;
+    int ao_texture;
+    int linear_depth; // view space z
+    uint linear_depth_mip_count;
 #ifdef __cplusplus
     inline void Init()
     {
@@ -986,9 +988,9 @@ struct alignas(16) ShaderView
         cluster_count = { 0, 0 };
 
         cluster_depth_slices = 1;
-        _view_padding0 = 0;
-        _view_padding1 = 0;
-        _view_padding2 = 0;
+        ao_texture = -1;
+        linear_depth = -1;
+        linear_depth_mip_count = 0;
     }
 #endif
 };

@@ -1,0 +1,2 @@
+#define OBJECTSHADER_LAYOUT_PREPASS_MOTION_NORMAL_MASKED
+#include "ObjectVS.hlsli"

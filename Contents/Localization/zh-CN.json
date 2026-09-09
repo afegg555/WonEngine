@@ -1982,6 +1982,10 @@
             "source": "FXAA",
             "text": "FXAA"
         },
+        "editor.enum.AntiAliasingMode.TAA": {
+            "source": "TAA",
+            "text": "TAA"
+        },
         "editor.enum.TonemapMode.Reinhard": {
             "source": "Reinhard",
             "text": "莱因哈德"
@@ -1989,6 +1993,22 @@
         "editor.enum.TonemapMode.ACES": {
             "source": "ACES",
             "text": "ACES"
+        },
+        "editor.enum.AmbientOcclusionMode.None": {
+            "source": "None",
+            "text": "无"
+        },
+        "editor.enum.AmbientOcclusionMode.SSAO": {
+            "source": "SSAO",
+            "text": "SSAO"
+        },
+        "editor.enum.AmbientOcclusionMode.GTAO": {
+            "source": "GTAO",
+            "text": "GTAO"
+        },
+        "editor.label.ambient_occlusion": {
+            "source": "Ambient Occlusion",
+            "text": "环境光遮蔽"
         },
         "editor.label.cloud_frequency": {
             "source": "Cloud Frequency",
@@ -2033,6 +2053,10 @@
         "editor.enum.ViewMode.Overdraw": {
             "source": "Overdraw",
             "text": "过度绘制"
+        },
+        "editor.enum.ViewMode.AmbientOcclusion": {
+            "source": "Ambient Occlusion",
+            "text": "环境光遮蔽"
         },
         "editor.label.view_mode": {
             "source": "View Mode",
