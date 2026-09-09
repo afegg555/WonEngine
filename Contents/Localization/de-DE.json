@@ -2054,6 +2054,10 @@
             "source": "Overdraw",
             "text": "Overdraw"
         },
+        "editor.enum.ViewMode.AmbientOcclusion": {
+            "source": "Ambient Occlusion",
+            "text": "Umgebungsverdeckung"
+        },
         "editor.label.view_mode": {
             "source": "View Mode",
             "text": "Ansichtsmodus"

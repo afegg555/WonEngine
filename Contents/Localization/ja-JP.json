@@ -2054,6 +2054,10 @@
             "source": "Overdraw",
             "text": "オーバードロー"
         },
+        "editor.enum.ViewMode.AmbientOcclusion": {
+            "source": "Ambient Occlusion",
+            "text": "アンビエントオクルージョン"
+        },
         "editor.label.view_mode": {
             "source": "View Mode",
             "text": "表示モード"

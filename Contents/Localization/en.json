@@ -2587,6 +2587,11 @@
             "text": "Overdraw",
             "comment": "enum"
         },
+        "editor.enum.ViewMode.AmbientOcclusion": {
+            "source": "Ambient Occlusion",
+            "text": "Ambient Occlusion",
+            "comment": "enum"
+        },
         "editor.label.view_mode": {
             "source": "View Mode",
             "text": "View Mode",

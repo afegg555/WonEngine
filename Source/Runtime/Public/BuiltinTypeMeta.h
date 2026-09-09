@@ -148,6 +148,7 @@ namespace won::reflection
         WON_REFLECT_ENUM_VALUE("ShadowCascades", won::rendering::ViewMode::ShadowCascades)
         WON_REFLECT_ENUM_VALUE("Wireframe", won::rendering::ViewMode::Wireframe)
         WON_REFLECT_ENUM_VALUE("Overdraw", won::rendering::ViewMode::Overdraw)
+        WON_REFLECT_ENUM_VALUE("AmbientOcclusion", won::rendering::ViewMode::AmbientOcclusion)
     WON_REFLECT_ENUM_END()
 
     WON_REFLECT_ENUM(won::ecs::UIScaleMode, "UIScaleMode")

@@ -2587,6 +2587,11 @@
             "text": "오버드로",
             "comment": "enum"
         },
+        "editor.enum.ViewMode.AmbientOcclusion": {
+            "source": "Ambient Occlusion",
+            "text": "앵비언트 오클루전",
+            "comment": "enum"
+        },
         "editor.label.view_mode": {
             "source": "View Mode",
             "text": "뷰 모드",
