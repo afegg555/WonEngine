@@ -18,28 +18,10 @@ void main(uint3 dispatch_thread_id : SV_DispatchThreadID)
     RWTexture2D<float> history_output = bindless_rwtextures_float[DescriptorIndex((int)temporalresolvecb.history_output_descriptor)];
 
     const int2 pixel = int2(dispatch_thread_id.xy);
-    const int2 last_pixel = int2(temporalresolvecb.resolution) - 1;
 
     const float current = current_texture.Load(int3(pixel, 0)).r;
 
-    float neighbor_min = FLT_MAX;
-    float neighbor_max = -FLT_MAX;
-    float neighbor_sum = 0.0f;
-    [unroll]
-    for (int y = -1; y <= 1; ++y)
-    {
-        [unroll]
-        for (int x = -1; x <= 1; ++x)
-        {
-            const float tap = current_texture.Load(int3(clamp(pixel + int2(x, y), int2(0, 0), last_pixel), 0)).r;
-            neighbor_min = min(neighbor_min, tap);
-            neighbor_max = max(neighbor_max, tap);
-            neighbor_sum += tap;
-        }
-    }
-    const float spatial = neighbor_sum / 9.0f;
-
-    float result = spatial;
+    float result = current;
     if (temporalresolvecb.motion_descriptor >= 0)
     {
         Texture2D motion_texture = bindless_textures[DescriptorIndex(temporalresolvecb.motion_descriptor)];
@@ -57,8 +39,7 @@ void main(uint3 dispatch_thread_id : SV_DispatchThreadID)
             if (all(previous_uv > 0.0f) && all(previous_uv < 1.0f))
             {
                 const float history = history_texture.SampleLevel(sampler_linear_clamp, previous_uv, 0).r;
-                const float clamped_history = clamp(history, neighbor_min, neighbor_max);
-                result = lerp(current, clamped_history, temporal_history_blend);
+                result = lerp(current, history, temporal_history_blend);
             }
         }
     }

@@ -5,11 +5,11 @@
 #include "AOCommon.hlsli"
 #include "NoiseCommon.hlsli"
 
-static const uint ao_direction_count = 4;
-static const uint ao_step_count = 4;
-static const float ao_max_radius_uv = 0.1f;
-static const float ao_thickness = 0.05f;
-static const float ao_falloff_start = ao_radius * 0.9f; // falloff starts with 60%
+static const uint ao_direction_count = 3;
+static const uint ao_step_count = 3;
+static const float ao_max_radius_uv = 0.01f;
+static const float ao_falloff_start = ao_radius * 0.6f;
+static const float ao_mip_bias = 3.0f;
 
 float AOIntegrateArc(float horizon, float normal_angle, float cos_normal, float sin_normal)
 {
@@ -42,12 +42,6 @@ void main(uint3 dispatch_thread_id : SV_DispatchThreadID)
     }
 
     const float3 P = ScreenUVToView(uv, center_view_z);
-    const float2 texel = resolution_rcp;
-    const float3 pos_right = ScreenUVToView(uv + float2(texel.x, 0.0f), SampleLinearDepth(linear_depth, uv + float2(texel.x, 0.0f), 0));
-    const float3 pos_up = ScreenUVToView(uv + float2(0.0f, texel.y), SampleLinearDepth(linear_depth, uv + float2(0.0f, texel.y), 0));
-    const float3 delta_x = pos_right - P; // view space delta for one pixel in screen space
-    const float3 delta_y = pos_up - P;
-
     const float3 view_vector = normalize(-P);
     float3 normal;
     if (!SampleViewNormal(normal_texture, uv, normal))
@@ -74,10 +68,13 @@ void main(uint3 dispatch_thread_id : SV_DispatchThreadID)
     for (uint direction_index = 0; direction_index < ao_direction_count; ++direction_index)
     {
         const float phi = (float(direction_index) + noise) * (PI / float(ao_direction_count));
-        const float2 direction = float2(cos(phi), sin(phi)); // screen space direction
+        const float cos_phi = cos(phi);
+        const float sin_phi = sin(phi);
+        const float2 offset_direction = float2(cos_phi, -sin_phi); // screen uv offset (view y is up, uv y is down)
+        const float3 direction_vec = float3(cos_phi, sin_phi, 0.0f); // screen aligned direction in view space
 
-        const float3 slice_direction = normalize(delta_x * direction.x + delta_y * direction.y); // multiply screen space direction by view space delta
-        const float3 slice_axis = normalize(cross(slice_direction, view_vector)); // normal of the slice plane
+        const float3 ortho_direction = direction_vec - dot(direction_vec, view_vector) * view_vector; // slice direction orthogonal to view
+        const float3 slice_axis = normalize(cross(ortho_direction, view_vector)); // normal of the slice plane
         const float3 projected_normal = normal - slice_axis * dot(normal, slice_axis); // project to the slice plane
         const float projected_normal_length = length(projected_normal);
         if (projected_normal_length <= FLT_EPSILON)
@@ -85,21 +82,22 @@ void main(uint3 dispatch_thread_id : SV_DispatchThreadID)
             continue; // if normal is perpendicular to the slice plane
         }
 
-        const float3 in_plane_tangent = cross(view_vector, slice_axis); // slice_direction and view_vector are not always perpendicular
-        const float cos_normal = clamp(dot(projected_normal, view_vector) / projected_normal_length, -1.0f, 1.0f);
-        const float normal_angle = sign(dot(projected_normal, in_plane_tangent)) * acos(cos_normal);
+        const float cos_normal = saturate(dot(projected_normal, view_vector) / projected_normal_length);
+        const float normal_angle = sign(dot(ortho_direction, projected_normal)) * acos(cos_normal);
         const float sin_normal = sin(normal_angle);
 
-        float cos_horizon_plus = -1.0f;
-        float cos_horizon_minus = -1.0f;
+        const float low_horizon_cos_plus = cos(normal_angle + HALF_PI); // hemisphere limit for the +offset side
+        const float low_horizon_cos_minus = cos(normal_angle - HALF_PI);
+        float cos_horizon_plus = low_horizon_cos_plus;
+        float cos_horizon_minus = low_horizon_cos_minus;
 
         [unroll]
         for (uint step_index = 0; step_index < ao_step_count; ++step_index)
         {
             const float march = (float(step_index) + noise) / float(ao_step_count); // [0, 1)
-            const float2 offset = direction * radius_uv * march;
+            const float2 offset = offset_direction * radius_uv * march;
             const float sample_pixels = march * radius_pixels;
-            const uint mip = min((uint)max(log2(max(sample_pixels, 1.0f)) - 2.0f, 0.0f), GetView().linear_depth_mip_count - 1u);
+            const uint mip = min((uint)max(log2(max(sample_pixels, 1.0f)) - ao_mip_bias, 0.0f), GetView().linear_depth_mip_count - 1u);
 
             const float2 uv_plus = uv + offset;
             const float2 uv_minus = uv - offset;
@@ -114,25 +112,19 @@ void main(uint3 dispatch_thread_id : SV_DispatchThreadID)
             if (len_plus > ao_bias && len_plus < ao_radius)
             {
                 const float falloff = saturate((ao_radius - len_plus) / (ao_radius - ao_falloff_start));
-                const float sample_cos = lerp(-1.0f, dot(diff_plus / len_plus, view_vector), falloff); // higher cos = smaller angle with view vector = closer depth
-                cos_horizon_plus = sample_cos > cos_horizon_plus
-                    ? sample_cos
-                    : lerp(cos_horizon_plus, sample_cos, ao_thickness);
+                const float sample_cos = lerp(low_horizon_cos_plus, dot(diff_plus / len_plus, view_vector), falloff);
+                cos_horizon_plus = max(cos_horizon_plus, sample_cos);
             }
             if (len_minus > ao_bias && len_minus < ao_radius)
             {
                 const float falloff = saturate((ao_radius - len_minus) / (ao_radius - ao_falloff_start));
-                const float sample_cos = lerp(-1.0f, dot(diff_minus / len_minus, view_vector), falloff);
-                cos_horizon_minus = sample_cos > cos_horizon_minus
-                    ? sample_cos
-                    : lerp(cos_horizon_minus, sample_cos, ao_thickness);
+                const float sample_cos = lerp(low_horizon_cos_minus, dot(diff_minus / len_minus, view_vector), falloff);
+                cos_horizon_minus = max(cos_horizon_minus, sample_cos);
             }
         }
 
-        float horizon_plus = acos(clamp(cos_horizon_plus, -1.0f, 1.0f));
-        float horizon_minus = -acos(clamp(cos_horizon_minus, -1.0f, 1.0f));
-        horizon_plus = normal_angle + min(horizon_plus - normal_angle, HALF_PI);
-        horizon_minus = normal_angle + max(horizon_minus - normal_angle, -HALF_PI);
+        const float horizon_plus = acos(clamp(cos_horizon_plus, -1.0f, 1.0f));
+        const float horizon_minus = -acos(clamp(cos_horizon_minus, -1.0f, 1.0f));
 
         visibility += projected_normal_length *
             (AOIntegrateArc(horizon_plus, normal_angle, cos_normal, sin_normal)

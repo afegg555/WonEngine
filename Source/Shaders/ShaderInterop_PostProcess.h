@@ -164,6 +164,30 @@ static_assert(sizeof(TemporalResolveConstants) == 28, "TemporalResolveConstants 
 CONSTANTBUFFER(temporalresolvecb, TemporalResolveConstants, CBSLOT_RENDERER_PASS);
 #endif
 
+struct AODenoisePushConstants
+{
+    uint ao_descriptor;
+    uint normal_descriptor;
+    uint output_descriptor;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        ao_descriptor = 0;
+        normal_descriptor = 0;
+        output_descriptor = 0;
+    }
+#endif
+};
+
+#ifdef __cplusplus
+static_assert(sizeof(AODenoisePushConstants) == 12, "AODenoisePushConstants layout mismatch");
+#endif
+
+#ifdef WON_AO_DENOISE_PUSHCONSTANT
+PUSHCONSTANT(aodenoisepush, AODenoisePushConstants);
+#endif
+
 static const uint output_encoding_linear = 0;
 static const uint output_encoding_srgb = 1;
 

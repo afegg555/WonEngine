@@ -175,6 +175,9 @@ namespace won::rendering
 			FrameGraphResourceRef ao_final = invalid_frame_resource; // history accumulated AO, after temporal resolve
             RHISubresourceHandle ao_final_srv = {};
             RHISubresourceHandle ao_final_uav = {};
+			FrameGraphResourceRef ao_denoised = invalid_frame_resource; // ao_final after edge-aware spatial denoise
+            RHISubresourceHandle ao_denoised_srv = {};
+            RHISubresourceHandle ao_denoised_uav = {};
 
             uint32 width = 0;
             uint32 height = 0;

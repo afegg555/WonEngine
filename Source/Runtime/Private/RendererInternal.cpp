@@ -1079,6 +1079,9 @@ namespace won::rendering
         targets.ao_final = invalid_frame_resource;
         targets.ao_final_srv = {};
         targets.ao_final_uav = {};
+        targets.ao_denoised = invalid_frame_resource;
+        targets.ao_denoised_srv = {};
+        targets.ao_denoised_uav = {};
         const bool ambient_occlusion_active = view.options.ao_mode != AmbientOcclusionMode::None;
         const bool needs_linear_depth = ambient_occlusion_active;
         if (needs_linear_depth)
@@ -1182,6 +1185,10 @@ namespace won::rendering
             targets.ao_final = frame_graph.CreateTexture(view.viewer_index, "View AO", ao_desc);
             targets.ao_final_srv = frame_graph.CreateSubresource(targets.ao_final, ao_srv_desc);
             targets.ao_final_uav = frame_graph.CreateSubresource(targets.ao_final, ao_uav_desc);
+
+            targets.ao_denoised = frame_graph.CreateTexture(view.viewer_index, "View AO Denoised", ao_desc);
+            targets.ao_denoised_srv = frame_graph.CreateSubresource(targets.ao_denoised, ao_srv_desc);
+            targets.ao_denoised_uav = frame_graph.CreateSubresource(targets.ao_denoised, ao_uav_desc);
         }
 
         View::AOResources& ao_res = view.ao_resources;
@@ -3770,6 +3777,7 @@ namespace won::rendering
         const bool ao_enabled = view.options.ao_mode != AmbientOcclusionMode::None
             && targets.ao_raw != invalid_frame_resource
             && targets.ao_final != invalid_frame_resource
+            && targets.ao_denoised != invalid_frame_resource
             && targets.ao_normal != invalid_frame_resource
             && linear_depth_ready;
 
@@ -3778,7 +3786,8 @@ namespace won::rendering
             : ShaderId::CSGTAO;
         RHIPipeline* ao_pipeline = ao_enabled ? shader_library.GetPipeline(ComputePipelineHash(ao_main_shader)) : nullptr;
         RHIPipeline* temporal_resolve_pipeline = ao_enabled ? shader_library.GetPipeline(ComputePipelineHash(ShaderId::CSTemporalResolve)) : nullptr;
-        if (ao_enabled && ao_pipeline && temporal_resolve_pipeline)
+        RHIPipeline* ao_denoise_pipeline = ao_enabled ? shader_library.GetPipeline(ComputePipelineHash(ShaderId::CSAODenoise)) : nullptr;
+        if (ao_enabled && ao_pipeline && temporal_resolve_pipeline && ao_denoise_pipeline)
         {
             View::AOResources& ao_res = view.ao_resources;
             const uint32 ao_width = targets.width;
@@ -3823,9 +3832,33 @@ namespace won::rendering
                 frame_graph.MarkNoCull(ao_hist_read_id);
                 frame_graph.MarkNoCull(ao_hist_write_id);
 
+                AODenoisePushConstants denoise_push = {};
+                denoise_push.Init();
+                denoise_push.ao_descriptor = static_cast<uint32>(targets.ao_raw_srv.descriptor_index);
+                denoise_push.normal_descriptor = static_cast<uint32>(targets.ao_normal_srv.descriptor_index);
+                denoise_push.output_descriptor = static_cast<uint32>(targets.ao_denoised_uav.descriptor_index);
+
+                frame_graph.AddPass("Ambient Occlusion Denoise",
+                    { { targets.ao_raw, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read },
+                      { targets.ao_normal, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read },
+                      { targets.linear_depth, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read },
+                      { targets.ao_denoised, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write },
+                      view_constants_read },
+                    [&view, denoise_push, ao_denoise_pipeline, &targets, ao_width, ao_height](const FrameGraphPassContext& pass_context)
+                {
+                    auto gpu_range = profiler::ScopedRangeGPU("Ambient Occlusion Denoise", (*pass_context.command_list));
+                    RHICommandList* command_list = pass_context.command_list;
+                    command_list->SetComputePipeline(*ao_denoise_pipeline);
+                    command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_CAMERA, { view.view_constants.buffer.get(), view.view_constants.cbv });
+                    command_list->PushConstants(RHIShaderStage::Compute, &denoise_push, sizeof(denoise_push), 0);
+                    command_list->Dispatch((ao_width + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D,
+                                           (ao_height + DISPATCH_THREAD_GROUP_2D - 1) / DISPATCH_THREAD_GROUP_2D, 1u);
+                    command_list->UAVBarrier(*pass_context.GetResource(targets.ao_denoised));
+                });
+
                 TemporalResolveConstants temporal_constants = {};
                 temporal_constants.Init();
-                temporal_constants.current_descriptor = static_cast<uint32>(targets.ao_raw_srv.descriptor_index);
+                temporal_constants.current_descriptor = static_cast<uint32>(targets.ao_denoised_srv.descriptor_index);
                 temporal_constants.history_descriptor = static_cast<uint32>(ao_res.history_srv[ao_history_read].descriptor_index);
                 temporal_constants.motion_descriptor = ao_has_motion
                     ? static_cast<int>(targets.motion_vectors_srv.descriptor_index)
@@ -3838,7 +3871,7 @@ namespace won::rendering
                 const FrameResourceId temporal_id = frame_graph.CreateConstants(view.viewer_index, "AO Temporal Constants", temporal_constants, temporal_cbv);
 
                 Vector<FrameResourceAccess> temporal_accesses = {
-                    { targets.ao_raw, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read },
+                    { targets.ao_denoised, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read },
                     { targets.ao_final, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write },
                     { ao_hist_read_id, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read },
                     { ao_hist_write_id, RHIResourceState::ShaderWrite, FrameResourceAccess::Type::Write },

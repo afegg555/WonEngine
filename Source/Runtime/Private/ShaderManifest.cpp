@@ -59,6 +59,7 @@ namespace won::resource
             { ShaderId::CSGTAO, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "GTAOCS.hlsl", "main" } },
             { ShaderId::CSSSAO, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "SSAOCS.hlsl", "main" } },
             { ShaderId::CSTemporalResolve, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TemporalResolveCS.hlsl", "main" } },
+            { ShaderId::CSAODenoise, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "AODenoiseCS.hlsl", "main" } },
             { ShaderId::CSTonemap, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TonemapCS.hlsl", "main" } },
             { ShaderId::CSLuminanceReduce, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "LuminanceReduceCS.hlsl", "main" } },
             { ShaderId::CSLuminanceResolve, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "LuminanceResolveCS.hlsl", "main" } },

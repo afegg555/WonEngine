@@ -59,6 +59,7 @@ namespace won::resource
         CSGTAO,
         CSSSAO,
         CSTemporalResolve,
+        CSAODenoise,
         CSTonemap,
         CSLuminanceReduce,
         CSLuminanceResolve,
@@ -137,6 +138,7 @@ namespace won::resource
         case ShaderId::CSGTAO: return "CSGTAO";
         case ShaderId::CSSSAO: return "CSSSAO";
         case ShaderId::CSTemporalResolve: return "CSTemporalResolve";
+        case ShaderId::CSAODenoise: return "CSAODenoise";
         case ShaderId::CSTonemap: return "CSTonemap";
         case ShaderId::CSLuminanceReduce: return "CSLuminanceReduce";
         case ShaderId::CSLuminanceResolve: return "CSLuminanceResolve";

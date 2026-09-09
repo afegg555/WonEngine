@@ -491,6 +491,7 @@ set(SHADERS_HLSL
     Source/Shaders/GTAOCS.hlsl
     Source/Shaders/SSAOCS.hlsl
     Source/Shaders/TemporalResolveCS.hlsl
+    Source/Shaders/AODenoiseCS.hlsl
     Source/Shaders/ObjectVS_normal.hlsl
     Source/Shaders/ObjectPS_normal.hlsl
     Source/Shaders/ObjectVS_motion_normal.hlsl
