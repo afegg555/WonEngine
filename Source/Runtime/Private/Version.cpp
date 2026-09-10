@@ -6,7 +6,7 @@ namespace won
 	// main engine core
 	constexpr int engine_major = 0;
 	// minor features, major updates, breaking compatibility changes
-	constexpr int engine_minor = 1;
+	constexpr int engine_minor = 2;
 	// minor bug fixes, alterations, refactors, updates
 	constexpr int engine_revision = 0;
 
