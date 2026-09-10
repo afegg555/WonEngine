@@ -12,5 +12,8 @@ namespace won
 	// minor bug fixes, alterations
 	WONENGINE_API int GetRevision();
 
+	// git short sha of the built commit, empty when git is unavailable
+	WONENGINE_API const char* GetBuildId();
+
 	WONENGINE_API const char* GetVersionString();
 }

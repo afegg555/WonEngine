@@ -815,6 +815,34 @@ target_include_directories(Runtime SYSTEM
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Source/Vendor/lua/src>
 )
 
+find_package(Git QUIET)
+set(WON_VERSION_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
+set(WON_VERSION_GENERATED_HEADER "${WON_VERSION_GENERATED_DIR}/VersionGenerated.h")
+file(MAKE_DIRECTORY ${WON_VERSION_GENERATED_DIR})
+
+if(NOT EXISTS ${WON_VERSION_GENERATED_HEADER})
+    execute_process(COMMAND ${CMAKE_COMMAND}
+        -DGIT_EXECUTABLE=${GIT_EXECUTABLE}
+        -DGIT_WORKING_DIR=${CMAKE_CURRENT_SOURCE_DIR}
+        -DOUTPUT_FILE=${WON_VERSION_GENERATED_HEADER}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/CMake/GenerateVersionHeader.cmake
+    )
+endif()
+
+add_custom_target(GenerateVersionHeader
+    BYPRODUCTS ${WON_VERSION_GENERATED_HEADER}
+    COMMAND ${CMAKE_COMMAND}
+        -DGIT_EXECUTABLE=${GIT_EXECUTABLE}
+        -DGIT_WORKING_DIR=${CMAKE_CURRENT_SOURCE_DIR}
+        -DOUTPUT_FILE=${WON_VERSION_GENERATED_HEADER}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/CMake/GenerateVersionHeader.cmake
+    COMMENT "Resolving WonEngine build id"
+    VERBATIM
+)
+
+add_dependencies(Runtime GenerateVersionHeader)
+target_include_directories(Runtime PRIVATE $<BUILD_INTERFACE:${WON_VERSION_GENERATED_DIR}>)
+
 target_link_libraries(Runtime PUBLIC Jolt)
 target_link_libraries(Runtime PRIVATE RecastNavigation)
 
