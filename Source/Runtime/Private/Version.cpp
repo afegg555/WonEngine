@@ -1,4 +1,5 @@
 #include "Version.h"
+#include "VersionGenerated.h"
 
 namespace won
 {
@@ -9,7 +10,9 @@ namespace won
 	// minor bug fixes, alterations, refactors, updates
 	constexpr int engine_revision = 0;
 
-	const String version_string = std::to_string(engine_major) + "." + std::to_string(engine_minor) + "." + std::to_string(engine_revision);
+	const String build_id = WON_BUILD_ID;
+
+	const String version_string = std::to_string(engine_major) + "." + std::to_string(engine_minor) + "." + std::to_string(engine_revision) + (build_id.empty() ? "" : "+" + build_id);
 
 	int GetMajor()
 	{
@@ -23,9 +26,12 @@ namespace won
 	{
 		return engine_revision;
 	}
+	const char* GetBuildId()
+	{
+		return build_id.c_str();
+	}
 	const char* GetVersionString()
 	{
 		return version_string.c_str();
 	}
 }
-
