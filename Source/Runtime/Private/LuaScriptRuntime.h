@@ -257,6 +257,10 @@ namespace won::script
         static int LuaSettingsGet(lua_State* state);
         static int LuaSettingsSet(lua_State* state);
         static int LuaSettingsSave(lua_State* state);
+        static int LuaWindowToggleFullscreen(lua_State* state);
+        static int LuaWindowSetMode(lua_State* state);
+        static int LuaWindowGetMode(lua_State* state);
+        static int LuaWindowIsFullscreen(lua_State* state);
         static int LuaLocaleGetText(lua_State* state);
         static int LuaLocaleSetLanguage(lua_State* state);
         static int LuaLocaleGetLanguage(lua_State* state);
@@ -293,6 +297,7 @@ namespace won::script
         String content_root;
         settings::UserSettings* user_settings = nullptr;
         const project::ProjectSettings* project_settings = nullptr;
+        platform::Window* window = nullptr;
         std::function<void()> apply_user_settings;
         std::function<bool()> save_user_settings;
     };

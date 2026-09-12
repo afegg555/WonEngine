@@ -54,6 +54,10 @@ namespace won
         game::GameData* GetGameData();
         SceneManager* GetSceneManager();
         void ShowMainWindow();
+        void SetWindowMode(platform::WindowMode mode);
+        void ToggleFullscreen();
+        platform::WindowMode GetWindowMode() const;
+        bool IsFullscreen() const;
         void WaitIdle();
         void ClearViews();
         uint32 AddView(rendering::View&& view = {});

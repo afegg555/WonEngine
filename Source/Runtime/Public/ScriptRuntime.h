@@ -44,6 +44,11 @@ namespace won::project
     struct ProjectSettings;
 }
 
+namespace won::platform
+{
+    class Window;
+}
+
 namespace won::script
 {
     enum class ScriptBackend
@@ -60,6 +65,7 @@ namespace won::script
         String content_root;
         settings::UserSettings* user_settings = nullptr;
         const project::ProjectSettings* project_settings = nullptr;
+        platform::Window* window = nullptr;
         std::function<void()> apply_user_settings;
         std::function<bool()> save_user_settings;
     };

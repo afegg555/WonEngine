@@ -10,6 +10,13 @@ namespace won::platform
 {
     using PlatformMessageHandler = std::function<bool(void* hwnd, uint32 message, Size wparam, Size lparam)>;
 
+    enum class WindowMode
+    {
+        Windowed,
+        BorderlessFullscreen,
+        ExclusiveFullscreen
+    };
+
     struct WindowDesc
     {
         const char* title = "WonEngine";
@@ -19,6 +26,7 @@ namespace won::platform
         bool resizable = true;
         bool use_title_bar = false;
         bool visible = true;
+        bool handle_alt_enter = true;
     };
 
     class Window
@@ -45,6 +53,19 @@ namespace won::platform
         virtual bool IsMinimized() const = 0;
         virtual bool IsMaximized() const = 0;
         virtual bool ConsumePendingResize() = 0;
+
+        virtual void SetWindowMode(WindowMode mode) = 0;
+        virtual WindowMode GetWindowMode() const = 0;
+
+        bool IsFullscreen() const
+        {
+            return GetWindowMode() != WindowMode::Windowed;
+        }
+
+        void ToggleFullscreen()
+        {
+            SetWindowMode(IsFullscreen() ? WindowMode::Windowed : WindowMode::BorderlessFullscreen);
+        }
 
         void SetPlatformMessageHandler(PlatformMessageHandler new_handler)
         {

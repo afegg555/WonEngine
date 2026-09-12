@@ -156,6 +156,7 @@ namespace won
         window_desc.resizable = project_settings.window_resizable;
         window_desc.use_title_bar = project_settings.window_use_title_bar;
         window_desc.visible = project_settings.window_visible && !desc.defer_window_show;
+        window_desc.handle_alt_enter = project_settings.window_handle_alt_enter;
         window = platform::CreateNativeWindow(window_desc);
         if (!window)
         {
@@ -226,6 +227,7 @@ namespace won
         script_desc.project_settings = &project_settings;
         script_desc.apply_user_settings = [this]() { ApplyUserSettings(); };
         script_desc.save_user_settings = [this]() { return SaveUserSettings(); };
+        script_desc.window = window.get();
         script_runtime = script::CreateScriptRuntime(script_desc);
         if (script_runtime && !script_runtime->Initialize())
         {
@@ -287,6 +289,32 @@ namespace won
             window->Show();
             window->BringToForeground();
         }
+    }
+
+    void Application::SetWindowMode(platform::WindowMode mode)
+    {
+        if (window)
+        {
+            window->SetWindowMode(mode);
+        }
+    }
+
+    void Application::ToggleFullscreen()
+    {
+        if (window)
+        {
+            window->ToggleFullscreen();
+        }
+    }
+
+    platform::WindowMode Application::GetWindowMode() const
+    {
+        return window ? window->GetWindowMode() : platform::WindowMode::Windowed;
+    }
+
+    bool Application::IsFullscreen() const
+    {
+        return window && window->IsFullscreen();
     }
 
     void Application::Run()

@@ -33,6 +33,7 @@ int main(int argc, char** argv)
 		std::fprintf(stderr, "Failed to load editor project: %s\n", editor_project_settings_path.c_str());
 		return 1;
 	}
+	app_desc.project_settings.window_handle_alt_enter = false;
 	if (app_desc.project_settings.splash_image.empty())
 	{
 		app_desc.project_settings.splash_image = default_editor_splash_image;

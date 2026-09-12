@@ -30,6 +30,9 @@ namespace won::platform
         bool IsMaximized() const override;
         bool ConsumePendingResize() override;
 
+        void SetWindowMode(WindowMode mode) override;
+        WindowMode GetWindowMode() const override;
+
         static LRESULT CALLBACK WindowProc(HWND, UINT, WPARAM, LPARAM);
     private:
         WindowType hwnd = nullptr;
@@ -39,5 +42,10 @@ namespace won::platform
         bool is_resizable = true;
         bool is_minimized = false;
         bool has_pending_resize = false;
+        bool handle_alt_enter = true;
+        WindowMode window_mode = WindowMode::Windowed;
+        WINDOWPLACEMENT saved_placement = {};
+        DWORD saved_style = 0;
+        bool has_saved_windowed = false;
     };
 }
