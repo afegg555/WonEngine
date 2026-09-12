@@ -8,6 +8,7 @@
 #include "Input.h"
 #include "ProjectSettings.h"
 #include "Scene.h"
+#include "Window.h"
 #include "Localization.h"
 #include "SceneManager.h"
 #include "View.h"
@@ -128,6 +129,7 @@ namespace won::script
         game_data = desc.game_data;
         user_settings = desc.user_settings;
         project_settings = desc.project_settings;
+        window = desc.window;
         apply_user_settings = desc.apply_user_settings;
         save_user_settings = desc.save_user_settings;
         audio_mixer = desc.audio_mixer;
@@ -1718,6 +1720,73 @@ namespace won::script
         LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
         const bool saved = runtime && runtime->save_user_settings && runtime->save_user_settings();
         lua_pushboolean(state, saved ? 1 : 0);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaWindowToggleFullscreen(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (runtime && runtime->window)
+        {
+            runtime->window->ToggleFullscreen();
+        }
+        return 0;
+    }
+
+    int LuaScriptRuntime::LuaWindowSetMode(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        const String mode = luaL_checkstring(state, 1);
+        if (!runtime || !runtime->window)
+        {
+            lua_pushboolean(state, 0);
+            return 1;
+        }
+
+        if (mode == "windowed")
+        {
+            runtime->window->SetWindowMode(platform::WindowMode::Windowed);
+        }
+        else if (mode == "borderless")
+        {
+            runtime->window->SetWindowMode(platform::WindowMode::BorderlessFullscreen);
+        }
+        else if (mode == "exclusive")
+        {
+            runtime->window->SetWindowMode(platform::WindowMode::ExclusiveFullscreen);
+        }
+        else
+        {
+            lua_pushboolean(state, 0);
+            return 1;
+        }
+
+        lua_pushboolean(state, 1);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaWindowGetMode(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        const char* mode = "windowed";
+        if (runtime && runtime->window)
+        {
+            switch (runtime->window->GetWindowMode())
+            {
+            case platform::WindowMode::BorderlessFullscreen: mode = "borderless"; break;
+            case platform::WindowMode::ExclusiveFullscreen: mode = "exclusive"; break;
+            default: mode = "windowed"; break;
+            }
+        }
+        lua_pushstring(state, mode);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaWindowIsFullscreen(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        const bool fullscreen = runtime && runtime->window && runtime->window->IsFullscreen();
+        lua_pushboolean(state, fullscreen ? 1 : 0);
         return 1;
     }
 
@@ -4980,6 +5049,21 @@ namespace won::script
         lua_pushcclosure(lua_state, LuaSettingsSave, 1);
         lua_setfield(lua_state, -2, "save");
         lua_setfield(lua_state, -2, "settings");
+
+        lua_newtable(lua_state);
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaWindowToggleFullscreen, 1);
+        lua_setfield(lua_state, -2, "toggle_fullscreen");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaWindowSetMode, 1);
+        lua_setfield(lua_state, -2, "set_mode");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaWindowGetMode, 1);
+        lua_setfield(lua_state, -2, "get_mode");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaWindowIsFullscreen, 1);
+        lua_setfield(lua_state, -2, "is_fullscreen");
+        lua_setfield(lua_state, -2, "window");
 
         lua_newtable(lua_state);
         lua_pushcfunction(lua_state, LuaLocaleGetText);

@@ -40,7 +40,7 @@ namespace won::platform
 
     }
 
-    WindowWin32::WindowWin32(const WindowDesc& desc) : width(desc.width), height(desc.height), use_title_bar(desc.use_title_bar), is_resizable(desc.resizable)
+    WindowWin32::WindowWin32(const WindowDesc& desc) : width(desc.width), height(desc.height), use_title_bar(desc.use_title_bar), is_resizable(desc.resizable), handle_alt_enter(desc.handle_alt_enter)
     {
         RegisterWindowClass();
 
@@ -95,6 +95,40 @@ namespace won::platform
         {
             width = window_width;
             height = window_height;
+            window_mode = WindowMode::BorderlessFullscreen;
+
+            DWORD windowed_style = desc.use_title_bar ? WS_OVERLAPPEDWINDOW : (WS_POPUP | WS_MINIMIZEBOX | WS_MAXIMIZEBOX);
+            if (desc.use_title_bar && !desc.resizable)
+            {
+                windowed_style &= ~WS_THICKFRAME;
+                windowed_style &= ~WS_MAXIMIZEBOX;
+            }
+            saved_style = windowed_style;
+
+            RECT windowed_rect = { 0, 0, desc.width, desc.height };
+            if (desc.use_title_bar)
+            {
+                AdjustWindowRect(&windowed_rect, windowed_style, FALSE);
+            }
+            const int windowed_full_width = windowed_rect.right - windowed_rect.left;
+            const int windowed_full_height = windowed_rect.bottom - windowed_rect.top;
+
+            HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY);
+            MONITORINFO monitor_info = {};
+            monitor_info.cbSize = sizeof(MONITORINFO);
+            RECT normal_position = { 0, 0, windowed_full_width, windowed_full_height };
+            if (GetMonitorInfoW(monitor, &monitor_info))
+            {
+                const RECT& work_rect = monitor_info.rcWork;
+                const int offset_x = work_rect.left + ((work_rect.right - work_rect.left) - windowed_full_width) / 2;
+                const int offset_y = work_rect.top + ((work_rect.bottom - work_rect.top) - windowed_full_height) / 2;
+                normal_position = { offset_x, offset_y, offset_x + windowed_full_width, offset_y + windowed_full_height };
+            }
+
+            saved_placement.length = sizeof(WINDOWPLACEMENT);
+            saved_placement.showCmd = SW_SHOWNORMAL;
+            saved_placement.rcNormalPosition = normal_position;
+            has_saved_windowed = true;
         }
 
         if (desc.visible)
@@ -295,6 +329,87 @@ namespace won::platform
         return had_pending_resize;
     }
 
+    WindowMode WindowWin32::GetWindowMode() const
+    {
+        return window_mode;
+    }
+
+    void WindowWin32::SetWindowMode(WindowMode mode)
+    {
+        if (!hwnd || mode == window_mode)
+        {
+            return;
+        }
+
+        const bool was_focused = IsFocused();
+        const WindowMode previous_mode = window_mode;
+
+        if (previous_mode == WindowMode::ExclusiveFullscreen)
+        {
+            if (rendering::RHISwapchain* swapchain = GetRHISwapchain())
+            {
+                swapchain->SetFullscreenState(false);
+            }
+        }
+
+        if (previous_mode == WindowMode::Windowed)
+        {
+            saved_placement.length = sizeof(WINDOWPLACEMENT);
+            GetWindowPlacement(hwnd, &saved_placement);
+            saved_style = static_cast<DWORD>(GetWindowLongW(hwnd, GWL_STYLE));
+            has_saved_windowed = true;
+        }
+
+        if (mode == WindowMode::Windowed)
+        {
+            SetWindowLongW(hwnd, GWL_STYLE, static_cast<LONG>(saved_style));
+            SetWindowPlacement(hwnd, &saved_placement);
+            SetWindowPos(hwnd, nullptr, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+
+            if (!use_title_bar)
+            {
+                RECT client_rect = {};
+                GetClientRect(hwnd, &client_rect);
+                HRGN rounded_region = CreateRoundRectRgn(0, 0, client_rect.right + 1, client_rect.bottom + 1, 14, 14);
+                SetWindowRgn(hwnd, rounded_region, TRUE);
+            }
+
+            window_mode = WindowMode::Windowed;
+        }
+        else
+        {
+            SetWindowRgn(hwnd, nullptr, TRUE);
+            SetWindowLongW(hwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
+
+            HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+            MONITORINFO monitor_info = {};
+            monitor_info.cbSize = sizeof(MONITORINFO);
+            if (GetMonitorInfoW(monitor, &monitor_info))
+            {
+                const RECT& monitor_rect = monitor_info.rcMonitor;
+                SetWindowPos(hwnd, HWND_TOP, monitor_rect.left, monitor_rect.top,
+                    monitor_rect.right - monitor_rect.left, monitor_rect.bottom - monitor_rect.top,
+                    SWP_FRAMECHANGED | SWP_NOACTIVATE);
+            }
+
+            window_mode = mode;
+
+            if (mode == WindowMode::ExclusiveFullscreen)
+            {
+                if (rendering::RHISwapchain* swapchain = GetRHISwapchain())
+                {
+                    swapchain->SetFullscreenState(true);
+                }
+            }
+        }
+
+        if (was_focused)
+        {
+            SetForegroundWindow(hwnd);
+            SetFocus(hwnd);
+        }
+    }
+
     LRESULT CALLBACK WindowWin32::WindowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
     {
         // wparam and lparam are message-specific
@@ -307,6 +422,18 @@ namespace won::platform
         }
 
         auto* window = reinterpret_cast<WindowWin32*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+
+        if (message == WM_SYSKEYDOWN && wparam == VK_RETURN && window && window->handle_alt_enter
+            && (lparam & (1 << 29)) && !(lparam & (1 << 30)))
+        {
+            window->ToggleFullscreen();
+            return 0;
+        }
+
+        if (message == WM_SYSCHAR && wparam == VK_RETURN && window && window->handle_alt_enter)
+        {
+            return 0;
+        }
 
         bool should_post_quit = false;
         bool should_update_size = false;

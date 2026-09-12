@@ -33,6 +33,7 @@ namespace won::project
         bool window_resizable = true;
         bool window_use_title_bar = true;
         bool window_visible = true;
+        bool window_handle_alt_enter = true;
         bool vsync_enabled = true;
         rendering::RHIClearColor clear_color = { 0.0f, 0.3f, 0.3f, 1.0f };
         rendering::AntiAliasingMode aa_mode = rendering::AntiAliasingMode::None;
@@ -226,6 +227,10 @@ namespace won::project
         {
             settings.window_visible = bool_value;
         }
+        if (configuration.GetBool("window_handle_alt_enter", bool_value))
+        {
+            settings.window_handle_alt_enter = bool_value;
+        }
         if (configuration.GetBool("vsync_enabled", bool_value))
         {
             settings.vsync_enabled = bool_value;
@@ -354,6 +359,7 @@ namespace won::project
         configuration.SetBool("window_resizable", settings.window_resizable);
         configuration.SetBool("window_use_title_bar", settings.window_use_title_bar);
         configuration.SetBool("window_visible", settings.window_visible);
+        configuration.SetBool("window_handle_alt_enter", settings.window_handle_alt_enter);
         configuration.SetBool("vsync_enabled", settings.vsync_enabled);
         configuration.SetFloat("clear_color_r", settings.clear_color.r);
         configuration.SetFloat("clear_color_g", settings.clear_color.g);

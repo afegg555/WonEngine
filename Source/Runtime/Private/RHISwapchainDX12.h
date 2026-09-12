@@ -22,6 +22,7 @@ namespace won::rendering
             std::shared_ptr<RHIContextDX12> graphics_context_in,
             std::shared_ptr<DescriptorAllocatorDX12> descriptor_allocator_in,
             platform::Window& window);
+        ~RHISwapchainDX12() override;
 
         uint32 GetCurrentBackBufferIndex() const override;
         uint32 GetBackBufferCount() const override;
@@ -31,6 +32,7 @@ namespace won::rendering
         void SetVSync(bool enabled) override;
         bool IsVSyncEnabled() const override;
         bool Present() override;
+        bool SetFullscreenState(bool fullscreen) override;
 
     private:
         bool CreateBackBuffers(uint32 width, uint32 height);
@@ -41,6 +43,8 @@ namespace won::rendering
         std::shared_ptr<DescriptorAllocatorDX12> descriptor_allocator;
         ComPtr<IDXGISwapChain3> dxgi_swapchain;
         Vector<std::unique_ptr<RHIResourceDX12>> back_buffers;
+        UINT swapchain_flags = 0;
         bool vsync_enabled = true;
+        bool is_exclusive_fullscreen = false;
     };
 }

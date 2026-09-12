@@ -30,6 +30,8 @@ namespace won::rendering
             return;
         }
 
+        swapchain_flags = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT | DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+
         DXGI_SWAP_CHAIN_DESC1 swap_chain_desc = {};
         swap_chain_desc.BufferCount = max_frames_in_flight;
         swap_chain_desc.Width = static_cast<UINT>(window.GetWidth());
@@ -38,7 +40,7 @@ namespace won::rendering
         swap_chain_desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
         swap_chain_desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
         swap_chain_desc.SampleDesc.Count = 1;
-        swap_chain_desc.Flags = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
+        swap_chain_desc.Flags = swapchain_flags;
 
         ComPtr<IDXGISwapChain1> temp_swapchain;
         if (FAILED(factory->CreateSwapChainForHwnd(graphics_context->GetQueue(), hwnd, &swap_chain_desc, nullptr, nullptr, &temp_swapchain)))
@@ -63,6 +65,15 @@ namespace won::rendering
         if (!CreateBackBuffers(static_cast<uint32>(window.GetWidth()), static_cast<uint32>(window.GetHeight())))
         {
             backlog::Post("Failed to initialize swapchain back buffers", backlog::LogLevel::Error);
+        }
+    }
+
+    RHISwapchainDX12::~RHISwapchainDX12()
+    {
+        if (dxgi_swapchain && is_exclusive_fullscreen)
+        {
+            dxgi_swapchain->SetFullscreenState(FALSE, nullptr);
+            is_exclusive_fullscreen = false;
         }
     }
 
@@ -103,7 +114,6 @@ namespace won::rendering
 
         back_buffers.clear();
 
-        const UINT swapchain_flags = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
         if (FAILED(dxgi_swapchain->ResizeBuffers(max_frames_in_flight, width, height, DXGI_FORMAT_R8G8B8A8_UNORM, swapchain_flags)))
         {
             backlog::Post("Failed to resize DXGI swapchain buffers", backlog::LogLevel::Error);
@@ -140,6 +150,23 @@ namespace won::rendering
     bool RHISwapchainDX12::IsVSyncEnabled() const
     {
         return vsync_enabled;
+    }
+
+    bool RHISwapchainDX12::SetFullscreenState(bool fullscreen)
+    {
+        if (!dxgi_swapchain || is_exclusive_fullscreen == fullscreen)
+        {
+            return true;
+        }
+
+        if (FAILED(dxgi_swapchain->SetFullscreenState(fullscreen ? TRUE : FALSE, nullptr)))
+        {
+            backlog::Post("Failed to change swapchain fullscreen state", backlog::LogLevel::Warning);
+            return false;
+        }
+
+        is_exclusive_fullscreen = fullscreen;
+        return true;
     }
 
     bool RHISwapchainDX12::CreateBackBuffers(uint32 width, uint32 height)

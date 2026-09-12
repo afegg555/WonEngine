@@ -19,5 +19,6 @@ namespace won::rendering
         virtual void SetVSync(bool enabled) = 0;
         virtual bool IsVSyncEnabled() const = 0;
         virtual bool Present() = 0;
+        virtual bool SetFullscreenState(bool fullscreen) = 0;
     };
 }
