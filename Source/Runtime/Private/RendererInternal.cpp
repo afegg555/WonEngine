@@ -2117,7 +2117,7 @@ namespace won::rendering
                 }
 
                 if (renderable.IsText() && (!renderable.font || !renderable.font->render_data.IsValid()
-                    || renderable.size.x <= 0.0f || renderable.size.y <= 0.0f))
+                    || renderable.offset_max.x - renderable.offset_min.x <= 0.0f || renderable.offset_max.y - renderable.offset_min.y <= 0.0f))
                 {
                     continue;
                 }

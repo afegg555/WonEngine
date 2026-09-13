@@ -73,15 +73,14 @@ namespace won::rendering
                 continue;
             }
 
-            float2 scale = { 1.0f, 1.0f };
+            float s = 1.0f;
             if (rect.reference_resolution.x > 0.0f && rect.reference_resolution.y > 0.0f)
             {
-                const float s = std::pow(vp.x / rect.reference_resolution.x, 1.0f - rect.match) * std::pow(vp.y / rect.reference_resolution.y, rect.match);
-                scale = { s, s };
+                s = std::pow(vp.x / rect.reference_resolution.x, 1.0f - rect.match) * std::pow(vp.y / rect.reference_resolution.y, rect.match);
             }
-            const float2 mn = { rect.resolved_position.x * scale.x, rect.resolved_position.y * scale.y };
-            const float2 sz = { rect.resolved_size.x * scale.x, rect.resolved_size.y * scale.y };
-            if (local.x < mn.x || local.x > mn.x + sz.x || local.y < mn.y || local.y > mn.y + sz.y)
+            const float2 mn = { rect.resolved_anchor_min.x * vp.x + rect.resolved_offset_min.x * s, rect.resolved_anchor_min.y * vp.y + rect.resolved_offset_min.y * s };
+            const float2 mx = { rect.resolved_anchor_max.x * vp.x + rect.resolved_offset_max.x * s, rect.resolved_anchor_max.y * vp.y + rect.resolved_offset_max.y * s };
+            if (local.x < mn.x || local.x > mx.x || local.y < mn.y || local.y > mx.y)
             {
                 continue;
             }
@@ -999,13 +998,11 @@ namespace won::rendering
                     {
                         s = std::pow(vp_w / r.reference_resolution.x, 1.0f - r.match) * std::pow(vp_h / r.reference_resolution.y, r.match);
                     }
-                    const float sw = r.size.x * s;
-                    const float sh = r.size.y * s;
-                    const float px = r.anchor.x * vp_w + r.position.x * s;
-                    const float py = r.anchor.y * vp_h + r.position.y * s;
-                    const float l = px - r.pivot.x * sw;
-                    const float t = py - r.pivot.y * sh;
-                    if (l > vp_w || l + sw < 0.0f || t > vp_h || t + sh < 0.0f)
+                    const float l = r.anchor_min.x * vp_w + r.offset_min.x * s;
+                    const float t = r.anchor_min.y * vp_h + r.offset_min.y * s;
+                    const float rgt = r.anchor_max.x * vp_w + r.offset_max.x * s;
+                    const float bot = r.anchor_max.y * vp_h + r.offset_max.y * s;
+                    if (l > vp_w || rgt < 0.0f || t > vp_h || bot < 0.0f)
                     {
                         continue;
                     }
@@ -1028,12 +1025,14 @@ namespace won::rendering
                 {
                     s = std::pow(vp_w / r.reference_resolution.x, 1.0f - r.match) * std::pow(vp_h / r.reference_resolution.y, r.match);
                 }
-                const float px = r.anchor.x * vp_w + r.position.x * s;
-                const float py = r.anchor.y * vp_h + r.position.y * s;
+                const float px = r.anchor_min.x * vp_w + r.offset_min.x * s;
+                const float py = r.anchor_min.y * vp_h + r.offset_min.y * s;
+                const float sw = (r.anchor_max.x * vp_w + r.offset_max.x * s) - px;
+                const float sh = (r.anchor_max.y * vp_h + r.offset_max.y * s) - py;
 
                 ShaderSprite sprite = {};
                 sprite.Init();
-                sprite.size_pivot = { r.size.x * s, r.size.y * s, r.pivot.x, r.pivot.y };
+                sprite.size_pivot = { sw, sh, 0.0f, 0.0f };
                 sprite.uv_rect = r.uv_rect;
                 sprite.instance_index = math::PackHalf2(vp_w > 0.0f ? px / vp_w : 0.0f,
                                                         vp_h > 0.0f ? py / vp_h : 0.0f);

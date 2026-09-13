@@ -6,7 +6,7 @@ namespace won::rendering
     enum class ViewResizePolicy
     {
         Manual,
-        MatchWindow
+        Proportional
     };
 
     enum class AntiAliasingMode : uint8

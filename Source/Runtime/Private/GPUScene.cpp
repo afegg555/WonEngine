@@ -569,10 +569,10 @@ namespace won::rendering
 
                     Sprite2DRenderable renderable = {};
                     renderable.material_index = material.material_offset;
-                    renderable.anchor = { 0.0f, 0.0f };
-                    renderable.position = rect.resolved_position;
-                    renderable.size = rect.resolved_size;
-                    renderable.pivot = { 0.0f, 0.0f };
+                    renderable.anchor_min = rect.resolved_anchor_min;
+                    renderable.anchor_max = rect.resolved_anchor_max;
+                    renderable.offset_min = rect.resolved_offset_min;
+                    renderable.offset_max = rect.resolved_offset_max;
                     renderable.reference_resolution = rect.reference_resolution;
                     renderable.uv_rect = sprite.uv_rect;
                     renderable.layer = sprite.layer;
@@ -793,9 +793,13 @@ namespace won::rendering
                     return;
                 }
                 const RectTransform2DComponent& rect = rect_transform_array->GetData(entity);
-                const float2 text_anchor_point = {
-                    rect.resolved_position.x + rect.pivot.x * rect.resolved_size.x,
-                    rect.resolved_position.y + rect.pivot.y * rect.resolved_size.y
+                const float2 text_anchor_frac = {
+                    rect.resolved_anchor_min.x + (rect.resolved_anchor_max.x - rect.resolved_anchor_min.x) * rect.pivot.x,
+                    rect.resolved_anchor_min.y + (rect.resolved_anchor_max.y - rect.resolved_anchor_min.y) * rect.pivot.y
+                };
+                const float2 text_anchor_offset = {
+                    rect.resolved_offset_min.x + (rect.resolved_offset_max.x - rect.resolved_offset_min.x) * rect.pivot.x,
+                    rect.resolved_offset_min.y + (rect.resolved_offset_max.y - rect.resolved_offset_min.y) * rect.pivot.y
                 };
 
                 const float font_metric_height = static_cast<float>(text.font->ascent - text.font->descent);
@@ -833,10 +837,10 @@ namespace won::rendering
                     renderable.flags |= Sprite2DRenderable::Text;
                     renderable.material_index = material_array->GetData(entity).material_offset;
                     renderable.font = text.font.get();
-                    renderable.anchor = { 0.0f, 0.0f };
-                    renderable.position = { text_anchor_point.x + glyph_visual_x, text_anchor_point.y + glyph_top_y };
-                    renderable.size = glyph->size;
-                    renderable.pivot = { 0.0f, 0.0f };
+                    renderable.anchor_min = text_anchor_frac;
+                    renderable.anchor_max = text_anchor_frac;
+                    renderable.offset_min = { text_anchor_offset.x + glyph_visual_x, text_anchor_offset.y + glyph_top_y };
+                    renderable.offset_max = { text_anchor_offset.x + glyph_visual_x + glyph->size.x, text_anchor_offset.y + glyph_top_y + glyph->size.y };
                     renderable.reference_resolution = rect.reference_resolution;
                     renderable.uv_rect = { glyph->uv_min.x, glyph->uv_min.y, glyph->uv_max.x, glyph->uv_max.y };
                     renderable.layer = text.layer;

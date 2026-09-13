@@ -570,6 +570,22 @@ namespace won
         views.back()->options.shadow_resolution_scale = user_settings.shadow_resolution_scale.value_or(1.0f);
         views.back()->options.tonemap_mode = project_settings.tonemap_mode;
         views.back()->options.ao_mode = project_settings.ao_mode;
+
+        rendering::View& added_view = *views.back();
+        if (added_view.options.resize_policy == rendering::ViewResizePolicy::Proportional && window)
+        {
+            const int32 width = window->GetWidth();
+            const int32 height = window->GetHeight();
+            const int32 left = static_cast<int32>(std::lround(added_view.normalized_viewport.x * width));
+            const int32 top = static_cast<int32>(std::lround(added_view.normalized_viewport.y * height));
+            const int32 right = static_cast<int32>(std::lround((added_view.normalized_viewport.x + added_view.normalized_viewport.z) * width));
+            const int32 bottom = static_cast<int32>(std::lround((added_view.normalized_viewport.y + added_view.normalized_viewport.w) * height));
+            added_view.viewport.x = left;
+            added_view.viewport.y = top;
+            added_view.viewport.width = right - left;
+            added_view.viewport.height = bottom - top;
+            added_view.scissor = added_view.viewport;
+        }
         return view_index;
     }
 
@@ -641,12 +657,16 @@ namespace won
             }
 
             rendering::View& view = *view_ptr;
-            if (view.options.resize_policy == rendering::ViewResizePolicy::MatchWindow)
+            if (view.options.resize_policy == rendering::ViewResizePolicy::Proportional)
             {
-                view.viewport.x = 0;
-                view.viewport.y = 0;
-                view.viewport.width = width;
-                view.viewport.height = height;
+                const int32 left = static_cast<int32>(std::lround(view.normalized_viewport.x * width));
+                const int32 top = static_cast<int32>(std::lround(view.normalized_viewport.y * height));
+                const int32 right = static_cast<int32>(std::lround((view.normalized_viewport.x + view.normalized_viewport.z) * width));
+                const int32 bottom = static_cast<int32>(std::lround((view.normalized_viewport.y + view.normalized_viewport.w) * height));
+                view.viewport.x = left;
+                view.viewport.y = top;
+                view.viewport.width = right - left;
+                view.viewport.height = bottom - top;
                 view.scissor = view.viewport;
             }
 

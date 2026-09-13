@@ -1357,6 +1357,31 @@
             "text": "Anchor Presets",
             "comment": "label"
         },
+        "editor.label.anchor_min": {
+            "source": "Anchor Min",
+            "text": "Anchor Min",
+            "comment": "label"
+        },
+        "editor.label.anchor_max": {
+            "source": "Anchor Max",
+            "text": "Anchor Max",
+            "comment": "label"
+        },
+        "editor.label.anchored_position": {
+            "source": "Anchored Position",
+            "text": "Anchored Position",
+            "comment": "label"
+        },
+        "editor.label.size_delta": {
+            "source": "Size Delta",
+            "text": "Size Delta",
+            "comment": "label"
+        },
+        "editor.label.stretch_presets": {
+            "source": "Stretch Presets",
+            "text": "Stretch Presets",
+            "comment": "label"
+        },
         "editor.format.font_format": {
             "source": "Font: %s",
             "text": "Font: %s",

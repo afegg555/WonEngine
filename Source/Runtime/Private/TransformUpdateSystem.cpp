@@ -97,16 +97,20 @@ namespace won::ecs
 
                 if (!parent_has_layout)
                 {
-                    float2 parent_position = { 0.0f, 0.0f };
-                    float2 parent_size = { 1920.0f, 1080.0f };
+                    float2 parent_anchor_min = { 0.0f, 0.0f };
+                    float2 parent_anchor_max = { 1.0f, 1.0f };
+                    float2 parent_offset_min = { 0.0f, 0.0f };
+                    float2 parent_offset_max = { 0.0f, 0.0f };
                     float2 reference = { 0.0f, 0.0f };
                     uint32 layer_mask = 0xFFFFFFFF;
                     float match = 0.5f;
                     if (parent_id != INVALID_ENTITY && rect_array->HasData(parent_id))
                     {
                         const RectTransform2DComponent& parent_rect = rect_array->GetData(parent_id);
-                        parent_position = parent_rect.resolved_position;
-                        parent_size = parent_rect.resolved_size;
+                        parent_anchor_min = parent_rect.resolved_anchor_min;
+                        parent_anchor_max = parent_rect.resolved_anchor_max;
+                        parent_offset_min = parent_rect.resolved_offset_min;
+                        parent_offset_max = parent_rect.resolved_offset_max;
                         reference = parent_rect.reference_resolution;
                         layer_mask = parent_rect.layer_mask;
                         match = parent_rect.match;
@@ -114,18 +118,38 @@ namespace won::ecs
                     else if (parent_id != INVALID_ENTITY && canvas_array && canvas_array->HasData(parent_id))
                     {
                         const Canvas2DComponent& canvas = canvas_array->GetData(parent_id);
-                        parent_size = canvas.reference_resolution;
                         reference = (canvas.scale_mode == UIScaleMode::ScaleWithScreenSize) ? canvas.reference_resolution : float2{ 0.0f, 0.0f };
                         layer_mask = canvas.layer_mask;
                         match = canvas.match;
                     }
 
-                    const float2 pivot_point = {
-                        parent_position.x + rect.anchor.x * parent_size.x + rect.position.x,
-                        parent_position.y + rect.anchor.y * parent_size.y + rect.position.y
+                    const float2 anchor_frac_min = {
+                        parent_anchor_min.x + (parent_anchor_max.x - parent_anchor_min.x) * rect.anchor_min.x,
+                        parent_anchor_min.y + (parent_anchor_max.y - parent_anchor_min.y) * rect.anchor_min.y
                     };
-                    rect.resolved_position = { pivot_point.x - rect.pivot.x * rect.size.x, pivot_point.y - rect.pivot.y * rect.size.y };
-                    rect.resolved_size = rect.size;
+                    const float2 anchor_frac_max = {
+                        parent_anchor_min.x + (parent_anchor_max.x - parent_anchor_min.x) * rect.anchor_max.x,
+                        parent_anchor_min.y + (parent_anchor_max.y - parent_anchor_min.y) * rect.anchor_max.y
+                    };
+                    const float2 anchor_off_min = {
+                        parent_offset_min.x + (parent_offset_max.x - parent_offset_min.x) * rect.anchor_min.x,
+                        parent_offset_min.y + (parent_offset_max.y - parent_offset_min.y) * rect.anchor_min.y
+                    };
+                    const float2 anchor_off_max = {
+                        parent_offset_min.x + (parent_offset_max.x - parent_offset_min.x) * rect.anchor_max.x,
+                        parent_offset_min.y + (parent_offset_max.y - parent_offset_min.y) * rect.anchor_max.y
+                    };
+
+                    rect.resolved_anchor_min = anchor_frac_min;
+                    rect.resolved_anchor_max = anchor_frac_max;
+                    rect.resolved_offset_min = {
+                        anchor_off_min.x + rect.anchored_position.x - rect.pivot.x * rect.size_delta.x,
+                        anchor_off_min.y + rect.anchored_position.y - rect.pivot.y * rect.size_delta.y
+                    };
+                    rect.resolved_offset_max = {
+                        anchor_off_max.x + rect.anchored_position.x + (1.0f - rect.pivot.x) * rect.size_delta.x,
+                        anchor_off_max.y + rect.anchored_position.y + (1.0f - rect.pivot.y) * rect.size_delta.y
+                    };
                     rect.reference_resolution = reference;
                     rect.layer_mask = layer_mask;
                     rect.match = match;
@@ -140,8 +164,8 @@ namespace won::ecs
                         const LayoutComponent& layout = layout_array->GetData(entity);
                         const Vector<Entity>& children = layout_it->second;
                         const bool horizontal = layout.type == LayoutComponent::Type::Horizontal;
-                        const float2 inner_min = { rect.resolved_position.x + layout.padding_min.x, rect.resolved_position.y + layout.padding_min.y };
-                        float2 inner_size = { rect.resolved_size.x - layout.padding_min.x - layout.padding_max.x, rect.resolved_size.y - layout.padding_min.y - layout.padding_max.y };
+                        const float2 inner_min = { rect.resolved_offset_min.x + layout.padding_min.x, rect.resolved_offset_min.y + layout.padding_min.y };
+                        float2 inner_size = { rect.resolved_offset_max.x - rect.resolved_offset_min.x - layout.padding_min.x - layout.padding_max.x, rect.resolved_offset_max.y - rect.resolved_offset_min.y - layout.padding_min.y - layout.padding_max.y };
                         if (inner_size.x < 0.0f) { inner_size.x = 0.0f; }
                         if (inner_size.y < 0.0f) { inner_size.y = 0.0f; }
                         const float inner_cross = horizontal ? inner_size.y : inner_size.x;
@@ -156,8 +180,8 @@ namespace won::ecs
                                 continue;
                             }
                             RectTransform2DComponent& child = rect_array->GetData(c);
-                            const float child_main = horizontal ? child.size.x : child.size.y;
-                            const float own_cross = horizontal ? child.size.y : child.size.x;
+                            const float child_main = horizontal ? child.size_delta.x : child.size_delta.y;
+                            const float own_cross = horizontal ? child.size_delta.y : child.size_delta.x;
                             float child_cross = own_cross;
                             float cross_off = 0.0f;
                             switch (layout.cross_align)
@@ -169,14 +193,16 @@ namespace won::ecs
                             }
                             if (horizontal)
                             {
-                                child.resolved_position = { cursor, inner_cross_min + cross_off };
-                                child.resolved_size = { child_main, child_cross };
+                                child.resolved_offset_min = { cursor, inner_cross_min + cross_off };
+                                child.resolved_offset_max = { cursor + child_main, inner_cross_min + cross_off + child_cross };
                             }
                             else
                             {
-                                child.resolved_position = { inner_cross_min + cross_off, cursor };
-                                child.resolved_size = { child_cross, child_main };
+                                child.resolved_offset_min = { inner_cross_min + cross_off, cursor };
+                                child.resolved_offset_max = { inner_cross_min + cross_off + child_cross, cursor + child_main };
                             }
+                            child.resolved_anchor_min = rect.resolved_anchor_min;
+                            child.resolved_anchor_max = rect.resolved_anchor_min;
                             child.reference_resolution = rect.reference_resolution;
                             child.layer_mask = rect.layer_mask;
                             child.match = rect.match;

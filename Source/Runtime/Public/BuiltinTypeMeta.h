@@ -377,9 +377,10 @@ namespace won::reflection
 
     WON_REFLECT_STRUCT(won::ecs::RectTransform2DComponent, "RectTransform2DComponent")
         WON_REFLECT_FIELD(flags, won::FieldFlagSerializable)
-        WON_REFLECT_FIELD(anchor, won::FieldFlagEditable | won::FieldFlagSerializable)
-        WON_REFLECT_FIELD(position, won::FieldFlagEditable | won::FieldFlagSerializable)
-        WON_REFLECT_FIELD(size, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(anchor_min, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(anchor_max, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(anchored_position, won::FieldFlagEditable | won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(size_delta, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(pivot, won::FieldFlagEditable | won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 

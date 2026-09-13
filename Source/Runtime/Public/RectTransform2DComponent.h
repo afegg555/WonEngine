@@ -13,14 +13,16 @@ namespace won::ecs
         };
 
         uint32 flags = Dirty;
-        float2 anchor = { 0.0f, 0.0f };   // relative to the parent rect, range [0..1]
-        float2 position = { 0.0f, 0.0f }; // offset from the anchor, in reference pixels
-        float2 size = { 100.0f, 100.0f }; // in reference pixels
+        float2 anchor_min = { 0.0f, 0.0f };
+        float2 anchor_max = { 0.0f, 0.0f };
+        float2 anchored_position = { 0.0f, 0.0f };
+        float2 size_delta = { 100.0f, 100.0f };
         float2 pivot = { 0.5f, 0.5f };
 
-		// These values are updated by RectTransformUpdateSystem.
-        float2 resolved_position = { 0.0f, 0.0f };
-        float2 resolved_size = { 100.0f, 100.0f };
+        float2 resolved_anchor_min = { 0.0f, 0.0f };
+        float2 resolved_anchor_max = { 0.0f, 0.0f };
+        float2 resolved_offset_min = { 0.0f, 0.0f };
+        float2 resolved_offset_max = { 0.0f, 0.0f };
         float2 reference_resolution = { 0.0f, 0.0f };
         uint32 layer_mask = 0xFFFFFFFF;
         float match = 0.5f;

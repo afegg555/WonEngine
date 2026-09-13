@@ -32,7 +32,7 @@ namespace won::rendering
     public:
         struct Options
         {
-            ViewResizePolicy resize_policy = ViewResizePolicy::MatchWindow;
+            ViewResizePolicy resize_policy = ViewResizePolicy::Proportional;
             bool update_camera_aspect = true;
             bool enable_frustum_culling = true;
             bool enable_occlusion_culling = true;
@@ -270,6 +270,7 @@ namespace won::rendering
         OcclusionResources occlusion_resources = {};
         Rect viewport = {};
         Rect scissor = {};
+		float4 normalized_viewport = { 0.0f, 0.0f, 1.0f, 1.0f }; // this is for ViewResizePolicy::Proportional
         uint32 ui_layer_mask = 0xFFFFFFFF;
 
 
