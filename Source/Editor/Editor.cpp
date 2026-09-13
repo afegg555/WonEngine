@@ -12,7 +12,7 @@
 #include "FileSystem.h"
 #include "Image.h"
 #include "ResourceAsset.h"
-#include "TerrainGenerator.h"
+#include "TerrainData.h"
 #include "ColorSpace.h"
 #include "StringUtils.h"
 #include "Backlog.h"

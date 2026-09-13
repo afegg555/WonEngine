@@ -2,7 +2,7 @@
 #include "Backlog.h"
 #include "Scene.h"
 #include "PhysicsWorld.h"
-#include "TerrainGenerator.h"
+#include "TerrainData.h"
 #include "JobSystem.h"
 
 using namespace DirectX;

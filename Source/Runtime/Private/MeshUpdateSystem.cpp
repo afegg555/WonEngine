@@ -1,7 +1,7 @@
 #include "MeshUpdateSystem.h"
 #include "Scene.h"
 #include "PhysicsWorld.h"
-#include "TerrainGenerator.h"
+#include "TerrainData.h"
 #include "SoftBodyGenerator.h"
 #include "RenderingUtils.h"
 #include "JobSystem.h"

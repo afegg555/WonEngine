@@ -1,4 +1,4 @@
-#include "TerrainGenerator.h"
+#include "TerrainData.h"
 #include "MathUtils.h"
 #include "Noise.h"
 

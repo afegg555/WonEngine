@@ -201,8 +201,8 @@ set(RUNTIME_RESOURCE
     Source/Runtime/Public/Material.h
     Source/Runtime/Public/Sound.h
     Source/Runtime/Public/Mesh.h
-    Source/Runtime/Public/TerrainGenerator.h
-    Source/Runtime/Private/TerrainGenerator.cpp
+    Source/Runtime/Public/TerrainData.h
+    Source/Runtime/Private/TerrainData.cpp
     Source/Runtime/Public/SoftBodyGenerator.h
     Source/Runtime/Private/SoftBodyGenerator.cpp
     Source/Runtime/Public/NavMesh.h
