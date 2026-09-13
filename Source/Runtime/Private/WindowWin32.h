@@ -33,8 +33,15 @@ namespace won::platform
         void SetWindowMode(WindowMode mode) override;
         WindowMode GetWindowMode() const override;
 
+        void SetMouseCaptureMode(MouseCaptureMode mode) override;
+        MouseCaptureMode GetMouseCaptureMode() const override;
+
         static LRESULT CALLBACK WindowProc(HWND, UINT, WPARAM, LPARAM);
     private:
+        void ApplyMouseCapture(bool active);
+        void RegisterRawMouseInput(bool enable);
+        void ClipCursorToClient();
+
         WindowType hwnd = nullptr;
         int width = 0;
         int height = 0;
@@ -47,5 +54,9 @@ namespace won::platform
         WINDOWPLACEMENT saved_placement = {};
         DWORD saved_style = 0;
         bool has_saved_windowed = false;
+        MouseCaptureMode mouse_capture_mode = MouseCaptureMode::Free;
+        bool mouse_capture_applied = false;
+        bool raw_mouse_registered = false;
+        bool cursor_hidden = false;
     };
 }

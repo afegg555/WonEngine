@@ -421,7 +421,7 @@ namespace won
         auto range = profiler::BeginRangeCPU("Update Game");
         if (window->IsFocused())
         {
-            io::Update((WindowType)window->GetNativeHandle());
+            io::Update(window.get());
         }
         else
         {

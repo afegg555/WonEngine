@@ -3,6 +3,7 @@
 #include "FileSystem.h"
 #include "JsonArchive.h"
 #include "Platform.h"
+#include "Window.h"
 #include "Timer.h"
 #include "MathUtils.h"
 #include "StringUtils.h"
@@ -53,7 +54,7 @@ namespace won::io
             bool previous_down = false;
         };
 
-        static won::platform::WindowType window = nullptr;
+        static won::platform::Window* window = nullptr;
         static KeyboardState keyboard;
         static KeyboardState previous_keyboard;
         static MouseState mouse;
@@ -65,6 +66,7 @@ namespace won::io
         static String text_input;
         static bool input_suppressed = false;
         static bool mouse_position_initialized = false;
+        static bool discard_relative_delta = false;
         static bool double_click = false;
         static double double_click_interval = 0.5;
         static utils::Timer doubleclick_timer;
@@ -117,7 +119,7 @@ namespace won::io
         }
     }
 
-    void Update(WindowType _window)
+    void Update(platform::Window* _window)
     {
         input_active = true;
         window = _window;
@@ -391,7 +393,7 @@ namespace won::io
 
                     if (event.button == MOUSE_BUTTON_LEFT || event.button == MOUSE_BUTTON_RIGHT || event.button == MOUSE_BUTTON_MIDDLE)
                     {
-                        if (mouse_position_initialized)
+                        if (mouse_position_initialized && !mouse_captured)
                         {
                             mouse.delta_position.x += event.position.x - mouse.position.x;
                             mouse.delta_position.y += event.position.y - mouse.position.y;
@@ -405,6 +407,27 @@ namespace won::io
 
             if (event.type == InputEventType::MouseMove)
             {
+                if (event.relative)
+                {
+                    if (discard_relative_delta)
+                    {
+                        discard_relative_delta = false;
+                    }
+                    else
+                    {
+                        mouse.delta_position.x += event.delta.x;
+                        mouse.delta_position.y += event.delta.y;
+                    }
+                    continue;
+                }
+
+                if (mouse_captured)
+                {
+                    mouse.position = event.position;
+                    mouse_position_initialized = true;
+                    continue;
+                }
+
                 if (mouse_position_initialized)
                 {
                     mouse.delta_position.x += event.position.x - mouse.position.x;
@@ -640,7 +663,16 @@ namespace won::io
 
     void SetMouseCaptured(bool captured)
     {
+        if (mouse_captured != captured)
+        {
+            mouse_position_initialized = false;
+            discard_relative_delta = captured;
+        }
         mouse_captured = captured;
+        if (window)
+        {
+            window->SetMouseCaptureMode(captured ? platform::MouseCaptureMode::Captured : platform::MouseCaptureMode::Free);
+        }
     }
 
     bool LoadActionMap(const String& path)

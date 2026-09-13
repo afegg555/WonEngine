@@ -53,12 +53,23 @@ namespace won::physics
         won::ecs::Entity other = 0;
     };
 
-    struct RayCastHit
+    struct PhysicsQueryHit
     {
         won::ecs::Entity entity = 0;
+        uint32_t collider_id = 0;
         float distance = 0.0f;
+        float fraction = 0.0f;
         float3 point = { 0.0f, 0.0f, 0.0f };
         float3 normal = { 0.0f, 0.0f, 0.0f };
+        bool initial_overlap = false;
+    };
+
+    struct PhysicsQueryFilter
+    {
+        uint32_t included_layers = 0xFFFFFFFFu;
+        uint32_t excluded_layers = 0u;
+        const won::ecs::Entity* ignored_entities = nullptr;
+        Size ignored_entity_count = 0;
     };
 
     class WONENGINE_API PhysicsWorld
@@ -107,9 +118,14 @@ namespace won::physics
         float GetFixedStepSeconds() const;
         int GetMaxStepsPerFrame() const;
 
-        bool RayCast(const float3& origin, const float3& direction, float max_distance, RayCastHit& out_hit, uint32_t layer_mask = 0xFFFFFFFFu) const;
-        bool SphereCast(const float3& origin, const float3& direction, float radius, float max_distance, RayCastHit& out_hit, uint32_t layer_mask = 0xFFFFFFFFu) const;
-        void OverlapSphere(const float3& center, float radius, Vector<won::ecs::Entity>& out_entities, uint32_t layer_mask = 0xFFFFFFFFu) const;
+        bool RayCast(const float3& origin, const float3& direction, float max_distance, PhysicsQueryHit& out_hit, const PhysicsQueryFilter& filter = {}) const;
+        bool SphereCast(const float3& origin, const float3& direction, float radius, float max_distance, PhysicsQueryHit& out_hit, const PhysicsQueryFilter& filter = {}) const;
+        void SphereCastAll(const float3& origin, const float3& direction, float radius, float max_distance, Vector<PhysicsQueryHit>& out_hits, const PhysicsQueryFilter& filter = {}) const;
+        bool CapsuleCast(const float3& origin, const float3& direction, float radius, float height, const float4& rotation, float max_distance, PhysicsQueryHit& out_hit, const PhysicsQueryFilter& filter = {}) const;
+        void CapsuleCastAll(const float3& origin, const float3& direction, float radius, float height, const float4& rotation, float max_distance, Vector<PhysicsQueryHit>& out_hits, const PhysicsQueryFilter& filter = {}) const;
+        bool BoxCast(const float3& origin, const float3& direction, const float3& half_extent, const float4& rotation, float max_distance, PhysicsQueryHit& out_hit, const PhysicsQueryFilter& filter = {}) const;
+        void BoxCastAll(const float3& origin, const float3& direction, const float3& half_extent, const float4& rotation, float max_distance, Vector<PhysicsQueryHit>& out_hits, const PhysicsQueryFilter& filter = {}) const;
+        void OverlapSphere(const float3& center, float radius, Vector<won::ecs::Entity>& out_entities, const PhysicsQueryFilter& filter = {}) const;
 
         void AddVehicle(won::ecs::Entity entity, const won::ecs::VehicleComponent& vehicle);
         void RemoveVehicle(won::ecs::Entity entity);

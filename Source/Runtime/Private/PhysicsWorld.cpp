@@ -18,6 +18,7 @@
 #include <Jolt/Physics/PhysicsSettings.h>
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
+#include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/Collision/Shape/HeightFieldShape.h>
 #include <Jolt/Physics/Collision/Shape/OffsetCenterOfMassShape.h>
@@ -1165,10 +1166,33 @@ namespace won::physics
 
     namespace
     {
-		class LayerMaskBodyFilter : public JPH::BodyFilter // temp filter for raycast and spherecast to filter by layer mask
+        class PhysicsQueryBodyFilter : public JPH::BodyFilter
         {
         public:
-            explicit LayerMaskBodyFilter(uint32_t mask) : layer_mask(mask) {}
+            PhysicsQueryBodyFilter(const PhysicsWorldImpl& impl, const PhysicsQueryFilter& filter)
+                : layer_mask(filter.included_layers & ~filter.excluded_layers)
+            {
+                if (!filter.ignored_entities || filter.ignored_entity_count == 0)
+                {
+                    return;
+                }
+
+                ignored_body_ids.reserve(filter.ignored_entity_count);
+                std::shared_lock lock(impl.bodies_mutex);
+                for (Size i = 0; i < filter.ignored_entity_count; ++i)
+                {
+                    auto it = impl.entity_to_body.find(filter.ignored_entities[i]);
+                    if (it != impl.entity_to_body.end())
+                    {
+                        ignored_body_ids.push_back(it->second);
+                    }
+                }
+            }
+
+            bool ShouldCollide(const JPH::BodyID& body_id) const override
+            {
+                return std::find(ignored_body_ids.begin(), ignored_body_ids.end(), body_id) == ignored_body_ids.end();
+            }
 
             bool ShouldCollideLocked(const JPH::Body& body) const override
             {
@@ -1178,7 +1202,135 @@ namespace won::physics
 
         private:
             uint32_t layer_mask;
+            Vector<JPH::BodyID> ignored_body_ids;
         };
+
+        bool ConvertShapeCastHit(const PhysicsWorldImpl& impl, const JPH::ShapeCastResult& source, float max_distance, PhysicsQueryHit& out_hit)
+        {
+            {
+                std::shared_lock lock(impl.bodies_mutex);
+                auto it = impl.body_to_entity.find(source.mBodyID2);
+                if (it == impl.body_to_entity.end())
+                {
+                    return false;
+                }
+                out_hit.entity = it->second;
+            }
+
+            out_hit.collider_id = 0;
+            out_hit.fraction = (std::clamp)(source.mFraction, 0.0f, 1.0f);
+            out_hit.distance = out_hit.fraction * max_distance;
+            out_hit.point = {
+                source.mContactPointOn2.GetX(),
+                source.mContactPointOn2.GetY(),
+                source.mContactPointOn2.GetZ()
+            };
+
+            JPH::Vec3 normal = -source.mPenetrationAxis;
+            if (!normal.IsNearZero())
+            {
+                normal = normal.Normalized();
+            }
+            out_hit.normal = { normal.GetX(), normal.GetY(), normal.GetZ() };
+            out_hit.initial_overlap = source.mFraction <= 0.0f;
+            return true;
+        }
+
+        bool CastShapeClosest(
+            const PhysicsWorldImpl& impl,
+            const JPH::Shape& shape,
+            const float3& origin,
+            const float3& direction,
+            const float4& rotation,
+            float max_distance,
+            PhysicsQueryHit& out_hit,
+            const PhysicsQueryFilter& filter)
+        {
+            out_hit = {};
+
+            const float direction_length = std::sqrt(direction.x * direction.x + direction.y * direction.y + direction.z * direction.z);
+            const float rotation_length_squared = rotation.x * rotation.x + rotation.y * rotation.y + rotation.z * rotation.z + rotation.w * rotation.w;
+            if (direction_length <= 1e-6f || max_distance <= 0.0f || rotation_length_squared <= 1e-12f)
+            {
+                return false;
+            }
+
+            const float displacement_scale = max_distance / direction_length;
+            const JPH::Vec3 displacement(direction.x * displacement_scale, direction.y * displacement_scale, direction.z * displacement_scale);
+            const float rotation_scale = 1.0f / std::sqrt(rotation_length_squared);
+            const JPH::Quat normalized_rotation(rotation.x * rotation_scale, rotation.y * rotation_scale, rotation.z * rotation_scale, rotation.w * rotation_scale);
+            const PhysicsQueryBodyFilter body_filter(impl, filter);
+            const JPH::RShapeCast shape_cast(
+                &shape,
+                JPH::Vec3::sOne(),
+                JPH::RMat44::sRotationTranslation(normalized_rotation, JPH::RVec3(origin.x, origin.y, origin.z)),
+                displacement);
+
+            JPH::ShapeCastSettings settings;
+            settings.mReturnDeepestPoint = true;
+            JPH::ClosestHitCollisionCollector<JPH::CastShapeCollector> collector;
+            impl.physics_system->GetNarrowPhaseQuery().CastShape(shape_cast, settings, JPH::RVec3::sZero(), collector, {}, {}, body_filter);
+            return collector.HadHit() && ConvertShapeCastHit(impl, collector.mHit, max_distance, out_hit);
+        }
+
+        void CastShapeAll(
+            const PhysicsWorldImpl& impl,
+            const JPH::Shape& shape,
+            const float3& origin,
+            const float3& direction,
+            const float4& rotation,
+            float max_distance,
+            Vector<PhysicsQueryHit>& out_hits,
+            const PhysicsQueryFilter& filter)
+        {
+            out_hits.clear();
+
+            const float direction_length = std::sqrt(direction.x * direction.x + direction.y * direction.y + direction.z * direction.z);
+            const float rotation_length_squared = rotation.x * rotation.x + rotation.y * rotation.y + rotation.z * rotation.z + rotation.w * rotation.w;
+            if (direction_length <= 1e-6f || max_distance <= 0.0f || rotation_length_squared <= 1e-12f)
+            {
+                return;
+            }
+
+            const float displacement_scale = max_distance / direction_length;
+            const JPH::Vec3 displacement(direction.x * displacement_scale, direction.y * displacement_scale, direction.z * displacement_scale);
+            const float rotation_scale = 1.0f / std::sqrt(rotation_length_squared);
+            const JPH::Quat normalized_rotation(rotation.x * rotation_scale, rotation.y * rotation_scale, rotation.z * rotation_scale, rotation.w * rotation_scale);
+            const PhysicsQueryBodyFilter body_filter(impl, filter);
+            const JPH::RShapeCast shape_cast(
+                &shape,
+                JPH::Vec3::sOne(),
+                JPH::RMat44::sRotationTranslation(normalized_rotation, JPH::RVec3(origin.x, origin.y, origin.z)),
+                displacement);
+
+            JPH::ShapeCastSettings settings;
+            settings.mReturnDeepestPoint = true;
+            JPH::ClosestHitPerBodyCollisionCollector<JPH::CastShapeCollector> collector;
+            impl.physics_system->GetNarrowPhaseQuery().CastShape(shape_cast, settings, JPH::RVec3::sZero(), collector, {}, {}, body_filter);
+
+            out_hits.reserve(collector.mHits.size());
+            for (const JPH::ShapeCastResult& source : collector.mHits)
+            {
+                PhysicsQueryHit hit;
+                if (ConvertShapeCastHit(impl, source, max_distance, hit))
+                {
+                    out_hits.push_back(hit);
+                }
+            }
+
+            std::sort(out_hits.begin(), out_hits.end(), [](const PhysicsQueryHit& a, const PhysicsQueryHit& b)
+            {
+                if (a.fraction != b.fraction)
+                {
+                    return a.fraction < b.fraction;
+                }
+                if (a.entity != b.entity)
+                {
+                    return a.entity < b.entity;
+                }
+                return a.collider_id < b.collider_id;
+            });
+        }
     }
 
     float PhysicsWorld::GetFixedStepSeconds() const
@@ -1191,7 +1343,7 @@ namespace won::physics
         return impl->max_steps_per_frame;
     }
 
-    bool PhysicsWorld::RayCast(const float3& origin, const float3& direction, float max_distance, RayCastHit& out_hit, uint32_t layer_mask) const
+    bool PhysicsWorld::RayCast(const float3& origin, const float3& direction, float max_distance, PhysicsQueryHit& out_hit, const PhysicsQueryFilter& filter) const
     {
         out_hit = {};
 
@@ -1209,7 +1361,7 @@ namespace won::physics
         const JPH::RRayCast ray(JPH::RVec3(origin.x, origin.y, origin.z), scaled_direction);
         JPH::RayCastResult result;
 
-        const LayerMaskBodyFilter body_filter(layer_mask);
+        const PhysicsQueryBodyFilter body_filter(*impl, filter);
         if (!impl->physics_system->GetNarrowPhaseQuery().CastRay(ray, result, {}, {}, body_filter))
         {
             return false;
@@ -1236,80 +1388,103 @@ namespace won::physics
         }
 
         out_hit.distance = result.mFraction * max_distance;
+        out_hit.fraction = result.mFraction;
         out_hit.point = { (float)hit_point.GetX(), (float)hit_point.GetY(), (float)hit_point.GetZ() };
         out_hit.normal = { hit_normal.GetX(), hit_normal.GetY(), hit_normal.GetZ() };
         return true;
     }
 
-    bool PhysicsWorld::SphereCast(const float3& origin, const float3& direction, float radius, float max_distance, RayCastHit& out_hit, uint32_t layer_mask) const
+    bool PhysicsWorld::SphereCast(const float3& origin, const float3& direction, float radius, float max_distance, PhysicsQueryHit& out_hit, const PhysicsQueryFilter& filter) const
     {
-        out_hit = {};
-
-        const float direction_length = std::sqrt(direction.x * direction.x + direction.y * direction.y + direction.z * direction.z);
-        if (direction_length <= 1e-6f || max_distance <= 0.0f || radius <= 0.0f)
+        if (radius <= 0.0f)
         {
-            return false;
-        }
-        const float inv_length = 1.0f / direction_length;
-        const JPH::Vec3 scaled_direction(
-            direction.x * inv_length * max_distance,
-            direction.y * inv_length * max_distance,
-            direction.z * inv_length * max_distance);
-
-        JPH::SphereShape sphere_shape(radius);
-        sphere_shape.SetEmbedded();
-
-        const JPH::RShapeCast shape_cast(
-            &sphere_shape,
-            JPH::Vec3::sReplicate(1.0f),
-            JPH::RMat44::sTranslation(JPH::RVec3(origin.x, origin.y, origin.z)),
-            scaled_direction);
-
-        JPH::ShapeCastSettings settings;
-        JPH::ClosestHitCollisionCollector<JPH::CastShapeCollector> collector;
-        const LayerMaskBodyFilter body_filter(layer_mask);
-
-        impl->physics_system->GetNarrowPhaseQuery().CastShape(
-            shape_cast,
-            settings,
-            JPH::RVec3::sZero(),
-            collector,
-            {},
-            {},
-            body_filter);
-
-        if (!collector.HadHit())
-        {
+            out_hit = {};
             return false;
         }
 
-        {
-            std::shared_lock lock(impl->bodies_mutex);
-            auto it = impl->body_to_entity.find(collector.mHit.mBodyID2);
-            if (it == impl->body_to_entity.end())
-            {
-                return false;
-            }
-            out_hit.entity = it->second;
-        }
-
-        const JPH::Vec3 contact_point = collector.mHit.mContactPointOn2;
-        JPH::Vec3 hit_normal = JPH::Vec3::sZero();
-        {
-            JPH::BodyLockRead lock(impl->physics_system->GetBodyLockInterface(), collector.mHit.mBodyID2);
-            if (lock.Succeeded())
-            {
-                hit_normal = lock.GetBody().GetWorldSpaceSurfaceNormal(collector.mHit.mSubShapeID2, JPH::RVec3(contact_point));
-            }
-        }
-
-        out_hit.distance = collector.mHit.mFraction * max_distance;
-        out_hit.point = { contact_point.GetX(), contact_point.GetY(), contact_point.GetZ() };
-        out_hit.normal = { hit_normal.GetX(), hit_normal.GetY(), hit_normal.GetZ() };
-        return true;
+        JPH::SphereShape shape(radius);
+        shape.SetEmbedded();
+        return CastShapeClosest(*impl, shape, origin, direction, { 0.0f, 0.0f, 0.0f, 1.0f }, max_distance, out_hit, filter);
     }
 
-    void PhysicsWorld::OverlapSphere(const float3& center, float radius, Vector<won::ecs::Entity>& out_entities, uint32_t layer_mask) const
+    void PhysicsWorld::SphereCastAll(const float3& origin, const float3& direction, float radius, float max_distance, Vector<PhysicsQueryHit>& out_hits, const PhysicsQueryFilter& filter) const
+    {
+        if (radius <= 0.0f)
+        {
+            out_hits.clear();
+            return;
+        }
+
+        JPH::SphereShape shape(radius);
+        shape.SetEmbedded();
+        CastShapeAll(*impl, shape, origin, direction, { 0.0f, 0.0f, 0.0f, 1.0f }, max_distance, out_hits, filter);
+    }
+
+    bool PhysicsWorld::CapsuleCast(const float3& origin, const float3& direction, float radius, float height, const float4& rotation, float max_distance, PhysicsQueryHit& out_hit, const PhysicsQueryFilter& filter) const
+    {
+        if (radius <= 0.0f || height < radius * 2.0f)
+        {
+            out_hit = {};
+            return false;
+        }
+
+        JPH::CapsuleShapeSettings shape_settings(height * 0.5f - radius, radius);
+        JPH::ShapeSettings::ShapeResult result = shape_settings.Create();
+        if (result.HasError())
+        {
+            out_hit = {};
+            return false;
+        }
+
+        return CastShapeClosest(*impl, *result.Get(), origin, direction, rotation, max_distance, out_hit, filter);
+    }
+
+    void PhysicsWorld::CapsuleCastAll(const float3& origin, const float3& direction, float radius, float height, const float4& rotation, float max_distance, Vector<PhysicsQueryHit>& out_hits, const PhysicsQueryFilter& filter) const
+    {
+        if (radius <= 0.0f || height < radius * 2.0f)
+        {
+            out_hits.clear();
+            return;
+        }
+
+        JPH::CapsuleShapeSettings shape_settings(height * 0.5f - radius, radius);
+        JPH::ShapeSettings::ShapeResult result = shape_settings.Create();
+        if (result.HasError())
+        {
+            out_hits.clear();
+            return;
+        }
+
+        CastShapeAll(*impl, *result.Get(), origin, direction, rotation, max_distance, out_hits, filter);
+    }
+
+    bool PhysicsWorld::BoxCast(const float3& origin, const float3& direction, const float3& half_extent, const float4& rotation, float max_distance, PhysicsQueryHit& out_hit, const PhysicsQueryFilter& filter) const
+    {
+        if (half_extent.x <= 0.0f || half_extent.y <= 0.0f || half_extent.z <= 0.0f)
+        {
+            out_hit = {};
+            return false;
+        }
+
+        JPH::BoxShape shape(JPH::Vec3(half_extent.x, half_extent.y, half_extent.z));
+        shape.SetEmbedded();
+        return CastShapeClosest(*impl, shape, origin, direction, rotation, max_distance, out_hit, filter);
+    }
+
+    void PhysicsWorld::BoxCastAll(const float3& origin, const float3& direction, const float3& half_extent, const float4& rotation, float max_distance, Vector<PhysicsQueryHit>& out_hits, const PhysicsQueryFilter& filter) const
+    {
+        if (half_extent.x <= 0.0f || half_extent.y <= 0.0f || half_extent.z <= 0.0f)
+        {
+            out_hits.clear();
+            return;
+        }
+
+        JPH::BoxShape shape(JPH::Vec3(half_extent.x, half_extent.y, half_extent.z));
+        shape.SetEmbedded();
+        CastShapeAll(*impl, shape, origin, direction, rotation, max_distance, out_hits, filter);
+    }
+
+    void PhysicsWorld::OverlapSphere(const float3& center, float radius, Vector<won::ecs::Entity>& out_entities, const PhysicsQueryFilter& filter) const
     {
         out_entities.clear();
         if (radius <= 0.0f)
@@ -1323,7 +1498,7 @@ namespace won::physics
         JPH::CollideShapeSettings settings;
         JPH::AllHitCollisionCollector<JPH::CollideShapeCollector> collector;
         const JPH::RMat44 transform = JPH::RMat44::sTranslation(JPH::RVec3(center.x, center.y, center.z));
-        const LayerMaskBodyFilter body_filter(layer_mask);
+        const PhysicsQueryBodyFilter body_filter(*impl, filter);
 
         impl->physics_system->GetNarrowPhaseQuery().CollideShape(
             &sphere_shape,
