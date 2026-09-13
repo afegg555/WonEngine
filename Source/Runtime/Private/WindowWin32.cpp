@@ -143,6 +143,11 @@ namespace won::platform
 
     WindowWin32::~WindowWin32()
     {
+        if (mouse_capture_applied)
+        {
+            ApplyMouseCapture(false);
+        }
+
         if (hwnd)
         {
             DestroyWindow(hwnd);
@@ -410,6 +415,95 @@ namespace won::platform
         }
     }
 
+    MouseCaptureMode WindowWin32::GetMouseCaptureMode() const
+    {
+        return mouse_capture_mode;
+    }
+
+    void WindowWin32::SetMouseCaptureMode(MouseCaptureMode mode)
+    {
+        mouse_capture_mode = mode;
+
+        const bool want_active = mode == MouseCaptureMode::Captured && IsFocused();
+        if (want_active != mouse_capture_applied)
+        {
+            ApplyMouseCapture(want_active);
+        }
+    }
+
+    void WindowWin32::RegisterRawMouseInput(bool enable)
+    {
+        if (!hwnd || enable == raw_mouse_registered)
+        {
+            return;
+        }
+
+        RAWINPUTDEVICE device = {};
+        device.usUsagePage = 0x01;
+        device.usUsage = 0x02;
+        if (enable)
+        {
+            device.dwFlags = 0;
+            device.hwndTarget = hwnd;
+        }
+        else
+        {
+            device.dwFlags = RIDEV_REMOVE;
+            device.hwndTarget = nullptr;
+        }
+
+        if (RegisterRawInputDevices(&device, 1, sizeof(device)))
+        {
+            raw_mouse_registered = enable;
+        }
+    }
+
+    void WindowWin32::ClipCursorToClient()
+    {
+        if (!hwnd)
+        {
+            return;
+        }
+
+        RECT client_rect = {};
+        GetClientRect(hwnd, &client_rect);
+        POINT top_left = { client_rect.left, client_rect.top };
+        POINT bottom_right = { client_rect.right, client_rect.bottom };
+        ClientToScreen(hwnd, &top_left);
+        ClientToScreen(hwnd, &bottom_right);
+        RECT screen_rect = { top_left.x, top_left.y, bottom_right.x, bottom_right.y };
+        ClipCursor(&screen_rect);
+    }
+
+    void WindowWin32::ApplyMouseCapture(bool active)
+    {
+        if (active)
+        {
+            RegisterRawMouseInput(true);
+            ClipCursorToClient();
+            if (!cursor_hidden)
+            {
+                while (ShowCursor(FALSE) >= 0)
+                {
+                }
+                cursor_hidden = true;
+            }
+        }
+        else
+        {
+            ClipCursor(nullptr);
+            RegisterRawMouseInput(false);
+            if (cursor_hidden)
+            {
+                while (ShowCursor(TRUE) < 0)
+                {
+                }
+                cursor_hidden = false;
+            }
+        }
+        mouse_capture_applied = active;
+    }
+
     LRESULT CALLBACK WindowWin32::WindowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
     {
         // wparam and lparam are message-specific
@@ -595,11 +689,41 @@ namespace won::platform
             io::PushInputEvent(event);
             break;
         }
-        case WM_MOUSEMOVE:
+		case WM_INPUT: // if RegisterRawInputDevices was set, this message is sent for raw mouse input
+        {
+            if (!window || !window->mouse_capture_applied)
+            {
+                break;
+            }
+
+            UINT size = 0;
+            GetRawInputData(reinterpret_cast<HRAWINPUT>(lparam), RID_INPUT, nullptr, &size, sizeof(RAWINPUTHEADER));
+            if (size == 0 || size > sizeof(RAWINPUT))
+            {
+                break;
+            }
+
+            RAWINPUT raw = {};
+            if (GetRawInputData(reinterpret_cast<HRAWINPUT>(lparam), RID_INPUT, &raw, &size, sizeof(RAWINPUTHEADER)) != size)
+            {
+                break;
+            }
+
+            if (raw.header.dwType == RIM_TYPEMOUSE && !(raw.data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE))
+            {
+                io::InputEvent event = {};
+                event.type = io::InputEventType::MouseMove;
+                event.relative = true;
+				event.delta = float2(static_cast<float>(raw.data.mouse.lLastX), static_cast<float>(raw.data.mouse.lLastY)); // relative movement between the last message and this one
+                io::PushInputEvent(event);
+            }
+            break;
+        }
+		case WM_MOUSEMOVE: // if RegisterRawInputDevices was not set, this message is sent for mouse movement
         {
             io::InputEvent event = {};
             event.type = io::InputEventType::MouseMove;
-            event.position = float2(static_cast<float>(GET_X_LPARAM(lparam)), static_cast<float>(GET_Y_LPARAM(lparam)));
+			event.position = float2(static_cast<float>(GET_X_LPARAM(lparam)), static_cast<float>(GET_Y_LPARAM(lparam))); // absolute position in client area
             io::PushInputEvent(event);
             break;
         }
@@ -640,8 +764,21 @@ namespace won::platform
             io::PushInputEvent(event);
             break;
         }
+        case WM_SETFOCUS:
+        {
+            if (window && window->mouse_capture_mode == MouseCaptureMode::Captured && !window->mouse_capture_applied)
+            {
+                window->ApplyMouseCapture(true);
+            }
+            break;
+        }
         case WM_KILLFOCUS:
         {
+            if (window && window->mouse_capture_applied)
+            {
+                window->ApplyMouseCapture(false);
+            }
+
             io::InputEvent event = {};
             event.type = io::InputEventType::FocusLost;
             io::PushInputEvent(event);
@@ -689,6 +826,11 @@ namespace won::platform
                         HRGN rounded_region = CreateRoundRectRgn(0, 0, window->width + 1, window->height + 1, 14, 14);
                         SetWindowRgn(hwnd, rounded_region, TRUE);
                     }
+                }
+
+                if (window->mouse_capture_applied && !window->is_minimized)
+                {
+                    window->ClipCursorToClient();
                 }
             }
             return 0;

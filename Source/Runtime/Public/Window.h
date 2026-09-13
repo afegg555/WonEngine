@@ -17,6 +17,12 @@ namespace won::platform
         ExclusiveFullscreen
     };
 
+    enum class MouseCaptureMode
+    {
+        Free,
+        Captured
+    };
+
     struct WindowDesc
     {
         const char* title = "WonEngine";
@@ -56,6 +62,9 @@ namespace won::platform
 
         virtual void SetWindowMode(WindowMode mode) = 0;
         virtual WindowMode GetWindowMode() const = 0;
+
+        virtual void SetMouseCaptureMode(MouseCaptureMode mode) = 0;
+        virtual MouseCaptureMode GetMouseCaptureMode() const = 0;
 
         bool IsFullscreen() const
         {

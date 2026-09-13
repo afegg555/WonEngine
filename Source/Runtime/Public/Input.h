@@ -7,6 +7,11 @@
 
 using namespace won::platform;
 
+namespace won::platform
+{
+	class Window;
+}
+
 namespace won::io
 {
     enum Button
@@ -122,6 +127,7 @@ namespace won::io
 		float2 delta = float2(0, 0);
 		float value = 0.0f;
 		bool pressed = false;
+		bool relative = false;
 		uint32 character = 0;
 	};
 
@@ -171,7 +177,7 @@ namespace won::io
 	};
 
 	WONENGINE_API void PushInputEvent(const InputEvent& event);
-	WONENGINE_API void Update(WindowType window);
+	WONENGINE_API void Update(platform::Window* window);
 	WONENGINE_API void Reset();
 	WONENGINE_API bool LoadActionMap(const String& path);
 	WONENGINE_API void ClearActionMap();
