@@ -889,8 +889,10 @@ namespace won::ecs
             return false;
         }
 
-        physics::RayCastHit physics_hit;
-        if (!physics_world->RayCast(ray.origin, ray.direction, max_distance, physics_hit, layer_mask))
+        physics::PhysicsQueryHit physics_hit;
+        physics::PhysicsQueryFilter filter;
+        filter.included_layers = layer_mask;
+        if (!physics_world->RayCast(ray.origin, ray.direction, max_distance, physics_hit, filter))
         {
             return false;
         }

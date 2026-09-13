@@ -184,6 +184,11 @@ namespace won::script
         static int LuaPhysicsAddTorque(lua_State* state);
         static int LuaPhysicsRaycast(lua_State* state);
         static int LuaPhysicsSphereCast(lua_State* state);
+        static int LuaPhysicsSphereCastAll(lua_State* state);
+        static int LuaPhysicsCapsuleCast(lua_State* state);
+        static int LuaPhysicsCapsuleCastAll(lua_State* state);
+        static int LuaPhysicsBoxCast(lua_State* state);
+        static int LuaPhysicsBoxCastAll(lua_State* state);
         static int LuaPhysicsOverlapSphere(lua_State* state);
 
         static int LuaInputMousePosition(lua_State* state);

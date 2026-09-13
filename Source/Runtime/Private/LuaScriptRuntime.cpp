@@ -97,6 +97,93 @@ namespace won::script
             }
         }
 
+        physics::PhysicsQueryFilter ReadPhysicsQueryFilter(lua_State* state, int index, ecs::Entity self_entity, Vector<ecs::Entity>& ignored_entities)
+        {
+            physics::PhysicsQueryFilter filter;
+            if (!lua_istable(state, index))
+            {
+                return filter;
+            }
+
+            index = lua_absindex(state, index);
+            lua_getfield(state, index, "included_layers");
+            if (lua_isinteger(state, -1))
+            {
+                filter.included_layers = static_cast<uint32_t>(lua_tointeger(state, -1));
+            }
+            lua_pop(state, 1);
+
+            lua_getfield(state, index, "excluded_layers");
+            if (lua_isinteger(state, -1))
+            {
+                filter.excluded_layers = static_cast<uint32_t>(lua_tointeger(state, -1));
+            }
+            lua_pop(state, 1);
+
+            lua_getfield(state, index, "ignore_self");
+            if (lua_toboolean(state, -1) && self_entity != ecs::INVALID_ENTITY)
+            {
+                ignored_entities.push_back(self_entity);
+            }
+            lua_pop(state, 1);
+
+            lua_getfield(state, index, "ignored_entities");
+            if (lua_istable(state, -1))
+            {
+                const lua_Integer count = static_cast<lua_Integer>(lua_rawlen(state, -1));
+                ignored_entities.reserve(ignored_entities.size() + static_cast<Size>(count));
+                for (lua_Integer i = 1; i <= count; ++i)
+                {
+                    lua_rawgeti(state, -1, i);
+                    if (lua_isinteger(state, -1))
+                    {
+                        ignored_entities.push_back(static_cast<ecs::Entity>(lua_tointeger(state, -1)));
+                    }
+                    lua_pop(state, 1);
+                }
+            }
+            lua_pop(state, 1);
+
+            filter.ignored_entities = ignored_entities.empty() ? nullptr : ignored_entities.data();
+            filter.ignored_entity_count = ignored_entities.size();
+            return filter;
+        }
+
+        void PushPhysicsQueryHit(lua_State* state, const physics::PhysicsQueryHit& hit)
+        {
+            lua_newtable(state);
+            lua_pushinteger(state, static_cast<lua_Integer>(hit.entity));
+            lua_setfield(state, -2, "entity");
+            lua_pushinteger(state, static_cast<lua_Integer>(hit.collider_id));
+            lua_setfield(state, -2, "collider_id");
+            lua_pushnumber(state, hit.distance);
+            lua_setfield(state, -2, "distance");
+            lua_pushnumber(state, hit.fraction);
+            lua_setfield(state, -2, "fraction");
+            lua_newtable(state);
+            lua_pushnumber(state, hit.point.x); lua_setfield(state, -2, "x");
+            lua_pushnumber(state, hit.point.y); lua_setfield(state, -2, "y");
+            lua_pushnumber(state, hit.point.z); lua_setfield(state, -2, "z");
+            lua_setfield(state, -2, "point");
+            lua_newtable(state);
+            lua_pushnumber(state, hit.normal.x); lua_setfield(state, -2, "x");
+            lua_pushnumber(state, hit.normal.y); lua_setfield(state, -2, "y");
+            lua_pushnumber(state, hit.normal.z); lua_setfield(state, -2, "z");
+            lua_setfield(state, -2, "normal");
+            lua_pushboolean(state, hit.initial_overlap);
+            lua_setfield(state, -2, "initial_overlap");
+        }
+
+        void PushPhysicsQueryHits(lua_State* state, const Vector<physics::PhysicsQueryHit>& hits)
+        {
+            lua_createtable(state, static_cast<int>(hits.size()), 0);
+            for (Size i = 0; i < hits.size(); ++i)
+            {
+                PushPhysicsQueryHit(state, hits[i]);
+                lua_rawseti(state, -2, static_cast<lua_Integer>(i + 1));
+            }
+        }
+
         won::function::Value ToValue(lua_State* state, int index)
         {
             won::function::Value v;
@@ -4029,47 +4116,314 @@ namespace won::script
     int LuaScriptRuntime::LuaPhysicsSphereCast(lua_State* state)
     {
         LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
-        if (!runtime || !runtime->current_context.scene || !runtime->current_context.scene->GetPhysicsWorld())
+        if (!runtime || !runtime->current_context.scene)
         {
             lua_pushnil(state);
             return 1;
         }
 
-        float3 origin = {
+        physics::PhysicsWorld* physics_world = runtime->current_context.scene->GetPhysicsWorld();
+        if (!physics_world)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        const float3 origin = {
             static_cast<float>(luaL_checknumber(state, 1)),
             static_cast<float>(luaL_checknumber(state, 2)),
             static_cast<float>(luaL_checknumber(state, 3))
         };
-        float3 direction = {
+        const float3 direction = {
             static_cast<float>(luaL_checknumber(state, 4)),
             static_cast<float>(luaL_checknumber(state, 5)),
             static_cast<float>(luaL_checknumber(state, 6))
         };
         const float radius = static_cast<float>(luaL_checknumber(state, 7));
-        const float max_distance = lua_gettop(state) >= 8 ? static_cast<float>(luaL_checknumber(state, 8)) : 1000.0f;
+        const int arg_count = lua_gettop(state);
+        const bool filter_without_distance = arg_count >= 8 && lua_istable(state, 8);
+        const float max_distance = arg_count >= 8 && !filter_without_distance ? static_cast<float>(luaL_checknumber(state, 8)) : 1000.0f;
+        const int filter_index = filter_without_distance ? 8 : (arg_count >= 9 ? 9 : 0);
+        if (filter_index != 0)
+        {
+            luaL_checktype(state, filter_index, LUA_TTABLE);
+        }
 
-        physics::RayCastHit hit;
-        if (!runtime->current_context.scene->GetPhysicsWorld()->SphereCast(origin, direction, radius, max_distance, hit))
+        Vector<ecs::Entity> ignored_entities;
+        const physics::PhysicsQueryFilter filter = ReadPhysicsQueryFilter(state, filter_index, runtime->current_context.entity, ignored_entities);
+
+        physics::PhysicsQueryHit hit;
+        if (!physics_world->SphereCast(origin, direction, radius, max_distance, hit, filter))
         {
             lua_pushnil(state);
             return 1;
         }
 
-        lua_newtable(state);
-        lua_pushinteger(state, static_cast<lua_Integer>(hit.entity));
-        lua_setfield(state, -2, "entity");
-        lua_pushnumber(state, hit.distance);
-        lua_setfield(state, -2, "distance");
-        lua_newtable(state);
-        lua_pushnumber(state, hit.point.x); lua_setfield(state, -2, "x");
-        lua_pushnumber(state, hit.point.y); lua_setfield(state, -2, "y");
-        lua_pushnumber(state, hit.point.z); lua_setfield(state, -2, "z");
-        lua_setfield(state, -2, "point");
-        lua_newtable(state);
-        lua_pushnumber(state, hit.normal.x); lua_setfield(state, -2, "x");
-        lua_pushnumber(state, hit.normal.y); lua_setfield(state, -2, "y");
-        lua_pushnumber(state, hit.normal.z); lua_setfield(state, -2, "z");
-        lua_setfield(state, -2, "normal");
+        PushPhysicsQueryHit(state, hit);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaPhysicsSphereCastAll(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_newtable(state);
+            return 1;
+        }
+
+        physics::PhysicsWorld* physics_world = runtime->current_context.scene->GetPhysicsWorld();
+        if (!physics_world)
+        {
+            lua_newtable(state);
+            return 1;
+        }
+
+        const float3 origin = {
+            static_cast<float>(luaL_checknumber(state, 1)),
+            static_cast<float>(luaL_checknumber(state, 2)),
+            static_cast<float>(luaL_checknumber(state, 3))
+        };
+        const float3 direction = {
+            static_cast<float>(luaL_checknumber(state, 4)),
+            static_cast<float>(luaL_checknumber(state, 5)),
+            static_cast<float>(luaL_checknumber(state, 6))
+        };
+        const float radius = static_cast<float>(luaL_checknumber(state, 7));
+        const int arg_count = lua_gettop(state);
+        const bool filter_without_distance = arg_count >= 8 && lua_istable(state, 8);
+        const float max_distance = arg_count >= 8 && !filter_without_distance ? static_cast<float>(luaL_checknumber(state, 8)) : 1000.0f;
+        const int filter_index = filter_without_distance ? 8 : (arg_count >= 9 ? 9 : 0);
+        if (filter_index != 0)
+        {
+            luaL_checktype(state, filter_index, LUA_TTABLE);
+        }
+
+        Vector<ecs::Entity> ignored_entities;
+        const physics::PhysicsQueryFilter filter = ReadPhysicsQueryFilter(state, filter_index, runtime->current_context.entity, ignored_entities);
+        Vector<physics::PhysicsQueryHit> hits;
+        physics_world->SphereCastAll(origin, direction, radius, max_distance, hits, filter);
+        PushPhysicsQueryHits(state, hits);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaPhysicsCapsuleCast(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        physics::PhysicsWorld* physics_world = runtime->current_context.scene->GetPhysicsWorld();
+        if (!physics_world)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        const float3 origin = {
+            static_cast<float>(luaL_checknumber(state, 1)),
+            static_cast<float>(luaL_checknumber(state, 2)),
+            static_cast<float>(luaL_checknumber(state, 3))
+        };
+        const float3 direction = {
+            static_cast<float>(luaL_checknumber(state, 4)),
+            static_cast<float>(luaL_checknumber(state, 5)),
+            static_cast<float>(luaL_checknumber(state, 6))
+        };
+        const float radius = static_cast<float>(luaL_checknumber(state, 7));
+        const float height = static_cast<float>(luaL_checknumber(state, 8));
+        const float4 rotation = {
+            static_cast<float>(luaL_checknumber(state, 9)),
+            static_cast<float>(luaL_checknumber(state, 10)),
+            static_cast<float>(luaL_checknumber(state, 11)),
+            static_cast<float>(luaL_checknumber(state, 12))
+        };
+        const int arg_count = lua_gettop(state);
+        const bool filter_without_distance = arg_count >= 13 && lua_istable(state, 13);
+        const float max_distance = arg_count >= 13 && !filter_without_distance ? static_cast<float>(luaL_checknumber(state, 13)) : 1000.0f;
+        const int filter_index = filter_without_distance ? 13 : (arg_count >= 14 ? 14 : 0);
+        if (filter_index != 0)
+        {
+            luaL_checktype(state, filter_index, LUA_TTABLE);
+        }
+
+        Vector<ecs::Entity> ignored_entities;
+        const physics::PhysicsQueryFilter filter = ReadPhysicsQueryFilter(state, filter_index, runtime->current_context.entity, ignored_entities);
+        physics::PhysicsQueryHit hit;
+        if (!physics_world->CapsuleCast(origin, direction, radius, height, rotation, max_distance, hit, filter))
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        PushPhysicsQueryHit(state, hit);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaPhysicsCapsuleCastAll(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_newtable(state);
+            return 1;
+        }
+
+        physics::PhysicsWorld* physics_world = runtime->current_context.scene->GetPhysicsWorld();
+        if (!physics_world)
+        {
+            lua_newtable(state);
+            return 1;
+        }
+
+        const float3 origin = {
+            static_cast<float>(luaL_checknumber(state, 1)),
+            static_cast<float>(luaL_checknumber(state, 2)),
+            static_cast<float>(luaL_checknumber(state, 3))
+        };
+        const float3 direction = {
+            static_cast<float>(luaL_checknumber(state, 4)),
+            static_cast<float>(luaL_checknumber(state, 5)),
+            static_cast<float>(luaL_checknumber(state, 6))
+        };
+        const float radius = static_cast<float>(luaL_checknumber(state, 7));
+        const float height = static_cast<float>(luaL_checknumber(state, 8));
+        const float4 rotation = {
+            static_cast<float>(luaL_checknumber(state, 9)),
+            static_cast<float>(luaL_checknumber(state, 10)),
+            static_cast<float>(luaL_checknumber(state, 11)),
+            static_cast<float>(luaL_checknumber(state, 12))
+        };
+        const int arg_count = lua_gettop(state);
+        const bool filter_without_distance = arg_count >= 13 && lua_istable(state, 13);
+        const float max_distance = arg_count >= 13 && !filter_without_distance ? static_cast<float>(luaL_checknumber(state, 13)) : 1000.0f;
+        const int filter_index = filter_without_distance ? 13 : (arg_count >= 14 ? 14 : 0);
+        if (filter_index != 0)
+        {
+            luaL_checktype(state, filter_index, LUA_TTABLE);
+        }
+
+        Vector<ecs::Entity> ignored_entities;
+        const physics::PhysicsQueryFilter filter = ReadPhysicsQueryFilter(state, filter_index, runtime->current_context.entity, ignored_entities);
+        Vector<physics::PhysicsQueryHit> hits;
+        physics_world->CapsuleCastAll(origin, direction, radius, height, rotation, max_distance, hits, filter);
+        PushPhysicsQueryHits(state, hits);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaPhysicsBoxCast(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        physics::PhysicsWorld* physics_world = runtime->current_context.scene->GetPhysicsWorld();
+        if (!physics_world)
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        const float3 origin = {
+            static_cast<float>(luaL_checknumber(state, 1)),
+            static_cast<float>(luaL_checknumber(state, 2)),
+            static_cast<float>(luaL_checknumber(state, 3))
+        };
+        const float3 direction = {
+            static_cast<float>(luaL_checknumber(state, 4)),
+            static_cast<float>(luaL_checknumber(state, 5)),
+            static_cast<float>(luaL_checknumber(state, 6))
+        };
+        const float3 half_extent = {
+            static_cast<float>(luaL_checknumber(state, 7)),
+            static_cast<float>(luaL_checknumber(state, 8)),
+            static_cast<float>(luaL_checknumber(state, 9))
+        };
+        const float4 rotation = {
+            static_cast<float>(luaL_checknumber(state, 10)),
+            static_cast<float>(luaL_checknumber(state, 11)),
+            static_cast<float>(luaL_checknumber(state, 12)),
+            static_cast<float>(luaL_checknumber(state, 13))
+        };
+        const int arg_count = lua_gettop(state);
+        const bool filter_without_distance = arg_count >= 14 && lua_istable(state, 14);
+        const float max_distance = arg_count >= 14 && !filter_without_distance ? static_cast<float>(luaL_checknumber(state, 14)) : 1000.0f;
+        const int filter_index = filter_without_distance ? 14 : (arg_count >= 15 ? 15 : 0);
+        if (filter_index != 0)
+        {
+            luaL_checktype(state, filter_index, LUA_TTABLE);
+        }
+
+        Vector<ecs::Entity> ignored_entities;
+        const physics::PhysicsQueryFilter filter = ReadPhysicsQueryFilter(state, filter_index, runtime->current_context.entity, ignored_entities);
+        physics::PhysicsQueryHit hit;
+        if (!physics_world->BoxCast(origin, direction, half_extent, rotation, max_distance, hit, filter))
+        {
+            lua_pushnil(state);
+            return 1;
+        }
+
+        PushPhysicsQueryHit(state, hit);
+        return 1;
+    }
+
+    int LuaScriptRuntime::LuaPhysicsBoxCastAll(lua_State* state)
+    {
+        LuaScriptRuntime* runtime = static_cast<LuaScriptRuntime*>(lua_touserdata(state, lua_upvalueindex(1)));
+        if (!runtime || !runtime->current_context.scene)
+        {
+            lua_newtable(state);
+            return 1;
+        }
+
+        physics::PhysicsWorld* physics_world = runtime->current_context.scene->GetPhysicsWorld();
+        if (!physics_world)
+        {
+            lua_newtable(state);
+            return 1;
+        }
+
+        const float3 origin = {
+            static_cast<float>(luaL_checknumber(state, 1)),
+            static_cast<float>(luaL_checknumber(state, 2)),
+            static_cast<float>(luaL_checknumber(state, 3))
+        };
+        const float3 direction = {
+            static_cast<float>(luaL_checknumber(state, 4)),
+            static_cast<float>(luaL_checknumber(state, 5)),
+            static_cast<float>(luaL_checknumber(state, 6))
+        };
+        const float3 half_extent = {
+            static_cast<float>(luaL_checknumber(state, 7)),
+            static_cast<float>(luaL_checknumber(state, 8)),
+            static_cast<float>(luaL_checknumber(state, 9))
+        };
+        const float4 rotation = {
+            static_cast<float>(luaL_checknumber(state, 10)),
+            static_cast<float>(luaL_checknumber(state, 11)),
+            static_cast<float>(luaL_checknumber(state, 12)),
+            static_cast<float>(luaL_checknumber(state, 13))
+        };
+        const int arg_count = lua_gettop(state);
+        const bool filter_without_distance = arg_count >= 14 && lua_istable(state, 14);
+        const float max_distance = arg_count >= 14 && !filter_without_distance ? static_cast<float>(luaL_checknumber(state, 14)) : 1000.0f;
+        const int filter_index = filter_without_distance ? 14 : (arg_count >= 15 ? 15 : 0);
+        if (filter_index != 0)
+        {
+            luaL_checktype(state, filter_index, LUA_TTABLE);
+        }
+
+        Vector<ecs::Entity> ignored_entities;
+        const physics::PhysicsQueryFilter filter = ReadPhysicsQueryFilter(state, filter_index, runtime->current_context.entity, ignored_entities);
+        Vector<physics::PhysicsQueryHit> hits;
+        physics_world->BoxCastAll(origin, direction, half_extent, rotation, max_distance, hits, filter);
+        PushPhysicsQueryHits(state, hits);
         return 1;
     }
 
@@ -4938,6 +5292,21 @@ namespace won::script
         lua_pushlightuserdata(lua_state, this);
         lua_pushcclosure(lua_state, LuaPhysicsSphereCast, 1);
         lua_setfield(lua_state, -2, "spherecast");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaPhysicsSphereCastAll, 1);
+        lua_setfield(lua_state, -2, "spherecast_all");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaPhysicsCapsuleCast, 1);
+        lua_setfield(lua_state, -2, "capsulecast");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaPhysicsCapsuleCastAll, 1);
+        lua_setfield(lua_state, -2, "capsulecast_all");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaPhysicsBoxCast, 1);
+        lua_setfield(lua_state, -2, "boxcast");
+        lua_pushlightuserdata(lua_state, this);
+        lua_pushcclosure(lua_state, LuaPhysicsBoxCastAll, 1);
+        lua_setfield(lua_state, -2, "boxcast_all");
         lua_pushlightuserdata(lua_state, this);
         lua_pushcclosure(lua_state, LuaPhysicsOverlapSphere, 1);
         lua_setfield(lua_state, -2, "overlap_sphere");
