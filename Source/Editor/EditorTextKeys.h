@@ -134,7 +134,10 @@ namespace won::editor::editor_key
     constexpr const char* label_ambient_intensity = "editor.label.ambient_intensity";
     constexpr const char* label_ambient_occlusion = "editor.label.ambient_occlusion";
     constexpr const char* label_anchor = "editor.label.anchor";
+    constexpr const char* label_anchor_max = "editor.label.anchor_max";
+    constexpr const char* label_anchor_min = "editor.label.anchor_min";
     constexpr const char* label_anchor_presets = "editor.label.anchor_presets";
+    constexpr const char* label_anchored_position = "editor.label.anchored_position";
     constexpr const char* label_angular_velocity = "editor.label.angular_velocity";
     constexpr const char* label_animation_event_default_name = "editor.label.animation_event_default_name";
     constexpr const char* label_animation_events = "editor.label.animation_events";
@@ -316,6 +319,8 @@ namespace won::editor::editor_key
     constexpr const char* label_sheen_roughness_map = "editor.label.sheen_roughness_map";
     constexpr const char* label_shutter_speed = "editor.label.shutter_speed";
     constexpr const char* label_size = "editor.label.size";
+    constexpr const char* label_size_delta = "editor.label.size_delta";
+    constexpr const char* label_stretch_presets = "editor.label.stretch_presets";
     constexpr const char* label_sky_cubemap_asset_path = "editor.label.sky_cubemap_asset_path";
     constexpr const char* label_sky_horizon_color = "editor.label.sky_horizon_color";
     constexpr const char* label_sky_horizon_falloff = "editor.label.sky_horizon_falloff";

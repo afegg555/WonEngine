@@ -4598,24 +4598,31 @@ namespace won::editor
 
 					if (!remove_component && component_open)
 					{
-						float anchor[2] = { rect_2d_comp->anchor.x, rect_2d_comp->anchor.y };
-						if (ImGui::InputFloat2(EditorText(editor_key::label_anchor), anchor))
+						float anchor_min[2] = { rect_2d_comp->anchor_min.x, rect_2d_comp->anchor_min.y };
+						if (ImGui::InputFloat2(EditorText(editor_key::label_anchor_min), anchor_min))
 						{
-							rect_2d_comp->anchor = { anchor[0], anchor[1] };
+							rect_2d_comp->anchor_min = { anchor_min[0], anchor_min[1] };
 							rect_2d_comp->SetDirty();
 						}
 
-						float position[2] = { rect_2d_comp->position.x, rect_2d_comp->position.y };
-						if (ImGui::InputFloat2(EditorText(editor_key::label_position), position))
+						float anchor_max[2] = { rect_2d_comp->anchor_max.x, rect_2d_comp->anchor_max.y };
+						if (ImGui::InputFloat2(EditorText(editor_key::label_anchor_max), anchor_max))
 						{
-							rect_2d_comp->position = { position[0], position[1] };
+							rect_2d_comp->anchor_max = { anchor_max[0], anchor_max[1] };
 							rect_2d_comp->SetDirty();
 						}
 
-						float size[2] = { rect_2d_comp->size.x, rect_2d_comp->size.y };
-						if (ImGui::InputFloat2(EditorText(editor_key::label_size), size))
+						float anchored_position[2] = { rect_2d_comp->anchored_position.x, rect_2d_comp->anchored_position.y };
+						if (ImGui::InputFloat2(EditorText(editor_key::label_anchored_position), anchored_position))
 						{
-							rect_2d_comp->size = { size[0], size[1] };
+							rect_2d_comp->anchored_position = { anchored_position[0], anchored_position[1] };
+							rect_2d_comp->SetDirty();
+						}
+
+						float size_delta[2] = { rect_2d_comp->size_delta.x, rect_2d_comp->size_delta.y };
+						if (ImGui::InputFloat2(EditorText(editor_key::label_size_delta), size_delta))
+						{
+							rect_2d_comp->size_delta = { size_delta[0], size_delta[1] };
 							rect_2d_comp->SetDirty();
 						}
 
@@ -4640,11 +4647,40 @@ namespace won::editor
 							}
 							if (ImGui::Button(anchor_preset_grid[preset_index].label, ImVec2(34.0f, 0.0f)))
 							{
-								rect_2d_comp->anchor = { anchor_preset_grid[preset_index].x, anchor_preset_grid[preset_index].y };
+								rect_2d_comp->anchor_min = { anchor_preset_grid[preset_index].x, anchor_preset_grid[preset_index].y };
+								rect_2d_comp->anchor_max = { anchor_preset_grid[preset_index].x, anchor_preset_grid[preset_index].y };
 								rect_2d_comp->pivot = { anchor_preset_grid[preset_index].x, anchor_preset_grid[preset_index].y };
-								rect_2d_comp->position = { 0.0f, 0.0f };
+								rect_2d_comp->anchored_position = { 0.0f, 0.0f };
 								rect_2d_comp->SetDirty();
 							}
+						}
+
+						ImGui::Text(EditorText(editor_key::label_stretch_presets));
+						if (ImGui::Button("H", ImVec2(52.0f, 0.0f)))
+						{
+							rect_2d_comp->anchor_min.x = 0.0f;
+							rect_2d_comp->anchor_max.x = 1.0f;
+							rect_2d_comp->anchored_position.x = 0.0f;
+							rect_2d_comp->size_delta.x = 0.0f;
+							rect_2d_comp->SetDirty();
+						}
+						ImGui::SameLine();
+						if (ImGui::Button("V", ImVec2(52.0f, 0.0f)))
+						{
+							rect_2d_comp->anchor_min.y = 0.0f;
+							rect_2d_comp->anchor_max.y = 1.0f;
+							rect_2d_comp->anchored_position.y = 0.0f;
+							rect_2d_comp->size_delta.y = 0.0f;
+							rect_2d_comp->SetDirty();
+						}
+						ImGui::SameLine();
+						if (ImGui::Button("Full", ImVec2(52.0f, 0.0f)))
+						{
+							rect_2d_comp->anchor_min = { 0.0f, 0.0f };
+							rect_2d_comp->anchor_max = { 1.0f, 1.0f };
+							rect_2d_comp->anchored_position = { 0.0f, 0.0f };
+							rect_2d_comp->size_delta = { 0.0f, 0.0f };
+							rect_2d_comp->SetDirty();
 						}
 					}
 					else if (remove_component)
