@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "Scene.h"
 #include "ViewOptionEnums.h"
 #include "Types.h"
@@ -285,6 +285,7 @@ namespace won::rendering
         void Update(float delta_time, uint64 update_index, bool simulation_paused);
         bool RayCast(float2 screen_position, ecs::RayCastHit& out_hit, bool use_local_bvh = true, uint32 layer_mask = 0xFFFFFFFF) const;
         bool ScreenToRay(float2 screen_position, math::Ray& out_ray) const;
+        bool WorldToScreen(const float3& world_position, float2& out_screen_position) const;
 
     private:
         void UpdateUIInteraction();

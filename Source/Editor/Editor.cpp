@@ -743,42 +743,29 @@ namespace won::editor
 			ImGui::DockBuilderFinish(dockspace_id);
 		}
 
-		bool ProjectWorldToScreen(const ecs::CameraComponent& camera, const ImVec2& viewport_pos, const ImVec2& viewport_size, const float3& world_position, ImVec2& out_screen_position)
+		void DrawWorldLine(ImDrawList* draw_list, const rendering::View& view, const float3& from, const float3& to, ImU32 color, float thickness = 1.0f)
 		{
-			const XMVECTOR projected = XMVector3Project(
-				XMLoadFloat3(&world_position),
-				viewport_pos.x,
-				viewport_pos.y,
-				viewport_size.x,
-				viewport_size.y,
-				0.0f,
-				1.0f,
-				XMLoadFloat4x4(&camera.projection),
-				XMLoadFloat4x4(&camera.view),
-				XMMatrixIdentity());
-
-			float3 projected_position = {};
-			XMStoreFloat3(&projected_position, projected);
-			if (projected_position.z < 0.0f || projected_position.z > 1.0f)
-			{
-				return false;
-			}
-
-			out_screen_position = ImVec2(projected_position.x, projected_position.y);
-			return true;
-		}
-
-		void DrawWorldLine(ImDrawList* draw_list, const ecs::CameraComponent& camera, const ImVec2& viewport_pos, const ImVec2& viewport_size, const float3& from, const float3& to, ImU32 color, float thickness = 1.0f)
-		{
-			ImVec2 from_screen = {};
-			ImVec2 to_screen = {};
-			if (!ProjectWorldToScreen(camera, viewport_pos, viewport_size, from, from_screen) ||
-				!ProjectWorldToScreen(camera, viewport_pos, viewport_size, to, to_screen))
+			float2 from_screen = {};
+			float2 to_screen = {};
+			if (!view.WorldToScreen(from, from_screen) || !view.WorldToScreen(to, to_screen))
 			{
 				return;
 			}
 
-			draw_list->AddLine(from_screen, to_screen, color, thickness);
+			draw_list->AddLine(ImVec2(from_screen.x, from_screen.y), ImVec2(to_screen.x, to_screen.y), color, thickness);
+		}
+
+		bool TerrainToWorld(const TerrainData& data, const XMMATRIX& world, const float2& local_position, float3& out_world_position)
+		{
+			float height = 0.0f;
+			if (!SampleTerrainHeight(data, local_position, height))
+			{
+				return false;
+			}
+
+			const float3 local_point = { local_position.x, height + 0.03f, local_position.y };
+			XMStoreFloat3(&out_world_position, XMVector3TransformCoord(XMLoadFloat3(&local_point), world));
+			return true;
 		}
 
 		bool RayCastTerrainViewport(const rendering::View& view, const float2& screen_position, const TerrainData& data, const TransformComponent& transform, float3& out_local_hit)
@@ -796,31 +783,6 @@ namespace won::editor
 			XMStoreFloat3(&local_ray.origin, XMVector3TransformCoord(world_origin, inverse_world));
 			XMStoreFloat3(&local_ray.direction, XMVector3Normalize(XMVector3TransformNormal(world_direction, inverse_world)));
 			return RayCastTerrain(data, local_ray, out_local_hit);
-		}
-
-		void DrawWorldAABB(ImDrawList* draw_list, const ecs::CameraComponent& camera, const ImVec2& viewport_pos, const ImVec2& viewport_size, const float3& bounds_min, const float3& bounds_max, ImU32 color, float thickness = 1.0f)
-		{
-			const float3 corners[8] = {
-				{ bounds_min.x, bounds_min.y, bounds_min.z },
-				{ bounds_max.x, bounds_min.y, bounds_min.z },
-				{ bounds_min.x, bounds_max.y, bounds_min.z },
-				{ bounds_max.x, bounds_max.y, bounds_min.z },
-				{ bounds_min.x, bounds_min.y, bounds_max.z },
-				{ bounds_max.x, bounds_min.y, bounds_max.z },
-				{ bounds_min.x, bounds_max.y, bounds_max.z },
-				{ bounds_max.x, bounds_max.y, bounds_max.z }
-			};
-
-			const int edges[12][2] = {
-				{ 0, 1 }, { 1, 3 }, { 3, 2 }, { 2, 0 },
-				{ 4, 5 }, { 5, 7 }, { 7, 6 }, { 6, 4 },
-				{ 0, 4 }, { 1, 5 }, { 2, 6 }, { 3, 7 }
-			};
-
-			for (const auto& edge : edges)
-			{
-				DrawWorldLine(draw_list, camera, viewport_pos, viewport_size, corners[edge[0]], corners[edge[1]], color, thickness);
-			}
 		}
 
 		void DrawTextBlock(ImDrawList* draw_list, const ImVec2& start_position, const Vector<String>& lines, bool align_right = false)
@@ -1241,8 +1203,15 @@ namespace won::editor
 		Application::Shutdown();
 	}
 
-	void EditorApplication::QueueTerrainMeshUpdate(ecs::Entity entity, const std::shared_ptr<resource::Mesh>& mesh)
+	void EditorApplication::RebuildTerrainMesh(ecs::Entity entity, ecs::TerrainData& data)
 	{
+		CompositeTerrainHeights(data);
+		std::shared_ptr<resource::Mesh> mesh = GenerateTerrainMesh(data);
+		if (!mesh || !mesh->IsValid())
+		{
+			return;
+		}
+
 		terrain_editor.pending_mesh = mesh;
 		terrain_editor.pending_mesh_entity = entity;
 		if (terrain_editor.mesh_update_pending)
@@ -1289,6 +1258,18 @@ namespace won::editor
 		});
 	}
 
+	void EditorApplication::SaveTerrainChanges(ecs::Entity entity, ecs::TerrainComponent& terrain)
+	{
+		if (terrain.data && !terrain.terrain_data_path.empty())
+		{
+			SaveTerrainBinary(io::CombinePath(contents_root_dir, terrain.terrain_data_path), *terrain.data);
+		}
+		if (Collider3DComponent* collider = editor_viewport.view->scene->GetComponent<Collider3DComponent>(entity))
+		{
+			collider->SetDirty();
+		}
+	}
+
 	void EditorApplication::Update(float dt)
 	{
 		auto editor_update_range = profiler::ScopedRangeCPU("Update Editor");
@@ -1327,7 +1308,14 @@ namespace won::editor
 					PerformUndo();
 				}
 			}
-			if (editor_viewport.tool_mode == EditorViewport::ToolMode::Terrain && !terrain_editor.stroke_active && io::IsPressed(io::KEYBOARD_BUTTON_ESCAPE))
+			if (editor_viewport.tool_mode == EditorViewport::ToolMode::Terrain &&
+				terrain_editor.tool == TerrainEditorState::Tool::Spline &&
+				terrain_editor.spline_mode == TerrainEditorState::SplineMode::AddPoint &&
+				(io::IsPressed(io::KEYBOARD_BUTTON_ENTER) || io::IsPressed(io::KEYBOARD_BUTTON_ESCAPE)))
+			{
+				terrain_editor.spline_mode = TerrainEditorState::SplineMode::Select;
+			}
+			else if (editor_viewport.tool_mode == EditorViewport::ToolMode::Terrain && !terrain_editor.stroke_active && !terrain_editor.spline_drag_active && io::IsPressed(io::KEYBOARD_BUTTON_ESCAPE))
 			{
 				editor_viewport.tool_mode = EditorViewport::ToolMode::Object;
 				terrain_editor.focus_inspector = true;
@@ -1342,6 +1330,8 @@ namespace won::editor
 			}
 			editor_viewport.tool_mode = EditorViewport::ToolMode::Object;
 			terrain_editor.stroke_active = false;
+			terrain_editor.spline_drag_active = false;
+			terrain_editor.spline_drag_changed = false;
 		}
 		else if (editor_viewport.tool_mode == EditorViewport::ToolMode::Terrain)
 		{
@@ -1350,7 +1340,15 @@ namespace won::editor
 				: nullptr;
 			if (selected_terrain)
 			{
-				terrain_editor.entity = editor_viewport.picked_entity;
+				if (terrain_editor.entity != editor_viewport.picked_entity)
+				{
+					terrain_editor.entity = editor_viewport.picked_entity;
+					terrain_editor.selected_spline = -1;
+					terrain_editor.selected_spline_point = -1;
+					terrain_editor.spline_mode = TerrainEditorState::SplineMode::Select;
+					terrain_editor.spline_drag_active = false;
+					terrain_editor.spline_drag_changed = false;
+				}
 			}
 			else if (!terrain_editor.stroke_active)
 			{
@@ -1528,7 +1526,7 @@ namespace won::editor
 				0 <= viewport_mouse_pos.x && viewport_mouse_pos.x <= main_viewport_size.x &&
 				0 <= viewport_mouse_pos.y && viewport_mouse_pos.y <= main_viewport_size.y;
 
-			TerrainComponent* edited_terrain = (editor_viewport.tool_mode == EditorViewport::ToolMode::Terrain || terrain_editor.stroke_active) && terrain_editor.entity != ecs::INVALID_ENTITY
+			TerrainComponent* edited_terrain = (editor_viewport.tool_mode == EditorViewport::ToolMode::Terrain || terrain_editor.stroke_active || terrain_editor.spline_drag_active) && terrain_editor.entity != ecs::INVALID_ENTITY
 				? editor_viewport.view->scene->GetComponent<TerrainComponent>(terrain_editor.entity)
 				: nullptr;
 			TransformComponent* terrain_transform = edited_terrain
@@ -1537,7 +1535,9 @@ namespace won::editor
 			const bool can_edit_terrain = edited_terrain && edited_terrain->data && edited_terrain->data->IsValid() &&
 				edited_terrain->data->final_heights.size() == static_cast<Size>(edited_terrain->data->samples_x) * edited_terrain->data->samples_z && terrain_transform;
 
-			if (editor_viewport.tool_mode == EditorViewport::ToolMode::Terrain && can_edit_terrain && can_control_viewport && io::IsPressed(io::Button::MOUSE_BUTTON_LEFT))
+			const bool sculpt_tool_active = terrain_editor.tool == TerrainEditorState::Tool::Sculpt;
+			const bool spline_tool_active = terrain_editor.tool == TerrainEditorState::Tool::Spline;
+			if (editor_viewport.tool_mode == EditorViewport::ToolMode::Terrain && can_edit_terrain && can_control_viewport && sculpt_tool_active && io::IsPressed(io::Button::MOUSE_BUTTON_LEFT))
 			{
 				float3 local_hit = {};
 				if (RayCastTerrainViewport(*editor_viewport.view, mouse_pos, *edited_terrain->data, *terrain_transform, local_hit))
@@ -1573,7 +1573,7 @@ namespace won::editor
 					const int min_z = (std::max)(0, static_cast<int>(std::floor((local_hit.z - radius - data.offset_z) / data.cell_z)));
 					const int max_z = (std::min)(static_cast<int>(data.samples_z) - 1, static_cast<int>(std::ceil((local_hit.z + radius - data.offset_z) / data.cell_z)));
 					Vector<float> smooth_targets;
-					if (terrain_editor.brush == TerrainEditorState::Brush::Smooth)
+					if (terrain_editor.sculpt_brush == TerrainEditorState::SculptBrush::Smooth)
 					{
 						const int smooth_width = max_x - min_x + 1;
 						const int smooth_height = max_z - min_z + 1;
@@ -1625,13 +1625,13 @@ namespace won::editor
 								? 1.0f
 								: 1.0f - math::SmoothStep(inner_radius, radius, distance);
 							const Size index = static_cast<Size>(z) * data.samples_x + static_cast<uint32>(x);
-							if (terrain_editor.brush == TerrainEditorState::Brush::Flatten)
+							if (terrain_editor.sculpt_brush == TerrainEditorState::SculptBrush::Flatten)
 							{
 								const float alpha = math::Saturate(terrain_editor.strength * dt * weight);
 								data.flatten_height[index] = math::Lerp(data.final_heights[index], terrain_editor.flatten_height, alpha);
 								data.flatten_mask[index] = 1u;
 							}
-							else if (terrain_editor.brush == TerrainEditorState::Brush::Smooth)
+							else if (terrain_editor.sculpt_brush == TerrainEditorState::SculptBrush::Smooth)
 							{
 								const int smooth_width = max_x - min_x + 1;
 								const Size smooth_index = static_cast<Size>(z - min_z) * smooth_width + static_cast<Size>(x - min_x);
@@ -1651,7 +1651,7 @@ namespace won::editor
 							}
 							else
 							{
-								const float direction = terrain_editor.brush == TerrainEditorState::Brush::Raise ? 1.0f : -1.0f;
+								const float direction = terrain_editor.sculpt_brush == TerrainEditorState::SculptBrush::Raise ? 1.0f : -1.0f;
 								const float height_change = direction * terrain_editor.strength * dt * weight;
 								if (data.flatten_mask[index] != 0)
 								{
@@ -1668,12 +1668,7 @@ namespace won::editor
 
 					if (terrain_changed)
 					{
-						CompositeTerrainHeights(data);
-						std::shared_ptr<resource::Mesh> terrain_mesh = GenerateTerrainMesh(data);
-						if (terrain_mesh && terrain_mesh->IsValid())
-						{
-							QueueTerrainMeshUpdate(terrain_editor.entity, terrain_mesh);
-						}
+						RebuildTerrainMesh(terrain_editor.entity, data);
 					}
 				}
 			}
@@ -1682,16 +1677,106 @@ namespace won::editor
 			{
 				if (can_edit_terrain)
 				{
-					if (!edited_terrain->terrain_data_path.empty())
-					{
-						SaveTerrainBinary(io::CombinePath(contents_root_dir, edited_terrain->terrain_data_path), *edited_terrain->data);
-					}
-					if (Collider3DComponent* collider = editor_viewport.view->scene->GetComponent<Collider3DComponent>(terrain_editor.entity))
-					{
-						collider->SetDirty();
-					}
+					SaveTerrainChanges(terrain_editor.entity, *edited_terrain);
 				}
 				terrain_editor.stroke_active = false;
+			}
+			else if (editor_viewport.tool_mode == EditorViewport::ToolMode::Terrain && can_edit_terrain && can_control_viewport && spline_tool_active && io::IsPressed(io::Button::MOUSE_BUTTON_LEFT))
+			{
+				TerrainData& data = *edited_terrain->data;
+				const bool has_selected_spline = terrain_editor.selected_spline >= 0 && terrain_editor.selected_spline < static_cast<int>(data.splines.size());
+				if (has_selected_spline && terrain_editor.spline_mode == TerrainEditorState::SplineMode::AddPoint)
+				{
+					float3 local_hit = {};
+					if (RayCastTerrainViewport(*editor_viewport.view, mouse_pos, data, *terrain_transform, local_hit))
+					{
+						TerrainSpline& spline = data.splines[terrain_editor.selected_spline];
+						spline.points.push_back({ local_hit.x, local_hit.z });
+						terrain_editor.selected_spline_point = static_cast<int>(spline.points.size()) - 1;
+						if (spline.points.size() == 1)
+						{
+							spline.target_height = local_hit.y;
+						}
+						RebuildTerrainMesh(terrain_editor.entity, data);
+						SaveTerrainChanges(terrain_editor.entity, *edited_terrain);
+					}
+				}
+				else if (has_selected_spline)
+				{
+					const TerrainSpline& spline = data.splines[terrain_editor.selected_spline];
+					const XMMATRIX world = terrain_transform->GetWorldTransform();
+					float closest_distance_squared = 100.0f;
+					int closest_point = -1;
+					for (int point_index = 0; point_index < static_cast<int>(spline.points.size()); ++point_index)
+					{
+						float3 world_point = {};
+						float2 screen_point = {};
+						if (!TerrainToWorld(data, world, spline.points[point_index], world_point) ||
+							!editor_viewport.view->WorldToScreen(world_point, screen_point))
+						{
+							continue;
+						}
+						const float distance_x = screen_point.x - mouse_pos.x;
+						const float distance_y = screen_point.y - mouse_pos.y;
+						const float distance_squared = distance_x * distance_x + distance_y * distance_y;
+						if (distance_squared < closest_distance_squared)
+						{
+							closest_distance_squared = distance_squared;
+							closest_point = point_index;
+						}
+					}
+					terrain_editor.selected_spline_point = closest_point;
+					terrain_editor.spline_drag_active = closest_point >= 0;
+					terrain_editor.spline_drag_changed = false;
+				}
+			}
+
+			if (can_edit_terrain && spline_tool_active && terrain_editor.spline_drag_active && pointer_inside_viewport && io::IsDown(io::Button::MOUSE_BUTTON_LEFT))
+			{
+				TerrainData& data = *edited_terrain->data;
+				if (terrain_editor.selected_spline >= 0 && terrain_editor.selected_spline < static_cast<int>(data.splines.size()))
+				{
+					TerrainSpline& spline = data.splines[terrain_editor.selected_spline];
+					if (terrain_editor.selected_spline_point >= 0 && terrain_editor.selected_spline_point < static_cast<int>(spline.points.size()))
+					{
+						math::Ray world_ray = {};
+						if (editor_viewport.view->ScreenToRay(mouse_pos, world_ray))
+						{
+							const XMMATRIX inverse_world = XMMatrixInverse(nullptr, terrain_transform->GetWorldTransform());
+							math::Ray local_ray = {};
+							XMStoreFloat3(&local_ray.origin, XMVector3TransformCoord(XMLoadFloat3(&world_ray.origin), inverse_world));
+							XMStoreFloat3(&local_ray.direction, XMVector3Normalize(XMVector3TransformNormal(XMLoadFloat3(&world_ray.direction), inverse_world)));
+							if (std::abs(local_ray.direction.y) > 0.000001f)
+							{
+								const float hit_distance = (spline.target_height - local_ray.origin.y) / local_ray.direction.y;
+								const float hit_x = local_ray.origin.x + local_ray.direction.x * hit_distance;
+								const float hit_z = local_ray.origin.z + local_ray.direction.z * hit_distance;
+								if (hit_distance >= 0.0f &&
+									hit_x >= data.offset_x && hit_x <= data.offset_x + data.world_size_x &&
+									hit_z >= data.offset_z && hit_z <= data.offset_z + data.world_size_z)
+								{
+									float2& point = spline.points[terrain_editor.selected_spline_point];
+									if (point.x != hit_x || point.y != hit_z)
+									{
+										point = { hit_x, hit_z };
+										terrain_editor.spline_drag_changed = true;
+										RebuildTerrainMesh(terrain_editor.entity, data);
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+
+			if (terrain_editor.spline_drag_active && io::IsReleased(io::Button::MOUSE_BUTTON_LEFT))
+			{
+				if (can_edit_terrain && terrain_editor.spline_drag_changed)
+				{
+					SaveTerrainChanges(terrain_editor.entity, *edited_terrain);
+				}
+				terrain_editor.spline_drag_active = false;
+				terrain_editor.spline_drag_changed = false;
 			}
 			else if (editor_viewport.tool_mode == EditorViewport::ToolMode::Object && can_control_viewport && io::IsPressed(io::Button::MOUSE_BUTTON_LEFT))
 			{
@@ -3015,6 +3100,11 @@ namespace won::editor
 			}
 			if (ImGui::BeginMenu(EditorText(editor_key::menu_window)))
 			{
+				if (ImGui::MenuItem(EditorText(editor_key::window_terrain_tools), nullptr, &terrain_editor.show_window) && terrain_editor.show_window)
+				{
+					terrain_editor.focus_window = true;
+				}
+				ImGui::Separator();
 				if (ImGui::MenuItem(EditorText(editor_key::menu_window_reset_layout)))
 				{
 					BuildDefaultDockLayout(dockspace_id, io.DisplaySize);
@@ -3661,60 +3751,167 @@ namespace won::editor
 					: nullptr;
 				if (terrain && terrain->data && terrain->data->IsValid() &&
 					terrain->data->final_heights.size() == static_cast<Size>(terrain->data->samples_x) * terrain->data->samples_z &&
-					terrain_transform && (editor_viewport.input_enabled || terrain_editor.stroke_active))
+					terrain_transform)
 				{
-					const ImVec2 imgui_mouse = ImGui::GetMousePos();
-					const float2 mouse_pos = { imgui_mouse.x, imgui_mouse.y };
-					float3 local_hit = {};
-					if (RayCastTerrainViewport(*editor_viewport.view, mouse_pos, *terrain->data, *terrain_transform, local_hit))
+					const XMMATRIX world = terrain_transform->GetWorldTransform();
+					const TerrainData& data = *terrain->data;
+					ImDrawList* draw_list = ImGui::GetWindowDrawList();
+					draw_list->PushClipRect(viewport_pos, ImVec2(viewport_pos.x + viewport_size.x, viewport_pos.y + viewport_size.y), true);
+					if (terrain_editor.tool == TerrainEditorState::Tool::Sculpt && (editor_viewport.input_enabled || terrain_editor.stroke_active))
 					{
-						const DirectX::XMMATRIX world = terrain_transform->GetWorldTransform();
-						const TerrainData& data = *terrain->data;
-						const float outer_radius = (std::max)(terrain_editor.radius, (std::min)(data.cell_x, data.cell_z));
-						const float inner_radius = outer_radius * (1.0f - math::Saturate(terrain_editor.falloff));
-						const float ring_radii[] = { outer_radius, inner_radius };
-						ImDrawList* draw_list = ImGui::GetWindowDrawList();
-						draw_list->PushClipRect(viewport_pos, ImVec2(viewport_pos.x + viewport_size.x, viewport_pos.y + viewport_size.y), true);
-						for (int ring_index = 0; ring_index < 2; ++ring_index)
+						const ImVec2 imgui_mouse = ImGui::GetMousePos();
+						const float2 mouse_pos = { imgui_mouse.x, imgui_mouse.y };
+						float3 local_hit = {};
+						if (RayCastTerrainViewport(*editor_viewport.view, mouse_pos, data, *terrain_transform, local_hit))
 						{
-							const float ring_radius = ring_radii[ring_index];
-							if (ring_radius <= 0.001f)
+							const float outer_radius = (std::max)(terrain_editor.radius, (std::min)(data.cell_x, data.cell_z));
+							const float inner_radius = outer_radius * (1.0f - math::Saturate(terrain_editor.falloff));
+							const float ring_radii[] = { outer_radius, inner_radius };
+							for (int ring_index = 0; ring_index < 2; ++ring_index)
 							{
-								continue;
-							}
+								const float ring_radius = ring_radii[ring_index];
+								if (ring_radius <= 0.001f)
+								{
+									continue;
+								}
 
+								float3 previous_world = {};
+								for (int segment = 0; segment <= 64; ++segment)
+								{
+									const float angle = math::PI * 2.0f * static_cast<float>(segment) / 64.0f;
+									const float2 local_point = {
+										local_hit.x + std::cos(angle) * ring_radius,
+										local_hit.z + std::sin(angle) * ring_radius,
+									};
+									float3 world_point = {};
+									if (!TerrainToWorld(data, world, local_point, world_point))
+									{
+										break;
+									}
+									if (segment > 0)
+									{
+										const ImU32 color = ToImGuiColorU32(ring_index == 0 ? theme::terrain_brush_outline_color : theme::terrain_brush_falloff_color);
+										DrawWorldLine(draw_list, *editor_viewport.view, previous_world, world_point, color, ring_index == 0 ? 2.0f : 1.0f);
+									}
+									previous_world = world_point;
+								}
+							}
+						}
+					}
+					else if (terrain_editor.tool == TerrainEditorState::Tool::Spline)
+					{
+						const auto draw_segment = [this, draw_list, &data, &world](const float2& from, const float2& to, ImU32 color, float thickness)
+						{
+							const float delta_x = to.x - from.x;
+							const float delta_z = to.y - from.y;
+							const float length = std::sqrt(delta_x * delta_x + delta_z * delta_z);
+							const float cell_size = (std::max)(0.001f, (std::min)(data.cell_x, data.cell_z));
+							const int segment_count = math::Clamp(static_cast<int>(std::ceil(length / cell_size)), 1, 128);
 							float3 previous_world = {};
-							for (int segment = 0; segment <= 64; ++segment)
+							for (int segment = 0; segment <= segment_count; ++segment)
 							{
-								const float angle = math::PI * 2.0f * static_cast<float>(segment) / 64.0f;
-								float3 local_point = {
-									local_hit.x + std::cos(angle) * ring_radius,
-									0.0f,
-									local_hit.z + std::sin(angle) * ring_radius,
-								};
-								const float grid_x = math::Clamp((local_point.x - data.offset_x) / data.cell_x, 0.0f, static_cast<float>(data.samples_x - 1));
-								const float grid_z = math::Clamp((local_point.z - data.offset_z) / data.cell_z, 0.0f, static_cast<float>(data.samples_z - 1));
-								const uint32 x0 = static_cast<uint32>(std::floor(grid_x));
-								const uint32 z0 = static_cast<uint32>(std::floor(grid_z));
-								const uint32 x1 = (std::min)(x0 + 1, data.samples_x - 1);
-								const uint32 z1 = (std::min)(z0 + 1, data.samples_z - 1);
-								const float tx = grid_x - static_cast<float>(x0);
-								const float tz = grid_z - static_cast<float>(z0);
-								const float height0 = math::Lerp(data.final_heights[static_cast<Size>(z0) * data.samples_x + x0], data.final_heights[static_cast<Size>(z0) * data.samples_x + x1], tx);
-								const float height1 = math::Lerp(data.final_heights[static_cast<Size>(z1) * data.samples_x + x0], data.final_heights[static_cast<Size>(z1) * data.samples_x + x1], tx);
-								local_point.y = math::Lerp(height0, height1, tz) + 0.03f;
+								const float t = static_cast<float>(segment) / static_cast<float>(segment_count);
+								const float2 point = { math::Lerp(from.x, to.x, t), math::Lerp(from.y, to.y, t) };
 								float3 world_point = {};
-								DirectX::XMStoreFloat3(&world_point, DirectX::XMVector3TransformCoord(DirectX::XMLoadFloat3(&local_point), world));
+								if (!TerrainToWorld(data, world, point, world_point))
+								{
+									return;
+								}
 								if (segment > 0)
 								{
-									const ImU32 color = ToImGuiColorU32(ring_index == 0 ? theme::terrain_brush_outline_color : theme::terrain_brush_falloff_color);
-									DrawWorldLine(draw_list, *camera, viewport_pos, viewport_size, previous_world, world_point, color, ring_index == 0 ? 2.0f : 1.0f);
+									DrawWorldLine(draw_list, *editor_viewport.view, previous_world, world_point, color, thickness);
 								}
 								previous_world = world_point;
 							}
+						};
+						const ImU32 spline_color = ToImGuiColorU32(theme::terrain_spline_color);
+						const ImU32 width_color = ToImGuiColorU32(theme::terrain_spline_width_color);
+						const ImU32 falloff_color = ToImGuiColorU32(theme::terrain_spline_falloff_color);
+						for (int spline_index = 0; spline_index < static_cast<int>(data.splines.size()); ++spline_index)
+						{
+							const TerrainSpline& spline = data.splines[spline_index];
+							const bool selected = terrain_editor.selected_spline == spline_index;
+							for (Size point_index = 0; point_index + 1 < spline.points.size(); ++point_index)
+							{
+								const float2 from = spline.points[point_index];
+								const float2 to = spline.points[point_index + 1];
+								draw_segment(from, to, spline_color, selected ? 2.0f : 1.0f);
+								if (!selected)
+								{
+									continue;
+								}
+								const float delta_x = to.x - from.x;
+								const float delta_z = to.y - from.y;
+								const float length = std::sqrt(delta_x * delta_x + delta_z * delta_z);
+								if (length <= 0.0001f)
+								{
+									continue;
+								}
+								const float perpendicular_x = -delta_z / length;
+								const float perpendicular_z = delta_x / length;
+								const float half_width = spline.width * 0.5f;
+								const float outer_width = half_width + spline.edge_falloff;
+								for (int side = -1; side <= 1; side += 2)
+								{
+									const float side_scale = static_cast<float>(side);
+									const float2 width_offset = { perpendicular_x * half_width * side_scale, perpendicular_z * half_width * side_scale };
+									const float2 width_from = { from.x + width_offset.x, from.y + width_offset.y };
+									const float2 width_to = { to.x + width_offset.x, to.y + width_offset.y };
+									draw_segment(width_from, width_to, width_color, 1.5f);
+									if (spline.edge_falloff > 0.0f)
+									{
+										const float2 falloff_offset = { perpendicular_x * outer_width * side_scale, perpendicular_z * outer_width * side_scale };
+										const float2 falloff_from = { from.x + falloff_offset.x, from.y + falloff_offset.y };
+										const float2 falloff_to = { to.x + falloff_offset.x, to.y + falloff_offset.y };
+										draw_segment(falloff_from, falloff_to, falloff_color, 1.0f);
+									}
+								}
+							}
+
+							if (selected)
+							{
+								for (int point_index = 0; point_index < static_cast<int>(spline.points.size()); ++point_index)
+								{
+									float3 world_point = {};
+									float2 screen_point = {};
+									if (TerrainToWorld(data, world, spline.points[point_index], world_point) &&
+										editor_viewport.view->WorldToScreen(world_point, screen_point))
+									{
+										const bool point_selected = terrain_editor.selected_spline_point == point_index;
+										const ImU32 point_color = ToImGuiColorU32(point_selected ? theme::terrain_spline_selected_point_color : theme::terrain_spline_point_color);
+										const ImVec2 point_position = ImVec2(screen_point.x, screen_point.y);
+										draw_list->AddCircleFilled(point_position, point_selected ? 6.0f : 5.0f, point_color);
+										draw_list->AddCircle(point_position, point_selected ? 6.0f : 5.0f, spline_color, 0, 1.5f);
+									}
+								}
+							}
 						}
-						draw_list->PopClipRect();
+
+					if (terrain_editor.spline_mode == TerrainEditorState::SplineMode::AddPoint &&
+							terrain_editor.selected_spline >= 0 && terrain_editor.selected_spline < static_cast<int>(data.splines.size()) &&
+							editor_viewport.input_enabled)
+						{
+							const ImVec2 imgui_mouse = ImGui::GetMousePos();
+							const float2 mouse_pos = { imgui_mouse.x, imgui_mouse.y };
+							float3 local_hit = {};
+							if (RayCastTerrainViewport(*editor_viewport.view, mouse_pos, data, *terrain_transform, local_hit))
+							{
+								const TerrainSpline& spline = data.splines[terrain_editor.selected_spline];
+								const float2 cursor_point = { local_hit.x, local_hit.z };
+								if (!spline.points.empty())
+								{
+									draw_segment(spline.points.back(), cursor_point, spline_color, 1.0f);
+								}
+								float3 cursor_world = {};
+								float2 cursor_screen = {};
+								if (TerrainToWorld(data, world, cursor_point, cursor_world) && editor_viewport.view->WorldToScreen(cursor_world, cursor_screen))
+								{
+									draw_list->AddCircle(ImVec2(cursor_screen.x, cursor_screen.y), 5.0f, spline_color, 0, 1.5f);
+								}
+							}
+						}
 					}
+					draw_list->PopClipRect();
 				}
 			}
 		}
@@ -6307,7 +6504,7 @@ namespace won::editor
 				ImGui::SetNextWindowFocus();
 				terrain_editor.focus_window = false;
 			}
-			if (ImGui::Begin("Terrain Tools###TerrainTools", &terrain_editor.show_window))
+			if (ImGui::Begin(EditorLabel(editor_key::window_terrain_tools, editor_window_id::terrain_tools), &terrain_editor.show_window))
 			{
 				TerrainComponent* terrain = (terrain_editor.entity != ecs::INVALID_ENTITY)
 					? editor_viewport.view->scene->GetComponent<TerrainComponent>(terrain_editor.entity)
@@ -6339,32 +6536,155 @@ namespace won::editor
 						ImGui::TextDisabled("Terrain mode active");
 					}
 					ImGui::BeginDisabled(!terrain_mode);
-					ImGui::SeparatorText("Sculpt");
+					if (ImGui::RadioButton("Sculpt", terrain_editor.tool == TerrainEditorState::Tool::Sculpt))
+					{
+						terrain_editor.tool = TerrainEditorState::Tool::Sculpt;
+						terrain_editor.spline_mode = TerrainEditorState::SplineMode::Select;
+						terrain_editor.spline_drag_active = false;
+					}
+					ImGui::SameLine();
+					if (ImGui::RadioButton("Spline", terrain_editor.tool == TerrainEditorState::Tool::Spline))
+					{
+						terrain_editor.tool = TerrainEditorState::Tool::Spline;
+						if (terrain_editor.selected_spline < 0 && !data.splines.empty())
+						{
+							terrain_editor.selected_spline = 0;
+						}
+					}
 					ImGui::BeginDisabled(!data.IsValid());
-					if (ImGui::RadioButton("Raise", terrain_editor.brush == TerrainEditorState::Brush::Raise))
+					if (terrain_editor.tool == TerrainEditorState::Tool::Sculpt)
 					{
-						terrain_editor.brush = TerrainEditorState::Brush::Raise;
+						ImGui::SeparatorText("Sculpt");
+						if (ImGui::RadioButton("Raise", terrain_editor.sculpt_brush == TerrainEditorState::SculptBrush::Raise))
+						{
+							terrain_editor.sculpt_brush = TerrainEditorState::SculptBrush::Raise;
+						}
+						ImGui::SameLine();
+						if (ImGui::RadioButton("Lower", terrain_editor.sculpt_brush == TerrainEditorState::SculptBrush::Lower))
+						{
+							terrain_editor.sculpt_brush = TerrainEditorState::SculptBrush::Lower;
+						}
+						ImGui::SameLine();
+						if (ImGui::RadioButton("Flatten", terrain_editor.sculpt_brush == TerrainEditorState::SculptBrush::Flatten))
+						{
+							terrain_editor.sculpt_brush = TerrainEditorState::SculptBrush::Flatten;
+						}
+						ImGui::SameLine();
+						if (ImGui::RadioButton("Smooth", terrain_editor.sculpt_brush == TerrainEditorState::SculptBrush::Smooth))
+						{
+							terrain_editor.sculpt_brush = TerrainEditorState::SculptBrush::Smooth;
+						}
+						const float minimum_radius = (std::max)(0.1f, (std::min)(data.cell_x, data.cell_z));
+						const float maximum_radius = (std::max)(minimum_radius, (std::max)(data.world_size_x, data.world_size_z) * 0.5f);
+						ImGui::SliderFloat("Radius", &terrain_editor.radius, minimum_radius, maximum_radius, "%.2f");
+						ImGui::DragFloat("Strength", &terrain_editor.strength, 0.1f, 0.01f, 100.0f, "%.2f");
+						ImGui::SliderFloat("Falloff", &terrain_editor.falloff, 0.0f, 1.0f, "%.2f");
 					}
-					ImGui::SameLine();
-					if (ImGui::RadioButton("Lower", terrain_editor.brush == TerrainEditorState::Brush::Lower))
+					else
 					{
-						terrain_editor.brush = TerrainEditorState::Brush::Lower;
+						ImGui::SeparatorText("Splines");
+						if (terrain_editor.selected_spline >= static_cast<int>(data.splines.size()))
+						{
+							terrain_editor.selected_spline = -1;
+							terrain_editor.selected_spline_point = -1;
+							terrain_editor.spline_mode = TerrainEditorState::SplineMode::Select;
+						}
+						if (ImGui::Button("Add Spline", ImVec2(-1.0f, 0.0f)))
+						{
+							data.splines.emplace_back();
+							terrain_editor.selected_spline = static_cast<int>(data.splines.size()) - 1;
+							terrain_editor.selected_spline_point = -1;
+							terrain_editor.spline_mode = TerrainEditorState::SplineMode::AddPoint;
+							SaveTerrainChanges(terrain_editor.entity, *terrain);
+						}
+						if (ImGui::BeginListBox("##TerrainSplines", ImVec2(-1.0f, ImGui::GetTextLineHeightWithSpacing() * 5.0f)))
+						{
+							for (int spline_index = 0; spline_index < static_cast<int>(data.splines.size()); ++spline_index)
+							{
+								const String label = "Spline " + std::to_string(spline_index + 1) + "##TerrainSpline" + std::to_string(spline_index);
+								if (ImGui::Selectable(label.c_str(), terrain_editor.selected_spline == spline_index))
+								{
+									terrain_editor.selected_spline = spline_index;
+									terrain_editor.selected_spline_point = -1;
+									terrain_editor.spline_mode = TerrainEditorState::SplineMode::Select;
+								}
+							}
+							ImGui::EndListBox();
+						}
+						const bool has_selected_spline = terrain_editor.selected_spline >= 0 && terrain_editor.selected_spline < static_cast<int>(data.splines.size());
+						ImGui::BeginDisabled(!has_selected_spline);
+						if (ImGui::RadioButton("Select", terrain_editor.spline_mode == TerrainEditorState::SplineMode::Select))
+						{
+							terrain_editor.spline_mode = TerrainEditorState::SplineMode::Select;
+						}
+						ImGui::SameLine();
+						if (ImGui::RadioButton("Add Points", terrain_editor.spline_mode == TerrainEditorState::SplineMode::AddPoint))
+						{
+							terrain_editor.spline_mode = TerrainEditorState::SplineMode::AddPoint;
+							terrain_editor.selected_spline_point = -1;
+						}
+						if (terrain_editor.spline_mode == TerrainEditorState::SplineMode::AddPoint)
+						{
+							if (ImGui::Button("Finish", ImVec2(-1.0f, 0.0f)))
+							{
+								terrain_editor.spline_mode = TerrainEditorState::SplineMode::Select;
+							}
+							ImGui::TextDisabled("Click terrain to add points. Enter or Escape to finish.");
+						}
+						if (has_selected_spline)
+						{
+							TerrainSpline& spline = data.splines[terrain_editor.selected_spline];
+							bool spline_changed = false;
+							bool spline_committed = false;
+							if (ImGui::DragFloat("Width", &spline.width, 0.1f, 0.1f, 100000.0f, "%.2f"))
+							{
+								spline.width = (std::max)(0.1f, spline.width);
+								spline_changed = true;
+							}
+							spline_committed |= ImGui::IsItemDeactivatedAfterEdit();
+							if (ImGui::DragFloat("Edge Falloff", &spline.edge_falloff, 0.1f, 0.0f, 100000.0f, "%.2f"))
+							{
+								spline.edge_falloff = (std::max)(0.0f, spline.edge_falloff);
+								spline_changed = true;
+							}
+							spline_committed |= ImGui::IsItemDeactivatedAfterEdit();
+							if (ImGui::DragFloat("Target Height", &spline.target_height, 0.1f, -100000.0f, 100000.0f, "%.2f"))
+							{
+								spline_changed = true;
+							}
+							spline_committed |= ImGui::IsItemDeactivatedAfterEdit();
+							if (spline_changed)
+							{
+								RebuildTerrainMesh(terrain_editor.entity, data);
+							}
+							if (spline_committed)
+							{
+								SaveTerrainChanges(terrain_editor.entity, *terrain);
+							}
+							const bool has_selected_point = terrain_editor.selected_spline_point >= 0 && terrain_editor.selected_spline_point < static_cast<int>(spline.points.size());
+							ImGui::BeginDisabled(!has_selected_point);
+							if (ImGui::Button("Delete Point", ImVec2(-1.0f, 0.0f)))
+							{
+								spline.points.erase(spline.points.begin() + terrain_editor.selected_spline_point);
+								terrain_editor.selected_spline_point = -1;
+								RebuildTerrainMesh(terrain_editor.entity, data);
+								SaveTerrainChanges(terrain_editor.entity, *terrain);
+							}
+							ImGui::EndDisabled();
+							if (ImGui::Button("Delete Spline", ImVec2(-1.0f, 0.0f)))
+							{
+								data.splines.erase(data.splines.begin() + terrain_editor.selected_spline);
+								terrain_editor.selected_spline = data.splines.empty()
+									? -1
+									: (std::min)(terrain_editor.selected_spline, static_cast<int>(data.splines.size()) - 1);
+								terrain_editor.selected_spline_point = -1;
+								terrain_editor.spline_mode = TerrainEditorState::SplineMode::Select;
+								RebuildTerrainMesh(terrain_editor.entity, data);
+								SaveTerrainChanges(terrain_editor.entity, *terrain);
+							}
+						}
+						ImGui::EndDisabled();
 					}
-					ImGui::SameLine();
-					if (ImGui::RadioButton("Flatten", terrain_editor.brush == TerrainEditorState::Brush::Flatten))
-					{
-						terrain_editor.brush = TerrainEditorState::Brush::Flatten;
-					}
-					ImGui::SameLine();
-					if (ImGui::RadioButton("Smooth", terrain_editor.brush == TerrainEditorState::Brush::Smooth))
-					{
-						terrain_editor.brush = TerrainEditorState::Brush::Smooth;
-					}
-					const float minimum_radius = (std::max)(0.1f, (std::min)(data.cell_x, data.cell_z));
-					const float maximum_radius = (std::max)(minimum_radius, (std::max)(data.world_size_x, data.world_size_z) * 0.5f);
-					ImGui::SliderFloat("Radius", &terrain_editor.radius, minimum_radius, maximum_radius, "%.2f");
-					ImGui::DragFloat("Strength", &terrain_editor.strength, 0.1f, 0.01f, 100.0f, "%.2f");
-					ImGui::SliderFloat("Falloff", &terrain_editor.falloff, 0.0f, 1.0f, "%.2f");
 					ImGui::EndDisabled();
 					if (ImGui::CollapsingHeader("Noise", ImGuiTreeNodeFlags_DefaultOpen))
 					{
@@ -6392,26 +6712,15 @@ namespace won::editor
 						const char* generate_label = data.IsValid() ? EditorText(editor_key::action_regenerate_terrain) : "Create Terrain Data";
 						if (ImGui::Button(generate_label, ImVec2(-1.0f, 0.0f)))
 						{
-							GeometryComponent* geometry = editor_viewport.view->scene->GetComponent<GeometryComponent>(terrain_editor.entity);
-							if (geometry && device)
+							if (editor_viewport.view->scene->GetComponent<GeometryComponent>(terrain_editor.entity) && device)
 							{
 								BakeTerrainNoise(data);
-								auto terrain_mesh = GenerateTerrainMesh(data);
-								if (terrain_mesh && terrain_mesh->IsValid())
-								{
-									const String terrain_data_rel_path = terrain->terrain_data_path.empty()
-										? String(editor_asset_path::generated_directory) + "/terrain_" + std::to_string(terrain_editor.entity) + "." + resource::terrain_binary_extension
-										: terrain->terrain_data_path;
-									const String terrain_data_full_path = io::CombinePath(contents_root_dir, terrain_data_rel_path);
-									io::CreateDirectories(io::GetDirectoryFromPath(terrain_data_full_path));
-									SaveTerrainBinary(terrain_data_full_path, data);
-									terrain->terrain_data_path = terrain_data_rel_path;
-									QueueTerrainMeshUpdate(terrain_editor.entity, terrain_mesh);
-									if (Collider3DComponent* collider = editor_viewport.view->scene->GetComponent<Collider3DComponent>(terrain_editor.entity))
-									{
-										collider->SetDirty();
-									}
-								}
+								terrain->terrain_data_path = terrain->terrain_data_path.empty()
+									? String(editor_asset_path::generated_directory) + "/terrain_" + std::to_string(terrain_editor.entity) + "." + resource::terrain_binary_extension
+									: terrain->terrain_data_path;
+								io::CreateDirectories(io::GetDirectoryFromPath(io::CombinePath(contents_root_dir, terrain->terrain_data_path)));
+								RebuildTerrainMesh(terrain_editor.entity, data);
+								SaveTerrainChanges(terrain_editor.entity, *terrain);
 							}
 						}
 					}

@@ -164,6 +164,43 @@ namespace won::rendering
         return true;
     }
 
+    bool View::WorldToScreen(const float3& world_position, float2& out_screen_position) const
+    {
+        out_screen_position = {};
+        if (!scene || viewport.width <= 0 || viewport.height <= 0 || camera_entity == ecs::INVALID_ENTITY)
+        {
+            return false;
+        }
+
+        const ecs::CameraComponent* camera = scene->GetComponent<ecs::CameraComponent>(camera_entity);
+        if (!camera)
+        {
+            return false;
+        }
+
+        const XMVECTOR projected = XMVector3Project(
+            XMLoadFloat3(&world_position),
+            static_cast<float>(viewport.x),
+            static_cast<float>(viewport.y),
+            static_cast<float>(viewport.width),
+            static_cast<float>(viewport.height),
+            0.0f,
+            1.0f,
+            XMLoadFloat4x4(&camera->projection),
+            XMLoadFloat4x4(&camera->view),
+            XMMatrixIdentity());
+
+        float3 projected_position = {};
+        XMStoreFloat3(&projected_position, projected);
+        if (projected_position.z < 0.0f || projected_position.z > 1.0f)
+        {
+            return false;
+        }
+
+        out_screen_position = { projected_position.x, projected_position.y };
+        return true;
+    }
+
     bool View::RayCast(float2 screen_position, ecs::RayCastHit& out_hit, bool use_local_bvh, uint32 layer_mask) const
     {
         out_hit = {};

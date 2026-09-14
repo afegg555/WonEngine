@@ -101,6 +101,28 @@ namespace won::ecs
         CompositeTerrainHeights(data);
     }
 
+    bool SampleTerrainHeight(const TerrainData& data, const float2& local_position, float& out_height)
+    {
+        const Size sample_count = static_cast<Size>(data.samples_x) * data.samples_z;
+        if (!data.IsValid() || data.final_heights.size() != sample_count || data.cell_x <= 0.0f || data.cell_z <= 0.0f)
+        {
+            return false;
+        }
+
+        const float grid_x = math::Clamp((local_position.x - data.offset_x) / data.cell_x, 0.0f, static_cast<float>(data.samples_x - 1));
+        const float grid_z = math::Clamp((local_position.y - data.offset_z) / data.cell_z, 0.0f, static_cast<float>(data.samples_z - 1));
+        const uint32 x0 = static_cast<uint32>(std::floor(grid_x));
+        const uint32 z0 = static_cast<uint32>(std::floor(grid_z));
+        const uint32 x1 = (std::min)(x0 + 1, data.samples_x - 1);
+        const uint32 z1 = (std::min)(z0 + 1, data.samples_z - 1);
+        const float tx = grid_x - static_cast<float>(x0);
+        const float tz = grid_z - static_cast<float>(z0);
+        const float height0 = math::Lerp(data.final_heights[static_cast<Size>(z0) * data.samples_x + x0], data.final_heights[static_cast<Size>(z0) * data.samples_x + x1], tx);
+        const float height1 = math::Lerp(data.final_heights[static_cast<Size>(z1) * data.samples_x + x0], data.final_heights[static_cast<Size>(z1) * data.samples_x + x1], tx);
+        out_height = math::Lerp(height0, height1, tz);
+        return true;
+    }
+
     bool RayCastTerrain(const TerrainData& data, const math::Ray& local_ray, float3& out_local_hit)
     {
         const Size sample_count = static_cast<Size>(data.samples_x) * data.samples_z;

@@ -18,6 +18,8 @@ using namespace won::rendering;
 namespace won::ecs
 {
 	struct CameraComponent;
+	struct TerrainComponent;
+	struct TerrainData;
 	struct TransformComponent;
 }
 
@@ -104,7 +106,8 @@ namespace won::editor
 		void PerformUndo();
 		void PerformRedo();
 		void ResetInspectorBaseline();
-		void QueueTerrainMeshUpdate(ecs::Entity entity, const std::shared_ptr<resource::Mesh>& mesh);
+		void RebuildTerrainMesh(ecs::Entity entity, ecs::TerrainData& data);
+		void SaveTerrainChanges(ecs::Entity entity, ecs::TerrainComponent& terrain);
 
 	private:
 		enum class ContentAssetType
@@ -228,7 +231,13 @@ namespace won::editor
 
 		struct TerrainEditorState
 		{
-			enum class Brush
+			enum class Tool
+			{
+				Sculpt,
+				Spline,
+			};
+
+			enum class SculptBrush
 			{
 				Raise,
 				Lower,
@@ -236,8 +245,18 @@ namespace won::editor
 				Smooth,
 			};
 
+			enum class SplineMode
+			{
+				Select,
+				AddPoint,
+			};
+
 			ecs::Entity entity = ecs::INVALID_ENTITY;
-			Brush brush = Brush::Raise;
+			Tool tool = Tool::Sculpt;
+			SculptBrush sculpt_brush = SculptBrush::Raise;
+			SplineMode spline_mode = SplineMode::Select;
+			int selected_spline = -1;
+			int selected_spline_point = -1;
 			float radius = 5.0f;
 			float strength = 2.0f;
 			float falloff = 1.0f;
@@ -247,6 +266,8 @@ namespace won::editor
 			uint32 dock_id = 0;
 			bool show_window = false;
 			bool stroke_active = false;
+			bool spline_drag_active = false;
+			bool spline_drag_changed = false;
 			bool mesh_update_pending = false;
 			bool dock_pending = false;
 			bool focus_window = false;
