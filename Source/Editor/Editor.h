@@ -233,6 +233,7 @@ namespace won::editor
 				Raise,
 				Lower,
 				Flatten,
+				Smooth,
 			};
 
 			ecs::Entity entity = ecs::INVALID_ENTITY;

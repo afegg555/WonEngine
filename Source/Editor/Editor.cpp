@@ -1580,6 +1580,39 @@ namespace won::editor
 					const int max_x = (std::min)(static_cast<int>(data.samples_x) - 1, static_cast<int>(std::ceil((local_hit.x + radius - data.offset_x) / data.cell_x)));
 					const int min_z = (std::max)(0, static_cast<int>(std::floor((local_hit.z - radius - data.offset_z) / data.cell_z)));
 					const int max_z = (std::min)(static_cast<int>(data.samples_z) - 1, static_cast<int>(std::ceil((local_hit.z + radius - data.offset_z) / data.cell_z)));
+					Vector<float> smooth_targets;
+					if (terrain_editor.brush == TerrainEditorState::Brush::Smooth)
+					{
+						const int smooth_width = max_x - min_x + 1;
+						const int smooth_height = max_z - min_z + 1;
+						smooth_targets.resize(static_cast<Size>(smooth_width) * smooth_height);
+						for (int z = min_z; z <= max_z; ++z)
+						{
+							for (int x = min_x; x <= max_x; ++x)
+							{
+								float height_sum = 0.0f;
+								int height_count = 0;
+								const int neighbor_min_x = (std::max)(0, x - 1);
+								const int neighbor_max_x = (std::min)(static_cast<int>(data.samples_x) - 1, x + 1);
+								const int neighbor_min_z = (std::max)(0, z - 1);
+								const int neighbor_max_z = (std::min)(static_cast<int>(data.samples_z) - 1, z + 1);
+								for (int neighbor_z = neighbor_min_z; neighbor_z <= neighbor_max_z; ++neighbor_z)
+								{
+									for (int neighbor_x = neighbor_min_x; neighbor_x <= neighbor_max_x; ++neighbor_x)
+									{
+										const Size neighbor_index = static_cast<Size>(neighbor_z) * data.samples_x + static_cast<uint32>(neighbor_x);
+										const float neighbor_height = data.flatten_mask[neighbor_index] != 0
+											? data.flatten_height[neighbor_index]
+											: data.base_heights[neighbor_index] + data.height_delta[neighbor_index];
+										height_sum += neighbor_height;
+										++height_count;
+									}
+								}
+								const Size smooth_index = static_cast<Size>(z - min_z) * smooth_width + static_cast<Size>(x - min_x);
+								smooth_targets[smooth_index] = height_sum / static_cast<float>(height_count);
+							}
+						}
+					}
 					bool terrain_changed = false;
 					for (int z = min_z; z <= max_z; ++z)
 					{
@@ -1605,6 +1638,24 @@ namespace won::editor
 								const float alpha = math::Saturate(terrain_editor.strength * dt * weight);
 								data.flatten_height[index] = math::Lerp(data.final_heights[index], terrain_editor.flatten_height, alpha);
 								data.flatten_mask[index] = 1u;
+							}
+							else if (terrain_editor.brush == TerrainEditorState::Brush::Smooth)
+							{
+								const int smooth_width = max_x - min_x + 1;
+								const Size smooth_index = static_cast<Size>(z - min_z) * smooth_width + static_cast<Size>(x - min_x);
+								const float source_height = data.flatten_mask[index] != 0
+									? data.flatten_height[index]
+									: data.base_heights[index] + data.height_delta[index];
+								const float alpha = math::Saturate(terrain_editor.strength * dt * weight);
+								const float smoothed_height = math::Lerp(source_height, smooth_targets[smooth_index], alpha);
+								if (data.flatten_mask[index] != 0)
+								{
+									data.flatten_height[index] = smoothed_height;
+								}
+								else
+								{
+									data.height_delta[index] += smoothed_height - source_height;
+								}
 							}
 							else
 							{
@@ -6311,6 +6362,11 @@ namespace won::editor
 					if (ImGui::RadioButton("Flatten", terrain_editor.brush == TerrainEditorState::Brush::Flatten))
 					{
 						terrain_editor.brush = TerrainEditorState::Brush::Flatten;
+					}
+					ImGui::SameLine();
+					if (ImGui::RadioButton("Smooth", terrain_editor.brush == TerrainEditorState::Brush::Smooth))
+					{
+						terrain_editor.brush = TerrainEditorState::Brush::Smooth;
 					}
 					const float minimum_radius = (std::max)(0.1f, (std::min)(data.cell_x, data.cell_z));
 					const float maximum_radius = (std::max)(minimum_radius, (std::max)(data.world_size_x, data.world_size_z) * 0.5f);
