@@ -42,6 +42,11 @@
             "text": "인스펙터",
             "comment": "window title"
         },
+        "editor.window.terrain_tools": {
+            "source": "Terrain Tools",
+            "text": "지형 도구",
+            "comment": "window title and Window menu item"
+        },
         "editor.window.log": {
             "source": "Log",
             "text": "로그",

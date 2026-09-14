@@ -42,6 +42,11 @@
             "text": "Inspector",
             "comment": "window title"
         },
+        "editor.window.terrain_tools": {
+            "source": "Terrain Tools",
+            "text": "Terrain Tools",
+            "comment": "window title and Window menu item"
+        },
         "editor.window.log": {
             "source": "Log",
             "text": "Log",

@@ -457,6 +457,7 @@ namespace won::editor::editor_key
     constexpr const char* window_profiler = "editor.window.profiler";
     constexpr const char* window_project_localization = "editor.window.project_localization";
     constexpr const char* window_project_settings = "editor.window.project_settings";
+    constexpr const char* window_terrain_tools = "editor.window.terrain_tools";
     constexpr const char* window_save_current_scene = "editor.window.save_current_scene";
     constexpr const char* window_viewport = "editor.window.viewport";
 }

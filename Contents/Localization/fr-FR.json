@@ -34,6 +34,10 @@
             "source": "Inspector",
             "text": "Inspecteur"
         },
+        "editor.window.terrain_tools": {
+            "source": "Terrain Tools",
+            "text": "Outils de terrain"
+        },
         "editor.window.log": {
             "source": "Log",
             "text": "Journal"
