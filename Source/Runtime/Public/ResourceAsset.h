@@ -7,7 +7,7 @@
 #include "RuntimeExport.h"
 #include "Types.h"
 
-namespace won::ecs { class Scene; }
+namespace won::ecs { class Scene; struct TerrainComponent; }
 namespace won::rendering { class RHIDevice; }
 
 namespace won::resource
@@ -68,9 +68,10 @@ namespace won::resource
     // Saves the material and registers this exact instance as the path's cache entry, so subsequent
     // loads of the same path share it (keeping its already-resolved GPU texture handles).
     WONENGINE_API bool SaveMaterialBinary(const String& path, const std::shared_ptr<Material>& material);
-    WONENGINE_API std::shared_ptr<Material> LoadMaterialBinary(const String& path);
+	WONENGINE_API std::shared_ptr<Material> LoadMaterialBinary(const String& path);
 
-    WONENGINE_API void LoadSceneResources(ecs::Scene& scene, const String& content_root, bool parallel = true);
+    WONENGINE_API void LoadTerrainResource(ecs::TerrainComponent& terrain, const String& content_root);
+	WONENGINE_API void LoadSceneResources(ecs::Scene& scene, const String& content_root, bool parallel = true);
     WONENGINE_API bool BuildSceneNavMesh(ecs::Scene& scene, const String& content_root);
     WONENGINE_API void LoadEntityResources(ecs::Scene& scene, const String& content_root, const Vector<ecs::Entity>& entities);
 }

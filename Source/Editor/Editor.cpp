@@ -1,4 +1,4 @@
-﻿#include "Editor.h"
+#include "Editor.h"
 #include "EditorTextKeys.h"
 #include "FrameGraph.h"
 #include "Input.h"
@@ -64,6 +64,16 @@ namespace won::editor
 	static UnorderedMap<String, String> editor_field_labels;
 	static UnorderedMap<String, String> editor_enum_labels;
 	static uint32 editor_window_title_revision = 0;
+
+	static ImVec4 ToImGuiColor(const float4& color)
+	{
+		return ImVec4(color.x, color.y, color.z, color.w);
+	}
+
+	static ImU32 ToImGuiColorU32(const float4& color)
+	{
+		return ImGui::ColorConvertFloat4ToU32(ToImGuiColor(color));
+	}
 
 	static const char* EditorText(const char* key)
 	{
@@ -190,6 +200,7 @@ namespace won::editor
 			constexpr const char* viewport = "###Viewport";
 			constexpr const char* entity_list = "###EntityList";
 			constexpr const char* inspector = "###Inspector";
+			constexpr const char* terrain_tools = "###TerrainTools";
 			constexpr const char* log = "###Log";
 			constexpr const char* profiler = "###Profiler";
 			constexpr const char* contents_browser = "###ContentsBrowser";
@@ -488,7 +499,7 @@ namespace won::editor
 			}
 		}
 
-		bool DrawReflectedComponent(ecs::Scene& scene, ecs::Entity entity, const won::TypeDesc* type_desc, bool* out_changed = nullptr)
+		bool DrawReflectedComponent(ecs::Scene& scene, ecs::Entity entity, const won::TypeDesc* type_desc, bool* out_changed = nullptr, bool* out_open = nullptr)
 		{
 			if (!type_desc || IsDefaultComponent(type_desc->type_id))
 			{
@@ -504,6 +515,10 @@ namespace won::editor
 			const char* component_name = GetTypeDisplayName(type_desc);
 			ImGui::PushID(type_desc->name ? type_desc->name : component_name);
 			const bool component_open = DrawComponentCollapsingHeader(component_name);
+			if (out_open)
+			{
+				*out_open = component_open;
+			}
 			const bool remove_component = DrawComponentRemoveButton(component_name);
 			if (!remove_component && component_open && type_desc->fields && type_desc->field_count > 0)
 			{
@@ -727,6 +742,7 @@ namespace won::editor
 
 			ImGui::DockBuilderDockWindow(editor_window_id::viewport, dock_main);
 			ImGui::DockBuilderDockWindow(editor_window_id::inspector, dock_right);
+			ImGui::DockBuilderDockWindow(editor_window_id::terrain_tools, dock_right);
 			ImGui::DockBuilderDockWindow(editor_window_id::contents_browser, dock_bottom);
 			ImGui::DockBuilderDockWindow(editor_window_id::log, dock_bottom);
 			ImGui::DockBuilderDockWindow(editor_window_id::profiler, dock_bottom);
@@ -773,6 +789,23 @@ namespace won::editor
 			draw_list->AddLine(from_screen, to_screen, color, thickness);
 		}
 
+		bool RayCastTerrainViewport(const rendering::View& view, const float2& screen_position, const TerrainData& data, const TransformComponent& transform, float3& out_local_hit)
+		{
+			math::Ray world_ray = {};
+			if (!view.ScreenToRay(screen_position, world_ray))
+			{
+				return false;
+			}
+
+			const XMMATRIX inverse_world = XMMatrixInverse(nullptr, transform.GetWorldTransform());
+			const XMVECTOR world_origin = XMLoadFloat3(&world_ray.origin);
+			const XMVECTOR world_direction = XMVector3Normalize(XMLoadFloat3(&world_ray.direction));
+			math::Ray local_ray = {};
+			XMStoreFloat3(&local_ray.origin, XMVector3TransformCoord(world_origin, inverse_world));
+			XMStoreFloat3(&local_ray.direction, XMVector3Normalize(XMVector3TransformNormal(world_direction, inverse_world)));
+			return RayCastTerrain(data, local_ray, out_local_hit);
+		}
+
 		void DrawWorldAABB(ImDrawList* draw_list, const ecs::CameraComponent& camera, const ImVec2& viewport_pos, const ImVec2& viewport_size, const float3& bounds_min, const float3& bounds_max, ImU32 color, float thickness = 1.0f)
 		{
 			const float3 corners[8] = {
@@ -817,12 +850,12 @@ namespace won::editor
 			const ImVec2 bg_min = align_right ? ImVec2(start_position.x - block_width - 4.0f, start_position.y + 4.0f) : start_position + ImVec2(4.0f, 4.0f);
 			const ImVec2 bg_max = ImVec2(bg_min.x + block_width, bg_min.y + block_height);
 			ImVec2 text_cursor = bg_min + ImVec2(6.0f, 6.0f);
-			draw_list->AddRectFilled(bg_min, bg_max, IM_COL32(18, 18, 18, 180), 6.0f);
-			draw_list->AddRect(bg_min, bg_max, IM_COL32(90, 90, 90, 200), 6.0f);
+			draw_list->AddRectFilled(bg_min, bg_max, ToImGuiColorU32(theme::viewport_text_block_background_color), 6.0f);
+			draw_list->AddRect(bg_min, bg_max, ToImGuiColorU32(theme::viewport_text_block_border_color), 6.0f);
 
 			for (const String& line : lines)
 			{
-				draw_list->AddText(text_cursor, IM_COL32(230, 230, 230, 255), line.c_str());
+				draw_list->AddText(text_cursor, ToImGuiColorU32(theme::viewport_text_block_text_color), line.c_str());
 				text_cursor.y += line_height;
 			}
 		}
@@ -1216,6 +1249,54 @@ namespace won::editor
 		Application::Shutdown();
 	}
 
+	void EditorApplication::QueueTerrainMeshUpdate(ecs::Entity entity, const std::shared_ptr<resource::Mesh>& mesh)
+	{
+		terrain_editor.pending_mesh = mesh;
+		terrain_editor.pending_mesh_entity = entity;
+		if (terrain_editor.mesh_update_pending)
+		{
+			return;
+		}
+		terrain_editor.mesh_update_pending = true;
+		eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this](const won::function::Value&) {
+			std::shared_ptr<resource::Mesh> mesh = std::move(terrain_editor.pending_mesh);
+			const ecs::Entity entity = terrain_editor.pending_mesh_entity;
+			terrain_editor.pending_mesh_entity = ecs::INVALID_ENTITY;
+			terrain_editor.mesh_update_pending = false;
+			if (!mesh || !editor_viewport.view || !editor_viewport.view->scene)
+			{
+				return;
+			}
+			GeometryComponent* geometry = editor_viewport.view->scene->GetComponent<GeometryComponent>(entity);
+			if (!geometry || !device || !rendering::utils::CreateRenderData(*device, *mesh))
+			{
+				return;
+			}
+			if (geometry->mesh && geometry->mesh != mesh)
+			{
+				EditorViewport::DeferredResRemoval deferred_res_removal = {};
+				deferred_res_removal.frames_left = 8;
+				deferred_res_removal.meshes.push_back(geometry->mesh);
+				if (geometry->mesh->render_data.buffer)
+				{
+					deferred_res_removal.resources.push_back(geometry->mesh->render_data.buffer);
+				}
+				if (geometry->mesh->gpu_bvh.node_buffer)
+				{
+					deferred_res_removal.resources.push_back(geometry->mesh->gpu_bvh.node_buffer);
+				}
+				if (geometry->mesh->gpu_bvh.primitive_buffer)
+				{
+					deferred_res_removal.resources.push_back(geometry->mesh->gpu_bvh.primitive_buffer);
+				}
+				editor_viewport.deferred_res_removals.push_back(std::move(deferred_res_removal));
+			}
+			geometry->mesh_asset_path.clear();
+			geometry->SetMesh(mesh);
+			editor_viewport.view->scene->SetBVHDirty();
+		});
+	}
+
 	void EditorApplication::Update(float dt)
 	{
 		auto editor_update_range = profiler::ScopedRangeCPU("Update Editor");
@@ -1253,6 +1334,36 @@ namespace won::editor
 				{
 					PerformUndo();
 				}
+			}
+			if (editor_viewport.tool_mode == EditorViewport::ToolMode::Terrain && !terrain_editor.stroke_active && io::IsPressed(io::KEYBOARD_BUTTON_ESCAPE))
+			{
+				editor_viewport.tool_mode = EditorViewport::ToolMode::Object;
+				terrain_editor.focus_inspector = true;
+			}
+		}
+
+		if (is_playing)
+		{
+			if (editor_viewport.tool_mode != EditorViewport::ToolMode::Object)
+			{
+				terrain_editor.focus_inspector = true;
+			}
+			editor_viewport.tool_mode = EditorViewport::ToolMode::Object;
+			terrain_editor.stroke_active = false;
+		}
+		else if (editor_viewport.tool_mode == EditorViewport::ToolMode::Terrain)
+		{
+			TerrainComponent* selected_terrain = editor_viewport.picked_entity != ecs::INVALID_ENTITY
+				? editor_viewport.view->scene->GetComponent<TerrainComponent>(editor_viewport.picked_entity)
+				: nullptr;
+			if (selected_terrain)
+			{
+				terrain_editor.entity = editor_viewport.picked_entity;
+			}
+			else if (!terrain_editor.stroke_active)
+			{
+				editor_viewport.tool_mode = EditorViewport::ToolMode::Object;
+				terrain_editor.focus_inspector = true;
 			}
 		}
 
@@ -1421,8 +1532,125 @@ namespace won::editor
 				editor_viewport.input_enabled &&
 				0 <= viewport_mouse_pos.x && viewport_mouse_pos.x <= main_viewport_size.x &&
 				0 <= viewport_mouse_pos.y && viewport_mouse_pos.y <= main_viewport_size.y;
+			const bool pointer_inside_viewport =
+				0 <= viewport_mouse_pos.x && viewport_mouse_pos.x <= main_viewport_size.x &&
+				0 <= viewport_mouse_pos.y && viewport_mouse_pos.y <= main_viewport_size.y;
 
-			if (can_control_viewport && io::IsPressed(io::Button::MOUSE_BUTTON_LEFT))
+			TerrainComponent* edited_terrain = (editor_viewport.tool_mode == EditorViewport::ToolMode::Terrain || terrain_editor.stroke_active) && terrain_editor.entity != ecs::INVALID_ENTITY
+				? editor_viewport.view->scene->GetComponent<TerrainComponent>(terrain_editor.entity)
+				: nullptr;
+			TransformComponent* terrain_transform = edited_terrain
+				? editor_viewport.view->scene->GetComponent<TransformComponent>(terrain_editor.entity)
+				: nullptr;
+			const bool can_edit_terrain = edited_terrain && edited_terrain->data && edited_terrain->data->IsValid() &&
+				edited_terrain->data->final_heights.size() == static_cast<Size>(edited_terrain->data->samples_x) * edited_terrain->data->samples_z && terrain_transform;
+
+			if (editor_viewport.tool_mode == EditorViewport::ToolMode::Terrain && can_edit_terrain && can_control_viewport && io::IsPressed(io::Button::MOUSE_BUTTON_LEFT))
+			{
+				float3 local_hit = {};
+				if (RayCastTerrainViewport(*editor_viewport.view, mouse_pos, *edited_terrain->data, *terrain_transform, local_hit))
+				{
+					terrain_editor.flatten_height = local_hit.y;
+					terrain_editor.stroke_active = true;
+				}
+			}
+
+			if (can_edit_terrain && terrain_editor.stroke_active && pointer_inside_viewport && io::IsDown(io::Button::MOUSE_BUTTON_LEFT))
+			{
+				float3 local_hit = {};
+				if (RayCastTerrainViewport(*editor_viewport.view, mouse_pos, *edited_terrain->data, *terrain_transform, local_hit))
+				{
+					TerrainData& data = *edited_terrain->data;
+					const Size sample_count = static_cast<Size>(data.samples_x) * data.samples_z;
+					if (data.height_delta.size() != sample_count)
+					{
+						data.height_delta.assign(sample_count, 0.0f);
+					}
+					if (data.flatten_mask.size() != sample_count)
+					{
+						data.flatten_mask.assign(sample_count, 0u);
+					}
+					if (data.flatten_height.size() != sample_count)
+					{
+						data.flatten_height.assign(sample_count, 0.0f);
+					}
+
+					const float radius = (std::max)(terrain_editor.radius, (std::min)(data.cell_x, data.cell_z));
+					const int min_x = (std::max)(0, static_cast<int>(std::floor((local_hit.x - radius - data.offset_x) / data.cell_x)));
+					const int max_x = (std::min)(static_cast<int>(data.samples_x) - 1, static_cast<int>(std::ceil((local_hit.x + radius - data.offset_x) / data.cell_x)));
+					const int min_z = (std::max)(0, static_cast<int>(std::floor((local_hit.z - radius - data.offset_z) / data.cell_z)));
+					const int max_z = (std::min)(static_cast<int>(data.samples_z) - 1, static_cast<int>(std::ceil((local_hit.z + radius - data.offset_z) / data.cell_z)));
+					bool terrain_changed = false;
+					for (int z = min_z; z <= max_z; ++z)
+					{
+						for (int x = min_x; x <= max_x; ++x)
+						{
+							const float sample_x = data.offset_x + static_cast<float>(x) * data.cell_x;
+							const float sample_z = data.offset_z + static_cast<float>(z) * data.cell_z;
+							const float delta_x = sample_x - local_hit.x;
+							const float delta_z = sample_z - local_hit.z;
+							const float distance = std::sqrt(delta_x * delta_x + delta_z * delta_z);
+							if (distance > radius)
+							{
+								continue;
+							}
+
+							const float inner_radius = radius * (1.0f - math::Saturate(terrain_editor.falloff));
+							const float weight = distance <= inner_radius || radius <= inner_radius
+								? 1.0f
+								: 1.0f - math::SmoothStep(inner_radius, radius, distance);
+							const Size index = static_cast<Size>(z) * data.samples_x + static_cast<uint32>(x);
+							if (terrain_editor.brush == TerrainEditorState::Brush::Flatten)
+							{
+								const float alpha = math::Saturate(terrain_editor.strength * dt * weight);
+								data.flatten_height[index] = math::Lerp(data.final_heights[index], terrain_editor.flatten_height, alpha);
+								data.flatten_mask[index] = 1u;
+							}
+							else
+							{
+								const float direction = terrain_editor.brush == TerrainEditorState::Brush::Raise ? 1.0f : -1.0f;
+								const float height_change = direction * terrain_editor.strength * dt * weight;
+								if (data.flatten_mask[index] != 0)
+								{
+									data.flatten_height[index] += height_change;
+								}
+								else
+								{
+									data.height_delta[index] += height_change;
+								}
+							}
+							terrain_changed = true;
+						}
+					}
+
+					if (terrain_changed)
+					{
+						CompositeTerrainHeights(data);
+						std::shared_ptr<resource::Mesh> terrain_mesh = GenerateTerrainMesh(data);
+						if (terrain_mesh && terrain_mesh->IsValid())
+						{
+							QueueTerrainMeshUpdate(terrain_editor.entity, terrain_mesh);
+						}
+					}
+				}
+			}
+
+			if (terrain_editor.stroke_active && io::IsReleased(io::Button::MOUSE_BUTTON_LEFT))
+			{
+				if (can_edit_terrain)
+				{
+					if (!edited_terrain->terrain_data_path.empty())
+					{
+						SaveTerrainBinary(io::CombinePath(contents_root_dir, edited_terrain->terrain_data_path), *edited_terrain->data);
+					}
+					if (Collider3DComponent* collider = editor_viewport.view->scene->GetComponent<Collider3DComponent>(terrain_editor.entity))
+					{
+						collider->SetDirty();
+					}
+				}
+				terrain_editor.stroke_active = false;
+			}
+			else if (editor_viewport.tool_mode == EditorViewport::ToolMode::Object && can_control_viewport && io::IsPressed(io::Button::MOUSE_BUTTON_LEFT))
 			{
 				ecs::RayCastHit hit = {};
 				if (editor_viewport.view->RayCast(mouse_pos, hit, true))
@@ -1719,11 +1947,11 @@ namespace won::editor
 				}
 				else if (t.state == BackgroundTask::State::Done)
 				{
-					ImGui::TextColored(ImVec4(0.40f, 0.85f, 0.40f, 1.0f), "done: %s", t.name.c_str());
+					ImGui::TextColored(ToImGuiColor(theme::status_success_color), "done: %s", t.name.c_str());
 				}
 				else
 				{
-					ImGui::TextColored(ImVec4(0.90f, 0.35f, 0.35f, 1.0f), "failed: %s", t.name.c_str());
+					ImGui::TextColored(ToImGuiColor(theme::status_error_color), "failed: %s", t.name.c_str());
 				}
 			}
 		}
@@ -2132,9 +2360,6 @@ namespace won::editor
 			}
 		};
 
-		auto to_u32 = [](const float4& color) { return ImGui::ColorConvertFloat4ToU32(ImVec4(color.x, color.y, color.z, color.w)); };
-		auto to_vec4 = [](const float4& color) { return ImVec4(color.x, color.y, color.z, color.w); };
-
 		ImGui::PushID(asset.virtual_path.c_str());
 		ImGui::BeginGroup();
 		const String asset_ext = won::utils::ToLower(io::GetExtension(asset.disk_path));
@@ -2151,7 +2376,7 @@ namespace won::editor
 			const ImVec2 icon_max = ImGui::GetItemRectMax();
 			const float dot_radius = 5.0f;
 			const ImVec2 dot_center = ImVec2(icon_max.x - dot_radius - 3.0f, icon_min.y + dot_radius + 3.0f);
-			const ImU32 dot_color = to_u32((import_kind != AssetImportKind::None) ? theme::asset_source_color : theme::asset_imported_color);
+			const ImU32 dot_color = ToImGuiColorU32((import_kind != AssetImportKind::None) ? theme::asset_source_color : theme::asset_imported_color);
 			ImGui::GetWindowDrawList()->AddCircleFilled(dot_center, dot_radius, dot_color);
 		}
 		if (asset.has_broken_reference || asset.needs_reimport)
@@ -2159,7 +2384,7 @@ namespace won::editor
 			const ImVec2 broken_icon_min = ImGui::GetItemRectMin();
 			const float broken_dot_radius = 5.0f;
 			const ImVec2 broken_dot_center = ImVec2(broken_icon_min.x + broken_dot_radius + 3.0f, broken_icon_min.y + broken_dot_radius + 3.0f);
-			const ImU32 broken_dot_color = to_u32(asset.has_broken_reference ? theme::asset_broken_color : theme::asset_needs_reimport_color);
+			const ImU32 broken_dot_color = ToImGuiColorU32(asset.has_broken_reference ? theme::asset_broken_color : theme::asset_needs_reimport_color);
 			ImGui::GetWindowDrawList()->AddCircleFilled(broken_dot_center, broken_dot_radius, broken_dot_color);
 		}
 		if (ImGui::BeginDragDropSource())
@@ -2173,11 +2398,11 @@ namespace won::editor
 		ImGui::TextWrapped("%s", asset.name.c_str());
 		if (import_kind != AssetImportKind::None)
 		{
-			ImGui::TextColored(to_vec4(theme::asset_source_color), "%s (source)", type_name(asset.type));
+			ImGui::TextColored(ToImGuiColor(theme::asset_source_color), "%s (source)", type_name(asset.type));
 		}
 		else if (is_imported_binary)
 		{
-			ImGui::TextColored(to_vec4(theme::asset_imported_color), "%s (imported)", type_name(asset.type));
+			ImGui::TextColored(ToImGuiColor(theme::asset_imported_color), "%s (imported)", type_name(asset.type));
 		}
 		else
 		{
@@ -2268,11 +2493,11 @@ namespace won::editor
 			}
 			if (asset.has_broken_reference)
 			{
-				ImGui::TextColored(to_vec4(theme::asset_broken_color), "%s", asset.broken_reason.c_str());
+				ImGui::TextColored(ToImGuiColor(theme::asset_broken_color), "%s", asset.broken_reason.c_str());
 			}
 			else if (asset.needs_reimport)
 			{
-				ImGui::TextColored(to_vec4(theme::asset_needs_reimport_color), "%s", EditorText(editor_key::label_asset_needs_reimport));
+				ImGui::TextColored(ToImGuiColor(theme::asset_needs_reimport_color), "%s", EditorText(editor_key::label_asset_needs_reimport));
 			}
 			ImGui::EndTooltip();
 		}
@@ -2581,7 +2806,7 @@ namespace won::editor
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-		ImGui::PushStyleColor(ImGuiCol_WindowBg, IM_COL32(0, 0, 0, 0));
+		ImGui::PushStyleColor(ImGuiCol_WindowBg, ToImGuiColor(theme::transparent_color));
 		ImGui::Begin(editor_window_id::main, NULL, flags);
 
 		ImGui::PopStyleVar(3);
@@ -3124,11 +3349,49 @@ namespace won::editor
 					viewport_title.resize(viewport_title.size() - extension.size() - 1);
 				}
 			}
-			ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.52f, 0.52f, 0.49f, 1.0f));
+			ImGui::PushStyleColor(ImGuiCol_Text, ToImGuiColor(theme::viewport_title_color));
 			ImGui::TextUnformatted(ICON_MD_DATA_OBJECT);
 			ImGui::SameLine(0.0f, 6.0f);
 			ImGui::TextUnformatted(viewport_title.c_str());
 			ImGui::PopStyleColor();
+
+			const bool terrain_selected = editor_viewport.picked_entity != ecs::INVALID_ENTITY &&
+				editor_viewport.view->scene->GetComponent<TerrainComponent>(editor_viewport.picked_entity) != nullptr;
+			ImGui::SameLine(0.0f, 16.0f);
+			const bool object_mode = editor_viewport.tool_mode == EditorViewport::ToolMode::Object;
+			if (object_mode)
+			{
+				ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
+			}
+			if (ImGui::Button("Object"))
+			{
+				editor_viewport.tool_mode = EditorViewport::ToolMode::Object;
+				terrain_editor.focus_inspector = true;
+			}
+			if (object_mode)
+			{
+				ImGui::PopStyleColor();
+			}
+			ImGui::SameLine();
+			ImGui::BeginDisabled(is_playing || !terrain_selected);
+			const bool terrain_mode = editor_viewport.tool_mode == EditorViewport::ToolMode::Terrain;
+			if (terrain_mode)
+			{
+				ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
+			}
+			if (ImGui::Button(ICON_MD_TERRAIN " Terrain"))
+			{
+				editor_viewport.tool_mode = EditorViewport::ToolMode::Terrain;
+				terrain_editor.entity = editor_viewport.picked_entity;
+				terrain_editor.show_window = true;
+				terrain_editor.dock_pending = true;
+				terrain_editor.focus_window = true;
+			}
+			if (terrain_mode)
+			{
+				ImGui::PopStyleColor();
+			}
+			ImGui::EndDisabled();
 
 			{
 				const ImGuiStyle& style = ImGui::GetStyle();
@@ -3139,10 +3402,10 @@ namespace won::editor
 					const char* play_label = ICON_MD_PLAY_ARROW " Play";
 					ImGui::SameLine();
 					ImGui::SetCursorPosX((ImGui::GetWindowWidth() - button_width(play_label)) * 0.5f);
-					ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.13f, 0.24f, 0.13f, 1.0f));
-					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.18f, 0.32f, 0.18f, 1.0f));
-					ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.18f, 0.32f, 0.18f, 1.0f));
-					ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.53f, 0.80f, 0.47f, 1.0f));
+					ImGui::PushStyleColor(ImGuiCol_Button, ToImGuiColor(theme::play_button_color));
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ToImGuiColor(theme::play_button_hovered_color));
+					ImGui::PushStyleColor(ImGuiCol_ButtonActive, ToImGuiColor(theme::play_button_active_color));
+					ImGui::PushStyleColor(ImGuiCol_Text, ToImGuiColor(theme::play_button_text_color));
 					if (ImGui::Button(play_label))
 					{
 						request_play = true;
@@ -3170,10 +3433,10 @@ namespace won::editor
 					}
 					ImGui::EndDisabled();
 					ImGui::SameLine();
-					ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.36f, 0.16f, 0.16f, 1.0f));
-					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.46f, 0.20f, 0.20f, 1.0f));
-					ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.46f, 0.20f, 0.20f, 1.0f));
-					ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.90f, 0.58f, 0.58f, 1.0f));
+					ImGui::PushStyleColor(ImGuiCol_Button, ToImGuiColor(theme::stop_button_color));
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ToImGuiColor(theme::stop_button_hovered_color));
+					ImGui::PushStyleColor(ImGuiCol_ButtonActive, ToImGuiColor(theme::stop_button_active_color));
+					ImGui::PushStyleColor(ImGuiCol_Text, ToImGuiColor(theme::stop_button_text_color));
 					if (ImGui::Button(stop_label))
 					{
 						request_stop = true;
@@ -3346,6 +3609,70 @@ namespace won::editor
 			if (auto* camera = editor_viewport.view->scene->GetComponent<ecs::CameraComponent>(editor_viewport.view->camera_entity))
 			{
 				camera->SetAspectRatio(static_cast<float>(editor_viewport.view->viewport.width) / static_cast<float>(editor_viewport.view->viewport.height));
+
+				TerrainComponent* terrain = editor_viewport.tool_mode == EditorViewport::ToolMode::Terrain && terrain_editor.entity != ecs::INVALID_ENTITY
+					? editor_viewport.view->scene->GetComponent<TerrainComponent>(terrain_editor.entity)
+					: nullptr;
+				TransformComponent* terrain_transform = terrain
+					? editor_viewport.view->scene->GetComponent<TransformComponent>(terrain_editor.entity)
+					: nullptr;
+				if (terrain && terrain->data && terrain->data->IsValid() &&
+					terrain->data->final_heights.size() == static_cast<Size>(terrain->data->samples_x) * terrain->data->samples_z &&
+					terrain_transform && (editor_viewport.input_enabled || terrain_editor.stroke_active))
+				{
+					const ImVec2 imgui_mouse = ImGui::GetMousePos();
+					const float2 mouse_pos = { imgui_mouse.x, imgui_mouse.y };
+					float3 local_hit = {};
+					if (RayCastTerrainViewport(*editor_viewport.view, mouse_pos, *terrain->data, *terrain_transform, local_hit))
+					{
+						const DirectX::XMMATRIX world = terrain_transform->GetWorldTransform();
+						const TerrainData& data = *terrain->data;
+						const float outer_radius = (std::max)(terrain_editor.radius, (std::min)(data.cell_x, data.cell_z));
+						const float inner_radius = outer_radius * (1.0f - math::Saturate(terrain_editor.falloff));
+						const float ring_radii[] = { outer_radius, inner_radius };
+						ImDrawList* draw_list = ImGui::GetWindowDrawList();
+						draw_list->PushClipRect(viewport_pos, ImVec2(viewport_pos.x + viewport_size.x, viewport_pos.y + viewport_size.y), true);
+						for (int ring_index = 0; ring_index < 2; ++ring_index)
+						{
+							const float ring_radius = ring_radii[ring_index];
+							if (ring_radius <= 0.001f)
+							{
+								continue;
+							}
+
+							float3 previous_world = {};
+							for (int segment = 0; segment <= 64; ++segment)
+							{
+								const float angle = math::PI * 2.0f * static_cast<float>(segment) / 64.0f;
+								float3 local_point = {
+									local_hit.x + std::cos(angle) * ring_radius,
+									0.0f,
+									local_hit.z + std::sin(angle) * ring_radius,
+								};
+								const float grid_x = math::Clamp((local_point.x - data.offset_x) / data.cell_x, 0.0f, static_cast<float>(data.samples_x - 1));
+								const float grid_z = math::Clamp((local_point.z - data.offset_z) / data.cell_z, 0.0f, static_cast<float>(data.samples_z - 1));
+								const uint32 x0 = static_cast<uint32>(std::floor(grid_x));
+								const uint32 z0 = static_cast<uint32>(std::floor(grid_z));
+								const uint32 x1 = (std::min)(x0 + 1, data.samples_x - 1);
+								const uint32 z1 = (std::min)(z0 + 1, data.samples_z - 1);
+								const float tx = grid_x - static_cast<float>(x0);
+								const float tz = grid_z - static_cast<float>(z0);
+								const float height0 = math::Lerp(data.final_heights[static_cast<Size>(z0) * data.samples_x + x0], data.final_heights[static_cast<Size>(z0) * data.samples_x + x1], tx);
+								const float height1 = math::Lerp(data.final_heights[static_cast<Size>(z1) * data.samples_x + x0], data.final_heights[static_cast<Size>(z1) * data.samples_x + x1], tx);
+								local_point.y = math::Lerp(height0, height1, tz) + 0.03f;
+								float3 world_point = {};
+								DirectX::XMStoreFloat3(&world_point, DirectX::XMVector3TransformCoord(DirectX::XMLoadFloat3(&local_point), world));
+								if (segment > 0)
+								{
+									const ImU32 color = ToImGuiColorU32(ring_index == 0 ? theme::terrain_brush_outline_color : theme::terrain_brush_falloff_color);
+									DrawWorldLine(draw_list, *camera, viewport_pos, viewport_size, previous_world, world_point, color, ring_index == 0 ? 2.0f : 1.0f);
+								}
+								previous_world = world_point;
+							}
+						}
+						draw_list->PopClipRect();
+					}
+				}
 			}
 		}
 		ImGui::End();
@@ -3620,7 +3947,14 @@ namespace won::editor
 		}
 		ImGui::End();
 
-		if (ImGui::Begin(EditorLabel(editor_key::window_inspector, editor_window_id::inspector)))
+		if (terrain_editor.focus_inspector)
+		{
+			ImGui::SetNextWindowFocus();
+			terrain_editor.focus_inspector = false;
+		}
+		const bool inspector_visible = ImGui::Begin(EditorLabel(editor_key::window_inspector, editor_window_id::inspector));
+		terrain_editor.dock_id = ImGui::GetWindowDockID();
+		if (inspector_visible)
 		{
 			if (editor_viewport.picked_entity != INVALID_ENTITY)
 			{
@@ -5066,20 +5400,20 @@ namespace won::editor
 								const float timeline_height = 24.0f;
 								ImGui::InvisibleButton("##animation_event_timeline", ImVec2(timeline_width, timeline_height));
 								const ImVec2 timeline_max = ImVec2(timeline_min.x + timeline_width, timeline_min.y + timeline_height);
-								event_draw_list->AddRectFilled(timeline_min, timeline_max, IM_COL32(40, 40, 40, 255), 3.0f);
-								event_draw_list->AddRect(timeline_min, timeline_max, IM_COL32(90, 90, 90, 255), 3.0f);
+								event_draw_list->AddRectFilled(timeline_min, timeline_max, ToImGuiColorU32(theme::animation_timeline_background_color), 3.0f);
+								event_draw_list->AddRect(timeline_min, timeline_max, ToImGuiColorU32(theme::animation_timeline_border_color), 3.0f);
 
 								const float event_track_duration = duration_seconds > 0.0f ? duration_seconds : 1.0f;
 								const float playhead_ratio = std::clamp(animation_comp->time / event_track_duration, 0.0f, 1.0f);
 								const float playhead_x = timeline_min.x + playhead_ratio * timeline_width;
-								event_draw_list->AddLine(ImVec2(playhead_x, timeline_min.y), ImVec2(playhead_x, timeline_max.y), IM_COL32(255, 220, 60, 255), 2.0f);
+								event_draw_list->AddLine(ImVec2(playhead_x, timeline_min.y), ImVec2(playhead_x, timeline_max.y), ToImGuiColorU32(theme::animation_timeline_playhead_color), 2.0f);
 
 								for (const resource::AnimationEventMarker& marker : current_clip->events)
 								{
 									const float marker_ratio = std::clamp(marker.time_seconds / event_track_duration, 0.0f, 1.0f);
 									const float marker_x = timeline_min.x + marker_ratio * timeline_width;
-									event_draw_list->AddLine(ImVec2(marker_x, timeline_min.y), ImVec2(marker_x, timeline_max.y), IM_COL32(80, 180, 255, 255), 2.0f);
-									event_draw_list->AddTriangleFilled(ImVec2(marker_x - 4.0f, timeline_min.y), ImVec2(marker_x + 4.0f, timeline_min.y), ImVec2(marker_x, timeline_min.y + 7.0f), IM_COL32(80, 180, 255, 255));
+									event_draw_list->AddLine(ImVec2(marker_x, timeline_min.y), ImVec2(marker_x, timeline_max.y), ToImGuiColorU32(theme::animation_timeline_event_color), 2.0f);
+									event_draw_list->AddTriangleFilled(ImVec2(marker_x - 4.0f, timeline_min.y), ImVec2(marker_x + 4.0f, timeline_min.y), ImVec2(marker_x, timeline_min.y + 7.0f), ToImGuiColorU32(theme::animation_timeline_event_color));
 								}
 
 								if (ImGui::Button(EditorText(editor_key::action_animation_event_add)))
@@ -5779,7 +6113,8 @@ namespace won::editor
 					}
 
 					bool component_changed = false;
-					if (DrawReflectedComponent(*editor_viewport.view->scene, editor_viewport.picked_entity, type_desc, &component_changed))
+					bool component_open = false;
+					if (DrawReflectedComponent(*editor_viewport.view->scene, editor_viewport.picked_entity, type_desc, &component_changed, &component_open))
 					{
 						const ecs::Entity entity = editor_viewport.picked_entity;
 						const won::TypeId type_id = type_desc->type_id;
@@ -5829,75 +6164,49 @@ namespace won::editor
 					}
 					else if (type_desc->type_id == reflection::TypeMeta<TerrainComponent>::type_id)
 					{
-						// Authoring-time terrain bake: generate the mesh from the recipe, save it as a
-						// .wonmesh asset, and point the GeometryComponent at it. Requires Geometry on the entity.
-						ImGui::PushID("TerrainRegenerate");
-						TerrainComponent* terrain = editor_viewport.view->scene->GetComponent<TerrainComponent>(editor_viewport.picked_entity);
-						if (ImGui::Button(EditorText(editor_key::action_regenerate_terrain)))
+						if (component_open)
 						{
-							GeometryComponent* geometry = editor_viewport.view->scene->GetComponent<GeometryComponent>(editor_viewport.picked_entity);
-							if (terrain && geometry && device)
+							TerrainComponent* terrain = editor_viewport.view->scene->GetComponent<TerrainComponent>(editor_viewport.picked_entity);
+							if (terrain)
 							{
-								auto terrain_mesh = GenerateTerrainMesh(*terrain);
-								if (terrain_mesh && terrain_mesh->IsValid())
+								ImGui::PushID("TerrainInspector");
+								if (terrain->terrain_data_path.empty())
 								{
-									const String terrain_rel_path = String(editor_asset_path::generated_directory) + "/terrain_" + std::to_string(editor_viewport.picked_entity) + "." + resource::mesh_binary_extension;
-									const String terrain_full_path = io::CombinePath(contents_root_dir, terrain_rel_path);
-									io::CreateDirectories(io::GetDirectoryFromPath(terrain_full_path));
-									if (resource::SaveMeshBinary(terrain_full_path, *terrain_mesh))
-									{
-										// Swap the mesh at a thread-safe point and defer the old mesh's GPU
-										// resources, so in-flight command lists do not reference freed buffers.
-										const ecs::Entity terrain_entity = editor_viewport.picked_entity;
-										eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this, terrain_entity, terrain_mesh, terrain_rel_path](const won::function::Value&) {
-											GeometryComponent* geom = editor_viewport.view->scene->GetComponent<GeometryComponent>(terrain_entity);
-											if (!geom || !device || !rendering::utils::CreateRenderData(*device, *terrain_mesh))
-											{
-												return;
-											}
-											if (geom->mesh && geom->mesh != terrain_mesh)
-											{
-												EditorViewport::DeferredResRemoval deferred_res_removal = {};
-												deferred_res_removal.frames_left = 8;
-												deferred_res_removal.meshes.push_back(geom->mesh);
-												if (geom->mesh->render_data.buffer)
-												{
-													deferred_res_removal.resources.push_back(geom->mesh->render_data.buffer);
-												}
-												if (geom->mesh->gpu_bvh.node_buffer)
-												{
-													deferred_res_removal.resources.push_back(geom->mesh->gpu_bvh.node_buffer);
-												}
-												if (geom->mesh->gpu_bvh.primitive_buffer)
-												{
-													deferred_res_removal.resources.push_back(geom->mesh->gpu_bvh.primitive_buffer);
-												}
-												editor_viewport.deferred_res_removals.push_back(std::move(deferred_res_removal));
-											}
-											geom->mesh_asset_path = terrain_rel_path;
-											geom->SetMesh(terrain_mesh);
-											editor_viewport.view->scene->SetBVHDirty();
-										});
-									}
+									ImGui::TextDisabled("(no terrain data - open the terrain editor and regenerate)");
 								}
+								else
+								{
+									ImGui::TextWrapped("%s", terrain->terrain_data_path.c_str());
+								}
+								if (ImGui::Button("Edit Terrain", ImVec2(-1.0f, 0.0f)))
+								{
+									terrain_editor.show_window = true;
+									terrain_editor.entity = editor_viewport.picked_entity;
+									editor_viewport.tool_mode = EditorViewport::ToolMode::Terrain;
+									terrain_editor.dock_pending = true;
+									terrain_editor.focus_window = true;
+								}
+								ImGui::PopID();
 							}
 						}
-						ImGui::PopID();
 					}
 					else if (type_desc->type_id == reflection::TypeMeta<NavMeshComponent>::type_id)
 					{
-						ImGui::PushID("NavMeshBake");
-						NavMeshComponent* nav = editor_viewport.view->scene->GetComponent<NavMeshComponent>(editor_viewport.picked_entity);
-						if (nav && ImGui::Button(EditorText(editor_key::action_bake_navmesh)))
+						if (component_open)
 						{
-							if (nav->navmesh_asset_path.empty())
+							ImGui::PushID("NavMeshBake");
+							NavMeshComponent* nav = editor_viewport.view->scene->GetComponent<NavMeshComponent>(editor_viewport.picked_entity);
+							if (nav && ImGui::Button(EditorText(editor_key::action_bake_navmesh)))
 							{
-								nav->navmesh_asset_path = String(editor_asset_path::generated_directory) + "/navmesh_" + std::to_string(editor_viewport.picked_entity) + "." + resource::navmesh_binary_extension;
+								if (nav->navmesh_asset_path.empty())
+								{
+									nav->navmesh_asset_path = String(editor_asset_path::generated_directory) + "/navmesh_" + std::to_string(editor_viewport.picked_entity) + "." + resource::navmesh_binary_extension;
+								}
+								const bool baked = resource::BuildSceneNavMesh(*editor_viewport.view->scene, contents_root_dir);
+								backlog::Post(String(EditorText(editor_key::action_bake_navmesh)) + (baked ? ": " + nav->navmesh_asset_path : " failed"), baked ? backlog::LogLevel::Default : backlog::LogLevel::Warning);
 							}
-							const bool baked = resource::BuildSceneNavMesh(*editor_viewport.view->scene, contents_root_dir);
-							backlog::Post(String(EditorText(editor_key::action_bake_navmesh)) + (baked ? ": " + nav->navmesh_asset_path : " failed"), baked ? backlog::LogLevel::Default : backlog::LogLevel::Warning);
+							ImGui::PopID();
 						}
-						ImGui::PopID();
 					}
 				}
 
@@ -5943,6 +6252,126 @@ namespace won::editor
 		ImGui::End();
 
 		UpdateInspectorHistory();
+		if (terrain_editor.show_window)
+		{
+			if (terrain_editor.dock_pending && terrain_editor.dock_id != 0)
+			{
+				ImGui::SetNextWindowDockID(terrain_editor.dock_id, ImGuiCond_Always);
+				terrain_editor.dock_pending = false;
+			}
+			if (terrain_editor.focus_window)
+			{
+				ImGui::SetNextWindowFocus();
+				terrain_editor.focus_window = false;
+			}
+			if (ImGui::Begin("Terrain Tools###TerrainTools", &terrain_editor.show_window))
+			{
+				TerrainComponent* terrain = (terrain_editor.entity != ecs::INVALID_ENTITY)
+					? editor_viewport.view->scene->GetComponent<TerrainComponent>(terrain_editor.entity)
+					: nullptr;
+				if (!terrain)
+				{
+					ImGui::TextDisabled("Select a Terrain entity, then enter Terrain mode.");
+				}
+				else
+				{
+					if (!terrain->data)
+					{
+						terrain->data = std::make_shared<TerrainData>();
+						terrain->data->samples_x = 65;
+						terrain->data->samples_z = 65;
+					}
+					TerrainData& data = *terrain->data;
+					const bool terrain_mode = editor_viewport.tool_mode == EditorViewport::ToolMode::Terrain;
+					if (!terrain_mode)
+					{
+						ImGui::TextDisabled("Terrain mode inactive");
+					}
+					else if (!data.IsValid())
+					{
+						ImGui::TextDisabled("Terrain data is not ready. Create terrain data before sculpting.");
+					}
+					else
+					{
+						ImGui::TextDisabled("Terrain mode active");
+					}
+					ImGui::BeginDisabled(!terrain_mode);
+					ImGui::SeparatorText("Sculpt");
+					ImGui::BeginDisabled(!data.IsValid());
+					if (ImGui::RadioButton("Raise", terrain_editor.brush == TerrainEditorState::Brush::Raise))
+					{
+						terrain_editor.brush = TerrainEditorState::Brush::Raise;
+					}
+					ImGui::SameLine();
+					if (ImGui::RadioButton("Lower", terrain_editor.brush == TerrainEditorState::Brush::Lower))
+					{
+						terrain_editor.brush = TerrainEditorState::Brush::Lower;
+					}
+					ImGui::SameLine();
+					if (ImGui::RadioButton("Flatten", terrain_editor.brush == TerrainEditorState::Brush::Flatten))
+					{
+						terrain_editor.brush = TerrainEditorState::Brush::Flatten;
+					}
+					const float minimum_radius = (std::max)(0.1f, (std::min)(data.cell_x, data.cell_z));
+					const float maximum_radius = (std::max)(minimum_radius, (std::max)(data.world_size_x, data.world_size_z) * 0.5f);
+					ImGui::SliderFloat("Radius", &terrain_editor.radius, minimum_radius, maximum_radius, "%.2f");
+					ImGui::DragFloat("Strength", &terrain_editor.strength, 0.1f, 0.01f, 100.0f, "%.2f");
+					ImGui::SliderFloat("Falloff", &terrain_editor.falloff, 0.0f, 1.0f, "%.2f");
+					ImGui::EndDisabled();
+					if (ImGui::CollapsingHeader("Noise", ImGuiTreeNodeFlags_DefaultOpen))
+					{
+						int res_x = static_cast<int>(data.samples_x > 0 ? data.samples_x - 1 : 0);
+						int res_z = static_cast<int>(data.samples_z > 0 ? data.samples_z - 1 : 0);
+						ImGui::DragInt("Resolution X", &res_x, 1.0f, 1, 1024);
+						ImGui::DragInt("Resolution Z", &res_z, 1.0f, 1, 1024);
+						data.samples_x = static_cast<uint32>((res_x < 1 ? 1 : res_x) + 1);
+						data.samples_z = static_cast<uint32>((res_z < 1 ? 1 : res_z) + 1);
+						ImGui::DragFloat("World Size X", &data.world_size_x, 1.0f, 1.0f, 100000.0f);
+						ImGui::DragFloat("World Size Z", &data.world_size_z, 1.0f, 1.0f, 100000.0f);
+						ImGui::DragFloat("Height Scale", &data.height_scale, 0.1f, 0.0f, 100000.0f);
+						ImGui::DragFloat("Frequency", &data.noise_params.frequency, 0.001f, 0.0001f, 10.0f);
+						int octaves = static_cast<int>(data.noise_params.octaves);
+						ImGui::DragInt("Octaves", &octaves, 1.0f, 1, 12);
+						data.noise_params.octaves = static_cast<uint32>(octaves < 1 ? 1 : octaves);
+						ImGui::DragFloat("Lacunarity", &data.noise_params.lacunarity, 0.01f, 0.0001f, 10.0f);
+						ImGui::DragFloat("Persistence", &data.noise_params.persistence, 0.01f, 0.0f, 1.0f);
+						ImGui::DragFloat("Ridge", &data.noise_params.ridge_strength, 0.01f, 0.0f, 4.0f);
+						ImGui::DragFloat("Warp", &data.noise_params.warp_strength, 0.01f, 0.0f, 4.0f);
+						ImGui::DragFloat("Island Falloff", &data.noise_params.island_falloff, 0.01f, 0.0f, 1.0f);
+						int seed = static_cast<int>(data.noise_params.seed);
+						ImGui::DragInt("Seed", &seed, 1.0f, 0, 1000000);
+						data.noise_params.seed = static_cast<uint32>(seed < 0 ? 0 : seed);
+						const char* generate_label = data.IsValid() ? EditorText(editor_key::action_regenerate_terrain) : "Create Terrain Data";
+						if (ImGui::Button(generate_label, ImVec2(-1.0f, 0.0f)))
+						{
+							GeometryComponent* geometry = editor_viewport.view->scene->GetComponent<GeometryComponent>(terrain_editor.entity);
+							if (geometry && device)
+							{
+								BakeTerrainNoise(data);
+								auto terrain_mesh = GenerateTerrainMesh(data);
+								if (terrain_mesh && terrain_mesh->IsValid())
+								{
+									const String terrain_data_rel_path = terrain->terrain_data_path.empty()
+										? String(editor_asset_path::generated_directory) + "/terrain_" + std::to_string(terrain_editor.entity) + "." + resource::terrain_binary_extension
+										: terrain->terrain_data_path;
+									const String terrain_data_full_path = io::CombinePath(contents_root_dir, terrain_data_rel_path);
+									io::CreateDirectories(io::GetDirectoryFromPath(terrain_data_full_path));
+									SaveTerrainBinary(terrain_data_full_path, data);
+									terrain->terrain_data_path = terrain_data_rel_path;
+									QueueTerrainMeshUpdate(terrain_editor.entity, terrain_mesh);
+									if (Collider3DComponent* collider = editor_viewport.view->scene->GetComponent<Collider3DComponent>(terrain_editor.entity))
+									{
+										collider->SetDirty();
+									}
+								}
+							}
+						}
+					}
+					ImGui::EndDisabled();
+				}
+			}
+			ImGui::End();
+		}
 
 		if (ImGui::Begin(EditorLabel(editor_key::window_contents_browser, editor_window_id::contents_browser), nullptr))
 		{
@@ -5994,7 +6423,7 @@ namespace won::editor
 			if (profiler_enabled)
 			{
 				ImGui::SameLine();
-				ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), EditorText(editor_key::label_profiler_warning));
+				ImGui::TextColored(ToImGuiColor(theme::status_warning_color), EditorText(editor_key::label_profiler_warning));
 
 				ImGui::SetCursorPos(ImGui::GetCursorPos() + ImVec2(0, 3));
 
@@ -6834,11 +7263,11 @@ namespace won::editor
 						}
 						if (missing)
 						{
-							ImGui::TableSetBgColor(ImGuiTableBgTarget_CellBg, ImGui::GetColorU32(ImVec4(0.45f, 0.12f, 0.12f, 0.55f)));
+							ImGui::TableSetBgColor(ImGuiTableBgTarget_CellBg, ToImGuiColorU32(theme::localization_missing_color));
 						}
 						else if (stale)
 						{
-							ImGui::TableSetBgColor(ImGuiTableBgTarget_CellBg, ImGui::GetColorU32(ImVec4(0.45f, 0.36f, 0.10f, 0.55f)));
+							ImGui::TableSetBgColor(ImGuiTableBgTarget_CellBg, ToImGuiColorU32(theme::localization_stale_color));
 						}
 						ImGui::SetNextItemWidth(-1.0f);
 						ImGui::PushID(column);
@@ -7392,6 +7821,13 @@ namespace won::editor
 		}
 
 		ecs::Scene& scene = *editor_viewport.view->scene;
+		if (auto terrain_array = scene.GetComponentArray<ecs::TerrainComponent>())
+		{
+			for (Size i = 0; i < terrain_array->GetSize(); ++i)
+			{
+				resource::LoadTerrainResource(terrain_array->data[i], contents_root_dir);
+			}
+		}
 		if (auto geometry_array = scene.GetComponentArray<ecs::GeometryComponent>())
 		{
 			for (Size i = 0; i < geometry_array->GetSize(); ++i)

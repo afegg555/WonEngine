@@ -104,6 +104,7 @@ namespace won::editor
 		void PerformUndo();
 		void PerformRedo();
 		void ResetInspectorBaseline();
+		void QueueTerrainMeshUpdate(ecs::Entity entity, const std::shared_ptr<resource::Mesh>& mesh);
 
 	private:
 		enum class ContentAssetType
@@ -175,6 +176,12 @@ namespace won::editor
 
 		struct EditorViewport
 		{
+			enum class ToolMode
+			{
+				Object,
+				Terrain,
+			};
+
 			struct CameraController
 			{
 				enum class InteractionMode
@@ -215,7 +222,34 @@ namespace won::editor
 			std::vector<DeferredResRemoval> deferred_res_removals;
 			ecs::Entity picked_entity = ecs::INVALID_ENTITY;
 			bool input_enabled = false;
+			ToolMode tool_mode = ToolMode::Object;
 			ViewportDebugSettings debug_settings = {};
+		};
+
+		struct TerrainEditorState
+		{
+			enum class Brush
+			{
+				Raise,
+				Lower,
+				Flatten,
+			};
+
+			ecs::Entity entity = ecs::INVALID_ENTITY;
+			Brush brush = Brush::Raise;
+			float radius = 5.0f;
+			float strength = 2.0f;
+			float falloff = 1.0f;
+			float flatten_height = 0.0f;
+			std::shared_ptr<resource::Mesh> pending_mesh;
+			ecs::Entity pending_mesh_entity = ecs::INVALID_ENTITY;
+			uint32 dock_id = 0;
+			bool show_window = false;
+			bool stroke_active = false;
+			bool mesh_update_pending = false;
+			bool dock_pending = false;
+			bool focus_window = false;
+			bool focus_inspector = false;
 		};
 
 		std::shared_ptr<RHIPipeline> imgui_pso;
@@ -265,6 +299,7 @@ namespace won::editor
 		LocalizationEditorState localization_editor = {};
 		GameDataEditorState game_data_editor = {};
 		EditorViewport editor_viewport;
+		TerrainEditorState terrain_editor;
 		EditorAssetImporter asset_importer;
 		BackgroundTaskState background_tasks;
 		ContentBrowserState content_browser = {};

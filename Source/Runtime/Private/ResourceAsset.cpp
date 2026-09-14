@@ -923,7 +923,7 @@ namespace won::resource
             backlog::Post("[LoadResources] mesh load failed: " + binary_path, backlog::LogLevel::Warning);
     }
 
-    static void LoadTerrainResource(ecs::TerrainComponent& terrain, const String& content_root)
+    void LoadTerrainResource(ecs::TerrainComponent& terrain, const String& content_root)
     {
         if (terrain.terrain_data_path.empty())
             return;

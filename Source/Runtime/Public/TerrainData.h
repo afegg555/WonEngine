@@ -2,6 +2,7 @@
 #include "RuntimeExport.h"
 #include "Types.h"
 #include "Mesh.h"
+#include "Primitives.h"
 
 #include <memory>
 
@@ -60,6 +61,7 @@ namespace won::ecs
     WONENGINE_API void BakeTerrainNoise(TerrainData& data);
     WONENGINE_API void CompositeTerrainHeights(TerrainData& data);
     WONENGINE_API void ResizeTerrainEditLayer(TerrainData& data, uint32 new_samples_x, uint32 new_samples_z);
+    WONENGINE_API bool RayCastTerrain(const TerrainData& data, const math::Ray& local_ray, float3& out_local_hit);
 
     WONENGINE_API std::shared_ptr<resource::Mesh> GenerateTerrainMesh(const TerrainData& data);
 

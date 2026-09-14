@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <utility>
 
 namespace won::serialize
@@ -98,6 +99,133 @@ namespace won::ecs
         }
 
         CompositeTerrainHeights(data);
+    }
+
+    bool RayCastTerrain(const TerrainData& data, const math::Ray& local_ray, float3& out_local_hit)
+    {
+        const Size sample_count = static_cast<Size>(data.samples_x) * data.samples_z;
+        if (!data.IsValid() || data.final_heights.size() != sample_count || data.cell_x <= 0.0f || data.cell_z <= 0.0f)
+        {
+            return false;
+        }
+
+        const float3 local_origin = local_ray.origin;
+        const float3 local_direction = local_ray.direction;
+        const float min_x = data.offset_x;
+        const float max_x = data.offset_x + data.world_size_x;
+        const float min_z = data.offset_z;
+        const float max_z = data.offset_z + data.world_size_z;
+        float enter_distance = 0.0f;
+        float exit_distance = (std::numeric_limits<float>::max)();
+        if (std::abs(local_direction.x) < 0.000001f)
+        {
+            if (local_origin.x < min_x || local_origin.x > max_x)
+            {
+                return false;
+            }
+        }
+        else
+        {
+            float distance0 = (min_x - local_origin.x) / local_direction.x;
+            float distance1 = (max_x - local_origin.x) / local_direction.x;
+            if (distance0 > distance1)
+            {
+                std::swap(distance0, distance1);
+            }
+            enter_distance = (std::max)(enter_distance, distance0);
+            exit_distance = (std::min)(exit_distance, distance1);
+        }
+        if (std::abs(local_direction.z) < 0.000001f)
+        {
+            if (local_origin.z < min_z || local_origin.z > max_z)
+            {
+                return false;
+            }
+        }
+        else
+        {
+            float distance0 = (min_z - local_origin.z) / local_direction.z;
+            float distance1 = (max_z - local_origin.z) / local_direction.z;
+            if (distance0 > distance1)
+            {
+                std::swap(distance0, distance1);
+            }
+            enter_distance = (std::max)(enter_distance, distance0);
+            exit_distance = (std::min)(exit_distance, distance1);
+        }
+        if (exit_distance < enter_distance)
+        {
+            return false;
+        }
+
+        const float start_distance = enter_distance + 0.0001f;
+        const float start_x = local_origin.x + local_direction.x * start_distance;
+        const float start_z = local_origin.z + local_direction.z * start_distance;
+        int cell_x = math::Clamp(static_cast<int>(std::floor((start_x - min_x) / data.cell_x)), 0, static_cast<int>(data.samples_x) - 2);
+        int cell_z = math::Clamp(static_cast<int>(std::floor((start_z - min_z) / data.cell_z)), 0, static_cast<int>(data.samples_z) - 2);
+        const int step_x = local_direction.x > 0.0f ? 1 : local_direction.x < 0.0f ? -1 : 0;
+        const int step_z = local_direction.z > 0.0f ? 1 : local_direction.z < 0.0f ? -1 : 0;
+        const float infinite_distance = (std::numeric_limits<float>::max)();
+        const float next_x = min_x + static_cast<float>(step_x > 0 ? cell_x + 1 : cell_x) * data.cell_x;
+        const float next_z = min_z + static_cast<float>(step_z > 0 ? cell_z + 1 : cell_z) * data.cell_z;
+        float boundary_x = step_x == 0 ? infinite_distance : (next_x - local_origin.x) / local_direction.x;
+        float boundary_z = step_z == 0 ? infinite_distance : (next_z - local_origin.z) / local_direction.z;
+        const float cell_distance_x = step_x == 0 ? infinite_distance : data.cell_x / std::abs(local_direction.x);
+        const float cell_distance_z = step_z == 0 ? infinite_distance : data.cell_z / std::abs(local_direction.z);
+        const XMVECTOR ray_origin = XMLoadFloat3(&local_origin);
+        const XMVECTOR ray_direction = XMLoadFloat3(&local_direction);
+        float current_distance = enter_distance;
+
+        while (cell_x >= 0 && cell_x + 1 < static_cast<int>(data.samples_x) && cell_z >= 0 && cell_z + 1 < static_cast<int>(data.samples_z) && current_distance <= exit_distance)
+        {
+            const float cell_end_distance = (std::min)((std::min)(boundary_x, boundary_z), exit_distance);
+            const uint32 x0 = static_cast<uint32>(cell_x);
+            const uint32 z0 = static_cast<uint32>(cell_z);
+            const uint32 x1 = x0 + 1;
+            const uint32 z1 = z0 + 1;
+            const XMVECTOR point00 = XMVectorSet(min_x + static_cast<float>(x0) * data.cell_x, data.final_heights[static_cast<Size>(z0) * data.samples_x + x0], min_z + static_cast<float>(z0) * data.cell_z, 1.0f);
+            const XMVECTOR point10 = XMVectorSet(min_x + static_cast<float>(x1) * data.cell_x, data.final_heights[static_cast<Size>(z0) * data.samples_x + x1], min_z + static_cast<float>(z0) * data.cell_z, 1.0f);
+            const XMVECTOR point01 = XMVectorSet(min_x + static_cast<float>(x0) * data.cell_x, data.final_heights[static_cast<Size>(z1) * data.samples_x + x0], min_z + static_cast<float>(z1) * data.cell_z, 1.0f);
+            const XMVECTOR point11 = XMVectorSet(min_x + static_cast<float>(x1) * data.cell_x, data.final_heights[static_cast<Size>(z1) * data.samples_x + x1], min_z + static_cast<float>(z1) * data.cell_z, 1.0f);
+            float hit_distance0 = 0.0f;
+            float hit_distance1 = 0.0f;
+            float2 barycentric = {};
+            const bool hit0 = math::RayTriangleIntersects(ray_origin, ray_direction, point00, point01, point11, hit_distance0, barycentric, current_distance, cell_end_distance + 0.0001f);
+            const bool hit1 = math::RayTriangleIntersects(ray_origin, ray_direction, point00, point11, point10, hit_distance1, barycentric, current_distance, cell_end_distance + 0.0001f);
+            if (hit0 || hit1)
+            {
+                const float hit_distance = hit0 && hit1 ? (std::min)(hit_distance0, hit_distance1) : hit0 ? hit_distance0 : hit_distance1;
+                XMStoreFloat3(&out_local_hit, ray_origin + ray_direction * hit_distance);
+                return true;
+            }
+
+            if (cell_end_distance >= exit_distance)
+            {
+                break;
+            }
+            if (boundary_x < boundary_z)
+            {
+                cell_x += step_x;
+                current_distance = boundary_x;
+                boundary_x += cell_distance_x;
+            }
+            else if (boundary_z < boundary_x)
+            {
+                cell_z += step_z;
+                current_distance = boundary_z;
+                boundary_z += cell_distance_z;
+            }
+            else
+            {
+                cell_x += step_x;
+                cell_z += step_z;
+                current_distance = boundary_x;
+                boundary_x += cell_distance_x;
+                boundary_z += cell_distance_z;
+            }
+        }
+
+        return false;
     }
 
     std::shared_ptr<resource::Mesh> GenerateTerrainMesh(const TerrainData& data)
