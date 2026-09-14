@@ -27,7 +27,16 @@ namespace won::ecs
                     return;
                 }
 
-                auto mesh = GenerateTerrainMesh(terrain_array->data[args.job_index]);
+                TerrainComponent& terrain = terrain_array->data[args.job_index];
+                if (!terrain.data)
+                {
+                    return;
+                }
+                auto mesh = GenerateTerrainMesh(*terrain.data);
+                if (!mesh)
+                {
+                    return;
+                }
                 geometry->SetMesh(mesh);
                 rendering::utils::EnqueueResourceUpload(mesh);
             });

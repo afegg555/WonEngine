@@ -1,9 +1,26 @@
 #include "TerrainData.h"
 #include "MathUtils.h"
 #include "Noise.h"
+#include "BinaryArchive.h"
+#include "ResourceExtension.h"
+#include "FileSystem.h"
+#include "StringUtils.h"
+#include "Backlog.h"
 
 #include <algorithm>
 #include <cmath>
+#include <utility>
+
+namespace won::serialize
+{
+    void Serialize(BinaryArchive& archive, won::ecs::TerrainSpline& spline)
+    {
+        Serialize(archive, spline.points);
+        Serialize(archive, spline.width);
+        Serialize(archive, spline.edge_falloff);
+        Serialize(archive, spline.target_height);
+    }
+}
 
 namespace won::ecs
 {
@@ -13,18 +30,18 @@ namespace won::ecs
         constexpr uint32 warp_z_seed_offset = 31u;
         constexpr float warp_frequency_scale = 0.5f; // warp field is lower frequency than the base terrain, for broad smooth bending instead of high-frequency jitter
 
-        float TerrainHeight(float x, float z, const TerrainComponent& terrain)
+        float TerrainHeight(float x, float z, const TerrainNoiseParams& np, float world_size_x, float world_size_z)
         {
             // fractal noise means layering multiple octaves of noise together to create more complex patterns
             noise::FractalNoiseDesc desc = {};
-            desc.frequency = (std::max)(terrain.frequency, 0.0001f);
-            desc.octaves = terrain.octaves > 0 ? terrain.octaves : 1;
-            desc.lacunarity = (std::max)(terrain.lacunarity, 0.0001f);
-            desc.persistence = (std::max)(terrain.persistence, 0.0f);
-            desc.seed = terrain.seed;
+            desc.frequency = (std::max)(np.frequency, 0.0001f);
+            desc.octaves = np.octaves > 0 ? np.octaves : 1;
+            desc.lacunarity = (std::max)(np.lacunarity, 0.0001f);
+            desc.persistence = (std::max)(np.persistence, 0.0f);
+            desc.seed = np.seed;
 
             const float noise_wavelength = 1.0f / desc.frequency;
-            const float warp_amount = (std::max)(terrain.warp_strength, 0.0f);
+            const float warp_amount = (std::max)(np.warp_strength, 0.0f);
             noise::FractalNoiseDesc warp_x_desc = desc;
             noise::FractalNoiseDesc warp_z_desc = desc;
             warp_x_desc.seed += warp_x_seed_offset;
@@ -36,16 +53,16 @@ namespace won::ecs
             const float sample_x = x + warp_x;
             const float sample_z = z + warp_z;
 
-            const float ridge_strength = (std::max)(terrain.ridge_strength, 0.0f);
+            const float ridge_strength = (std::max)(np.ridge_strength, 0.0f);
             const float base = noise::FractalBrownianMotion2D(sample_x, sample_z, desc);
             const float ridge = (noise::Ridged2D(sample_x, sample_z, desc) * 2.0f - 1.0f) * ridge_strength;
             float height = (base + ridge) / (1.0f + ridge_strength);
 
-            const float island_falloff = math::Saturate(terrain.island_falloff);
+            const float island_falloff = math::Saturate(np.island_falloff);
             if (island_falloff > 0.0f)
             {
-                const float nx = terrain.world_size_x > 0.0f ? (x / (terrain.world_size_x * 0.5f)) : 0.0f;
-                const float nz = terrain.world_size_z > 0.0f ? (z / (terrain.world_size_z * 0.5f)) : 0.0f;
+                const float nx = world_size_x > 0.0f ? (x / (world_size_x * 0.5f)) : 0.0f;
+                const float nz = world_size_z > 0.0f ? (z / (world_size_z * 0.5f)) : 0.0f;
                 const float distance = std::sqrt(nx * nx + nz * nz);
                 const float island_mask = 1.0f - math::SmoothStep(0.35f, 1.0f, distance);
                 const float island_height = height * island_mask - (1.0f - island_mask) * 0.35f;
@@ -56,46 +73,50 @@ namespace won::ecs
         }
     }
 
-    TerrainHeightField GenerateTerrainHeights(const TerrainComponent& terrain)
+    void BakeTerrainNoise(TerrainData& data)
     {
-        const uint32 res_x = terrain.resolution_x < 1 ? 1 : terrain.resolution_x;
-        const uint32 res_z = terrain.resolution_z < 1 ? 1 : terrain.resolution_z;
-
-        TerrainHeightField height_field = {};
-        height_field.samples_x = res_x + 1;
-        height_field.samples_z = res_z + 1;
-        height_field.cell_x = terrain.world_size_x / static_cast<float>(res_x);
-        height_field.cell_z = terrain.world_size_z / static_cast<float>(res_z);
-        height_field.offset_x = -terrain.world_size_x * 0.5f;
-        height_field.offset_z = -terrain.world_size_z * 0.5f;
-        height_field.heights.resize(static_cast<Size>(height_field.samples_x) * height_field.samples_z);
-
-        for (uint32 j = 0; j < height_field.samples_z; ++j)
+        if (data.samples_x < 2 || data.samples_z < 2)
         {
-            for (uint32 i = 0; i < height_field.samples_x; ++i)
+            return;
+        }
+
+        data.cell_x = data.world_size_x / static_cast<float>(data.samples_x - 1);
+        data.cell_z = data.world_size_z / static_cast<float>(data.samples_z - 1);
+        data.offset_x = -data.world_size_x * 0.5f;
+        data.offset_z = -data.world_size_z * 0.5f;
+
+        const Size n = static_cast<Size>(data.samples_x) * data.samples_z;
+        data.base_heights.resize(n);
+        for (uint32 j = 0; j < data.samples_z; ++j)
+        {
+            for (uint32 i = 0; i < data.samples_x; ++i)
             {
-                const float x = height_field.offset_x + static_cast<float>(i) * height_field.cell_x;
-                const float z = height_field.offset_z + static_cast<float>(j) * height_field.cell_z;
-                height_field.heights[j * height_field.samples_x + i] = TerrainHeight(x, z, terrain) * terrain.height_scale;
+                const float x = data.offset_x + static_cast<float>(i) * data.cell_x;
+                const float z = data.offset_z + static_cast<float>(j) * data.cell_z;
+                data.base_heights[static_cast<Size>(j) * data.samples_x + i] = TerrainHeight(x, z, data.noise_params, data.world_size_x, data.world_size_z) * data.height_scale;
             }
         }
 
-        return height_field;
+        CompositeTerrainHeights(data);
     }
 
-    std::shared_ptr<resource::Mesh> GenerateTerrainMesh(const TerrainComponent& terrain)
+    std::shared_ptr<resource::Mesh> GenerateTerrainMesh(const TerrainData& data)
     {
-        const uint32 res_x = terrain.resolution_x < 1 ? 1 : terrain.resolution_x;
-        const uint32 res_z = terrain.resolution_z < 1 ? 1 : terrain.resolution_z;
+        const Size sample_count = static_cast<Size>(data.samples_x) * data.samples_z;
+        if (!data.IsValid() || data.final_heights.size() != sample_count)
+        {
+            return nullptr;
+        }
 
-        const TerrainHeightField height_field = GenerateTerrainHeights(terrain);
-        const Vector<float>& heights = height_field.heights;
-        const uint32 vert_x = height_field.samples_x;
-        const uint32 vert_z = height_field.samples_z;
-        const float half_x = -height_field.offset_x;
-        const float half_z = -height_field.offset_z;
-        const float cell_x = height_field.cell_x;
-        const float cell_z = height_field.cell_z;
+        const Vector<float>& heights = data.final_heights;
+        const uint32 vert_x = data.samples_x;
+        const uint32 vert_z = data.samples_z;
+        const uint32 res_x = vert_x - 1;
+        const uint32 res_z = vert_z - 1;
+        const float half_x = -data.offset_x;
+        const float half_z = -data.offset_z;
+        const float cell_x = data.cell_x;
+        const float cell_z = data.cell_z;
 
         auto mesh = std::make_shared<resource::Mesh>();
         const uint32 vertex_count = vert_x * vert_z;
@@ -176,5 +197,253 @@ namespace won::ecs
         mesh->submeshes.push_back(submesh);
 
         return mesh;
+    }
+
+    namespace
+    {
+        float DistancePointToSegment(float px, float pz, const float2& a, const float2& b)
+        {
+            const float abx = b.x - a.x;
+            const float abz = b.y - a.y;
+            const float len_sq = abx * abx + abz * abz;
+            float t = 0.0f;
+            if (len_sq > 0.0f)
+            {
+                t = ((px - a.x) * abx + (pz - a.y) * abz) / len_sq;
+                t = math::Clamp(t, 0.0f, 1.0f);
+            }
+            const float cx = a.x + abx * t;
+            const float cz = a.y + abz * t;
+            const float dx = px - cx;
+            const float dz = pz - cz;
+            return std::sqrt(dx * dx + dz * dz);
+        }
+
+        float SampleGridBilinear(const Vector<float>& src, uint32 w, uint32 h, float fx, float fz)
+        {
+            fx = math::Clamp(fx, 0.0f, static_cast<float>(w - 1));
+            fz = math::Clamp(fz, 0.0f, static_cast<float>(h - 1));
+            const uint32 x0 = static_cast<uint32>(fx);
+            const uint32 z0 = static_cast<uint32>(fz);
+            const uint32 x1 = x0 + 1 < w ? x0 + 1 : x0;
+            const uint32 z1 = z0 + 1 < h ? z0 + 1 : z0;
+            const float tx = fx - static_cast<float>(x0);
+            const float tz = fz - static_cast<float>(z0);
+            const float h00 = src[static_cast<Size>(z0) * w + x0];
+            const float h10 = src[static_cast<Size>(z0) * w + x1];
+            const float h01 = src[static_cast<Size>(z1) * w + x0];
+            const float h11 = src[static_cast<Size>(z1) * w + x1];
+            return math::Lerp(math::Lerp(h00, h10, tx), math::Lerp(h01, h11, tx), tz);
+        }
+
+        constexpr uint32 terrain_binary_magic = 0x4e525754u;
+        constexpr uint32 terrain_binary_version = 1u;
+    }
+
+    void CompositeTerrainHeights(TerrainData& data)
+    {
+        const uint32 sx = data.samples_x;
+        const uint32 sz = data.samples_z;
+        const Size n = static_cast<Size>(sx) * sz;
+        if (sx < 2 || sz < 2 || data.base_heights.size() != n)
+        {
+            data.final_heights.clear();
+            return;
+        }
+
+        data.cell_x = data.world_size_x / static_cast<float>(sx - 1);
+        data.cell_z = data.world_size_z / static_cast<float>(sz - 1);
+        data.offset_x = -data.world_size_x * 0.5f;
+        data.offset_z = -data.world_size_z * 0.5f;
+
+        data.final_heights.resize(n);
+        const bool has_delta = data.height_delta.size() == n;
+        const bool has_flatten = data.flatten_mask.size() == n && data.flatten_height.size() == n;
+        for (Size i = 0; i < n; ++i)
+        {
+            float height = data.base_heights[i];
+            if (has_delta)
+            {
+                height += data.height_delta[i];
+            }
+            if (has_flatten && data.flatten_mask[i] != 0)
+            {
+                height = data.flatten_height[i];
+            }
+            data.final_heights[i] = height;
+        }
+
+        for (const TerrainSpline& spline : data.splines)
+        {
+            if (spline.points.size() < 2)
+            {
+                continue;
+            }
+            const float half_width = spline.width * 0.5f;
+            const float falloff = spline.edge_falloff > 0.0f ? spline.edge_falloff : 0.0f;
+            const float outer = half_width + falloff;
+            for (uint32 j = 0; j < sz; ++j)
+            {
+                for (uint32 i = 0; i < sx; ++i)
+                {
+                    const float wx = data.offset_x + static_cast<float>(i) * data.cell_x;
+                    const float wz = data.offset_z + static_cast<float>(j) * data.cell_z;
+                    float nearest = outer + 1.0f;
+                    for (Size s = 0; s + 1 < spline.points.size(); ++s)
+                    {
+                        const float d = DistancePointToSegment(wx, wz, spline.points[s], spline.points[s + 1]);
+                        if (d < nearest)
+                        {
+                            nearest = d;
+                        }
+                    }
+                    if (nearest > outer)
+                    {
+                        continue;
+                    }
+                    float weight = 1.0f;
+                    if (nearest > half_width && falloff > 0.0f)
+                    {
+                        weight = 1.0f - (nearest - half_width) / falloff;
+                    }
+                    const Size idx = static_cast<Size>(j) * sx + i;
+                    data.final_heights[idx] = math::Lerp(data.final_heights[idx], spline.target_height, weight);
+                }
+            }
+        }
+    }
+
+    void ResizeTerrainEditLayer(TerrainData& data, uint32 new_samples_x, uint32 new_samples_z)
+    {
+        if (new_samples_x < 2 || new_samples_z < 2)
+        {
+            return;
+        }
+
+        const uint32 old_x = data.samples_x;
+        const uint32 old_z = data.samples_z;
+        if (old_x < 2 || old_z < 2)
+        {
+            data.samples_x = new_samples_x;
+            data.samples_z = new_samples_z;
+            return;
+        }
+
+        const Size old_n = static_cast<Size>(old_x) * old_z;
+        const Size new_n = static_cast<Size>(new_samples_x) * new_samples_z;
+
+        auto resample_float = [&](const Vector<float>& src) -> Vector<float>
+        {
+            Vector<float> dst;
+            if (src.size() != old_n)
+            {
+                return dst;
+            }
+            dst.resize(new_n);
+            for (uint32 j = 0; j < new_samples_z; ++j)
+            {
+                const float fz = static_cast<float>(j) * static_cast<float>(old_z - 1) / static_cast<float>(new_samples_z - 1);
+                for (uint32 i = 0; i < new_samples_x; ++i)
+                {
+                    const float fx = static_cast<float>(i) * static_cast<float>(old_x - 1) / static_cast<float>(new_samples_x - 1);
+                    dst[static_cast<Size>(j) * new_samples_x + i] = SampleGridBilinear(src, old_x, old_z, fx, fz);
+                }
+            }
+            return dst;
+        };
+
+        data.height_delta = resample_float(data.height_delta);
+        data.flatten_height = resample_float(data.flatten_height);
+
+        if (data.flatten_mask.size() == old_n)
+        {
+            Vector<float> mask_f(old_n);
+            for (Size i = 0; i < old_n; ++i)
+            {
+                mask_f[i] = data.flatten_mask[i] != 0 ? 1.0f : 0.0f;
+            }
+            Vector<uint8> new_mask(new_n);
+            for (uint32 j = 0; j < new_samples_z; ++j)
+            {
+                const float fz = static_cast<float>(j) * static_cast<float>(old_z - 1) / static_cast<float>(new_samples_z - 1);
+                for (uint32 i = 0; i < new_samples_x; ++i)
+                {
+                    const float fx = static_cast<float>(i) * static_cast<float>(old_x - 1) / static_cast<float>(new_samples_x - 1);
+                    new_mask[static_cast<Size>(j) * new_samples_x + i] = SampleGridBilinear(mask_f, old_x, old_z, fx, fz) >= 0.5f ? 1u : 0u;
+                }
+            }
+            data.flatten_mask = std::move(new_mask);
+        }
+
+        data.samples_x = new_samples_x;
+        data.samples_z = new_samples_z;
+    }
+
+    bool SaveTerrainBinary(const String& path, const TerrainData& data)
+    {
+        if (path.empty())
+        {
+            return false;
+        }
+
+        TerrainData copy = data;
+        copy.final_heights.clear();
+
+        serialize::BinaryArchive archive(path, serialize::ArchiveMode::Write);
+        uint32 magic = terrain_binary_magic;
+        uint32 version = terrain_binary_version;
+        serialize::Serialize(archive, magic);
+        serialize::Serialize(archive, version);
+        serialize::Serialize(archive, copy.samples_x);
+        serialize::Serialize(archive, copy.samples_z);
+        serialize::Serialize(archive, copy.world_size_x);
+        serialize::Serialize(archive, copy.world_size_z);
+        serialize::Serialize(archive, copy.height_scale);
+        serialize::Serialize(archive, copy.base_heights);
+        serialize::Serialize(archive, copy.height_delta);
+        serialize::Serialize(archive, copy.flatten_mask);
+        serialize::Serialize(archive, copy.flatten_height);
+        serialize::Serialize(archive, copy.splines);
+        serialize::Serialize(archive, copy.noise_params);
+        return true;
+    }
+
+    std::shared_ptr<TerrainData> LoadTerrainBinary(const String& path)
+    {
+        if (path.empty() || !io::Exists(path))
+        {
+            return nullptr;
+        }
+        if (utils::ToLower(io::GetExtension(path)) != resource::terrain_binary_extension)
+        {
+            backlog::Post("[LoadResources] terrain load rejected, expected ." + String(resource::terrain_binary_extension) + ": " + path, backlog::LogLevel::Warning);
+            return nullptr;
+        }
+
+        serialize::BinaryArchive archive(path, serialize::ArchiveMode::Read);
+        uint32 magic = 0;
+        uint32 version = 0;
+        serialize::Serialize(archive, magic);
+        serialize::Serialize(archive, version);
+        if (magic != terrain_binary_magic)
+        {
+            backlog::Post("[LoadResources] terrain load failed, bad magic: " + path, backlog::LogLevel::Warning);
+            return nullptr;
+        }
+
+        auto data = std::make_shared<TerrainData>();
+        serialize::Serialize(archive, data->samples_x);
+        serialize::Serialize(archive, data->samples_z);
+        serialize::Serialize(archive, data->world_size_x);
+        serialize::Serialize(archive, data->world_size_z);
+        serialize::Serialize(archive, data->height_scale);
+        serialize::Serialize(archive, data->base_heights);
+        serialize::Serialize(archive, data->height_delta);
+        serialize::Serialize(archive, data->flatten_mask);
+        serialize::Serialize(archive, data->flatten_height);
+        serialize::Serialize(archive, data->splines);
+        serialize::Serialize(archive, data->noise_params);
+        CompositeTerrainHeights(*data);
+        return data;
     }
 }

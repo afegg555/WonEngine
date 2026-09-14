@@ -10,6 +10,7 @@
 #include "RenderingUtils.h"
 #include "Scene.h"
 #include "SceneComponents.h"
+#include "TerrainComponent.h"
 #include "TransformUpdateSystem.h"
 #include "NavMesh.h"
 #include "StableHash.h"
@@ -922,6 +923,18 @@ namespace won::resource
             backlog::Post("[LoadResources] mesh load failed: " + binary_path, backlog::LogLevel::Warning);
     }
 
+    static void LoadTerrainResource(ecs::TerrainComponent& terrain, const String& content_root)
+    {
+        if (terrain.terrain_data_path.empty())
+            return;
+        const String path = project::ResolveProjectContentPath(content_root, terrain.terrain_data_path);
+        auto data = ecs::LoadTerrainBinary(path);
+        if (data)
+            terrain.SetData(data);
+        else
+            backlog::Post("[LoadResources] terrain load failed: " + path, backlog::LogLevel::Warning);
+    }
+
     static void LoadTextureMap(MaterialSlot::TextureMap& texture_map, uint32 slot, const String& content_root)
     {
         if (texture_map.texture_asset_path.empty())
@@ -1314,6 +1327,14 @@ namespace won::resource
             });
         }
 
+        if (auto terrain_array = scene.GetComponentArray<ecs::TerrainComponent>())
+        {
+            DispatchLoadJobs(parallel, mesh_ctx, static_cast<uint32>(terrain_array->GetSize()), [terrain_array, &content_root](jobsystem::JobArgs args)
+            {
+                LoadTerrainResource(terrain_array->data[args.job_index], content_root);
+            });
+        }
+
         if (auto material_array = scene.GetComponentArray<ecs::MaterialComponent>())
         {
             DispatchLoadJobs(parallel, ctx, static_cast<uint32>(material_array->GetSize()), [material_array, &content_root](jobsystem::JobArgs args)
@@ -1404,6 +1425,11 @@ namespace won::resource
         UnorderedSet<Material*> seen_materials;
         for (ecs::Entity entity : entities)
         {
+            if (ecs::TerrainComponent* terrain = scene.GetComponent<ecs::TerrainComponent>(entity))
+            {
+                LoadTerrainResource(*terrain, content_root);
+            }
+
             if (ecs::GeometryComponent* geometry = scene.GetComponent<ecs::GeometryComponent>(entity))
             {
                 LoadMeshResource(*geometry, content_root);
