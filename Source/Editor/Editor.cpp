@@ -366,15 +366,7 @@ namespace won::editor
 
 		bool DrawComponentCollapsingHeader(const char* label)
 		{
-			const float4& header = theme::component_header_color;
-			const float4& header_hovered = theme::component_header_hovered_color;
-			const float4& header_active = theme::component_header_active_color;
-			ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(header.x, header.y, header.z, header.w));
-			ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(header_hovered.x, header_hovered.y, header_hovered.z, header_hovered.w));
-			ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(header_active.x, header_active.y, header_active.z, header_active.w));
-			const bool open = ImGui::CollapsingHeader(label, ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_AllowOverlap);
-			ImGui::PopStyleColor(3);
-			return open;
+			return ImGui::CollapsingHeader(label, ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_AllowOverlap);
 		}
 
 		static constexpr const char* reflected_float_format = "%.6f";
