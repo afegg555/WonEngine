@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 project(WonEngine LANGUAGES C CXX)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "Build")
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -841,6 +842,7 @@ add_custom_target(GenerateVersionHeader
 )
 
 add_dependencies(Runtime GenerateVersionHeader)
+set_target_properties(GenerateVersionHeader PROPERTIES FOLDER "Build")
 target_include_directories(Runtime PRIVATE $<BUILD_INTERFACE:${WON_VERSION_GENERATED_DIR}>)
 
 target_link_libraries(Runtime PUBLIC Jolt)
