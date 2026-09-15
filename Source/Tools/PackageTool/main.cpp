@@ -262,6 +262,7 @@ int main(int argc, char** argv)
             won::resource::scene_file_extension,
             won::resource::prefab_file_extension,
             won::resource::mesh_binary_extension,
+            won::resource::terrain_binary_extension,
             won::resource::material_binary_extension,
             won::resource::texture_binary_extension,
             won::resource::lua_script_file_extension,

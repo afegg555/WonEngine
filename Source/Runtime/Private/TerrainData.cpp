@@ -14,7 +14,7 @@
 
 namespace won::serialize
 {
-    void Serialize(BinaryArchive& archive, won::ecs::TerrainSpline& spline)
+    void Serialize(BinaryArchive& archive, won::terrain::TerrainSpline& spline)
     {
         Serialize(archive, spline.points);
         Serialize(archive, spline.width);
@@ -23,7 +23,7 @@ namespace won::serialize
     }
 }
 
-namespace won::ecs
+namespace won::terrain
 {
     namespace
     {
@@ -578,6 +578,11 @@ namespace won::ecs
         if (magic != terrain_binary_magic)
         {
             backlog::Post("[LoadResources] terrain load failed, bad magic: " + path, backlog::LogLevel::Warning);
+            return nullptr;
+        }
+        if (version != terrain_binary_version)
+        {
+            backlog::Post("[LoadResources] terrain load failed, unsupported version " + std::to_string(version) + ": " + path, backlog::LogLevel::Warning);
             return nullptr;
         }
 

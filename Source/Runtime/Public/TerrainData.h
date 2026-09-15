@@ -6,7 +6,7 @@
 
 #include <memory>
 
-namespace won::ecs
+namespace won::terrain
 {
     struct TerrainNoiseParams
     {
@@ -46,10 +46,10 @@ namespace won::ecs
 
         Vector<float> final_heights; // final terrain heights after applying edits
 
-        float cell_x = 0.0f;
-        float cell_z = 0.0f;
-        float offset_x = 0.0f;
-        float offset_z = 0.0f;
+		float cell_x = 0.0f; // distance between samples in world space
+        float cell_z = 0.0f; // distance between samples in world space
+		float offset_x = 0.0f; // -world_size_x * 0.5f
+        float offset_z = 0.0f; // -world_size_z * 0.5f
 
         bool IsValid() const
         {

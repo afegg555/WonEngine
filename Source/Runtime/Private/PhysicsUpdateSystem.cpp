@@ -9,6 +9,8 @@ using namespace DirectX;
 
 namespace won::ecs
 {
+    using namespace terrain;
+
     void PhysicsUpdateSystem::Update(Scene& scene, float delta_time)
     {
         auto collider_array = scene.GetComponentArray<Collider3DComponent>().get();

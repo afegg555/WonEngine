@@ -106,7 +106,7 @@ namespace won::editor
 		void PerformUndo();
 		void PerformRedo();
 		void ResetInspectorBaseline();
-		void RebuildTerrainMesh(ecs::Entity entity, ecs::TerrainData& data);
+		void RebuildTerrainMesh(ecs::Entity entity, terrain::TerrainData& data);
 		void SaveTerrainChanges(ecs::Entity entity, ecs::TerrainComponent& terrain);
 
 	private:
@@ -123,6 +123,10 @@ namespace won::editor
 			Script,
 			Sound,
 			Unknown,
+			Terrain,
+			NavMesh,
+			InputAction,
+			GameData,
 		};
 
 		struct ContentBrowserAsset
@@ -269,9 +273,15 @@ namespace won::editor
 			bool spline_drag_active = false;
 			bool spline_drag_changed = false;
 			bool mesh_update_pending = false;
+			bool mesh_rebuild_requested = false;
+			ecs::Entity mesh_rebuild_entity = ecs::INVALID_ENTITY;
+			float mesh_rebuild_elapsed = 0.0f;
 			bool dock_pending = false;
 			bool focus_window = false;
 			bool focus_inspector = false;
+			UnorderedMap<Size, TerrainSampleState> stroke_before;
+			Vector<terrain::TerrainSpline> spline_before;
+			bool spline_edit_active = false;
 		};
 
 		std::shared_ptr<RHIPipeline> imgui_pso;

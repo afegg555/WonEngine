@@ -928,7 +928,7 @@ namespace won::resource
         if (terrain.terrain_data_path.empty())
             return;
         const String path = project::ResolveProjectContentPath(content_root, terrain.terrain_data_path);
-        auto data = ecs::LoadTerrainBinary(path);
+        auto data = terrain::LoadTerrainBinary(path);
         if (data)
             terrain.SetData(data);
         else

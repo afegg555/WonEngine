@@ -1,9 +1,11 @@
 #include "EditorHistory.h"
 
+#include "FileSystem.h"
 #include "JsonArchive.h"
 #include "Reflection.h"
 #include "ResourceAsset.h"
 #include "Scene.h"
+#include "SceneComponents.h"
 #include "SceneSerializer.h"
 
 #include <algorithm>
@@ -12,6 +14,84 @@
 namespace won::editor
 {
     static const String empty_name;
+
+    TerrainEditCommand::TerrainEditCommand(ecs::Entity entity_in, String terrain_data_path_in, Vector<TerrainSampleChange> sample_changes_in, String name_in)
+        : entity(entity_in)
+        , terrain_data_path(std::move(terrain_data_path_in))
+        , sample_changes(std::move(sample_changes_in))
+        , name(std::move(name_in))
+    {
+    }
+
+    TerrainEditCommand::TerrainEditCommand(ecs::Entity entity_in, String terrain_data_path_in, Vector<terrain::TerrainSpline> before_splines_in, Vector<terrain::TerrainSpline> after_splines_in, String name_in)
+        : entity(entity_in)
+        , terrain_data_path(std::move(terrain_data_path_in))
+        , before_splines(std::move(before_splines_in))
+        , after_splines(std::move(after_splines_in))
+        , name(std::move(name_in))
+        , replaces_splines(true)
+    {
+    }
+
+    ecs::Entity TerrainEditCommand::Undo(EditorContext& context)
+    {
+        return Apply(context, true);
+    }
+
+    ecs::Entity TerrainEditCommand::Redo(EditorContext& context)
+    {
+        return Apply(context, false);
+    }
+
+    ecs::Entity TerrainEditCommand::Apply(EditorContext& context, bool use_before)
+    {
+        if (!context.scene || entity == ecs::INVALID_ENTITY || !context.scene->IsEntityAlive(entity))
+        {
+            return ecs::INVALID_ENTITY;
+        }
+
+        ecs::TerrainComponent* terrain = context.scene->GetComponent<ecs::TerrainComponent>(entity);
+        if (!terrain || !terrain->data)
+        {
+            return ecs::INVALID_ENTITY;
+        }
+
+        terrain::TerrainData& data = *terrain->data;
+        if (replaces_splines)
+        {
+            data.splines = use_before ? before_splines : after_splines;
+        }
+        else
+        {
+            for (const TerrainSampleChange& change : sample_changes)
+            {
+                const TerrainSampleState& state = use_before ? change.before : change.after;
+                if (state.index >= data.height_delta.size() || state.index >= data.flatten_mask.size() || state.index >= data.flatten_height.size())
+                {
+                    return ecs::INVALID_ENTITY;
+                }
+            }
+            for (const TerrainSampleChange& change : sample_changes)
+            {
+                const TerrainSampleState& state = use_before ? change.before : change.after;
+                data.height_delta[state.index] = state.height_delta;
+                data.flatten_mask[state.index] = state.flatten_mask;
+                data.flatten_height[state.index] = state.flatten_height;
+            }
+        }
+
+        terrain::CompositeTerrainHeights(data);
+        if (!terrain_data_path.empty())
+        {
+            terrain::SaveTerrainBinary(io::CombinePath(context.content_root, terrain_data_path), data);
+        }
+        if (ecs::Collider3DComponent* collider = context.scene->GetComponent<ecs::Collider3DComponent>(entity))
+        {
+            collider->SetDirty();
+        }
+        context.scene->SetBVHDirty();
+        return entity;
+    }
 
     ComponentEditCommand::ComponentEditCommand(ecs::Entity entity_in, Vector<ComponentState> before_in, Vector<ComponentState> after_in, String name_in)
         : entity(entity_in)
@@ -238,6 +318,24 @@ namespace won::editor
         }
 
         Push(std::make_unique<EntityLifetimeCommand>(root, std::move(before_blob), std::move(after_blob), std::move(name)));
+    }
+
+    void EditorHistory::PushTerrainSamples(ecs::Entity entity, String terrain_data_path, Vector<TerrainSampleChange> changes, String name)
+    {
+        if (entity == ecs::INVALID_ENTITY || changes.empty())
+        {
+            return;
+        }
+        Push(std::make_unique<TerrainEditCommand>(entity, std::move(terrain_data_path), std::move(changes), std::move(name)));
+    }
+
+    void EditorHistory::PushTerrainSplines(ecs::Entity entity, String terrain_data_path, Vector<terrain::TerrainSpline> before, Vector<terrain::TerrainSpline> after, String name)
+    {
+        if (entity == ecs::INVALID_ENTITY)
+        {
+            return;
+        }
+        Push(std::make_unique<TerrainEditCommand>(entity, std::move(terrain_data_path), std::move(before), std::move(after), std::move(name)));
     }
 
     void EditorHistory::Push(std::unique_ptr<EditorCommand> command)
