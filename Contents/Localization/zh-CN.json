@@ -374,6 +374,22 @@
             "source": "Mesh",
             "text": "网格"
         },
+        "editor.label.asset_terrain": {
+            "source": "Terrain",
+            "text": "地形"
+        },
+        "editor.label.asset_navmesh": {
+            "source": "NavMesh",
+            "text": "导航网格"
+        },
+        "editor.label.asset_input_action": {
+            "source": "Input Action",
+            "text": "输入操作"
+        },
+        "editor.label.asset_game_data": {
+            "source": "Game Data",
+            "text": "游戏数据"
+        },
         "editor.label.asset_scene": {
             "source": "Scene",
             "text": "场景"

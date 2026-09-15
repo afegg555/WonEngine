@@ -577,6 +577,26 @@
             "text": "Mesh",
             "comment": "label"
         },
+        "editor.label.asset_terrain": {
+            "source": "Terrain",
+            "text": "Terrain",
+            "comment": "label"
+        },
+        "editor.label.asset_navmesh": {
+            "source": "NavMesh",
+            "text": "NavMesh",
+            "comment": "label"
+        },
+        "editor.label.asset_input_action": {
+            "source": "Input Action",
+            "text": "Input Action",
+            "comment": "label"
+        },
+        "editor.label.asset_game_data": {
+            "source": "Game Data",
+            "text": "Game Data",
+            "comment": "label"
+        },
         "editor.label.asset_scene": {
             "source": "Scene",
             "text": "Scene",

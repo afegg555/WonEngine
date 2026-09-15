@@ -374,6 +374,22 @@
             "source": "Mesh",
             "text": "メッシュ"
         },
+        "editor.label.asset_terrain": {
+            "source": "Terrain",
+            "text": "テレイン"
+        },
+        "editor.label.asset_navmesh": {
+            "source": "NavMesh",
+            "text": "ナビメッシュ"
+        },
+        "editor.label.asset_input_action": {
+            "source": "Input Action",
+            "text": "入力アクション"
+        },
+        "editor.label.asset_game_data": {
+            "source": "Game Data",
+            "text": "ゲームデータ"
+        },
         "editor.label.asset_scene": {
             "source": "Scene",
             "text": "シーン"

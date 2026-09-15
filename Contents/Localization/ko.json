@@ -1042,6 +1042,26 @@
             "text": "메시",
             "comment": "label"
         },
+        "editor.label.asset_terrain": {
+            "source": "Terrain",
+            "text": "지형",
+            "comment": "label"
+        },
+        "editor.label.asset_navmesh": {
+            "source": "NavMesh",
+            "text": "내비메시",
+            "comment": "label"
+        },
+        "editor.label.asset_input_action": {
+            "source": "Input Action",
+            "text": "입력 액션",
+            "comment": "label"
+        },
+        "editor.label.asset_game_data": {
+            "source": "Game Data",
+            "text": "게임 데이터",
+            "comment": "label"
+        },
         "editor.label.asset_scene": {
             "source": "Scene",
             "text": "씬",
