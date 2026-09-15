@@ -2133,6 +2133,122 @@ namespace won::editor
 
 	bool EditorApplication::CommitAssetImportResult(EditorAssetImporter::ImportTask& task)
 	{
+		const String task_extension = won::utils::ToLower(io::GetExtension(task.path));
+		const bool image_import = task_extension == "png" || task_extension == "jpg" || task_extension == "jpeg" || task_extension == "tga" || task_extension == "bmp" || task_extension == "dds";
+		if (image_import)
+		{
+			if (!editor_viewport.view || !editor_viewport.view->scene || !device)
+			{
+				return false;
+			}
+
+			resource::AssetMeta meta = {};
+			if (!resource::LoadAssetMeta(resource::GetAssetMetaPath(task.path), meta) || meta.binary_path.empty())
+			{
+				return false;
+			}
+
+			const String binary_path = project::ResolveProjectContentPath(contents_root_dir, meta.binary_path);
+			std::shared_ptr<resource::Image> image = resource::ReloadTextureBinary(binary_path);
+			if (!image || !image->IsValid())
+			{
+				return false;
+			}
+
+			EditorViewport::DeferredResRemoval deferred_res_removal = {};
+			deferred_res_removal.frames_left = 8;
+			UnorderedSet<const RHIResource*> deferred_resources;
+			const String preview_key = io::NormalizePath(binary_path);
+			auto preview_it = content_browser.texture_previews.find(preview_key);
+			if (preview_it != content_browser.texture_previews.end())
+			{
+				if (preview_it->second && preview_it->second->image && preview_it->second->image->render_data.texture &&
+					deferred_resources.insert(preview_it->second->image->render_data.texture.get()).second)
+				{
+					deferred_res_removal.resources.push_back(preview_it->second->image->render_data.texture);
+				}
+				content_browser.texture_previews.erase(preview_it);
+			}
+
+			Vector<resource::MaterialSlot::TextureMap*> matching_textures;
+			Vector<ecs::MaterialComponent*> matching_components;
+			auto material_array = editor_viewport.view->scene->GetComponentArray<ecs::MaterialComponent>();
+			if (material_array)
+			{
+				const String absolute_binary_path = io::GetAbsolutePath(binary_path);
+				for (Size component_index = 0; component_index < material_array->GetSize(); ++component_index)
+				{
+					ecs::MaterialComponent& material_component = material_array->data[component_index];
+					if (!material_component.material)
+					{
+						continue;
+					}
+
+					bool component_matches = false;
+					for (resource::MaterialSlot& slot : material_component.material->slots)
+					{
+						for (resource::MaterialSlot::TextureMap& texture : slot.textures)
+						{
+							if (texture.texture_asset_path.empty())
+							{
+								continue;
+							}
+
+							String texture_path = project::ResolveProjectContentPath(contents_root_dir, texture.texture_asset_path);
+							if (won::utils::ToLower(io::GetExtension(texture_path)) != resource::texture_binary_extension)
+							{
+								resource::AssetMeta texture_meta = {};
+								if (resource::LoadAssetMeta(resource::GetAssetMetaPath(texture_path), texture_meta) && !texture_meta.binary_path.empty())
+								{
+									texture_path = project::ResolveProjectContentPath(contents_root_dir, texture_meta.binary_path);
+								}
+							}
+							if (io::GetAbsolutePath(texture_path) != absolute_binary_path)
+							{
+								continue;
+							}
+
+							matching_textures.push_back(&texture);
+							component_matches = true;
+						}
+					}
+					if (component_matches)
+					{
+						matching_components.push_back(&material_component);
+					}
+				}
+			}
+
+			if (!matching_textures.empty())
+			{
+				if (!rendering::utils::CreateRenderData(*device, *image, image->format, false))
+				{
+					return false;
+				}
+				for (resource::MaterialSlot::TextureMap* texture : matching_textures)
+				{
+					if (texture->image && texture->image != image && texture->image->render_data.texture &&
+						deferred_resources.insert(texture->image->render_data.texture.get()).second)
+					{
+						deferred_res_removal.resources.push_back(texture->image->render_data.texture);
+					}
+					texture->image = image;
+				}
+				for (ecs::MaterialComponent* material_component : matching_components)
+				{
+					material_component->material->SetDirty();
+					material_component->SetDirty();
+				}
+				editor_viewport.view->scene->MarkGpuDirty(ComponentMaskFromType<ecs::MaterialComponent>());
+			}
+
+			if (!deferred_res_removal.resources.empty())
+			{
+				editor_viewport.deferred_res_removals.push_back(std::move(deferred_res_removal));
+			}
+			return true;
+		}
+
 		if (!task.add_to_scene)
 		{
 			return true;
