@@ -703,6 +703,21 @@ namespace won::resource
         return image;
     }
 
+    std::shared_ptr<Image> ReloadTextureBinary(const String& path)
+    {
+        if (path.empty())
+        {
+            return nullptr;
+        }
+
+        const String key = io::GetAbsolutePath(path);
+        {
+            std::lock_guard<std::mutex> lock(texture_cache_mutex);
+            texture_cache.erase(key);
+        }
+        return LoadTextureBinary(path);
+    }
+
     bool SaveMaterialBinary(const String& path, const Vector<MaterialSlot>& slots)
     {
         if (path.empty())

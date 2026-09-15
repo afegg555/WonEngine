@@ -1177,8 +1177,9 @@ namespace won::editor
 		WaitIdle();
 
 		imgui_pso.reset();
+		content_browser.texture_previews.clear();
 		imgui_font.reset();
-		imgui_font_subresource = {};
+		imgui_font_binding = {};
 		imgui_sampler.reset();
 		editor_viewport.deferred_res_removals.clear();
 		editor_viewport.camera_controller = {};
@@ -2409,6 +2410,10 @@ namespace won::editor
 				if (found != meta_by_binary.end())
 				{
 					asset.reimport_source_path = resolve_content_path(found->second.source_asset_path);
+					if (!found->second.asset_name.empty())
+					{
+						asset.name = found->second.asset_name;
+					}
 					if (!asset.reimport_source_path.empty() && !io::Exists(asset.reimport_source_path))
 					{
 						asset.has_broken_reference = true;
@@ -6012,6 +6017,19 @@ namespace won::editor
 								resource::MaterialSlot::TextureMap& texture = material_slot.textures[texture_slot];
 								ImGui::PushID(static_cast<int>(texture_slot));
 								String texture_label = texture.texture_asset_path.empty() ? String(EditorText(editor_key::label_none_placeholder)) : texture.texture_asset_path;
+								if (!texture.texture_asset_path.empty())
+								{
+									for (const ContentBrowserAsset& asset : content_browser.assets)
+									{
+										if (asset.type == ContentAssetType::Texture &&
+											won::utils::ToLower(io::GetExtension(asset.disk_path)) == resource::texture_binary_extension &&
+											io::GetRelativePath(contents_root_dir, asset.disk_path) == texture.texture_asset_path)
+										{
+											texture_label = asset.name;
+											break;
+										}
+									}
+								}
 								ImGui::TextUnformatted(texture_slot_names[texture_slot]);
 								ImGui::SetNextItemWidth(-1.0f);
 								if (ImGui::BeginCombo("##texture", texture_label.c_str()))
@@ -6038,7 +6056,33 @@ namespace won::editor
 											continue;
 										}
 										const bool texture_selected = texture_rel == texture.texture_asset_path;
-										if (ImGui::Selectable(asset.virtual_path.c_str(), texture_selected))
+										const String preview_key = io::NormalizePath(asset.disk_path);
+										auto preview_it = content_browser.texture_previews.find(preview_key);
+										if (preview_it == content_browser.texture_previews.end())
+										{
+											auto preview = std::make_unique<ContentBrowserState::TexturePreview>();
+											preview->image = resource::LoadTextureBinary(asset.disk_path);
+											if (preview->image && preview->image->IsValid() && rendering::utils::CreateRenderData(*device, *preview->image, preview->image->format, false))
+											{
+												preview->binding.resource = preview->image->render_data.texture.get();
+												preview->binding.subresource = preview->image->render_data.srv;
+											}
+											else
+											{
+												preview->failed = true;
+											}
+											preview_it = content_browser.texture_previews.emplace(preview_key, std::move(preview)).first;
+										}
+
+										ContentBrowserState::TexturePreview* preview = preview_it->second.get();
+										if (preview && !preview->failed && preview->binding.resource && preview->binding.subresource.IsValid())
+										{
+											ImGui::Image((ImTextureID)&preview->binding, ImVec2(32.0f, 32.0f));
+											ImGui::SameLine();
+										}
+										ImGui::BeginGroup();
+										const String asset_label = asset.name + "##" + asset.virtual_path;
+										if (ImGui::Selectable(asset_label.c_str(), texture_selected))
 										{
 											auto image = resource::LoadTextureBinary(asset.disk_path);
 											if (image && image->IsValid() && rendering::utils::CreateRenderData(*device, *image, image->format, false))
@@ -6052,6 +6096,8 @@ namespace won::editor
 										{
 											ImGui::SetItemDefaultFocus();
 										}
+										ImGui::TextDisabled("%s", texture_rel.c_str());
+										ImGui::EndGroup();
 									}
 									ImGui::EndCombo();
 								}
@@ -7074,10 +7120,14 @@ namespace won::editor
 						scissor.height = (int32)(clip_max.y - clip_min.y);
 						command_list->SetScissor(scissor);
 
-						const RHIResource* texture = (const RHIResource*)drawCmd->GetTexID();
+						const ImGuiTextureBinding* texture_binding = (const ImGuiTextureBinding*)drawCmd->GetTexID();
+						if (!texture_binding || !texture_binding->resource || !texture_binding->subresource.IsValid())
+						{
+							texture_binding = &imgui_font_binding;
+						}
 						RHISubresourceBinding binding;
-						binding.resource = imgui_font.get();
-						binding.subresource = imgui_font_subresource;
+						binding.resource = texture_binding->resource;
+						binding.subresource = texture_binding->subresource;
 						command_list->SetShaderResource(RHIShaderStage::Pixel, 0, binding);
 						command_list->DrawIndexed(drawCmd->ElemCount, 1, indexOffset + drawCmd->IdxOffset, vertexOffset + drawCmd->VtxOffset, 0);
 					}
@@ -7143,8 +7193,9 @@ namespace won::editor
 
 		std::shared_ptr<RHIResource> old_font = std::move(imgui_font);
 		imgui_font = std::move(new_font);
-		imgui_font_subresource = new_font_subresource;
-		io.Fonts->SetTexID((ImTextureID)imgui_font.get());
+		imgui_font_binding.resource = imgui_font.get();
+		imgui_font_binding.subresource = new_font_subresource;
+		io.Fonts->SetTexID((ImTextureID)&imgui_font_binding);
 		old_font.reset();
 		return true;
 	}
@@ -7371,6 +7422,7 @@ namespace won::editor
 		asset_importer.tasks.clear();
 
 		WaitIdle();
+		content_browser.texture_previews.clear();
 		loaded_project_settings = project_settings_to_load;
 		ApplyProjectSettings(loaded_project_settings);
 		contents_root_dir = project::GetContentRoot(loaded_project_settings);

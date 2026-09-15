@@ -63,6 +63,7 @@ namespace won::resource
     WONENGINE_API rendering::RHIFormat RHIFormatFromDXGIFormat(uint32 dxgi_format);
     WONENGINE_API bool SaveTextureBinary(const String& path, uint32 width, uint32 height, uint32 mip_levels, rendering::RHIFormat format, const Vector<uint8>& pixels);
     WONENGINE_API std::shared_ptr<Image> LoadTextureBinary(const String& path);
+    WONENGINE_API std::shared_ptr<Image> ReloadTextureBinary(const String& path);
 
     WONENGINE_API bool SaveMaterialBinary(const String& path, const Vector<MaterialSlot>& slots);
     // Saves the material and registers this exact instance as the path's cache entry, so subsequent

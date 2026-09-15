@@ -132,9 +132,9 @@ namespace won::editor
 		struct ContentBrowserAsset
 		{
 			uint64 id = 0;
-			String name;
-			String virtual_path;
-			String disk_path;
+			String name; // source asset name
+			String virtual_path; // hashed virtual path of the asset in the project /Contents/...
+			String disk_path; // hashed resolved disk path of the asset C:/Project/Contents/...
 			ContentAssetType type = ContentAssetType::Unknown;
 			String reimport_source_path; // resolved source to reimport from (imported binaries)
 			bool needs_reimport = false; // source changed since last import
@@ -143,14 +143,28 @@ namespace won::editor
 			String import_info;
 		};
 
+		struct ImGuiTextureBinding
+		{
+			RHIResource* resource = nullptr;
+			RHISubresourceHandle subresource = {};
+		};
+
 		struct ContentBrowserState
 		{
+			struct TexturePreview
+			{
+				std::shared_ptr<resource::Image> image;
+				ImGuiTextureBinding binding;
+				bool failed = false;
+			};
+
 			bool initialized = false;
 			String current_folder = "/Contents";
 			char search[256] = {};
 			ContentAssetType type_filter = ContentAssetType::All;
 			float tile_size = 72.0f;
 			std::vector<ContentBrowserAsset> assets;
+			UnorderedMap<String, std::unique_ptr<TexturePreview>> texture_previews;
 			std::vector<String> folders;
 			bool open_import_confirm = false;
 			String pending_import_name;
@@ -286,7 +300,7 @@ namespace won::editor
 
 		std::shared_ptr<RHIPipeline> imgui_pso;
 		std::shared_ptr<RHIResource> imgui_font;
-		RHISubresourceHandle imgui_font_subresource;
+		ImGuiTextureBinding imgui_font_binding;
 		std::shared_ptr<RHISampler> imgui_sampler;
 
 		std::vector<ecs::Entity> sorted_entities;
