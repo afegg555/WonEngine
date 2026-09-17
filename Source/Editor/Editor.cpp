@@ -9190,12 +9190,9 @@ namespace won::editor
 			return;
 		}
 
-		if (!any_active)
+		if (!any_active && inspector_item_was_active)
 		{
-			if (inspector_item_was_active)
-			{
-				editor_history.PushComponentEdit(scene, picked, std::move(inspector_baseline), EditorText(editor_key::label_edit_entity_command));
-			}
+			editor_history.PushComponentEdit(scene, picked, std::move(inspector_baseline), EditorText(editor_key::label_edit_entity_command));
 			inspector_baseline = EditorHistory::CaptureComponents(scene, picked);
 		}
 		inspector_item_was_active = any_active;
