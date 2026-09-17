@@ -667,7 +667,7 @@ namespace won::reflection
         WON_REFLECT_FIELD(collision, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(trunk_radius, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(trunk_height, won::FieldFlagEditable | won::FieldFlagSerializable)
-        WON_REFLECT_FIELD(instances, won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(instances, won::FieldFlagNone)
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::FoliageComponent, "FoliageComponent")
