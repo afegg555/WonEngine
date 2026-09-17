@@ -529,6 +529,8 @@ set(SHADERS_HLSL
     Source/Shaders/AOCommon.hlsli
     Source/Shaders/ObjectCommon.hlsli
     Source/Shaders/ObjectVS.hlsli
+    Source/Shaders/FoliageVS.hlsli
+    Source/Shaders/FoliageVS_common.hlsl
     Source/Shaders/ObjectVS_simple.hlsl
     Source/Shaders/ObjectVS_common.hlsl
     Source/Shaders/ObjectVS_prepass.hlsl

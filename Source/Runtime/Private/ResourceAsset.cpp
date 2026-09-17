@@ -916,11 +916,11 @@ namespace won::resource
         return material;
     }
 
-    static void LoadMeshResource(ecs::GeometryComponent& geometry, const String& content_root)
+    static std::shared_ptr<Mesh> LoadMeshFromPath(const String& asset_path, const String& content_root)
     {
-        if (geometry.mesh_asset_path.empty())
-            return;
-        const String mesh_path = project::ResolveProjectContentPath(content_root, geometry.mesh_asset_path);
+        if (asset_path.empty())
+            return nullptr;
+        const String mesh_path = project::ResolveProjectContentPath(content_root, asset_path);
         String binary_path = mesh_path;
         if (utils::ToLower(io::GetExtension(mesh_path)) != mesh_binary_extension)
         {
@@ -929,13 +929,19 @@ namespace won::resource
                 binary_path = project::ResolveProjectContentPath(content_root, meta.binary_path);
         }
         auto mesh = LoadMeshBinary(binary_path);
+        if (!mesh)
+            backlog::Post("[LoadResources] mesh load failed: " + binary_path, backlog::LogLevel::Warning);
+        return mesh;
+    }
+
+    static void LoadMeshResource(ecs::GeometryComponent& geometry, const String& content_root)
+    {
+        auto mesh = LoadMeshFromPath(geometry.mesh_asset_path, content_root);
         if (mesh)
         {
             geometry.SetMesh(mesh);
             rendering::utils::EnqueueResourceUpload(mesh);
         }
-        else
-            backlog::Post("[LoadResources] mesh load failed: " + binary_path, backlog::LogLevel::Warning);
     }
 
     void LoadTerrainResource(ecs::TerrainComponent& terrain, const String& content_root)
@@ -1366,6 +1372,37 @@ namespace won::resource
         return true;
     }
 
+    static void LoadFoliageResource(ecs::FoliageComponent& foliage, const String& content_root)
+    {
+        for (ecs::FoliageType& type : foliage.types)
+        {
+            auto mesh = LoadMeshFromPath(type.mesh_asset_path, content_root);
+            if (mesh)
+            {
+                type.mesh = mesh;
+                rendering::utils::EnqueueResourceUpload(mesh);
+            }
+
+            if (!type.material_asset_path.empty())
+            {
+                type.material = LoadMaterialBinary(project::ResolveProjectContentPath(content_root, type.material_asset_path));
+                if (type.material)
+                {
+                    for (MaterialSlot& material_slot : type.material->slots)
+                    {
+                        for (uint32 slot = 0; slot < static_cast<uint32>(TEXTURESLOT_COUNT); ++slot)
+                        {
+                            if (!material_slot.attributes.textures[slot].texture_asset_path.empty())
+                            {
+                                LoadTextureMap(material_slot.attributes.textures[slot], slot, content_root);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     void LoadSceneResources(ecs::Scene& scene, const String& content_root, bool parallel)
     {
         jobsystem::Context ctx;
@@ -1440,6 +1477,14 @@ namespace won::resource
                 LoadTextureMap(*texture_job.map, texture_job.slot, content_root);
             });
             jobsystem::Wait(ctx);
+        }
+
+        if (auto foliage_array = scene.GetComponentArray<ecs::FoliageComponent>())
+        {
+            DispatchLoadJobs(parallel, ctx, static_cast<uint32>(foliage_array->GetSize()), [foliage_array, &content_root](jobsystem::JobArgs args)
+            {
+                LoadFoliageResource(foliage_array->data[args.job_index], content_root);
+            });
         }
 
         if (auto text2d_array = scene.GetComponentArray<ecs::Text2DComponent>())

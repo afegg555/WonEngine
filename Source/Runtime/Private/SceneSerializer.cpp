@@ -23,12 +23,34 @@ namespace won::serialize
             RawId, // entity references are encoded as raw entity IDs (uint64)
         };
 
-        struct EntityRefContext
+        struct SerializeContext
         {
             EntityRefEncoding encoding = EntityRefEncoding::FileIndex;
             const UnorderedMap<ecs::Entity, uint64>* entity_to_index = nullptr;
             const Vector<ecs::Entity>* entities = nullptr;
+
+            Vector<String>* mesh_resources = nullptr;
+            UnorderedMap<String, uint32>* mesh_resource_indices = nullptr;
+            Vector<String>* material_resources = nullptr;
+            UnorderedMap<String, uint32>* material_resource_indices = nullptr;
         };
+
+        uint32 ResolveResourceIndex(const String& path, Vector<String>& resources, UnorderedMap<String, uint32>& resource_indices)
+        {
+            if (path.empty())
+            {
+                return invalid_resource_index;
+            }
+            auto resource_it = resource_indices.find(path);
+            if (resource_it != resource_indices.end())
+            {
+                return resource_it->second;
+            }
+            const uint32 resource_index = static_cast<uint32>(resources.size());
+            resources.push_back(path);
+            resource_indices[path] = resource_index;
+            return resource_index;
+        }
 
         bool SerializeReflectedValue(JsonArchive& archive, won::ValueType value_type, uint32 value_size, void* value)
         {
@@ -85,7 +107,7 @@ namespace won::serialize
             }
         }
 
-        void WriteReflectedData(JsonArchive& archive, won::ValueType value_type, const won::TypeDesc* type_desc, uint32 value_size, const won::ArrayDesc* array_desc, const void* value, const EntityRefContext* entity_refs = nullptr)
+        void WriteReflectedData(JsonArchive& archive, won::ValueType value_type, const won::TypeDesc* type_desc, uint32 value_size, const won::ArrayDesc* array_desc, const void* value, const SerializeContext* context = nullptr)
         {
             if (!value || SerializeReflectedValue(archive, value_type, value_size, const_cast<void*>(value)))
             {
@@ -118,19 +140,35 @@ namespace won::serialize
                     field_stream << "0x" << std::hex << std::uppercase << field.field_id;
                     const String field_key = field_stream.str();
                     const void* field_value = static_cast<const uint8*>(value) + field.offset;
+                    const bool mesh_path_field = field.value_type == won::ValueType::String && field.name && std::strcmp(field.name, "mesh_asset_path") == 0;
+                    const bool material_path_field = field.value_type == won::ValueType::String && field.name && std::strcmp(field.name, "material_asset_path") == 0;
                     if (archive.BeginField(field_key.c_str()))
                     {
-                        if ((field.flags & won::FieldFlagEntityRef) != 0 && entity_refs)
+                        if (mesh_path_field && context && context->mesh_resources && context->mesh_resource_indices)
+                        {
+                            const String& path = *static_cast<const String*>(field_value);
+                            uint32 resource_index = ResolveResourceIndex(path, *context->mesh_resources, *context->mesh_resource_indices);
+                            archive.Value(resource_index);
+                        }
+                        else if (material_path_field && context && context->material_resources && context->material_resource_indices)
+                        {
+                            const String& path = *static_cast<const String*>(field_value);
+                            uint32 resource_index = ResolveResourceIndex(path, *context->material_resources, *context->material_resource_indices);
+                            archive.BeginObject();
+                            archive.Field("ref", resource_index);
+                            archive.EndObject();
+                        }
+                        else if ((field.flags & won::FieldFlagEntityRef) != 0 && context)
                         {
                             const ecs::Entity referenced = *static_cast<const ecs::Entity*>(field_value);
                             uint64 encoded = referenced;
-                            if (entity_refs->encoding == EntityRefEncoding::FileIndex)
+                            if (context->encoding == EntityRefEncoding::FileIndex)
                             {
                                 encoded = invalid_entity_index;
-                                if (entity_refs->entity_to_index)
+                                if (context->entity_to_index)
                                 {
-                                    auto referenced_index_it = entity_refs->entity_to_index->find(referenced);
-                                    if (referenced_index_it != entity_refs->entity_to_index->end())
+                                    auto referenced_index_it = context->entity_to_index->find(referenced);
+                                    if (referenced_index_it != context->entity_to_index->end())
                                     {
                                         encoded = referenced_index_it->second;
                                     }
@@ -140,7 +178,7 @@ namespace won::serialize
                         }
                         else
                         {
-                            WriteReflectedData(archive, field.value_type, reflection::FindType(field.type_id), field.size, field.array_desc, field_value, entity_refs);
+                            WriteReflectedData(archive, field.value_type, reflection::FindType(field.type_id), field.size, field.array_desc, field_value, context);
                         }
                         archive.EndField();
                     }
@@ -169,7 +207,7 @@ namespace won::serialize
                 {
                     const void* element = array_desc->GetConstElement(value, index);
                     archive.BeginItem();
-                    WriteReflectedData(archive, element_type->value_type, element_type, element_type->size, nullptr, element, entity_refs);
+                    WriteReflectedData(archive, element_type->value_type, element_type, element_type->size, nullptr, element, context);
                     archive.EndItem();
                 }
                 archive.EndArray();
@@ -180,7 +218,7 @@ namespace won::serialize
             }
         }
 
-        void ReadReflectedData(JsonArchive& archive, won::ValueType value_type, const won::TypeDesc* type_desc, uint32 value_size, const won::ArrayDesc* array_desc, void* value, const EntityRefContext* entity_refs = nullptr)
+        void ReadReflectedData(JsonArchive& archive, won::ValueType value_type, const won::TypeDesc* type_desc, uint32 value_size, const won::ArrayDesc* array_desc, void* value, const SerializeContext* context = nullptr)
         {
             if (!value || SerializeReflectedValue(archive, value_type, value_size, value))
             {
@@ -221,25 +259,47 @@ namespace won::serialize
                     }
 
                     void* field_value = static_cast<uint8*>(value) + field->offset;
+                    const bool mesh_path_field = field->value_type == won::ValueType::String && field->name && std::strcmp(field->name, "mesh_asset_path") == 0;
+                    const bool material_path_field = field->value_type == won::ValueType::String && field->name && std::strcmp(field->name, "material_asset_path") == 0;
                     if (archive.BeginField(field_key.c_str()))
                     {
-                        if ((field->flags & won::FieldFlagEntityRef) != 0 && entity_refs)
+                        if (mesh_path_field && context && context->mesh_resources)
+                        {
+                            uint32 resource_index = invalid_resource_index;
+                            archive.Value(resource_index);
+                            *static_cast<String*>(field_value) = resource_index < context->mesh_resources->size() ? (*context->mesh_resources)[resource_index] : String();
+                        }
+                        else if (material_path_field && context && context->material_resources)
+                        {
+                            uint32 resource_index = invalid_resource_index;
+                            if (archive.BeginObject())
+                            {
+                                if (archive.BeginField("ref"))
+                                {
+                                    archive.Value(resource_index);
+                                    archive.EndField();
+                                }
+                                archive.EndObject();
+                            }
+                            *static_cast<String*>(field_value) = resource_index < context->material_resources->size() ? (*context->material_resources)[resource_index] : String();
+                        }
+                        else if ((field->flags & won::FieldFlagEntityRef) != 0 && context)
                         {
                             uint64 encoded = invalid_entity_index;
                             archive.Value(encoded);
-                            if (entity_refs->encoding == EntityRefEncoding::RawId)
+                            if (context->encoding == EntityRefEncoding::RawId)
                             {
                                 *static_cast<ecs::Entity*>(field_value) = static_cast<ecs::Entity>(encoded);
                             }
                             else
                             {
-                                const Vector<ecs::Entity>* entities = entity_refs->entities;
+                                const Vector<ecs::Entity>* entities = context->entities;
                                 *static_cast<ecs::Entity*>(field_value) = (entities && encoded < entities->size()) ? (*entities)[static_cast<Size>(encoded)] : ecs::INVALID_ENTITY;
                             }
                         }
                         else
                         {
-                            ReadReflectedData(archive, field->value_type, reflection::FindType(field->type_id), field->size, field->array_desc, field_value, entity_refs);
+                            ReadReflectedData(archive, field->value_type, reflection::FindType(field->type_id), field->size, field->array_desc, field_value, context);
                         }
                         archive.EndField();
                     }
@@ -278,7 +338,7 @@ namespace won::serialize
                     if (index < count)
                     {
                         void* element = array_desc->GetElement(value, static_cast<uint32>(index));
-                        ReadReflectedData(archive, element_type->value_type, element_type, element_type->size, nullptr, element, entity_refs);
+                        ReadReflectedData(archive, element_type->value_type, element_type, element_type->size, nullptr, element, context);
                     }
 
                     archive.EndItem();
@@ -606,10 +666,14 @@ namespace won::serialize
                         }
                         else
                         {
-                            EntityRefContext entity_refs = {};
-                            entity_refs.encoding = entity_ref_encoding;
-                            entity_refs.entity_to_index = &entity_to_index;
-                            WriteReflectedData(archive, field.value_type, nullptr, field.size, field.array_desc, field_value, &entity_refs);
+                            SerializeContext context = {};
+                            context.encoding = entity_ref_encoding;
+                            context.entity_to_index = &entity_to_index;
+                            context.mesh_resources = &mesh_resources;
+                            context.mesh_resource_indices = &mesh_resource_indices;
+                            context.material_resources = &material_resources;
+                            context.material_resource_indices = &material_resource_indices;
+                            WriteReflectedData(archive, field.value_type, nullptr, field.size, field.array_desc, field_value, &context);
                         }
                         archive.EndItem();
                     }
@@ -1070,10 +1134,12 @@ namespace won::serialize
                                             }
                                             else
                                             {
-                                                EntityRefContext entity_refs = {};
-                                                entity_refs.encoding = entity_ref_encoding;
-                                                entity_refs.entities = &entities;
-                                                ReadReflectedData(archive, field->value_type, nullptr, field->size, field->array_desc, field_value, &entity_refs);
+                                                SerializeContext context = {};
+                                                context.encoding = entity_ref_encoding;
+                                                context.entities = &entities;
+                                                context.mesh_resources = &mesh_resources;
+                                                context.material_resources = &material_resources;
+                                                ReadReflectedData(archive, field->value_type, nullptr, field->size, field->array_desc, field_value, &context);
                                             }
                                         }
                                     }

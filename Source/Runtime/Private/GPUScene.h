@@ -241,6 +241,27 @@ namespace won::rendering
         Vector<float4> particle_instances;
         GPUBuffer particle_buffer;
 
+        struct FoliageRenderable
+        {
+            RHIResource* index_buffer = nullptr;
+            uint32 index_buffer_offset = 0;
+            uint32 index_buffer_size = 0;
+            uint32 first_index = 0;
+            uint32 index_count = 0;
+            uint32 geometry_index = 0;
+            uint32 material_index = 0;
+            uint32 instance_offset = 0;
+            uint32 instance_count = 0;
+            uint32 shader_type = SHADER_MATERIAL_TYPE_PBR;
+            resource::MaterialBlendMode blend_mode = resource::MaterialBlendMode::Opaque;
+            bool cast_shadow = false;
+            bool double_sided = false;
+        };
+
+        Vector<ShaderFoliageInstance> foliage_instances;
+        GPUBuffer foliage_instance_buffer;
+        Vector<FoliageRenderable> foliage_renderables;
+
         Vector<ShaderDecal> shader_decals;
         GPUBuffer decal_buffer;
 

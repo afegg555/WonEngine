@@ -12,6 +12,7 @@ namespace won::resource
         VSTerrainCommon,
         VSTerrainSimple,
         VSObjectSimple,
+        VSFoliageCommon,
         VSObjectPrepass,
         VSObjectNormal,
         VSObjectMotion,

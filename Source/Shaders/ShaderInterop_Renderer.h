@@ -372,7 +372,8 @@ struct alignas(16) ShaderScene
     int terrain_buffer;
 
     int terrain_layer_buffer;
-    int3 _scene_padding;
+    int foliage_instance_buffer;
+    int2 _scene_padding;
 #ifdef __cplusplus
     inline void Init()
     {
@@ -396,7 +397,8 @@ struct alignas(16) ShaderScene
         particlebuffer = -1;
         terrain_buffer = -1;
         terrain_layer_buffer = -1;
-        _scene_padding = { 0, 0, 0 };
+        foliage_instance_buffer = -1;
+        _scene_padding = { 0, 0 };
     }
 #endif
 };
@@ -1261,6 +1263,12 @@ struct alignas(16) ShaderShadowCascade
         depth_range = 1.0f;
     }
 #endif
+};
+
+struct ShaderFoliageInstance
+{
+    float4 position_scale;
+    float4 rotation;
 };
 
 struct ObjectPushConstants

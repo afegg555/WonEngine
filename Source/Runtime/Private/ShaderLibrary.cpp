@@ -523,6 +523,52 @@ namespace won::resource
             }
         }
 
+        const struct
+        {
+            MaterialBlendMode blend_mode;
+            bool masked;
+        } foliage_variants[] = {
+            { MaterialBlendMode::Opaque, false },
+            { MaterialBlendMode::Masked, true },
+        };
+        for (const auto& foliage_variant : foliage_variants)
+        {
+            for (uint32 clustered = 0; clustered < 2; ++clustered)
+            {
+                const ShaderId pixel_shader = foliage_variant.masked
+                    ? (clustered ? ShaderId::PSObjectForwardPlusMasked : ShaderId::PSObjectForwardMasked)
+                    : (clustered ? ShaderId::PSObjectForwardPlus : ShaderId::PSObjectForward);
+
+                pipeline_desc = {};
+                pipeline_desc.vertex_shader = GetShader(ShaderId::VSFoliageCommon);
+                pipeline_desc.pixel_shader = GetShader(pixel_shader);
+                pipeline_desc.sample_count = sample_count;
+                pipeline_desc.depth_stencil_format = dsv_format;
+                pipeline_desc.depth_stencil.depth_test = true;
+                pipeline_desc.depth_stencil.depth_write = true;
+                pipeline_desc.depth_stencil.depth_compare = RHICompareOp::GreaterEqual;
+                pipeline_desc.blend.enable = false;
+                pipeline_desc.render_target_formats = { hdr_rtv_format };
+
+                for (uint32 cull_index = 0; cull_index < 2; ++cull_index)
+                {
+                    const RHICullMode cull_mode = cull_index == 0 ? RHICullMode::Back : RHICullMode::None;
+                    pipeline_desc.raster.cull_mode = cull_mode;
+                    pipeline_hash = {};
+                    pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::MainPass);
+                    pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
+                    pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(cull_mode);
+                    pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
+                    pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(pipeline_desc.depth_stencil.depth_compare);
+                    pipeline_hash.storage.bits.shader_type = SHADER_MATERIAL_TYPE_PBR;
+                    pipeline_hash.storage.bits.blend_mode = static_cast<uint64>(foliage_variant.blend_mode);
+                    pipeline_hash.storage.bits.clustered = clustered;
+                    pipeline_hash.storage.bits.vertex_shader = static_cast<uint64>(ShaderId::VSFoliageCommon);
+                    graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+                }
+            }
+        }
+
         pipeline_desc = {};
         pipeline_desc.vertex_shader = GetShader(ShaderId::VSObjectSimple);
         pipeline_desc.pixel_shader = GetShader(ShaderId::PSObjectUnlit);

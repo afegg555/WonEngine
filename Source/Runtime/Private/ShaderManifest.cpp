@@ -7,6 +7,7 @@ namespace won::resource
         static const ShaderManifest manifest = {
             { ShaderId::VSFullTriangle, { rendering::RHIShaderStage::Vertex, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "FullTriangleVS.hlsl", "main" } },
             { ShaderId::VSObjectCommon, { rendering::RHIShaderStage::Vertex, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "ObjectVS_common.hlsl", "main" } },
+            { ShaderId::VSFoliageCommon, { rendering::RHIShaderStage::Vertex, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "FoliageVS_common.hlsl", "main" } },
             { ShaderId::VSTerrainCommon, { rendering::RHIShaderStage::Vertex, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TerrainVS_common.hlsl", "main" } },
             { ShaderId::VSTerrainSimple, { rendering::RHIShaderStage::Vertex, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TerrainVS_simple.hlsl", "main" } },
             { ShaderId::VSObjectSimple, { rendering::RHIShaderStage::Vertex, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "ObjectVS_simple.hlsl", "main" } },

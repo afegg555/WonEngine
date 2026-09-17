@@ -5,6 +5,7 @@
 #include "Scene.h"
 #include "LightComponent.h"
 #include "GeometryComponent.h"
+#include "FoliageComponent.h"
 #include "MaterialComponent.h"
 #include "TerrainComponent.h"
 #include "AnimationComponent.h"
@@ -446,6 +447,93 @@ namespace won::rendering
                 terrain_opaque_cull_data[i].aabb = terrain_opaque_renderables[i].aabb;
                 terrain_opaque_cull_data[i].layer_mask = terrain_opaque_renderables[i].layer_mask;
                 terrain_opaque_cull_data[i].flags = terrain_opaque_renderables[i].flags;
+            }
+        }
+
+        void ExtractFoliage(ecs::Scene& scene,
+            Vector<ShaderGeometry>& shader_geometries,
+            Vector<ShaderMaterial>& shader_materials,
+            Vector<ShaderFoliageInstance>& foliage_instances,
+            Vector<GPUScene::FoliageRenderable>& foliage_renderables)
+        {
+            foliage_instances.clear();
+            foliage_renderables.clear();
+
+            const auto foliage_array = scene.GetComponentArray<FoliageComponent>().get();
+            if (!foliage_array)
+            {
+                return;
+            }
+
+            for (Size fi = 0; fi < foliage_array->GetSize(); ++fi)
+            {
+                const FoliageComponent& foliage = foliage_array->data[fi];
+                if (!foliage.IsActive())
+                {
+                    continue;
+                }
+
+                for (const FoliageType& type : foliage.types)
+                {
+                    if (type.instances.empty() || !type.mesh || !type.material)
+                    {
+                        continue;
+                    }
+                    const resource::Mesh& mesh = *type.mesh;
+                    const resource::Mesh::RenderData& mesh_render_data = mesh.render_data;
+                    if (!mesh_render_data.IsValid())
+                    {
+                        continue;
+                    }
+
+                    const uint32 instance_offset = static_cast<uint32>(foliage_instances.size());
+                    foliage_instances.reserve(foliage_instances.size() + type.instances.size());
+                    for (const FoliageInstance& instance : type.instances)
+                    {
+                        ShaderFoliageInstance shader_instance;
+                        shader_instance.position_scale = float4(instance.position.x, instance.position.y, instance.position.z, instance.scale);
+                        shader_instance.rotation = instance.rotation;
+                        foliage_instances.push_back(shader_instance);
+                    }
+                    const uint32 instance_count = static_cast<uint32>(type.instances.size());
+
+                    const uint32 material_offset = static_cast<uint32>(shader_materials.size());
+                    for (const resource::MaterialSlot& material_slot : type.material->slots)
+                    {
+                        shader_materials.emplace_back();
+                        WriteShaderMaterial(material_slot, shader_materials.back());
+                    }
+
+                    const uint32 geometry_offset = static_cast<uint32>(shader_geometries.size());
+                    for (Size submesh_index = 0; submesh_index < mesh.submeshes.size(); ++submesh_index)
+                    {
+                        const resource::Submesh& submesh = mesh.submeshes[submesh_index];
+                        shader_geometries.emplace_back();
+                        WriteShaderGeometry(mesh, submesh_index, shader_geometries.back());
+
+                        if (submesh.material_slot >= type.material->slots.size())
+                        {
+                            continue;
+                        }
+                        const resource::MaterialSlot& material_slot = type.material->slots[submesh.material_slot];
+
+                        GPUScene::FoliageRenderable renderable = {};
+                        renderable.index_buffer = mesh_render_data.buffer.get();
+                        renderable.index_buffer_offset = mesh_render_data.indices.offset;
+                        renderable.index_buffer_size = mesh_render_data.indices.size;
+                        renderable.first_index = submesh.first_index;
+                        renderable.index_count = submesh.index_count;
+                        renderable.geometry_index = geometry_offset + static_cast<uint32>(submesh_index);
+                        renderable.material_index = material_offset + submesh.material_slot;
+                        renderable.instance_offset = instance_offset;
+                        renderable.instance_count = instance_count;
+                        renderable.shader_type = static_cast<uint32>(material_slot.settings.material_type);
+                        renderable.blend_mode = material_slot.settings.blend_mode;
+                        renderable.double_sided = material_slot.settings.double_sided;
+                        renderable.cast_shadow = type.cast_shadow;
+                        foliage_renderables.push_back(renderable);
+                    }
+                }
             }
         }
 
@@ -1793,6 +1881,8 @@ namespace won::rendering
 
         ExtractTerrains(scene, mesh_material_count, shader_geometries, shader_materials, shader_terrains, shader_terrain_layers,
             terrain_opaque_cull_data, terrain_opaque_renderables, terrain_transparent_renderables, shadow_caster_world_bound);
+
+        ExtractFoliage(scene, shader_geometries, shader_materials, foliage_instances, foliage_renderables);
 
         transform_history.world_transforms.resize(transform_count);
         if (!transform_history_layout_matches)

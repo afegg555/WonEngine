@@ -1,6 +1,8 @@
 #pragma once
 #include "Primitives.h"
 #include "Types.h"
+#include "Mesh.h"
+#include "Material.h"
 
 namespace won::ecs
 {
@@ -42,6 +44,9 @@ namespace won::ecs
         float trunk_height = 2.0f;
 
         Vector<FoliageInstance> instances;
+
+        std::shared_ptr<resource::Mesh> mesh;
+        std::shared_ptr<resource::Material> material;
     };
 
     struct FoliageComponent
