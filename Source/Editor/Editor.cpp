@@ -4112,6 +4112,7 @@ namespace won::editor
 					{ rendering::Show_Transparent, editor_key::label_show_transparent },
 					{ rendering::Show_Decals,      editor_key::label_show_decals },
 					{ rendering::Show_Water,       editor_key::label_show_water },
+					{ rendering::Show_Foliage,     editor_key::label_show_foliage },
 					{ rendering::Show_Particles,   editor_key::label_show_particles },
 					{ rendering::Show_Sprites3D,   editor_key::label_show_sprites_3d },
 					{ rendering::Show_Sprites2D,   editor_key::label_show_sprites_2d },

@@ -603,6 +603,11 @@
             "text": "車両ホイール",
             "comment": "label"
         },
+        "editor.label.show_foliage": {
+            "source": "Foliage",
+            "text": "フォリッジ",
+            "comment": "label"
+        },
         "editor.label.automatic_transmission": {
             "source": "Automatic Transmission",
             "text": "オートマチックトランスミッション",

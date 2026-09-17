@@ -21,6 +21,7 @@ namespace won::editor
         { rendering::Show_Transparent, "editor.viewport.show.transparent" },
         { rendering::Show_Decals,      "editor.viewport.show.decals" },
         { rendering::Show_Water,       "editor.viewport.show.water" },
+        { rendering::Show_Foliage,     "editor.viewport.show.foliage" },
         { rendering::Show_Particles,   "editor.viewport.show.particles" },
         { rendering::Show_Sprites3D,   "editor.viewport.show.sprites_3d" },
         { rendering::Show_Sprites2D,   "editor.viewport.show.sprites_2d" },

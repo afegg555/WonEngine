@@ -1943,7 +1943,7 @@ namespace won::rendering
             flush_batch(gpu_scene.opaque_renderables, opaque_sort_indices, opaque_sort_buffer_base, batch_start, batch_size);
         }
 
-        if (pass == RenderPassType::MainPass && (flags & DrawScene_Opaque) != 0 && !gpu_scene.foliage_renderables.empty())
+        if (pass == RenderPassType::MainPass && (flags & DrawScene_Foliage) != 0 && !gpu_scene.foliage_renderables.empty())
         {
             GraphicsPipelineHash current_hash = {};
             bool has_pipeline = false;
@@ -4231,6 +4231,10 @@ namespace won::rendering
         if ((view.show_flags & Show_Transparent) != 0)
         {
             main_pass_flags |= DrawScene_Transparent;
+        }
+        if ((view.show_flags & Show_Foliage) != 0)
+        {
+            main_pass_flags |= DrawScene_Foliage;
         }
         main_pass_flags |= DrawScene_Terrain;
         if (main_pass_flags != 0)

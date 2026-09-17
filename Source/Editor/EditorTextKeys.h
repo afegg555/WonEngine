@@ -375,6 +375,7 @@ namespace won::editor::editor_key
     constexpr const char* label_show_ddgi = "editor.label.show_ddgi";
     constexpr const char* label_show_occlusion = "editor.label.show_occlusion";
     constexpr const char* label_show_vehicles = "editor.label.show_vehicles";
+    constexpr const char* label_show_foliage = "editor.label.show_foliage";
     constexpr const char* label_automatic_transmission = "editor.label.automatic_transmission";
     constexpr const char* label_vehicle_preset = "editor.label.vehicle_preset";
     constexpr const char* action_apply_vehicle_preset = "editor.action.apply_vehicle_preset";

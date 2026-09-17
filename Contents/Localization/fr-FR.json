@@ -603,6 +603,11 @@
             "text": "Roues du véhicule",
             "comment": "label"
         },
+        "editor.label.show_foliage": {
+            "source": "Foliage",
+            "text": "Végétation",
+            "comment": "label"
+        },
         "editor.label.automatic_transmission": {
             "source": "Automatic Transmission",
             "text": "Transmission automatique",
