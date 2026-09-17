@@ -11,6 +11,15 @@ namespace won::ecs
 {
     namespace
     {
+        math::AABB GetWorldBounds(const TransformComponent& transform, const AnimationComponent* animation)
+        {
+            if (animation && !animation->bone_matrices.empty() && animation->skinned_local_bounds.IsValid())
+            {
+                return animation->skinned_local_bounds.TransformAABB(transform.world_transform);
+            }
+            return transform.world_bounds;
+        }
+
         ComponentMask ComponentMaskFromTypeId(won::TypeId type_id)
         {
             switch (type_id)
@@ -471,6 +480,7 @@ namespace won::ecs
     {
         auto geometry_array = GetComponentArray<GeometryComponent>().get();
         auto transform_array = GetComponentArray<TransformComponent>().get();
+        auto animation_array = GetComponentArray<AnimationComponent>().get();
         if (!geometry_array || !transform_array)
         {
             scene_bvh.Clear();
@@ -495,12 +505,14 @@ namespace won::ecs
             }
 
             const TransformComponent& transform = transform_array->GetData(entity);
-            if (!transform.world_bounds.IsValid())
+            const AnimationComponent* animation = animation_array && animation_array->HasData(entity) ? &animation_array->GetData(entity) : nullptr;
+            const math::AABB world_bounds = GetWorldBounds(transform, animation);
+            if (!world_bounds.IsValid())
             {
                 continue;
             }
 
-            primitives.push_back(math::bvh::MakePrimitive(transform.world_bounds, static_cast<uint32>(scene_bvh_entities.size())));
+            primitives.push_back(math::bvh::MakePrimitive(world_bounds, static_cast<uint32>(scene_bvh_entities.size())));
             scene_bvh_entities.push_back(entity);
         }
 
@@ -602,6 +614,7 @@ namespace won::ecs
         auto geometry_array = GetComponentArray<GeometryComponent>().get();
         auto transform_array = GetComponentArray<TransformComponent>().get();
         auto material_array = GetComponentArray<MaterialComponent>().get();
+        auto animation_array = GetComponentArray<AnimationComponent>().get();
         if (!geometry_array || !transform_array)
         {
             GetGPUScene().shader_bvh_nodes.clear();
@@ -660,7 +673,9 @@ namespace won::ecs
             }
 
             const TransformComponent& transform = transform_array->GetData(entity);
-            if (!transform.world_bounds.IsValid())
+            const AnimationComponent* animation = animation_array && animation_array->HasData(entity) ? &animation_array->GetData(entity) : nullptr;
+            const math::AABB world_bounds = GetWorldBounds(transform, animation);
+            if (!world_bounds.IsValid())
             {
                 continue;
             }
@@ -672,8 +687,8 @@ namespace won::ecs
             const XMMATRIX world_to_local = XMMatrixInverse(nullptr, world_transform);
             XMStoreFloat4x4(&shader_instance.local_to_world, world_transform);
             XMStoreFloat4x4(&shader_instance.world_to_local, world_to_local);
-            shader_instance.bounds_min = transform.world_bounds.min;
-            shader_instance.bounds_max = transform.world_bounds.max;
+            shader_instance.bounds_min = world_bounds.min;
+            shader_instance.bounds_max = world_bounds.max;
             shader_instance.blas_node_buffer = gpu_bvh.node_srv.descriptor_index;
             shader_instance.blas_primitive_buffer = gpu_bvh.primitive_srv.descriptor_index;
             shader_instance.blas_node_count = gpu_bvh.node_count;
@@ -682,7 +697,7 @@ namespace won::ecs
             shader_instance.material_offset = material ? material->material_offset : 0;
             shader_instance.material_count = material ? static_cast<uint32>(material->GetMaterialSlotCount()) : 0;
 
-            primitives.push_back(math::bvh::MakePrimitive(transform.world_bounds, static_cast<uint32>(source_instances.size())));
+            primitives.push_back(math::bvh::MakePrimitive(world_bounds, static_cast<uint32>(source_instances.size())));
             source_instances.push_back(shader_instance);
         }
 
