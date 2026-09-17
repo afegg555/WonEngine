@@ -379,6 +379,7 @@ set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/VisibilityLayerComponent.h
     Source/Runtime/Public/CollisionLayerComponent.h
     Source/Runtime/Public/TerrainComponent.h
+    Source/Runtime/Public/FoliageComponent.h
     Source/Runtime/Public/NavMeshComponent.h
     Source/Runtime/Public/ParticleEmitter3DComponent.h
     Source/Runtime/Public/DecalComponent.h

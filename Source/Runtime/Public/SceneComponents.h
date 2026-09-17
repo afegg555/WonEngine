@@ -30,6 +30,7 @@
 #include "VisibilityLayerComponent.h"
 #include "CollisionLayerComponent.h"
 #include "TerrainComponent.h"
+#include "FoliageComponent.h"
 #include "NavMeshComponent.h"
 #include "ParticleEmitter3DComponent.h"
 #include "DecalComponent.h"
@@ -94,7 +95,8 @@ namespace won::ecs
         Water,
         WaterZone,
         SoftBody,
-        Vehicle
+        Vehicle,
+        Foliage
     };
 
     constexpr ComponentMask ComponentMaskFromBit(SceneComponentBit bit)
@@ -142,6 +144,7 @@ namespace won::ecs
     inline constexpr ComponentMask water_zone_component_mask = ComponentMaskFromBit(SceneComponentBit::WaterZone);
     inline constexpr ComponentMask soft_body_component_mask = ComponentMaskFromBit(SceneComponentBit::SoftBody);
     inline constexpr ComponentMask vehicle_component_mask = ComponentMaskFromBit(SceneComponentBit::Vehicle);
+    inline constexpr ComponentMask foliage_component_mask = ComponentMaskFromBit(SceneComponentBit::Foliage);
 
     template <typename Component>
     constexpr ComponentMask ComponentMaskFromType()
@@ -185,6 +188,7 @@ namespace won::ecs
         else if constexpr (std::is_same_v<Component, SequenceComponent>) { return sequence_component_mask; }
         else if constexpr (std::is_same_v<Component, WaterBodyComponent>) { return water_body_component_mask; }
         else if constexpr (std::is_same_v<Component, WaterZoneComponent>) { return water_zone_component_mask; }
+        else if constexpr (std::is_same_v<Component, FoliageComponent>) { return foliage_component_mask; }
         else { return none_component_mask; }
     }
 }

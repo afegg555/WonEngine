@@ -63,6 +63,7 @@ namespace won::ecs
             case reflection::TypeMeta<SequenceComponent>::type_id: return sequence_component_mask;
             case reflection::TypeMeta<WaterBodyComponent>::type_id: return water_body_component_mask;
             case reflection::TypeMeta<WaterZoneComponent>::type_id: return water_zone_component_mask;
+            case reflection::TypeMeta<FoliageComponent>::type_id: return foliage_component_mask;
             default: return none_component_mask;
             }
         }
@@ -121,6 +122,7 @@ namespace won::ecs
         component_manager.RegisterComponent<SequenceComponent>();
         component_manager.RegisterComponent<WaterBodyComponent>();
         component_manager.RegisterComponent<WaterZoneComponent>();
+        component_manager.RegisterComponent<FoliageComponent>();
 
         if (desc.script_runtime && desc.enable_simulation)
         {
