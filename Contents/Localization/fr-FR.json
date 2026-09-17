@@ -1566,6 +1566,14 @@
             "source": "Bounds Extent",
             "text": "Étendue des limites"
         },
+        "editor.field.region_center": {
+            "source": "Region Center",
+            "text": "Centre de la région"
+        },
+        "editor.field.region_extent": {
+            "source": "Region Extent",
+            "text": "Étendue de la région"
+        },
         "editor.field.clip": {
             "source": "Clip",
             "text": "Clip"

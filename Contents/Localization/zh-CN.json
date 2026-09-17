@@ -1566,6 +1566,14 @@
             "source": "Bounds Extent",
             "text": "边界范围"
         },
+        "editor.field.region_center": {
+            "source": "Region Center",
+            "text": "区域中心"
+        },
+        "editor.field.region_extent": {
+            "source": "Region Extent",
+            "text": "区域范围"
+        },
         "editor.field.clip": {
             "source": "Clip",
             "text": "片段"

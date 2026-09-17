@@ -2002,6 +2002,16 @@
             "text": "Bounds Extent",
             "comment": "reflected component field"
         },
+        "editor.field.region_center": {
+            "source": "Region Center",
+            "text": "Region Center",
+            "comment": "reflected component field"
+        },
+        "editor.field.region_extent": {
+            "source": "Region Extent",
+            "text": "Region Extent",
+            "comment": "reflected component field"
+        },
         "editor.field.clip": {
             "source": "Clip",
             "text": "Clip",
