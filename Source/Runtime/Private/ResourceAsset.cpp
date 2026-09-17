@@ -1401,6 +1401,7 @@ namespace won::resource
                 }
             }
         }
+        foliage.SetDirty();
     }
 
     void LoadSceneResources(ecs::Scene& scene, const String& content_root, bool parallel)
