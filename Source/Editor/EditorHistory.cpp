@@ -33,6 +33,25 @@ namespace won::editor
     {
     }
 
+    TerrainEditCommand::TerrainEditCommand(ecs::Entity entity_in, String terrain_data_path_in, Vector<TerrainMaterialSampleChange> material_sample_changes_in, String name_in)
+        : entity(entity_in)
+        , terrain_data_path(std::move(terrain_data_path_in))
+        , material_sample_changes(std::move(material_sample_changes_in))
+        , name(std::move(name_in))
+        , edits_material_weights(true)
+    {
+    }
+
+    TerrainEditCommand::TerrainEditCommand(ecs::Entity entity_in, String terrain_data_path_in, TerrainMaterialState before_material_in, TerrainMaterialState after_material_in, String name_in)
+        : entity(entity_in)
+        , terrain_data_path(std::move(terrain_data_path_in))
+        , before_material(std::move(before_material_in))
+        , after_material(std::move(after_material_in))
+        , name(std::move(name_in))
+        , replaces_material(true)
+    {
+    }
+
     ecs::Entity TerrainEditCommand::Undo(EditorContext& context)
     {
         return Apply(context, true);
@@ -57,7 +76,42 @@ namespace won::editor
         }
 
         terrain::TerrainData& data = *terrain->data;
-        if (replaces_splines)
+        if (replaces_material)
+        {
+            const TerrainMaterialState& state = use_before ? before_material : after_material;
+            data.material_samples_x = state.samples_x;
+            data.material_samples_z = state.samples_z;
+            data.material_settings = state.settings;
+            data.material_layers = state.layers;
+            data.material_weights = state.weights;
+        }
+        else if (edits_material_weights)
+        {
+            for (const TerrainMaterialSampleChange& change : material_sample_changes)
+            {
+                const TerrainMaterialSampleState& state = use_before ? change.before : change.after;
+                if (state.weights.size() != data.material_weights.size())
+                {
+                    return ecs::INVALID_ENTITY;
+                }
+                for (const Vector<uint8>& layer_weights : data.material_weights)
+                {
+                    if (state.index >= layer_weights.size())
+                    {
+                        return ecs::INVALID_ENTITY;
+                    }
+                }
+            }
+            for (const TerrainMaterialSampleChange& change : material_sample_changes)
+            {
+                const TerrainMaterialSampleState& state = use_before ? change.before : change.after;
+                for (Size layer = 0; layer < state.weights.size(); ++layer)
+                {
+                    data.material_weights[layer][state.index] = state.weights[layer];
+                }
+            }
+        }
+        else if (replaces_splines)
         {
             data.splines = use_before ? before_splines : after_splines;
         }
@@ -80,16 +134,28 @@ namespace won::editor
             }
         }
 
-        terrain::CompositeTerrainHeights(data);
         if (!terrain_data_path.empty())
         {
             terrain::SaveTerrainBinary(io::CombinePath(context.content_root, terrain_data_path), data);
         }
-        if (ecs::Collider3DComponent* collider = context.scene->GetComponent<ecs::Collider3DComponent>(entity))
+        if (replaces_material)
         {
-            collider->SetDirty();
+            context.terrain_reload_materials = true;
+            context.terrain_rebuild_control_map = true;
         }
-        context.scene->SetBVHDirty();
+        else if (edits_material_weights)
+        {
+            context.terrain_rebuild_control_map = true;
+        }
+        else
+        {
+            context.terrain_rebuild_mesh = true;
+            if (ecs::Collider3DComponent* collider = context.scene->GetComponent<ecs::Collider3DComponent>(entity))
+            {
+                collider->SetDirty();
+            }
+            context.scene->SetBVHDirty();
+        }
         return entity;
     }
 
@@ -330,6 +396,24 @@ namespace won::editor
     }
 
     void EditorHistory::PushTerrainSplines(ecs::Entity entity, String terrain_data_path, Vector<terrain::TerrainSpline> before, Vector<terrain::TerrainSpline> after, String name)
+    {
+        if (entity == ecs::INVALID_ENTITY)
+        {
+            return;
+        }
+        Push(std::make_unique<TerrainEditCommand>(entity, std::move(terrain_data_path), std::move(before), std::move(after), std::move(name)));
+    }
+
+    void EditorHistory::PushTerrainMaterialSamples(ecs::Entity entity, String terrain_data_path, Vector<TerrainMaterialSampleChange> changes, String name)
+    {
+        if (entity == ecs::INVALID_ENTITY || changes.empty())
+        {
+            return;
+        }
+        Push(std::make_unique<TerrainEditCommand>(entity, std::move(terrain_data_path), std::move(changes), std::move(name)));
+    }
+
+    void EditorHistory::PushTerrainMaterial(ecs::Entity entity, String terrain_data_path, TerrainMaterialState before, TerrainMaterialState after, String name)
     {
         if (entity == ecs::INVALID_ENTITY)
         {

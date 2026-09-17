@@ -787,6 +787,17 @@ namespace won::editor
 			return terrain::RayCastTerrain(data, local_ray, out_local_hit);
 		}
 
+		TerrainMaterialState CaptureTerrainMaterial(const terrain::TerrainData& data)
+		{
+			TerrainMaterialState state;
+			state.samples_x = data.material_samples_x;
+			state.samples_z = data.material_samples_z;
+			state.settings = data.material_settings;
+			state.layers = data.material_layers;
+			state.weights = data.material_weights;
+			return state;
+		}
+
 		void DrawTextBlock(ImDrawList* draw_list, const ImVec2& start_position, const Vector<String>& lines, bool align_right = false)
 		{
 			if (lines.empty())
@@ -1213,15 +1224,60 @@ namespace won::editor
 		terrain_editor.mesh_rebuild_requested = true;
 	}
 
-	void EditorApplication::SaveTerrainChanges(ecs::Entity entity, ecs::TerrainComponent& terrain)
+	void EditorApplication::UpdateTerrainControlMap(ecs::Entity entity, terrain::TerrainData& data)
+	{
+		terrain_editor.pending_control_maps = terrain::CreateTerrainMaterialControlMaps(data);
+		terrain_editor.pending_control_map_entity = entity;
+		if (terrain_editor.control_map_update_pending)
+		{
+			return;
+		}
+
+		terrain_editor.control_map_update_pending = true;
+		eventhandler::SubscribeOnce(eventhandler::EVENT_THREAD_SAFE_POINT, [this](const won::function::Value&) {
+			Vector<std::shared_ptr<resource::Image>> control_maps = std::move(terrain_editor.pending_control_maps);
+			const ecs::Entity entity = terrain_editor.pending_control_map_entity;
+			terrain_editor.pending_control_map_entity = ecs::INVALID_ENTITY;
+			terrain_editor.control_map_update_pending = false;
+			if (!editor_viewport.view || !editor_viewport.view->scene || !device)
+			{
+				return;
+			}
+			TerrainComponent* terrain = editor_viewport.view->scene->GetComponent<TerrainComponent>(entity);
+			if (!terrain || !terrain->data)
+			{
+				return;
+			}
+			for (const std::shared_ptr<resource::Image>& control_map : control_maps)
+			{
+				if (control_map && !rendering::utils::CreateRenderData(*device, *control_map, rendering::RHIFormat::R8G8B8A8Unorm, true))
+				{
+					return;
+				}
+			}
+			EditorViewport::DeferredResRemoval deferred_res_removal = {};
+			deferred_res_removal.frames_left = 8;
+			for (const std::shared_ptr<resource::Image>& control_map : terrain->data->render_data.material_control_maps)
+			{
+				if (control_map && control_map->render_data.texture)
+				{
+					deferred_res_removal.resources.push_back(control_map->render_data.texture);
+				}
+			}
+			if (!deferred_res_removal.resources.empty())
+			{
+				editor_viewport.deferred_res_removals.push_back(std::move(deferred_res_removal));
+			}
+			terrain->data->render_data.material_control_maps = std::move(control_maps);
+			editor_viewport.view->scene->MarkGpuDirty(ComponentMaskFromType<TerrainComponent>());
+		});
+	}
+
+	void EditorApplication::SaveTerrainData(ecs::TerrainComponent& terrain)
 	{
 		if (terrain.data && !terrain.terrain_data_path.empty())
 		{
 			SaveTerrainBinary(io::CombinePath(contents_root_dir, terrain.terrain_data_path), *terrain.data);
-		}
-		if (Collider3DComponent* collider = editor_viewport.view->scene->GetComponent<Collider3DComponent>(entity))
-		{
-			collider->SetDirty();
 		}
 	}
 
@@ -1285,6 +1341,7 @@ namespace won::editor
 			}
 			editor_viewport.tool_mode = EditorViewport::ToolMode::Object;
 			terrain_editor.stroke_active = false;
+			terrain_editor.material_stroke_before.clear();
 			terrain_editor.spline_drag_active = false;
 			terrain_editor.spline_drag_changed = false;
 		}
@@ -1300,6 +1357,7 @@ namespace won::editor
 					terrain_editor.entity = editor_viewport.picked_entity;
 					terrain_editor.selected_spline = -1;
 					terrain_editor.selected_spline_point = -1;
+					terrain_editor.selected_material_layer = selected_terrain->data && !selected_terrain->data->material_layers.empty() ? 0 : -1;
 					terrain_editor.spline_mode = TerrainEditorState::SplineMode::Select;
 					terrain_editor.spline_drag_active = false;
 					terrain_editor.spline_drag_changed = false;
@@ -1337,7 +1395,8 @@ namespace won::editor
 							return;
 						}
 						GeometryComponent* geometry = editor_viewport.view->scene->GetComponent<GeometryComponent>(pending_entity);
-						if (!geometry || !device || !rendering::utils::CreateRenderData(*device, *pending_mesh))
+						TerrainComponent* pending_terrain = editor_viewport.view->scene->GetComponent<TerrainComponent>(pending_entity);
+						if (!geometry || !pending_terrain || !pending_terrain->data || !device || !rendering::utils::CreateRenderData(*device, *pending_mesh))
 						{
 							return;
 						}
@@ -1361,6 +1420,7 @@ namespace won::editor
 							editor_viewport.deferred_res_removals.push_back(std::move(deferred_res_removal));
 						}
 						geometry->mesh_asset_path.clear();
+						pending_terrain->data->render_data.mesh = pending_mesh;
 						geometry->SetMesh(pending_mesh);
 						editor_viewport.view->scene->SetBVHDirty();
 					});
@@ -1446,7 +1506,7 @@ namespace won::editor
 				}
 				else if (ext == resource::game_data_schema_extension)
 				{
-				    game_data_editor.loaded_schema_path.clear();
+					game_data_editor.loaded_schema_path.clear();
 				}
 			}
 
@@ -1554,50 +1614,172 @@ namespace won::editor
 
 			const bool sculpt_tool_active = terrain_editor.tool == TerrainEditorState::Tool::Sculpt;
 			const bool spline_tool_active = terrain_editor.tool == TerrainEditorState::Tool::Spline;
-			if (editor_viewport.tool_mode == EditorViewport::ToolMode::Terrain && can_edit_terrain && can_control_viewport && sculpt_tool_active && io::IsPressed(io::Button::MOUSE_BUTTON_LEFT))
+			const bool paint_tool_active = terrain_editor.tool == TerrainEditorState::Tool::Paint;
+			const bool brush_tool_active = sculpt_tool_active || paint_tool_active;
+			const bool paint_layer_selected = can_edit_terrain && terrain_editor.selected_material_layer >= 0 &&
+				terrain_editor.selected_material_layer < static_cast<int>(edited_terrain->data->material_layers.size());
+			if (editor_viewport.tool_mode == EditorViewport::ToolMode::Terrain && can_edit_terrain && can_control_viewport && brush_tool_active &&
+				(sculpt_tool_active || paint_layer_selected) && io::IsPressed(io::Button::MOUSE_BUTTON_LEFT))
 			{
 				float3 local_hit = {};
 				if (RayCastTerrainViewport(*editor_viewport.view, mouse_pos, *edited_terrain->data, *terrain_transform, local_hit))
 				{
-					terrain_editor.flatten_height = local_hit.y;
-					terrain_editor.stroke_before.clear();
+					if (sculpt_tool_active)
+					{
+						if (terrain_editor.sculpt_brush == TerrainEditorState::SculptBrush::Flatten)
+						{
+							terrain_editor.flatten_height = local_hit.y;
+						}
+						terrain_editor.stroke_before.clear();
+					}
+					else
+					{
+						terrain_editor.material_stroke_before.clear();
+					}
 					terrain_editor.stroke_active = true;
 				}
 			}
 
-			if (can_edit_terrain && terrain_editor.stroke_active && pointer_inside_viewport && io::IsDown(io::Button::MOUSE_BUTTON_LEFT))
+			float3 brush_local_hit = {};
+			const bool brush_hit = can_edit_terrain && terrain_editor.stroke_active && brush_tool_active && pointer_inside_viewport &&
+				io::IsDown(io::Button::MOUSE_BUTTON_LEFT) &&
+				RayCastTerrainViewport(*editor_viewport.view, mouse_pos, *edited_terrain->data, *terrain_transform, brush_local_hit);
+			const auto for_each_brush_sample = [&](uint32 grid_samples_x, uint32 grid_samples_z, float grid_cell_x, float grid_cell_z, auto&& prepare, auto&& edit)
 			{
-				float3 local_hit = {};
-				if (RayCastTerrainViewport(*editor_viewport.view, mouse_pos, *edited_terrain->data, *terrain_transform, local_hit))
+				const float minimum_radius = (std::min)(grid_cell_x * std::sqrt(terrain_world_x_length_squared), grid_cell_z * std::sqrt(terrain_world_z_length_squared));
+				const float radius = (std::max)(terrain_editor.radius, minimum_radius); // prevent the brush from being smaller than a single terrain cell
+				const float local_radius_x = radius / std::sqrt(terrain_world_x_length_squared);
+				const float local_radius_z = radius / std::sqrt(terrain_world_z_length_squared);
+				const int min_x = (std::max)(0, static_cast<int>(std::floor((brush_local_hit.x - local_radius_x - edited_terrain->data->offset_x) / grid_cell_x)));
+				const int max_x = (std::min)(static_cast<int>(grid_samples_x) - 1, static_cast<int>(std::ceil((brush_local_hit.x + local_radius_x - edited_terrain->data->offset_x) / grid_cell_x)));
+				const int min_z = (std::max)(0, static_cast<int>(std::floor((brush_local_hit.z - local_radius_z - edited_terrain->data->offset_z) / grid_cell_z)));
+				const int max_z = (std::min)(static_cast<int>(grid_samples_z) - 1, static_cast<int>(std::ceil((brush_local_hit.z + local_radius_z - edited_terrain->data->offset_z) / grid_cell_z)));
+				prepare(min_x, max_x, min_z, max_z);
+				const float inner_radius = radius * (1.0f - math::Saturate(terrain_editor.falloff));
+				for (int z = min_z; z <= max_z; ++z)
 				{
-					terrain::TerrainData& data = *edited_terrain->data;
-					const Size sample_count = static_cast<Size>(data.samples_x) * data.samples_z;
-					if (data.height_delta.size() != sample_count)
+					for (int x = min_x; x <= max_x; ++x)
 					{
-						data.height_delta.assign(sample_count, 0.0f);
-					}
-					if (data.flatten_mask.size() != sample_count)
-					{
-						data.flatten_mask.assign(sample_count, 0u);
-					}
-					if (data.flatten_height.size() != sample_count)
-					{
-						data.flatten_height.assign(sample_count, 0.0f);
-					}
+						const float sample_x = edited_terrain->data->offset_x + static_cast<float>(x) * grid_cell_x;
+						const float sample_z = edited_terrain->data->offset_z + static_cast<float>(z) * grid_cell_z;
+						const XMVECTOR world_delta = XMVector3TransformNormal(XMVectorSet(sample_x - brush_local_hit.x, 0.0f, sample_z - brush_local_hit.z, 0.0f), terrain_world);
+						const float distance = XMVectorGetX(XMVector3Length(world_delta));
+						if (distance > radius)
+						{
+							continue;
+						}
 
-					const float minimum_radius = (std::min)(data.cell_x * std::sqrt(terrain_world_x_length_squared), data.cell_z * std::sqrt(terrain_world_z_length_squared));
-					const float radius = (std::max)(terrain_editor.radius, minimum_radius); // prevent the brush from being smaller than a single terrain cell
-					const float local_radius_x = radius / std::sqrt(terrain_world_x_length_squared);
-					const float local_radius_z = radius / std::sqrt(terrain_world_z_length_squared);
-					const int min_x = (std::max)(0, static_cast<int>(std::floor((local_hit.x - local_radius_x - data.offset_x) / data.cell_x)));
-					const int max_x = (std::min)(static_cast<int>(data.samples_x) - 1, static_cast<int>(std::ceil((local_hit.x + local_radius_x - data.offset_x) / data.cell_x)));
-					const int min_z = (std::max)(0, static_cast<int>(std::floor((local_hit.z - local_radius_z - data.offset_z) / data.cell_z)));
-					const int max_z = (std::min)(static_cast<int>(data.samples_z) - 1, static_cast<int>(std::ceil((local_hit.z + local_radius_z - data.offset_z) / data.cell_z)));
-					Vector<float> smooth_targets;
-					if (terrain_editor.sculpt_brush == TerrainEditorState::SculptBrush::Smooth)
+						const float brush_weight = distance <= inner_radius || radius <= inner_radius
+							? 1.0f
+							: 1.0f - math::SmoothStep(inner_radius, radius, distance);
+						edit(static_cast<Size>(z) * grid_samples_x + static_cast<uint32>(x), x, z, brush_weight, min_x, min_z);
+					}
+				}
+			};
+
+			if (brush_hit && paint_tool_active && paint_layer_selected)
+			{
+				terrain::TerrainData& data = *edited_terrain->data;
+				const Size layer_count = data.material_layers.size();
+				const Size sample_count = static_cast<Size>(data.material_samples_x) * data.material_samples_z;
+				const bool weights_valid = std::all_of(data.material_weights.begin(), data.material_weights.end(), [sample_count](const Vector<uint8>& weights)
 					{
+						return weights.size() == sample_count;
+					});
+				if (layer_count > 0 && data.material_samples_x > 1 && data.material_samples_z > 1 && data.material_weights.size() == layer_count && weights_valid)
+				{
+					const float material_cell_x = data.world_size_x / static_cast<float>(data.material_samples_x - 1);
+					const float material_cell_z = data.world_size_z / static_cast<float>(data.material_samples_z - 1);
+					const Size selected_layer = static_cast<Size>(terrain_editor.selected_material_layer);
+					bool material_changed = false;
+					for_each_brush_sample(
+						data.material_samples_x,
+						data.material_samples_z,
+						material_cell_x,
+						material_cell_z,
+						[](int, int, int, int)
+						{
+						},
+						[&](Size index, int, int, float brush_weight, int, int)
+						{
+							if (data.material_weights[selected_layer][index] == 255u)
+							{
+								return;
+							}
+
+							const float alpha = math::Saturate(terrain_editor.strength * dt * brush_weight);
+							TerrainMaterialSampleState before;
+							before.index = index;
+							before.weights.resize(layer_count);
+							for (Size layer = 0; layer < layer_count; ++layer)
+							{
+								before.weights[layer] = data.material_weights[layer][index];
+							}
+							terrain_editor.material_stroke_before.try_emplace(index, std::move(before));
+
+							const uint32 selected_before = data.material_weights[selected_layer][index];
+							const uint32 selected_after = static_cast<uint32>(std::round(math::Lerp(static_cast<float>(selected_before), 255.0f, alpha)));
+							const uint32 remaining = 255u - selected_after;
+							const uint32 other_total = 255u - selected_before;
+							uint32 assigned = 0u;
+							Size remaining_layers = layer_count - 1;
+							for (Size layer = 0; layer < layer_count; ++layer)
+							{
+								if (layer == selected_layer)
+								{
+									continue;
+								}
+								--remaining_layers;
+								const uint32 value = remaining_layers == 0
+									? remaining - assigned
+									: (other_total > 0 ? static_cast<uint32>(std::round(static_cast<float>(data.material_weights[layer][index]) * remaining / other_total)) : 0u);
+								data.material_weights[layer][index] = static_cast<uint8>((std::min)(value, remaining - assigned));
+								assigned += data.material_weights[layer][index];
+							}
+							data.material_weights[selected_layer][index] = static_cast<uint8>(selected_after);
+							material_changed = true;
+						});
+					if (material_changed)
+					{
+						UpdateTerrainControlMap(terrain_editor.entity, data);
+					}
+				}
+			}
+
+			if (brush_hit && sculpt_tool_active)
+			{
+				terrain::TerrainData& data = *edited_terrain->data;
+				const Size sample_count = static_cast<Size>(data.samples_x) * data.samples_z;
+				if (data.height_delta.size() != sample_count)
+				{
+					data.height_delta.assign(sample_count, 0.0f);
+				}
+				if (data.flatten_mask.size() != sample_count)
+				{
+					data.flatten_mask.assign(sample_count, 0u);
+				}
+				if (data.flatten_height.size() != sample_count)
+				{
+					data.flatten_height.assign(sample_count, 0.0f);
+				}
+
+				Vector<float> smooth_targets;
+				int smooth_width = 0;
+				bool terrain_changed = false;
+				for_each_brush_sample(
+					data.samples_x,
+					data.samples_z,
+					data.cell_x,
+					data.cell_z,
+					[&](int min_x, int max_x, int min_z, int max_z)
+					{
+						if (terrain_editor.sculpt_brush != TerrainEditorState::SculptBrush::Smooth)
+						{
+							return;
+						}
+
 						// Precompute smoothed heights for the affected area
-						const int smooth_width = max_x - min_x + 1;
+						smooth_width = max_x - min_x + 1;
 						const int smooth_height = max_z - min_z + 1;
 						smooth_targets.resize(static_cast<Size>(smooth_width) * smooth_height);
 						for (int z = min_z; z <= max_z; ++z)
@@ -1626,74 +1808,52 @@ namespace won::editor
 								smooth_targets[smooth_index] = height_sum / static_cast<float>(height_count);
 							}
 						}
-					}
-					bool terrain_changed = false;
-					for (int z = min_z; z <= max_z; ++z)
+					},
+					[&](Size index, int x, int z, float brush_weight, int min_x, int min_z)
 					{
-						for (int x = min_x; x <= max_x; ++x)
+						terrain_editor.stroke_before.try_emplace(index, TerrainSampleState{ index, data.height_delta[index], data.flatten_mask[index], data.flatten_height[index] });
+						if (terrain_editor.sculpt_brush == TerrainEditorState::SculptBrush::Flatten)
 						{
-							const float sample_x = data.offset_x + static_cast<float>(x) * data.cell_x;
-							const float sample_z = data.offset_z + static_cast<float>(z) * data.cell_z;
-							const float delta_x = sample_x - local_hit.x;
-							const float delta_z = sample_z - local_hit.z;
-							const XMVECTOR world_delta = XMVector3TransformNormal(XMVectorSet(delta_x, 0.0f, delta_z, 0.0f), terrain_world);
-							const float distance = XMVectorGetX(XMVector3Length(world_delta));
-							if (distance > radius)
-							{
-								continue;
-							}
-
-							const float inner_radius = radius * (1.0f - math::Saturate(terrain_editor.falloff));
-							const float weight = distance <= inner_radius || radius <= inner_radius
-								? 1.0f
-								: 1.0f - math::SmoothStep(inner_radius, radius, distance);
-							const Size index = static_cast<Size>(z) * data.samples_x + static_cast<uint32>(x);
-							terrain_editor.stroke_before.try_emplace(index, TerrainSampleState{ index, data.height_delta[index], data.flatten_mask[index], data.flatten_height[index] });
-							if (terrain_editor.sculpt_brush == TerrainEditorState::SculptBrush::Flatten)
-							{
-								const float alpha = math::Saturate(terrain_editor.strength * dt * weight);
-								data.flatten_height[index] = math::Lerp(data.final_heights[index], terrain_editor.flatten_height, alpha);
-								data.flatten_mask[index] = 1u;
-							}
-							else if (terrain_editor.sculpt_brush == TerrainEditorState::SculptBrush::Smooth)
-							{
-								const int smooth_width = max_x - min_x + 1;
-								const Size smooth_index = static_cast<Size>(z - min_z) * smooth_width + static_cast<Size>(x - min_x);
-								const float source_height = data.flatten_mask[index] != 0
-									? data.flatten_height[index]
-									: data.base_heights[index] + data.height_delta[index];
-								const float alpha = math::Saturate(terrain_editor.strength * dt * weight);
-								const float smoothed_height = math::Lerp(source_height, smooth_targets[smooth_index], alpha);
-								if (data.flatten_mask[index] != 0)
-								{
-									data.flatten_height[index] = smoothed_height;
-								}
-								else
-								{
-									data.height_delta[index] += smoothed_height - source_height;
-								}
-							}
-							else // Raise or Lower
-							{
-								const float direction = terrain_editor.sculpt_brush == TerrainEditorState::SculptBrush::Raise ? 1.0f : -1.0f;
-								const float height_change = direction * terrain_editor.strength * dt * weight;
-								if (data.flatten_mask[index] != 0)
-								{
-									data.flatten_height[index] += height_change;
-								}
-								else
-								{
-									data.height_delta[index] += height_change;
-								}
-							}
-							terrain_changed = true;
+							const float alpha = math::Saturate(terrain_editor.strength * dt * brush_weight);
+							data.flatten_height[index] = math::Lerp(data.final_heights[index], terrain_editor.flatten_height, alpha);
+							data.flatten_mask[index] = 1u;
 						}
-					}
+						else if (terrain_editor.sculpt_brush == TerrainEditorState::SculptBrush::Smooth)
+						{
+							const Size smooth_index = static_cast<Size>(z - min_z) * smooth_width + static_cast<Size>(x - min_x);
+							const float source_height = data.flatten_mask[index] != 0
+															? data.flatten_height[index]
+															: data.base_heights[index] + data.height_delta[index];
+							const float alpha = math::Saturate(terrain_editor.strength * dt * brush_weight);
+							const float smoothed_height = math::Lerp(source_height, smooth_targets[smooth_index], alpha);
+							if (data.flatten_mask[index] != 0)
+							{
+								data.flatten_height[index] = smoothed_height;
+							}
+							else
+							{
+								data.height_delta[index] += smoothed_height - source_height;
+							}
+						}
+						else // Raise or Lower
+						{
+							const float direction = terrain_editor.sculpt_brush == TerrainEditorState::SculptBrush::Raise ? 1.0f : -1.0f;
+							const float height_change = direction * terrain_editor.strength * dt * brush_weight;
+							if (data.flatten_mask[index] != 0)
+							{
+								data.flatten_height[index] += height_change;
+							}
+							else
+							{
+								data.height_delta[index] += height_change;
+							}
+						}
+						terrain_changed = true;
+					});
 
-					if (terrain_changed)
-					{
-						RebuildTerrainMesh(terrain_editor.entity, data);
-					}
+				if (terrain_changed)
+				{
+					RebuildTerrainMesh(terrain_editor.entity, data);
 				}
 			}
 
@@ -1701,21 +1861,51 @@ namespace won::editor
 			{
 				if (can_edit_terrain)
 				{
-					Vector<TerrainSampleChange> changes;
-					changes.reserve(terrain_editor.stroke_before.size());
-					const terrain::TerrainData& data = *edited_terrain->data;
-					for (const auto& [index, before] : terrain_editor.stroke_before)
+					if (paint_tool_active)
 					{
-						TerrainSampleState after = { index, data.height_delta[index], data.flatten_mask[index], data.flatten_height[index] };
-						if (before.height_delta != after.height_delta || before.flatten_mask != after.flatten_mask || before.flatten_height != after.flatten_height)
+						Vector<TerrainMaterialSampleChange> changes;
+						changes.reserve(terrain_editor.material_stroke_before.size());
+						const terrain::TerrainData& data = *edited_terrain->data;
+						for (const auto& [index, before] : terrain_editor.material_stroke_before)
 						{
-							changes.push_back({ before, after });
+							TerrainMaterialSampleState after;
+							after.index = index;
+							after.weights.resize(data.material_weights.size());
+							for (Size layer = 0; layer < data.material_weights.size(); ++layer)
+							{
+								after.weights[layer] = data.material_weights[layer][index];
+							}
+							if (before.weights != after.weights)
+							{
+								changes.push_back({ before, std::move(after) });
+							}
+						}
+						editor_history.PushTerrainMaterialSamples(terrain_editor.entity, edited_terrain->terrain_data_path, std::move(changes), "Paint Terrain Material");
+						SaveTerrainData(*edited_terrain);
+					}
+					else
+					{
+						Vector<TerrainSampleChange> changes;
+						changes.reserve(terrain_editor.stroke_before.size());
+						const terrain::TerrainData& data = *edited_terrain->data;
+						for (const auto& [index, before] : terrain_editor.stroke_before)
+						{
+							TerrainSampleState after = { index, data.height_delta[index], data.flatten_mask[index], data.flatten_height[index] };
+							if (before.height_delta != after.height_delta || before.flatten_mask != after.flatten_mask || before.flatten_height != after.flatten_height)
+							{
+								changes.push_back({ before, after });
+							}
+						}
+						editor_history.PushTerrainSamples(terrain_editor.entity, edited_terrain->terrain_data_path, std::move(changes), "Sculpt Terrain");
+						SaveTerrainData(*edited_terrain);
+						if (Collider3DComponent* collider = editor_viewport.view->scene->GetComponent<Collider3DComponent>(terrain_editor.entity))
+						{
+							collider->SetDirty();
 						}
 					}
-					editor_history.PushTerrainSamples(terrain_editor.entity, edited_terrain->terrain_data_path, std::move(changes), "Sculpt Terrain");
-					SaveTerrainChanges(terrain_editor.entity, *edited_terrain);
 				}
 				terrain_editor.stroke_before.clear();
+				terrain_editor.material_stroke_before.clear();
 				terrain_editor.stroke_active = false;
 			}
 			else if (editor_viewport.tool_mode == EditorViewport::ToolMode::Terrain && can_edit_terrain && can_control_viewport && spline_tool_active && io::IsPressed(io::Button::MOUSE_BUTTON_LEFT))
@@ -1737,7 +1927,11 @@ namespace won::editor
 						}
 						RebuildTerrainMesh(terrain_editor.entity, data);
 						editor_history.PushTerrainSplines(terrain_editor.entity, edited_terrain->terrain_data_path, std::move(before), data.splines, "Add Terrain Spline Point");
-						SaveTerrainChanges(terrain_editor.entity, *edited_terrain);
+						SaveTerrainData(*edited_terrain);
+						if (Collider3DComponent* collider = editor_viewport.view->scene->GetComponent<Collider3DComponent>(terrain_editor.entity))
+						{
+							collider->SetDirty();
+						}
 					}
 				}
 				else if (has_selected_spline)
@@ -1817,7 +2011,11 @@ namespace won::editor
 				if (can_edit_terrain && terrain_editor.spline_drag_changed)
 				{
 					editor_history.PushTerrainSplines(terrain_editor.entity, edited_terrain->terrain_data_path, std::move(terrain_editor.spline_before), edited_terrain->data->splines, "Move Terrain Spline Point");
-					SaveTerrainChanges(terrain_editor.entity, *edited_terrain);
+					SaveTerrainData(*edited_terrain);
+					if (Collider3DComponent* collider = editor_viewport.view->scene->GetComponent<Collider3DComponent>(terrain_editor.entity))
+					{
+						collider->SetDirty();
+					}
 				}
 				terrain_editor.spline_before.clear();
 				terrain_editor.spline_drag_active = false;
@@ -2170,12 +2368,58 @@ namespace won::editor
 				content_browser.texture_previews.erase(preview_it);
 			}
 
-			Vector<resource::MaterialSlot::TextureMap*> matching_textures;
+			Vector<resource::MaterialTextureMap*> matching_textures;
 			Vector<ecs::MaterialComponent*> matching_components;
+			Vector<resource::Material*> matching_materials;
+			UnorderedSet<resource::Material*> visited_materials;
+			UnorderedSet<resource::Material*> matched_materials;
+			const String absolute_binary_path = io::GetAbsolutePath(binary_path);
+			const auto scan_material = [&](resource::Material& material)
+			{
+				if (!visited_materials.insert(&material).second)
+				{
+					return matched_materials.find(&material) != matched_materials.end();
+				}
+
+				bool material_matches = false;
+				for (resource::MaterialSlot& slot : material.slots)
+				{
+					for (resource::MaterialTextureMap& texture : slot.attributes.textures)
+					{
+						if (texture.texture_asset_path.empty())
+						{
+							continue;
+						}
+
+						String texture_path = project::ResolveProjectContentPath(contents_root_dir, texture.texture_asset_path);
+						if (won::utils::ToLower(io::GetExtension(texture_path)) != resource::texture_binary_extension)
+						{
+							resource::AssetMeta texture_meta = {};
+							if (resource::LoadAssetMeta(resource::GetAssetMetaPath(texture_path), texture_meta) && !texture_meta.binary_path.empty())
+							{
+								texture_path = project::ResolveProjectContentPath(contents_root_dir, texture_meta.binary_path);
+							}
+						}
+						if (io::GetAbsolutePath(texture_path) != absolute_binary_path)
+						{
+							continue;
+						}
+
+						matching_textures.push_back(&texture);
+						material_matches = true;
+					}
+				}
+				if (material_matches)
+				{
+					matching_materials.push_back(&material);
+					matched_materials.insert(&material);
+				}
+				return material_matches;
+			};
+
 			auto material_array = editor_viewport.view->scene->GetComponentArray<ecs::MaterialComponent>();
 			if (material_array)
 			{
-				const String absolute_binary_path = io::GetAbsolutePath(binary_path);
 				for (Size component_index = 0; component_index < material_array->GetSize(); ++component_index)
 				{
 					ecs::MaterialComponent& material_component = material_array->data[component_index];
@@ -2184,37 +2428,28 @@ namespace won::editor
 						continue;
 					}
 
-					bool component_matches = false;
-					for (resource::MaterialSlot& slot : material_component.material->slots)
-					{
-						for (resource::MaterialSlot::TextureMap& texture : slot.textures)
-						{
-							if (texture.texture_asset_path.empty())
-							{
-								continue;
-							}
-
-							String texture_path = project::ResolveProjectContentPath(contents_root_dir, texture.texture_asset_path);
-							if (won::utils::ToLower(io::GetExtension(texture_path)) != resource::texture_binary_extension)
-							{
-								resource::AssetMeta texture_meta = {};
-								if (resource::LoadAssetMeta(resource::GetAssetMetaPath(texture_path), texture_meta) && !texture_meta.binary_path.empty())
-								{
-									texture_path = project::ResolveProjectContentPath(contents_root_dir, texture_meta.binary_path);
-								}
-							}
-							if (io::GetAbsolutePath(texture_path) != absolute_binary_path)
-							{
-								continue;
-							}
-
-							matching_textures.push_back(&texture);
-							component_matches = true;
-						}
-					}
-					if (component_matches)
+					if (scan_material(*material_component.material))
 					{
 						matching_components.push_back(&material_component);
+					}
+				}
+			}
+
+			bool terrain_matches = false;
+			if (auto terrain_array = editor_viewport.view->scene->GetComponentArray<ecs::TerrainComponent>())
+			{
+				for (ecs::TerrainComponent& terrain : terrain_array->data)
+				{
+					if (!terrain.data)
+					{
+						continue;
+					}
+					for (const std::shared_ptr<resource::Material>& material : terrain.data->render_data.layer_materials)
+					{
+						if (material && scan_material(*material))
+						{
+							terrain_matches = true;
+						}
 					}
 				}
 			}
@@ -2225,7 +2460,7 @@ namespace won::editor
 				{
 					return false;
 				}
-				for (resource::MaterialSlot::TextureMap* texture : matching_textures)
+				for (resource::MaterialTextureMap* texture : matching_textures)
 				{
 					if (texture->image && texture->image != image && texture->image->render_data.texture &&
 						deferred_resources.insert(texture->image->render_data.texture.get()).second)
@@ -2234,12 +2469,22 @@ namespace won::editor
 					}
 					texture->image = image;
 				}
+				for (resource::Material* material : matching_materials)
+				{
+					material->SetDirty();
+				}
 				for (ecs::MaterialComponent* material_component : matching_components)
 				{
-					material_component->material->SetDirty();
 					material_component->SetDirty();
 				}
-				editor_viewport.view->scene->MarkGpuDirty(ComponentMaskFromType<ecs::MaterialComponent>());
+				if (!matching_components.empty())
+				{
+					editor_viewport.view->scene->MarkGpuDirty(ComponentMaskFromType<ecs::MaterialComponent>());
+				}
+				if (terrain_matches)
+				{
+					editor_viewport.view->scene->MarkGpuDirty(ComponentMaskFromType<ecs::TerrainComponent>());
+				}
 			}
 
 			if (!deferred_res_removal.resources.empty())
@@ -2285,7 +2530,7 @@ namespace won::editor
 		{
 			for (uint32 tex_index = 0; tex_index < TEXTURESLOT_COUNT; ++tex_index)
 			{
-				resource::MaterialSlot::TextureMap& texture_map = slot.textures[tex_index];
+				resource::MaterialTextureMap& texture_map = slot.attributes.textures[tex_index];
 				if (texture_map.texture_asset_path.empty())
 				{
 					continue;
@@ -2544,7 +2789,7 @@ namespace won::editor
 						{
 							for (int texture_index = 0; texture_index < TEXTURESLOT_COUNT; ++texture_index)
 							{
-								const String& texture_path = slot.textures[texture_index].texture_asset_path;
+								const String& texture_path = slot.attributes.textures[texture_index].texture_asset_path;
 								if (!texture_path.empty() && !io::Exists(resolve_content_path(texture_path)))
 								{
 									asset.has_broken_reference = true;
@@ -3942,7 +4187,8 @@ namespace won::editor
 					const terrain::TerrainData& data = *terrain->data;
 					ImDrawList* draw_list = ImGui::GetWindowDrawList();
 					draw_list->PushClipRect(viewport_pos, ImVec2(viewport_pos.x + viewport_size.x, viewport_pos.y + viewport_size.y), true);
-					if (terrain_editor.tool == TerrainEditorState::Tool::Sculpt && world_x_length_squared > 0.00000001f && world_z_length_squared > 0.00000001f &&
+					if ((terrain_editor.tool == TerrainEditorState::Tool::Sculpt || terrain_editor.tool == TerrainEditorState::Tool::Paint) &&
+						world_x_length_squared > 0.00000001f && world_z_length_squared > 0.00000001f &&
 						(editor_viewport.input_enabled || terrain_editor.stroke_active))
 					{
 						const ImVec2 imgui_mouse = ImGui::GetMousePos();
@@ -4347,9 +4593,9 @@ namespace won::editor
 							{
 								for (uint32 texture_slot = 0; texture_slot < TEXTURESLOT_COUNT; ++texture_slot)
 								{
-									if (material_slot.textures[texture_slot].image && material_slot.textures[texture_slot].image->render_data.texture)
+									if (material_slot.attributes.textures[texture_slot].image && material_slot.attributes.textures[texture_slot].image->render_data.texture)
 									{
-										deferred_res_removal.resources.push_back(material_slot.textures[texture_slot].image->render_data.texture);
+										deferred_res_removal.resources.push_back(material_slot.attributes.textures[texture_slot].image->render_data.texture);
 									}
 								}
 							}
@@ -6067,47 +6313,51 @@ namespace won::editor
 
 							resource::MaterialSlot& material_slot = material_comp->GetMaterialSlot(static_cast<uint32>(selected_material_slot));
 							bool material_changed = false;
-							material_changed |= DrawEnumCombo(EditorText(editor_key::label_shader_type), material_slot.material_type);
-							material_changed |= DrawEnumCombo(EditorText(editor_key::label_blend_mode), material_slot.blend_mode);
+							material_changed |= DrawEnumCombo(EditorText(editor_key::label_shader_type), material_slot.settings.material_type);
+							material_changed |= DrawEnumCombo(EditorText(editor_key::label_blend_mode), material_slot.settings.blend_mode);
+							if (material_slot.settings.IsMasked())
+							{
+								material_changed |= ImGui::SliderFloat("Alpha Cutoff", &material_slot.settings.alpha_cutoff, 0.0f, 1.0f);
+							}
 
-							material_changed |= ImGui::Checkbox(EditorText(editor_key::label_double_sided), &material_slot.double_sided);
-							material_changed |= ImGui::Checkbox(EditorText(editor_key::label_use_vertex_colors), &material_slot.use_vertex_colors);
-							material_changed |= ImGui::Checkbox(EditorText(editor_key::label_receive_shadow), &material_slot.receive_shadow);
+							material_changed |= ImGui::Checkbox(EditorText(editor_key::label_double_sided), &material_slot.settings.double_sided);
+							material_changed |= ImGui::Checkbox(EditorText(editor_key::label_use_vertex_colors), &material_slot.settings.use_vertex_colors);
+							material_changed |= ImGui::Checkbox(EditorText(editor_key::label_receive_shadow), &material_slot.settings.receive_shadow);
 
-							const float3 base_color_srgb = color::LinearToSrgb({ material_slot.base_color.x, material_slot.base_color.y, material_slot.base_color.z });
-							float base_color[4] = { base_color_srgb.x, base_color_srgb.y, base_color_srgb.z, material_slot.base_color.w };
+							const float3 base_color_srgb = color::LinearToSrgb({ material_slot.attributes.base_color.x, material_slot.attributes.base_color.y, material_slot.attributes.base_color.z });
+							float base_color[4] = { base_color_srgb.x, base_color_srgb.y, base_color_srgb.z, material_slot.attributes.base_color.w };
 							if (ImGui::ColorEdit4(EditorText(editor_key::label_base_color), base_color))
 							{
 								const float3 base_color_linear = color::SrgbToLinear({ base_color[0], base_color[1], base_color[2] });
-								material_slot.base_color = { base_color_linear.x, base_color_linear.y, base_color_linear.z, base_color[3] };
+								material_slot.attributes.base_color = { base_color_linear.x, base_color_linear.y, base_color_linear.z, base_color[3] };
 								material_changed = true;
 							}
 
-							const float3 emissive_color_srgb = color::LinearToSrgb(material_slot.emissive_color);
+							const float3 emissive_color_srgb = color::LinearToSrgb(material_slot.attributes.emissive_color);
 							float emissive_color[3] = { emissive_color_srgb.x, emissive_color_srgb.y, emissive_color_srgb.z };
 							if (ImGui::ColorEdit3(EditorText(editor_key::label_emissive_color), emissive_color))
 							{
-								material_slot.emissive_color = color::SrgbToLinear({ emissive_color[0], emissive_color[1], emissive_color[2] });
+								material_slot.attributes.emissive_color = color::SrgbToLinear({ emissive_color[0], emissive_color[1], emissive_color[2] });
 								material_changed = true;
 							}
-							material_changed |= ImGui::DragFloat(EditorText(editor_key::label_emissive_intensity), &material_slot.emissive_intensity, 0.1f, 0.0f, 1000000.0f);
+							material_changed |= ImGui::DragFloat(EditorText(editor_key::label_emissive_intensity), &material_slot.attributes.emissive_intensity, 0.1f, 0.0f, 1000000.0f);
 
-							material_changed |= ImGui::SliderFloat(EditorText(editor_key::label_metallic), &material_slot.metallic, 0.0f, 1.0f);
-							material_changed |= ImGui::SliderFloat(EditorText(editor_key::label_roughness), &material_slot.roughness, 0.0f, 1.0f);
-							material_changed |= ImGui::SliderFloat(EditorText(editor_key::label_reflectance), &material_slot.reflectance, 0.0f, 1.0f);
-							material_changed |= ImGui::SliderFloat(EditorText(editor_key::label_anisotropy), &material_slot.anisotropy, -1.0f, 1.0f);
+							material_changed |= ImGui::SliderFloat(EditorText(editor_key::label_metallic), &material_slot.attributes.metallic, 0.0f, 1.0f);
+							material_changed |= ImGui::SliderFloat(EditorText(editor_key::label_roughness), &material_slot.attributes.roughness, 0.0f, 1.0f);
+							material_changed |= ImGui::SliderFloat(EditorText(editor_key::label_reflectance), &material_slot.attributes.reflectance, 0.0f, 1.0f);
+							material_changed |= ImGui::SliderFloat(EditorText(editor_key::label_anisotropy), &material_slot.attributes.anisotropy, -1.0f, 1.0f);
 
-							const float3 sheen_color_srgb = color::LinearToSrgb(material_slot.sheen_color);
+							const float3 sheen_color_srgb = color::LinearToSrgb(material_slot.attributes.sheen_color);
 							float sheen_color[3] = { sheen_color_srgb.x, sheen_color_srgb.y, sheen_color_srgb.z };
 							if (ImGui::ColorEdit3(EditorText(editor_key::label_sheen_color), sheen_color))
 							{
-								material_slot.sheen_color = color::SrgbToLinear({ sheen_color[0], sheen_color[1], sheen_color[2] });
+								material_slot.attributes.sheen_color = color::SrgbToLinear({ sheen_color[0], sheen_color[1], sheen_color[2] });
 								material_changed = true;
 							}
 
-							material_changed |= ImGui::SliderFloat(EditorText(editor_key::label_sheen_roughness), &material_slot.sheen_roughness, 0.0f, 1.0f);
-							material_changed |= ImGui::SliderFloat(EditorText(editor_key::label_clearcoat), &material_slot.clearcoat, 0.0f, 1.0f);
-							material_changed |= ImGui::SliderFloat(EditorText(editor_key::label_clearcoat_roughness), &material_slot.clearcoat_roughness, 0.0f, 1.0f);
+							material_changed |= ImGui::SliderFloat(EditorText(editor_key::label_sheen_roughness), &material_slot.attributes.sheen_roughness, 0.0f, 1.0f);
+							material_changed |= ImGui::SliderFloat(EditorText(editor_key::label_clearcoat), &material_slot.attributes.clearcoat, 0.0f, 1.0f);
+							material_changed |= ImGui::SliderFloat(EditorText(editor_key::label_clearcoat_roughness), &material_slot.attributes.clearcoat_roughness, 0.0f, 1.0f);
 
 							const char* texture_slot_names[] = {
 								EditorText(editor_key::label_base_color_map),
@@ -6130,7 +6380,7 @@ namespace won::editor
 							ImGui::SeparatorText(EditorText(editor_key::label_textures));
 							for (uint32 texture_slot = 0; texture_slot < static_cast<uint32>(TEXTURESLOT_COUNT); ++texture_slot)
 							{
-								resource::MaterialSlot::TextureMap& texture = material_slot.textures[texture_slot];
+								resource::MaterialTextureMap& texture = material_slot.attributes.textures[texture_slot];
 								ImGui::PushID(static_cast<int>(texture_slot));
 								String texture_label = texture.texture_asset_path.empty() ? String(EditorText(editor_key::label_none_placeholder)) : texture.texture_asset_path;
 								if (!texture.texture_asset_path.empty())
@@ -6242,9 +6492,9 @@ namespace won::editor
 								{
 									for (uint32 texture_slot = 0; texture_slot < TEXTURESLOT_COUNT; ++texture_slot)
 									{
-										if (material_slot.textures[texture_slot].image && material_slot.textures[texture_slot].image->render_data.texture)
+										if (material_slot.attributes.textures[texture_slot].image && material_slot.attributes.textures[texture_slot].image->render_data.texture)
 										{
-											deferred_res_removal.resources.push_back(material_slot.textures[texture_slot].image->render_data.texture);
+											deferred_res_removal.resources.push_back(material_slot.attributes.textures[texture_slot].image->render_data.texture);
 										}
 									}
 								}
@@ -6780,6 +7030,17 @@ namespace won::editor
 							terrain_editor.selected_spline = 0;
 						}
 					}
+					ImGui::SameLine();
+					if (ImGui::RadioButton("Paint", terrain_editor.tool == TerrainEditorState::Tool::Paint))
+					{
+						terrain_editor.tool = TerrainEditorState::Tool::Paint;
+						terrain_editor.spline_mode = TerrainEditorState::SplineMode::Select;
+						terrain_editor.spline_drag_active = false;
+						if (terrain_editor.selected_material_layer < 0 && !data.material_layers.empty())
+						{
+							terrain_editor.selected_material_layer = 0;
+						}
+					}
 					ImGui::BeginDisabled(!data.IsValid());
 					if (terrain_editor.tool == TerrainEditorState::Tool::Sculpt)
 					{
@@ -6815,7 +7076,7 @@ namespace won::editor
 						ImGui::DragFloat("Strength", &terrain_editor.strength, 0.1f, 0.01f, 100.0f, "%.2f");
 						ImGui::SliderFloat("Falloff", &terrain_editor.falloff, 0.0f, 1.0f, "%.2f");
 					}
-					else
+					else if (terrain_editor.tool == TerrainEditorState::Tool::Spline)
 					{
 						ImGui::SeparatorText("Splines");
 						if (terrain_editor.selected_spline >= static_cast<int>(data.splines.size()))
@@ -6832,7 +7093,11 @@ namespace won::editor
 							terrain_editor.selected_spline_point = -1;
 							terrain_editor.spline_mode = TerrainEditorState::SplineMode::AddPoint;
 							editor_history.PushTerrainSplines(terrain_editor.entity, terrain->terrain_data_path, std::move(before), data.splines, "Add Terrain Spline");
-							SaveTerrainChanges(terrain_editor.entity, *terrain);
+							SaveTerrainData(*terrain);
+							if (Collider3DComponent* collider = editor_viewport.view->scene->GetComponent<Collider3DComponent>(terrain_editor.entity))
+							{
+								collider->SetDirty();
+							}
 						}
 						if (ImGui::BeginListBox("##TerrainSplines", ImVec2(-1.0f, ImGui::GetTextLineHeightWithSpacing() * 5.0f)))
 						{
@@ -6919,7 +7184,11 @@ namespace won::editor
 									editor_history.PushTerrainSplines(terrain_editor.entity, terrain->terrain_data_path, std::move(terrain_editor.spline_before), data.splines, "Edit Terrain Spline");
 									terrain_editor.spline_edit_active = false;
 								}
-								SaveTerrainChanges(terrain_editor.entity, *terrain);
+								SaveTerrainData(*terrain);
+								if (Collider3DComponent* collider = editor_viewport.view->scene->GetComponent<Collider3DComponent>(terrain_editor.entity))
+								{
+									collider->SetDirty();
+								}
 							}
 							const bool has_selected_point = terrain_editor.selected_spline_point >= 0 && terrain_editor.selected_spline_point < static_cast<int>(spline.points.size());
 							ImGui::BeginDisabled(!has_selected_point);
@@ -6930,7 +7199,11 @@ namespace won::editor
 								terrain_editor.selected_spline_point = -1;
 								RebuildTerrainMesh(terrain_editor.entity, data);
 								editor_history.PushTerrainSplines(terrain_editor.entity, terrain->terrain_data_path, std::move(before), data.splines, "Delete Terrain Spline Point");
-								SaveTerrainChanges(terrain_editor.entity, *terrain);
+								SaveTerrainData(*terrain);
+								if (Collider3DComponent* collider = editor_viewport.view->scene->GetComponent<Collider3DComponent>(terrain_editor.entity))
+								{
+									collider->SetDirty();
+								}
 							}
 							ImGui::EndDisabled();
 							if (ImGui::Button("Delete Spline", ImVec2(-1.0f, 0.0f)))
@@ -6944,7 +7217,218 @@ namespace won::editor
 								terrain_editor.spline_mode = TerrainEditorState::SplineMode::Select;
 								RebuildTerrainMesh(terrain_editor.entity, data);
 								editor_history.PushTerrainSplines(terrain_editor.entity, terrain->terrain_data_path, std::move(before), data.splines, "Delete Terrain Spline");
-								SaveTerrainChanges(terrain_editor.entity, *terrain);
+							SaveTerrainData(*terrain);
+							if (Collider3DComponent* collider = editor_viewport.view->scene->GetComponent<Collider3DComponent>(terrain_editor.entity))
+							{
+								collider->SetDirty();
+							}
+							}
+						}
+						ImGui::EndDisabled();
+					}
+					else
+					{
+						ImGui::SeparatorText("Material Paint");
+						TerrainMaterialState settings_before = CaptureTerrainMaterial(data);
+						bool settings_changed = false;
+						settings_changed |= DrawEnumCombo(EditorText(editor_key::label_shader_type), data.material_settings.material_type);
+						settings_changed |= DrawEnumCombo(EditorText(editor_key::label_blend_mode), data.material_settings.blend_mode);
+						settings_changed |= ImGui::Checkbox(EditorText(editor_key::label_double_sided), &data.material_settings.double_sided);
+						settings_changed |= ImGui::Checkbox(EditorText(editor_key::label_use_vertex_colors), &data.material_settings.use_vertex_colors);
+						settings_changed |= ImGui::Checkbox(EditorText(editor_key::label_receive_shadow), &data.material_settings.receive_shadow);
+						if (settings_changed)
+						{
+							editor_history.PushTerrainMaterial(terrain_editor.entity, terrain->terrain_data_path, std::move(settings_before), CaptureTerrainMaterial(data), "Edit Terrain Material Settings");
+							editor_viewport.view->scene->MarkGpuDirty(ComponentMaskFromType<TerrainComponent>());
+							SaveTerrainData(*terrain);
+						}
+						if (data.material_settings.IsMasked())
+						{
+							const float alpha_cutoff_before = data.material_settings.alpha_cutoff;
+							if (ImGui::SliderFloat("Alpha Cutoff", &data.material_settings.alpha_cutoff, 0.0f, 1.0f))
+							{
+								editor_viewport.view->scene->MarkGpuDirty(ComponentMaskFromType<TerrainComponent>());
+							}
+							if (ImGui::IsItemActivated())
+							{
+								terrain_editor.material_before = CaptureTerrainMaterial(data);
+								terrain_editor.material_before.settings.alpha_cutoff = alpha_cutoff_before;
+								terrain_editor.material_edit_active = true;
+							}
+							if (ImGui::IsItemDeactivatedAfterEdit() && terrain_editor.material_edit_active)
+							{
+								editor_history.PushTerrainMaterial(terrain_editor.entity, terrain->terrain_data_path, std::move(terrain_editor.material_before), CaptureTerrainMaterial(data), "Edit Terrain Alpha Cutoff");
+								terrain_editor.material_edit_active = false;
+								SaveTerrainData(*terrain);
+							}
+						}
+						if (terrain_editor.selected_material_layer >= static_cast<int>(data.material_layers.size()))
+						{
+							terrain_editor.selected_material_layer = data.material_layers.empty() ? -1 : 0;
+						}
+
+						const auto refresh_material = [this, terrain](terrain::TerrainData& material_data)
+						{
+							UpdateTerrainControlMap(terrain_editor.entity, material_data);
+							resource::LoadTerrainMaterials(*terrain, contents_root_dir);
+							editor_viewport.view->scene->MarkGpuDirty(ComponentMaskFromType<TerrainComponent>());
+							SaveTerrainData(*terrain);
+						};
+
+						const int material_resolutions[] = { 128, 256, 512, 1024 };
+						const String resolution_label = data.material_samples_x > 0
+							? std::to_string(data.material_samples_x) + " x " + std::to_string(data.material_samples_z)
+							: "Not Created";
+						if (ImGui::BeginCombo("Control Map Resolution", resolution_label.c_str()))
+						{
+							for (int resolution : material_resolutions)
+							{
+								const String label = std::to_string(resolution) + " x " + std::to_string(resolution);
+								const bool selected = data.material_samples_x == static_cast<uint32>(resolution) && data.material_samples_z == static_cast<uint32>(resolution);
+								if (ImGui::Selectable(label.c_str(), selected) && !selected && !data.material_layers.empty())
+								{
+									TerrainMaterialState before = CaptureTerrainMaterial(data);
+									if (ResizeTerrainMaterialWeights(data, static_cast<uint32>(resolution), static_cast<uint32>(resolution)))
+									{
+										editor_history.PushTerrainMaterial(terrain_editor.entity, terrain->terrain_data_path, std::move(before), CaptureTerrainMaterial(data), "Resize Terrain Material Control Map");
+										refresh_material(data);
+									}
+								}
+							}
+							ImGui::EndCombo();
+						}
+
+						ImGui::BeginDisabled(data.material_layers.size() >= terrain::TerrainData::max_material_layers);
+						if (ImGui::Button("Add Layer", ImVec2(-1.0f, 0.0f)))
+						{
+							TerrainMaterialState before = CaptureTerrainMaterial(data);
+							data.material_layers.emplace_back();
+							if (data.material_samples_x < 2 || data.material_samples_z < 2)
+							{
+								data.material_samples_x = 256;
+								data.material_samples_z = 256;
+							}
+							const Size sample_count = static_cast<Size>(data.material_samples_x) * data.material_samples_z;
+							data.material_weights.emplace_back(sample_count, 0u);
+							if (data.material_layers.size() == 1)
+							{
+								data.material_weights[0].assign(sample_count, 255u);
+							}
+							terrain_editor.selected_material_layer = static_cast<int>(data.material_layers.size()) - 1;
+							editor_history.PushTerrainMaterial(terrain_editor.entity, terrain->terrain_data_path, std::move(before), CaptureTerrainMaterial(data), "Add Terrain Material Layer");
+							refresh_material(data);
+						}
+						ImGui::EndDisabled();
+
+						if (ImGui::BeginListBox("##TerrainMaterialLayers", ImVec2(-1.0f, ImGui::GetTextLineHeightWithSpacing() * 5.0f)))
+						{
+							for (int layer_index = 0; layer_index < static_cast<int>(data.material_layers.size()); ++layer_index)
+							{
+								const TerrainMaterialLayer& layer = data.material_layers[layer_index];
+								const String name = layer.material_asset_path.empty() ? "Default" : io::GetFilename(layer.material_asset_path);
+								const String label = std::to_string(layer_index + 1) + ". " + name + "##TerrainMaterialLayer" + std::to_string(layer_index);
+								if (ImGui::Selectable(label.c_str(), terrain_editor.selected_material_layer == layer_index))
+								{
+									terrain_editor.selected_material_layer = layer_index;
+								}
+							}
+							ImGui::EndListBox();
+						}
+
+						const bool has_selected_layer = terrain_editor.selected_material_layer >= 0 && terrain_editor.selected_material_layer < static_cast<int>(data.material_layers.size());
+						ImGui::BeginDisabled(!has_selected_layer);
+						if (has_selected_layer)
+						{
+							TerrainMaterialLayer& layer = data.material_layers[terrain_editor.selected_material_layer];
+							const String material_label = layer.material_asset_path.empty() ? String(EditorText(editor_key::label_none_placeholder)) : layer.material_asset_path;
+							if (ImGui::BeginCombo("Material", material_label.c_str()))
+							{
+								if (ImGui::Selectable(EditorText(editor_key::label_none_placeholder), layer.material_asset_path.empty()) && !layer.material_asset_path.empty())
+								{
+									TerrainMaterialState before = CaptureTerrainMaterial(data);
+									layer.material_asset_path.clear();
+									editor_history.PushTerrainMaterial(terrain_editor.entity, terrain->terrain_data_path, std::move(before), CaptureTerrainMaterial(data), "Set Terrain Material Layer");
+									refresh_material(data);
+								}
+								for (const ContentBrowserAsset& asset : content_browser.assets)
+								{
+									if (asset.type != ContentAssetType::Material)
+									{
+										continue;
+									}
+									const String asset_path = io::GetRelativePath(contents_root_dir, asset.disk_path);
+									const bool selected = asset_path == layer.material_asset_path;
+									if (ImGui::Selectable(asset.virtual_path.c_str(), selected) && !selected)
+									{
+										TerrainMaterialState before = CaptureTerrainMaterial(data);
+										layer.material_asset_path = asset_path;
+										editor_history.PushTerrainMaterial(terrain_editor.entity, terrain->terrain_data_path, std::move(before), CaptureTerrainMaterial(data), "Set Terrain Material Layer");
+										refresh_material(data);
+									}
+								}
+								ImGui::EndCombo();
+							}
+
+							const Size selected_layer = static_cast<Size>(terrain_editor.selected_material_layer);
+							const std::shared_ptr<resource::Material> layer_material = selected_layer < data.render_data.layer_materials.size()
+								? data.render_data.layer_materials[selected_layer]
+								: nullptr;
+							const uint32 slot_count = layer_material ? static_cast<uint32>(layer_material->slots.size()) : 0;
+							const String slot_label = slot_count > 0 && layer.material_slot < slot_count
+								? "Slot " + std::to_string(layer.material_slot)
+								: String(EditorText(editor_key::label_none_placeholder));
+							ImGui::BeginDisabled(slot_count == 0);
+							if (ImGui::BeginCombo("Material Slot", slot_label.c_str()))
+							{
+								for (uint32 slot_index = 0; slot_index < slot_count; ++slot_index)
+								{
+									const String label = "Slot " + std::to_string(slot_index);
+									if (ImGui::Selectable(label.c_str(), layer.material_slot == slot_index) && layer.material_slot != slot_index)
+									{
+										TerrainMaterialState before = CaptureTerrainMaterial(data);
+										layer.material_slot = slot_index;
+										editor_history.PushTerrainMaterial(terrain_editor.entity, terrain->terrain_data_path, std::move(before), CaptureTerrainMaterial(data), "Set Terrain Material Slot");
+										refresh_material(data);
+									}
+								}
+								ImGui::EndCombo();
+							}
+							ImGui::EndDisabled();
+
+							const float tile_size_before = layer.tile_size;
+							if (ImGui::DragFloat("Tile Size", &layer.tile_size, 0.1f, 0.1f, 100000.0f, "%.2f"))
+							{
+								layer.tile_size = (std::max)(0.1f, layer.tile_size);
+								editor_viewport.view->scene->MarkGpuDirty(ComponentMaskFromType<TerrainComponent>());
+							}
+							if (ImGui::IsItemActivated())
+							{
+								terrain_editor.material_before = CaptureTerrainMaterial(data);
+								terrain_editor.material_before.layers[terrain_editor.selected_material_layer].tile_size = tile_size_before;
+								terrain_editor.material_edit_active = true;
+							}
+							if (ImGui::IsItemDeactivatedAfterEdit() && terrain_editor.material_edit_active)
+							{
+								editor_history.PushTerrainMaterial(terrain_editor.entity, terrain->terrain_data_path, std::move(terrain_editor.material_before), CaptureTerrainMaterial(data), "Edit Terrain Material Layer");
+								terrain_editor.material_edit_active = false;
+								SaveTerrainData(*terrain);
+							}
+
+							ImGui::SliderFloat("Radius", &terrain_editor.radius, 0.1f, (std::max)(data.world_size_x, data.world_size_z) * 0.5f, "%.2f");
+							ImGui::DragFloat("Strength", &terrain_editor.strength, 0.1f, 0.01f, 100.0f, "%.2f");
+							ImGui::SliderFloat("Falloff", &terrain_editor.falloff, 0.0f, 1.0f, "%.2f");
+
+							if (ImGui::Button("Delete Layer", ImVec2(-1.0f, 0.0f)))
+							{
+								TerrainMaterialState before = CaptureTerrainMaterial(data);
+								if (terrain::RemoveTerrainMaterialLayer(data, static_cast<Size>(terrain_editor.selected_material_layer)))
+								{
+									terrain_editor.selected_material_layer = data.material_layers.empty()
+										? -1
+										: (std::min)(terrain_editor.selected_material_layer, static_cast<int>(data.material_layers.size()) - 1);
+									editor_history.PushTerrainMaterial(terrain_editor.entity, terrain->terrain_data_path, std::move(before), CaptureTerrainMaterial(data), "Delete Terrain Material Layer");
+									refresh_material(data);
+								}
 							}
 						}
 						ImGui::EndDisabled();
@@ -6984,7 +7468,11 @@ namespace won::editor
 									: terrain->terrain_data_path;
 								io::CreateDirectories(io::GetDirectoryFromPath(io::CombinePath(contents_root_dir, terrain->terrain_data_path)));
 								RebuildTerrainMesh(terrain_editor.entity, data);
-								SaveTerrainChanges(terrain_editor.entity, *terrain);
+								SaveTerrainData(*terrain);
+								if (Collider3DComponent* collider = editor_viewport.view->scene->GetComponent<Collider3DComponent>(terrain_editor.entity))
+								{
+									collider->SetDirty();
+								}
 							}
 						}
 					}
@@ -8453,7 +8941,9 @@ namespace won::editor
 			for (Size i = 0; i < terrain_array->GetSize(); ++i)
 			{
 				resource::LoadTerrainResource(terrain_array->data[i], contents_root_dir);
+				resource::LoadTerrainMaterials(terrain_array->data[i], contents_root_dir);
 			}
+			scene.MarkGpuDirty(ComponentMaskFromType<ecs::TerrainComponent>());
 		}
 		if (auto geometry_array = scene.GetComponentArray<ecs::GeometryComponent>())
 		{
@@ -8513,7 +9003,7 @@ namespace won::editor
 				{
 					for (uint32 texture_slot = 0; texture_slot < TEXTURESLOT_COUNT; ++texture_slot)
 					{
-						resource::MaterialSlot::TextureMap& texture_map = material_slot.textures[texture_slot];
+					resource::MaterialTextureMap& texture_map = material_slot.attributes.textures[texture_slot];
 						if (texture_map.texture_asset_path.empty())
 						{
 							continue;
@@ -8726,7 +9216,18 @@ namespace won::editor
 		{
 			if (TerrainComponent* terrain = editor_viewport.view->scene->GetComponent<TerrainComponent>(editor_viewport.picked_entity); terrain && terrain->data)
 			{
-				RebuildTerrainMesh(editor_viewport.picked_entity, *terrain->data);
+				if (context.terrain_rebuild_mesh)
+				{
+					RebuildTerrainMesh(editor_viewport.picked_entity, *terrain->data);
+				}
+				if (context.terrain_reload_materials)
+				{
+					resource::LoadTerrainMaterials(*terrain, contents_root_dir);
+				}
+				if (context.terrain_rebuild_control_map)
+				{
+					UpdateTerrainControlMap(editor_viewport.picked_entity, *terrain->data);
+				}
 			}
 		}
 		ResetInspectorBaseline();
@@ -8748,7 +9249,18 @@ namespace won::editor
 		{
 			if (TerrainComponent* terrain = editor_viewport.view->scene->GetComponent<TerrainComponent>(editor_viewport.picked_entity); terrain && terrain->data)
 			{
-				RebuildTerrainMesh(editor_viewport.picked_entity, *terrain->data);
+				if (context.terrain_rebuild_mesh)
+				{
+					RebuildTerrainMesh(editor_viewport.picked_entity, *terrain->data);
+				}
+				if (context.terrain_reload_materials)
+				{
+					resource::LoadTerrainMaterials(*terrain, contents_root_dir);
+				}
+				if (context.terrain_rebuild_control_map)
+				{
+					UpdateTerrainControlMap(editor_viewport.picked_entity, *terrain->data);
+				}
 			}
 		}
 		ResetInspectorBaseline();

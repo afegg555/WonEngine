@@ -811,7 +811,7 @@ namespace won::rendering
                     continue;
                 }
 
-                const Renderable& renderable = renderables[i];
+                const MeshRenderable& renderable = renderables[i];
                 bool queryable = false;
                 if (renderable.aabb.IsValid())
                 {
@@ -849,7 +849,7 @@ namespace won::rendering
                     continue;
                 }
 
-                const OcclusionResources::RenderableKey key = { renderable.entity, renderable.push_constants.geometry_index };
+                const OcclusionResources::RenderableKey key = { renderable.entity, renderable.geometry_index };
                 const auto entry = occlusion_resources.visibility.find(key);
                 if (entry != occlusion_resources.visibility.end() && entry->second.IsOccluded())
                 {
@@ -863,10 +863,80 @@ namespace won::rendering
                 {
                     const auto& ra = renderables[a];
                     const auto& rb = renderables[b];
-                    if (ra.push_constants.geometry_index != rb.push_constants.geometry_index)
-                        return ra.push_constants.geometry_index < rb.push_constants.geometry_index;
-                    if (ra.push_constants.material_index != rb.push_constants.material_index)
-                        return ra.push_constants.material_index < rb.push_constants.material_index;
+                    if (ra.geometry_index != rb.geometry_index)
+                        return ra.geometry_index < rb.geometry_index;
+                    if (ra.material_index != rb.material_index)
+                        return ra.material_index < rb.material_index;
+                    if (ra.shader_type != rb.shader_type)
+                        return ra.shader_type < rb.shader_type;
+                    if (ra.IsDoubleSided() != rb.IsDoubleSided())
+                        return ra.IsDoubleSided() < rb.IsDoubleSided();
+                    return ra.primitive_topology < rb.primitive_topology;
+                });
+
+            const auto& terrain_renderables = gpu_scene.terrain_opaque_renderables;
+            const auto& terrain_cull_data = gpu_scene.terrain_opaque_cull_data;
+            sorted_terrain_opaque_indices.clear();
+            terrain_occlusion_query_indices.clear();
+            for (uint32 i = 0; i < static_cast<uint32>(terrain_cull_data.size()); ++i)
+            {
+                const auto& c = terrain_cull_data[i];
+                if ((culling_mask & c.layer_mask) == 0 || (frustum && c.aabb.IsValid() && !c.aabb.IntersectFrustum(*frustum)))
+                {
+                    continue;
+                }
+
+                const TerrainRenderable& renderable = terrain_renderables[i];
+                bool queryable = false;
+                if (apply_occlusion && renderable.aabb.IsValid())
+                {
+                    const float3 closest_point = {
+                        (std::max)(renderable.aabb.min.x, (std::min)(eye.x, renderable.aabb.max.x)),
+                        (std::max)(renderable.aabb.min.y, (std::min)(eye.y, renderable.aabb.max.y)),
+                        (std::max)(renderable.aabb.min.z, (std::min)(eye.z, renderable.aabb.max.z))
+                    };
+                    const float distance_squared = math::DistanceSquared(closest_point, eye);
+                    if (distance_squared > near_plane * near_plane)
+                    {
+                        const float bounds_expand = std::sqrt(distance_squared) * bounds_expand_scale;
+                        ShaderOcclusionBox box = {};
+                        box.Init();
+                        box.aabb_min = {
+                            renderable.aabb.min.x - bounds_expand,
+                            renderable.aabb.min.y - bounds_expand,
+                            renderable.aabb.min.z - bounds_expand
+                        };
+                        box.aabb_max = {
+                            renderable.aabb.max.x + bounds_expand,
+                            renderable.aabb.max.y + bounds_expand,
+                            renderable.aabb.max.z + bounds_expand
+                        };
+                        terrain_occlusion_query_indices.push_back(i);
+                        occlusion_resources.query_boxes.push_back(box);
+                        queryable = true;
+                    }
+                }
+
+                if (queryable)
+                {
+                    const OcclusionResources::RenderableKey key = { renderable.entity, renderable.geometry_index };
+                    const auto entry = occlusion_resources.visibility.find(key);
+                    if (entry != occlusion_resources.visibility.end() && entry->second.IsOccluded())
+                    {
+                        continue;
+                    }
+                }
+                sorted_terrain_opaque_indices.push_back(i);
+            }
+            std::sort(sorted_terrain_opaque_indices.begin(), sorted_terrain_opaque_indices.end(),
+                [&](uint32 a, uint32 b)
+                {
+                    const auto& ra = terrain_renderables[a];
+                    const auto& rb = terrain_renderables[b];
+                    if (ra.geometry_index != rb.geometry_index)
+                        return ra.geometry_index < rb.geometry_index;
+                    if (ra.terrain_index != rb.terrain_index)
+                        return ra.terrain_index < rb.terrain_index;
                     if (ra.shader_type != rb.shader_type)
                         return ra.shader_type < rb.shader_type;
                     if (ra.IsDoubleSided() != rb.IsDoubleSided())
@@ -888,15 +958,21 @@ namespace won::rendering
         {
             const auto& renderables = gpu_scene.opaque_renderables;
             const auto& cull_data = gpu_scene.opaque_cull_data;
+            const auto& terrain_renderables = gpu_scene.terrain_opaque_renderables;
+            const auto& terrain_cull_data = gpu_scene.terrain_opaque_cull_data;
             const Size slice_count = shadow_resources.render_shadow_slices.size();
             shadow_resources.caster_slice_ranges.assign(slice_count, uint2{ 0, 0 });
+            shadow_resources.terrain_caster_slice_ranges.assign(slice_count, uint2{ 0, 0 });
             shadow_resources.caster_slice_scratch.resize(slice_count);
+            Vector<Vector<uint32>> terrain_slice_scratch(slice_count);
 
             jobsystem::Context slice_ctx;
             for (Size slice_index = 0; slice_index < slice_count; ++slice_index)
             {
                 Vector<uint32>& slice_casters = shadow_resources.caster_slice_scratch[slice_index];
+                Vector<uint32>& terrain_slice_casters = terrain_slice_scratch[slice_index];
                 slice_casters.clear();
+                terrain_slice_casters.clear();
 
                 const RenderShadowSlice& shadow_slice = shadow_resources.render_shadow_slices[slice_index];
                 if (!shadow_slice.HasShadowMapAtlasRect())
@@ -909,7 +985,7 @@ namespace won::rendering
                         const auto& c = cull_data[i];
                         if ((culling_mask & c.layer_mask) == 0)
                             continue;
-                        if ((c.flags & Renderable::CastShadow) == 0)
+                        if ((c.flags & MeshRenderable::CastShadow) == 0)
                             continue;
                         if (options.enable_frustum_culling && c.aabb.IsValid() && !c.aabb.IntersectFrustum(shadow_slice.casting_frustum))
                             continue;
@@ -921,10 +997,35 @@ namespace won::rendering
                         {
                             const auto& ra = renderables[a];
                             const auto& rb = renderables[b];
-                            if (ra.push_constants.geometry_index != rb.push_constants.geometry_index)
-                                return ra.push_constants.geometry_index < rb.push_constants.geometry_index;
-                            if (ra.push_constants.material_index != rb.push_constants.material_index)
-                                return ra.push_constants.material_index < rb.push_constants.material_index;
+                            if (ra.geometry_index != rb.geometry_index)
+                                return ra.geometry_index < rb.geometry_index;
+                            if (ra.material_index != rb.material_index)
+                                return ra.material_index < rb.material_index;
+                            if (ra.IsDoubleSided() != rb.IsDoubleSided())
+                                return ra.IsDoubleSided() < rb.IsDoubleSided();
+                            return ra.primitive_topology < rb.primitive_topology;
+                        });
+                });
+                jobsystem::Execute(slice_ctx, [&, &terrain_slice_casters = terrain_slice_casters, &shadow_slice = shadow_slice](jobsystem::JobArgs)
+                {
+                    for (uint32 i = 0; i < static_cast<uint32>(terrain_cull_data.size()); ++i)
+                    {
+                        const auto& c = terrain_cull_data[i];
+                        if ((culling_mask & c.layer_mask) == 0 || (c.flags & TerrainRenderable::CastShadow) == 0)
+                            continue;
+                        if (options.enable_frustum_culling && c.aabb.IsValid() && !c.aabb.IntersectFrustum(shadow_slice.casting_frustum))
+                            continue;
+                        terrain_slice_casters.push_back(i);
+                    }
+                    std::sort(terrain_slice_casters.begin(), terrain_slice_casters.end(),
+                        [&](uint32 a, uint32 b)
+                        {
+                            const auto& ra = terrain_renderables[a];
+                            const auto& rb = terrain_renderables[b];
+                            if (ra.geometry_index != rb.geometry_index)
+                                return ra.geometry_index < rb.geometry_index;
+                            if (ra.terrain_index != rb.terrain_index)
+                                return ra.terrain_index < rb.terrain_index;
                             if (ra.IsDoubleSided() != rb.IsDoubleSided())
                                 return ra.IsDoubleSided() < rb.IsDoubleSided();
                             return ra.primitive_topology < rb.primitive_topology;
@@ -934,12 +1035,17 @@ namespace won::rendering
             jobsystem::Wait(slice_ctx);
 
             sorted_shadow_caster_indices.clear();
+            sorted_terrain_shadow_caster_indices.clear();
             for (Size slice_index = 0; slice_index < slice_count; ++slice_index)
             {
                 const Vector<uint32>& slice_casters = shadow_resources.caster_slice_scratch[slice_index];
                 const uint32 range_begin = static_cast<uint32>(sorted_shadow_caster_indices.size());
                 sorted_shadow_caster_indices.insert(sorted_shadow_caster_indices.end(), slice_casters.begin(), slice_casters.end()); // generally bigger than count of renderables
                 shadow_resources.caster_slice_ranges[slice_index] = { range_begin, static_cast<uint32>(slice_casters.size()) };
+                const Vector<uint32>& terrain_slice_casters = terrain_slice_scratch[slice_index];
+                const uint32 terrain_range_begin = static_cast<uint32>(sorted_terrain_shadow_caster_indices.size());
+                sorted_terrain_shadow_caster_indices.insert(sorted_terrain_shadow_caster_indices.end(), terrain_slice_casters.begin(), terrain_slice_casters.end());
+                shadow_resources.terrain_caster_slice_ranges[slice_index] = { terrain_range_begin, static_cast<uint32>(terrain_slice_casters.size()) };
             }
         });
 
@@ -961,6 +1067,23 @@ namespace won::rendering
                 {
                     return math::DistanceSquared(renderables[a].world_position, eye) >
                            math::DistanceSquared(renderables[b].world_position, eye);
+                });
+
+            const auto& terrain_renderables = gpu_scene.terrain_transparent_renderables;
+            sorted_terrain_transparent_indices.clear();
+            for (uint32 i = 0; i < static_cast<uint32>(terrain_renderables.size()); ++i)
+            {
+                const auto& renderable = terrain_renderables[i];
+                if ((culling_mask & renderable.layer_mask) == 0 || (frustum && renderable.aabb.IsValid() && !renderable.aabb.IntersectFrustum(*frustum)))
+                {
+                    continue;
+                }
+                sorted_terrain_transparent_indices.push_back(i);
+            }
+            std::sort(sorted_terrain_transparent_indices.begin(), sorted_terrain_transparent_indices.end(),
+                [&](uint32 a, uint32 b)
+                {
+                    return math::DistanceSquared(terrain_renderables[a].world_position, eye) > math::DistanceSquared(terrain_renderables[b].world_position, eye);
                 });
         });
 

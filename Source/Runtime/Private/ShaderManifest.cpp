@@ -7,6 +7,8 @@ namespace won::resource
         static const ShaderManifest manifest = {
             { ShaderId::VSFullTriangle, { rendering::RHIShaderStage::Vertex, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "FullTriangleVS.hlsl", "main" } },
             { ShaderId::VSObjectCommon, { rendering::RHIShaderStage::Vertex, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "ObjectVS_common.hlsl", "main" } },
+            { ShaderId::VSTerrainCommon, { rendering::RHIShaderStage::Vertex, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TerrainVS_common.hlsl", "main" } },
+            { ShaderId::VSTerrainSimple, { rendering::RHIShaderStage::Vertex, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TerrainVS_simple.hlsl", "main" } },
             { ShaderId::VSObjectSimple, { rendering::RHIShaderStage::Vertex, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "ObjectVS_simple.hlsl", "main" } },
             { ShaderId::VSObjectPrepass, { rendering::RHIShaderStage::Vertex, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "ObjectVS_prepass.hlsl", "main" } },
             { ShaderId::VSObjectNormal, { rendering::RHIShaderStage::Vertex, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "ObjectVS_normal.hlsl", "main" } },
@@ -80,6 +82,12 @@ namespace won::resource
             { ShaderId::CSTextureBC3Compress, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TextureBC3CompressCS.hlsl", "main" } },
             { ShaderId::CSTextureBC4Compress, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TextureBC4CompressCS.hlsl", "main" } },
             { ShaderId::CSTextureBC5Compress, { rendering::RHIShaderStage::Compute, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TextureBC5CompressCS.hlsl", "main" } },
+            { ShaderId::PSTerrainForward, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TerrainPS_forward.hlsl", "main" } },
+            { ShaderId::PSTerrainForwardPlus, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TerrainPS_forwardplus.hlsl", "main" } },
+            { ShaderId::PSTerrainUnlit, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TerrainPS_unlit.hlsl", "main" } },
+            { ShaderId::PSTerrainForwardMasked, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TerrainPS_forward_masked.hlsl", "main" } },
+            { ShaderId::PSTerrainForwardPlusMasked, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TerrainPS_forwardplus_masked.hlsl", "main" } },
+            { ShaderId::PSTerrainUnlitMasked, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TerrainPS_unlit_masked.hlsl", "main" } },
         };
 
         return manifest;

@@ -246,13 +246,14 @@ struct alignas(16) ShaderMaterial
 
     uint2 sheencolor_alphacutoff;
     uint flags; // see SHADER_MATERIAL_FLAGS
-    uint padding;
-    
+    uint _padding;
+
     ShaderTextureSlot textures[TEXTURESLOT_COUNT];
 
 #ifdef __cplusplus
     inline void Init()
     {
+        _padding = 0;
         for (size_t i = 0; i < TEXTURESLOT_COUNT; i++)
         {
             textures[i].Init();
@@ -275,6 +276,45 @@ struct alignas(16) ShaderMaterial
     inline bool IsDoubleSided() { return flags & SHADER_MATERIAL_FLAG_DOUBLE_SIDED; }
     inline bool IsUsingVertexColors() { return flags & SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS; }
     inline bool IsReceiveShadow() { return flags & SHADER_MATERIAL_FLAG_RECEIVE_SHADOW; }
+#endif
+};
+
+struct alignas(16) ShaderTerrain
+{
+    uint layer_offset;
+    uint layer_count;
+    float alpha_cutoff;
+    uint flags;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        layer_offset = 0;
+        layer_count = 0;
+        alpha_cutoff = 0.5f;
+        flags = SHADER_MATERIAL_FLAG_NONE;
+    }
+#else
+    inline bool IsUsingVertexColors() { return flags & SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS; }
+    inline bool IsReceiveShadow() { return flags & SHADER_MATERIAL_FLAG_RECEIVE_SHADOW; }
+#endif
+};
+
+struct alignas(16) ShaderTerrainLayer
+{
+    uint material_index;
+    int weight_map_descriptor;
+    uint weight_map_channel;
+    float uv_scale;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        material_index = 0;
+        weight_map_descriptor = -1;
+        weight_map_channel = 0;
+        uv_scale = 1.0f;
+    }
 #endif
 };
 
@@ -329,7 +369,10 @@ struct alignas(16) ShaderScene
     int ltc_matrix_lut;
     int ltc_fresnel_lut;
     int particlebuffer;
-    int _scene_padding0;
+    int terrain_buffer;
+
+    int terrain_layer_buffer;
+    int3 _scene_padding;
 #ifdef __cplusplus
     inline void Init()
     {
@@ -351,7 +394,9 @@ struct alignas(16) ShaderScene
         ltc_matrix_lut = -1;
         ltc_fresnel_lut = -1;
         particlebuffer = -1;
-        _scene_padding0 = 0;
+        terrain_buffer = -1;
+        terrain_layer_buffer = -1;
+        _scene_padding = { 0, 0, 0 };
     }
 #endif
 };
@@ -1220,17 +1265,32 @@ struct alignas(16) ShaderShadowCascade
 
 struct ObjectPushConstants
 {
-    uint draw_offset;
+    uint instance_offset;
     uint geometry_index;
     uint material_index;
-    uint padding0;
 
 #ifdef __cplusplus
     inline void Init()
     {
-        draw_offset = 0;
+        instance_offset = 0;
         geometry_index = 0;
         material_index = 0;
+    }
+#endif
+};
+
+struct TerrainPushConstants
+{
+    uint instance_offset;
+    uint geometry_index;
+    uint terrain_index;
+
+#ifdef __cplusplus
+    inline void Init()
+    {
+        instance_offset = 0;
+        geometry_index = 0;
+        terrain_index = 0;
     }
 #endif
 };
@@ -1279,7 +1339,9 @@ PUSHCONSTANT(push, ObjectPushConstants);
 static_assert(sizeof(ShaderTextureSlot) == 16, "ShaderTextureSlot layout mismatch");
 static_assert(sizeof(ShaderGeometry) == 80, "ShaderGeometry layout mismatch");
 static_assert(sizeof(ShaderMaterial) == 272, "ShaderMaterial layout mismatch");
-static_assert(sizeof(ShaderScene) == 64, "ShaderScene layout mismatch");
+static_assert(sizeof(ShaderTerrain) == 16, "ShaderTerrain layout mismatch");
+static_assert(sizeof(ShaderTerrainLayer) == 16, "ShaderTerrainLayer layout mismatch");
+static_assert(sizeof(ShaderScene) == 80, "ShaderScene layout mismatch");
 static_assert(sizeof(ShaderEnvironment) == 224, "ShaderEnvironment layout mismatch");
 static_assert(sizeof(ShaderDDGIVolume) == 112, "ShaderDDGIVolume layout mismatch");
 static_assert(sizeof(ShaderReflectionProbe) == 32, "ShaderReflectionProbe layout mismatch");
@@ -1287,7 +1349,7 @@ static_assert(sizeof(ShaderWaterRipple) == 16, "ShaderWaterRipple layout mismatc
 static_assert(sizeof(ShaderWaterBody) == 144, "ShaderWaterBody layout mismatch");
 static_assert(sizeof(ShaderWaterZone) == 80, "ShaderWaterZone layout mismatch");
 static_assert(sizeof(ShaderWaterTile) == 16, "ShaderWaterTile layout mismatch");
-static_assert(sizeof(ShaderFrame) == 448, "ShaderFrame layout mismatch");
+static_assert(sizeof(ShaderFrame) == 464, "ShaderFrame layout mismatch");
 static_assert(sizeof(ShaderCamera) == 432, "ShaderCamera layout mismatch");
 static_assert(sizeof(ShaderView) == 496, "ShaderView layout mismatch");
 static_assert(sizeof(ShaderLight) == 64, "ShaderLight layout mismatch");
@@ -1297,7 +1359,8 @@ static_assert(sizeof(ShaderDebugDraw2DItem) == 48, "ShaderDebugDraw2DItem layout
 static_assert(sizeof(ShaderOcclusionBox) == 32, "ShaderOcclusionBox layout mismatch");
 static_assert(sizeof(ShaderMeshNormal) == 32, "ShaderMeshNormal layout mismatch");
 static_assert(sizeof(MeshNormalPushConstants) == 8, "MeshNormalPushConstants layout mismatch");
-static_assert(sizeof(ObjectPushConstants) == 16, "ObjectPushConstants layout mismatch");
+static_assert(sizeof(ObjectPushConstants) == 12, "ObjectPushConstants layout mismatch");
+static_assert(sizeof(TerrainPushConstants) == 12, "TerrainPushConstants layout mismatch");
 static_assert(sizeof(ShaderTransform) == 112, "ShaderTransform layout mismatch");
 static_assert(sizeof(ShaderPreviousTransform) == 48, "ShaderPreviousTransform layout mismatch");
 #endif // __cplusplus

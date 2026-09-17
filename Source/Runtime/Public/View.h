@@ -79,6 +79,7 @@ namespace won::rendering
             Vector<RenderShadowSlice> render_shadow_slices; // for cpu, SetViewport, SetScissor, etc.
 			Vector<uint32> light_shadow_slices; // cascade offset(16bit) and cascade count(16bit) per light
             Vector<uint2> caster_slice_ranges; // per slice {offset, count} into sorted_shadow_caster_indices
+            Vector<uint2> terrain_caster_slice_ranges;
             Vector<Vector<uint32>> caster_slice_scratch; // kept across frames so the per slice culling jobs reuse their capacity
             uint2 shadow_map_atlas_size = { 0, 0 };
 
@@ -137,7 +138,7 @@ namespace won::rendering
             std::unique_ptr<RHIQueryHeap> query_heap;
             std::array<std::unique_ptr<RHIResource>, max_frames_in_flight> readback_buffers = {};
             std::array<Vector<RenderableKey>, max_frames_in_flight> issued_keys = {};
-            Vector<ShaderOcclusionBox> query_boxes; // 1:1 with View::occlusion_query_indices
+            Vector<ShaderOcclusionBox> query_boxes; // mesh entries followed by terrain entries, matching their query index arrays
             std::unordered_map<RenderableKey, VisibilityEntry, RenderableKeyHasher> visibility;
             bool active = false;
         };
@@ -279,6 +280,10 @@ namespace won::rendering
         Vector<uint32> sorted_opaque_indices;       // batch-key order, occlusion applied
         Vector<uint32> occlusion_query_indices;     // frustum survivors, occlusion NOT applied
         Vector<uint32> sorted_transparent_indices;  // back-to-front
+        Vector<uint32> sorted_terrain_shadow_caster_indices;
+        Vector<uint32> sorted_terrain_opaque_indices;
+        Vector<uint32> terrain_occlusion_query_indices;
+        Vector<uint32> sorted_terrain_transparent_indices;
         Vector<uint32> sorted_sprite_3d_indices;    // back-to-front
         Vector<uint32> sorted_sprite_2d_indices;    // by layer
 

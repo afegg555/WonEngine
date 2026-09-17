@@ -156,6 +156,8 @@ namespace won::rendering
         shader_frame.scene.previous_transform_buffer = gpu_scene.previous_transform_buffer.srv.descriptor_index;
         shader_frame.scene.geometrybuffer = gpu_scene.geometry_buffer.srv.descriptor_index;
         shader_frame.scene.materialbuffer = gpu_scene.material_buffer.srv.descriptor_index;
+        shader_frame.scene.terrain_buffer = gpu_scene.terrain_buffer.srv.descriptor_index;
+        shader_frame.scene.terrain_layer_buffer = gpu_scene.terrain_layer_buffer.srv.descriptor_index;
         shader_frame.scene.lightbuffer = gpu_scene.light_buffer.srv.descriptor_index;
         shader_frame.scene.particlebuffer = gpu_scene.particle_buffer.srv.descriptor_index;
         shader_frame.scene.directional_count = gpu_scene.directional_count;
@@ -468,6 +470,8 @@ namespace won::rendering
         UploadBuffer(gpu_scene.light_buffer, "Scene Light Buffer", frame_context, gpu_scene.shader_lights.data(), gpu_scene.shader_lights.size() * sizeof(ShaderLight), sizeof(ShaderLight), *device, frame_graph);
         UploadBuffer(gpu_scene.geometry_buffer, "Scene Geometry Buffer", frame_context, gpu_scene.shader_geometries.data(), gpu_scene.shader_geometries.size() * sizeof(ShaderGeometry), sizeof(ShaderGeometry), *device, frame_graph);
         UploadBuffer(gpu_scene.material_buffer, "Scene Material Buffer", frame_context, gpu_scene.shader_materials.data(), gpu_scene.shader_materials.size() * sizeof(ShaderMaterial), sizeof(ShaderMaterial), *device, frame_graph);
+        UploadBuffer(gpu_scene.terrain_buffer, "Scene Terrain Buffer", frame_context, gpu_scene.shader_terrains.data(), gpu_scene.shader_terrains.size() * sizeof(ShaderTerrain), sizeof(ShaderTerrain), *device, frame_graph);
+        UploadBuffer(gpu_scene.terrain_layer_buffer, "Scene Terrain Layer Buffer", frame_context, gpu_scene.shader_terrain_layers.data(), gpu_scene.shader_terrain_layers.size() * sizeof(ShaderTerrainLayer), sizeof(ShaderTerrainLayer), *device, frame_graph);
         UploadBuffer(gpu_scene.bone_buffer, "Scene Bone Matrix Buffer", frame_context, gpu_scene.shader_bone_matrices.data(), gpu_scene.shader_bone_matrices.size() * sizeof(float4), sizeof(float4), *device, frame_graph);
         UploadBuffer(gpu_scene.transform_buffer, "Scene Transform Buffer", frame_context, gpu_scene.shader_transforms.data(), gpu_scene.shader_transforms.size() * sizeof(ShaderTransform), sizeof(ShaderTransform), *device, frame_graph);
         UploadBuffer(gpu_scene.previous_transform_buffer, "Scene Previous Transform Buffer", frame_context, gpu_scene.shader_previous_transforms.data(), gpu_scene.shader_previous_transforms.size() * sizeof(ShaderPreviousTransform), sizeof(ShaderPreviousTransform), *device, frame_graph);
@@ -1527,10 +1531,18 @@ namespace won::rendering
             //rendering::GPUScene& gpu_scene = view.scene->GetGPUScene();
             const auto& opaque = gpu_scene.opaque_renderables;
             const auto& transparent = gpu_scene.transparent_renderables;
+            const auto& terrain_opaque = gpu_scene.terrain_opaque_renderables;
+            const auto& terrain_transparent = gpu_scene.terrain_transparent_renderables;
             const uint32 opaque_count = static_cast<uint32>(view.sorted_opaque_indices.size());
             const uint32 transparent_count = static_cast<uint32>(view.sorted_transparent_indices.size());
             const uint32 shadow_caster_count = static_cast<uint32>(view.sorted_shadow_caster_indices.size());
-            const Size used_sort_element_count = opaque_count + transparent_count + shadow_caster_count;
+            const uint32 terrain_opaque_count = static_cast<uint32>(view.sorted_terrain_opaque_indices.size());
+            const uint32 terrain_transparent_count = static_cast<uint32>(view.sorted_terrain_transparent_indices.size());
+            const uint32 terrain_shadow_caster_count = static_cast<uint32>(view.sorted_terrain_shadow_caster_indices.size());
+            const uint32 line_count = static_cast<uint32>(gpu_scene.line_renderables.size());
+            const uint32 point_count = static_cast<uint32>(gpu_scene.point_renderables.size());
+            const Size used_sort_element_count = opaque_count + transparent_count + shadow_caster_count +
+                terrain_opaque_count + terrain_transparent_count + terrain_shadow_caster_count + line_count + point_count;
             const Size required_sort_buffer_size = used_sort_element_count * sizeof(uint32);
 
             if (required_sort_buffer_size == 0)
@@ -1553,14 +1565,48 @@ namespace won::rendering
                 srv_desc.buffer_stride = sizeof(uint32);
                 view.transform_resources.transform_index_srv = frame_graph.CreateSubresource(view.transform_resources.transform_index_buffer, srv_desc);
 
-                sort_upload_scratch.resize(opaque_count + transparent_count + shadow_caster_count);
+                sort_upload_scratch.resize(used_sort_element_count);
                 uint32* mapped = sort_upload_scratch.data();
+                uint32 offset = 0;
                 for (uint32 i = 0; i < opaque_count; ++i)
-					mapped[i] = opaque[view.sorted_opaque_indices[i]].push_constants.draw_offset;
+                {
+					mapped[offset + i] = opaque[view.sorted_opaque_indices[i]].transform_index;
+                }
+                offset += opaque_count;
                 for (uint32 i = 0; i < transparent_count; ++i)
-                    mapped[opaque_count + i] = transparent[view.sorted_transparent_indices[i]].push_constants.draw_offset;
+                {
+                    mapped[offset + i] = transparent[view.sorted_transparent_indices[i]].transform_index;
+                }
+                offset += transparent_count;
                 for (uint32 i = 0; i < shadow_caster_count; ++i)
-                    mapped[opaque_count + transparent_count + i] = opaque[view.sorted_shadow_caster_indices[i]].push_constants.draw_offset;
+                {
+                    mapped[offset + i] = opaque[view.sorted_shadow_caster_indices[i]].transform_index;
+                }
+                offset += shadow_caster_count;
+                for (uint32 i = 0; i < terrain_opaque_count; ++i)
+                {
+                    mapped[offset + i] = terrain_opaque[view.sorted_terrain_opaque_indices[i]].transform_index;
+                }
+                offset += terrain_opaque_count;
+                for (uint32 i = 0; i < terrain_transparent_count; ++i)
+                {
+                    mapped[offset + i] = terrain_transparent[view.sorted_terrain_transparent_indices[i]].transform_index;
+                }
+                offset += terrain_transparent_count;
+                for (uint32 i = 0; i < terrain_shadow_caster_count; ++i)
+                {
+                    mapped[offset + i] = terrain_opaque[view.sorted_terrain_shadow_caster_indices[i]].transform_index;
+                }
+                offset += terrain_shadow_caster_count;
+                for (uint32 i = 0; i < line_count; ++i)
+                {
+                    mapped[offset + i] = gpu_scene.line_renderables[i].transform_index;
+                }
+                offset += line_count;
+                for (uint32 i = 0; i < point_count; ++i)
+                {
+                    mapped[offset + i] = gpu_scene.point_renderables[i].transform_index;
+                }
 
                 frame_graph.QueueBufferUpload(view.transform_resources.transform_index_buffer, sort_upload_scratch.data(), required_sort_buffer_size);
             }
@@ -1708,7 +1754,7 @@ namespace won::rendering
     }
 
 
-    bool RendererInternal::DrawScene(const FrameContext& frame_context, const View& view, RenderPassType pass, uint32 flags, RHICommandList& command_list, uint32 shadow_slice_index)
+    bool RendererInternal::DrawScene(const FrameContext& frame_context, const View& view, RenderPassType pass, DrawSceneFlags flags, RHICommandList& command_list, uint32 shadow_slice_index)
     {
         rendering::GPUScene& gpu_scene = view.scene->GetGPUScene();
 
@@ -1765,13 +1811,16 @@ namespace won::rendering
         bool has_bound_topology = false;
 
 		// for instanced rendering, submesh1 * N    FLUSH    submesh2 * N ...
-        auto flush_batch = [&](const Vector<Renderable>& renderables, const Vector<uint32>& sort_indices, uint32 sort_buffer_base, uint32 start, uint32 size)
+        auto flush_batch = [&](const Vector<MeshRenderable>& renderables, const Vector<uint32>& sort_indices, uint32 sort_buffer_base, uint32 start, uint32 size)
         {
             if (size == 0)
                 return;
             const auto& first = renderables[sort_indices[start]];
-            ObjectPushConstants push = first.push_constants;
-            push.draw_offset = sort_buffer_base + start; // starting offset of sort_indices
+            ObjectPushConstants push;
+            push.Init();
+            push.instance_offset = sort_buffer_base + start; // starting offset of sort_indices
+            push.geometry_index = first.geometry_index;
+            push.material_index = first.material_index;
 
             if (bound_index_buffer != first.index_buffer || bound_index_buffer_offset != first.index_buffer_offset)
             {
@@ -1820,7 +1869,7 @@ namespace won::rendering
 
             for (uint32 i = sort_begin; i < sort_end; ++i)
             {
-                const Renderable& renderable = gpu_scene.opaque_renderables[opaque_sort_indices[i]];
+                const MeshRenderable& renderable = gpu_scene.opaque_renderables[opaque_sort_indices[i]];
 
                 // The prepass has no alpha test, so masked materials write their own depth in the main pass.
                 if (is_prepass && !prepass_writes_motion && renderable.blend_mode == resource::MaterialBlendMode::Masked)
@@ -1831,8 +1880,8 @@ namespace won::rendering
                 }
 
                 const bool can_extend = batch_size > 0
-                    && renderable.push_constants.geometry_index == batch_geometry_index
-                    && renderable.push_constants.material_index == batch_material_index;
+                    && renderable.geometry_index == batch_geometry_index
+                    && renderable.material_index == batch_material_index;
 
                 if (!can_extend)
                 {
@@ -1859,7 +1908,8 @@ namespace won::rendering
                     {
                         renderable_hash.storage.bits.blend_mode = static_cast<uint64>(resource::MaterialBlendMode::Additive);
                     }
-                    if (pass == RenderPassType::MainPass && view.render_path_type == RenderPathType::ForwardPlus && renderable_hash.storage.bits.shader_type == SHADER_MATERIAL_TYPE_PBR)
+                    if (pass == RenderPassType::MainPass && view.render_path_type == RenderPathType::ForwardPlus &&
+                        renderable_hash.storage.bits.shader_type == SHADER_MATERIAL_TYPE_PBR)
                     {
                         renderable_hash.storage.bits.clustered = 1;
                     }
@@ -1878,8 +1928,8 @@ namespace won::rendering
                         has_pipeline = true;
                     }
 
-                    batch_geometry_index = renderable.push_constants.geometry_index;
-                    batch_material_index = renderable.push_constants.material_index;
+                    batch_geometry_index = renderable.geometry_index;
+                    batch_material_index = renderable.material_index;
                     batch_start = i;
                     batch_size = 1;
                 }
@@ -1900,7 +1950,7 @@ namespace won::rendering
 
             for (uint32 i = 0; i < static_cast<uint32>(view.sorted_transparent_indices.size()); ++i)
             {
-                const Renderable& renderable = gpu_scene.transparent_renderables[view.sorted_transparent_indices[i]];
+                const MeshRenderable& renderable = gpu_scene.transparent_renderables[view.sorted_transparent_indices[i]];
 
                 if (pass == RenderPassType::ShadowPass && !renderable.IsCastShadow())
                     continue;
@@ -1937,8 +1987,199 @@ namespace won::rendering
             }
         }
 
-		if (draw_primitives) // line, point
+        if ((flags & DrawScene_Terrain) != 0)
         {
+            const uint32 mesh_opaque_count = static_cast<uint32>(view.sorted_opaque_indices.size());
+            const uint32 mesh_transparent_count = static_cast<uint32>(view.sorted_transparent_indices.size());
+            const uint32 mesh_shadow_count = static_cast<uint32>(view.sorted_shadow_caster_indices.size());
+            const uint32 terrain_opaque_base = mesh_opaque_count + mesh_transparent_count + mesh_shadow_count;
+            const uint32 terrain_transparent_base = terrain_opaque_base + static_cast<uint32>(view.sorted_terrain_opaque_indices.size());
+            const uint32 terrain_shadow_base = terrain_transparent_base + static_cast<uint32>(view.sorted_terrain_transparent_indices.size());
+
+            auto terrain_pixel_shader = [&](uint32 shader_type, resource::MaterialBlendMode blend_mode)
+            {
+                const bool masked = blend_mode == resource::MaterialBlendMode::Masked;
+                if (shader_type == SHADER_MATERIAL_TYPE_UNLIT)
+                {
+                    return masked ? ShaderId::PSTerrainUnlitMasked : ShaderId::PSTerrainUnlit;
+                }
+                if (masked)
+                {
+                    return view.render_path_type == RenderPathType::ForwardPlus
+                        ? ShaderId::PSTerrainForwardPlusMasked
+                        : ShaderId::PSTerrainForwardMasked;
+                }
+                return view.render_path_type == RenderPathType::ForwardPlus
+                    ? ShaderId::PSTerrainForwardPlus
+                    : ShaderId::PSTerrainForward;
+            };
+
+            auto flush_terrain_batch = [&](const Vector<TerrainRenderable>& renderables, const Vector<uint32>& sort_indices, uint32 sort_buffer_base, uint32 start, uint32 size)
+            {
+                if (size == 0)
+                {
+                    return;
+                }
+                const TerrainRenderable& first = renderables[sort_indices[start]];
+                TerrainPushConstants push;
+                push.Init();
+                push.instance_offset = sort_buffer_base + start; // starting offset of sort_indices
+                push.geometry_index = first.geometry_index;
+                push.terrain_index = first.terrain_index;
+                if (bound_index_buffer != first.index_buffer || bound_index_buffer_offset != first.index_buffer_offset)
+                {
+                    command_list.SetIndexBuffer(*first.index_buffer, sizeof(uint32), first.index_buffer_offset, first.index_buffer_size);
+                    bound_index_buffer = first.index_buffer;
+                    bound_index_buffer_offset = first.index_buffer_offset;
+                }
+                const RHIPrimitiveTopology topology = ToRHIPrimitiveTopology(first.primitive_topology);
+                if (!has_bound_topology || bound_topology != topology)
+                {
+                    command_list.SetPrimitiveTopology(topology);
+                    bound_topology = topology;
+                    has_bound_topology = true;
+                }
+                command_list.PushConstants(RHIShaderStage::Vertex, &push, sizeof(push), 0);
+                command_list.DrawIndexed(first.index_count, size, first.first_index, 0, 0);
+            };
+
+            if ((flags & DrawScene_Opaque) != 0 && !gpu_scene.terrain_opaque_renderables.empty())
+            {
+                const bool shadow_pass = pass == RenderPassType::ShadowPass;
+                const Vector<uint32>& sort_indices = shadow_pass ? view.sorted_terrain_shadow_caster_indices : view.sorted_terrain_opaque_indices;
+                uint32 sort_buffer_base = terrain_opaque_base;
+                uint32 sort_begin = 0;
+                uint32 sort_end = static_cast<uint32>(sort_indices.size());
+                if (shadow_pass)
+                {
+                    if (shadow_slice_index >= view.shadow_resources.terrain_caster_slice_ranges.size())
+                    {
+                        return true;
+                    }
+                    const uint2 slice_range = view.shadow_resources.terrain_caster_slice_ranges[shadow_slice_index];
+                    sort_buffer_base = terrain_shadow_base;
+                    sort_begin = slice_range.x;
+                    sort_end = slice_range.x + slice_range.y;
+                }
+
+                uint32 batch_geometry_index = 0;
+                uint32 batch_terrain_index = 0;
+                uint32 batch_start = 0;
+                uint32 batch_size = 0;
+                GraphicsPipelineHash current_hash = {};
+                bool has_pipeline = false;
+                for (uint32 i = sort_begin; i < sort_end; ++i)
+                {
+                    const TerrainRenderable& renderable = gpu_scene.terrain_opaque_renderables[sort_indices[i]];
+                    if (is_prepass && renderable.blend_mode == resource::MaterialBlendMode::Masked)
+                    {
+                        flush_terrain_batch(gpu_scene.terrain_opaque_renderables, sort_indices, sort_buffer_base, batch_start, batch_size);
+                        batch_size = 0;
+                        continue;
+                    }
+
+                    const bool can_extend = batch_size > 0 && renderable.geometry_index == batch_geometry_index && renderable.terrain_index == batch_terrain_index;
+                    if (!can_extend)
+                    {
+                        flush_terrain_batch(gpu_scene.terrain_opaque_renderables, sort_indices, sort_buffer_base, batch_start, batch_size);
+                        batch_size = 0;
+                        GraphicsPipelineHash renderable_hash = pipeline_hash;
+                        renderable_hash.storage.bits.cull_mode = static_cast<uint64>(renderable.IsDoubleSided() ? RHICullMode::None : RHICullMode::Back);
+                        if (pass == RenderPassType::MainPass)
+                        {
+                            const uint32 shader_type = draw_wireframe || draw_overdraw ? SHADER_MATERIAL_TYPE_UNLIT : renderable.shader_type;
+                            const resource::MaterialBlendMode blend_mode = draw_wireframe
+                                ? resource::MaterialBlendMode::Opaque
+                                : (draw_overdraw ? resource::MaterialBlendMode::Additive : renderable.blend_mode);
+                            const ShaderId pixel_shader = terrain_pixel_shader(shader_type, blend_mode);
+                            renderable_hash.storage.bits.shader_type = shader_type;
+                            renderable_hash.storage.bits.blend_mode = static_cast<uint64>(blend_mode);
+                            renderable_hash.storage.bits.vertex_shader = static_cast<uint64>(ShaderId::VSTerrainCommon);
+                            renderable_hash.storage.bits.pixel_shader = static_cast<uint64>(pixel_shader);
+                            renderable_hash.storage.bits.clustered = view.render_path_type == RenderPathType::ForwardPlus && shader_type == SHADER_MATERIAL_TYPE_PBR ? 1 : 0;
+                            if (blend_mode == resource::MaterialBlendMode::Masked)
+                            {
+                                renderable_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
+                            }
+                        }
+                        else if (pass == RenderPassType::ShadowPass || (is_prepass && prepass_mode == PrepassMode::DepthOnly))
+                        {
+                            renderable_hash.storage.bits.vertex_shader = static_cast<uint64>(ShaderId::VSTerrainSimple);
+                        }
+
+                        if (!has_pipeline || !(current_hash == renderable_hash))
+                        {
+                            RHIPipeline* pipeline = shader_library.GetPipeline(renderable_hash);
+                            if (!pipeline)
+                            {
+                                continue;
+                            }
+                            command_list.SetGraphicsPipeline(*pipeline);
+                            command_list.SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                            command_list.SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_CAMERA, shader_view_binding);
+                            command_list.SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                            command_list.SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_CAMERA, shader_view_binding);
+                            current_hash = renderable_hash;
+                            has_pipeline = true;
+                        }
+                        batch_geometry_index = renderable.geometry_index;
+                        batch_terrain_index = renderable.terrain_index;
+                        batch_start = i;
+                        batch_size = 1;
+                    }
+                    else
+                    {
+                        ++batch_size;
+                    }
+                }
+                flush_terrain_batch(gpu_scene.terrain_opaque_renderables, sort_indices, sort_buffer_base, batch_start, batch_size);
+            }
+
+            if ((flags & DrawScene_Transparent) != 0 && pass == RenderPassType::MainPass)
+            {
+                GraphicsPipelineHash current_hash = {};
+                bool has_pipeline = false;
+                for (uint32 i = 0; i < static_cast<uint32>(view.sorted_terrain_transparent_indices.size()); ++i)
+                {
+                    const TerrainRenderable& renderable = gpu_scene.terrain_transparent_renderables[view.sorted_terrain_transparent_indices[i]];
+                    const uint32 shader_type = draw_wireframe || draw_overdraw ? SHADER_MATERIAL_TYPE_UNLIT : renderable.shader_type;
+                    const resource::MaterialBlendMode blend_mode = draw_wireframe
+                        ? resource::MaterialBlendMode::Opaque
+                        : (draw_overdraw ? resource::MaterialBlendMode::Additive : renderable.blend_mode);
+                    const ShaderId pixel_shader = terrain_pixel_shader(shader_type, blend_mode);
+                    GraphicsPipelineHash renderable_hash = pipeline_hash;
+                    renderable_hash.storage.bits.cull_mode = static_cast<uint64>(renderable.IsDoubleSided() ? RHICullMode::None : RHICullMode::Back);
+                    renderable_hash.storage.bits.shader_type = shader_type;
+                    renderable_hash.storage.bits.blend_mode = static_cast<uint64>(blend_mode);
+                    renderable_hash.storage.bits.depth_compare = static_cast<uint64>(draw_overdraw ? RHICompareOp::Always : RHICompareOp::GreaterEqual);
+                    renderable_hash.storage.bits.clustered = view.render_path_type == RenderPathType::ForwardPlus && shader_type == SHADER_MATERIAL_TYPE_PBR ? 1 : 0;
+                    renderable_hash.storage.bits.vertex_shader = static_cast<uint64>(ShaderId::VSTerrainCommon);
+                    renderable_hash.storage.bits.pixel_shader = static_cast<uint64>(pixel_shader);
+                    if (!has_pipeline || !(current_hash == renderable_hash))
+                    {
+                        RHIPipeline* pipeline = shader_library.GetPipeline(renderable_hash);
+                        if (!pipeline)
+                        {
+                            continue;
+                        }
+                        command_list.SetGraphicsPipeline(*pipeline);
+                        command_list.SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                        command_list.SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_CAMERA, shader_view_binding);
+                        command_list.SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                        command_list.SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_CAMERA, shader_view_binding);
+                        current_hash = renderable_hash;
+                        has_pipeline = true;
+                    }
+                    flush_terrain_batch(gpu_scene.terrain_transparent_renderables, view.sorted_terrain_transparent_indices, terrain_transparent_base, i, 1);
+                }
+            }
+        }
+
+        if (draw_primitives) // line, point
+        {
+            const uint32 primitive_base = static_cast<uint32>(view.sorted_opaque_indices.size() + view.sorted_transparent_indices.size() +
+                view.sorted_shadow_caster_indices.size() + view.sorted_terrain_opaque_indices.size() +
+                view.sorted_terrain_transparent_indices.size() + view.sorted_terrain_shadow_caster_indices.size());
             GraphicsPipelineHash line_pipeline_hash = pipeline_hash;
             line_pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::LineList);
             line_pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
@@ -1954,11 +2195,17 @@ namespace won::rendering
                 command_list.SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_FRAME, shader_frame_binding);
                 command_list.SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_CAMERA, shader_view_binding);
 
-                for (const auto& renderable : gpu_scene.line_renderables)
+                for (uint32 i = 0; i < static_cast<uint32>(gpu_scene.line_renderables.size()); ++i)
                 {
+                    const MeshRenderable& renderable = gpu_scene.line_renderables[i];
                     command_list.SetIndexBuffer(*renderable.index_buffer, sizeof(uint32), renderable.index_buffer_offset, renderable.index_buffer_size);
                     command_list.SetPrimitiveTopology(ToRHIPrimitiveTopology(renderable.primitive_topology));
-                    command_list.PushConstants(RHIShaderStage::Vertex, &renderable.push_constants, sizeof(ObjectPushConstants), 0);
+                    ObjectPushConstants push;
+                    push.Init();
+                    push.instance_offset = primitive_base + i;
+                    push.geometry_index = renderable.geometry_index;
+                    push.material_index = renderable.material_index;
+                    command_list.PushConstants(RHIShaderStage::Vertex, &push, sizeof(push), 0);
                     command_list.DrawIndexed(renderable.index_count, 1, renderable.first_index, 0, 0);
                 }
             }
@@ -1978,11 +2225,17 @@ namespace won::rendering
                 command_list.SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_FRAME, shader_frame_binding);
                 command_list.SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_CAMERA, shader_view_binding);
 
-                for (const auto& renderable : gpu_scene.point_renderables)
+                for (uint32 i = 0; i < static_cast<uint32>(gpu_scene.point_renderables.size()); ++i)
                 {
+                    const MeshRenderable& renderable = gpu_scene.point_renderables[i];
                     command_list.SetIndexBuffer(*renderable.index_buffer, sizeof(uint32), renderable.index_buffer_offset, renderable.index_buffer_size);
                     command_list.SetPrimitiveTopology(ToRHIPrimitiveTopology(renderable.primitive_topology));
-                    command_list.PushConstants(RHIShaderStage::Vertex, &renderable.push_constants, sizeof(ObjectPushConstants), 0);
+                    ObjectPushConstants push;
+                    push.Init();
+                    push.instance_offset = primitive_base + static_cast<uint32>(gpu_scene.line_renderables.size()) + i;
+                    push.geometry_index = renderable.geometry_index;
+                    push.material_index = renderable.material_index;
+                    command_list.PushConstants(RHIShaderStage::Vertex, &push, sizeof(push), 0);
                     command_list.DrawIndexed(renderable.index_count, 1, renderable.first_index, 0, 0);
                 }
             }
@@ -2515,8 +2768,19 @@ namespace won::rendering
         {
             for (uint32 renderable_index : view.occlusion_query_indices)
             {
-                const Renderable& renderable = gpu_scene.opaque_renderables[renderable_index];
-                const View::OcclusionResources::RenderableKey key = { renderable.entity, renderable.push_constants.geometry_index };
+                const MeshRenderable& renderable = gpu_scene.opaque_renderables[renderable_index];
+                const View::OcclusionResources::RenderableKey key = { renderable.entity, renderable.geometry_index };
+                const auto entry = view.occlusion_resources.visibility.find(key);
+                if (entry == view.occlusion_resources.visibility.end() || !entry->second.IsOccluded())
+                {
+                    continue;
+                }
+                debugdraw::Box3D(renderable.aabb.min, renderable.aabb.max, debugdraw::color::occluded);
+            }
+            for (uint32 renderable_index : view.terrain_occlusion_query_indices)
+            {
+                const TerrainRenderable& renderable = gpu_scene.terrain_opaque_renderables[renderable_index];
+                const View::OcclusionResources::RenderableKey key = { renderable.entity, renderable.geometry_index };
                 const auto entry = view.occlusion_resources.visibility.find(key);
                 if (entry == view.occlusion_resources.visibility.end() || !entry->second.IsOccluded())
                 {
@@ -3488,7 +3752,7 @@ namespace won::rendering
                     shadow_scissor.height = shadow_slice.shadow_map_atlas_rect.w;
                     command_list->SetScissor(shadow_scissor);
 
-                    DrawScene(frame_context, view, RenderPassType::ShadowPass, DrawScene_Opaque, *command_list, slice_index);
+                    DrawScene(frame_context, view, RenderPassType::ShadowPass, static_cast<DrawSceneFlags>(DrawScene_Opaque | DrawScene_Terrain), *command_list, slice_index);
                 }
 
                 command_list->BeginEvent("Restore Render State");
@@ -3651,7 +3915,7 @@ namespace won::rendering
                     render_targets.push_back({ pass_context.GetResource(targets.ao_normal), targets.ao_normal_rtv });
                 }
                 pass_context.command_list->SetRenderTargets(render_targets, &depth_binding);
-                DrawScene(frame_context, view, RenderPassType::Prepass, DrawScene_Opaque, (*pass_context.command_list));
+                DrawScene(frame_context, view, RenderPassType::Prepass, static_cast<DrawSceneFlags>(DrawScene_Opaque | DrawScene_Terrain), (*pass_context.command_list));
             });
         }
 
@@ -3909,6 +4173,7 @@ namespace won::rendering
         {
             main_pass_flags |= DrawScene_Transparent;
         }
+        main_pass_flags |= DrawScene_Terrain;
         if (main_pass_flags != 0)
         {
             Vector<FrameResourceAccess> main_pass_accesses = {
@@ -3954,12 +4219,12 @@ namespace won::rendering
                 pass_context.command_list->SetViewport(viewport);
                 pass_context.command_list->SetScissor(scissor);
                 pass_context.command_list->SetRenderTargets({ { pass_context.GetResource(targets.scene_color), targets.scene_color_rtv } }, &depth_binding);
-                DrawScene(frame_context, view, RenderPassType::MainPass, main_pass_flags, (*pass_context.command_list));
+                DrawScene(frame_context, view, RenderPassType::MainPass, static_cast<DrawSceneFlags>(main_pass_flags), (*pass_context.command_list));
             });
         }
 
         if (occlusion_enabled && occlusion.query_heap && occlusion.readback_buffers[current_frame_slot]
-            && (view.show_flags & Show_Opaque) != 0 && !view.occlusion_query_indices.empty())
+            && (view.show_flags & Show_Opaque) != 0 && !view.occlusion_resources.query_boxes.empty())
         {
             // occlusion query should be performed after main pass becuase depth buffer might be updated on main pass(transparent, masked ..)
             const FrameResourceId occlusion_readback_id = frame_graph.Import(*occlusion.readback_buffers[current_frame_slot]);
@@ -3975,8 +4240,17 @@ namespace won::rendering
             issued_keys.reserve(occlusion_box_count);
             for (uint32 box_index = 0; box_index < occlusion_box_count; ++box_index)
             {
-                const Renderable& renderable = gpu_scene.opaque_renderables[view.occlusion_query_indices[box_index]];
-                issued_keys.push_back({ renderable.entity, renderable.push_constants.geometry_index });
+                if (box_index < view.occlusion_query_indices.size())
+                {
+                    const MeshRenderable& renderable = gpu_scene.opaque_renderables[view.occlusion_query_indices[box_index]];
+                    issued_keys.push_back({ renderable.entity, renderable.geometry_index });
+                }
+                else
+                {
+                    const uint32 terrain_query_index = box_index - static_cast<uint32>(view.occlusion_query_indices.size());
+                    const TerrainRenderable& renderable = gpu_scene.terrain_opaque_renderables[view.terrain_occlusion_query_indices[terrain_query_index]];
+                    issued_keys.push_back({ renderable.entity, renderable.geometry_index });
+                }
             }
 
             if (occlusion_box_count > 0)
@@ -4472,7 +4746,7 @@ namespace won::rendering
                     RHICommandList* command_list = pass_context.command_list;
                     command_list->SetComputePipeline(*luminance_reduce_pipeline);
                     command_list->SetConstantBuffer(RHIShaderStage::Compute, CBSLOT_RENDERER_PASS, { pass_context.GetResource(reduce_constants_id), reduce_cbv });
-					    command_list->Dispatch(luminance_reduce_group_count, 1u, 1u); // reduce to luminance_reduce_group_count groups of 1D data
+                    command_list->Dispatch(luminance_reduce_group_count, 1u, 1u); // reduce to luminance_reduce_group_count groups of 1D data
                     command_list->UAVBarrier(*pass_context.GetResource(partial_id));
                 });
 

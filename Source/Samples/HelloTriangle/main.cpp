@@ -75,9 +75,9 @@ int main()
         if (won::ecs::MaterialComponent* material = game_scene.AddComponent<won::ecs::MaterialComponent>(triangle_entity))
         {
             won::resource::MaterialSlot& material_slot = material->AddMaterialSlot();
-            material_slot.material_type = won::resource::MaterialType::Unlit;
-            material_slot.double_sided = true;
-            material_slot.use_vertex_colors = true;
+            material_slot.settings.material_type = won::resource::MaterialType::Unlit;
+            material_slot.settings.double_sided = true;
+            material_slot.settings.use_vertex_colors = true;
         }
         if (won::ecs::NameComponent* name = game_scene.AddComponent<won::ecs::NameComponent>(triangle_entity))
         {

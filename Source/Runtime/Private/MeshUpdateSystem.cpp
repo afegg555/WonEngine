@@ -22,7 +22,7 @@ namespace won::ecs
             {
                 const Entity entity = terrain_array->index_to_entity[args.job_index];
                 GeometryComponent* geometry = scene.GetComponent<GeometryComponent>(entity);
-                if (!geometry || geometry->mesh)
+                if (!geometry)
                 {
                     return;
                 }
@@ -32,12 +32,31 @@ namespace won::ecs
                 {
                     return;
                 }
+                if (terrain.data->render_data.mesh)
+                {
+                    if (geometry->mesh != terrain.data->render_data.mesh)
+                    {
+                        if (geometry->mesh_asset_path.empty() && geometry->mesh.use_count() == 1)
+                        {
+                            rendering::utils::EnqueueMeshRelease(geometry->mesh);
+                        }
+                        geometry->mesh_asset_path.clear();
+                        geometry->SetMesh(terrain.data->render_data.mesh);
+                    }
+                    return;
+                }
                 auto mesh = GenerateTerrainMesh(*terrain.data);
                 if (!mesh)
                 {
                     return;
                 }
-                geometry->SetMesh(mesh);
+                if (geometry->mesh_asset_path.empty() && geometry->mesh.use_count() == 1)
+                {
+                    rendering::utils::EnqueueMeshRelease(geometry->mesh);
+                }
+                geometry->mesh_asset_path.clear();
+                terrain.data->render_data.mesh = mesh;
+                geometry->SetMesh(terrain.data->render_data.mesh);
                 rendering::utils::EnqueueResourceUpload(mesh);
             });
             jobsystem::Wait(ctx);

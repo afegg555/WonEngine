@@ -44,7 +44,7 @@ namespace won::resource
     {
         uint32 version = asset_format_version;
         String asset_id;
-        String asset_name;
+		String asset_name; // source file name without extension
         String source_asset_path; // original fbx/png/etc
         String asset_type;
         String binary_path; // generated runtime-loadable file
@@ -72,6 +72,7 @@ namespace won::resource
 	WONENGINE_API std::shared_ptr<Material> LoadMaterialBinary(const String& path);
 
     WONENGINE_API void LoadTerrainResource(ecs::TerrainComponent& terrain, const String& content_root);
+    WONENGINE_API void LoadTerrainMaterials(ecs::TerrainComponent& terrain, const String& content_root);
 	WONENGINE_API void LoadSceneResources(ecs::Scene& scene, const String& content_root, bool parallel = true);
     WONENGINE_API bool BuildSceneNavMesh(ecs::Scene& scene, const String& content_root);
     WONENGINE_API void LoadEntityResources(ecs::Scene& scene, const String& content_root, const Vector<ecs::Entity>& entities);

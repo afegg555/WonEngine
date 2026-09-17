@@ -102,7 +102,9 @@ namespace won::reflection
         RegisterType(TypeMeta<ecs::NavMeshComponent>::Get());
         RegisterType(TypeMeta<ecs::ParticleEmitter3DComponent>::Get());
         RegisterType(TypeMeta<ecs::DecalComponent>::Get());
-        RegisterType(TypeMeta<resource::MaterialSlot::TextureMap>::Get());
+        RegisterType(TypeMeta<resource::MaterialSettings>::Get());
+        RegisterType(TypeMeta<resource::MaterialTextureMap>::Get());
+        RegisterType(TypeMeta<resource::MaterialAttributes>::Get());
         RegisterType(TypeMeta<resource::MaterialSlot>::Get());
         RegisterType(TypeMeta<ecs::MaterialComponent>::Get());
         RegisterType(TypeMeta<ecs::ScriptSlot>::Get());

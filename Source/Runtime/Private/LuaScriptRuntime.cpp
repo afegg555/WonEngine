@@ -799,7 +799,7 @@ namespace won::script
             return 1;
         }
 
-        const float4& base_color = material->GetMaterialSlot(slot_index).base_color;
+        const float4& base_color = material->GetMaterialSlot(slot_index).attributes.base_color;
         lua_pushnumber(state, base_color.x);
         lua_pushnumber(state, base_color.y);
         lua_pushnumber(state, base_color.z);
@@ -830,10 +830,10 @@ namespace won::script
         }
 
         resource::MaterialSlot& material_slot = material->GetMaterialSlot(slot_index);
-        material_slot.base_color.x = static_cast<float>(luaL_checknumber(state, value_index));
-        material_slot.base_color.y = static_cast<float>(luaL_checknumber(state, value_index + 1));
-        material_slot.base_color.z = static_cast<float>(luaL_checknumber(state, value_index + 2));
-        material_slot.base_color.w = static_cast<float>(luaL_optnumber(state, value_index + 3, 1.0));
+        material_slot.attributes.base_color.x = static_cast<float>(luaL_checknumber(state, value_index));
+        material_slot.attributes.base_color.y = static_cast<float>(luaL_checknumber(state, value_index + 1));
+        material_slot.attributes.base_color.z = static_cast<float>(luaL_checknumber(state, value_index + 2));
+        material_slot.attributes.base_color.w = static_cast<float>(luaL_optnumber(state, value_index + 3, 1.0));
         material->SetDirty();
         lua_pushboolean(state, true);
         return 1;
@@ -859,7 +859,7 @@ namespace won::script
             return 1;
         }
 
-        lua_pushnumber(state, material->GetMaterialSlot(slot_index).roughness);
+        lua_pushnumber(state, material->GetMaterialSlot(slot_index).attributes.roughness);
         return 1;
     }
 
@@ -885,7 +885,7 @@ namespace won::script
             return 1;
         }
 
-        material->GetMaterialSlot(slot_index).roughness = static_cast<float>(luaL_checknumber(state, value_index));
+        material->GetMaterialSlot(slot_index).attributes.roughness = static_cast<float>(luaL_checknumber(state, value_index));
         material->SetDirty();
         lua_pushboolean(state, true);
         return 1;
@@ -911,7 +911,7 @@ namespace won::script
             return 1;
         }
 
-        lua_pushnumber(state, material->GetMaterialSlot(slot_index).metallic);
+        lua_pushnumber(state, material->GetMaterialSlot(slot_index).attributes.metallic);
         return 1;
     }
 
@@ -937,7 +937,7 @@ namespace won::script
             return 1;
         }
 
-        material->GetMaterialSlot(slot_index).metallic = static_cast<float>(luaL_checknumber(state, value_index));
+        material->GetMaterialSlot(slot_index).attributes.metallic = static_cast<float>(luaL_checknumber(state, value_index));
         material->SetDirty();
         lua_pushboolean(state, true);
         return 1;

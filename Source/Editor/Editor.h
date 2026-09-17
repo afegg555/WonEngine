@@ -107,7 +107,8 @@ namespace won::editor
 		void PerformRedo();
 		void ResetInspectorBaseline();
 		void RebuildTerrainMesh(ecs::Entity entity, terrain::TerrainData& data);
-		void SaveTerrainChanges(ecs::Entity entity, ecs::TerrainComponent& terrain);
+		void UpdateTerrainControlMap(ecs::Entity entity, terrain::TerrainData& data);
+		void SaveTerrainData(ecs::TerrainComponent& terrain);
 
 	private:
 		enum class ContentAssetType
@@ -253,6 +254,7 @@ namespace won::editor
 			{
 				Sculpt,
 				Spline,
+				Paint,
 			};
 
 			enum class SculptBrush
@@ -275,12 +277,15 @@ namespace won::editor
 			SplineMode spline_mode = SplineMode::Select;
 			int selected_spline = -1;
 			int selected_spline_point = -1;
+			int selected_material_layer = -1;
 			float radius = 5.0f;
 			float strength = 2.0f;
 			float falloff = 1.0f;
 			float flatten_height = 0.0f;
 			std::shared_ptr<resource::Mesh> pending_mesh;
+			Vector<std::shared_ptr<resource::Image>> pending_control_maps;
 			ecs::Entity pending_mesh_entity = ecs::INVALID_ENTITY;
+			ecs::Entity pending_control_map_entity = ecs::INVALID_ENTITY;
 			uint32 dock_id = 0;
 			bool show_window = false;
 			bool stroke_active = false;
@@ -288,14 +293,18 @@ namespace won::editor
 			bool spline_drag_changed = false;
 			bool mesh_update_pending = false;
 			bool mesh_rebuild_requested = false;
+			bool control_map_update_pending = false;
 			ecs::Entity mesh_rebuild_entity = ecs::INVALID_ENTITY;
 			float mesh_rebuild_elapsed = 0.0f;
 			bool dock_pending = false;
 			bool focus_window = false;
 			bool focus_inspector = false;
 			UnorderedMap<Size, TerrainSampleState> stroke_before;
+			UnorderedMap<Size, TerrainMaterialSampleState> material_stroke_before;
 			Vector<terrain::TerrainSpline> spline_before;
 			bool spline_edit_active = false;
+			TerrainMaterialState material_before;
+			bool material_edit_active = false;
 		};
 
 		std::shared_ptr<RHIPipeline> imgui_pso;

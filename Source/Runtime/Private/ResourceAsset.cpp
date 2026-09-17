@@ -734,29 +734,29 @@ namespace won::resource
         {
             archive.BeginItem();
             archive.BeginObject();
-            uint32 material_type_value = static_cast<uint32>(slot.material_type);
-            uint32 blend_mode_value = static_cast<uint32>(slot.blend_mode);
+            uint32 material_type_value = static_cast<uint32>(slot.settings.material_type);
+            uint32 blend_mode_value = static_cast<uint32>(slot.settings.blend_mode);
             archive.Field("material_type", material_type_value);
             archive.Field("blend_mode", blend_mode_value);
-            archive.Field("alpha_cutoff", slot.alpha_cutoff);
-            archive.Field("double_sided", slot.double_sided);
-            archive.Field("use_vertex_colors", slot.use_vertex_colors);
-            archive.Field("receive_shadow", slot.receive_shadow);
-            archive.Field("base_color", slot.base_color);
-            archive.Field("emissive_color", slot.emissive_color);
-            archive.Field("emissive_intensity", slot.emissive_intensity);
-            archive.Field("metallic", slot.metallic);
-            archive.Field("roughness", slot.roughness);
-            archive.Field("reflectance", slot.reflectance);
-            archive.Field("anisotropy", slot.anisotropy);
-            archive.Field("sheen_color", slot.sheen_color);
-            archive.Field("sheen_roughness", slot.sheen_roughness);
-            archive.Field("clearcoat", slot.clearcoat);
-            archive.Field("clearcoat_roughness", slot.clearcoat_roughness);
+            archive.Field("alpha_cutoff", slot.settings.alpha_cutoff);
+            archive.Field("double_sided", slot.settings.double_sided);
+            archive.Field("use_vertex_colors", slot.settings.use_vertex_colors);
+            archive.Field("receive_shadow", slot.settings.receive_shadow);
+            archive.Field("base_color", slot.attributes.base_color);
+            archive.Field("emissive_color", slot.attributes.emissive_color);
+            archive.Field("emissive_intensity", slot.attributes.emissive_intensity);
+            archive.Field("metallic", slot.attributes.metallic);
+            archive.Field("roughness", slot.attributes.roughness);
+            archive.Field("reflectance", slot.attributes.reflectance);
+            archive.Field("anisotropy", slot.attributes.anisotropy);
+            archive.Field("sheen_color", slot.attributes.sheen_color);
+            archive.Field("sheen_roughness", slot.attributes.sheen_roughness);
+            archive.Field("clearcoat", slot.attributes.clearcoat);
+            archive.Field("clearcoat_roughness", slot.attributes.clearcoat_roughness);
             archive.BeginArray("textures");
             for (uint32 i = 0; i < TEXTURESLOT_COUNT; ++i)
             {
-                archive.Item(slot.textures[i].texture_asset_path);
+                archive.Item(slot.attributes.textures[i].texture_asset_path);
             }
             archive.EndArray();
             archive.EndObject();
@@ -838,53 +838,53 @@ namespace won::resource
                         uint32 shader_type = static_cast<uint32>(MaterialType::PBR);
                         archive.Field("flags", flags);
                         archive.Field("shader_type", shader_type);
-                        slot.material_type = static_cast<MaterialType>(shader_type);
-                        slot.blend_mode = (flags & (1u << 1)) ? MaterialBlendMode::Transparent : MaterialBlendMode::Opaque;
-                        slot.double_sided = (flags & SHADER_MATERIAL_FLAG_DOUBLE_SIDED) != 0;
-                        slot.use_vertex_colors = (flags & SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS) != 0;
-                        slot.receive_shadow = (flags & SHADER_MATERIAL_FLAG_RECEIVE_SHADOW) != 0;
+                        slot.settings.material_type = static_cast<MaterialType>(shader_type);
+                        slot.settings.blend_mode = (flags & (1u << 1)) ? MaterialBlendMode::Transparent : MaterialBlendMode::Opaque;
+                        slot.settings.double_sided = (flags & SHADER_MATERIAL_FLAG_DOUBLE_SIDED) != 0;
+                        slot.settings.use_vertex_colors = (flags & SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS) != 0;
+                        slot.settings.receive_shadow = (flags & SHADER_MATERIAL_FLAG_RECEIVE_SHADOW) != 0;
                     }
                     else
                     {
-                        uint32 material_type_value = static_cast<uint32>(slot.material_type);
-                        uint32 blend_mode_value = static_cast<uint32>(slot.blend_mode);
+                        uint32 material_type_value = static_cast<uint32>(slot.settings.material_type);
+                        uint32 blend_mode_value = static_cast<uint32>(slot.settings.blend_mode);
                         archive.Field("material_type", material_type_value);
                         archive.Field("blend_mode", blend_mode_value);
-                        slot.material_type = static_cast<MaterialType>(material_type_value);
+                        slot.settings.material_type = static_cast<MaterialType>(material_type_value);
                         // Masked was inserted at index 1 in version 3, shifting the blended modes up by one.
                         if (version < 3 && blend_mode_value > 0)
                         {
                             ++blend_mode_value;
                         }
-                        slot.blend_mode = static_cast<MaterialBlendMode>(blend_mode_value);
-                        archive.Field("alpha_cutoff", slot.alpha_cutoff);
-                        archive.Field("double_sided", slot.double_sided);
-                        archive.Field("use_vertex_colors", slot.use_vertex_colors);
-                        archive.Field("receive_shadow", slot.receive_shadow);
+                        slot.settings.blend_mode = static_cast<MaterialBlendMode>(blend_mode_value);
+                        archive.Field("alpha_cutoff", slot.settings.alpha_cutoff);
+                        archive.Field("double_sided", slot.settings.double_sided);
+                        archive.Field("use_vertex_colors", slot.settings.use_vertex_colors);
+                        archive.Field("receive_shadow", slot.settings.receive_shadow);
                     }
-                    archive.Field("base_color", slot.base_color);
+                    archive.Field("base_color", slot.attributes.base_color);
                     if (version >= 4)
                     {
-                        archive.Field("emissive_color", slot.emissive_color);
+                        archive.Field("emissive_color", slot.attributes.emissive_color);
                     }
                     if (version >= 5)
                     {
-                        archive.Field("emissive_intensity", slot.emissive_intensity);
+                        archive.Field("emissive_intensity", slot.attributes.emissive_intensity);
                     }
-                    archive.Field("metallic", slot.metallic);
-                    archive.Field("roughness", slot.roughness);
-                    archive.Field("reflectance", slot.reflectance);
-                    archive.Field("anisotropy", slot.anisotropy);
-                    archive.Field("sheen_color", slot.sheen_color);
-                    archive.Field("sheen_roughness", slot.sheen_roughness);
-                    archive.Field("clearcoat", slot.clearcoat);
-                    archive.Field("clearcoat_roughness", slot.clearcoat_roughness);
+                    archive.Field("metallic", slot.attributes.metallic);
+                    archive.Field("roughness", slot.attributes.roughness);
+                    archive.Field("reflectance", slot.attributes.reflectance);
+                    archive.Field("anisotropy", slot.attributes.anisotropy);
+                    archive.Field("sheen_color", slot.attributes.sheen_color);
+                    archive.Field("sheen_roughness", slot.attributes.sheen_roughness);
+                    archive.Field("clearcoat", slot.attributes.clearcoat);
+                    archive.Field("clearcoat_roughness", slot.attributes.clearcoat_roughness);
                     if (archive.BeginArray("textures"))
                     {
                         const Size texture_count = archive.GetArraySize();
                         for (Size i = 0; i < texture_count && i < TEXTURESLOT_COUNT; ++i)
                         {
-                            archive.Item(slot.textures[i].texture_asset_path);
+                            archive.Item(slot.attributes.textures[i].texture_asset_path);
                         }
                         archive.EndArray();
                     }
@@ -945,12 +945,18 @@ namespace won::resource
         const String path = project::ResolveProjectContentPath(content_root, terrain.terrain_data_path);
         auto data = terrain::LoadTerrainBinary(path);
         if (data)
+        {
             terrain.SetData(data);
+            for (const std::shared_ptr<Image>& control_map : data->render_data.material_control_maps)
+            {
+                rendering::utils::EnqueueResourceUpload(control_map, rendering::RHIFormat::R8G8B8A8Unorm);
+            }
+        }
         else
             backlog::Post("[LoadResources] terrain load failed: " + path, backlog::LogLevel::Warning);
     }
 
-    static void LoadTextureMap(MaterialSlot::TextureMap& texture_map, uint32 slot, const String& content_root)
+    static void LoadTextureMap(MaterialTextureMap& texture_map, uint32 slot, const String& content_root)
     {
         if (texture_map.texture_asset_path.empty())
             return;
@@ -984,8 +990,41 @@ namespace won::resource
     static void LoadMaterialTextures(Material& material, const String& content_root)
     {
         for (MaterialSlot& material_slot : material.slots)
+        {
             for (uint32 slot = 0; slot < static_cast<uint32>(TEXTURESLOT_COUNT); ++slot)
-                LoadTextureMap(material_slot.textures[slot], slot, content_root);
+            {
+                LoadTextureMap(material_slot.attributes.textures[slot], slot, content_root);
+            }
+        }
+    }
+
+    void LoadTerrainMaterials(ecs::TerrainComponent& terrain, const String& content_root)
+    {
+        if (!terrain.data)
+        {
+            return;
+        }
+
+        terrain.data->render_data.layer_materials.clear();
+        terrain.data->render_data.layer_materials.reserve(terrain.data->material_layers.size());
+        for (const auto& layer : terrain.data->material_layers)
+        {
+            std::shared_ptr<Material> material;
+            if (!layer.material_asset_path.empty())
+            {
+                const String path = project::ResolveProjectContentPath(content_root, layer.material_asset_path);
+                material = LoadMaterialBinary(path);
+                if (material && !material->slots.empty())
+                {
+                    LoadMaterialTextures(*material, content_root);
+                }
+                else
+                {
+                    backlog::Post("[LoadResources] terrain material layer load failed: " + path, backlog::LogLevel::Warning);
+                }
+            }
+            terrain.data->render_data.layer_materials.push_back(std::move(material));
+        }
     }
 
     template <typename TextComponent>
@@ -1350,6 +1389,16 @@ namespace won::resource
             });
         }
 
+        jobsystem::Wait(mesh_ctx);
+
+        if (auto terrain_array = scene.GetComponentArray<ecs::TerrainComponent>())
+        {
+            for (Size i = 0; i < terrain_array->GetSize(); ++i)
+            {
+                LoadTerrainMaterials(terrain_array->data[i], content_root);
+            }
+        }
+
         if (auto material_array = scene.GetComponentArray<ecs::MaterialComponent>())
         {
             DispatchLoadJobs(parallel, ctx, static_cast<uint32>(material_array->GetSize()), [material_array, &content_root](jobsystem::JobArgs args)
@@ -1360,18 +1409,30 @@ namespace won::resource
             });
             jobsystem::Wait(ctx);
 
-            struct TextureJob { MaterialSlot::TextureMap* map; uint32 slot; };
+            struct TextureJob
+            {
+                MaterialTextureMap* map;
+                uint32 slot;
+            };
             Vector<TextureJob> texture_jobs;
             UnorderedSet<Material*> seen_materials;
             for (Size i = 0; i < material_array->GetSize(); ++i)
             {
                 Material* material = material_array->data[i].material.get();
                 if (!material || !seen_materials.insert(material).second)
+                {
                     continue;
+                }
                 for (MaterialSlot& material_slot : material->slots)
+                {
                     for (uint32 slot = 0; slot < static_cast<uint32>(TEXTURESLOT_COUNT); ++slot)
-                        if (!material_slot.textures[slot].texture_asset_path.empty())
-                            texture_jobs.push_back({ &material_slot.textures[slot], slot });
+                    {
+                        if (!material_slot.attributes.textures[slot].texture_asset_path.empty())
+                        {
+                            texture_jobs.push_back({ &material_slot.attributes.textures[slot], slot });
+                        }
+                    }
+                }
             }
             DispatchLoadJobs(parallel, ctx, static_cast<uint32>(texture_jobs.size()), [&texture_jobs, &content_root](jobsystem::JobArgs args)
             {
@@ -1418,7 +1479,6 @@ namespace won::resource
         }
 
         jobsystem::Wait(ctx);
-        jobsystem::Wait(mesh_ctx);
 
         if (auto animation_array = scene.GetComponentArray<ecs::AnimationComponent>())
         {
@@ -1443,6 +1503,7 @@ namespace won::resource
             if (ecs::TerrainComponent* terrain = scene.GetComponent<ecs::TerrainComponent>(entity))
             {
                 LoadTerrainResource(*terrain, content_root);
+                LoadTerrainMaterials(*terrain, content_root);
             }
 
             if (ecs::GeometryComponent* geometry = scene.GetComponent<ecs::GeometryComponent>(entity))

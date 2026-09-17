@@ -98,6 +98,15 @@ namespace won::resource
         pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
         graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
 
+        pipeline_desc.vertex_shader = GetShader(ShaderId::VSTerrainSimple);
+        pipeline_desc.raster.cull_mode = RHICullMode::Back;
+        pipeline_hash.storage.bits.vertex_shader = static_cast<uint64>(ShaderId::VSTerrainSimple);
+        pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::Back);
+        graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+        pipeline_desc.raster.cull_mode = RHICullMode::None;
+        pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
+        graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+
         pipeline_desc = {};
         pipeline_desc.vertex_shader = GetShader(ShaderId::VSObjectPrepass);
         pipeline_desc.pixel_shader = nullptr;
@@ -117,6 +126,15 @@ namespace won::resource
         pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
         pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
 
+        graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+        pipeline_desc.raster.cull_mode = RHICullMode::None;
+        pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
+        graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+
+        pipeline_desc.vertex_shader = GetShader(ShaderId::VSTerrainSimple);
+        pipeline_desc.raster.cull_mode = RHICullMode::Back;
+        pipeline_hash.storage.bits.vertex_shader = static_cast<uint64>(ShaderId::VSTerrainSimple);
+        pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::Back);
         graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
         pipeline_desc.raster.cull_mode = RHICullMode::None;
         pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
@@ -395,6 +413,114 @@ namespace won::resource
             pipeline_desc.raster.cull_mode = RHICullMode::None;
             pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
             graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+        }
+
+        for (uint32 shader_type = 0; shader_type < SHADER_MATERIAL_TYPE_COUNT; ++shader_type)
+        {
+            for (uint32 blend_index = 0; blend_index < static_cast<uint32>(MaterialBlendMode::Premultiplied) + 1; ++blend_index)
+            {
+                const MaterialBlendMode blend_mode = static_cast<MaterialBlendMode>(blend_index);
+                const bool masked = blend_mode == MaterialBlendMode::Masked;
+                const bool blended = blend_mode >= MaterialBlendMode::Transparent;
+                const uint32 clustered_count = shader_type == SHADER_MATERIAL_TYPE_PBR ? 2u : 1u;
+                for (uint32 clustered = 0; clustered < clustered_count; ++clustered)
+                {
+                    ShaderId pixel_shader = ShaderId::PSTerrainUnlit;
+                    if (shader_type == SHADER_MATERIAL_TYPE_PBR)
+                    {
+                        pixel_shader = masked
+                            ? (clustered ? ShaderId::PSTerrainForwardPlusMasked : ShaderId::PSTerrainForwardMasked)
+                            : (clustered ? ShaderId::PSTerrainForwardPlus : ShaderId::PSTerrainForward);
+                    }
+                    else if (masked)
+                    {
+                        pixel_shader = ShaderId::PSTerrainUnlitMasked;
+                    }
+
+                    pipeline_desc = {};
+                    pipeline_desc.vertex_shader = GetShader(ShaderId::VSTerrainCommon);
+                    pipeline_desc.pixel_shader = GetShader(pixel_shader);
+                    pipeline_desc.sample_count = sample_count;
+                    pipeline_desc.depth_stencil_format = dsv_format;
+                    pipeline_desc.depth_stencil.depth_test = true;
+                    pipeline_desc.depth_stencil.depth_write = masked;
+                    pipeline_desc.depth_stencil.depth_compare = masked || blended ? RHICompareOp::GreaterEqual : RHICompareOp::Equal;
+                    pipeline_desc.blend.enable = blended;
+                    if (blend_mode == MaterialBlendMode::Transparent)
+                    {
+                        pipeline_desc.blend.mode = RHIBlendMode::Alpha;
+                    }
+                    else if (blend_mode == MaterialBlendMode::Additive)
+                    {
+                        pipeline_desc.blend.mode = RHIBlendMode::Additive;
+                    }
+                    else if (blend_mode == MaterialBlendMode::Premultiplied)
+                    {
+                        pipeline_desc.blend.mode = RHIBlendMode::Premultiplied;
+                    }
+                    pipeline_desc.render_target_formats = { hdr_rtv_format };
+
+                    for (uint32 cull_index = 0; cull_index < 2; ++cull_index)
+                    {
+                        const RHICullMode cull_mode = cull_index == 0 ? RHICullMode::Back : RHICullMode::None;
+                        pipeline_desc.raster.cull_mode = cull_mode;
+                        pipeline_hash = {};
+                        pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::MainPass);
+                        pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
+                        pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(cull_mode);
+                        pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
+                        pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(pipeline_desc.depth_stencil.depth_compare);
+                        pipeline_hash.storage.bits.shader_type = shader_type;
+                        pipeline_hash.storage.bits.blend_mode = blend_index;
+                        pipeline_hash.storage.bits.clustered = clustered;
+                        pipeline_hash.storage.bits.vertex_shader = static_cast<uint64>(ShaderId::VSTerrainCommon);
+                        pipeline_hash.storage.bits.pixel_shader = static_cast<uint64>(pixel_shader);
+                        graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+                    }
+                }
+            }
+        }
+
+        const struct
+        {
+            RHIFillMode fill_mode;
+            RHICompareOp depth_compare;
+            MaterialBlendMode blend_mode;
+            bool blend_enabled;
+        } terrain_view_variants[] = {
+            { RHIFillMode::Wireframe, RHICompareOp::GreaterEqual, MaterialBlendMode::Opaque, false },
+            { RHIFillMode::Solid, RHICompareOp::Always, MaterialBlendMode::Additive, true },
+        };
+        for (const auto& variant : terrain_view_variants)
+        {
+            pipeline_desc = {};
+            pipeline_desc.vertex_shader = GetShader(ShaderId::VSTerrainCommon);
+            pipeline_desc.pixel_shader = GetShader(ShaderId::PSTerrainUnlit);
+            pipeline_desc.sample_count = sample_count;
+            pipeline_desc.depth_stencil_format = dsv_format;
+            pipeline_desc.depth_stencil.depth_test = true;
+            pipeline_desc.depth_stencil.depth_write = false;
+            pipeline_desc.depth_stencil.depth_compare = variant.depth_compare;
+            pipeline_desc.blend.enable = variant.blend_enabled;
+            pipeline_desc.blend.mode = RHIBlendMode::Additive;
+            pipeline_desc.raster.fill_mode = variant.fill_mode;
+            pipeline_desc.render_target_formats = { hdr_rtv_format };
+            for (uint32 cull_index = 0; cull_index < 2; ++cull_index)
+            {
+                const RHICullMode cull_mode = cull_index == 0 ? RHICullMode::Back : RHICullMode::None;
+                pipeline_desc.raster.cull_mode = cull_mode;
+                pipeline_hash = {};
+                pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::MainPass);
+                pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
+                pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(cull_mode);
+                pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(variant.fill_mode);
+                pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(variant.depth_compare);
+                pipeline_hash.storage.bits.shader_type = SHADER_MATERIAL_TYPE_UNLIT;
+                pipeline_hash.storage.bits.blend_mode = static_cast<uint64>(variant.blend_mode);
+                pipeline_hash.storage.bits.vertex_shader = static_cast<uint64>(ShaderId::VSTerrainCommon);
+                pipeline_hash.storage.bits.pixel_shader = static_cast<uint64>(ShaderId::PSTerrainUnlit);
+                graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+            }
         }
 
         pipeline_desc = {};

@@ -26,7 +26,7 @@ namespace won::rendering
         RHISubresourceHandle srv = {};
     };
 
-    struct Renderable
+    struct MeshRenderable
     {
         enum Flags : uint32
         {
@@ -37,7 +37,6 @@ namespace won::rendering
         };
 
         ecs::Entity entity = ecs::INVALID_ENTITY;
-        ObjectPushConstants push_constants;
         RHIResource* index_buffer = nullptr;
         float3 world_position = {};
         math::AABB aabb = {};
@@ -45,15 +44,68 @@ namespace won::rendering
         uint32 index_buffer_size = 0;
         uint32 first_index = 0; // index of the submesh inside that range
         uint32 index_count = 0;
+        uint32 transform_index = 0;
+        uint32 geometry_index = 0;
+        uint32 material_index = 0;
         uint32 flags = None;
         uint32 shader_type = SHADER_MATERIAL_TYPE_PBR;
         resource::MaterialBlendMode blend_mode = resource::MaterialBlendMode::Opaque;
         uint32 layer_mask = 0xFFFFFFFF;
         resource::PrimitiveTopology primitive_topology = resource::PrimitiveTopology::TriangleList;
 
-        bool IsTransparent() const { return (flags & Transparent) != 0; }
-        bool IsCastShadow() const { return (flags & CastShadow) != 0; }
-        bool IsDoubleSided() const { return (flags & DoubleSided) != 0; }
+        bool IsTransparent() const
+        {
+            return (flags & Transparent) != 0;
+        }
+        bool IsCastShadow() const
+        {
+            return (flags & CastShadow) != 0;
+        }
+        bool IsDoubleSided() const
+        {
+            return (flags & DoubleSided) != 0;
+        }
+    };
+
+    struct TerrainRenderable
+    {
+        enum Flags : uint32
+        {
+            None = 0,
+            CastShadow = 1 << 0,
+            Transparent = 1 << 1,
+            DoubleSided = 1 << 2,
+        };
+
+        ecs::Entity entity = ecs::INVALID_ENTITY;
+        RHIResource* index_buffer = nullptr;
+        float3 world_position = {};
+        math::AABB aabb = {};
+        uint32 index_buffer_offset = 0;
+        uint32 index_buffer_size = 0;
+        uint32 first_index = 0;
+        uint32 index_count = 0;
+        uint32 transform_index = 0;
+        uint32 geometry_index = 0;
+        uint32 terrain_index = 0;
+        uint32 flags = None;
+        uint32 shader_type = SHADER_MATERIAL_TYPE_PBR;
+        resource::MaterialBlendMode blend_mode = resource::MaterialBlendMode::Opaque;
+        uint32 layer_mask = 0xFFFFFFFF;
+        resource::PrimitiveTopology primitive_topology = resource::PrimitiveTopology::TriangleList;
+
+        bool IsTransparent() const
+        {
+            return (flags & Transparent) != 0;
+        }
+        bool IsCastShadow() const
+        {
+            return (flags & CastShadow) != 0;
+        }
+        bool IsDoubleSided() const
+        {
+            return (flags & DoubleSided) != 0;
+        }
     };
 
     struct Sprite3DRenderable
@@ -151,9 +203,16 @@ namespace won::rendering
 
         Vector<ShaderGeometry> shader_geometries;
         GPUBuffer geometry_buffer;
+        uint32 mesh_geometry_count = 0;
 
         Vector<ShaderMaterial> shader_materials;
         GPUBuffer material_buffer;
+        uint32 mesh_material_count = 0;
+
+        Vector<ShaderTerrain> shader_terrains;
+        GPUBuffer terrain_buffer;
+        Vector<ShaderTerrainLayer> shader_terrain_layers;
+        GPUBuffer terrain_layer_buffer;
 
         Vector<float4> shader_bone_matrices;
         GPUBuffer bone_buffer;
@@ -167,10 +226,14 @@ namespace won::rendering
         };
 
         Vector<RenderableCullData> opaque_cull_data;
-        Vector<Renderable> opaque_renderables;
-        Vector<Renderable> transparent_renderables;
-        Vector<Renderable> line_renderables;
-        Vector<Renderable> point_renderables;
+        Vector<MeshRenderable> opaque_renderables;
+        Vector<MeshRenderable> transparent_renderables;
+        Vector<MeshRenderable> line_renderables;
+        Vector<MeshRenderable> point_renderables;
+
+        Vector<RenderableCullData> terrain_opaque_cull_data;
+        Vector<TerrainRenderable> terrain_opaque_renderables;
+        Vector<TerrainRenderable> terrain_transparent_renderables;
 
         Vector<Sprite2DRenderable> sprite_2d_renderables;
         Vector<Sprite3DRenderable> sprite_3d_renderables;

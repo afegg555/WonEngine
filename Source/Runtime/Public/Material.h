@@ -25,7 +25,7 @@ namespace won::resource
         Premultiplied, // dst = src.rgb + dst * (1 - src.a), alpha already applied to rgb
     };
 
-    struct MaterialSlot
+    struct MaterialSettings
     {
         MaterialType material_type = MaterialType::PBR;
         MaterialBlendMode blend_mode = MaterialBlendMode::Opaque;
@@ -34,6 +34,29 @@ namespace won::resource
         bool use_vertex_colors = false;
         bool receive_shadow = true;
 
+        bool IsMasked() const
+        {
+            return blend_mode == MaterialBlendMode::Masked;
+        }
+        bool IsTransparent() const
+        {
+            return blend_mode >= MaterialBlendMode::Transparent;
+        }
+    };
+
+    struct MaterialTextureMap
+    {
+        String texture_asset_path = "";
+        std::shared_ptr<Image> image = nullptr;
+
+        bool IsValid() const
+        {
+            return image != nullptr && image->render_data.IsValid();
+        }
+    };
+
+    struct MaterialAttributes
+    {
         float4 base_color = { 1.0f, 1.0f, 1.0f, 1.0f };
         float3 emissive_color = { 0.0f, 0.0f, 0.0f };
         float emissive_intensity = 0.0f;
@@ -49,20 +72,22 @@ namespace won::resource
         float clearcoat = 0;
         float clearcoat_roughness = 0;
 
-        struct TextureMap
+        MaterialTextureMap textures[TEXTURESLOT_COUNT];
+    };
+
+    struct MaterialSlot
+    {
+        MaterialSettings settings;
+        MaterialAttributes attributes;
+
+        bool IsMasked() const
         {
-            String texture_asset_path = "";
-            std::shared_ptr<Image> image = nullptr;
-
-            bool IsValid() const
-            {
-                return image != nullptr && image->render_data.IsValid();
-            }
-        };
-        TextureMap textures[TEXTURESLOT_COUNT];
-
-        bool IsMasked() const { return blend_mode == MaterialBlendMode::Masked; }
-        bool IsTransparent() const { return blend_mode >= MaterialBlendMode::Transparent; }
+            return settings.IsMasked();
+        }
+        bool IsTransparent() const
+        {
+            return settings.IsTransparent();
+        }
     };
 
     struct Material : public Resource

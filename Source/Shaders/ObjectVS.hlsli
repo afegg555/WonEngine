@@ -3,7 +3,7 @@
 PixelInput main(VertexInput input)
 {
     PixelInput output;
-    uint transform_index = bindless_buffers_uint[DescriptorIndex(GetView().transform_index_buffer)][push.draw_offset + input.instance_id];
+    uint transform_index = bindless_buffers_uint[DescriptorIndex(GetView().transform_index_buffer)][push.instance_offset + input.instance_id];
     ShaderTransform transform = GetTransform(transform_index);
     ShaderGeometry geometry = GetGeometry();
     float3 local_position = input.GetPosition();

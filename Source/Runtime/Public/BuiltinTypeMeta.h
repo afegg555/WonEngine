@@ -683,17 +683,23 @@ namespace won::reflection
         WON_REFLECT_ENUM_VALUE("Premultiplied", won::resource::MaterialBlendMode::Premultiplied)
     WON_REFLECT_ENUM_END()
 
-    WON_REFLECT_STRUCT(won::resource::MaterialSlot::TextureMap, "TextureMap")
-        WON_REFLECT_FIELD(texture_asset_path, won::FieldFlagSerializable)
-    WON_REFLECT_STRUCT_END()
-
-    WON_REFLECT_STRUCT(won::resource::MaterialSlot, "MaterialSlot")
+    WON_REFLECT_STRUCT(won::resource::MaterialSettings, "MaterialSettings")
         WON_REFLECT_FIELD(material_type, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(blend_mode, won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(alpha_cutoff, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(double_sided, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(use_vertex_colors, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(receive_shadow, won::FieldFlagSerializable)
+    WON_REFLECT_STRUCT_END()
+
+    WON_REFLECT_STRUCT(won::resource::MaterialTextureMap, "MaterialTextureMap")
+        WON_REFLECT_FIELD(texture_asset_path, won::FieldFlagSerializable)
+    WON_REFLECT_STRUCT_END()
+
+    WON_REFLECT_STRUCT(won::resource::MaterialAttributes, "MaterialAttributes")
         WON_REFLECT_FIELD(base_color, won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(emissive_color, won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(emissive_intensity, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(metallic, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(roughness, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(reflectance, won::FieldFlagSerializable)
@@ -703,6 +709,11 @@ namespace won::reflection
         WON_REFLECT_FIELD(clearcoat, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(clearcoat_roughness, won::FieldFlagSerializable)
         WON_REFLECT_FIELD(textures, won::FieldFlagSerializable)
+    WON_REFLECT_STRUCT_END()
+
+    WON_REFLECT_STRUCT(won::resource::MaterialSlot, "MaterialSlot")
+        WON_REFLECT_FIELD(settings, won::FieldFlagSerializable)
+        WON_REFLECT_FIELD(attributes, won::FieldFlagSerializable)
     WON_REFLECT_STRUCT_END()
 
     WON_REFLECT_STRUCT(won::ecs::MaterialComponent, "MaterialComponent")

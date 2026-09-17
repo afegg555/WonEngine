@@ -1,4 +1,5 @@
 #include "TerrainData.h"
+#include "Image.h"
 #include "MathUtils.h"
 #include "Noise.h"
 #include "BinaryArchive.h"
@@ -14,12 +15,46 @@
 
 namespace won::serialize
 {
+    struct TerrainMaterialLayerV2
+    {
+        String material_asset_path;
+        float tile_size = 4.0f;
+    };
+
+    void Serialize(BinaryArchive& archive, TerrainMaterialLayerV2& layer)
+    {
+        Serialize(archive, layer.material_asset_path);
+        Serialize(archive, layer.tile_size);
+    }
+
     void Serialize(BinaryArchive& archive, won::terrain::TerrainSpline& spline)
     {
         Serialize(archive, spline.points);
         Serialize(archive, spline.width);
         Serialize(archive, spline.edge_falloff);
         Serialize(archive, spline.target_height);
+    }
+
+    void Serialize(BinaryArchive& archive, const won::terrain::TerrainSpline& spline)
+    {
+        Serialize(archive, spline.points);
+        Serialize(archive, spline.width);
+        Serialize(archive, spline.edge_falloff);
+        Serialize(archive, spline.target_height);
+    }
+
+    void Serialize(BinaryArchive& archive, won::terrain::TerrainMaterialLayer& layer)
+    {
+        Serialize(archive, layer.material_asset_path);
+        Serialize(archive, layer.material_slot);
+        Serialize(archive, layer.tile_size);
+    }
+
+    void Serialize(BinaryArchive& archive, const won::terrain::TerrainMaterialLayer& layer)
+    {
+        Serialize(archive, layer.material_asset_path);
+        Serialize(archive, layer.material_slot);
+        Serialize(archive, layer.tile_size);
     }
 }
 
@@ -307,7 +342,6 @@ namespace won::terrain
                     normal.z /= length;
                 }
                 mesh->normals[index] = normal;
-
                 bounds.min.x = (std::min)(bounds.min.x, x);
                 bounds.min.y = (std::min)(bounds.min.y, y);
                 bounds.min.z = (std::min)(bounds.min.z, z);
@@ -387,7 +421,7 @@ namespace won::terrain
         }
 
         constexpr uint32 terrain_binary_magic = 0x4e525754u;
-        constexpr uint32 terrain_binary_version = 1u;
+        constexpr uint32 terrain_binary_version = 3u;
     }
 
     void CompositeTerrainHeights(TerrainData& data)
@@ -529,6 +563,172 @@ namespace won::terrain
         data.samples_z = new_samples_z;
     }
 
+    static void NormalizeTerrainMaterialWeights(TerrainData& data)
+    {
+        const Size layer_count = data.material_layers.size();
+        const Size sample_count = static_cast<Size>(data.material_samples_x) * data.material_samples_z;
+        if (layer_count == 0 || sample_count == 0 || data.material_weights.size() != layer_count)
+        {
+            return;
+        }
+
+        for (const Vector<uint8>& weights : data.material_weights)
+        {
+            if (weights.size() != sample_count)
+            {
+                return;
+            }
+        }
+
+        for (Size sample = 0; sample < sample_count; ++sample)
+        {
+            uint32 total = 0;
+            for (const Vector<uint8>& weights : data.material_weights)
+            {
+                total += weights[sample];
+            }
+
+            if (total == 0)
+            {
+                data.material_weights[0][sample] = 255u;
+                for (Size layer = 1; layer < layer_count; ++layer)
+                {
+                    data.material_weights[layer][sample] = 0u;
+                }
+                continue;
+            }
+
+            uint32 remaining = 255u;
+            for (Size layer = 0; layer + 1 < layer_count; ++layer)
+            {
+                const uint32 normalized = static_cast<uint32>(std::round(static_cast<float>(data.material_weights[layer][sample]) * 255.0f / static_cast<float>(total)));
+                data.material_weights[layer][sample] = static_cast<uint8>((std::min)(normalized, remaining));
+                remaining -= data.material_weights[layer][sample];
+            }
+            data.material_weights.back()[sample] = static_cast<uint8>(remaining);
+        }
+    }
+
+    bool ResizeTerrainMaterialWeights(TerrainData& data, uint32 new_samples_x, uint32 new_samples_z)
+    {
+        if (new_samples_x < 2 || new_samples_z < 2 || data.material_layers.empty())
+        {
+            return false;
+        }
+
+        const uint32 old_samples_x = data.material_samples_x;
+        const uint32 old_samples_z = data.material_samples_z;
+        const Size old_sample_count = static_cast<Size>(old_samples_x) * old_samples_z;
+        const Size new_sample_count = static_cast<Size>(new_samples_x) * new_samples_z;
+        if (old_samples_x < 2 || old_samples_z < 2 || data.material_weights.size() != data.material_layers.size())
+        {
+            return false;
+        }
+        for (const Vector<uint8>& weights : data.material_weights)
+        {
+            if (weights.size() != old_sample_count)
+            {
+                return false;
+            }
+        }
+        if (old_samples_x == new_samples_x && old_samples_z == new_samples_z)
+        {
+            return true;
+        }
+
+        Vector<Vector<uint8>> resized(data.material_layers.size(), Vector<uint8>(new_sample_count, 0u));
+        for (Size layer = 0; layer < data.material_layers.size(); ++layer)
+        {
+            Vector<float> source(old_sample_count);
+            for (Size sample = 0; sample < old_sample_count; ++sample)
+            {
+                source[sample] = static_cast<float>(data.material_weights[layer][sample]);
+            }
+            for (uint32 z = 0; z < new_samples_z; ++z)
+            {
+                const float source_z = static_cast<float>(z) * static_cast<float>(old_samples_z - 1) / static_cast<float>(new_samples_z - 1);
+                for (uint32 x = 0; x < new_samples_x; ++x)
+                {
+                    const float source_x = static_cast<float>(x) * static_cast<float>(old_samples_x - 1) / static_cast<float>(new_samples_x - 1);
+                    resized[layer][static_cast<Size>(z) * new_samples_x + x] = static_cast<uint8>(math::Clamp(static_cast<int>(std::round(SampleGridBilinear(source, old_samples_x, old_samples_z, source_x, source_z))), 0, 255));
+                }
+            }
+        }
+
+        data.material_samples_x = new_samples_x;
+        data.material_samples_z = new_samples_z;
+        data.material_weights = std::move(resized);
+        NormalizeTerrainMaterialWeights(data);
+        return true;
+    }
+
+    bool RemoveTerrainMaterialLayer(TerrainData& data, Size layer_index)
+    {
+        if (layer_index >= data.material_layers.size() || data.material_weights.size() != data.material_layers.size())
+        {
+            return false;
+        }
+
+        data.material_layers.erase(data.material_layers.begin() + layer_index);
+        data.material_weights.erase(data.material_weights.begin() + layer_index);
+        if (data.material_layers.empty())
+        {
+            data.material_samples_x = 0;
+            data.material_samples_z = 0;
+        }
+        else
+        {
+            NormalizeTerrainMaterialWeights(data);
+        }
+        return true;
+    }
+
+    Vector<std::shared_ptr<resource::Image>> CreateTerrainMaterialControlMaps(const TerrainData& data)
+    {
+        if (data.material_samples_x < 2 || data.material_samples_z < 2 || data.material_layers.empty())
+        {
+            return {};
+        }
+
+        const Size sample_count = static_cast<Size>(data.material_samples_x) * data.material_samples_z;
+        if (data.material_weights.size() != data.material_layers.size())
+        {
+            return {};
+        }
+        for (const Vector<uint8>& weights : data.material_weights)
+        {
+            if (weights.size() != sample_count)
+            {
+                return {};
+            }
+        }
+
+        const Size control_map_count = (data.material_layers.size() + TerrainData::material_layers_per_control_map - 1) / TerrainData::material_layers_per_control_map;
+        Vector<std::shared_ptr<resource::Image>> images(control_map_count);
+        for (Size control_map = 0; control_map < control_map_count; ++control_map)
+        {
+            std::shared_ptr<resource::Image>& image = images[control_map];
+            image = std::make_shared<resource::Image>();
+            image->name = "TerrainMaterialControlMap" + std::to_string(control_map);
+            image->width = static_cast<int32>(data.material_samples_x);
+            image->height = static_cast<int32>(data.material_samples_z);
+            image->channels = static_cast<int32>(TerrainData::material_layers_per_control_map);
+            image->pixels.assign(sample_count * TerrainData::material_layers_per_control_map, 0u);
+
+            const Size first_layer = control_map * TerrainData::material_layers_per_control_map;
+            const Size layer_count = (std::min)(TerrainData::material_layers_per_control_map, data.material_layers.size() - first_layer);
+            for (Size channel = 0; channel < layer_count; ++channel)
+            {
+                const Size layer = first_layer + channel;
+                for (Size sample = 0; sample < sample_count; ++sample)
+                {
+                    image->pixels[sample * TerrainData::material_layers_per_control_map + channel] = data.material_weights[layer][sample];
+                }
+            }
+        }
+        return images;
+    }
+
     bool SaveTerrainBinary(const String& path, const TerrainData& data)
     {
         if (path.empty())
@@ -536,25 +736,32 @@ namespace won::terrain
             return false;
         }
 
-        TerrainData copy = data;
-        copy.final_heights.clear();
-
         serialize::BinaryArchive archive(path, serialize::ArchiveMode::Write);
         uint32 magic = terrain_binary_magic;
         uint32 version = terrain_binary_version;
         serialize::Serialize(archive, magic);
         serialize::Serialize(archive, version);
-        serialize::Serialize(archive, copy.samples_x);
-        serialize::Serialize(archive, copy.samples_z);
-        serialize::Serialize(archive, copy.world_size_x);
-        serialize::Serialize(archive, copy.world_size_z);
-        serialize::Serialize(archive, copy.height_scale);
-        serialize::Serialize(archive, copy.base_heights);
-        serialize::Serialize(archive, copy.height_delta);
-        serialize::Serialize(archive, copy.flatten_mask);
-        serialize::Serialize(archive, copy.flatten_height);
-        serialize::Serialize(archive, copy.splines);
-        serialize::Serialize(archive, copy.noise_params);
+        serialize::Serialize(archive, data.samples_x);
+        serialize::Serialize(archive, data.samples_z);
+        serialize::Serialize(archive, data.world_size_x);
+        serialize::Serialize(archive, data.world_size_z);
+        serialize::Serialize(archive, data.height_scale);
+        serialize::Serialize(archive, data.base_heights);
+        serialize::Serialize(archive, data.height_delta);
+        serialize::Serialize(archive, data.flatten_mask);
+        serialize::Serialize(archive, data.flatten_height);
+        serialize::Serialize(archive, data.splines);
+        serialize::Serialize(archive, data.noise_params);
+        serialize::Serialize(archive, data.material_samples_x);
+        serialize::Serialize(archive, data.material_samples_z);
+        serialize::Serialize(archive, data.material_settings.material_type);
+        serialize::Serialize(archive, data.material_settings.blend_mode);
+        serialize::Serialize(archive, data.material_settings.alpha_cutoff);
+        serialize::Serialize(archive, data.material_settings.double_sided);
+        serialize::Serialize(archive, data.material_settings.use_vertex_colors);
+        serialize::Serialize(archive, data.material_settings.receive_shadow);
+        serialize::Serialize(archive, data.material_layers);
+        serialize::Serialize(archive, data.material_weights);
         return true;
     }
 
@@ -580,7 +787,7 @@ namespace won::terrain
             backlog::Post("[LoadResources] terrain load failed, bad magic: " + path, backlog::LogLevel::Warning);
             return nullptr;
         }
-        if (version != terrain_binary_version)
+        if (version < 1u || version > terrain_binary_version)
         {
             backlog::Post("[LoadResources] terrain load failed, unsupported version " + std::to_string(version) + ": " + path, backlog::LogLevel::Warning);
             return nullptr;
@@ -598,6 +805,40 @@ namespace won::terrain
         serialize::Serialize(archive, data->flatten_height);
         serialize::Serialize(archive, data->splines);
         serialize::Serialize(archive, data->noise_params);
+        if (version >= 2u)
+        {
+            serialize::Serialize(archive, data->material_samples_x);
+            serialize::Serialize(archive, data->material_samples_z);
+            if (version >= 3u)
+            {
+                serialize::Serialize(archive, data->material_settings.material_type);
+                serialize::Serialize(archive, data->material_settings.blend_mode);
+                serialize::Serialize(archive, data->material_settings.alpha_cutoff);
+                serialize::Serialize(archive, data->material_settings.double_sided);
+                serialize::Serialize(archive, data->material_settings.use_vertex_colors);
+                serialize::Serialize(archive, data->material_settings.receive_shadow);
+                serialize::Serialize(archive, data->material_layers);
+            }
+            else
+            {
+                Vector<serialize::TerrainMaterialLayerV2> legacy_layers;
+                serialize::Serialize(archive, legacy_layers);
+                data->material_layers.resize(legacy_layers.size());
+                for (Size i = 0; i < legacy_layers.size(); ++i)
+                {
+                    data->material_layers[i].material_asset_path = std::move(legacy_layers[i].material_asset_path);
+                    data->material_layers[i].tile_size = legacy_layers[i].tile_size;
+                }
+            }
+            serialize::Serialize(archive, data->material_weights);
+            if (data->material_layers.size() > TerrainData::max_material_layers)
+            {
+                backlog::Post("[LoadResources] terrain load failed, material layer count exceeds supported range: " + path, backlog::LogLevel::Warning);
+                return nullptr;
+            }
+            NormalizeTerrainMaterialWeights(*data);
+            data->render_data.material_control_maps = CreateTerrainMaterialControlMaps(*data);
+        }
         CompositeTerrainHeights(*data);
         return data;
     }

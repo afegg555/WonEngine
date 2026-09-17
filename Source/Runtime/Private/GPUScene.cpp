@@ -6,6 +6,7 @@
 #include "LightComponent.h"
 #include "GeometryComponent.h"
 #include "MaterialComponent.h"
+#include "TerrainComponent.h"
 #include "AnimationComponent.h"
 #include "RHIDevice.h"
 #include "RHICommandList.h"
@@ -109,11 +110,41 @@ namespace won::rendering
             }
         }
 
-        void ExtractGeometries(ecs::Scene& scene, Vector<ShaderGeometry>& shader_geometries)
+        void WriteShaderGeometry(const resource::Mesh& mesh, Size submesh_index, ShaderGeometry& shader_geometry)
+        {
+            const resource::Mesh::RenderData& mesh_render_data = mesh.render_data;
+            const resource::Submesh& submesh = mesh.submeshes[submesh_index];
+            shader_geometry.Init();
+            shader_geometry.bounds_min = submesh.local_bounds.min;
+            shader_geometry.bounds_max = submesh.local_bounds.max;
+            if (!mesh_render_data.IsValid())
+            {
+                return;
+            }
+
+            shader_geometry.position_buffer_descriptor = mesh_render_data.positions.srv.descriptor_index;
+            shader_geometry.color_buffer_descriptor = mesh_render_data.colors.srv.descriptor_index;
+            shader_geometry.normal_buffer_descriptor = mesh_render_data.normals.srv.descriptor_index;
+            shader_geometry.texcoord_buffer_descriptor = mesh_render_data.texcoords.srv.descriptor_index;
+            shader_geometry.tangent_buffer_descriptor = mesh_render_data.tangents.srv.descriptor_index;
+            shader_geometry.index_buffer_descriptor = mesh_render_data.indices.srv.descriptor_index;
+            shader_geometry.index_count = submesh.index_count;
+            shader_geometry.first_index = submesh.first_index;
+            shader_geometry.dynamic_stream_stride = mesh.dynamic_vertex_streams ? static_cast<uint32>(mesh.positions.size()) : 0u;
+            if (mesh_render_data.bone_indices.IsValid() && mesh_render_data.bone_weights.IsValid())
+            {
+                shader_geometry.bone_indices_buffer_descriptor = mesh_render_data.bone_indices.srv.descriptor_index;
+                shader_geometry.bone_weights_buffer_descriptor = mesh_render_data.bone_weights.srv.descriptor_index;
+                shader_geometry.flags |= SHADER_GEOMETRY_FLAG_SKINNED;
+            }
+        }
+
+        uint32 ExtractGeometries(ecs::Scene& scene, Vector<ShaderGeometry>& shader_geometries)
         {
             jobsystem::Context sub_ctx;
 
             const auto geometry_array = scene.GetComponentArray<GeometryComponent>().get();
+            const auto terrain_array = scene.GetComponentArray<TerrainComponent>().get();
 
             Vector<std::pair<resource::Mesh*, uint32>> unique_meshes;
             Size unique_submesh_sum = 0;
@@ -122,6 +153,11 @@ namespace won::rendering
                 for (Size i = 0; i < geometry_array->GetSize(); ++i)
                 {
                     GeometryComponent& geometry_comp = geometry_array->data[i];
+                    const Entity entity = geometry_array->index_to_entity[i];
+                    if (terrain_array && terrain_array->HasData(entity))
+                    {
+                        continue;
+                    }
                     if (!geometry_comp.mesh)
                     {
                         continue;
@@ -143,41 +179,55 @@ namespace won::rendering
 
             jobsystem::Dispatch(sub_ctx, (uint32_t)unique_meshes.size(), jobsystem::groupsize_light, [&](jobsystem::JobArgs args) {
                 auto [mesh, geometry_offset] = unique_meshes[args.job_index];
-                const resource::Mesh::RenderData& mesh_render_data = mesh->render_data;
-
                 for (Size i = 0; i < mesh->submeshes.size(); ++i)
                 {
-                    ShaderGeometry& shader_geometry = shader_geometries[geometry_offset + i];
-                    shader_geometry.Init();
-                    shader_geometry.bounds_min = mesh->submeshes[i].local_bounds.min;
-                    shader_geometry.bounds_max = mesh->submeshes[i].local_bounds.max;
-
-                    if (mesh_render_data.IsValid())
-                    {
-                        shader_geometry.position_buffer_descriptor = mesh_render_data.positions.srv.descriptor_index;
-                        shader_geometry.color_buffer_descriptor = mesh_render_data.colors.srv.descriptor_index;
-                        shader_geometry.normal_buffer_descriptor = mesh_render_data.normals.srv.descriptor_index;
-                        shader_geometry.texcoord_buffer_descriptor = mesh_render_data.texcoords.srv.descriptor_index;
-                        shader_geometry.tangent_buffer_descriptor = mesh_render_data.tangents.srv.descriptor_index;
-                        shader_geometry.index_buffer_descriptor = mesh_render_data.indices.srv.descriptor_index;
-                        shader_geometry.index_count = mesh->submeshes[i].index_count;
-                        shader_geometry.first_index = mesh->submeshes[i].first_index;
-                        shader_geometry.dynamic_stream_stride = mesh->dynamic_vertex_streams ? static_cast<uint32>(mesh->positions.size()) : 0u;
-
-                        if (mesh_render_data.bone_indices.IsValid() && mesh_render_data.bone_weights.IsValid())
-                        {
-                            shader_geometry.bone_indices_buffer_descriptor = mesh_render_data.bone_indices.srv.descriptor_index;
-                            shader_geometry.bone_weights_buffer_descriptor = mesh_render_data.bone_weights.srv.descriptor_index;
-                            shader_geometry.flags |= SHADER_GEOMETRY_FLAG_SKINNED;
-                        }
-                    }
+                    WriteShaderGeometry(*mesh, i, shader_geometries[geometry_offset + i]);
                 }
             });
 
             jobsystem::Wait(sub_ctx);
+            return static_cast<uint32>(shader_geometries.size());
         }
 
-        void ExtractMaterials(ecs::Scene& scene, Vector<ShaderMaterial>& shader_materials)
+        void WriteShaderMaterial(const resource::MaterialSlot& material_slot, ShaderMaterial& shader_material)
+        {
+            const resource::MaterialSettings& settings = material_slot.settings;
+            const resource::MaterialAttributes& attributes = material_slot.attributes;
+            shader_material.Init();
+            shader_material.base_color = math::PackHalf4(attributes.base_color);
+            shader_material.emissive_color_metallic = math::PackHalf4(
+                attributes.emissive_color.x * attributes.emissive_intensity,
+                attributes.emissive_color.y * attributes.emissive_intensity,
+                attributes.emissive_color.z * attributes.emissive_intensity,
+                attributes.metallic);
+            shader_material.roughness_reflectance_refraction_padding = math::PackHalf4(attributes.roughness, attributes.reflectance, 0.0f, 0.0f);
+            shader_material.anisotropy_sheenroughness_clearcoat_clearcoatroughness = math::PackHalf4(attributes.anisotropy, attributes.sheen_roughness, attributes.clearcoat, attributes.clearcoat_roughness);
+            shader_material.sheencolor_alphacutoff = math::PackHalf4(attributes.sheen_color.x, attributes.sheen_color.y, attributes.sheen_color.z, settings.alpha_cutoff);
+            uint32 gpu_flags = SHADER_MATERIAL_FLAG_NONE;
+            if (settings.double_sided)
+            {
+                gpu_flags |= SHADER_MATERIAL_FLAG_DOUBLE_SIDED;
+            }
+            if (settings.use_vertex_colors)
+            {
+                gpu_flags |= SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS;
+            }
+            if (settings.receive_shadow)
+            {
+                gpu_flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW;
+            }
+            shader_material.flags = gpu_flags;
+
+            for (uint32 texture_slot = 0; texture_slot < static_cast<uint32>(TEXTURESLOT_COUNT); ++texture_slot)
+            {
+                if (attributes.textures[texture_slot].IsValid())
+                {
+                    shader_material.textures[texture_slot].texture_descriptor = attributes.textures[texture_slot].image->render_data.srv.descriptor_index;
+                }
+            }
+        }
+
+        uint32 ExtractMaterials(ecs::Scene& scene, Vector<ShaderMaterial>& shader_materials)
         {
             jobsystem::Context sub_ctx;
 
@@ -197,8 +247,8 @@ namespace won::rendering
 
                     resource::Material* material = material_comp.material.get();
                     const uint32 offset = (uint32)unique_slot_sum;
-					auto [it, inserted] = offsets.try_emplace(material, offset);
-					if (inserted) // newly inserted, so this is a unique material
+                    auto [it, inserted] = offsets.try_emplace(material, offset);
+                    if (inserted) // newly inserted, so this is a unique material
                     {
                         unique_materials.push_back({ material, offset });
                         unique_slot_sum += material->slots.size();
@@ -214,35 +264,189 @@ namespace won::rendering
 
                 for (Size i = 0; i < material->slots.size(); ++i)
                 {
-                    const resource::MaterialSlot& material_slot = material->slots[i];
-                    ShaderMaterial& shader_material = shader_materials[material_offset + i];
-                    shader_material.Init();
-                    shader_material.base_color = math::PackHalf4(material_slot.base_color);
-                    shader_material.emissive_color_metallic = math::PackHalf4(
-                        material_slot.emissive_color.x * material_slot.emissive_intensity,
-                        material_slot.emissive_color.y * material_slot.emissive_intensity,
-                        material_slot.emissive_color.z * material_slot.emissive_intensity,
-                        material_slot.metallic);
-                    shader_material.roughness_reflectance_refraction_padding = math::PackHalf4(material_slot.roughness, material_slot.reflectance, 0.f, 0.f);
-                    shader_material.anisotropy_sheenroughness_clearcoat_clearcoatroughness = math::PackHalf4(material_slot.anisotropy, material_slot.sheen_roughness, material_slot.clearcoat, material_slot.clearcoat_roughness);
-                    shader_material.sheencolor_alphacutoff = math::PackHalf4(material_slot.sheen_color.x, material_slot.sheen_color.y, material_slot.sheen_color.z, material_slot.alpha_cutoff);
-                    uint32 gpu_flags = SHADER_MATERIAL_FLAG_NONE;
-                    if (material_slot.double_sided) { gpu_flags |= SHADER_MATERIAL_FLAG_DOUBLE_SIDED; }
-                    if (material_slot.use_vertex_colors) { gpu_flags |= SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS; }
-                    if (material_slot.receive_shadow) { gpu_flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW; }
-                    shader_material.flags = gpu_flags;
-
-                    for (uint32 texture_slot = 0; texture_slot < static_cast<uint32>(TEXTURESLOT_COUNT); ++texture_slot)
-                    {
-                        if (material_slot.textures[texture_slot].IsValid())
-                        {
-                            shader_material.textures[texture_slot].texture_descriptor = material_slot.textures[texture_slot].image->render_data.srv.descriptor_index;
-                        }
-                    }
+                    WriteShaderMaterial(material->slots[i], shader_materials[material_offset + i]);
                 }
             });
 
             jobsystem::Wait(sub_ctx);
+            return static_cast<uint32>(unique_slot_sum);
+        }
+
+        void ExtractTerrains(
+            const ecs::Scene& scene,
+            uint32 material_base_offset,
+            Vector<ShaderGeometry>& shader_geometries,
+            Vector<ShaderMaterial>& shader_materials,
+            Vector<ShaderTerrain>& shader_terrains,
+            Vector<ShaderTerrainLayer>& shader_terrain_layers,
+            Vector<GPUScene::RenderableCullData>& terrain_opaque_cull_data,
+            Vector<TerrainRenderable>& terrain_opaque_renderables,
+            Vector<TerrainRenderable>& terrain_transparent_renderables,
+            math::AABB& shadow_caster_world_bound)
+        {
+            shader_terrains.clear();
+            shader_terrain_layers.clear();
+            terrain_opaque_cull_data.clear();
+            terrain_opaque_renderables.clear();
+            terrain_transparent_renderables.clear();
+
+            const auto terrain_array = scene.GetComponentArray<TerrainComponent>().get();
+            const auto transform_array = scene.GetComponentArray<TransformComponent>().get();
+            const auto geometry_array = scene.GetComponentArray<GeometryComponent>().get();
+            const auto layer_array = scene.GetComponentArray<VisibilityLayerComponent>().get();
+            if (!terrain_array || !transform_array || !geometry_array)
+            {
+                return;
+            }
+
+            Size terrain_layer_count = 0;
+            Size terrain_submesh_count = 0;
+            for (const TerrainComponent& terrain : terrain_array->data)
+            {
+                if (terrain.data && terrain.data->render_data.mesh &&
+                    terrain.data->render_data.layer_materials.size() == terrain.data->material_layers.size())
+                {
+                    terrain_layer_count += (std::max)(Size(1), terrain.data->material_layers.size());
+                    terrain_submesh_count += terrain.data->render_data.mesh->submeshes.size();
+                }
+            }
+
+            shader_materials.resize(material_base_offset + terrain_layer_count);
+            shader_terrains.reserve(terrain_array->GetSize());
+            shader_terrain_layers.reserve(terrain_layer_count);
+            shader_geometries.reserve(shader_geometries.size() + terrain_submesh_count);
+            uint32 material_index = material_base_offset;
+            for (Size i = 0; i < terrain_array->GetSize(); ++i)
+            {
+                const Entity entity = terrain_array->index_to_entity[i];
+                const TerrainComponent& terrain = terrain_array->data[i];
+                if (!terrain.data || !terrain.data->render_data.mesh ||
+                    terrain.data->render_data.layer_materials.size() != terrain.data->material_layers.size() ||
+                    !transform_array->HasData(entity) || !geometry_array->HasData(entity))
+                {
+                    continue;
+                }
+
+                const resource::Mesh& mesh = *terrain.data->render_data.mesh;
+                const resource::Mesh::RenderData& mesh_render_data = mesh.render_data;
+                if (!mesh_render_data.IsValid())
+                {
+                    continue;
+                }
+
+                ShaderTerrain shader_terrain;
+                shader_terrain.Init();
+                shader_terrain.layer_offset = static_cast<uint32>(shader_terrain_layers.size());
+                const Size runtime_layer_count = (std::max)(Size(1), terrain.data->material_layers.size());
+                shader_terrain.layer_count = static_cast<uint32>(runtime_layer_count);
+                shader_terrain.alpha_cutoff = terrain.data->material_settings.alpha_cutoff;
+                if (terrain.data->material_settings.use_vertex_colors)
+                {
+                    shader_terrain.flags |= SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS;
+                }
+                if (terrain.data->material_settings.receive_shadow)
+                {
+                    shader_terrain.flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW;
+                }
+                const uint32 terrain_index = static_cast<uint32>(shader_terrains.size());
+                shader_terrains.push_back(shader_terrain);
+
+                for (Size layer = 0; layer < runtime_layer_count; ++layer)
+                {
+                    const bool has_authored_layer = layer < terrain.data->material_layers.size();
+                    const std::shared_ptr<resource::Material> material = has_authored_layer
+                        ? terrain.data->render_data.layer_materials[layer]
+                        : nullptr;
+                    const uint32 material_slot_index = has_authored_layer ? terrain.data->material_layers[layer].material_slot : 0;
+                    const resource::MaterialSlot material_slot = material && material_slot_index < material->slots.size()
+                        ? material->slots[material_slot_index]
+                        : resource::MaterialSlot{};
+                    WriteShaderMaterial(material_slot, shader_materials[material_index]);
+
+                    ShaderTerrainLayer shader_layer;
+                    shader_layer.Init();
+                    shader_layer.material_index = material_index++;
+                    const Size control_map_index = layer / terrain::TerrainData::material_layers_per_control_map;
+                    if (has_authored_layer && control_map_index < terrain.data->render_data.material_control_maps.size())
+                    {
+                        const std::shared_ptr<resource::Image>& control_map = terrain.data->render_data.material_control_maps[control_map_index];
+                        if (control_map && control_map->render_data.IsValid())
+                        {
+                            shader_layer.weight_map_descriptor = static_cast<int32>(control_map->render_data.srv.descriptor_index);
+                        }
+                    }
+                    shader_layer.weight_map_channel = static_cast<uint32>(layer % terrain::TerrainData::material_layers_per_control_map);
+                    const float tile_size = has_authored_layer ? terrain.data->material_layers[layer].tile_size : 4.0f;
+                    shader_layer.uv_scale = 1.0f / (std::max)(tile_size, 0.001f);
+                    shader_terrain_layers.push_back(shader_layer);
+                }
+
+                const TransformComponent& transform = transform_array->GetData(entity);
+                const GeometryComponent& geometry = geometry_array->GetData(entity);
+                const uint32 transform_index = static_cast<uint32>(transform_array->entity_to_index.at(entity));
+                const uint32 layer_mask = layer_array && layer_array->HasData(entity) ? layer_array->GetData(entity).layer_mask : 0xFFFFFFFF;
+                const float3 world_position = math::GetPosition(transform.world_transform);
+                math::AABB world_aabb;
+                world_aabb.Invalidate();
+                if (geometry.local_bounds.IsValid())
+                {
+                    world_aabb = geometry.local_bounds.TransformAABB(transform.world_transform);
+                }
+                if (geometry.IsCastShadow() && world_aabb.IsValid())
+                {
+                    shadow_caster_world_bound.Merge(world_aabb);
+                }
+
+                const uint32 geometry_offset = static_cast<uint32>(shader_geometries.size());
+                for (Size submesh_index = 0; submesh_index < mesh.submeshes.size(); ++submesh_index)
+                {
+                    const resource::Submesh& submesh = mesh.submeshes[submesh_index];
+                    shader_geometries.emplace_back();
+                    WriteShaderGeometry(mesh, submesh_index, shader_geometries.back());
+
+                    TerrainRenderable renderable = {};
+                    renderable.entity = entity;
+                    renderable.index_buffer = mesh_render_data.buffer.get();
+                    renderable.index_buffer_offset = mesh_render_data.indices.offset;
+                    renderable.index_buffer_size = mesh_render_data.indices.size;
+                    renderable.first_index = submesh.first_index;
+                    renderable.index_count = submesh.index_count;
+                    renderable.transform_index = transform_index;
+                    renderable.geometry_index = geometry_offset + static_cast<uint32>(submesh_index);
+                    renderable.terrain_index = terrain_index;
+                    renderable.world_position = world_position;
+                    renderable.aabb = submesh.local_bounds.IsValid() ? submesh.local_bounds.TransformAABB(transform.world_transform) : world_aabb;
+                    renderable.shader_type = static_cast<uint32>(terrain.data->material_settings.material_type);
+                    renderable.blend_mode = terrain.data->material_settings.blend_mode;
+                    renderable.layer_mask = layer_mask;
+                    renderable.primitive_topology = submesh.primitive_topology;
+                    if (geometry.IsCastShadow())
+                    {
+                        renderable.flags |= TerrainRenderable::CastShadow;
+                    }
+                    if (terrain.data->material_settings.double_sided)
+                    {
+                        renderable.flags |= TerrainRenderable::DoubleSided;
+                    }
+                    if (terrain.data->material_settings.IsTransparent())
+                    {
+                        renderable.flags |= TerrainRenderable::Transparent;
+                        terrain_transparent_renderables.push_back(renderable);
+                    }
+                    else
+                    {
+                        terrain_opaque_renderables.push_back(renderable);
+                    }
+                }
+            }
+
+            terrain_opaque_cull_data.resize(terrain_opaque_renderables.size());
+            for (Size i = 0; i < terrain_opaque_renderables.size(); ++i)
+            {
+                terrain_opaque_cull_data[i].aabb = terrain_opaque_renderables[i].aabb;
+                terrain_opaque_cull_data[i].layer_mask = terrain_opaque_renderables[i].layer_mask;
+                terrain_opaque_cull_data[i].flags = terrain_opaque_renderables[i].flags;
+            }
         }
 
         void ExtractBones(const ecs::Scene& scene, Vector<float4>& shader_bone_matrices)
@@ -283,47 +487,21 @@ namespace won::rendering
             }
         }
 
-        void ExtractRenderables(const ecs::Scene& scene, Vector<ShaderTransform>& shader_transforms, Vector<ShaderPreviousTransform>& shader_previous_transforms,
-            const GPUScene::TransformHistory& transform_history, bool transform_history_layout_matches,
-            Vector<GPUScene::RenderableCullData>& opaque_cull_data, Vector<Renderable>& opaque_renderables, Vector<Renderable>& transparent_renderables,
-            Vector<Renderable>& line_renderables, Vector<Renderable>& point_renderables,
-            math::AABB& shadow_caster_world_bound)
+        void ExtractTransforms(
+            const ecs::Scene& scene,
+            const GPUScene::TransformHistory& transform_history,
+            bool transform_history_layout_matches,
+            Vector<ShaderTransform>& shader_transforms,
+            Vector<ShaderPreviousTransform>& shader_previous_transforms)
         {
-            struct RenderableBucket
-            {
-                Vector<Renderable> opaque;
-                Vector<Renderable> transparent;
-                Vector<Renderable> line;
-                Vector<Renderable> point;
-                math::AABB caster_bound;
-            };
-
-            jobsystem::Context sub_ctx;
-
-            const auto geometry_array = scene.GetComponentArray<GeometryComponent>().get();
-            const auto material_array = scene.GetComponentArray<MaterialComponent>().get();
             const auto transform_array = scene.GetComponentArray<TransformComponent>().get();
             const auto animation_array = scene.GetComponentArray<AnimationComponent>().get();
-            const auto layer_array = scene.GetComponentArray<VisibilityLayerComponent>().get();
-
             shader_transforms.resize(transform_array->GetSize());
             shader_previous_transforms.resize(transform_array->GetSize());
 
-            opaque_renderables.clear();
-            transparent_renderables.clear();
-            line_renderables.clear();
-            point_renderables.clear();
-
-            const uint32 job_count = static_cast<uint32>(transform_array->GetSize());
-            Vector<RenderableBucket> renderable_buckets(jobsystem::DispatchGroupCount(job_count, jobsystem::groupsize));
-            for (RenderableBucket& bucket : renderable_buckets)
+            jobsystem::Context sub_ctx;
+            jobsystem::Dispatch(sub_ctx, static_cast<uint32>(transform_array->GetSize()), jobsystem::groupsize, [&](jobsystem::JobArgs args)
             {
-                bucket.caster_bound.Invalidate();
-            }
-
-            jobsystem::Dispatch(sub_ctx, job_count, jobsystem::groupsize, [&](jobsystem::JobArgs args) {
-                RenderableBucket& bucket = renderable_buckets[args.group_id];
-
                 const TransformComponent& transform = transform_array->data[args.job_index];
                 ShaderTransform& shader_transform = shader_transforms[args.job_index];
                 shader_transform.Init();
@@ -365,7 +543,6 @@ namespace won::rendering
                 shader_transform.normal_transform_row1 = { normal_mat_3x3._21, normal_mat_3x3._22, normal_mat_3x3._23 };
                 shader_transform.normal_transform_row2 = { normal_mat_3x3._31, normal_mat_3x3._32, normal_mat_3x3._33 };
 
-                const math::AABB* skinned_local_bounds = nullptr;
                 if (animation_array && animation_array->HasData(entity))
                 {
                     const AnimationComponent& animation = animation_array->GetData(entity);
@@ -373,22 +550,74 @@ namespace won::rendering
                     {
                         shader_transform.bone_matrix_offset = animation.bone_matrix_offset;
                         shader_transform.bone_count = static_cast<uint32>(animation.bone_matrices.size());
-                        if (animation.skinned_local_bounds.IsValid())
-                        {
-                            skinned_local_bounds = &animation.skinned_local_bounds;
-                        }
+                    }
+                }
+            });
+            jobsystem::Wait(sub_ctx);
+        }
+
+        void ExtractMeshRenderables(
+            const ecs::Scene& scene,
+            Vector<GPUScene::RenderableCullData>& opaque_cull_data,
+            Vector<MeshRenderable>& opaque_renderables,
+            Vector<MeshRenderable>& transparent_renderables,
+            Vector<MeshRenderable>& line_renderables,
+            Vector<MeshRenderable>& point_renderables,
+            math::AABB& shadow_caster_world_bound)
+        {
+            struct RenderableBucket
+            {
+                Vector<MeshRenderable> opaque;
+                Vector<MeshRenderable> transparent;
+                Vector<MeshRenderable> line;
+                Vector<MeshRenderable> point;
+                math::AABB caster_bound;
+            };
+
+            jobsystem::Context sub_ctx;
+
+            const auto geometry_array = scene.GetComponentArray<GeometryComponent>().get();
+            const auto material_array = scene.GetComponentArray<MaterialComponent>().get();
+            const auto transform_array = scene.GetComponentArray<TransformComponent>().get();
+            const auto animation_array = scene.GetComponentArray<AnimationComponent>().get();
+            const auto layer_array = scene.GetComponentArray<VisibilityLayerComponent>().get();
+            const auto terrain_array = scene.GetComponentArray<TerrainComponent>().get();
+
+            opaque_renderables.clear();
+            transparent_renderables.clear();
+            line_renderables.clear();
+            point_renderables.clear();
+
+            const uint32 job_count = static_cast<uint32>(geometry_array->GetSize());
+            Vector<RenderableBucket> renderable_buckets(jobsystem::DispatchGroupCount(job_count, jobsystem::groupsize));
+            for (RenderableBucket& bucket : renderable_buckets)
+            {
+                bucket.caster_bound.Invalidate();
+            }
+
+            jobsystem::Dispatch(sub_ctx, job_count, jobsystem::groupsize, [&](jobsystem::JobArgs args) {
+                RenderableBucket& bucket = renderable_buckets[args.group_id];
+
+                const Entity entity = geometry_array->index_to_entity[args.job_index];
+                if ((terrain_array && terrain_array->HasData(entity)) || !transform_array->HasData(entity) || !material_array->HasData(entity))
+                {
+                    return;
+                }
+                const TransformComponent& transform = transform_array->GetData(entity);
+                const math::AABB* skinned_local_bounds = nullptr;
+                if (animation_array && animation_array->HasData(entity))
+                {
+                    const AnimationComponent& animation = animation_array->GetData(entity);
+                    if (!animation.bone_matrices.empty() && animation.skinned_local_bounds.IsValid())
+                    {
+                        skinned_local_bounds = &animation.skinned_local_bounds;
                     }
                 }
 
-                if (geometry_array->HasData(entity) && material_array->HasData(entity))
+                const GeometryComponent& geometry_comp = geometry_array->data[args.job_index];
+                const MaterialComponent& material_comp = material_array->GetData(entity);
+                if (geometry_comp.mesh && material_comp.material)
                 {
-                    const GeometryComponent& geometry_comp = geometry_array->GetData(entity);
-                    const MaterialComponent& material_comp = material_array->GetData(entity);
-                    if (!geometry_comp.mesh || !material_comp.material)
-                    {
-                        return;
-                    }
-
                     const resource::Mesh::RenderData& mesh_render_data = geometry_comp.mesh->render_data;
                     if (!mesh_render_data.IsValid())
                     {
@@ -418,14 +647,11 @@ namespace won::rendering
                         }
 
                         const resource::MaterialSlot& material_slot = material_comp.material->slots[submesh.material_slot];
-                        Renderable renderable = {};
+                        MeshRenderable renderable = {};
                         renderable.entity = entity;
-                        ObjectPushConstants& push_constants = renderable.push_constants;
-                        push_constants.Init();
-                        push_constants.geometry_index = geometry_comp.geometry_offset + (uint)i;
-                        push_constants.material_index = material_comp.material_offset + submesh.material_slot;
-						push_constants.draw_offset = (uint)args.job_index;
-
+                        renderable.transform_index = static_cast<uint32>(transform_array->entity_to_index.at(entity));
+                        renderable.geometry_index = geometry_comp.geometry_offset + static_cast<uint32>(i);
+                        renderable.material_index = material_comp.material_offset + submesh.material_slot;
                         renderable.index_buffer = mesh_render_data.buffer.get();
                         renderable.index_buffer_offset = mesh_render_data.indices.offset;
                         renderable.index_buffer_size = mesh_render_data.indices.size;
@@ -436,17 +662,17 @@ namespace won::rendering
                             ? submesh.local_bounds.TransformAABB(transform.world_transform)
                             : world_aabb;
                         renderable.primitive_topology = submesh.primitive_topology;
-                        renderable.shader_type = static_cast<uint32>(material_slot.material_type);
-                        renderable.blend_mode = material_slot.blend_mode;
-                        renderable.flags = Renderable::None;
+                        renderable.shader_type = static_cast<uint32>(material_slot.settings.material_type);
+                        renderable.blend_mode = material_slot.settings.blend_mode;
+                        renderable.flags = MeshRenderable::None;
                         renderable.layer_mask = (layer_array && layer_array->HasData(entity)) ? layer_array->GetData(entity).layer_mask : 0xFFFFFFFF;
                         if (geometry_comp.IsCastShadow())
                         {
-                            renderable.flags |= Renderable::CastShadow;
+                            renderable.flags |= MeshRenderable::CastShadow;
                         }
-                        if (material_slot.double_sided)
+                        if (material_slot.settings.double_sided)
                         {
-                            renderable.flags |= Renderable::DoubleSided;
+                            renderable.flags |= MeshRenderable::DoubleSided;
                         }
 
                         if (submesh.primitive_topology == resource::PrimitiveTopology::LineList)
@@ -502,7 +728,7 @@ namespace won::rendering
             opaque_cull_data.resize(opaque_renderables.size());
             for (Size renderable_index = 0; renderable_index < opaque_renderables.size(); ++renderable_index)
             {
-                const Renderable& renderable = opaque_renderables[renderable_index];
+                const MeshRenderable& renderable = opaque_renderables[renderable_index];
                 GPUScene::RenderableCullData& cull_data = opaque_cull_data[renderable_index];
                 cull_data.aabb = renderable.aabb;
                 cull_data.layer_mask = renderable.layer_mask;
@@ -641,7 +867,7 @@ namespace won::rendering
                             renderable.aabb.max.z = std::max(renderable.aabb.max.z, wc.z);
                         }
                     }
-                    renderable.blend_mode = material_slot.blend_mode;
+                    renderable.blend_mode = material_slot.settings.blend_mode;
                     if (material_slot.IsTransparent())
                     {
                         renderable.flags |= Sprite3DRenderable::Transparent;
@@ -1047,7 +1273,7 @@ namespace won::rendering
 
                 const float lifetime = emitter.lifetime > 0.0001f ? emitter.lifetime : 0.0001f;
                 const uint32 material_index = material.material_offset;
-                const resource::MaterialBlendMode blend_mode = material.material->slots[0].blend_mode;
+                const resource::MaterialBlendMode blend_mode = material.material->slots[0].settings.blend_mode;
 
                 for (const ParticleEmitter3DComponent::Particle& particle : emitter.particles)
                 {
@@ -1504,6 +1730,7 @@ namespace won::rendering
         const bool light_dirty = (dirty & ecs::light_component_mask) != 0;
         const bool geometry_dirty = (dirty & ecs::geometry_component_mask) != 0;
         const bool material_dirty = (dirty & ecs::material_component_mask) != 0;
+        const bool terrain_dirty = (dirty & ecs::terrain_component_mask) != 0;
         const bool animation_dirty = (dirty & ecs::animation_component_mask) != 0;
 
         jobsystem::Context extract_ctx;
@@ -1515,15 +1742,24 @@ namespace won::rendering
         {
             jobsystem::Execute(extract_ctx, [&](jobsystem::JobArgs) { ExtractBones(scene, shader_bone_matrices); });
         }
-        if (geometry_dirty)
+        if (geometry_dirty || terrain_dirty)
         {
-            jobsystem::Execute(extract_ctx, [&](jobsystem::JobArgs) { ExtractGeometries(scene, shader_geometries); });
+            jobsystem::Execute(extract_ctx, [&](jobsystem::JobArgs)
+            {
+                mesh_geometry_count = ExtractGeometries(scene, shader_geometries);
+            });
         }
-        if (material_dirty)
+        if (material_dirty || terrain_dirty)
         {
-            jobsystem::Execute(extract_ctx, [&](jobsystem::JobArgs) { ExtractMaterials(scene, shader_materials); });
+            jobsystem::Execute(extract_ctx, [&](jobsystem::JobArgs)
+            {
+                mesh_material_count = ExtractMaterials(scene, shader_materials);
+            });
         }
         jobsystem::Wait(extract_ctx);
+
+        shader_geometries.resize(mesh_geometry_count);
+        shader_materials.resize(mesh_material_count);
 
         Vector<Sprite2DRenderable> text_sprite_2d;
         Vector<Sprite3DRenderable> text_sprite_3d;
@@ -1539,7 +1775,14 @@ namespace won::rendering
         }
 
         jobsystem::Context project_ctx;
-        jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractRenderables(scene, shader_transforms, shader_previous_transforms, transform_history, transform_history_layout_matches, opaque_cull_data, opaque_renderables, transparent_renderables, line_renderables, point_renderables, shadow_caster_world_bound); });
+        jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs)
+        {
+            ExtractTransforms(scene, transform_history, transform_history_layout_matches, shader_transforms, shader_previous_transforms);
+        });
+        jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs)
+        {
+            ExtractMeshRenderables(scene, opaque_cull_data, opaque_renderables, transparent_renderables, line_renderables, point_renderables, shadow_caster_world_bound);
+        });
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractSprites(scene, sprite_2d_renderables, sprite_3d_renderables); });
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractText(scene, text_sprite_2d, text_sprite_3d, glyph_requests); });
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractParticles(scene, particle_instances, particle_sprite_3d); });
@@ -1547,6 +1790,9 @@ namespace won::rendering
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractWater(scene, water.shader_zones, water.shader_bodies, water.injections); });
         jobsystem::Execute(project_ctx, [&](jobsystem::JobArgs) { ExtractEnvironment(scene, shader_environment, shader_ddgi_volume, shader_reflection_probe, ddgi_volume_entity, derived_sun, has_derived_sun, direct_sun_shadow); });
         jobsystem::Wait(project_ctx);
+
+        ExtractTerrains(scene, mesh_material_count, shader_geometries, shader_materials, shader_terrains, shader_terrain_layers,
+            terrain_opaque_cull_data, terrain_opaque_renderables, terrain_transparent_renderables, shadow_caster_world_bound);
 
         transform_history.world_transforms.resize(transform_count);
         if (!transform_history_layout_matches)
