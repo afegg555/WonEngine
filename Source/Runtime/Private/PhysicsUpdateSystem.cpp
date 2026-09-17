@@ -2,13 +2,15 @@
 #include "Backlog.h"
 #include "Scene.h"
 #include "PhysicsWorld.h"
-#include "TerrainGenerator.h"
+#include "TerrainData.h"
 #include "JobSystem.h"
 
 using namespace DirectX;
 
 namespace won::ecs
 {
+    using namespace terrain;
+
     void PhysicsUpdateSystem::Update(Scene& scene, float delta_time)
     {
         auto collider_array = scene.GetComponentArray<Collider3DComponent>().get();
@@ -28,19 +30,23 @@ namespace won::ecs
             if (collider.shape_type == Collider3DComponent::ShapeType::HeightField)
             {
                 TerrainComponent* terrain = scene.GetComponent<TerrainComponent>(entity);
-                if (!terrain)
+                if (!terrain || !terrain->data)
                 {
                     return;
                 }
-                const TerrainHeightField height_field = GenerateTerrainHeights(*terrain);
+                TerrainData& terrain_data = *terrain->data;
+                if (terrain_data.final_heights.size() != static_cast<Size>(terrain_data.samples_x) * terrain_data.samples_z)
+                {
+                    return;
+                }
                 physics::PhysicsWorld::HeightFieldShapeDesc desc = {};
-                desc.samples = height_field.heights.data();
-                desc.samples_x = height_field.samples_x;
-                desc.samples_z = height_field.samples_z;
-                desc.cell_x = height_field.cell_x;
-                desc.cell_z = height_field.cell_z;
-                desc.offset_x = height_field.offset_x;
-                desc.offset_z = height_field.offset_z;
+                desc.samples = terrain_data.final_heights.data();
+                desc.samples_x = terrain_data.samples_x;
+                desc.samples_z = terrain_data.samples_z;
+                desc.cell_x = terrain_data.cell_x;
+                desc.cell_z = terrain_data.cell_z;
+                desc.offset_x = terrain_data.offset_x;
+                desc.offset_z = terrain_data.offset_z;
                 physics_world->AddBody(entity, transform, collider, rb, collision_layer, &desc);
                 return;
             }

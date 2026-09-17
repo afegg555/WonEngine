@@ -148,14 +148,18 @@ namespace won::editor::editor_key
     constexpr const char* label_area_size = "editor.label.area_size";
     constexpr const char* label_asset = "editor.label.asset";
     constexpr const char* label_asset_font = "editor.label.asset_font";
+    constexpr const char* label_asset_game_data = "editor.label.asset_game_data";
+    constexpr const char* label_asset_input_action = "editor.label.asset_input_action";
     constexpr const char* label_asset_material = "editor.label.asset_material";
     constexpr const char* label_asset_mesh = "editor.label.asset_mesh";
     constexpr const char* label_asset_needs_reimport = "editor.label.asset_needs_reimport";
+    constexpr const char* label_asset_navmesh = "editor.label.asset_navmesh";
     constexpr const char* label_asset_prefab = "editor.label.asset_prefab";
     constexpr const char* label_asset_scene = "editor.label.asset_scene";
     constexpr const char* label_asset_script = "editor.label.asset_script";
     constexpr const char* label_asset_shader = "editor.label.asset_shader";
     constexpr const char* label_asset_sound = "editor.label.asset_sound";
+    constexpr const char* label_asset_terrain = "editor.label.asset_terrain";
     constexpr const char* label_asset_texture = "editor.label.asset_texture";
     constexpr const char* label_assigned = "editor.label.assigned";
     constexpr const char* label_auto_exposure = "editor.label.auto_exposure";
@@ -457,6 +461,7 @@ namespace won::editor::editor_key
     constexpr const char* window_profiler = "editor.window.profiler";
     constexpr const char* window_project_localization = "editor.window.project_localization";
     constexpr const char* window_project_settings = "editor.window.project_settings";
+    constexpr const char* window_terrain_tools = "editor.window.terrain_tools";
     constexpr const char* window_save_current_scene = "editor.window.save_current_scene";
     constexpr const char* window_viewport = "editor.window.viewport";
 }

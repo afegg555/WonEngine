@@ -9,6 +9,8 @@ namespace won::resource
     {
         VSFullTriangle,
         VSObjectCommon,
+        VSTerrainCommon,
+        VSTerrainSimple,
         VSObjectSimple,
         VSObjectPrepass,
         VSObjectNormal,
@@ -81,6 +83,13 @@ namespace won::resource
         CSTextureBC4Compress,
         CSTextureBC5Compress,
 
+        PSTerrainForward,
+        PSTerrainForwardPlus,
+        PSTerrainUnlit,
+        PSTerrainForwardMasked,
+        PSTerrainForwardPlusMasked,
+        PSTerrainUnlitMasked,
+
         Count
     };
 
@@ -90,6 +99,8 @@ namespace won::resource
         {
         case ShaderId::VSFullTriangle: return "VSFullTriangle";
         case ShaderId::VSObjectCommon: return "VSObjectCommon";
+        case ShaderId::VSTerrainCommon: return "VSTerrainCommon";
+        case ShaderId::VSTerrainSimple: return "VSTerrainSimple";
         case ShaderId::VSObjectSimple: return "VSObjectSimple";
         case ShaderId::VSObjectPrepass: return "VSObjectPrepass";
         case ShaderId::VSObjectNormal: return "VSObjectNormal";
@@ -159,6 +170,12 @@ namespace won::resource
         case ShaderId::CSTextureBC3Compress: return "CSTextureBC3Compress";
         case ShaderId::CSTextureBC4Compress: return "CSTextureBC4Compress";
         case ShaderId::CSTextureBC5Compress: return "CSTextureBC5Compress";
+        case ShaderId::PSTerrainForward: return "PSTerrainForward";
+        case ShaderId::PSTerrainForwardPlus: return "PSTerrainForwardPlus";
+        case ShaderId::PSTerrainUnlit: return "PSTerrainUnlit";
+        case ShaderId::PSTerrainForwardMasked: return "PSTerrainForwardMasked";
+        case ShaderId::PSTerrainForwardPlusMasked: return "PSTerrainForwardPlusMasked";
+        case ShaderId::PSTerrainUnlitMasked: return "PSTerrainUnlitMasked";
         case ShaderId::Count: return "Unknown";
         }
         return "Unknown";

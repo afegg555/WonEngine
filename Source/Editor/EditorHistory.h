@@ -1,6 +1,7 @@
 #pragma once
 #include "Entity.h"
 #include "ReflectionTypes.h"
+#include "TerrainData.h"
 #include "Types.h"
 
 #include <memory>
@@ -16,6 +17,10 @@ namespace won::editor
     {
         ecs::Scene* scene = nullptr;
         String content_root;
+
+        bool terrain_rebuild_mesh = false;
+        bool terrain_reload_materials = false;
+        bool terrain_rebuild_control_map = false;
     };
 
     class EditorCommand
@@ -32,6 +37,73 @@ namespace won::editor
         won::TypeId type_id = 0;
         bool existed = false;
         String blob;
+    };
+
+    struct TerrainSampleState
+    {
+        Size index = 0;
+        float height_delta = 0.0f;
+        uint8 flatten_mask = 0;
+        float flatten_height = 0.0f;
+    };
+
+    struct TerrainSampleChange
+    {
+        TerrainSampleState before;
+        TerrainSampleState after;
+    };
+
+    struct TerrainMaterialSampleState
+    {
+        Size index = 0;
+        Vector<uint8> weights;
+    };
+
+    struct TerrainMaterialSampleChange
+    {
+        TerrainMaterialSampleState before;
+        TerrainMaterialSampleState after;
+    };
+
+    struct TerrainMaterialState
+    {
+        uint32 samples_x = 0;
+        uint32 samples_z = 0;
+        resource::MaterialSettings settings;
+        Vector<terrain::TerrainMaterialLayer> layers;
+        Vector<Vector<uint8>> weights;
+    };
+
+    class TerrainEditCommand : public EditorCommand
+    {
+    public:
+        TerrainEditCommand(ecs::Entity entity, String terrain_data_path, Vector<TerrainSampleChange> sample_changes, String name);
+        TerrainEditCommand(ecs::Entity entity, String terrain_data_path, Vector<terrain::TerrainSpline> before_splines, Vector<terrain::TerrainSpline> after_splines, String name);
+        TerrainEditCommand(ecs::Entity entity, String terrain_data_path, Vector<TerrainMaterialSampleChange> material_sample_changes, String name);
+        TerrainEditCommand(ecs::Entity entity, String terrain_data_path, TerrainMaterialState before_material, TerrainMaterialState after_material, String name);
+
+        ecs::Entity Undo(EditorContext& context) override;
+        ecs::Entity Redo(EditorContext& context) override;
+        const String& GetName() const override
+        {
+            return name;
+        }
+
+    private:
+        ecs::Entity Apply(EditorContext& context, bool use_before);
+
+        ecs::Entity entity = ecs::INVALID_ENTITY;
+        String terrain_data_path;
+        Vector<TerrainSampleChange> sample_changes;
+        Vector<terrain::TerrainSpline> before_splines;
+        Vector<terrain::TerrainSpline> after_splines;
+        Vector<TerrainMaterialSampleChange> material_sample_changes;
+        TerrainMaterialState before_material;
+        TerrainMaterialState after_material;
+        String name;
+        bool replaces_splines = false;
+        bool replaces_material = false;
+        bool edits_material_weights = false;
     };
 
     class ComponentEditCommand : public EditorCommand
@@ -84,6 +156,10 @@ namespace won::editor
 
         void PushComponentEdit(ecs::Scene& scene, ecs::Entity entity, Vector<ComponentState> before, const String& fallback_name);
         void PushEntityLifetime(ecs::Scene& scene, ecs::Entity root, String before_blob, String name);
+        void PushTerrainSamples(ecs::Entity entity, String terrain_data_path, Vector<TerrainSampleChange> changes, String name);
+        void PushTerrainSplines(ecs::Entity entity, String terrain_data_path, Vector<terrain::TerrainSpline> before, Vector<terrain::TerrainSpline> after, String name);
+        void PushTerrainMaterialSamples(ecs::Entity entity, String terrain_data_path, Vector<TerrainMaterialSampleChange> changes, String name);
+        void PushTerrainMaterial(ecs::Entity entity, String terrain_data_path, TerrainMaterialState before, TerrainMaterialState after, String name);
 
         ecs::Entity Undo(EditorContext& context);
         ecs::Entity Redo(EditorContext& context);

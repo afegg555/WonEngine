@@ -140,7 +140,7 @@ namespace won::serialize
                         }
                         else
                         {
-                            WriteReflectedData(archive, field.value_type, nullptr, field.size, field.array_desc, field_value, entity_refs);
+                            WriteReflectedData(archive, field.value_type, reflection::FindType(field.type_id), field.size, field.array_desc, field_value, entity_refs);
                         }
                         archive.EndField();
                     }
@@ -239,7 +239,7 @@ namespace won::serialize
                         }
                         else
                         {
-                            ReadReflectedData(archive, field->value_type, nullptr, field->size, field->array_desc, field_value, entity_refs);
+                            ReadReflectedData(archive, field->value_type, reflection::FindType(field->type_id), field->size, field->array_desc, field_value, entity_refs);
                         }
                         archive.EndField();
                     }
@@ -547,7 +547,6 @@ namespace won::serialize
                         {
                             const ecs::MaterialComponent* material_comp = static_cast<const ecs::MaterialComponent*>(component);
                             const won::TypeDesc* material_slot_type = reflection::TypeMeta<resource::MaterialSlot>::Get();
-                            const won::TypeDesc* texture_map_type = reflection::TypeMeta<resource::MaterialSlot::TextureMap>::Get();
 
                             uint32 material_index = invalid_resource_index;
                             if (!material_comp->material_asset_path.empty())
@@ -591,70 +590,9 @@ namespace won::serialize
                                     slot_field_stream << "0x" << std::hex << std::uppercase << slot_field.field_id;
                                     const String slot_field_key = slot_field_stream.str();
                                     const void* slot_field_value = static_cast<const uint8*>(static_cast<const void*>(&material_slot)) + slot_field.offset;
-                                    if (slot_field.name && std::strcmp(slot_field.name, "textures") == 0)
+                                    if (archive.BeginField(slot_field_key.c_str()))
                                     {
-                                        if (archive.BeginField(slot_field_key.c_str()))
-                                        {
-                                            archive.BeginArray();
-                                            for (const resource::MaterialSlot::TextureMap& texture_map : material_slot.textures)
-                                            {
-                                                archive.BeginItem();
-                                                archive.BeginObject();
-                                                for (uint32 texture_field_index = 0; texture_map_type && texture_map_type->fields && texture_field_index < texture_map_type->field_count; ++texture_field_index)
-                                                {
-                                                    const won::FieldDesc& texture_field = texture_map_type->fields[texture_field_index];
-                                                    if (texture_field.struct_size < sizeof(won::FieldDesc) || texture_field.field_id == 0 || (texture_field.flags & won::FieldFlagSerializable) == 0)
-                                                    {
-                                                        continue;
-                                                    }
-                                                    if (texture_field.offset > texture_map_type->size || texture_field.size > texture_map_type->size - texture_field.offset)
-                                                    {
-                                                        continue;
-                                                    }
-
-                                                    std::ostringstream texture_field_stream;
-                                                    texture_field_stream << "0x" << std::hex << std::uppercase << texture_field.field_id;
-                                                    const String texture_field_key = texture_field_stream.str();
-                                                    const void* texture_field_value = static_cast<const uint8*>(static_cast<const void*>(&texture_map)) + texture_field.offset;
-                                                    if (archive.BeginField(texture_field_key.c_str()))
-                                                    {
-                                                        if (texture_field.name && std::strcmp(texture_field.name, "texture_asset_path") == 0)
-                                                        {
-                                                            const String& path = *static_cast<const String*>(texture_field_value);
-                                                            uint32 resource_index = invalid_resource_index;
-                                                            if (!path.empty())
-                                                            {
-                                                                auto resource_it = texture_resource_indices.find(path);
-                                                                if (resource_it != texture_resource_indices.end())
-                                                                {
-                                                                    resource_index = resource_it->second;
-                                                                }
-                                                                else
-                                                                {
-                                                                    resource_index = static_cast<uint32>(texture_resources.size());
-                                                                    texture_resources.push_back(path);
-                                                                    texture_resource_indices[path] = resource_index;
-                                                                }
-                                                            }
-                                                            archive.Value(resource_index);
-                                                        }
-                                                        else
-                                                        {
-                                                            WriteReflectedData(archive, texture_field.value_type, nullptr, texture_field.size, texture_field.array_desc, texture_field_value);
-                                                        }
-                                                        archive.EndField();
-                                                    }
-                                                }
-                                                archive.EndObject();
-                                                archive.EndItem();
-                                            }
-                                            archive.EndArray();
-                                            archive.EndField();
-                                        }
-                                    }
-                                    else if (archive.BeginField(slot_field_key.c_str()))
-                                    {
-                                        WriteReflectedData(archive, slot_field.value_type, nullptr, slot_field.size, slot_field.array_desc, slot_field_value);
+                                        WriteReflectedData(archive, slot_field.value_type, reflection::FindType(slot_field.type_id), slot_field.size, slot_field.array_desc, slot_field_value);
                                         archive.EndField();
                                     }
                                 }
@@ -972,7 +910,9 @@ namespace won::serialize
                                             {
                                                 ecs::MaterialComponent* material_comp = static_cast<ecs::MaterialComponent*>(component);
                                                 const won::TypeDesc* material_slot_type = reflection::TypeMeta<resource::MaterialSlot>::Get();
-                                                const won::TypeDesc* texture_map_type = reflection::TypeMeta<resource::MaterialSlot::TextureMap>::Get();
+                                                const won::TypeDesc* material_settings_type = reflection::TypeMeta<resource::MaterialSettings>::Get();
+                                                const won::TypeDesc* material_attributes_type = reflection::TypeMeta<resource::MaterialAttributes>::Get();
+                                                const won::TypeDesc* texture_map_type = reflection::TypeMeta<resource::MaterialTextureMap>::Get();
                                                 auto material = std::make_shared<resource::Material>();
                                                 uint32 material_index = invalid_resource_index;
                                                 archive.BeginObject();
@@ -1000,6 +940,8 @@ namespace won::serialize
                                                             {
                                                                 const won::FieldId slot_field_id = static_cast<won::FieldId>(std::strtoull(slot_field_key.c_str(), nullptr, 0));
                                                                 const won::FieldDesc* slot_field = nullptr;
+                                                                const won::TypeDesc* slot_field_owner_type = material_slot_type;
+                                                                void* slot_field_owner = &material_slot;
                                                                 for (uint32 slot_field_index = 0; material_slot_type && material_slot_type->fields && slot_field_index < material_slot_type->field_count; ++slot_field_index)
                                                                 {
                                                                     const won::FieldDesc& candidate = material_slot_type->fields[slot_field_index];
@@ -1009,12 +951,40 @@ namespace won::serialize
                                                                         break;
                                                                     }
                                                                 }
-                                                                if (!slot_field || slot_field->offset > material_slot_type->size || slot_field->size > material_slot_type->size - slot_field->offset)
+                                                                if (!slot_field)
+                                                                {
+                                                                    for (uint32 field_index = 0; material_settings_type && material_settings_type->fields && field_index < material_settings_type->field_count; ++field_index)
+                                                                    {
+                                                                        const won::FieldDesc& candidate = material_settings_type->fields[field_index];
+                                                                        if (candidate.struct_size >= sizeof(won::FieldDesc) && candidate.field_id == slot_field_id && (candidate.flags & won::FieldFlagSerializable) != 0)
+                                                                        {
+                                                                            slot_field = &candidate;
+                                                                            slot_field_owner_type = material_settings_type;
+                                                                            slot_field_owner = &material_slot.settings;
+                                                                            break;
+                                                                        }
+                                                                    }
+                                                                }
+                                                                if (!slot_field)
+                                                                {
+                                                                    for (uint32 field_index = 0; material_attributes_type && material_attributes_type->fields && field_index < material_attributes_type->field_count; ++field_index)
+                                                                    {
+                                                                        const won::FieldDesc& candidate = material_attributes_type->fields[field_index];
+                                                                        if (candidate.struct_size >= sizeof(won::FieldDesc) && candidate.field_id == slot_field_id && (candidate.flags & won::FieldFlagSerializable) != 0)
+                                                                        {
+                                                                            slot_field = &candidate;
+                                                                            slot_field_owner_type = material_attributes_type;
+                                                                            slot_field_owner = &material_slot.attributes;
+                                                                            break;
+                                                                        }
+                                                                    }
+                                                                }
+                                                                if (!slot_field || slot_field->offset > slot_field_owner_type->size || slot_field->size > slot_field_owner_type->size - slot_field->offset)
                                                                 {
                                                                     continue;
                                                                 }
 
-                                                                void* slot_field_value = static_cast<uint8*>(static_cast<void*>(&material_slot)) + slot_field->offset;
+                                                                void* slot_field_value = static_cast<uint8*>(slot_field_owner) + slot_field->offset;
                                                                 if (!archive.BeginField(slot_field_key.c_str()))
                                                                 {
                                                                     continue;
@@ -1034,7 +1004,7 @@ namespace won::serialize
 
                                                                             if (texture_index < TEXTURESLOT_COUNT && archive.BeginObject())
                                                                             {
-                                                                                resource::MaterialSlot::TextureMap& texture_map = material_slot.textures[texture_index];
+                                                                                resource::MaterialTextureMap& texture_map = material_slot.attributes.textures[texture_index];
                                                                                 Vector<String> texture_field_keys = archive.GetObjectKeys();
                                                                                 for (const String& texture_field_key : texture_field_keys)
                                                                                 {
@@ -1081,7 +1051,7 @@ namespace won::serialize
                                                                 }
                                                                 else
                                                                 {
-                                                                    ReadReflectedData(archive, slot_field->value_type, nullptr, slot_field->size, slot_field->array_desc, slot_field_value);
+                                                                    ReadReflectedData(archive, slot_field->value_type, reflection::FindType(slot_field->type_id), slot_field->size, slot_field->array_desc, slot_field_value);
                                                                 }
                                                                 archive.EndField();
                                                             }

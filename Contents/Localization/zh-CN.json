@@ -34,6 +34,10 @@
             "source": "Inspector",
             "text": "检查器"
         },
+        "editor.window.terrain_tools": {
+            "source": "Terrain Tools",
+            "text": "地形工具"
+        },
         "editor.window.log": {
             "source": "Log",
             "text": "日志"
@@ -369,6 +373,22 @@
         "editor.label.asset_mesh": {
             "source": "Mesh",
             "text": "网格"
+        },
+        "editor.label.asset_terrain": {
+            "source": "Terrain",
+            "text": "地形"
+        },
+        "editor.label.asset_navmesh": {
+            "source": "NavMesh",
+            "text": "导航网格"
+        },
+        "editor.label.asset_input_action": {
+            "source": "Input Action",
+            "text": "输入操作"
+        },
+        "editor.label.asset_game_data": {
+            "source": "Game Data",
+            "text": "游戏数据"
         },
         "editor.label.asset_scene": {
             "source": "Scene",

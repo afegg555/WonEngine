@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 project(WonEngine LANGUAGES C CXX)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "Build")
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -201,8 +202,8 @@ set(RUNTIME_RESOURCE
     Source/Runtime/Public/Material.h
     Source/Runtime/Public/Sound.h
     Source/Runtime/Public/Mesh.h
-    Source/Runtime/Public/TerrainGenerator.h
-    Source/Runtime/Private/TerrainGenerator.cpp
+    Source/Runtime/Public/TerrainData.h
+    Source/Runtime/Private/TerrainData.cpp
     Source/Runtime/Public/SoftBodyGenerator.h
     Source/Runtime/Private/SoftBodyGenerator.cpp
     Source/Runtime/Public/NavMesh.h
@@ -554,6 +555,16 @@ set(SHADERS_HLSL
     Source/Shaders/ObjectPS_motion_masked.hlsl
     Source/Shaders/ObjectPS_forward_masked.hlsl
     Source/Shaders/ObjectPS_forwardplus_masked.hlsl
+    Source/Shaders/TerrainCommon.hlsli
+    Source/Shaders/TerrainVS_common.hlsl
+    Source/Shaders/TerrainVS_simple.hlsl
+    Source/Shaders/TerrainPS.hlsli
+    Source/Shaders/TerrainPS_forward.hlsl
+    Source/Shaders/TerrainPS_forwardplus.hlsl
+    Source/Shaders/TerrainPS_unlit.hlsl
+    Source/Shaders/TerrainPS_forward_masked.hlsl
+    Source/Shaders/TerrainPS_forwardplus_masked.hlsl
+    Source/Shaders/TerrainPS_unlit_masked.hlsl
     Source/Shaders/ObjectPS_unlit_masked.hlsl
     Source/Shaders/SpritePS.hlsli
     Source/Shaders/SpritePS_default.hlsl
@@ -841,6 +852,7 @@ add_custom_target(GenerateVersionHeader
 )
 
 add_dependencies(Runtime GenerateVersionHeader)
+set_target_properties(GenerateVersionHeader PROPERTIES FOLDER "Build")
 target_include_directories(Runtime PRIVATE $<BUILD_INTERFACE:${WON_VERSION_GENERATED_DIR}>)
 
 target_link_libraries(Runtime PUBLIC Jolt)

@@ -15,7 +15,6 @@ namespace won::ecs
     {
         auto animation_array = scene.GetComponentArray<AnimationComponent>().get();
         auto geometry_array = scene.GetComponentArray<GeometryComponent>().get();
-        auto transform_array = scene.GetComponentArray<TransformComponent>().get();
         if (!animation_array || !geometry_array)
         {
             return;
@@ -287,22 +286,6 @@ namespace won::ecs
         });
 
         jobsystem::Wait(sub_ctx);
-
-        if (transform_array)
-        {
-            for (Size index = 0; index < animation_array->GetSize(); ++index)
-            {
-                const AnimationComponent& animation = animation_array->data[index];
-                const Entity entity = animation_array->index_to_entity[index];
-                if (animation.bone_matrices.empty() || !animation.skinned_local_bounds.IsValid() || !transform_array->HasData(entity))
-                {
-                    continue;
-                }
-
-                TransformComponent& transform = transform_array->GetData(entity);
-                transform.world_bounds = animation.skinned_local_bounds.TransformAABB(transform.world_transform);
-            }
-        }
 
         if (any_recomputed.load(std::memory_order_relaxed))
         {

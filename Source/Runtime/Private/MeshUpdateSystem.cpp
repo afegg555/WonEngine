@@ -1,7 +1,7 @@
 #include "MeshUpdateSystem.h"
 #include "Scene.h"
 #include "PhysicsWorld.h"
-#include "TerrainGenerator.h"
+#include "TerrainData.h"
 #include "SoftBodyGenerator.h"
 #include "RenderingUtils.h"
 #include "JobSystem.h"
@@ -22,13 +22,41 @@ namespace won::ecs
             {
                 const Entity entity = terrain_array->index_to_entity[args.job_index];
                 GeometryComponent* geometry = scene.GetComponent<GeometryComponent>(entity);
-                if (!geometry || geometry->mesh)
+                if (!geometry)
                 {
                     return;
                 }
 
-                auto mesh = GenerateTerrainMesh(terrain_array->data[args.job_index]);
-                geometry->SetMesh(mesh);
+                TerrainComponent& terrain = terrain_array->data[args.job_index];
+                if (!terrain.data)
+                {
+                    return;
+                }
+                if (terrain.data->render_data.mesh)
+                {
+                    if (geometry->mesh != terrain.data->render_data.mesh)
+                    {
+                        if (geometry->mesh_asset_path.empty() && geometry->mesh.use_count() == 1)
+                        {
+                            rendering::utils::EnqueueMeshRelease(geometry->mesh);
+                        }
+                        geometry->mesh_asset_path.clear();
+                        geometry->SetMesh(terrain.data->render_data.mesh);
+                    }
+                    return;
+                }
+                auto mesh = GenerateTerrainMesh(*terrain.data);
+                if (!mesh)
+                {
+                    return;
+                }
+                if (geometry->mesh_asset_path.empty() && geometry->mesh.use_count() == 1)
+                {
+                    rendering::utils::EnqueueMeshRelease(geometry->mesh);
+                }
+                geometry->mesh_asset_path.clear();
+                terrain.data->render_data.mesh = mesh;
+                geometry->SetMesh(terrain.data->render_data.mesh);
                 rendering::utils::EnqueueResourceUpload(mesh);
             });
             jobsystem::Wait(ctx);

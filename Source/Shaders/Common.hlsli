@@ -107,7 +107,9 @@ inline float Luminance(float3 linear_color) // Rec.709 relative luminance from l
         "SRV(t0, space = 214, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
         "SRV(t0, space = 215, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
         "SRV(t0, space = 216, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
-        "SRV(t0, space = 217, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE) " \
+        "SRV(t0, space = 217, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
+        "SRV(t0, space = 218, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE), " \
+        "SRV(t0, space = 219, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE) " \
     "), " \
     "StaticSampler(s100, addressU = TEXTURE_ADDRESS_CLAMP, addressV = TEXTURE_ADDRESS_CLAMP, addressW = TEXTURE_ADDRESS_CLAMP, filter = FILTER_MIN_MAG_MIP_LINEAR)," \
 	"StaticSampler(s101, addressU = TEXTURE_ADDRESS_WRAP, addressV = TEXTURE_ADDRESS_WRAP, addressW = TEXTURE_ADDRESS_WRAP, filter = FILTER_MIN_MAG_MIP_LINEAR)," \
@@ -279,6 +281,8 @@ StructuredBuffer<ShaderOcclusionBox> bindless_structured_occlusion_box[] : regis
 StructuredBuffer<ShaderDebugDraw2DItem> bindless_structured_debugdraw_2d_item[] : register(t0, space215);
 StructuredBuffer<ShaderSprite> bindless_structured_sprite[] : register(t0, space216);
 StructuredBuffer<ShaderPreviousTransform> bindless_structured_previous_transform[] : register(t0, space217);
+StructuredBuffer<ShaderTerrain> bindless_structured_terrain[] : register(t0, space218);
+StructuredBuffer<ShaderTerrainLayer> bindless_structured_terrain_layer[] : register(t0, space219);
 
 // static samplers
 SamplerState sampler_linear_clamp : register(s100);
@@ -344,7 +348,7 @@ inline ShaderPreviousTransform GetPreviousTransform(uint transform_index)
 #ifndef WON_DISABLE_RENDERER_PUSHCONSTANT
 inline ShaderTransform GetTransform()
 {
-    return GetTransform(push.draw_offset);
+    return GetTransform(push.instance_offset);
 }
 #endif
 
@@ -363,6 +367,16 @@ inline ShaderGeometry GetGeometry()
 inline ShaderMaterial GetMaterial(uint material_index)
 {
     return bindless_structured_material[DescriptorIndex(GetScene().materialbuffer)][material_index];
+}
+
+inline ShaderTerrain GetTerrain(uint terrain_index)
+{
+    return bindless_structured_terrain[DescriptorIndex(GetScene().terrain_buffer)][terrain_index];
+}
+
+inline ShaderTerrainLayer GetTerrainLayer(uint layer_index)
+{
+    return bindless_structured_terrain_layer[DescriptorIndex(GetScene().terrain_layer_buffer)][layer_index];
 }
 
 #ifndef WON_DISABLE_RENDERER_PUSHCONSTANT

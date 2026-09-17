@@ -23,7 +23,6 @@ namespace won::reflection
             static_assert(TypeMeta<T>::reflected, "WON_REFLECT_FIELD requires a reflected field type.");
             if constexpr (TypeMeta<T>::reflected)
             {
-                static_assert(TypeMeta<T>::desc.value_type != won::ValueType::CustomStruct, "Nested custom struct fields are not supported.");
                 return TypeMeta<T>::desc.value_type;
             }
             return won::ValueType::Unknown;

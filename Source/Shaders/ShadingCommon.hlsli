@@ -9,6 +9,12 @@
 
 //#define PCSS_SHADOW
 
+half3 DecodeTangentNormal(half2 encoded)
+{
+    half2 xy = encoded * 2.0h - 1.0h;
+    return half3(xy, sqrt(saturate(1.0h - dot(xy, xy))));
+}
+
 struct Surface
 {
     float3 P; // world space position

@@ -63,7 +63,9 @@ namespace won::resource
             uint64 shader_type : 4;
             uint64 blend_mode : 3;
             uint64 clustered : 1;
-            uint64 reserved : 35;
+            uint64 vertex_shader : 8;
+            uint64 pixel_shader : 8;
+            uint64 reserved : 19;
         };
 
         union Storage

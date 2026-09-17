@@ -117,6 +117,27 @@ namespace won::serialize
             }
         }
 
+        void SerializeBytes(const void* data, Size size)
+        {
+            if (size == 0)
+            {
+                return;
+            }
+            if (IsReadMode())
+            {
+                assert(false);
+                return;
+            }
+
+            const Size required_size = offset + size;
+            if (required_size > bytes.size())
+            {
+                bytes.resize(required_size);
+            }
+            std::memcpy(bytes.data() + offset, data, size);
+            offset += size;
+        }
+
         void Clear()
         {
             bytes.clear();
@@ -184,6 +205,24 @@ namespace won::serialize
         }
     }
 
+    template<typename T>
+    void Serialize(BinaryArchive& archive, const T& value)
+    {
+        if (archive.IsReadMode())
+        {
+            assert(false);
+            return;
+        }
+        if constexpr (std::is_arithmetic_v<T> || std::is_enum_v<T> || std::is_trivially_copyable_v<T>)
+        {
+            archive.SerializeBytes(&value, sizeof(T));
+        }
+        else
+        {
+            static_assert(std::is_trivially_copyable_v<T>, "Type is not serializable as const.");
+        }
+    }
+
     inline void Serialize(BinaryArchive& archive, String& value)
     {
         Size size = archive.IsWriteMode() ? value.size() : 0;
@@ -207,13 +246,18 @@ namespace won::serialize
 
     inline void Serialize(BinaryArchive& archive, const String& value)
     {
+        if (archive.IsReadMode())
+        {
+            assert(false);
+            return;
+        }
         Size size = value.size();
-        if (size == 0 || archive.IsReadMode())
+        Serialize(archive, size); // set size bytes
+        if (size == 0)
         {
             return;
         }
-        Serialize(archive, size); // set size bytes
-        archive.SerializeBytes((void*)value.data(), size);
+        archive.SerializeBytes(value.data(), size);
     }
 
     template<typename T>
@@ -241,12 +285,17 @@ namespace won::serialize
     template<typename T>
     void Serialize(BinaryArchive& archive, const Vector<T>& values)
     {
+        if (archive.IsReadMode())
+        {
+            assert(false);
+            return;
+        }
         Size count = values.size();
-        if (count == 0 || archive.IsReadMode())
+        Serialize(archive, count); // set size bytes
+        if (count == 0)
         {
             return;
         }
-        Serialize(archive, count); // set size bytes
         for (Size i = 0; i < count; ++i)
         {
             Serialize(archive, values[i]);

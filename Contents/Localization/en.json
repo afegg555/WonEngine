@@ -42,6 +42,11 @@
             "text": "Inspector",
             "comment": "window title"
         },
+        "editor.window.terrain_tools": {
+            "source": "Terrain Tools",
+            "text": "Terrain Tools",
+            "comment": "window title and Window menu item"
+        },
         "editor.window.log": {
             "source": "Log",
             "text": "Log",
@@ -570,6 +575,26 @@
         "editor.label.asset_mesh": {
             "source": "Mesh",
             "text": "Mesh",
+            "comment": "label"
+        },
+        "editor.label.asset_terrain": {
+            "source": "Terrain",
+            "text": "Terrain",
+            "comment": "label"
+        },
+        "editor.label.asset_navmesh": {
+            "source": "NavMesh",
+            "text": "NavMesh",
+            "comment": "label"
+        },
+        "editor.label.asset_input_action": {
+            "source": "Input Action",
+            "text": "Input Action",
+            "comment": "label"
+        },
+        "editor.label.asset_game_data": {
+            "source": "Game Data",
+            "text": "Game Data",
             "comment": "label"
         },
         "editor.label.asset_scene": {

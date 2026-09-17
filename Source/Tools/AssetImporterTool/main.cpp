@@ -483,19 +483,19 @@ struct COMInitializer
                 if (aiReturn_SUCCESS == aiGetMaterialColor(ai_mat, AI_MATKEY_COLOR_DIFFUSE, &c) ||
                     aiReturn_SUCCESS == aiGetMaterialColor(ai_mat, AI_MATKEY_BASE_COLOR, &c))
                 {
-                    slot.base_color = { c.r, c.g, c.b, c.a };
+                    slot.attributes.base_color = { c.r, c.g, c.b, c.a };
                 }
                 if (aiReturn_SUCCESS == aiGetMaterialFloat(ai_mat, AI_MATKEY_METALLIC_FACTOR, &v))
                 {
-                    slot.metallic = v;
+                    slot.attributes.metallic = v;
                 }
                 if (aiReturn_SUCCESS == aiGetMaterialFloat(ai_mat, AI_MATKEY_ROUGHNESS_FACTOR, &v))
                 {
-                    slot.roughness = v;
+                    slot.attributes.roughness = v;
                 }
                 if (aiReturn_SUCCESS == aiGetMaterialFloat(ai_mat, AI_MATKEY_ANISOTROPY_FACTOR, &v))
                 {
-                    slot.anisotropy = v;
+                    slot.attributes.anisotropy = v;
                 }
 
                 aiString alpha_mode;
@@ -505,36 +505,36 @@ struct COMInitializer
                     const std::string mode = alpha_mode.C_Str();
                     if (mode == "MASK")
                     {
-                        slot.blend_mode = resource::MaterialBlendMode::Masked;
+                        slot.settings.blend_mode = resource::MaterialBlendMode::Masked;
                     }
                     else if (mode == "BLEND")
                     {
-                        slot.blend_mode = resource::MaterialBlendMode::Transparent;
+                        slot.settings.blend_mode = resource::MaterialBlendMode::Transparent;
                     }
                 }
                 if (aiReturn_SUCCESS == aiGetMaterialFloat(ai_mat, AI_MATKEY_GLTF_ALPHACUTOFF, &v))
                 {
-                    slot.alpha_cutoff = v;
+                    slot.settings.alpha_cutoff = v;
                 }
 
                 // sheen
                 if (aiReturn_SUCCESS == aiGetMaterialColor(ai_mat, AI_MATKEY_SHEEN_COLOR_FACTOR, &c))
                 {
-                    slot.sheen_color = { c.r, c.g, c.b };
+                    slot.attributes.sheen_color = { c.r, c.g, c.b };
                 }
                 if (aiReturn_SUCCESS == aiGetMaterialFloat(ai_mat, AI_MATKEY_SHEEN_ROUGHNESS_FACTOR, &v))
                 {
-                    slot.sheen_roughness = v;
+                    slot.attributes.sheen_roughness = v;
                 }
 
                 // clearcoat
                 if (aiReturn_SUCCESS == aiGetMaterialFloat(ai_mat, AI_MATKEY_CLEARCOAT_FACTOR, &v))
                 {
-                    slot.clearcoat = v;
+                    slot.attributes.clearcoat = v;
                 }
                 if (aiReturn_SUCCESS == aiGetMaterialFloat(ai_mat, AI_MATKEY_CLEARCOAT_ROUGHNESS_FACTOR, &v))
                 {
-                    slot.clearcoat_roughness = v;
+                    slot.attributes.clearcoat_roughness = v;
                 }
 
                 String tex_paths[TEXTURESLOT_COUNT] = {};
@@ -1036,7 +1036,7 @@ struct COMInitializer
                                 const DirectX::Image* base_mip = dds.GetImage(0, 0, 0);
                                 base_color_cutout[candidate_asset_path] = tex_data.texture_slot == BASECOLORMAP
                                     && base_mip != nullptr
-                                    && HasCutoutAlpha(*base_mip, material_slots[tex_data.material_index].alpha_cutoff);
+                                    && HasCutoutAlpha(*base_mip, material_slots[tex_data.material_index].settings.alpha_cutoff);
                             }
                             else
                             {
@@ -1065,7 +1065,7 @@ struct COMInitializer
                                     base_color_cutout[candidate_asset_path] = tex_data.texture_slot == BASECOLORMAP
                                         && image->channels == 4
                                         && HasCutoutAlpha(image->pixels.data(), image->pixels.size(),
-                                            material_slots[tex_data.material_index].alpha_cutoff);
+                                            material_slots[tex_data.material_index].settings.alpha_cutoff);
                                 }
                                 else
                                 {
@@ -1129,7 +1129,7 @@ struct COMInitializer
                             base_color_cutout[texture_asset_path] = tex_data.texture_slot == BASECOLORMAP
                                 && image->channels == 4
                                 && HasCutoutAlpha(image->pixels.data(), image->pixels.size(),
-                                    material_slots[tex_data.material_index].alpha_cutoff);
+                                    material_slots[tex_data.material_index].settings.alpha_cutoff);
                         }
                     }
                 }
@@ -1137,16 +1137,16 @@ struct COMInitializer
                 if (!texture_asset_path.empty())
                 {
                     resource::MaterialSlot& target_slot = material_slots[tex_data.material_index];
-                    target_slot.textures[tex_data.texture_slot].texture_asset_path = texture_asset_path;
+                    target_slot.attributes.textures[tex_data.texture_slot].texture_asset_path = texture_asset_path;
 
                     const bool has_alpha_mode = tex_data.material_index < data.materials.size()
                         && data.materials[tex_data.material_index].has_alpha_mode;
                     auto cutout_it = base_color_cutout.find(texture_asset_path);
                     if (tex_data.texture_slot == BASECOLORMAP && !has_alpha_mode
                         && cutout_it != base_color_cutout.end() && cutout_it->second
-                        && target_slot.blend_mode == resource::MaterialBlendMode::Opaque)
+                        && target_slot.settings.blend_mode == resource::MaterialBlendMode::Opaque)
                     {
-                        target_slot.blend_mode = resource::MaterialBlendMode::Masked;
+                        target_slot.settings.blend_mode = resource::MaterialBlendMode::Masked;
                     }
                 }
             }

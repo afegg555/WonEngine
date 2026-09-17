@@ -42,6 +42,11 @@
             "text": "인스펙터",
             "comment": "window title"
         },
+        "editor.window.terrain_tools": {
+            "source": "Terrain Tools",
+            "text": "지형 도구",
+            "comment": "window title and Window menu item"
+        },
         "editor.window.log": {
             "source": "Log",
             "text": "로그",
@@ -1035,6 +1040,26 @@
         "editor.label.asset_mesh": {
             "source": "Mesh",
             "text": "메시",
+            "comment": "label"
+        },
+        "editor.label.asset_terrain": {
+            "source": "Terrain",
+            "text": "지형",
+            "comment": "label"
+        },
+        "editor.label.asset_navmesh": {
+            "source": "NavMesh",
+            "text": "내비메시",
+            "comment": "label"
+        },
+        "editor.label.asset_input_action": {
+            "source": "Input Action",
+            "text": "입력 액션",
+            "comment": "label"
+        },
+        "editor.label.asset_game_data": {
+            "source": "Game Data",
+            "text": "게임 데이터",
             "comment": "label"
         },
         "editor.label.asset_scene": {

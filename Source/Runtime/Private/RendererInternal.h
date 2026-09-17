@@ -38,6 +38,7 @@ namespace won::rendering
             DrawScene_3DSprite = 1 << 3, // include sprite3d, font3d
             DrawScene_2DSprite = 1 << 4, // include sprite2d, font2d
             DrawScene_Decal = 1 << 5, // include projected decals
+            DrawScene_Terrain = 1 << 6,
         };
 
         // resource creation
@@ -47,7 +48,7 @@ namespace won::rendering
         bool UploadSceneData(FrameContext& frame_context, ecs::Scene& scene, GPUScene& gpu_scene);
         bool UploadViewData(FrameContext& frame_context, View& view);
         bool UpdateFrameConstants(FrameContext& frame_context, View& view);
-        bool DrawScene(const FrameContext& frame_context, const View& view, resource::RenderPassType pass, uint32 flags, RHICommandList& command_list, uint32 shadow_slice_index = 0);
+        bool DrawScene(const FrameContext& frame_context, const View& view, resource::RenderPassType pass, DrawSceneFlags flags, RHICommandList& command_list, uint32 shadow_slice_index = 0);
         void UpdateDDGIProbe(FrameContext& frame_context, View& view, RHICommandList& command_list);
         void UpdateSkyCapture(GPUScene& gpu_scene, RHICommandList& command_list);
 

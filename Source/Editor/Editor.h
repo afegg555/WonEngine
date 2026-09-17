@@ -18,6 +18,8 @@ using namespace won::rendering;
 namespace won::ecs
 {
 	struct CameraComponent;
+	struct TerrainComponent;
+	struct TerrainData;
 	struct TransformComponent;
 }
 
@@ -104,6 +106,9 @@ namespace won::editor
 		void PerformUndo();
 		void PerformRedo();
 		void ResetInspectorBaseline();
+		void RebuildTerrainMesh(ecs::Entity entity, terrain::TerrainData& data);
+		void UpdateTerrainControlMap(ecs::Entity entity, terrain::TerrainData& data);
+		void SaveTerrainData(ecs::TerrainComponent& terrain);
 
 	private:
 		enum class ContentAssetType
@@ -119,14 +124,18 @@ namespace won::editor
 			Script,
 			Sound,
 			Unknown,
+			Terrain,
+			NavMesh,
+			InputAction,
+			GameData,
 		};
 
 		struct ContentBrowserAsset
 		{
 			uint64 id = 0;
-			String name;
-			String virtual_path;
-			String disk_path;
+			String name; // source asset name
+			String virtual_path; // hashed virtual path of the asset in the project /Contents/...
+			String disk_path; // hashed resolved disk path of the asset C:/Project/Contents/...
 			ContentAssetType type = ContentAssetType::Unknown;
 			String reimport_source_path; // resolved source to reimport from (imported binaries)
 			bool needs_reimport = false; // source changed since last import
@@ -135,14 +144,28 @@ namespace won::editor
 			String import_info;
 		};
 
+		struct ImGuiTextureBinding
+		{
+			RHIResource* resource = nullptr;
+			RHISubresourceHandle subresource = {};
+		};
+
 		struct ContentBrowserState
 		{
+			struct TexturePreview
+			{
+				std::shared_ptr<resource::Image> image;
+				ImGuiTextureBinding binding;
+				bool failed = false;
+			};
+
 			bool initialized = false;
 			String current_folder = "/Contents";
 			char search[256] = {};
 			ContentAssetType type_filter = ContentAssetType::All;
 			float tile_size = 72.0f;
 			std::vector<ContentBrowserAsset> assets;
+			UnorderedMap<String, std::unique_ptr<TexturePreview>> texture_previews;
 			std::vector<String> folders;
 			bool open_import_confirm = false;
 			String pending_import_name;
@@ -175,6 +198,12 @@ namespace won::editor
 
 		struct EditorViewport
 		{
+			enum class ToolMode
+			{
+				Object,
+				Terrain,
+			};
+
 			struct CameraController
 			{
 				enum class InteractionMode
@@ -215,12 +244,72 @@ namespace won::editor
 			std::vector<DeferredResRemoval> deferred_res_removals;
 			ecs::Entity picked_entity = ecs::INVALID_ENTITY;
 			bool input_enabled = false;
+			ToolMode tool_mode = ToolMode::Object;
 			ViewportDebugSettings debug_settings = {};
+		};
+
+		struct TerrainEditorState
+		{
+			enum class Tool
+			{
+				Sculpt,
+				Spline,
+				Paint,
+			};
+
+			enum class SculptBrush
+			{
+				Raise,
+				Lower,
+				Flatten,
+				Smooth,
+			};
+
+			enum class SplineMode
+			{
+				Select,
+				AddPoint,
+			};
+
+			ecs::Entity entity = ecs::INVALID_ENTITY;
+			Tool tool = Tool::Sculpt;
+			SculptBrush sculpt_brush = SculptBrush::Raise;
+			SplineMode spline_mode = SplineMode::Select;
+			int selected_spline = -1;
+			int selected_spline_point = -1;
+			int selected_material_layer = -1;
+			float radius = 5.0f;
+			float strength = 2.0f;
+			float falloff = 1.0f;
+			float flatten_height = 0.0f;
+			std::shared_ptr<resource::Mesh> pending_mesh;
+			Vector<std::shared_ptr<resource::Image>> pending_control_maps;
+			ecs::Entity pending_mesh_entity = ecs::INVALID_ENTITY;
+			ecs::Entity pending_control_map_entity = ecs::INVALID_ENTITY;
+			uint32 dock_id = 0;
+			bool show_window = false;
+			bool stroke_active = false;
+			bool spline_drag_active = false;
+			bool spline_drag_changed = false;
+			bool mesh_update_pending = false;
+			bool mesh_rebuild_requested = false;
+			bool control_map_update_pending = false;
+			ecs::Entity mesh_rebuild_entity = ecs::INVALID_ENTITY;
+			float mesh_rebuild_elapsed = 0.0f;
+			bool dock_pending = false;
+			bool focus_window = false;
+			bool focus_inspector = false;
+			UnorderedMap<Size, TerrainSampleState> stroke_before;
+			UnorderedMap<Size, TerrainMaterialSampleState> material_stroke_before;
+			Vector<terrain::TerrainSpline> spline_before;
+			bool spline_edit_active = false;
+			TerrainMaterialState material_before;
+			bool material_edit_active = false;
 		};
 
 		std::shared_ptr<RHIPipeline> imgui_pso;
 		std::shared_ptr<RHIResource> imgui_font;
-		RHISubresourceHandle imgui_font_subresource;
+		ImGuiTextureBinding imgui_font_binding;
 		std::shared_ptr<RHISampler> imgui_sampler;
 
 		std::vector<ecs::Entity> sorted_entities;
@@ -265,6 +354,7 @@ namespace won::editor
 		LocalizationEditorState localization_editor = {};
 		GameDataEditorState game_data_editor = {};
 		EditorViewport editor_viewport;
+		TerrainEditorState terrain_editor;
 		EditorAssetImporter asset_importer;
 		BackgroundTaskState background_tasks;
 		ContentBrowserState content_browser = {};

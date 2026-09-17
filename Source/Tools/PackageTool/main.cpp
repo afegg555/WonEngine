@@ -4,6 +4,7 @@
 #include "ProjectSettings.h"
 #include "Localization.h"
 #include "ResourceExtension.h"
+#include "TerrainData.h"
 
 #include <cstdlib>
 #include <iostream>
@@ -262,6 +263,7 @@ int main(int argc, char** argv)
             won::resource::scene_file_extension,
             won::resource::prefab_file_extension,
             won::resource::mesh_binary_extension,
+            won::resource::terrain_binary_extension,
             won::resource::material_binary_extension,
             won::resource::texture_binary_extension,
             won::resource::lua_script_file_extension,
@@ -283,7 +285,8 @@ int main(int argc, char** argv)
         {
             return ext == won::resource::scene_file_extension
                 || ext == won::resource::prefab_file_extension
-                || ext == won::resource::material_binary_extension;
+                || ext == won::resource::material_binary_extension
+                || ext == won::resource::terrain_binary_extension;
         };
 
         won::Vector<won::io::DirectoryEntry> prefab_entries;
@@ -311,6 +314,23 @@ int main(int argc, char** argv)
                 continue;
 
             const won::String asset_path = won::io::CombinePath(content_source, current);
+            if (won::io::GetExtension(current) == won::resource::terrain_binary_extension)
+            {
+                std::shared_ptr<won::terrain::TerrainData> terrain = won::terrain::LoadTerrainBinary(asset_path);
+                if (!terrain)
+                {
+                    std::cout << "Failed to parse asset: " << asset_path << "\n";
+                    return 1;
+                }
+                for (const won::terrain::TerrainMaterialLayer& layer : terrain->material_layers)
+                {
+                    if (!layer.material_asset_path.empty())
+                    {
+                        work_queue.push_back(layer.material_asset_path);
+                    }
+                }
+                continue;
+            }
             won::serialize::JsonArchive asset_archive(won::serialize::ArchiveMode::Read);
             if (!asset_archive.LoadFromFile(asset_path))
             {

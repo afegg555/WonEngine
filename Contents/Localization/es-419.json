@@ -34,6 +34,10 @@
             "source": "Inspector",
             "text": "Inspector"
         },
+        "editor.window.terrain_tools": {
+            "source": "Terrain Tools",
+            "text": "Herramientas de terreno"
+        },
         "editor.window.log": {
             "source": "Log",
             "text": "Registro"
@@ -369,6 +373,22 @@
         "editor.label.asset_mesh": {
             "source": "Mesh",
             "text": "Malla"
+        },
+        "editor.label.asset_terrain": {
+            "source": "Terrain",
+            "text": "Terreno"
+        },
+        "editor.label.asset_navmesh": {
+            "source": "NavMesh",
+            "text": "Malla de navegación"
+        },
+        "editor.label.asset_input_action": {
+            "source": "Input Action",
+            "text": "Acción de entrada"
+        },
+        "editor.label.asset_game_data": {
+            "source": "Game Data",
+            "text": "Datos del juego"
         },
         "editor.label.asset_scene": {
             "source": "Scene",
