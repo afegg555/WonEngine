@@ -1949,6 +1949,7 @@ namespace won::rendering
             bool has_pipeline = false;
             RHIResource* bound_foliage_index_buffer = nullptr;
             uint32 bound_foliage_index_offset = 0;
+            command_list.SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
 
             for (const GPUScene::FoliageRenderable& renderable : gpu_scene.foliage_renderables)
             {
