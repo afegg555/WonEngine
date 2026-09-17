@@ -152,6 +152,7 @@ namespace won::ecs
         }
         AddSystem(std::make_unique<AnimationUpdateSystem>(desc.enable_simulation));
         AddSystem(std::make_unique<MeshUpdateSystem>());
+        AddSystem(std::make_unique<FoliageSystem>());
         if (desc.enable_simulation)
         {
             AddSystem(std::make_unique<ParticleUpdateSystem>());

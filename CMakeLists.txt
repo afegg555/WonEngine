@@ -204,6 +204,8 @@ set(RUNTIME_RESOURCE
     Source/Runtime/Public/Mesh.h
     Source/Runtime/Public/TerrainData.h
     Source/Runtime/Private/TerrainData.cpp
+    Source/Runtime/Public/Foliage.h
+    Source/Runtime/Private/Foliage.cpp
     Source/Runtime/Public/SoftBodyGenerator.h
     Source/Runtime/Private/SoftBodyGenerator.cpp
     Source/Runtime/Public/NavMesh.h
@@ -413,6 +415,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Public/ScriptUpdateSystem.h
     Source/Runtime/Public/ScriptEventDispatchSystem.h
     Source/Runtime/Public/MeshUpdateSystem.h
+    Source/Runtime/Public/FoliageSystem.h
     Source/Runtime/Public/PhysicsUpdateSystem.h
     Source/Runtime/Public/AudioUpdateSystem.h
     Source/Runtime/Public/LocalizeTextSystem.h
@@ -425,6 +428,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Private/SequenceSystem.cpp
     Source/Runtime/Private/TransformUpdateSystem.cpp
     Source/Runtime/Private/ParticleUpdateSystem.cpp
+    Source/Runtime/Private/FoliageSystem.cpp
     Source/Runtime/Private/Wind.cpp
     Source/Runtime/Private/WaterSimulationSystem.cpp
     Source/Runtime/Private/ScriptUpdateSystem.cpp
