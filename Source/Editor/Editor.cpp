@@ -1302,7 +1302,7 @@ namespace won::editor
 			ExitPlay();
 		}
 
-		io::SetMouseCaptured(is_playing && !editor_viewport.input_enabled);
+		io::SetMouseCaptured(is_playing && editor_viewport.input_enabled);
 
 		if (!is_playing && !ImGui::GetIO().WantTextInput)
 		{
