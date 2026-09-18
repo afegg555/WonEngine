@@ -8,6 +8,7 @@
 #include "RHICommandAllocatorDX12.h"
 #include "RHICommandListDX12.h"
 #include "RHIQueryHeapDX12.h"
+#include "RHICommandSignatureDX12.h"
 #include "RHIResourceDX12.h"
 #include "RHIPipelineDX12.h"
 #include "RHISamplerDX12.h"
@@ -584,6 +585,64 @@ namespace won::rendering
         }
 
         return std::make_unique<RHIQueryHeapDX12>(desc, std::move(query_heap));
+    }
+
+    std::unique_ptr<RHICommandSignature> RHIDeviceDX12::CreateCommandSignature(const RHICommandSignatureDesc& desc)
+    {
+        if (!device || desc.arguments.empty() || desc.byte_stride == 0)
+        {
+            return nullptr;
+        }
+
+        Vector<D3D12_INDIRECT_ARGUMENT_DESC> argument_descs;
+        argument_descs.reserve(desc.arguments.size());
+        for (const RHIIndirectArgument& argument : desc.arguments)
+        {
+            D3D12_INDIRECT_ARGUMENT_DESC argument_desc = {};
+            switch (argument.type)
+            {
+            case RHIIndirectArgumentType::Draw:
+                argument_desc.Type = D3D12_INDIRECT_ARGUMENT_TYPE_DRAW;
+                break;
+            case RHIIndirectArgumentType::DrawIndexed:
+                argument_desc.Type = D3D12_INDIRECT_ARGUMENT_TYPE_DRAW_INDEXED;
+                break;
+            case RHIIndirectArgumentType::Dispatch:
+                argument_desc.Type = D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH;
+                break;
+            case RHIIndirectArgumentType::Constant:
+                argument_desc.Type = D3D12_INDIRECT_ARGUMENT_TYPE_CONSTANT;
+                argument_desc.Constant.RootParameterIndex = argument.root_parameter_index;
+                argument_desc.Constant.DestOffsetIn32BitValues = argument.dest_offset_in_values;
+                argument_desc.Constant.Num32BitValuesToSet = argument.value_count;
+                break;
+            }
+            argument_descs.push_back(argument_desc);
+        }
+
+        ID3D12RootSignature* root_signature = nullptr;
+        if (desc.root_signature_source)
+        {
+            auto pipeline_dx12 = dynamic_cast<RHIPipelineDX12*>(desc.root_signature_source);
+            if (pipeline_dx12)
+            {
+                root_signature = pipeline_dx12->GetRootSignature();
+            }
+        }
+
+        D3D12_COMMAND_SIGNATURE_DESC signature_desc = {};
+        signature_desc.ByteStride = desc.byte_stride;
+        signature_desc.NumArgumentDescs = static_cast<UINT>(argument_descs.size());
+        signature_desc.pArgumentDescs = argument_descs.data();
+
+        ComPtr<ID3D12CommandSignature> command_signature;
+        if (FAILED(device->CreateCommandSignature(&signature_desc, root_signature, IID_PPV_ARGS(&command_signature))) || !command_signature)
+        {
+            backlog::Post("Failed to create command signature", backlog::LogLevel::Error);
+            return nullptr;
+        }
+
+        return std::make_unique<RHICommandSignatureDX12>(desc, std::move(command_signature));
     }
 
     std::unique_ptr<RHIResource> RHIDeviceDX12::CreateBuffer(const RHIBufferDesc& desc,

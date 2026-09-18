@@ -69,6 +69,9 @@ namespace won::rendering
 
         void Dispatch(uint32 group_x, uint32 group_y, uint32 group_z) override;
 
+        void ExecuteIndirect(RHICommandSignature& signature, RHIResource& arg_buffer, uint32 arg_offset,
+            uint32 command_count, RHIResource* count_buffer, uint32 count_offset) override;
+
         void CopyResource(RHIResource& dest, RHIResource& src) override;
         void CopyBuffer(RHIResource& dest, Size dest_offset, RHIResource& src, Size src_offset, Size size) override;
         void BeginQuery(RHIQueryHeap& heap, uint32 index) override;

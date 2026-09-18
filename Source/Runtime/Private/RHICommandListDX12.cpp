@@ -2,6 +2,7 @@
 
 #include "Backlog.h"
 #include "RHICommandAllocatorDX12.h"
+#include "RHICommandSignatureDX12.h"
 #include "RHIPipelineDX12.h"
 #include "RHIQueryHeapDX12.h"
 #include "RHIResourceDX12.h"
@@ -663,6 +664,58 @@ namespace won::rendering
             ApplyDescriptorBindings(true, *active_compute_binding_table);
             command_list->Dispatch(group_x, group_y, group_z);
         }
+    }
+
+    void RHICommandListDX12::ExecuteIndirect(RHICommandSignature& signature, RHIResource& arg_buffer, uint32 arg_offset,
+        uint32 command_count, RHIResource* count_buffer, uint32 count_offset)
+    {
+        if (!command_list || command_count == 0)
+        {
+            return;
+        }
+
+        auto signature_dx12 = dynamic_cast<RHICommandSignatureDX12*>(&signature);
+        auto arg_dx12 = dynamic_cast<RHIResourceDX12*>(&arg_buffer);
+        if (!signature_dx12 || !signature_dx12->GetCommandSignature() || !arg_dx12 || !arg_dx12->GetResource())
+        {
+            return;
+        }
+
+        bool compute = false;
+        for (const RHIIndirectArgument& argument : signature_dx12->GetDesc().arguments)
+        {
+            if (argument.type == RHIIndirectArgumentType::Dispatch)
+            {
+                compute = true;
+                break;
+            }
+        }
+
+        if (compute)
+        {
+            if (active_compute_binding_table)
+            {
+                ApplyDescriptorBindings(true, *active_compute_binding_table);
+            }
+        }
+        else if (active_graphics_binding_table)
+        {
+            ApplyDescriptorBindings(false, *active_graphics_binding_table);
+        }
+
+        ID3D12Resource* count_resource = nullptr;
+        if (count_buffer)
+        {
+            auto count_dx12 = dynamic_cast<RHIResourceDX12*>(count_buffer);
+            if (count_dx12)
+            {
+                count_resource = count_dx12->GetResource();
+            }
+        }
+
+        command_list->ExecuteIndirect(signature_dx12->GetCommandSignature(), command_count,
+            arg_dx12->GetResource(), static_cast<UINT64>(arg_offset),
+            count_resource, static_cast<UINT64>(count_offset));
     }
 
     void RHICommandListDX12::CopyResource(RHIResource& dest, RHIResource& src)

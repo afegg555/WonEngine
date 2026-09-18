@@ -37,6 +37,7 @@ namespace won::rendering
         std::unique_ptr<RHICommandAllocator> CreateCommandAllocator(RHIQueueType type) override;
         std::unique_ptr<RHICommandList> CreateCommandList(RHIQueueType type) override;
         std::unique_ptr<RHIQueryHeap> CreateQueryHeap(const RHIQueryHeapDesc& desc) override;
+        std::unique_ptr<RHICommandSignature> CreateCommandSignature(const RHICommandSignatureDesc& desc) override;
 
         std::unique_ptr<RHIResource> CreateBuffer(const RHIBufferDesc& desc,
             const void* initial_data = nullptr, Size initial_size = 0) override;

@@ -1,5 +1,6 @@
 #pragma once
 #include "RHICommandAllocator.h"
+#include "RHICommandSignature.h"
 #include "RHIContext.h"
 #include "RHIPipeline.h"
 #include "RHIQueryHeap.h"
@@ -83,6 +84,7 @@ namespace won::rendering
         virtual std::unique_ptr<RHICommandAllocator> CreateCommandAllocator(RHIQueueType type) = 0;
         virtual std::unique_ptr<RHICommandList> CreateCommandList(RHIQueueType type) = 0;
         virtual std::unique_ptr<RHIQueryHeap> CreateQueryHeap(const RHIQueryHeapDesc& desc) = 0;
+        virtual std::unique_ptr<RHICommandSignature> CreateCommandSignature(const RHICommandSignatureDesc& desc) = 0;
 
         virtual std::unique_ptr<RHIResource> CreateBuffer(const RHIBufferDesc& desc,
             const void* initial_data = nullptr, Size initial_size = 0) = 0;
