@@ -1269,7 +1269,7 @@ namespace won::rendering::utils
         RHISubresourceHandle normal_rtv = {};
         RHISubresourceHandle depth_rtv = {};
         RHISubresourceHandle depth_stencil_dsv = {};
-        std::unique_ptr<RHIResource> albedo_atlas = CreateRenderTargetTexture(device, atlas_size, atlas_size, RHIFormat::R8G8B8A8Unorm, RHIBindFlags::RenderTarget, RHISubresourceType::RenderTarget, albedo_rtv);
+        std::unique_ptr<RHIResource> albedo_atlas = CreateRenderTargetTexture(device, atlas_size, atlas_size, RHIFormat::R8G8B8A8UnormSrgb, RHIBindFlags::RenderTarget, RHISubresourceType::RenderTarget, albedo_rtv);
         std::unique_ptr<RHIResource> normal_atlas = CreateRenderTargetTexture(device, atlas_size, atlas_size, RHIFormat::R8G8B8A8Unorm, RHIBindFlags::RenderTarget, RHISubresourceType::RenderTarget, normal_rtv);
         std::unique_ptr<RHIResource> depth_atlas = CreateRenderTargetTexture(device, atlas_size, atlas_size, RHIFormat::R16Float, RHIBindFlags::RenderTarget, RHISubresourceType::RenderTarget, depth_rtv);
         std::unique_ptr<RHIResource> depth_stencil = CreateRenderTargetTexture(device, atlas_size, atlas_size, RHIFormat::D32Float, RHIBindFlags::DepthStencil, RHISubresourceType::DepthStencil, depth_stencil_dsv);
@@ -1296,7 +1296,7 @@ namespace won::rendering::utils
                 pipeline_desc.blend.enable = false;
                 pipeline_desc.raster.cull_mode = cull_none == 1 ? RHICullMode::None : RHICullMode::Back;
                 pipeline_desc.topology = RHIPrimitiveTopology::TriangleList;
-                pipeline_desc.render_target_formats = { RHIFormat::R8G8B8A8Unorm, RHIFormat::R8G8B8A8Unorm, RHIFormat::R16Float };
+                pipeline_desc.render_target_formats = { RHIFormat::R8G8B8A8UnormSrgb, RHIFormat::R8G8B8A8Unorm, RHIFormat::R16Float };
                 capture_pipelines[masked][cull_none] = device.CreateGraphicsPipeline(pipeline_desc);
                 if (!capture_pipelines[masked][cull_none])
                 {
@@ -1395,7 +1395,7 @@ namespace won::rendering::utils
             context->WaitIdle();
         }
 
-        std::shared_ptr<resource::Image> albedo_image = ReadbackTextureToImage(device, *albedo_atlas, RHIResourceState::RenderTarget, atlas_size, 4, RHIFormat::R8G8B8A8Unorm, 4);
+        std::shared_ptr<resource::Image> albedo_image = ReadbackTextureToImage(device, *albedo_atlas, RHIResourceState::RenderTarget, atlas_size, 4, RHIFormat::R8G8B8A8UnormSrgb, 4);
         std::shared_ptr<resource::Image> normal_image = ReadbackTextureToImage(device, *normal_atlas, RHIResourceState::RenderTarget, atlas_size, 4, RHIFormat::R8G8B8A8Unorm, 4);
         std::shared_ptr<resource::Image> depth_image = ReadbackTextureToImage(device, *depth_atlas, RHIResourceState::RenderTarget, atlas_size, 2, RHIFormat::R16Float, 1);
         if (!albedo_image || !normal_image || !depth_image)

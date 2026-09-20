@@ -881,7 +881,7 @@ namespace won::rendering
         }
         else if (HasBindFlag(desc.bind_flags, RHIBindFlags::RenderTarget))
         {
-            optimized_clear_value.Format = ToDXGIResourceFormat(desc.format);
+            optimized_clear_value.Format = ToDXGIFormat(desc.format);
             optimized_clear_value.Color[0] = desc.clear_color[0];
             optimized_clear_value.Color[1] = desc.clear_color[1];
             optimized_clear_value.Color[2] = desc.clear_color[2];
@@ -1148,7 +1148,7 @@ namespace won::rendering
         }
         else if (HasBindFlag(desc.bind_flags, RHIBindFlags::RenderTarget))
         {
-            optimized_clear_value.Format = ToDXGIResourceFormat(desc.format);
+            optimized_clear_value.Format = ToDXGIFormat(desc.format);
             optimized_clear_value.Color[0] = desc.clear_color[0];
             optimized_clear_value.Color[1] = desc.clear_color[1];
             optimized_clear_value.Color[2] = desc.clear_color[2];
@@ -1200,7 +1200,7 @@ namespace won::rendering
             }
             else if (HasBindFlag(texture_desc.bind_flags, RHIBindFlags::RenderTarget))
             {
-                optimized_clear_value.Format = ToDXGIResourceFormat(texture_desc.format);
+                optimized_clear_value.Format = ToDXGIFormat(texture_desc.format);
                 optimized_clear_value.Color[0] = texture_desc.clear_color[0];
                 optimized_clear_value.Color[1] = texture_desc.clear_color[1];
                 optimized_clear_value.Color[2] = texture_desc.clear_color[2];

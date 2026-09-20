@@ -758,6 +758,10 @@ set(SYSTEM_PHASE_VISUALIZER_TOOL_SOURCES
     Source/Tools/SystemPhaseVisualizerTool/main.cpp
 )
 
+set(IMPOSTOR_BAKE_TOOL_SOURCES
+    Source/Tools/ImpostorBakeTool/main.cpp
+)
+
 set(PLUGIN_PRINT_LOG_SAMPLE
     Source/Plugins/PrintLogSample/PrintLogSample.cpp
     Source/Plugins/PrintLogSample/plugin.json
@@ -802,6 +806,10 @@ add_executable(AssetImporterTool
 
 add_executable(SystemPhaseVisualizerTool
     ${SYSTEM_PHASE_VISUALIZER_TOOL_SOURCES}
+)
+
+add_executable(ImpostorBakeTool
+    ${IMPOSTOR_BAKE_TOOL_SOURCES}
 )
 
 add_library(PrintLogSample SHARED
@@ -881,6 +889,7 @@ target_link_libraries(Player PRIVATE Runtime)
 target_link_libraries(ShaderOfflineCompiler PRIVATE Runtime)
 target_link_libraries(PackageTool PRIVATE Runtime)
 target_link_libraries(SystemPhaseVisualizerTool PRIVATE Runtime)
+target_link_libraries(ImpostorBakeTool PRIVATE Runtime)
 
 add_dependencies(Editor PackageTool ShaderOfflineCompiler AssetImporterTool)
 target_include_directories(PrintLogSample PRIVATE
