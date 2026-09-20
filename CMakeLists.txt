@@ -579,6 +579,9 @@ set(SHADERS_HLSL
     Source/Shaders/TerrainPS_forwardplus_masked.hlsl
     Source/Shaders/TerrainPS_unlit_masked.hlsl
     Source/Shaders/ObjectPS_unlit_masked.hlsl
+    Source/Shaders/ObjectPS_impostor_capture.hlsli
+    Source/Shaders/ObjectPS_impostor_capture.hlsl
+    Source/Shaders/ObjectPS_impostor_capture_masked.hlsl
     Source/Shaders/SpritePS.hlsli
     Source/Shaders/SpritePS_default.hlsl
     Source/Shaders/SpritePS_masked.hlsl

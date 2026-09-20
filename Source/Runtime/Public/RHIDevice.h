@@ -92,6 +92,9 @@ namespace won::rendering
         virtual std::unique_ptr<RHIResource> CreateTexture(const RHITextureDesc& desc,
             const void* initial_data = nullptr, Size initial_size = 0) = 0;
 
+        virtual bool GetTextureCopyFootprint(RHIResource& texture,
+            Size& out_total_size, uint32& out_row_pitch, uint32& out_rows) const = 0;
+
         virtual Size GetMinOffsetAlignment(const RHIBufferDesc& desc) const = 0;
 
         virtual std::unique_ptr<RHIMemoryBlock> AllocateMemory(Size size, Size alignment, RHIMemoryCategory category) = 0;

@@ -10,6 +10,7 @@
 #include "DescriptorAllocatorDX12.h"
 
 #include "DirectX-Headers/d3d12.h"
+#include "DirectX-Headers/d3dx12_core.h"
 #include <Windows.h>
 #include <intrin.h> // _BitScanReverse64
 
@@ -768,6 +769,32 @@ namespace won::rendering
         }
 
         command_list->CopyBufferRegion(dest_resource, static_cast<UINT64>(dest_offset), src_resource, static_cast<UINT64>(src_offset), static_cast<UINT64>(size));
+    }
+
+    void RHICommandListDX12::CopyTextureToBuffer(RHIResource& dest_buffer, RHIResource& src_texture)
+    {
+        auto dest_dx12 = dynamic_cast<RHIResourceDX12*>(&dest_buffer);
+        auto src_dx12 = dynamic_cast<RHIResourceDX12*>(&src_texture);
+        if (!dest_dx12 || !src_dx12)
+        {
+            return;
+        }
+        ID3D12Resource* dest_resource = dest_dx12->GetResource();
+        ID3D12Resource* src_resource = src_dx12->GetResource();
+        if (!dest_resource || !src_resource)
+        {
+            return;
+        }
+
+        const D3D12_RESOURCE_DESC src_desc = src_resource->GetDesc();
+        ComPtr<ID3D12Device> device;
+        src_resource->GetDevice(IID_PPV_ARGS(device.GetAddressOf()));
+        D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint = {};
+        device->GetCopyableFootprints(&src_desc, 0, 1, 0, &footprint, nullptr, nullptr, nullptr);
+
+        CD3DX12_TEXTURE_COPY_LOCATION copy_dest(dest_resource, footprint);
+        CD3DX12_TEXTURE_COPY_LOCATION copy_source(src_resource, 0u);
+        command_list->CopyTextureRegion(&copy_dest, 0, 0, 0, &copy_source, nullptr);
     }
 
     void RHICommandListDX12::BeginQuery(RHIQueryHeap& heap, uint32 index)

@@ -1041,6 +1041,28 @@ namespace won::rendering
         return texture_resource;
     }
 
+    bool RHIDeviceDX12::GetTextureCopyFootprint(RHIResource& texture,
+        Size& out_total_size, uint32& out_row_pitch, uint32& out_rows) const
+    {
+        auto* texture_dx12 = dynamic_cast<RHIResourceDX12*>(&texture);
+        if (!texture_dx12 || !texture_dx12->GetResource())
+        {
+            return false;
+        }
+
+        const D3D12_RESOURCE_DESC resource_desc = texture_dx12->GetResource()->GetDesc();
+        UINT64 total_size = 0;
+        D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint = {};
+        UINT num_rows = 0;
+        UINT64 row_size = 0;
+        device->GetCopyableFootprints(&resource_desc, 0, 1, 0, &footprint, &num_rows, &row_size, &total_size);
+
+        out_total_size = static_cast<Size>(total_size);
+        out_row_pitch = footprint.Footprint.RowPitch;
+        out_rows = num_rows;
+        return true;
+    }
+
     Size RHIDeviceDX12::GetMinOffsetAlignment(const RHIBufferDesc& desc) const
     {
         Size alignment = 1;

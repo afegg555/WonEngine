@@ -41,6 +41,8 @@ namespace won::resource
             { ShaderId::PSObjectForwardMasked, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "ObjectPS_forward_masked.hlsl", "main" } },
             { ShaderId::PSObjectForwardPlusMasked, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "ObjectPS_forwardplus_masked.hlsl", "main" } },
             { ShaderId::PSObjectUnlitMasked, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "ObjectPS_unlit_masked.hlsl", "main" } },
+            { ShaderId::PSObjectImpostorCapture, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "ObjectPS_impostor_capture.hlsl", "main" } },
+            { ShaderId::PSObjectImpostorCaptureMasked, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "ObjectPS_impostor_capture_masked.hlsl", "main" } },
             { ShaderId::PSSprite, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "SpritePS_default.hlsl", "main" } },
             { ShaderId::PSSpriteMasked, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "SpritePS_masked.hlsl", "main" } },
             { ShaderId::PSText3D, { rendering::RHIShaderStage::Pixel, ShaderFormat::HLSL6, ShaderModel::SM_6_0, "TextPS.hlsl", "main" } },

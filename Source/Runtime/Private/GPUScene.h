@@ -20,6 +20,9 @@ namespace won::rendering
     class RHIDevice;
     class RHICommandList;
 
+    void WriteShaderGeometry(const resource::Mesh& mesh, Size submesh_index, ShaderGeometry& shader_geometry);
+    void WriteShaderMaterial(const resource::MaterialSlot& material_slot, ShaderMaterial& shader_material);
+
     struct GPUBuffer
     {
         std::unique_ptr<RHIResource> buffer;

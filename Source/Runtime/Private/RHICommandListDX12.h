@@ -74,6 +74,7 @@ namespace won::rendering
 
         void CopyResource(RHIResource& dest, RHIResource& src) override;
         void CopyBuffer(RHIResource& dest, Size dest_offset, RHIResource& src, Size src_offset, Size size) override;
+        void CopyTextureToBuffer(RHIResource& dest_buffer, RHIResource& src_texture) override;
         void BeginQuery(RHIQueryHeap& heap, uint32 index) override;
         void EndQuery(RHIQueryHeap& heap, uint32 index) override;
         void ResolveQuery(RHIQueryHeap& heap, uint32 start_index, uint32 count, RHIResource& dest_buffer, Size dest_offset) override;

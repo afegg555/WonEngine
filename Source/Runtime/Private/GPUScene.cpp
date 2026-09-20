@@ -25,6 +25,73 @@
 
 namespace won::rendering
 {
+    void WriteShaderGeometry(const resource::Mesh& mesh, Size submesh_index, ShaderGeometry& shader_geometry)
+    {
+        const resource::Mesh::RenderData& mesh_render_data = mesh.render_data;
+        const resource::Submesh& submesh = mesh.submeshes[submesh_index];
+        shader_geometry.Init();
+        shader_geometry.bounds_min = submesh.local_bounds.min;
+        shader_geometry.bounds_max = submesh.local_bounds.max;
+        if (!mesh_render_data.IsValid())
+        {
+            return;
+        }
+
+        shader_geometry.position_buffer_descriptor = mesh_render_data.positions.srv.descriptor_index;
+        shader_geometry.color_buffer_descriptor = mesh_render_data.colors.srv.descriptor_index;
+        shader_geometry.normal_buffer_descriptor = mesh_render_data.normals.srv.descriptor_index;
+        shader_geometry.texcoord_buffer_descriptor = mesh_render_data.texcoords.srv.descriptor_index;
+        shader_geometry.tangent_buffer_descriptor = mesh_render_data.tangents.srv.descriptor_index;
+        shader_geometry.index_buffer_descriptor = mesh_render_data.indices.srv.descriptor_index;
+        shader_geometry.index_count = submesh.index_count;
+        shader_geometry.first_index = submesh.first_index;
+        shader_geometry.dynamic_stream_stride = mesh.dynamic_vertex_streams ? static_cast<uint32>(mesh.positions.size()) : 0u;
+        if (mesh_render_data.bone_indices.IsValid() && mesh_render_data.bone_weights.IsValid())
+        {
+            shader_geometry.bone_indices_buffer_descriptor = mesh_render_data.bone_indices.srv.descriptor_index;
+            shader_geometry.bone_weights_buffer_descriptor = mesh_render_data.bone_weights.srv.descriptor_index;
+            shader_geometry.flags |= SHADER_GEOMETRY_FLAG_SKINNED;
+        }
+    }
+
+    void WriteShaderMaterial(const resource::MaterialSlot& material_slot, ShaderMaterial& shader_material)
+    {
+        const resource::MaterialSettings& settings = material_slot.settings;
+        const resource::MaterialAttributes& attributes = material_slot.attributes;
+        shader_material.Init();
+        shader_material.base_color = math::PackHalf4(attributes.base_color);
+        shader_material.emissive_color_metallic = math::PackHalf4(
+            attributes.emissive_color.x * attributes.emissive_intensity,
+            attributes.emissive_color.y * attributes.emissive_intensity,
+            attributes.emissive_color.z * attributes.emissive_intensity,
+            attributes.metallic);
+        shader_material.roughness_reflectance_refraction_padding = math::PackHalf4(attributes.roughness, attributes.reflectance, 0.0f, 0.0f);
+        shader_material.anisotropy_sheenroughness_clearcoat_clearcoatroughness = math::PackHalf4(attributes.anisotropy, attributes.sheen_roughness, attributes.clearcoat, attributes.clearcoat_roughness);
+        shader_material.sheencolor_alphacutoff = math::PackHalf4(attributes.sheen_color.x, attributes.sheen_color.y, attributes.sheen_color.z, settings.alpha_cutoff);
+        uint32 gpu_flags = SHADER_MATERIAL_FLAG_NONE;
+        if (settings.double_sided)
+        {
+            gpu_flags |= SHADER_MATERIAL_FLAG_DOUBLE_SIDED;
+        }
+        if (settings.use_vertex_colors)
+        {
+            gpu_flags |= SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS;
+        }
+        if (settings.receive_shadow)
+        {
+            gpu_flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW;
+        }
+        shader_material.flags = gpu_flags;
+
+        for (uint32 texture_slot = 0; texture_slot < static_cast<uint32>(TEXTURESLOT_COUNT); ++texture_slot)
+        {
+            if (attributes.textures[texture_slot].IsValid())
+            {
+                shader_material.textures[texture_slot].texture_descriptor = attributes.textures[texture_slot].image->render_data.srv.descriptor_index;
+            }
+        }
+    }
+
     namespace
     {
         using namespace won::ecs;
@@ -111,35 +178,6 @@ namespace won::rendering
             }
         }
 
-        void WriteShaderGeometry(const resource::Mesh& mesh, Size submesh_index, ShaderGeometry& shader_geometry)
-        {
-            const resource::Mesh::RenderData& mesh_render_data = mesh.render_data;
-            const resource::Submesh& submesh = mesh.submeshes[submesh_index];
-            shader_geometry.Init();
-            shader_geometry.bounds_min = submesh.local_bounds.min;
-            shader_geometry.bounds_max = submesh.local_bounds.max;
-            if (!mesh_render_data.IsValid())
-            {
-                return;
-            }
-
-            shader_geometry.position_buffer_descriptor = mesh_render_data.positions.srv.descriptor_index;
-            shader_geometry.color_buffer_descriptor = mesh_render_data.colors.srv.descriptor_index;
-            shader_geometry.normal_buffer_descriptor = mesh_render_data.normals.srv.descriptor_index;
-            shader_geometry.texcoord_buffer_descriptor = mesh_render_data.texcoords.srv.descriptor_index;
-            shader_geometry.tangent_buffer_descriptor = mesh_render_data.tangents.srv.descriptor_index;
-            shader_geometry.index_buffer_descriptor = mesh_render_data.indices.srv.descriptor_index;
-            shader_geometry.index_count = submesh.index_count;
-            shader_geometry.first_index = submesh.first_index;
-            shader_geometry.dynamic_stream_stride = mesh.dynamic_vertex_streams ? static_cast<uint32>(mesh.positions.size()) : 0u;
-            if (mesh_render_data.bone_indices.IsValid() && mesh_render_data.bone_weights.IsValid())
-            {
-                shader_geometry.bone_indices_buffer_descriptor = mesh_render_data.bone_indices.srv.descriptor_index;
-                shader_geometry.bone_weights_buffer_descriptor = mesh_render_data.bone_weights.srv.descriptor_index;
-                shader_geometry.flags |= SHADER_GEOMETRY_FLAG_SKINNED;
-            }
-        }
-
         uint32 ExtractGeometries(ecs::Scene& scene, Vector<ShaderGeometry>& shader_geometries)
         {
             jobsystem::Context sub_ctx;
@@ -188,44 +226,6 @@ namespace won::rendering
 
             jobsystem::Wait(sub_ctx);
             return static_cast<uint32>(shader_geometries.size());
-        }
-
-        void WriteShaderMaterial(const resource::MaterialSlot& material_slot, ShaderMaterial& shader_material)
-        {
-            const resource::MaterialSettings& settings = material_slot.settings;
-            const resource::MaterialAttributes& attributes = material_slot.attributes;
-            shader_material.Init();
-            shader_material.base_color = math::PackHalf4(attributes.base_color);
-            shader_material.emissive_color_metallic = math::PackHalf4(
-                attributes.emissive_color.x * attributes.emissive_intensity,
-                attributes.emissive_color.y * attributes.emissive_intensity,
-                attributes.emissive_color.z * attributes.emissive_intensity,
-                attributes.metallic);
-            shader_material.roughness_reflectance_refraction_padding = math::PackHalf4(attributes.roughness, attributes.reflectance, 0.0f, 0.0f);
-            shader_material.anisotropy_sheenroughness_clearcoat_clearcoatroughness = math::PackHalf4(attributes.anisotropy, attributes.sheen_roughness, attributes.clearcoat, attributes.clearcoat_roughness);
-            shader_material.sheencolor_alphacutoff = math::PackHalf4(attributes.sheen_color.x, attributes.sheen_color.y, attributes.sheen_color.z, settings.alpha_cutoff);
-            uint32 gpu_flags = SHADER_MATERIAL_FLAG_NONE;
-            if (settings.double_sided)
-            {
-                gpu_flags |= SHADER_MATERIAL_FLAG_DOUBLE_SIDED;
-            }
-            if (settings.use_vertex_colors)
-            {
-                gpu_flags |= SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS;
-            }
-            if (settings.receive_shadow)
-            {
-                gpu_flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW;
-            }
-            shader_material.flags = gpu_flags;
-
-            for (uint32 texture_slot = 0; texture_slot < static_cast<uint32>(TEXTURESLOT_COUNT); ++texture_slot)
-            {
-                if (attributes.textures[texture_slot].IsValid())
-                {
-                    shader_material.textures[texture_slot].texture_descriptor = attributes.textures[texture_slot].image->render_data.srv.descriptor_index;
-                }
-            }
         }
 
         uint32 ExtractMaterials(ecs::Scene& scene, Vector<ShaderMaterial>& shader_materials)
