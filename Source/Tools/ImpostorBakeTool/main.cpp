@@ -130,6 +130,19 @@ int main(int argc, char** argv)
         return 1;
     }
 
+    if (arguments.HasKey("--write"))
+    {
+        if (resource::SaveMeshBinary(mesh_path, *mesh))
+        {
+            std::cout << "ImpostorBakeTool: wrote impostor into " << mesh_path << "\n";
+        }
+        else
+        {
+            std::cout << "ImpostorBakeTool: failed to write mesh " << mesh_path << "\n";
+            return 1;
+        }
+    }
+
     io::CreateDirectories(output_directory);
     const bool saved_albedo = resource::SaveImageFile(*mesh->impostor.albedo, io::CombinePath(output_directory, "impostor_albedo.png"));
     const bool saved_normal = resource::SaveImageFile(*mesh->impostor.normal, io::CombinePath(output_directory, "impostor_normal.png"));

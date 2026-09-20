@@ -1282,7 +1282,7 @@ namespace won::rendering::utils
         std::unique_ptr<RHIPipeline> capture_pipelines[2][2] = {};
         for (uint32 masked = 0; masked < 2; ++masked)
         {
-            RHIShader* pixel_shader = renderer.GetShader(masked == 1 ? resource::ShaderId::PSObjectImpostorCaptureMasked : resource::ShaderId::PSObjectImpostorCapture);
+            RHIShader* pixel_shader = renderer.GetShader(masked == 1 ? resource::ShaderId::PSImpostorBakeMasked : resource::ShaderId::PSImpostorBake);
             for (uint32 cull_none = 0; cull_none < 2; ++cull_none)
             {
                 RHIGraphicsPipelineDesc pipeline_desc = {};

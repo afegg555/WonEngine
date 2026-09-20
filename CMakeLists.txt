@@ -579,9 +579,9 @@ set(SHADERS_HLSL
     Source/Shaders/TerrainPS_forwardplus_masked.hlsl
     Source/Shaders/TerrainPS_unlit_masked.hlsl
     Source/Shaders/ObjectPS_unlit_masked.hlsl
-    Source/Shaders/ObjectPS_impostor_capture.hlsli
-    Source/Shaders/ObjectPS_impostor_capture.hlsl
-    Source/Shaders/ObjectPS_impostor_capture_masked.hlsl
+    Source/Shaders/ImpostorBakePS.hlsli
+    Source/Shaders/ImpostorBakePS.hlsl
+    Source/Shaders/ImpostorBakePS_masked.hlsl
     Source/Shaders/SpritePS.hlsli
     Source/Shaders/SpritePS_default.hlsl
     Source/Shaders/SpritePS_masked.hlsl
@@ -942,6 +942,10 @@ set_target_properties(AssetImporterTool PROPERTIES
 )
 
 set_target_properties(SystemPhaseVisualizerTool PROPERTIES
+    FOLDER "Tools"
+)
+
+set_target_properties(ImpostorBakeTool PROPERTIES
     FOLDER "Tools"
 )
 

@@ -1,5 +1,5 @@
-#ifndef OBJECT_PS_IMPOSTOR_CAPTURE
-#define OBJECT_PS_IMPOSTOR_CAPTURE
+#ifndef IMPOSTOR_BAKE_PS
+#define IMPOSTOR_BAKE_PS
 #include "ObjectCommon.hlsli"
 #include "ShadingCommon.hlsli"
 
@@ -56,4 +56,4 @@ CaptureOutput main(PixelInput input, in bool is_frontface : SV_IsFrontFace)
     return output;
 }
 
-#endif // OBJECT_PS_IMPOSTOR_CAPTURE
+#endif // IMPOSTOR_BAKE_PS

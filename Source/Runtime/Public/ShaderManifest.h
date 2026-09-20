@@ -42,8 +42,8 @@ namespace won::resource
         PSObjectForwardMasked,
         PSObjectForwardPlusMasked,
         PSObjectUnlitMasked,
-        PSObjectImpostorCapture,
-        PSObjectImpostorCaptureMasked,
+        PSImpostorBake,
+        PSImpostorBakeMasked,
         PSSprite,
         PSSpriteMasked,
         PSText3D,
@@ -133,8 +133,8 @@ namespace won::resource
         case ShaderId::PSObjectForwardMasked: return "PSObjectForwardMasked";
         case ShaderId::PSObjectForwardPlusMasked: return "PSObjectForwardPlusMasked";
         case ShaderId::PSObjectUnlitMasked: return "PSObjectUnlitMasked";
-        case ShaderId::PSObjectImpostorCapture: return "PSObjectImpostorCapture";
-        case ShaderId::PSObjectImpostorCaptureMasked: return "PSObjectImpostorCaptureMasked";
+        case ShaderId::PSImpostorBake: return "PSImpostorBake";
+        case ShaderId::PSImpostorBakeMasked: return "PSImpostorBakeMasked";
         case ShaderId::PSSprite: return "PSSprite";
         case ShaderId::PSSpriteMasked: return "PSSpriteMasked";
         case ShaderId::PSText3D: return "PSText3D";
