@@ -4,6 +4,7 @@
 #include "Primitives.h"
 #include "BVH.h"
 #include "Backlog.h"
+#include "Image.h"
 #include "Resource.h"
 #include "RHIResource.h"
 #include "Types.h"
@@ -65,6 +66,25 @@ namespace won::resource
             }
         };
 
+        struct Impostor
+        {
+            uint32 grid_size = 0;
+            float radius = 0.0f;
+            float3 center = {};
+            std::shared_ptr<Image> albedo;
+            std::shared_ptr<Image> normal;
+            std::shared_ptr<Image> depth;
+
+            rendering::RHISubresourceHandle albedo_srv = {};
+            rendering::RHISubresourceHandle normal_srv = {};
+            rendering::RHISubresourceHandle depth_srv = {};
+
+            bool IsValid() const
+            {
+                return grid_size > 0 && albedo != nullptr;
+            }
+        };
+
         struct RenderData
         {
             std::shared_ptr<rendering::RHIResource> buffer;
@@ -102,6 +122,7 @@ namespace won::resource
         math::bvh::BVH cpu_bvh; // local space bvh
         GPUBVH gpu_bvh = {}; // BLAS
         RenderData render_data = {};
+        Impostor impostor = {};
 
         bool IsValid() const override
         {

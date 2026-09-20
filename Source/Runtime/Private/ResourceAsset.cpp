@@ -25,7 +25,7 @@ namespace won::resource
 {
     namespace
     {
-        constexpr uint32 mesh_binary_version = 2;
+        constexpr uint32 mesh_binary_version = 3;
         constexpr uint32 mesh_binary_magic = 0x48534D57; // WMSH
         constexpr uint32 navmesh_binary_version = 1;
 		constexpr uint32 navmesh_binary_magic = 0x56414E57; // WNAV
@@ -407,6 +407,49 @@ namespace won::resource
         return !archive.HasError() && archive.SaveToFile(meta_path);
     }
 
+    void SerializeImage(serialize::BinaryArchive& archive, std::shared_ptr<Image>& image)
+    {
+        bool present = archive.IsWriteMode() ? (image != nullptr && !image->pixels.empty()) : false;
+        serialize::Serialize(archive, present);
+        if (!present)
+        {
+            if (archive.IsReadMode())
+            {
+                image.reset();
+            }
+            return;
+        }
+
+        if (archive.IsReadMode())
+        {
+            image = std::make_shared<Image>();
+        }
+        serialize::Serialize(archive, image->width);
+        serialize::Serialize(archive, image->height);
+        serialize::Serialize(archive, image->channels);
+        serialize::Serialize(archive, image->mip_levels);
+        serialize::Serialize(archive, image->is_cube);
+        uint32 format = archive.IsWriteMode() ? static_cast<uint32>(image->format) : 0;
+        serialize::Serialize(archive, format);
+        if (archive.IsReadMode())
+        {
+            image->format = static_cast<rendering::RHIFormat>(format);
+        }
+        serialize::Serialize(archive, image->pixels);
+    }
+
+    void SerializeMeshImpostor(serialize::BinaryArchive& archive, Mesh::Impostor& impostor)
+    {
+        serialize::Serialize(archive, impostor.grid_size);
+        serialize::Serialize(archive, impostor.radius);
+        serialize::Serialize(archive, impostor.center.x);
+        serialize::Serialize(archive, impostor.center.y);
+        serialize::Serialize(archive, impostor.center.z);
+        SerializeImage(archive, impostor.albedo);
+        SerializeImage(archive, impostor.normal);
+        SerializeImage(archive, impostor.depth);
+    }
+
     bool SaveMeshBinary(const String& path, const Mesh& mesh)
     {
         if (path.empty() || !mesh.IsValid())
@@ -433,6 +476,7 @@ namespace won::resource
         SerializeSubmeshes(archive, copy.submeshes);
         SerializeSkeleton(archive, copy.skeleton);
         SerializeAnimationClips(archive, copy.animation_clips, version);
+        SerializeMeshImpostor(archive, copy.impostor);
         return true;
     }
 
@@ -485,6 +529,10 @@ namespace won::resource
         SerializeSubmeshes(archive, mesh->submeshes);
         SerializeSkeleton(archive, mesh->skeleton);
         SerializeAnimationClips(archive, mesh->animation_clips, version);
+        if (version >= 3)
+        {
+            SerializeMeshImpostor(archive, mesh->impostor);
+        }
         if (!mesh->IsValid())
         {
             return nullptr;
