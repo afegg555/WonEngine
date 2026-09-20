@@ -209,6 +209,8 @@ set(RUNTIME_RESOURCE
     Source/Runtime/Private/TerrainData.cpp
     Source/Runtime/Public/Foliage.h
     Source/Runtime/Private/Foliage.cpp
+    Source/Runtime/Public/Impostor.h
+    Source/Runtime/Private/Impostor.cpp
     Source/Runtime/Public/SoftBodyGenerator.h
     Source/Runtime/Private/SoftBodyGenerator.cpp
     Source/Runtime/Public/NavMesh.h
@@ -526,6 +528,7 @@ set(SHADERS_HLSL
     Source/Shaders/BRDFCommon.hlsli
     Source/Shaders/FogCommon.hlsli
     Source/Shaders/RayTraceCommon.hlsli
+    Source/Shaders/OctahedralMapping.hlsli
     Source/Shaders/DDGICommon.hlsli
     Source/Shaders/NoiseCommon.hlsli
     Source/Shaders/SkyCommon.hlsli
