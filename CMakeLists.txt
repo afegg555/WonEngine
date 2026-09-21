@@ -625,6 +625,15 @@ target_include_directories(RecastNavigation PUBLIC
 )
 set_target_properties(RecastNavigation PROPERTIES FOLDER "Vendors")
 
+file(GLOB MESHOPTIMIZER_SOURCES
+    Source/Vendor/meshoptimizer/*.cpp
+)
+add_library(meshoptimizer STATIC ${MESHOPTIMIZER_SOURCES})
+target_include_directories(meshoptimizer PUBLIC
+    Source/Vendor/meshoptimizer
+)
+set_target_properties(meshoptimizer PROPERTIES FOLDER "Vendors")
+
 set(WONENGINE_RUNTIME_LIBRARY_TYPE STATIC)
 if(WONENGINE_BUILD_SHARED_RUNTIME)
     set(WONENGINE_RUNTIME_LIBRARY_TYPE SHARED)
