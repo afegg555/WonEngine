@@ -259,10 +259,14 @@ namespace won::rendering
             resource::MaterialBlendMode blend_mode = resource::MaterialBlendMode::Opaque;
             bool cast_shadow = false;
             bool double_sided = false;
+            bool has_impostor = false;
+            uint32 impostor_index = 0;
         };
 
         Vector<ShaderFoliageInstance> foliage_instances;
         GPUBuffer foliage_instance_buffer;
+        Vector<ShaderFoliageImpostor> foliage_impostors;
+        GPUBuffer foliage_impostor_buffer;
         Vector<FoliageRenderable> foliage_renderables;
 
         Vector<ShaderDecal> shader_decals;

@@ -99,6 +99,20 @@ namespace won::rendering
             RHISubresourceHandle transform_index_srv = {};
         };
 
+        struct FoliageResources
+        {
+            FrameGraphResourceRef instance_index_buffer = invalid_frame_resource;
+            RHISubresourceHandle instance_index_srv = {};
+        };
+
+        struct FoliageLodRange
+        {
+            uint32 near_index_base = 0;
+            uint32 near_count = 0;
+            uint32 far_index_base = 0;
+            uint32 far_count = 0;
+        };
+
         struct DDGIDebugResources
         {
             std::unique_ptr<RHIResource> probe_data_readback_buffer;
@@ -267,6 +281,8 @@ namespace won::rendering
         LightResources light_resources = {};
         ShadowResources shadow_resources = {};
         TransformResources transform_resources = {};
+        FoliageResources foliage_resources = {};
+        Vector<FoliageLodRange> foliage_lod_ranges;
         DDGIDebugResources ddgi_debug_resources = {};
         OcclusionResources occlusion_resources = {};
         Rect viewport = {};

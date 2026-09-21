@@ -1600,6 +1600,26 @@ namespace won::rendering::utils
         }
 
         mesh.render_data = std::move(new_render_data);
+
+        if (mesh.impostor.IsValid())
+        {
+            if (mesh.impostor.albedo && !mesh.impostor.albedo->render_data.IsValid())
+            {
+                CreateRenderData(device, *mesh.impostor.albedo, RHIFormat::R8G8B8A8UnormSrgb);
+            }
+            if (mesh.impostor.normal && !mesh.impostor.normal->render_data.IsValid())
+            {
+                CreateRenderData(device, *mesh.impostor.normal, RHIFormat::R8G8B8A8Unorm);
+            }
+            if (mesh.impostor.depth && !mesh.impostor.depth->render_data.IsValid())
+            {
+                CreateRenderData(device, *mesh.impostor.depth, RHIFormat::R16Float);
+            }
+            mesh.impostor.albedo_srv = mesh.impostor.albedo ? mesh.impostor.albedo->render_data.srv : RHISubresourceHandle{};
+            mesh.impostor.normal_srv = mesh.impostor.normal ? mesh.impostor.normal->render_data.srv : RHISubresourceHandle{};
+            mesh.impostor.depth_srv = mesh.impostor.depth ? mesh.impostor.depth->render_data.srv : RHISubresourceHandle{};
+        }
+
         return true;
     }
 

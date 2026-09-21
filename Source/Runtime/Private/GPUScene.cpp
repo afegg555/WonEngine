@@ -454,9 +454,11 @@ namespace won::rendering
             Vector<ShaderGeometry>& shader_geometries,
             Vector<ShaderMaterial>& shader_materials,
             Vector<ShaderFoliageInstance>& foliage_instances,
+            Vector<ShaderFoliageImpostor>& foliage_impostors,
             Vector<GPUScene::FoliageRenderable>& foliage_renderables)
         {
             foliage_instances.clear();
+            foliage_impostors.clear();
             foliage_renderables.clear();
 
             const auto foliage_array = scene.GetComponentArray<FoliageComponent>().get();
@@ -531,6 +533,19 @@ namespace won::rendering
                         renderable.blend_mode = material_slot.settings.blend_mode;
                         renderable.double_sided = material_slot.settings.double_sided;
                         renderable.cast_shadow = type.cast_shadow;
+                        renderable.has_impostor = mesh.impostor.grid_size > 0 && mesh.impostor.albedo_srv.IsValid() && mesh.impostor.normal_srv.IsValid();
+                        if (renderable.has_impostor)
+                        {
+                            ShaderFoliageImpostor shader_impostor;
+                            shader_impostor.albedo_texture = static_cast<int>(mesh.impostor.albedo_srv.descriptor_index);
+                            shader_impostor.normal_texture = static_cast<int>(mesh.impostor.normal_srv.descriptor_index);
+                            shader_impostor.depth_texture = mesh.impostor.depth_srv.IsValid() ? static_cast<int>(mesh.impostor.depth_srv.descriptor_index) : -1;
+                            shader_impostor.grid_size = mesh.impostor.grid_size;
+                            shader_impostor.radius = mesh.impostor.radius;
+                            shader_impostor.center = mesh.impostor.center;
+                            renderable.impostor_index = static_cast<uint32>(foliage_impostors.size());
+                            foliage_impostors.push_back(shader_impostor);
+                        }
                         foliage_renderables.push_back(renderable);
                     }
                 }
@@ -1882,7 +1897,7 @@ namespace won::rendering
         ExtractTerrains(scene, mesh_material_count, shader_geometries, shader_materials, shader_terrains, shader_terrain_layers,
             terrain_opaque_cull_data, terrain_opaque_renderables, terrain_transparent_renderables, shadow_caster_world_bound);
 
-        ExtractFoliage(scene, shader_geometries, shader_materials, foliage_instances, foliage_renderables);
+        ExtractFoliage(scene, shader_geometries, shader_materials, foliage_instances, foliage_impostors, foliage_renderables);
 
         transform_history.world_transforms.resize(transform_count);
         if (!transform_history_layout_matches)

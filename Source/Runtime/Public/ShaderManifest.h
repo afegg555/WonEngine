@@ -29,6 +29,7 @@ namespace won::resource
         VSWaterInfo,
         VSWaterRippleSplat,
         VSOcclusionBox,
+        VSImpostor,
 
         PSSky,
         PSObjectForward,
@@ -44,6 +45,7 @@ namespace won::resource
         PSObjectUnlitMasked,
         PSImpostorBake,
         PSImpostorBakeMasked,
+        PSImpostor,
         PSSprite,
         PSSpriteMasked,
         PSText3D,
@@ -121,6 +123,7 @@ namespace won::resource
         case ShaderId::VSWaterInfo: return "VSWaterInfo";
         case ShaderId::VSWaterRippleSplat: return "VSWaterRippleSplat";
         case ShaderId::VSOcclusionBox: return "VSOcclusionBox";
+        case ShaderId::VSImpostor: return "VSImpostor";
         case ShaderId::PSSky: return "PSSky";
         case ShaderId::PSObjectForward: return "PSObjectForward";
         case ShaderId::PSObjectForwardPlus: return "PSObjectForwardPlus";
@@ -135,6 +138,7 @@ namespace won::resource
         case ShaderId::PSObjectUnlitMasked: return "PSObjectUnlitMasked";
         case ShaderId::PSImpostorBake: return "PSImpostorBake";
         case ShaderId::PSImpostorBakeMasked: return "PSImpostorBakeMasked";
+        case ShaderId::PSImpostor: return "PSImpostor";
         case ShaderId::PSSprite: return "PSSprite";
         case ShaderId::PSSpriteMasked: return "PSSpriteMasked";
         case ShaderId::PSText3D: return "PSText3D";

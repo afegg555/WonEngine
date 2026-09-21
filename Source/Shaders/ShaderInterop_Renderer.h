@@ -373,7 +373,8 @@ struct alignas(16) ShaderScene
 
     int terrain_layer_buffer;
     int foliage_instance_buffer;
-    int2 _scene_padding;
+    int foliage_impostor_buffer;
+    int _scene_padding;
 #ifdef __cplusplus
     inline void Init()
     {
@@ -398,7 +399,8 @@ struct alignas(16) ShaderScene
         terrain_buffer = -1;
         terrain_layer_buffer = -1;
         foliage_instance_buffer = -1;
-        _scene_padding = { 0, 0 };
+        foliage_impostor_buffer = -1;
+        _scene_padding = 0;
     }
 #endif
 };
@@ -939,6 +941,7 @@ struct alignas(16) ShaderFrame
         time = 0.0f;
         frame_slot = 0;
         frame_count = 0;
+        _frame_padding2 = 0.0f;
     }
 #endif
 };
@@ -1015,6 +1018,11 @@ struct alignas(16) ShaderView
     int ao_texture;
     int linear_depth; // view space z
     uint linear_depth_mip_count;
+
+    int foliage_instance_index_buffer;
+    int _view_padding0;
+    int _view_padding1;
+    int _view_padding2;
 #ifdef __cplusplus
     inline void Init()
     {
@@ -1038,6 +1046,11 @@ struct alignas(16) ShaderView
         ao_texture = -1;
         linear_depth = -1;
         linear_depth_mip_count = 0;
+
+        foliage_instance_index_buffer = -1;
+        _view_padding0 = 0;
+        _view_padding1 = 0;
+        _view_padding2 = 0;
     }
 #endif
 };
@@ -1271,6 +1284,17 @@ struct ShaderFoliageInstance
     float4 rotation;
 };
 
+struct ShaderFoliageImpostor
+{
+    int albedo_texture;
+    int normal_texture;
+    int depth_texture;
+    uint grid_size;
+
+    float radius;
+    float3 center;
+};
+
 struct ObjectPushConstants
 {
     uint instance_offset;
@@ -1359,7 +1383,7 @@ static_assert(sizeof(ShaderWaterZone) == 80, "ShaderWaterZone layout mismatch");
 static_assert(sizeof(ShaderWaterTile) == 16, "ShaderWaterTile layout mismatch");
 static_assert(sizeof(ShaderFrame) == 464, "ShaderFrame layout mismatch");
 static_assert(sizeof(ShaderCamera) == 432, "ShaderCamera layout mismatch");
-static_assert(sizeof(ShaderView) == 496, "ShaderView layout mismatch");
+static_assert(sizeof(ShaderView) == 512, "ShaderView layout mismatch");
 static_assert(sizeof(ShaderLight) == 64, "ShaderLight layout mismatch");
 static_assert(sizeof(ShaderShadowCascade) == 96, "ShaderShadowCascade layout mismatch");
 static_assert(sizeof(ShaderSprite) == 48, "ShaderSprite layout mismatch");

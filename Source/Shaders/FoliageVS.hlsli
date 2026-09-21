@@ -5,7 +5,9 @@ PixelInput main(VertexInput input)
     PixelInput output;
 
     const uint foliage_instance_buffer = DescriptorIndex(GetScene().foliage_instance_buffer);
-    const uint base = (push.instance_offset + input.instance_id) * 2;
+    const uint foliage_index_buffer = DescriptorIndex(GetView().foliage_instance_index_buffer);
+    const uint actual_instance = bindless_buffers_uint[foliage_index_buffer][push.instance_offset + input.instance_id];
+    const uint base = actual_instance * 2;
     const float4 position_scale = bindless_buffers_float4[foliage_instance_buffer][base + 0];
     const float4 rotation = bindless_buffers_float4[foliage_instance_buffer][base + 1];
 
