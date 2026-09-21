@@ -582,6 +582,10 @@ set(SHADERS_HLSL
     Source/Shaders/ImpostorBakePS.hlsli
     Source/Shaders/ImpostorBakePS.hlsl
     Source/Shaders/ImpostorBakePS_masked.hlsl
+    Source/Shaders/ShaderInterop_Impostor.h
+    Source/Shaders/ImpostorCommon.hlsli
+    Source/Shaders/ImpostorVS.hlsl
+    Source/Shaders/ImpostorPS.hlsl
     Source/Shaders/SpritePS.hlsli
     Source/Shaders/SpritePS_default.hlsl
     Source/Shaders/SpritePS_masked.hlsl
@@ -767,8 +771,8 @@ set(SYSTEM_PHASE_VISUALIZER_TOOL_SOURCES
     Source/Tools/SystemPhaseVisualizerTool/main.cpp
 )
 
-set(IMPOSTOR_BAKE_TOOL_SOURCES
-    Source/Tools/ImpostorBakeTool/main.cpp
+set(MESH_LOD_BAKE_TOOL_SOURCES
+    Source/Tools/MeshLodBakeTool/main.cpp
 )
 
 set(PLUGIN_PRINT_LOG_SAMPLE
@@ -817,8 +821,8 @@ add_executable(SystemPhaseVisualizerTool
     ${SYSTEM_PHASE_VISUALIZER_TOOL_SOURCES}
 )
 
-add_executable(ImpostorBakeTool
-    ${IMPOSTOR_BAKE_TOOL_SOURCES}
+add_executable(MeshLodBakeTool
+    ${MESH_LOD_BAKE_TOOL_SOURCES}
 )
 
 add_library(PrintLogSample SHARED
@@ -898,7 +902,7 @@ target_link_libraries(Player PRIVATE Runtime)
 target_link_libraries(ShaderOfflineCompiler PRIVATE Runtime)
 target_link_libraries(PackageTool PRIVATE Runtime)
 target_link_libraries(SystemPhaseVisualizerTool PRIVATE Runtime)
-target_link_libraries(ImpostorBakeTool PRIVATE Runtime)
+target_link_libraries(MeshLodBakeTool PRIVATE Runtime meshoptimizer)
 
 add_dependencies(Editor PackageTool ShaderOfflineCompiler AssetImporterTool)
 target_include_directories(PrintLogSample PRIVATE
@@ -954,7 +958,7 @@ set_target_properties(SystemPhaseVisualizerTool PROPERTIES
     FOLDER "Tools"
 )
 
-set_target_properties(ImpostorBakeTool PROPERTIES
+set_target_properties(MeshLodBakeTool PROPERTIES
     FOLDER "Tools"
 )
 

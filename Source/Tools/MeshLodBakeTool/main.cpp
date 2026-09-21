@@ -9,6 +9,7 @@
 #include "Configuration.h"
 #include "FileSystem.h"
 #include "JobSystem.h"
+#include "meshoptimizer.h"
 
 #include <cstdlib>
 #include <iostream>
@@ -18,6 +19,43 @@ using namespace won;
 
 namespace
 {
+    void GenerateMeshLods(resource::Mesh& mesh, const Vector<float>& ratios, const Vector<float>& screen_sizes)
+    {
+        mesh.lods.clear();
+        if (mesh.positions.empty() || mesh.indices.empty() || mesh.submeshes.empty())
+        {
+            return;
+        }
+        for (Size level = 0; level < ratios.size(); ++level)
+        {
+            resource::Mesh::Lod lod;
+            lod.screen_size_threshold = screen_sizes[level];
+            for (const resource::Submesh& submesh : mesh.submeshes)
+            {
+                const unsigned int* source = mesh.indices.data() + submesh.first_index;
+                const Size source_count = submesh.index_count;
+                Size target = static_cast<Size>(source_count * ratios[level]);
+                target -= target % 3;
+                if (target < 3)
+                {
+                    target = source_count >= 3 ? 3 : 0;
+                }
+                Vector<unsigned int> destination(source_count);
+                float error = 0.0f;
+                const Size result = meshopt_simplify(destination.data(), source, source_count,
+                    reinterpret_cast<const float*>(mesh.positions.data()), mesh.positions.size(), sizeof(float3),
+                    target, 0.05f, 0, &error);
+
+                resource::Submesh lod_submesh = submesh;
+                lod_submesh.first_index = static_cast<uint32>(lod.indices.size());
+                lod_submesh.index_count = static_cast<uint32>(result);
+                lod.submeshes.push_back(lod_submesh);
+                lod.indices.insert(lod.indices.end(), destination.begin(), destination.begin() + result);
+            }
+            mesh.lods.push_back(std::move(lod));
+        }
+    }
+
     String ResolveTexturePath(const String& content_root, const String& asset_path)
     {
         if (asset_path.empty() || io::Exists(asset_path))
@@ -46,7 +84,7 @@ int main(int argc, char** argv)
     const char* output_directory = arguments.GetString("2");
     if (mesh_path == nullptr || material_path == nullptr || output_directory == nullptr)
     {
-        std::cout << "Usage: ImpostorBakeTool <mesh.wonmesh> <material.wonmat> <output_dir> [content_root] [shaders_dir] [grid] [tile] [--full]\n";
+        std::cout << "Usage: MeshLodBakeTool <mesh.wonmesh> <material.wonmat> <output_dir> [content_root] [shaders_dir] [grid] [tile] [--full]\n";
         return 1;
     }
 
@@ -67,7 +105,7 @@ int main(int argc, char** argv)
     std::unique_ptr<rendering::RHIDevice> device = rendering::CreateRHIDevice(device_desc);
     if (!device)
     {
-        std::cout << "ImpostorBakeTool: failed to create RHI device\n";
+        std::cout << "MeshLodBakeTool: failed to create RHI device\n";
         return 1;
     }
 
@@ -79,26 +117,34 @@ int main(int argc, char** argv)
     std::unique_ptr<rendering::Renderer> renderer = rendering::CreateRenderer(renderer_desc);
     if (!renderer)
     {
-        std::cout << "ImpostorBakeTool: failed to create renderer (check --shaders path: " << renderer_desc.shader_bin_root_path << ")\n";
+        std::cout << "MeshLodBakeTool: failed to create renderer (check --shaders path: " << renderer_desc.shader_bin_root_path << ")\n";
         return 1;
     }
 
     std::shared_ptr<resource::Mesh> mesh = resource::LoadMeshBinary(mesh_path);
     if (!mesh)
     {
-        std::cout << "ImpostorBakeTool: failed to load mesh " << mesh_path << "\n";
+        std::cout << "MeshLodBakeTool: failed to load mesh " << mesh_path << "\n";
         return 1;
     }
     if (!rendering::utils::CreateRenderData(*device, *mesh))
     {
-        std::cout << "ImpostorBakeTool: failed to create mesh render data\n";
+        std::cout << "MeshLodBakeTool: failed to create mesh render data\n";
         return 1;
+    }
+
+    if (!arguments.HasKey("--nolods"))
+    {
+        const Vector<float> lod_ratios = { 0.5f, 0.2f };
+        const Vector<float> lod_screen_sizes = { 0.3f, 0.1f };
+        GenerateMeshLods(*mesh, lod_ratios, lod_screen_sizes);
+        std::cout << "MeshLodBakeTool: generated " << mesh->lods.size() << " mesh LODs\n";
     }
 
     std::shared_ptr<resource::Material> material = resource::LoadMaterialBinary(material_path);
     if (!material)
     {
-        std::cout << "ImpostorBakeTool: failed to load material " << material_path << "\n";
+        std::cout << "MeshLodBakeTool: failed to load material " << material_path << "\n";
         return 1;
     }
 
@@ -116,7 +162,7 @@ int main(int argc, char** argv)
             std::shared_ptr<resource::Image> image = resource::LoadTextureBinary(resolved);
             if (!image)
             {
-                std::cout << "ImpostorBakeTool: warning, failed to load texture " << resolved << "\n";
+                std::cout << "MeshLodBakeTool: warning, failed to load texture " << resolved << "\n";
                 continue;
             }
             rendering::utils::CreateRenderData(*device, *image, image->format);
@@ -126,7 +172,7 @@ int main(int argc, char** argv)
 
     if (!rendering::utils::BakeImpostor(*device, *renderer, *mesh, *material, static_cast<uint32>(grid_size), static_cast<uint32>(tile_resolution), layout))
     {
-        std::cout << "ImpostorBakeTool: bake failed\n";
+        std::cout << "MeshLodBakeTool: bake failed\n";
         return 1;
     }
 
@@ -134,11 +180,11 @@ int main(int argc, char** argv)
     {
         if (resource::SaveMeshBinary(mesh_path, *mesh))
         {
-            std::cout << "ImpostorBakeTool: wrote impostor into " << mesh_path << "\n";
+            std::cout << "MeshLodBakeTool: wrote impostor into " << mesh_path << "\n";
         }
         else
         {
-            std::cout << "ImpostorBakeTool: failed to write mesh " << mesh_path << "\n";
+            std::cout << "MeshLodBakeTool: failed to write mesh " << mesh_path << "\n";
             return 1;
         }
     }
@@ -149,10 +195,10 @@ int main(int argc, char** argv)
     const bool saved_depth = resource::SaveImageFile(*mesh->impostor.depth, io::CombinePath(output_directory, "impostor_depth.png"));
     if (!saved_albedo || !saved_normal || !saved_depth)
     {
-        std::cout << "ImpostorBakeTool: failed to write one or more atlas images\n";
+        std::cout << "MeshLodBakeTool: failed to write one or more atlas images\n";
         return 1;
     }
 
-    std::cout << "ImpostorBakeTool: baked " << grid_size << "x" << grid_size << " impostor (tile " << tile_resolution << ") to " << output_directory << "\n";
+    std::cout << "MeshLodBakeTool: baked " << grid_size << "x" << grid_size << " impostor (tile " << tile_resolution << ") to " << output_directory << "\n";
     return 0;
 }
