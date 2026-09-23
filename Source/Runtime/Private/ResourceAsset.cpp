@@ -1641,6 +1641,11 @@ namespace won::resource
                 LoadMeshResource(*geometry, content_root);
             }
 
+            if (ecs::FoliageComponent* foliage = scene.GetComponent<ecs::FoliageComponent>(entity))
+            {
+                LoadFoliageResource(*foliage, content_root);
+            }
+
             BindAnimationClips(scene, entity);
 
             if (ecs::MaterialComponent* material_comp = scene.GetComponent<ecs::MaterialComponent>(entity))
