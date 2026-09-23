@@ -853,9 +853,10 @@ struct COMInitializer
             // Not implemented yet -- define WON_TEXTURE_COMPRESS_GPU only when GPU init is wired up
             return false;
 #else
-            const DXGI_FORMAT src_dxgi = (src.format == rendering::RHIFormat::R8G8B8A8UnormSrgb)
-                ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB : DXGI_FORMAT_R8G8B8A8_UNORM;
             const DXGI_FORMAT dst_dxgi = ToDXGIFormat(dst_format);
+            // PNG/JPG color sources are already sRGB-encoded; label them so DirectXTex doesn't encode again
+            const DXGI_FORMAT src_dxgi = (src.format == rendering::RHIFormat::R8G8B8A8UnormSrgb || DirectX::IsSRGB(dst_dxgi))
+                ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB : DXGI_FORMAT_R8G8B8A8_UNORM;
 
 
             if (dst_dxgi == DXGI_FORMAT_UNKNOWN)
