@@ -4,6 +4,7 @@
 #include "Primitives.h"
 #include "BVH.h"
 #include "Backlog.h"
+#include "Image.h"
 #include "Resource.h"
 #include "RHIResource.h"
 #include "Types.h"
@@ -65,6 +66,26 @@ namespace won::resource
             }
         };
 
+        struct Impostor
+        {
+            uint32 grid_size = 0;
+            float radius = 0.0f;
+            float3 center = {};
+            float screen_size_threshold = 0.0f;
+            std::shared_ptr<Image> albedo;
+            std::shared_ptr<Image> normal;
+            std::shared_ptr<Image> depth;
+
+            rendering::RHISubresourceHandle albedo_srv = {};
+            rendering::RHISubresourceHandle normal_srv = {};
+            rendering::RHISubresourceHandle depth_srv = {};
+
+            bool IsValid() const
+            {
+                return grid_size > 0 && albedo != nullptr;
+            }
+        };
+
         struct RenderData
         {
             std::shared_ptr<rendering::RHIResource> buffer;
@@ -75,14 +96,13 @@ namespace won::resource
             VBSubresource texcoords = {};
             VBSubresource bone_indices = {};
             VBSubresource bone_weights = {};
-            VBSubresource indices = {};
             // built for dynamic meshes so normals can be recomputed on the gpu
             VBSubresource adjacency_ranges = {};
             VBSubresource adjacency_triangles = {};
 
             bool IsValid() const
             {
-                return buffer != nullptr && positions.IsValid() && indices.IsValid();
+                return buffer != nullptr && positions.IsValid();
             }
         };
 
@@ -93,8 +113,16 @@ namespace won::resource
         Vector<float2> texcoords;
         Vector<uint4> bone_indices;
         Vector<float4> bone_weights;
-        Vector<uint32> indices;
-        Vector<Submesh> submeshes;
+
+        struct Lod
+        {
+            Vector<uint32> indices;
+            Vector<Submesh> submeshes;
+            float screen_size_threshold = 1.0f;
+            VBSubresource render_indices = {};
+        };
+        Vector<Lod> lods = { Lod{} };
+
         std::shared_ptr<Skeleton> skeleton;
         Vector<math::AABB> bone_bounds;
         Vector<std::shared_ptr<AnimationClip>> animation_clips; // run, jump...
@@ -102,14 +130,21 @@ namespace won::resource
         math::bvh::BVH cpu_bvh; // local space bvh
         GPUBVH gpu_bvh = {}; // BLAS
         RenderData render_data = {};
+        Impostor impostor = {};
 
         bool IsValid() const override
         {
-            return !positions.empty() && !indices.empty();
+            return !positions.empty() && !lods.empty() && !lods[0].indices.empty();
         }
 
         void BuildBVH()
         {
+            if (lods.empty())
+            {
+                return;
+            }
+            const Vector<uint32>& indices = lods[0].indices;
+            const Vector<Submesh>& submeshes = lods[0].submeshes;
             Vector<math::bvh::BVHPrimitive> primitives;
             primitives.reserve(indices.size() / 3);
             for (const Submesh& submesh : submeshes)
@@ -191,6 +226,10 @@ namespace won::resource
         void ClearRenderData()
         {
             render_data = {};
+            for (Lod& lod : lods)
+            {
+                lod.render_indices = {};
+            }
         }
 
         void ClearGPUBVH()

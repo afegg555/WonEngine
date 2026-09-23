@@ -8,11 +8,17 @@ namespace won::resource
     struct Font;
     struct Image;
     struct Mesh;
+    struct Material;
 }
 
 namespace won::rendering
 {
     class Renderer;
+}
+
+namespace won::impostor
+{
+    enum class ImpostorLayout : uint8;
 }
 
 namespace won::rendering::utils
@@ -39,4 +45,8 @@ namespace won::rendering::utils
     WONENGINE_API bool CreateRenderData(RHIDevice& device, resource::Mesh& mesh);
     WONENGINE_API bool CreateRenderData(RHIDevice& device, resource::Image& image, RHIFormat format = RHIFormat::R8G8B8A8UnormSrgb, bool generate_mips = false);
     WONENGINE_API bool CreateRenderData(RHIDevice& device, resource::Font& font);
+
+    WONENGINE_API bool BakeImpostor(RHIDevice& device, Renderer& renderer, resource::Mesh& mesh,
+        const resource::Material& material, uint32 grid_size, uint32 tile_resolution,
+        impostor::ImpostorLayout layout);
 }

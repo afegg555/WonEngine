@@ -99,6 +99,24 @@ namespace won::rendering
             RHISubresourceHandle transform_index_srv = {};
         };
 
+        struct FoliageResources
+        {
+            FrameGraphResourceRef instance_index_buffer = invalid_frame_resource;
+            RHISubresourceHandle instance_index_srv = {};
+        };
+
+        struct FoliageLodRanges
+        {
+            struct IndexRange
+            {
+                uint32 offset = 0;
+                uint32 count = 0;
+            };
+
+            Vector<IndexRange> mesh_lods;
+            IndexRange impostor;
+        };
+
         struct DDGIDebugResources
         {
             std::unique_ptr<RHIResource> probe_data_readback_buffer;
@@ -267,6 +285,8 @@ namespace won::rendering
         LightResources light_resources = {};
         ShadowResources shadow_resources = {};
         TransformResources transform_resources = {};
+        FoliageResources foliage_resources = {};
+        Vector<FoliageLodRanges> foliage_lod_ranges;
         DDGIDebugResources ddgi_debug_resources = {};
         OcclusionResources occlusion_resources = {};
         Rect viewport = {};
@@ -286,6 +306,7 @@ namespace won::rendering
         Vector<uint32> sorted_terrain_transparent_indices;
         Vector<uint32> sorted_sprite_3d_indices;    // back-to-front
         Vector<uint32> sorted_sprite_2d_indices;    // by layer
+		Vector<uint32> foliage_instance_indices; // indices to GPUScene::foliage_instances
 
         void Update(float delta_time, uint64 update_index, bool simulation_paused);
         bool RayCast(float2 screen_position, ecs::RayCastHit& out_hit, bool use_local_bvh = true, uint32 layer_mask = 0xFFFFFFFF) const;

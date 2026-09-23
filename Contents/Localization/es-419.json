@@ -603,6 +603,11 @@
             "text": "Ruedas del vehículo",
             "comment": "label"
         },
+        "editor.label.show_foliage": {
+            "source": "Foliage",
+            "text": "Vegetación",
+            "comment": "label"
+        },
         "editor.label.automatic_transmission": {
             "source": "Automatic Transmission",
             "text": "Transmisión automática",
@@ -1213,6 +1218,14 @@
         "editor.field.bounds_extent": {
             "source": "Bounds Extent",
             "text": "Extensión de límites"
+        },
+        "editor.field.region_center": {
+            "source": "Region Center",
+            "text": "Centro de región"
+        },
+        "editor.field.region_extent": {
+            "source": "Region Extent",
+            "text": "Extensión de región"
         },
         "editor.field.clip": {
             "source": "Clip",
@@ -2077,6 +2090,10 @@
         "editor.enum.ViewMode.AmbientOcclusion": {
             "source": "Ambient Occlusion",
             "text": "Oclusión ambiental"
+        },
+        "editor.enum.ViewMode.LodColoration": {
+            "source": "LOD Coloration",
+            "text": "Coloración de LOD"
         },
         "editor.label.view_mode": {
             "source": "View Mode",

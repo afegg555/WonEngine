@@ -1287,6 +1287,11 @@
             "text": "차량 바퀴",
             "comment": "label"
         },
+        "editor.label.show_foliage": {
+            "source": "Foliage",
+            "text": "폴리지",
+            "comment": "label"
+        },
         "editor.label.automatic_transmission": {
             "source": "Automatic Transmission",
             "text": "자동 변속기",
@@ -1940,6 +1945,16 @@
         "editor.field.bounds_extent": {
             "source": "Bounds Extent",
             "text": "경계 크기",
+            "comment": "reflected component field"
+        },
+        "editor.field.region_center": {
+            "source": "Region Center",
+            "text": "영역 중심",
+            "comment": "reflected component field"
+        },
+        "editor.field.region_extent": {
+            "source": "Region Extent",
+            "text": "영역 크기",
             "comment": "reflected component field"
         },
         "editor.field.clip": {
@@ -2615,6 +2630,11 @@
         "editor.enum.ViewMode.AmbientOcclusion": {
             "source": "Ambient Occlusion",
             "text": "앵비언트 오클루전",
+            "comment": "enum"
+        },
+        "editor.enum.ViewMode.LodColoration": {
+            "source": "LOD Coloration",
+            "text": "LOD 색상 표시",
             "comment": "enum"
         },
         "editor.label.view_mode": {

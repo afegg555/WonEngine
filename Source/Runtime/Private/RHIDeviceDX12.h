@@ -37,12 +37,16 @@ namespace won::rendering
         std::unique_ptr<RHICommandAllocator> CreateCommandAllocator(RHIQueueType type) override;
         std::unique_ptr<RHICommandList> CreateCommandList(RHIQueueType type) override;
         std::unique_ptr<RHIQueryHeap> CreateQueryHeap(const RHIQueryHeapDesc& desc) override;
+        std::unique_ptr<RHICommandSignature> CreateCommandSignature(const RHICommandSignatureDesc& desc) override;
 
         std::unique_ptr<RHIResource> CreateBuffer(const RHIBufferDesc& desc,
             const void* initial_data = nullptr, Size initial_size = 0) override;
 
         std::unique_ptr<RHIResource> CreateTexture(const RHITextureDesc& desc,
             const void* initial_data = nullptr, Size initial_size = 0) override;
+
+        bool GetTextureCopyFootprint(RHIResource& texture,
+            Size& out_total_size, uint32& out_row_pitch, uint32& out_rows) const override;
 
         Size GetMinOffsetAlignment(const RHIBufferDesc& desc) const override;
 

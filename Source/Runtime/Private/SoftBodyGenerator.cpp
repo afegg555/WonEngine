@@ -22,6 +22,8 @@ namespace won::ecs
 
         auto mesh = std::make_shared<resource::Mesh>();
         mesh->dynamic_vertex_streams = true;
+        mesh->lods.resize(1);
+        mesh->lods[0].screen_size_threshold = 1.0f;
         mesh->positions.resize(vertex_count);
         mesh->normals.assign(vertex_count, float3(0.0f, 0.0f, 1.0f));
         mesh->texcoords.resize(vertex_count);
@@ -42,7 +44,7 @@ namespace won::ecs
             }
         }
 
-        mesh->indices.reserve(static_cast<Size>(vertices_x - 1u) * (vertices_y - 1u) * 6u);
+        mesh->lods[0].indices.reserve(static_cast<Size>(vertices_x - 1u) * (vertices_y - 1u) * 6u);
         for (uint32 y = 0; y + 1u < vertices_y; ++y)
         {
             for (uint32 x = 0; x + 1u < vertices_x; ++x)
@@ -52,13 +54,13 @@ namespace won::ecs
                 const uint32 bottom_left = top_left + vertices_x;
                 const uint32 bottom_right = bottom_left + 1u;
 
-                mesh->indices.push_back(top_left);
-                mesh->indices.push_back(bottom_left);
-                mesh->indices.push_back(top_right);
+                mesh->lods[0].indices.push_back(top_left);
+                mesh->lods[0].indices.push_back(bottom_left);
+                mesh->lods[0].indices.push_back(top_right);
 
-                mesh->indices.push_back(top_right);
-                mesh->indices.push_back(bottom_left);
-                mesh->indices.push_back(bottom_right);
+                mesh->lods[0].indices.push_back(top_right);
+                mesh->lods[0].indices.push_back(bottom_left);
+                mesh->lods[0].indices.push_back(bottom_right);
             }
         }
 
@@ -68,12 +70,12 @@ namespace won::ecs
 
         resource::Submesh submesh = {};
         submesh.first_index = 0;
-        submesh.index_count = static_cast<uint32>(mesh->indices.size());
+        submesh.index_count = static_cast<uint32>(mesh->lods[0].indices.size());
         submesh.first_vertex = 0;
         submesh.material_slot = 0;
         submesh.primitive_topology = resource::PrimitiveTopology::TriangleList;
         submesh.local_bounds = bounds;
-        mesh->submeshes.push_back(submesh);
+        mesh->lods[0].submeshes.push_back(submesh);
 
         return mesh;
     }

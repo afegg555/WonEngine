@@ -63,6 +63,7 @@ namespace won::ecs
             case reflection::TypeMeta<SequenceComponent>::type_id: return sequence_component_mask;
             case reflection::TypeMeta<WaterBodyComponent>::type_id: return water_body_component_mask;
             case reflection::TypeMeta<WaterZoneComponent>::type_id: return water_zone_component_mask;
+            case reflection::TypeMeta<FoliageComponent>::type_id: return foliage_component_mask;
             default: return none_component_mask;
             }
         }
@@ -121,6 +122,7 @@ namespace won::ecs
         component_manager.RegisterComponent<SequenceComponent>();
         component_manager.RegisterComponent<WaterBodyComponent>();
         component_manager.RegisterComponent<WaterZoneComponent>();
+        component_manager.RegisterComponent<FoliageComponent>();
 
         if (desc.script_runtime && desc.enable_simulation)
         {
@@ -150,6 +152,7 @@ namespace won::ecs
         }
         AddSystem(std::make_unique<AnimationUpdateSystem>(desc.enable_simulation));
         AddSystem(std::make_unique<MeshUpdateSystem>());
+        AddSystem(std::make_unique<FoliageSystem>());
         if (desc.enable_simulation)
         {
             AddSystem(std::make_unique<ParticleUpdateSystem>());
@@ -411,6 +414,8 @@ namespace won::ecs
         {
             if (physics_world && HasComponent<Collider3DComponent>(current))
                 physics_world->RemoveBody(current);
+            if (physics_world && HasComponent<FoliageComponent>(current))
+                physics_world->RemoveFoliage(current);
 
             ComponentMask destroyed_mask = none_component_mask;
             for (const won::TypeDesc* type_desc : component_types)
@@ -580,6 +585,9 @@ namespace won::ecs
         const won::TypeDesc* collider_desc = reflection::TypeMeta<Collider3DComponent>::Get();
         if (collider_desc && type_id == collider_desc->type_id && physics_world)
             physics_world->RemoveBody(entity);
+        const won::TypeDesc* foliage_desc = reflection::TypeMeta<FoliageComponent>::Get();
+        if (foliage_desc && type_id == foliage_desc->type_id && physics_world)
+            physics_world->RemoveFoliage(entity);
 
         if (component_manager.HasComponent(entity, type_id))
         {
@@ -777,6 +785,11 @@ namespace won::ecs
                 const XMVECTOR ray_direction = XMVector3Normalize(XMLoadFloat3(&ray.direction));
 
                 resource::Mesh& mesh = *geometry->mesh;
+                if (mesh.lods.empty())
+                {
+                    return false;
+                }
+                const Vector<uint32>& mesh_indices = mesh.lods[0].indices;
                 math::Ray local_ray = {};
                 XMStoreFloat3(&local_ray.origin, XMVector3TransformCoord(ray_origin, inv_world_transform));
                 XMStoreFloat3(&local_ray.direction, XMVector3Normalize(XMVector3TransformNormal(ray_direction, inv_world_transform)));
@@ -786,14 +799,14 @@ namespace won::ecs
                 auto test_local_triangle = [&](uint32 triangle_index) -> bool
                 {
                     const uint32 index = triangle_index * 3;
-                    if (index + 2 >= mesh.indices.size())
+                    if (index + 2 >= mesh_indices.size())
                     {
                         return false;
                     }
 
-                    const uint32 i0 = mesh.indices[index];
-                    const uint32 i1 = mesh.indices[index + 1];
-                    const uint32 i2 = mesh.indices[index + 2];
+                    const uint32 i0 = mesh_indices[index];
+                    const uint32 i1 = mesh_indices[index + 1];
+                    const uint32 i2 = mesh_indices[index + 2];
                     if (i0 >= mesh.positions.size() || i1 >= mesh.positions.size() || i2 >= mesh.positions.size())
                     {
                         return false;
@@ -863,7 +876,7 @@ namespace won::ecs
 
                 if (!used_local_bvh)
                 {
-                    for (uint32 index = 0; index + 2 < mesh.indices.size(); index += 3)
+                    for (uint32 index = 0; index + 2 < mesh_indices.size(); index += 3)
                     {
                         test_local_triangle(index / 3);
                     }

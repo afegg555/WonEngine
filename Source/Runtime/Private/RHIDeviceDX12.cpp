@@ -8,6 +8,7 @@
 #include "RHICommandAllocatorDX12.h"
 #include "RHICommandListDX12.h"
 #include "RHIQueryHeapDX12.h"
+#include "RHICommandSignatureDX12.h"
 #include "RHIResourceDX12.h"
 #include "RHIPipelineDX12.h"
 #include "RHISamplerDX12.h"
@@ -586,6 +587,64 @@ namespace won::rendering
         return std::make_unique<RHIQueryHeapDX12>(desc, std::move(query_heap));
     }
 
+    std::unique_ptr<RHICommandSignature> RHIDeviceDX12::CreateCommandSignature(const RHICommandSignatureDesc& desc)
+    {
+        if (!device || desc.arguments.empty() || desc.byte_stride == 0)
+        {
+            return nullptr;
+        }
+
+        Vector<D3D12_INDIRECT_ARGUMENT_DESC> argument_descs;
+        argument_descs.reserve(desc.arguments.size());
+        for (const RHIIndirectArgument& argument : desc.arguments)
+        {
+            D3D12_INDIRECT_ARGUMENT_DESC argument_desc = {};
+            switch (argument.type)
+            {
+            case RHIIndirectArgumentType::Draw:
+                argument_desc.Type = D3D12_INDIRECT_ARGUMENT_TYPE_DRAW;
+                break;
+            case RHIIndirectArgumentType::DrawIndexed:
+                argument_desc.Type = D3D12_INDIRECT_ARGUMENT_TYPE_DRAW_INDEXED;
+                break;
+            case RHIIndirectArgumentType::Dispatch:
+                argument_desc.Type = D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH;
+                break;
+            case RHIIndirectArgumentType::Constant:
+                argument_desc.Type = D3D12_INDIRECT_ARGUMENT_TYPE_CONSTANT;
+                argument_desc.Constant.RootParameterIndex = argument.root_parameter_index;
+                argument_desc.Constant.DestOffsetIn32BitValues = argument.dest_offset_in_values;
+                argument_desc.Constant.Num32BitValuesToSet = argument.value_count;
+                break;
+            }
+            argument_descs.push_back(argument_desc);
+        }
+
+        ID3D12RootSignature* root_signature = nullptr;
+        if (desc.root_signature_source)
+        {
+            auto pipeline_dx12 = dynamic_cast<RHIPipelineDX12*>(desc.root_signature_source);
+            if (pipeline_dx12)
+            {
+                root_signature = pipeline_dx12->GetRootSignature();
+            }
+        }
+
+        D3D12_COMMAND_SIGNATURE_DESC signature_desc = {};
+        signature_desc.ByteStride = desc.byte_stride;
+        signature_desc.NumArgumentDescs = static_cast<UINT>(argument_descs.size());
+        signature_desc.pArgumentDescs = argument_descs.data();
+
+        ComPtr<ID3D12CommandSignature> command_signature;
+        if (FAILED(device->CreateCommandSignature(&signature_desc, root_signature, IID_PPV_ARGS(&command_signature))) || !command_signature)
+        {
+            backlog::Post("Failed to create command signature", backlog::LogLevel::Error);
+            return nullptr;
+        }
+
+        return std::make_unique<RHICommandSignatureDX12>(desc, std::move(command_signature));
+    }
+
     std::unique_ptr<RHIResource> RHIDeviceDX12::CreateBuffer(const RHIBufferDesc& desc,
         const void* initial_data, Size initial_size)
     {
@@ -822,7 +881,7 @@ namespace won::rendering
         }
         else if (HasBindFlag(desc.bind_flags, RHIBindFlags::RenderTarget))
         {
-            optimized_clear_value.Format = ToDXGIResourceFormat(desc.format);
+            optimized_clear_value.Format = ToDXGIFormat(desc.format);
             optimized_clear_value.Color[0] = desc.clear_color[0];
             optimized_clear_value.Color[1] = desc.clear_color[1];
             optimized_clear_value.Color[2] = desc.clear_color[2];
@@ -982,6 +1041,28 @@ namespace won::rendering
         return texture_resource;
     }
 
+    bool RHIDeviceDX12::GetTextureCopyFootprint(RHIResource& texture,
+        Size& out_total_size, uint32& out_row_pitch, uint32& out_rows) const
+    {
+        auto* texture_dx12 = dynamic_cast<RHIResourceDX12*>(&texture);
+        if (!texture_dx12 || !texture_dx12->GetResource())
+        {
+            return false;
+        }
+
+        const D3D12_RESOURCE_DESC resource_desc = texture_dx12->GetResource()->GetDesc();
+        UINT64 total_size = 0;
+        D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint = {};
+        UINT num_rows = 0;
+        UINT64 row_size = 0;
+        device->GetCopyableFootprints(&resource_desc, 0, 1, 0, &footprint, &num_rows, &row_size, &total_size);
+
+        out_total_size = static_cast<Size>(total_size);
+        out_row_pitch = footprint.Footprint.RowPitch;
+        out_rows = num_rows;
+        return true;
+    }
+
     Size RHIDeviceDX12::GetMinOffsetAlignment(const RHIBufferDesc& desc) const
     {
         Size alignment = 1;
@@ -1067,7 +1148,7 @@ namespace won::rendering
         }
         else if (HasBindFlag(desc.bind_flags, RHIBindFlags::RenderTarget))
         {
-            optimized_clear_value.Format = ToDXGIResourceFormat(desc.format);
+            optimized_clear_value.Format = ToDXGIFormat(desc.format);
             optimized_clear_value.Color[0] = desc.clear_color[0];
             optimized_clear_value.Color[1] = desc.clear_color[1];
             optimized_clear_value.Color[2] = desc.clear_color[2];
@@ -1119,7 +1200,7 @@ namespace won::rendering
             }
             else if (HasBindFlag(texture_desc.bind_flags, RHIBindFlags::RenderTarget))
             {
-                optimized_clear_value.Format = ToDXGIResourceFormat(texture_desc.format);
+                optimized_clear_value.Format = ToDXGIFormat(texture_desc.format);
                 optimized_clear_value.Color[0] = texture_desc.clear_color[0];
                 optimized_clear_value.Color[1] = texture_desc.clear_color[1];
                 optimized_clear_value.Color[2] = texture_desc.clear_color[2];

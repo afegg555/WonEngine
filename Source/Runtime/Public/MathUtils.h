@@ -142,6 +142,64 @@ namespace won::math
 		XMVECTOR vector2 = XMLoadFloat3(&v2);
 		return DistanceEstimated(vector1, vector2);
 	}
+	inline float2 EncodeOctahedralDirection(float3 direction)
+	{
+		// z > 0 : (x, y) = (x, y) / (|x| + |y| + |z|)
+		// z < 0 : (x, y) = ((1 - |y|) * sign(x), (1 - |x|) * sign(y)) / (|x| + |y| + |z|)
+		const float l1 = std::abs(direction.x) + std::abs(direction.y) + std::abs(direction.z);
+		const float inv_l1 = 1.0f / (std::max)(l1, 1e-4f);
+		float x = direction.x * inv_l1;
+		float y = direction.y * inv_l1;
+		const float z = direction.z * inv_l1;
+		if (z < 0.0f)
+		{
+			const float sign_x = x >= 0.0f ? 1.0f : -1.0f;
+			const float sign_y = y >= 0.0f ? 1.0f : -1.0f;
+			const float folded_x = (1.0f - std::abs(y)) * sign_x;
+			const float folded_y = (1.0f - std::abs(x)) * sign_y;
+			x = folded_x;
+			y = folded_y;
+		}
+		return float2(x * 0.5f + 0.5f, y * 0.5f + 0.5f);
+	}
+
+	inline float3 DecodeOctahedralDirection(float2 encoded)
+	{
+		float x = encoded.x;
+		float y = encoded.y;
+		const float z = 1.0f - std::abs(x) - std::abs(y);
+		if (z < 0.0f)
+		{
+			const float sign_x = x >= 0.0f ? 1.0f : -1.0f;
+			const float sign_y = y >= 0.0f ? 1.0f : -1.0f;
+			const float folded_x = (1.0f - std::abs(y)) * sign_x;
+			const float folded_y = (1.0f - std::abs(x)) * sign_y;
+			x = folded_x;
+			y = folded_y;
+		}
+		const float inv_length = 1.0f / (std::max)(std::sqrt(x * x + y * y + z * z), 1e-8f);
+		return float3(x * inv_length, y * inv_length, z * inv_length);
+	}
+
+	inline float2 EncodeHemiOctahedralDirection(float3 direction)
+	{
+		// z is always positive, so we can use more precise encoding(45 degree rotation)
+		const float l1 = std::abs(direction.x) + std::abs(direction.y) + std::abs(direction.z);
+		const float inv_l1 = 1.0f / (std::max)(l1, 1e-4f);
+		const float x = direction.x * inv_l1;
+		const float y = direction.y * inv_l1;
+		return float2((x + y) * 0.5f + 0.5f, (x - y) * 0.5f + 0.5f);
+	}
+
+	inline float3 DecodeHemiOctahedralDirection(float2 encoded)
+	{
+		const float x = (encoded.x + encoded.y) * 0.5f;
+		const float y = (encoded.x - encoded.y) * 0.5f;
+		const float z = 1.0f - std::abs(x) - std::abs(y);
+		const float inv_length = 1.0f / (std::max)(std::sqrt(x * x + y * y + z * z), 1e-8f);
+		return float3(x * inv_length, y * inv_length, z * inv_length);
+	}
+
 	inline XMVECTOR ClosestPointOnLine(const XMVECTOR& A, const XMVECTOR& B, const XMVECTOR& Point)
 	{
 		XMVECTOR AB = B - A;

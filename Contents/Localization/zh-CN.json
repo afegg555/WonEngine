@@ -603,6 +603,11 @@
             "text": "车辆车轮",
             "comment": "label"
         },
+        "editor.label.show_foliage": {
+            "source": "Foliage",
+            "text": "植被",
+            "comment": "label"
+        },
         "editor.label.automatic_transmission": {
             "source": "Automatic Transmission",
             "text": "自动变速箱",
@@ -1566,6 +1571,14 @@
             "source": "Bounds Extent",
             "text": "边界范围"
         },
+        "editor.field.region_center": {
+            "source": "Region Center",
+            "text": "区域中心"
+        },
+        "editor.field.region_extent": {
+            "source": "Region Extent",
+            "text": "区域范围"
+        },
         "editor.field.clip": {
             "source": "Clip",
             "text": "片段"
@@ -2077,6 +2090,10 @@
         "editor.enum.ViewMode.AmbientOcclusion": {
             "source": "Ambient Occlusion",
             "text": "环境光遮蔽"
+        },
+        "editor.enum.ViewMode.LodColoration": {
+            "source": "LOD Coloration",
+            "text": "LOD 着色"
         },
         "editor.label.view_mode": {
             "source": "View Mode",

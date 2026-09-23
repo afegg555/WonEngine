@@ -157,6 +157,7 @@ set(RUNTIME_RHI
     Source/Runtime/Public/RHICommandList.h
     Source/Runtime/Public/RHICommandAllocator.h
     Source/Runtime/Public/RHIQueryHeap.h
+    Source/Runtime/Public/RHICommandSignature.h
     Source/Runtime/Public/RHIResource.h
     Source/Runtime/Public/RHIPipeline.h
     Source/Runtime/Public/RHISampler.h
@@ -179,6 +180,8 @@ set(RUNTIME_RHI_DX12
     Source/Runtime/Private/RHICommandListDX12.cpp
     Source/Runtime/Private/RHIQueryHeapDX12.h
     Source/Runtime/Private/RHIQueryHeapDX12.cpp
+    Source/Runtime/Private/RHICommandSignatureDX12.h
+    Source/Runtime/Private/RHICommandSignatureDX12.cpp
     Source/Runtime/Private/RHIResourceDX12.h
     Source/Runtime/Private/RHIResourceDX12.cpp
     Source/Runtime/Private/DescriptorAllocatorDX12.h
@@ -204,6 +207,10 @@ set(RUNTIME_RESOURCE
     Source/Runtime/Public/Mesh.h
     Source/Runtime/Public/TerrainData.h
     Source/Runtime/Private/TerrainData.cpp
+    Source/Runtime/Public/Foliage.h
+    Source/Runtime/Private/Foliage.cpp
+    Source/Runtime/Public/Impostor.h
+    Source/Runtime/Private/Impostor.cpp
     Source/Runtime/Public/SoftBodyGenerator.h
     Source/Runtime/Private/SoftBodyGenerator.cpp
     Source/Runtime/Public/NavMesh.h
@@ -379,6 +386,7 @@ set(RUNTIME_ECS_COMPONENTS
     Source/Runtime/Public/VisibilityLayerComponent.h
     Source/Runtime/Public/CollisionLayerComponent.h
     Source/Runtime/Public/TerrainComponent.h
+    Source/Runtime/Public/FoliageComponent.h
     Source/Runtime/Public/NavMeshComponent.h
     Source/Runtime/Public/ParticleEmitter3DComponent.h
     Source/Runtime/Public/DecalComponent.h
@@ -412,6 +420,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Public/ScriptUpdateSystem.h
     Source/Runtime/Public/ScriptEventDispatchSystem.h
     Source/Runtime/Public/MeshUpdateSystem.h
+    Source/Runtime/Public/FoliageSystem.h
     Source/Runtime/Public/PhysicsUpdateSystem.h
     Source/Runtime/Public/AudioUpdateSystem.h
     Source/Runtime/Public/LocalizeTextSystem.h
@@ -424,6 +433,7 @@ set(RUNTIME_ECS_SYSTEMS
     Source/Runtime/Private/SequenceSystem.cpp
     Source/Runtime/Private/TransformUpdateSystem.cpp
     Source/Runtime/Private/ParticleUpdateSystem.cpp
+    Source/Runtime/Private/FoliageSystem.cpp
     Source/Runtime/Private/Wind.cpp
     Source/Runtime/Private/WaterSimulationSystem.cpp
     Source/Runtime/Private/ScriptUpdateSystem.cpp
@@ -518,12 +528,22 @@ set(SHADERS_HLSL
     Source/Shaders/BRDFCommon.hlsli
     Source/Shaders/FogCommon.hlsli
     Source/Shaders/RayTraceCommon.hlsli
+    Source/Shaders/OctahedralMapping.hlsli
     Source/Shaders/DDGICommon.hlsli
     Source/Shaders/NoiseCommon.hlsli
     Source/Shaders/SkyCommon.hlsli
     Source/Shaders/AOCommon.hlsli
     Source/Shaders/ObjectCommon.hlsli
     Source/Shaders/ObjectVS.hlsli
+    Source/Shaders/FoliageVS.hlsli
+    Source/Shaders/FoliageVS_common.hlsl
+    Source/Shaders/FoliageVS_prepass.hlsl
+    Source/Shaders/FoliageVS_normal.hlsl
+    Source/Shaders/FoliageVS_motion.hlsl
+    Source/Shaders/FoliageVS_motion_masked.hlsl
+    Source/Shaders/FoliageVS_motion_normal.hlsl
+    Source/Shaders/FoliageVS_motion_normal_masked.hlsl
+    Source/Shaders/FoliageVS_simple.hlsl
     Source/Shaders/ObjectVS_simple.hlsl
     Source/Shaders/ObjectVS_common.hlsl
     Source/Shaders/ObjectVS_prepass.hlsl
@@ -566,6 +586,20 @@ set(SHADERS_HLSL
     Source/Shaders/TerrainPS_forwardplus_masked.hlsl
     Source/Shaders/TerrainPS_unlit_masked.hlsl
     Source/Shaders/ObjectPS_unlit_masked.hlsl
+    Source/Shaders/ImpostorBakePS.hlsli
+    Source/Shaders/ImpostorBakePS.hlsl
+    Source/Shaders/ImpostorBakePS_masked.hlsl
+    Source/Shaders/ShaderInterop_Impostor.h
+    Source/Shaders/ImpostorCommon.hlsli
+    Source/Shaders/ImpostorVS.hlsl
+    Source/Shaders/ImpostorPS.hlsli
+    Source/Shaders/ImpostorPS_forward.hlsl
+    Source/Shaders/ImpostorPS_forwardplus.hlsl
+    Source/Shaders/ImpostorPS_prepass.hlsli
+    Source/Shaders/ImpostorPS_prepass.hlsl
+    Source/Shaders/ImpostorPS_normal.hlsl
+    Source/Shaders/ImpostorPS_motion.hlsl
+    Source/Shaders/ImpostorPS_motion_normal.hlsl
     Source/Shaders/SpritePS.hlsli
     Source/Shaders/SpritePS_default.hlsl
     Source/Shaders/SpritePS_masked.hlsl
@@ -608,6 +642,15 @@ target_include_directories(RecastNavigation PUBLIC
     Source/Vendor/recastnavigation/Detour/Include
 )
 set_target_properties(RecastNavigation PROPERTIES FOLDER "Vendors")
+
+file(GLOB MESHOPTIMIZER_SOURCES
+    Source/Vendor/meshoptimizer/*.cpp
+)
+add_library(meshoptimizer STATIC ${MESHOPTIMIZER_SOURCES})
+target_include_directories(meshoptimizer PUBLIC
+    Source/Vendor/meshoptimizer
+)
+set_target_properties(meshoptimizer PROPERTIES FOLDER "Vendors")
 
 set(WONENGINE_RUNTIME_LIBRARY_TYPE STATIC)
 if(WONENGINE_BUILD_SHARED_RUNTIME)
@@ -742,6 +785,10 @@ set(SYSTEM_PHASE_VISUALIZER_TOOL_SOURCES
     Source/Tools/SystemPhaseVisualizerTool/main.cpp
 )
 
+set(MESH_LOD_BAKE_TOOL_SOURCES
+    Source/Tools/MeshLodBakeTool/main.cpp
+)
+
 set(PLUGIN_PRINT_LOG_SAMPLE
     Source/Plugins/PrintLogSample/PrintLogSample.cpp
     Source/Plugins/PrintLogSample/plugin.json
@@ -786,6 +833,10 @@ add_executable(AssetImporterTool
 
 add_executable(SystemPhaseVisualizerTool
     ${SYSTEM_PHASE_VISUALIZER_TOOL_SOURCES}
+)
+
+add_executable(MeshLodBakeTool
+    ${MESH_LOD_BAKE_TOOL_SOURCES}
 )
 
 add_library(PrintLogSample SHARED
@@ -865,6 +916,7 @@ target_link_libraries(Player PRIVATE Runtime)
 target_link_libraries(ShaderOfflineCompiler PRIVATE Runtime)
 target_link_libraries(PackageTool PRIVATE Runtime)
 target_link_libraries(SystemPhaseVisualizerTool PRIVATE Runtime)
+target_link_libraries(MeshLodBakeTool PRIVATE Runtime meshoptimizer)
 
 add_dependencies(Editor PackageTool ShaderOfflineCompiler AssetImporterTool)
 target_include_directories(PrintLogSample PRIVATE
@@ -917,6 +969,10 @@ set_target_properties(AssetImporterTool PROPERTIES
 )
 
 set_target_properties(SystemPhaseVisualizerTool PROPERTIES
+    FOLDER "Tools"
+)
+
+set_target_properties(MeshLodBakeTool PROPERTIES
     FOLDER "Tools"
 )
 

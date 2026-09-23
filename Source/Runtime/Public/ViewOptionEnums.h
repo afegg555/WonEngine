@@ -43,6 +43,7 @@ namespace won::rendering
         Wireframe,
         Overdraw,
         AmbientOcclusion,
+        LodColoration,
 
         VIEWMODE_COUNT,
     };
@@ -57,6 +58,7 @@ namespace won::rendering
         Show_Sprites2D = 1 << 5,
         Show_Shadows = 1 << 6,
         Show_Water = 1 << 7,
+        Show_Foliage = 1 << 8,
 
         Show_Grid = 1 << 16,
         Show_Colliders = 1 << 17,
@@ -65,7 +67,7 @@ namespace won::rendering
         Show_Occlusion = 1 << 20,
         Show_Vehicles = 1 << 21,
 
-        Show_Default = Show_Opaque | Show_Transparent | Show_Decals | Show_Particles | Show_Sprites3D | Show_Sprites2D | Show_Shadows | Show_Water,
+        Show_Default = Show_Opaque | Show_Transparent | Show_Decals | Show_Particles | Show_Sprites3D | Show_Sprites2D | Show_Shadows | Show_Water | Show_Foliage,
     };
 }
 

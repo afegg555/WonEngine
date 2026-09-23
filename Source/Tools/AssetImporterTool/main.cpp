@@ -147,6 +147,7 @@ struct COMInitializer
 
         struct MaterialData
         {
+            String name;
             resource::MaterialSlot slot;
             bool has_alpha_mode = false;
         };
@@ -246,6 +247,8 @@ struct COMInitializer
 
             asset_data.mesh = std::make_shared<resource::Mesh>();
             resource::Mesh& mesh = *asset_data.mesh;
+            mesh.lods.resize(1);
+            mesh.lods[0].screen_size_threshold = 1.0f;
 
             auto skeleton = std::make_shared<resource::Skeleton>();
             UnorderedMap<String, uint32> bone_name_to_index;
@@ -475,6 +478,7 @@ struct COMInitializer
                 const aiMaterial* ai_mat = aiscene->mMaterials[i];
                 const uint32 material_index = static_cast<uint32>(asset_data.materials.size());
                 MaterialData& material_data = asset_data.materials.emplace_back();
+                material_data.name = ai_mat->GetName().C_Str();
                 resource::MaterialSlot& slot = material_data.slot;
                 aiColor4D c;
                 float v = 0.f;
@@ -515,6 +519,11 @@ struct COMInitializer
                 if (aiReturn_SUCCESS == aiGetMaterialFloat(ai_mat, AI_MATKEY_GLTF_ALPHACUTOFF, &v))
                 {
                     slot.settings.alpha_cutoff = v;
+                }
+                int two_sided = 0;
+                if (aiReturn_SUCCESS == aiGetMaterialInteger(ai_mat, AI_MATKEY_TWOSIDED, &two_sided))
+                {
+                    slot.settings.double_sided = two_sided != 0;
                 }
 
                 // sheen
@@ -691,8 +700,8 @@ struct COMInitializer
                     const bool has_tb = ai_mesh->HasTangentsAndBitangents();
                     const bool use_skinning_mesh_space = ai_mesh->HasBones();
                     const uint32 vertex_offset = static_cast<uint32>(mesh.positions.size());
-                    const uint32 index_offset = static_cast<uint32>(mesh.indices.size());
-                    resource::Submesh& submesh = mesh.submeshes.emplace_back();
+                    const uint32 index_offset = static_cast<uint32>(mesh.lods[0].indices.size());
+                    resource::Submesh& submesh = mesh.lods[0].submeshes.emplace_back();
                     math::AABB local_bounds = {};
                     local_bounds.Invalidate();
                     submesh.first_vertex = vertex_offset;
@@ -813,19 +822,19 @@ struct COMInitializer
 
                     if (ai_mesh->HasFaces())
                     {
-                        mesh.indices.reserve(mesh.indices.size() + ai_mesh->mNumFaces * 3);
+                        mesh.lods[0].indices.reserve(mesh.lods[0].indices.size() + ai_mesh->mNumFaces * 3);
 
                         for (uint32_t face_index = 0; face_index < ai_mesh->mNumFaces; ++face_index)
                         {
                             const aiFace& face = ai_mesh->mFaces[face_index];
                             for (uint32_t index_index = 0; index_index < face.mNumIndices; ++index_index)
                             {
-                                mesh.indices.push_back(vertex_offset + face.mIndices[index_index]);
+                                mesh.lods[0].indices.push_back(vertex_offset + face.mIndices[index_index]);
                             }
                         }
                     }
 
-                    submesh.index_count = static_cast<uint32>(mesh.indices.size()) - index_offset;
+                    submesh.index_count = static_cast<uint32>(mesh.lods[0].indices.size()) - index_offset;
                     submesh.local_bounds = local_bounds;
                 }
 
@@ -841,19 +850,92 @@ struct COMInitializer
                 return false;
             }
 
+            const Size extension_length = ext.size() + 1;
+            const String base_path = file_path.substr(0, file_path.size() - extension_length);
+            if (base_path.size() > 5 && utils::ToLower(base_path.substr(base_path.size() - 5)) == "_lod0" && !mesh.skeleton)
+            {
+                for (uint32 lod_index = 1; ; ++lod_index)
+                {
+                    const String lod_path = base_path.substr(0, base_path.size() - 1) + std::to_string(lod_index) + file_path.substr(file_path.size() - extension_length);
+                    if (!io::Exists(lod_path))
+                    {
+                        break;
+                    }
+
+                    AssetData lod_data;
+                    if (!ImportAssetData(lod_path, scale, false, import_normals, import_tangents, false, lod_data))
+                    {
+                        return false;
+                    }
+                    const resource::Mesh& lod_mesh = *lod_data.mesh;
+                    const uint32 vertex_base = static_cast<uint32>(mesh.positions.size());
+                    mesh.positions.insert(mesh.positions.end(), lod_mesh.positions.begin(), lod_mesh.positions.end());
+                    mesh.normals.insert(mesh.normals.end(), lod_mesh.normals.begin(), lod_mesh.normals.end());
+                    if (!mesh.texcoords.empty())
+                    {
+                        mesh.texcoords.resize(vertex_base);
+                        mesh.texcoords.insert(mesh.texcoords.end(), lod_mesh.texcoords.begin(), lod_mesh.texcoords.end());
+                        mesh.texcoords.resize(mesh.positions.size(), float2(0.0f, 0.0f));
+                    }
+                    if (!mesh.tangents.empty())
+                    {
+                        mesh.tangents.resize(vertex_base);
+                        mesh.tangents.insert(mesh.tangents.end(), lod_mesh.tangents.begin(), lod_mesh.tangents.end());
+                        mesh.tangents.resize(mesh.positions.size(), float4(1.0f, 0.0f, 0.0f, 1.0f));
+                    }
+
+                    resource::Mesh::Lod lod;
+                    lod.screen_size_threshold = 0.6f / static_cast<float>(1u << (lod_index - 1));
+                    Vector<bool> lod_submesh_used(lod_mesh.lods[0].submeshes.size(), false);
+                    for (const resource::Submesh& base_submesh : mesh.lods[0].submeshes)
+                    {
+                        resource::Submesh& lod_submesh = lod.submeshes.emplace_back(base_submesh);
+                        lod_submesh.first_vertex = vertex_base;
+                        lod_submesh.first_index = static_cast<uint32>(lod.indices.size());
+                        lod_submesh.local_bounds.Invalidate();
+                        const String& material_name = asset_data.materials[base_submesh.material_slot].name;
+                        for (Size source_index = 0; source_index < lod_mesh.lods[0].submeshes.size(); ++source_index)
+                        {
+                            const resource::Submesh& source_submesh = lod_mesh.lods[0].submeshes[source_index];
+                            if (lod_submesh_used[source_index] || lod_data.materials[source_submesh.material_slot].name != material_name)
+                            {
+                                continue;
+                            }
+                            lod_submesh_used[source_index] = true;
+                            for (uint32 index = source_submesh.first_index; index < source_submesh.first_index + source_submesh.index_count; ++index)
+                            {
+                                lod.indices.push_back(vertex_base + lod_mesh.lods[0].indices[index]);
+                            }
+                            lod_submesh.local_bounds.Merge(source_submesh.local_bounds);
+                        }
+                        lod_submesh.index_count = static_cast<uint32>(lod.indices.size()) - lod_submesh.first_index;
+                    }
+                    for (Size source_index = 0; source_index < lod_submesh_used.size(); ++source_index)
+                    {
+                        if (!lod_submesh_used[source_index])
+                        {
+                            std::cout << "WARNING: " << lod_path << " submesh " << source_index << " has no matching LOD0 material, skipped\n";
+                        }
+                    }
+                    mesh.lods.push_back(std::move(lod));
+                    std::cout << "Imported LOD" << lod_index << ": " << lod_path << "\n";
+                }
+            }
+
             return true;
         }
 
-        static bool CompressTexture(const resource::Image& src, rendering::RHIFormat dst_format, bool generate_mipmaps,
+        static bool CompressTexture(const resource::Image& src, rendering::RHIFormat dst_format, bool generate_mipmaps, float coverage_alpha_cutoff,
                                     Vector<uint8>& out_pixels, uint32& out_mip_levels)
         {
 #if defined(WON_TEXTURE_COMPRESS_GPU)
             // Not implemented yet -- define WON_TEXTURE_COMPRESS_GPU only when GPU init is wired up
             return false;
 #else
-            const DXGI_FORMAT src_dxgi = (src.format == rendering::RHIFormat::R8G8B8A8UnormSrgb)
-                ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB : DXGI_FORMAT_R8G8B8A8_UNORM;
             const DXGI_FORMAT dst_dxgi = ToDXGIFormat(dst_format);
+            // PNG/JPG color sources are already sRGB-encoded; label them so DirectXTex doesn't encode again
+            const DXGI_FORMAT src_dxgi = (src.format == rendering::RHIFormat::R8G8B8A8UnormSrgb || DirectX::IsSRGB(dst_dxgi))
+                ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB : DXGI_FORMAT_R8G8B8A8_UNORM;
 
 
             if (dst_dxgi == DXGI_FORMAT_UNKNOWN)
@@ -868,7 +950,93 @@ struct COMInitializer
             dxtex.format    = src_dxgi;
             dxtex.rowPitch  = static_cast<size_t>(src.width) * 4;
             dxtex.slicePitch = dxtex.rowPitch * static_cast<size_t>(src.height);
-            dxtex.pixels    = const_cast<uint8_t*>(src.pixels.data());
+            Vector<uint8> dilated_pixels;
+            if (generate_mipmaps && DirectX::IsSRGB(dst_dxgi) && DirectX::HasAlpha(dst_dxgi))
+            {
+                const uint32 width = static_cast<uint32>(src.width);
+                const uint32 height = static_cast<uint32>(src.height);
+                Vector<Vector<float>> levels;
+                Vector<uint2> level_sizes;
+                levels.emplace_back(static_cast<Size>(width) * height * 4, 0.0f);
+                level_sizes.push_back({ width, height });
+                for (Size pixel_index = 0; pixel_index < static_cast<Size>(width) * height; ++pixel_index)
+                {
+                    if (src.pixels[pixel_index * 4 + 3] > 0)
+                    {
+                        for (Size channel = 0; channel < 3; ++channel)
+                        {
+                            levels[0][pixel_index * 4 + channel] = static_cast<float>(src.pixels[pixel_index * 4 + channel]);
+                        }
+                        levels[0][pixel_index * 4 + 3] = 1.0f;
+                    }
+                }
+                while (level_sizes.back().x > 1 || level_sizes.back().y > 1)
+                {
+                    const uint2 fine_size = level_sizes.back();
+                    const uint2 coarse_size = { (std::max)(1u, fine_size.x / 2), (std::max)(1u, fine_size.y / 2) };
+                    Vector<float> coarse(static_cast<Size>(coarse_size.x) * coarse_size.y * 4, 0.0f);
+                    const Vector<float>& fine = levels.back();
+                    for (uint32 y = 0; y < fine_size.y; ++y)
+                    {
+                        for (uint32 x = 0; x < fine_size.x; ++x)
+                        {
+                            const Size fine_index = (static_cast<Size>(y) * fine_size.x + x) * 4;
+                            const Size coarse_index = (static_cast<Size>((std::min)(y / 2, coarse_size.y - 1)) * coarse_size.x + (std::min)(x / 2, coarse_size.x - 1)) * 4;
+                            for (Size channel = 0; channel < 4; ++channel)
+                            {
+                                coarse[coarse_index + channel] += fine[fine_index + channel] * (channel < 3 ? fine[fine_index + 3] : 1.0f);
+                            }
+                        }
+                    }
+                    for (Size coarse_index = 0; coarse_index < coarse.size(); coarse_index += 4)
+                    {
+                        if (coarse[coarse_index + 3] > 0.0f)
+                        {
+                            for (Size channel = 0; channel < 3; ++channel)
+                            {
+                                coarse[coarse_index + channel] /= coarse[coarse_index + 3];
+                            }
+                            coarse[coarse_index + 3] = 1.0f;
+                        }
+                    }
+                    levels.push_back(std::move(coarse));
+                    level_sizes.push_back(coarse_size);
+                }
+                for (Size level = levels.size() - 1; level-- > 0;)
+                {
+                    const uint2 fine_size = level_sizes[level];
+                    const uint2 coarse_size = level_sizes[level + 1];
+                    for (uint32 y = 0; y < fine_size.y; ++y)
+                    {
+                        for (uint32 x = 0; x < fine_size.x; ++x)
+                        {
+                            const Size fine_index = (static_cast<Size>(y) * fine_size.x + x) * 4;
+                            if (levels[level][fine_index + 3] > 0.0f)
+                            {
+                                continue;
+                            }
+                            const Size coarse_index = (static_cast<Size>((std::min)(y / 2, coarse_size.y - 1)) * coarse_size.x + (std::min)(x / 2, coarse_size.x - 1)) * 4;
+                            for (Size channel = 0; channel < 4; ++channel)
+                            {
+                                levels[level][fine_index + channel] = levels[level + 1][coarse_index + channel];
+                            }
+                        }
+                    }
+                }
+                dilated_pixels = src.pixels;
+                for (Size pixel_index = 0; pixel_index < static_cast<Size>(width) * height; ++pixel_index)
+                {
+                    if (src.pixels[pixel_index * 4 + 3] == 0 && levels[0][pixel_index * 4 + 3] > 0.0f)
+                    {
+                        for (Size channel = 0; channel < 3; ++channel)
+                        {
+                            dilated_pixels[pixel_index * 4 + channel] = static_cast<uint8>(levels[0][pixel_index * 4 + channel] + 0.5f);
+                        }
+                    }
+                }
+            }
+
+            dxtex.pixels    = const_cast<uint8_t*>(dilated_pixels.empty() ? src.pixels.data() : dilated_pixels.data());
 
             DirectX::ScratchImage result;
             if (generate_mipmaps)
@@ -878,6 +1046,20 @@ struct COMInitializer
                 if (FAILED(hr_mips))
                 {
                     return false;
+                }
+                if (coverage_alpha_cutoff > 0.0f)
+                {
+                    DirectX::ScratchImage coverage_chain;
+                    if (FAILED(coverage_chain.Initialize(mipChain.GetMetadata())))
+                    {
+                        return false;
+                    }
+                    std::memcpy(coverage_chain.GetImage(0, 0, 0)->pixels, mipChain.GetImage(0, 0, 0)->pixels, mipChain.GetImage(0, 0, 0)->slicePitch);
+                    if (FAILED(DirectX::ScaleMipMapsAlphaForCoverage(mipChain.GetImages(), mipChain.GetImageCount(), mipChain.GetMetadata(), 0, coverage_alpha_cutoff, coverage_chain)))
+                    {
+                        return false;
+                    }
+                    mipChain = std::move(coverage_chain);
                 }
                 HRESULT hr_comp = DirectX::Compress(mipChain.GetImages(), mipChain.GetImageCount(), mipChain.GetMetadata(), dst_dxgi, DirectX::TEX_COMPRESS_DEFAULT, DirectX::TEX_THRESHOLD_DEFAULT, result);
                 if (FAILED(hr_comp))
@@ -976,7 +1158,7 @@ struct COMInitializer
             UnorderedMap<String, String> saved_texture_paths;
             UnorderedMap<String, bool> base_color_cutout;
 
-            auto SaveTexture = [&](const resource::Image& image, const String& texture_full_path, const resource::TextureImportSettings& settings) -> bool
+            auto SaveTexture = [&](const resource::Image& image, const String& texture_full_path, const resource::TextureImportSettings& settings, float coverage_alpha_cutoff) -> bool
             {
                 bool has_alpha = false;
                 for (Size pixel_index = 3; pixel_index < image.pixels.size(); pixel_index += 4)
@@ -989,7 +1171,7 @@ struct COMInitializer
                 Vector<uint8> compressed_pixels;
                 uint32 mip_levels = 1;
                 bool dirs_ok = io::CreateDirectories(io::GetDirectoryFromPath(texture_full_path));
-                bool compress_ok = CompressTexture(image, bc_format, settings.generate_mipmaps, compressed_pixels, mip_levels);
+                bool compress_ok = CompressTexture(image, bc_format, settings.generate_mipmaps, coverage_alpha_cutoff, compressed_pixels, mip_levels);
                 bool save_ok = resource::SaveTextureBinary(texture_full_path,
                     static_cast<uint32>(image.width), static_cast<uint32>(image.height),
                     mip_levels, bc_format, compressed_pixels);
@@ -1058,7 +1240,7 @@ struct COMInitializer
                                     settings = texture_meta.texture;
                                 }
 
-                                if (SaveTexture(*image, texture_full_path, settings))
+                                if (SaveTexture(*image, texture_full_path, settings, tex_data.texture_slot == BASECOLORMAP && image->channels == 4 && HasCutoutAlpha(image->pixels.data(), image->pixels.size(), material_slots[tex_data.material_index].settings.alpha_cutoff) ? material_slots[tex_data.material_index].settings.alpha_cutoff : 0.0f))
                                 {
                                     texture_asset_path = candidate_asset_path;
                                     saved_texture_paths[texture_asset_key] = texture_asset_path;
@@ -1119,7 +1301,7 @@ struct COMInitializer
                         settings.is_srgb = color_texture;
                         settings.generate_mipmaps = true;
 
-                        if (!image || !image->IsValid() || !SaveTexture(*image, texture_full_path, settings))
+                        if (!image || !image->IsValid() || !SaveTexture(*image, texture_full_path, settings, tex_data.texture_slot == BASECOLORMAP && image->channels == 4 && HasCutoutAlpha(image->pixels.data(), image->pixels.size(), material_slots[tex_data.material_index].settings.alpha_cutoff) ? material_slots[tex_data.material_index].settings.alpha_cutoff : 0.0f))
                         {
                             std::cout << "WARNING: skipping texture save, image validation failed\n";
                             texture_asset_path.clear();
@@ -1180,8 +1362,8 @@ struct COMInitializer
             std::cout << "Materials: " << material_binary_full_path << "\n";
             std::cout << "Meta: " << resource::GetAssetMetaPath(source_asset_path) << "\n";
             std::cout << "Vertices: " << data.mesh->positions.size() << "\n";
-            std::cout << "Indices: " << data.mesh->indices.size() << "\n";
-            std::cout << "Submeshes: " << data.mesh->submeshes.size() << "\n";
+            std::cout << "Indices: " << data.mesh->lods[0].indices.size() << "\n";
+            std::cout << "Submeshes: " << data.mesh->lods[0].submeshes.size() << "\n";
             std::cout << "Material slots: " << material_slots.size() << "\n";
             std::cout << "Texture bindings: " << data.textures.size() << "\n";
             if (data.mesh->skeleton)
@@ -1236,7 +1418,7 @@ struct COMInitializer
 
             Vector<uint8> compressed_pixels;
             uint32 mip_levels = 1;
-            if (!CompressTexture(*image, bc_format, settings.generate_mipmaps, compressed_pixels, mip_levels))
+            if (!CompressTexture(*image, bc_format, settings.generate_mipmaps, 0.0f, compressed_pixels, mip_levels))
             {
                 out_error = "Failed to compress texture";
                 return false;

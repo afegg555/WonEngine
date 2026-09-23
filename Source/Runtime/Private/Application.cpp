@@ -27,12 +27,13 @@
 namespace won
 {
 #ifndef WON_SHIPPING
-    static console::ConsoleVariable r_viewmode("r.viewmode", -1, "override the view mode of every view: -1=off 0=Lit 1=Unlit 2=BaseColor 3=WorldNormal 4=Roughness 5=Metallic 6=LightComplexity 7=ShadowCascades 8=Wireframe 9=Overdraw", console::ConsoleVariableFlagNone);
+    static console::ConsoleVariable r_viewmode("r.viewmode", -1, "override the view mode of every view: -1=off 0=Lit 1=Unlit 2=BaseColor 3=WorldNormal 4=Roughness 5=Metallic 6=LightComplexity 7=ShadowCascades 8=Wireframe 9=Overdraw 10=AmbientOcclusion 11=LodColoration", console::ConsoleVariableFlagNone);
     static console::ConsoleVariable r_bvh_show("r.bvh.show", -1, "override the scene BVH overlay of every view: -1=off 0=hide 1=show", console::ConsoleVariableFlagNone);
     static console::ConsoleVariable r_ddgi_show("r.ddgi.show", -1, "override the DDGI volume and probe overlay of every view: -1=off 0=hide 1=show", console::ConsoleVariableFlagNone);
     static console::ConsoleVariable r_collider_show("r.collider.show", -1, "override the physics collider overlay of every view: -1=off 0=hide 1=show", console::ConsoleVariableFlagNone);
     static console::ConsoleVariable r_vehicle_show("r.vehicle.show", -1, "override the vehicle wheel overlay of every view: -1=off 0=hide 1=show", console::ConsoleVariableFlagNone);
     static console::ConsoleVariable r_occlusion_show("r.occlusion.show", -1, "override the occluded bounds overlay of every view: -1=off 0=hide 1=show", console::ConsoleVariableFlagNone);
+    static console::ConsoleVariable r_foliage_show("r.foliage.show", -1, "override foliage visibility for every view: -1=off 0=hide 1=show", console::ConsoleVariableFlagNone);
     static console::ConsoleVariable r_culling_freeze("r.culling.freeze", -1, "override the culling freeze of every view: -1=off 0=unfreeze 1=freeze", console::ConsoleVariableFlagNone);
 #endif
 
@@ -535,6 +536,7 @@ namespace won
                         { r_collider_show, rendering::Show_Colliders },
                         { r_vehicle_show, rendering::Show_Vehicles },
                         { r_occlusion_show, rendering::Show_Occlusion },
+                        { r_foliage_show, rendering::Show_Foliage },
                     };
                     for (const auto& override_entry : show_flag_overrides)
                     {

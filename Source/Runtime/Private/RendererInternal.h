@@ -39,6 +39,7 @@ namespace won::rendering
             DrawScene_2DSprite = 1 << 4, // include sprite2d, font2d
             DrawScene_Decal = 1 << 5, // include projected decals
             DrawScene_Terrain = 1 << 6,
+            DrawScene_Foliage = 1 << 7,
         };
 
         // resource creation

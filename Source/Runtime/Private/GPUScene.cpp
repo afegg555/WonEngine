@@ -5,6 +5,7 @@
 #include "Scene.h"
 #include "LightComponent.h"
 #include "GeometryComponent.h"
+#include "FoliageComponent.h"
 #include "MaterialComponent.h"
 #include "TerrainComponent.h"
 #include "AnimationComponent.h"
@@ -13,6 +14,7 @@
 #include "Backlog.h"
 #include "JobSystem.h"
 #include "MathUtils.h"
+#include "RenderingUtils.h"
 #include "Profiler.h"
 #include "StringUtils.h"
 
@@ -24,6 +26,73 @@
 
 namespace won::rendering
 {
+    void WriteShaderGeometry(const resource::Mesh& mesh, Size submesh_index, ShaderGeometry& shader_geometry)
+    {
+        const resource::Mesh::RenderData& mesh_render_data = mesh.render_data;
+        const resource::Submesh& submesh = mesh.lods[0].submeshes[submesh_index];
+        shader_geometry.Init();
+        shader_geometry.bounds_min = submesh.local_bounds.min;
+        shader_geometry.bounds_max = submesh.local_bounds.max;
+        if (!mesh_render_data.IsValid())
+        {
+            return;
+        }
+
+        shader_geometry.position_buffer_descriptor = mesh_render_data.positions.srv.descriptor_index;
+        shader_geometry.color_buffer_descriptor = mesh_render_data.colors.srv.descriptor_index;
+        shader_geometry.normal_buffer_descriptor = mesh_render_data.normals.srv.descriptor_index;
+        shader_geometry.texcoord_buffer_descriptor = mesh_render_data.texcoords.srv.descriptor_index;
+        shader_geometry.tangent_buffer_descriptor = mesh_render_data.tangents.srv.descriptor_index;
+        shader_geometry.index_buffer_descriptor = mesh.lods[0].render_indices.srv.descriptor_index;
+        shader_geometry.index_count = submesh.index_count;
+        shader_geometry.first_index = submesh.first_index;
+        shader_geometry.dynamic_stream_stride = mesh.dynamic_vertex_streams ? static_cast<uint32>(mesh.positions.size()) : 0u;
+        if (mesh_render_data.bone_indices.IsValid() && mesh_render_data.bone_weights.IsValid())
+        {
+            shader_geometry.bone_indices_buffer_descriptor = mesh_render_data.bone_indices.srv.descriptor_index;
+            shader_geometry.bone_weights_buffer_descriptor = mesh_render_data.bone_weights.srv.descriptor_index;
+            shader_geometry.flags |= SHADER_GEOMETRY_FLAG_SKINNED;
+        }
+    }
+
+    void WriteShaderMaterial(const resource::MaterialSlot& material_slot, ShaderMaterial& shader_material)
+    {
+        const resource::MaterialSettings& settings = material_slot.settings;
+        const resource::MaterialAttributes& attributes = material_slot.attributes;
+        shader_material.Init();
+        shader_material.base_color = math::PackHalf4(attributes.base_color);
+        shader_material.emissive_color_metallic = math::PackHalf4(
+            attributes.emissive_color.x * attributes.emissive_intensity,
+            attributes.emissive_color.y * attributes.emissive_intensity,
+            attributes.emissive_color.z * attributes.emissive_intensity,
+            attributes.metallic);
+        shader_material.roughness_reflectance_refraction_padding = math::PackHalf4(attributes.roughness, attributes.reflectance, 0.0f, 0.0f);
+        shader_material.anisotropy_sheenroughness_clearcoat_clearcoatroughness = math::PackHalf4(attributes.anisotropy, attributes.sheen_roughness, attributes.clearcoat, attributes.clearcoat_roughness);
+        shader_material.sheencolor_alphacutoff = math::PackHalf4(attributes.sheen_color.x, attributes.sheen_color.y, attributes.sheen_color.z, settings.alpha_cutoff);
+        uint32 gpu_flags = SHADER_MATERIAL_FLAG_NONE;
+        if (settings.double_sided)
+        {
+            gpu_flags |= SHADER_MATERIAL_FLAG_DOUBLE_SIDED;
+        }
+        if (settings.use_vertex_colors)
+        {
+            gpu_flags |= SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS;
+        }
+        if (settings.receive_shadow)
+        {
+            gpu_flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW;
+        }
+        shader_material.flags = gpu_flags;
+
+        for (uint32 texture_slot = 0; texture_slot < static_cast<uint32>(TEXTURESLOT_COUNT); ++texture_slot)
+        {
+            if (attributes.textures[texture_slot].IsValid())
+            {
+                shader_material.textures[texture_slot].texture_descriptor = attributes.textures[texture_slot].image->render_data.srv.descriptor_index;
+            }
+        }
+    }
+
     namespace
     {
         using namespace won::ecs;
@@ -110,35 +179,6 @@ namespace won::rendering
             }
         }
 
-        void WriteShaderGeometry(const resource::Mesh& mesh, Size submesh_index, ShaderGeometry& shader_geometry)
-        {
-            const resource::Mesh::RenderData& mesh_render_data = mesh.render_data;
-            const resource::Submesh& submesh = mesh.submeshes[submesh_index];
-            shader_geometry.Init();
-            shader_geometry.bounds_min = submesh.local_bounds.min;
-            shader_geometry.bounds_max = submesh.local_bounds.max;
-            if (!mesh_render_data.IsValid())
-            {
-                return;
-            }
-
-            shader_geometry.position_buffer_descriptor = mesh_render_data.positions.srv.descriptor_index;
-            shader_geometry.color_buffer_descriptor = mesh_render_data.colors.srv.descriptor_index;
-            shader_geometry.normal_buffer_descriptor = mesh_render_data.normals.srv.descriptor_index;
-            shader_geometry.texcoord_buffer_descriptor = mesh_render_data.texcoords.srv.descriptor_index;
-            shader_geometry.tangent_buffer_descriptor = mesh_render_data.tangents.srv.descriptor_index;
-            shader_geometry.index_buffer_descriptor = mesh_render_data.indices.srv.descriptor_index;
-            shader_geometry.index_count = submesh.index_count;
-            shader_geometry.first_index = submesh.first_index;
-            shader_geometry.dynamic_stream_stride = mesh.dynamic_vertex_streams ? static_cast<uint32>(mesh.positions.size()) : 0u;
-            if (mesh_render_data.bone_indices.IsValid() && mesh_render_data.bone_weights.IsValid())
-            {
-                shader_geometry.bone_indices_buffer_descriptor = mesh_render_data.bone_indices.srv.descriptor_index;
-                shader_geometry.bone_weights_buffer_descriptor = mesh_render_data.bone_weights.srv.descriptor_index;
-                shader_geometry.flags |= SHADER_GEOMETRY_FLAG_SKINNED;
-            }
-        }
-
         uint32 ExtractGeometries(ecs::Scene& scene, Vector<ShaderGeometry>& shader_geometries)
         {
             jobsystem::Context sub_ctx;
@@ -169,7 +209,7 @@ namespace won::rendering
                     if (inserted)
                     {
                         unique_meshes.push_back({ mesh, offset });
-                        unique_submesh_sum += mesh->submeshes.size();
+                        unique_submesh_sum += mesh->lods[0].submeshes.size();
                     }
                     geometry_comp.geometry_offset = it->second;
                 }
@@ -179,7 +219,7 @@ namespace won::rendering
 
             jobsystem::Dispatch(sub_ctx, (uint32_t)unique_meshes.size(), jobsystem::groupsize_light, [&](jobsystem::JobArgs args) {
                 auto [mesh, geometry_offset] = unique_meshes[args.job_index];
-                for (Size i = 0; i < mesh->submeshes.size(); ++i)
+                for (Size i = 0; i < mesh->lods[0].submeshes.size(); ++i)
                 {
                     WriteShaderGeometry(*mesh, i, shader_geometries[geometry_offset + i]);
                 }
@@ -187,44 +227,6 @@ namespace won::rendering
 
             jobsystem::Wait(sub_ctx);
             return static_cast<uint32>(shader_geometries.size());
-        }
-
-        void WriteShaderMaterial(const resource::MaterialSlot& material_slot, ShaderMaterial& shader_material)
-        {
-            const resource::MaterialSettings& settings = material_slot.settings;
-            const resource::MaterialAttributes& attributes = material_slot.attributes;
-            shader_material.Init();
-            shader_material.base_color = math::PackHalf4(attributes.base_color);
-            shader_material.emissive_color_metallic = math::PackHalf4(
-                attributes.emissive_color.x * attributes.emissive_intensity,
-                attributes.emissive_color.y * attributes.emissive_intensity,
-                attributes.emissive_color.z * attributes.emissive_intensity,
-                attributes.metallic);
-            shader_material.roughness_reflectance_refraction_padding = math::PackHalf4(attributes.roughness, attributes.reflectance, 0.0f, 0.0f);
-            shader_material.anisotropy_sheenroughness_clearcoat_clearcoatroughness = math::PackHalf4(attributes.anisotropy, attributes.sheen_roughness, attributes.clearcoat, attributes.clearcoat_roughness);
-            shader_material.sheencolor_alphacutoff = math::PackHalf4(attributes.sheen_color.x, attributes.sheen_color.y, attributes.sheen_color.z, settings.alpha_cutoff);
-            uint32 gpu_flags = SHADER_MATERIAL_FLAG_NONE;
-            if (settings.double_sided)
-            {
-                gpu_flags |= SHADER_MATERIAL_FLAG_DOUBLE_SIDED;
-            }
-            if (settings.use_vertex_colors)
-            {
-                gpu_flags |= SHADER_MATERIAL_FLAG_USE_VERTEX_COLORS;
-            }
-            if (settings.receive_shadow)
-            {
-                gpu_flags |= SHADER_MATERIAL_FLAG_RECEIVE_SHADOW;
-            }
-            shader_material.flags = gpu_flags;
-
-            for (uint32 texture_slot = 0; texture_slot < static_cast<uint32>(TEXTURESLOT_COUNT); ++texture_slot)
-            {
-                if (attributes.textures[texture_slot].IsValid())
-                {
-                    shader_material.textures[texture_slot].texture_descriptor = attributes.textures[texture_slot].image->render_data.srv.descriptor_index;
-                }
-            }
         }
 
         uint32 ExtractMaterials(ecs::Scene& scene, Vector<ShaderMaterial>& shader_materials)
@@ -307,7 +309,7 @@ namespace won::rendering
                     terrain.data->render_data.layer_materials.size() == terrain.data->material_layers.size())
                 {
                     terrain_layer_count += (std::max)(Size(1), terrain.data->material_layers.size());
-                    terrain_submesh_count += terrain.data->render_data.mesh->submeshes.size();
+                    terrain_submesh_count += terrain.data->render_data.mesh->lods[0].submeshes.size();
                 }
             }
 
@@ -398,17 +400,17 @@ namespace won::rendering
                 }
 
                 const uint32 geometry_offset = static_cast<uint32>(shader_geometries.size());
-                for (Size submesh_index = 0; submesh_index < mesh.submeshes.size(); ++submesh_index)
+                for (Size submesh_index = 0; submesh_index < mesh.lods[0].submeshes.size(); ++submesh_index)
                 {
-                    const resource::Submesh& submesh = mesh.submeshes[submesh_index];
+                    const resource::Submesh& submesh = mesh.lods[0].submeshes[submesh_index];
                     shader_geometries.emplace_back();
                     WriteShaderGeometry(mesh, submesh_index, shader_geometries.back());
 
                     TerrainRenderable renderable = {};
                     renderable.entity = entity;
                     renderable.index_buffer = mesh_render_data.buffer.get();
-                    renderable.index_buffer_offset = mesh_render_data.indices.offset;
-                    renderable.index_buffer_size = mesh_render_data.indices.size;
+                    renderable.index_buffer_offset = mesh.lods[0].render_indices.offset;
+                    renderable.index_buffer_size = mesh.lods[0].render_indices.size;
                     renderable.first_index = submesh.first_index;
                     renderable.index_count = submesh.index_count;
                     renderable.transform_index = transform_index;
@@ -446,6 +448,221 @@ namespace won::rendering
                 terrain_opaque_cull_data[i].aabb = terrain_opaque_renderables[i].aabb;
                 terrain_opaque_cull_data[i].layer_mask = terrain_opaque_renderables[i].layer_mask;
                 terrain_opaque_cull_data[i].flags = terrain_opaque_renderables[i].flags;
+            }
+        }
+
+        void ExtractFoliage(ecs::Scene& scene,
+            Vector<ShaderGeometry>& shader_geometries,
+            Vector<ShaderMaterial>& shader_materials,
+            Vector<ShaderFoliageInstance>& foliage_instances,
+            Vector<GPUScene::FoliageCell>& foliage_cells,
+            Vector<ShaderFoliageImpostor>& foliage_impostors,
+            Vector<GPUScene::FoliageRenderable>& foliage_renderables)
+        {
+            foliage_instances.clear();
+            foliage_cells.clear();
+            foliage_impostors.clear();
+            foliage_renderables.clear();
+
+            const auto foliage_array = scene.GetComponentArray<FoliageComponent>().get();
+            if (!foliage_array)
+            {
+                return;
+            }
+
+            for (Size fi = 0; fi < foliage_array->GetSize(); ++fi)
+            {
+                const FoliageComponent& foliage = foliage_array->data[fi];
+                if (!foliage.IsActive())
+                {
+                    continue;
+                }
+
+                for (const FoliageType& type : foliage.types)
+                {
+                    if (type.instances.empty() || !type.mesh || !type.material)
+                    {
+                        continue;
+                    }
+                    const resource::Mesh& mesh = *type.mesh;
+                    const resource::Mesh::RenderData& mesh_render_data = mesh.render_data;
+                    if (!mesh_render_data.IsValid() || mesh.lods.empty())
+                    {
+                        continue;
+                    }
+
+                    Size lod_count = 0;
+                    for (const resource::Mesh::Lod& lod : mesh.lods)
+                    {
+                        if (!lod.render_indices.IsValid() || lod.submeshes.size() != mesh.lods[0].submeshes.size())
+                        {
+                            break;
+                        }
+                        ++lod_count;
+                    }
+                    if (lod_count == 0)
+                    {
+                        continue;
+                    }
+
+                    bool has_renderable_submesh = false;
+                    for (const resource::Submesh& submesh : mesh.lods[0].submeshes)
+                    {
+                        if (submesh.material_slot < type.material->slots.size())
+                        {
+                            has_renderable_submesh = true;
+                            break;
+                        }
+                    }
+                    if (!has_renderable_submesh)
+                    {
+                        continue;
+                    }
+
+                    math::AABB mesh_bounds;
+                    mesh_bounds.Invalidate();
+                    for (const resource::Submesh& submesh : mesh.lods[0].submeshes)
+                    {
+                        mesh_bounds.Merge(submesh.local_bounds);
+                    }
+
+                    const float local_radius = mesh_bounds.IsValid() ? math::Length(mesh_bounds.GetExtent()) : 0.0f;
+                    constexpr float cell_size = 16.0f;
+                    struct CellInstance
+                    {
+                        int32 x;
+                        int32 z;
+                        uint32 index;
+                    };
+                    Vector<CellInstance> cell_instances;
+                    cell_instances.reserve(type.instances.size());
+                    for (uint32 index = 0; index < static_cast<uint32>(type.instances.size()); ++index)
+                    {
+                        const float3& position = type.instances[index].position;
+                        cell_instances.push_back({
+                            static_cast<int32>(std::floor(position.x / cell_size)),
+                            static_cast<int32>(std::floor(position.z / cell_size)),
+                            index
+                        });
+                    }
+                    std::sort(cell_instances.begin(), cell_instances.end(), [](const CellInstance& a, const CellInstance& b)
+                    {
+                        if (a.x != b.x) return a.x < b.x;
+                        return a.z < b.z;
+                    });
+
+                    const uint32 instance_offset = static_cast<uint32>(foliage_instances.size());
+                    const uint32 cell_offset = static_cast<uint32>(foliage_cells.size());
+                    foliage_instances.reserve(foliage_instances.size() + type.instances.size());
+                    for (Size sorted_index = 0; sorted_index < cell_instances.size(); ++sorted_index)
+                    {
+                        const CellInstance& cell_instance = cell_instances[sorted_index];
+                        const FoliageInstance& instance = type.instances[cell_instance.index];
+                        if (sorted_index == 0 ||
+                            cell_instance.x != cell_instances[sorted_index - 1].x ||
+                            cell_instance.z != cell_instances[sorted_index - 1].z)
+                        {
+                            GPUScene::FoliageCell cell;
+                            cell.bounds.Invalidate();
+                            cell.instance_offset = static_cast<uint32>(foliage_instances.size());
+                            foliage_cells.push_back(cell);
+                        }
+
+                        ShaderFoliageInstance shader_instance;
+                        shader_instance.position_scale = float4(instance.position.x, instance.position.y, instance.position.z, instance.scale);
+                        shader_instance.rotation = instance.rotation;
+                        foliage_instances.push_back(shader_instance);
+
+                        GPUScene::FoliageCell& cell = foliage_cells.back();
+                        const float radius = local_radius * std::abs(instance.scale);
+                        math::AABB bounds;
+                        bounds.CreateFromHalfWidth(instance.position, float3(radius, radius, radius));
+                        cell.bounds.Merge(bounds);
+                        ++cell.instance_count;
+                    }
+                    const uint32 instance_count = static_cast<uint32>(type.instances.size());
+                    const uint32 cell_count = static_cast<uint32>(foliage_cells.size()) - cell_offset;
+                    uint32 impostor_index = GPUScene::FoliageRenderable::invalid_impostor_index;
+                    float impostor_screen_size_threshold = 0.0f;
+
+                    const bool mesh_has_impostor = mesh.impostor.grid_size > 0 && mesh.impostor.albedo_srv.IsValid() && mesh.impostor.normal_srv.IsValid();
+                    if (mesh_has_impostor)
+                    {
+                        ShaderFoliageImpostor shader_impostor;
+                        shader_impostor.albedo_texture = static_cast<int>(mesh.impostor.albedo_srv.descriptor_index);
+                        shader_impostor.normal_texture = static_cast<int>(mesh.impostor.normal_srv.descriptor_index);
+                        shader_impostor.depth_texture = mesh.impostor.depth_srv.IsValid() ? static_cast<int>(mesh.impostor.depth_srv.descriptor_index) : -1;
+                        shader_impostor.grid_size = mesh.impostor.grid_size;
+                        shader_impostor.radius = mesh.impostor.radius;
+                        shader_impostor.center = mesh.impostor.center;
+                        impostor_index = static_cast<uint32>(foliage_impostors.size());
+                        impostor_screen_size_threshold = mesh.impostor.screen_size_threshold;
+                        foliage_impostors.push_back(shader_impostor);
+                    }
+
+                    const uint32 material_offset = static_cast<uint32>(shader_materials.size());
+                    for (const resource::MaterialSlot& material_slot : type.material->slots)
+                    {
+                        shader_materials.emplace_back();
+                        WriteShaderMaterial(material_slot, shader_materials.back());
+                    }
+
+                    for (Size submesh_index = 0; submesh_index < mesh.lods[0].submeshes.size(); ++submesh_index)
+                    {
+                        const resource::Submesh& submesh = mesh.lods[0].submeshes[submesh_index];
+                        const uint32 geometry_index = static_cast<uint32>(shader_geometries.size());
+                        shader_geometries.emplace_back();
+                        WriteShaderGeometry(mesh, submesh_index, shader_geometries.back());
+
+                        if (submesh.material_slot >= type.material->slots.size())
+                        {
+                            continue;
+                        }
+                        const resource::MaterialSlot& material_slot = type.material->slots[submesh.material_slot];
+
+                        GPUScene::FoliageRenderable renderable = {};
+                        renderable.index_buffer = mesh_render_data.buffer.get();
+                        renderable.geometry_index = geometry_index;
+                        renderable.material_index = material_offset + submesh.material_slot;
+                        renderable.instance_offset = instance_offset;
+                        renderable.instance_count = instance_count;
+                        renderable.cell_offset = cell_offset;
+                        renderable.cell_count = cell_count;
+                        renderable.cull_distance = type.cull_distance;
+                        renderable.local_radius = local_radius;
+                        renderable.impostor_index = impostor_index;
+                        renderable.impostor_screen_size_threshold = impostor_screen_size_threshold;
+                        renderable.shader_type = static_cast<uint32>(material_slot.settings.material_type);
+                        renderable.blend_mode = material_slot.settings.blend_mode;
+                        renderable.cast_shadow = type.cast_shadow;
+                        renderable.double_sided = material_slot.settings.double_sided;
+                        renderable.lod_geometries.reserve(lod_count);
+                        for (Size lod_index = 0; lod_index < lod_count; ++lod_index)
+                        {
+                            const resource::Mesh::Lod& lod = mesh.lods[lod_index];
+                            const resource::Submesh& lod_submesh = lod.submeshes[submesh_index];
+                            GPUScene::FoliageLodGeometry lod_geometry;
+                            lod_geometry.index_buffer_offset = lod.render_indices.offset;
+                            lod_geometry.index_buffer_size = lod.render_indices.size;
+                            lod_geometry.geometry_index = geometry_index;
+                            if (lod_index > 0)
+                            {
+                                ShaderGeometry lod_shader_geometry = shader_geometries[geometry_index];
+                                lod_shader_geometry.index_buffer_descriptor = lod.render_indices.srv.descriptor_index;
+                                lod_shader_geometry.first_index = lod_submesh.first_index;
+                                lod_shader_geometry.index_count = lod_submesh.index_count;
+                                lod_shader_geometry.lod_index = static_cast<uint32>(lod_index);
+                                lod_geometry.geometry_index = static_cast<uint32>(shader_geometries.size());
+                                shader_geometries.push_back(lod_shader_geometry);
+                            }
+                            lod_geometry.first_index = lod_submesh.first_index;
+                            lod_geometry.index_count = lod_submesh.index_count;
+                            lod_geometry.screen_size_threshold = lod.screen_size_threshold;
+                            renderable.lod_geometries.push_back(lod_geometry);
+                        }
+                        foliage_renderables.push_back(std::move(renderable));
+                    }
+                }
             }
         }
 
@@ -638,9 +855,9 @@ namespace won::rendering
                         bucket.caster_bound.Merge(world_aabb);
                     }
 
-                    for (Size i = 0; i < geometry_comp.mesh->submeshes.size(); ++i)
+                    for (Size i = 0; i < geometry_comp.mesh->lods[0].submeshes.size(); ++i)
                     {
-                        const resource::Submesh& submesh = geometry_comp.mesh->submeshes[i];
+                        const resource::Submesh& submesh = geometry_comp.mesh->lods[0].submeshes[i];
                         if (submesh.material_slot >= material_comp.material->slots.size())
                         {
                             continue;
@@ -653,8 +870,8 @@ namespace won::rendering
                         renderable.geometry_index = geometry_comp.geometry_offset + static_cast<uint32>(i);
                         renderable.material_index = material_comp.material_offset + submesh.material_slot;
                         renderable.index_buffer = mesh_render_data.buffer.get();
-                        renderable.index_buffer_offset = mesh_render_data.indices.offset;
-                        renderable.index_buffer_size = mesh_render_data.indices.size;
+                        renderable.index_buffer_offset = geometry_comp.mesh->lods[0].render_indices.offset;
+                        renderable.index_buffer_size = geometry_comp.mesh->lods[0].render_indices.size;
                         renderable.first_index = submesh.first_index;
                         renderable.index_count = submesh.index_count;
                         renderable.world_position = world_position;
@@ -961,7 +1178,7 @@ namespace won::rendering
                 Vector<GlyphLayout> glyph_layouts;
                 Vector<float> line_widths;
                 line_widths.push_back(0.0f);
-                const WString decoded_text = utils::DecodeUtf8(text.resolved_text);
+                const WString decoded_text = won::utils::DecodeUtf8(text.resolved_text);
                 uint32 line_index = 0;
                 float pen_x = 0.0f;
                 for (Size char_index = 0; char_index < decoded_text.size(); ++char_index)
@@ -1101,7 +1318,7 @@ namespace won::rendering
                 Vector<GlyphLayout> glyph_layouts;
                 Vector<float> line_widths;
                 line_widths.push_back(0.0f);
-                const WString decoded_text = utils::DecodeUtf8(text.resolved_text);
+                const WString decoded_text = won::utils::DecodeUtf8(text.resolved_text);
                 const float glyph_world_scale = text.height / static_cast<float>(text.pixel_height);
                 uint32 line_index = 0;
                 float pen_x = 0.0f;
@@ -1732,6 +1949,7 @@ namespace won::rendering
         const bool material_dirty = (dirty & ecs::material_component_mask) != 0;
         const bool terrain_dirty = (dirty & ecs::terrain_component_mask) != 0;
         const bool animation_dirty = (dirty & ecs::animation_component_mask) != 0;
+        const bool foliage_dirty = (dirty & ecs::foliage_component_mask) != 0;
 
         jobsystem::Context extract_ctx;
         if (light_dirty)
@@ -1793,6 +2011,34 @@ namespace won::rendering
 
         ExtractTerrains(scene, mesh_material_count, shader_geometries, shader_materials, shader_terrains, shader_terrain_layers,
             terrain_opaque_cull_data, terrain_opaque_renderables, terrain_transparent_renderables, shadow_caster_world_bound);
+
+        const bool pending_uploads = utils::HasPendingResourceUploads();
+        if (foliage_dirty || material_dirty || foliage_pending_uploads)
+        {
+            foliage_geometries.clear();
+            foliage_materials.clear();
+            ExtractFoliage(scene, foliage_geometries, foliage_materials, foliage_instances, foliage_cells, foliage_impostors, foliage_renderables);
+            foliage_geometry_base = 0;
+            foliage_material_base = 0;
+            foliage_data_dirty = true;
+        }
+        foliage_pending_uploads = pending_uploads && (foliage_dirty || material_dirty || foliage_pending_uploads);
+
+        const uint32 geometry_base = static_cast<uint32>(shader_geometries.size());
+        const uint32 material_base = static_cast<uint32>(shader_materials.size());
+        for (FoliageRenderable& renderable : foliage_renderables)
+        {
+            renderable.geometry_index = renderable.geometry_index - foliage_geometry_base + geometry_base;
+            renderable.material_index = renderable.material_index - foliage_material_base + material_base;
+            for (FoliageLodGeometry& lod_geometry : renderable.lod_geometries)
+            {
+                lod_geometry.geometry_index = lod_geometry.geometry_index - foliage_geometry_base + geometry_base;
+            }
+        }
+        foliage_geometry_base = geometry_base;
+        foliage_material_base = material_base;
+        shader_geometries.insert(shader_geometries.end(), foliage_geometries.begin(), foliage_geometries.end());
+        shader_materials.insert(shader_materials.end(), foliage_materials.begin(), foliage_materials.end());
 
         transform_history.world_transforms.resize(transform_count);
         if (!transform_history_layout_matches)

@@ -25,7 +25,7 @@ namespace won::resource
 {
     namespace
     {
-        constexpr uint32 mesh_binary_version = 2;
+        constexpr uint32 mesh_binary_version = 4;
         constexpr uint32 mesh_binary_magic = 0x48534D57; // WMSH
         constexpr uint32 navmesh_binary_version = 1;
 		constexpr uint32 navmesh_binary_magic = 0x56414E57; // WNAV
@@ -407,6 +407,66 @@ namespace won::resource
         return !archive.HasError() && archive.SaveToFile(meta_path);
     }
 
+    void SerializeImage(serialize::BinaryArchive& archive, std::shared_ptr<Image>& image)
+    {
+        bool present = archive.IsWriteMode() ? (image != nullptr && !image->pixels.empty()) : false;
+        serialize::Serialize(archive, present);
+        if (!present)
+        {
+            if (archive.IsReadMode())
+            {
+                image.reset();
+            }
+            return;
+        }
+
+        if (archive.IsReadMode())
+        {
+            image = std::make_shared<Image>();
+        }
+        serialize::Serialize(archive, image->width);
+        serialize::Serialize(archive, image->height);
+        serialize::Serialize(archive, image->channels);
+        serialize::Serialize(archive, image->mip_levels);
+        serialize::Serialize(archive, image->is_cube);
+        uint32 format = archive.IsWriteMode() ? static_cast<uint32>(image->format) : 0;
+        serialize::Serialize(archive, format);
+        if (archive.IsReadMode())
+        {
+            image->format = static_cast<rendering::RHIFormat>(format);
+        }
+        serialize::Serialize(archive, image->pixels);
+    }
+
+    void SerializeMeshImpostor(serialize::BinaryArchive& archive, Mesh::Impostor& impostor)
+    {
+        serialize::Serialize(archive, impostor.grid_size);
+        serialize::Serialize(archive, impostor.radius);
+        serialize::Serialize(archive, impostor.center.x);
+        serialize::Serialize(archive, impostor.center.y);
+        serialize::Serialize(archive, impostor.center.z);
+        serialize::Serialize(archive, impostor.screen_size_threshold);
+        SerializeImage(archive, impostor.albedo);
+        SerializeImage(archive, impostor.normal);
+        SerializeImage(archive, impostor.depth);
+    }
+
+    void SerializeMeshLods(serialize::BinaryArchive& archive, Vector<Mesh::Lod>& lods)
+    {
+        Size count = archive.IsWriteMode() ? lods.size() : 0;
+        serialize::Serialize(archive, count);
+        if (!archive.IsWriteMode())
+        {
+            lods.resize(count);
+        }
+        for (Mesh::Lod& lod : lods)
+        {
+            serialize::Serialize(archive, lod.indices);
+            SerializeSubmeshes(archive, lod.submeshes);
+            serialize::Serialize(archive, lod.screen_size_threshold);
+        }
+    }
+
     bool SaveMeshBinary(const String& path, const Mesh& mesh)
     {
         if (path.empty() || !mesh.IsValid())
@@ -429,10 +489,13 @@ namespace won::resource
         serialize::Serialize(archive, copy.texcoords);
         serialize::Serialize(archive, copy.bone_indices);
         serialize::Serialize(archive, copy.bone_weights);
-        serialize::Serialize(archive, copy.indices);
-        SerializeSubmeshes(archive, copy.submeshes);
+        serialize::Serialize(archive, copy.lods[0].indices);
+        SerializeSubmeshes(archive, copy.lods[0].submeshes);
         SerializeSkeleton(archive, copy.skeleton);
         SerializeAnimationClips(archive, copy.animation_clips, version);
+        SerializeMeshImpostor(archive, copy.impostor);
+        Vector<Mesh::Lod> extra_lods(copy.lods.begin() + 1, copy.lods.end());
+        SerializeMeshLods(archive, extra_lods);
         return true;
     }
 
@@ -481,10 +544,31 @@ namespace won::resource
         serialize::Serialize(archive, mesh->texcoords);
         serialize::Serialize(archive, mesh->bone_indices);
         serialize::Serialize(archive, mesh->bone_weights);
-        serialize::Serialize(archive, mesh->indices);
-        SerializeSubmeshes(archive, mesh->submeshes);
+        Vector<uint32> base_indices;
+        Vector<Submesh> base_submeshes;
+        serialize::Serialize(archive, base_indices);
+        SerializeSubmeshes(archive, base_submeshes);
         SerializeSkeleton(archive, mesh->skeleton);
         SerializeAnimationClips(archive, mesh->animation_clips, version);
+        if (version >= 3)
+        {
+            SerializeMeshImpostor(archive, mesh->impostor);
+        }
+        Vector<Mesh::Lod> extra_lods;
+        if (version >= 4)
+        {
+            SerializeMeshLods(archive, extra_lods);
+        }
+        mesh->lods.clear();
+        Mesh::Lod base_lod;
+        base_lod.indices = std::move(base_indices);
+        base_lod.submeshes = std::move(base_submeshes);
+        base_lod.screen_size_threshold = 1.0f;
+        mesh->lods.push_back(std::move(base_lod));
+        for (Mesh::Lod& extra_lod : extra_lods)
+        {
+            mesh->lods.push_back(std::move(extra_lod));
+        }
         if (!mesh->IsValid())
         {
             return nullptr;
@@ -916,11 +1000,11 @@ namespace won::resource
         return material;
     }
 
-    static void LoadMeshResource(ecs::GeometryComponent& geometry, const String& content_root)
+    static std::shared_ptr<Mesh> LoadMeshFromPath(const String& asset_path, const String& content_root)
     {
-        if (geometry.mesh_asset_path.empty())
-            return;
-        const String mesh_path = project::ResolveProjectContentPath(content_root, geometry.mesh_asset_path);
+        if (asset_path.empty())
+            return nullptr;
+        const String mesh_path = project::ResolveProjectContentPath(content_root, asset_path);
         String binary_path = mesh_path;
         if (utils::ToLower(io::GetExtension(mesh_path)) != mesh_binary_extension)
         {
@@ -929,13 +1013,19 @@ namespace won::resource
                 binary_path = project::ResolveProjectContentPath(content_root, meta.binary_path);
         }
         auto mesh = LoadMeshBinary(binary_path);
+        if (!mesh)
+            backlog::Post("[LoadResources] mesh load failed: " + binary_path, backlog::LogLevel::Warning);
+        return mesh;
+    }
+
+    static void LoadMeshResource(ecs::GeometryComponent& geometry, const String& content_root)
+    {
+        auto mesh = LoadMeshFromPath(geometry.mesh_asset_path, content_root);
         if (mesh)
         {
             geometry.SetMesh(mesh);
             rendering::utils::EnqueueResourceUpload(mesh);
         }
-        else
-            backlog::Post("[LoadResources] mesh load failed: " + binary_path, backlog::LogLevel::Warning);
     }
 
     void LoadTerrainResource(ecs::TerrainComponent& terrain, const String& content_root)
@@ -1263,14 +1353,14 @@ namespace won::resource
                 if (collider.shape_type == ecs::Collider3DComponent::ShapeType::HeightField)
                 {
                     ecs::GeometryComponent* geometry = scene.GetComponent<ecs::GeometryComponent>(entity);
-                    if (!geometry || !geometry->mesh)
+                    if (!geometry || !geometry->mesh || geometry->mesh->lods.empty())
                     {
                         continue;
                     }
                     src_positions = geometry->mesh->positions.data();
                     src_position_count = geometry->mesh->positions.size();
-                    src_indices = geometry->mesh->indices.data();
-                    src_index_count = geometry->mesh->indices.size();
+                    src_indices = geometry->mesh->lods[0].indices.data();
+                    src_index_count = geometry->mesh->lods[0].indices.size();
                 }
                 else if (collider.shape_type == ecs::Collider3DComponent::ShapeType::Sphere)
                 {
@@ -1366,6 +1456,38 @@ namespace won::resource
         return true;
     }
 
+    static void LoadFoliageResource(ecs::FoliageComponent& foliage, const String& content_root)
+    {
+        for (ecs::FoliageType& type : foliage.types)
+        {
+            auto mesh = LoadMeshFromPath(type.mesh_asset_path, content_root);
+            if (mesh)
+            {
+                type.mesh = mesh;
+                rendering::utils::EnqueueResourceUpload(mesh);
+            }
+
+            if (!type.material_asset_path.empty())
+            {
+                type.material = LoadMaterialBinary(project::ResolveProjectContentPath(content_root, type.material_asset_path));
+                if (type.material)
+                {
+                    for (MaterialSlot& material_slot : type.material->slots)
+                    {
+                        for (uint32 slot = 0; slot < static_cast<uint32>(TEXTURESLOT_COUNT); ++slot)
+                        {
+                            if (!material_slot.attributes.textures[slot].texture_asset_path.empty())
+                            {
+                                LoadTextureMap(material_slot.attributes.textures[slot], slot, content_root);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        foliage.SetDirty();
+    }
+
     void LoadSceneResources(ecs::Scene& scene, const String& content_root, bool parallel)
     {
         jobsystem::Context ctx;
@@ -1442,6 +1564,14 @@ namespace won::resource
             jobsystem::Wait(ctx);
         }
 
+        if (auto foliage_array = scene.GetComponentArray<ecs::FoliageComponent>())
+        {
+            DispatchLoadJobs(parallel, ctx, static_cast<uint32>(foliage_array->GetSize()), [foliage_array, &content_root](jobsystem::JobArgs args)
+            {
+                LoadFoliageResource(foliage_array->data[args.job_index], content_root);
+            });
+        }
+
         if (auto text2d_array = scene.GetComponentArray<ecs::Text2DComponent>())
         {
             DispatchLoadJobs(parallel, ctx, static_cast<uint32>(text2d_array->GetSize()), [text2d_array, &content_root](jobsystem::JobArgs args)
@@ -1509,6 +1639,11 @@ namespace won::resource
             if (ecs::GeometryComponent* geometry = scene.GetComponent<ecs::GeometryComponent>(entity))
             {
                 LoadMeshResource(*geometry, content_root);
+            }
+
+            if (ecs::FoliageComponent* foliage = scene.GetComponent<ecs::FoliageComponent>(entity))
+            {
+                LoadFoliageResource(*foliage, content_root);
             }
 
             BindAnimationClips(scene, entity);

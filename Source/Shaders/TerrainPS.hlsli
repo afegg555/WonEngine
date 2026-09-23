@@ -180,7 +180,7 @@ float4 main(TerrainPixelInput input, in bool is_frontface : SV_IsFrontFace) : SV
     final_color.rgb += lighting.direct.specular + lighting.indirect.specular + surface.emissive_color;
 
 #ifndef WON_SHIPPING
-    final_color = ApplyDebugViewMode(final_color, surface, base_color, metallic, input.pos.xy);
+    final_color = ApplyDebugViewMode(final_color, surface, base_color, metallic, input.pos.xy, 0);
 #endif
 
     final_color.rgb = saturateMediump(final_color.rgb);

@@ -1,5 +1,6 @@
 #pragma once
 #include "RHICommandAllocator.h"
+#include "RHICommandSignature.h"
 #include "RHIPipeline.h"
 #include "RHIQueryHeap.h"
 #include "RHISampler.h"
@@ -107,8 +108,12 @@ namespace won::rendering
 
         virtual void Dispatch(uint32 group_x, uint32 group_y, uint32 group_z) = 0;
 
+        virtual void ExecuteIndirect(RHICommandSignature& signature, RHIResource& arg_buffer, uint32 arg_offset,
+            uint32 command_count, RHIResource* count_buffer = nullptr, uint32 count_offset = 0) = 0;
+
         virtual void CopyResource(RHIResource& dest, RHIResource& src) = 0;
         virtual void CopyBuffer(RHIResource& dest, Size dest_offset, RHIResource& src, Size src_offset, Size size) = 0;
+        virtual void CopyTextureToBuffer(RHIResource& dest_buffer, RHIResource& src_texture) = 0;
         virtual void BeginQuery(RHIQueryHeap& heap, uint32 index) = 0;
         virtual void EndQuery(RHIQueryHeap& heap, uint32 index) = 0;
         virtual void ResolveQuery(RHIQueryHeap& heap, uint32 start_index, uint32 count, RHIResource& dest_buffer, Size dest_offset) = 0;

@@ -20,6 +20,9 @@ namespace won::rendering
     class RHIDevice;
     class RHICommandList;
 
+    void WriteShaderGeometry(const resource::Mesh& mesh, Size submesh_index, ShaderGeometry& shader_geometry);
+    void WriteShaderMaterial(const resource::MaterialSlot& material_slot, ShaderMaterial& shader_material);
+
     struct GPUBuffer
     {
         std::unique_ptr<RHIResource> buffer;
@@ -240,6 +243,57 @@ namespace won::rendering
 
         Vector<float4> particle_instances;
         GPUBuffer particle_buffer;
+
+        struct FoliageLodGeometry
+        {
+            uint32 index_buffer_offset = 0;
+            uint32 index_buffer_size = 0;
+            uint32 geometry_index = 0;
+            uint32 first_index = 0;
+            uint32 index_count = 0;
+            float screen_size_threshold = 0.0f;
+        };
+
+        struct FoliageCell
+        {
+            math::AABB bounds;
+            uint32 instance_offset = 0;
+            uint32 instance_count = 0;
+        };
+
+        struct FoliageRenderable
+        {
+            static constexpr uint32 invalid_impostor_index = 0xFFFFFFFFu;
+            RHIResource* index_buffer = nullptr;
+            uint32 geometry_index = 0;
+            uint32 material_index = 0;
+            uint32 instance_offset = 0;
+            uint32 instance_count = 0;
+            uint32 cell_offset = 0;
+            uint32 cell_count = 0;
+            float cull_distance = 0.0f;
+            float local_radius = 0.0f;
+            uint32 impostor_index = invalid_impostor_index;
+            float impostor_screen_size_threshold = 0.0f;
+            uint32 shader_type = SHADER_MATERIAL_TYPE_PBR;
+            resource::MaterialBlendMode blend_mode = resource::MaterialBlendMode::Opaque;
+            bool cast_shadow = false;
+            bool double_sided = false;
+            Vector<FoliageLodGeometry> lod_geometries;
+        };
+
+        Vector<ShaderFoliageInstance> foliage_instances;
+        Vector<FoliageCell> foliage_cells;
+        GPUBuffer foliage_instance_buffer;
+        Vector<ShaderFoliageImpostor> foliage_impostors;
+        GPUBuffer foliage_impostor_buffer;
+        Vector<FoliageRenderable> foliage_renderables;
+        Vector<ShaderGeometry> foliage_geometries;
+        Vector<ShaderMaterial> foliage_materials;
+        uint32 foliage_geometry_base = 0;
+        uint32 foliage_material_base = 0;
+        bool foliage_data_dirty = false;
+        bool foliage_pending_uploads = false;
 
         Vector<ShaderDecal> shader_decals;
         GPUBuffer decal_buffer;

@@ -1302,7 +1302,7 @@ namespace won::editor
 			ExitPlay();
 		}
 
-		io::SetMouseCaptured(is_playing && !editor_viewport.input_enabled);
+		io::SetMouseCaptured(is_playing && editor_viewport.input_enabled);
 
 		if (!is_playing && !ImGui::GetIO().WantTextInput)
 		{
@@ -4112,6 +4112,7 @@ namespace won::editor
 					{ rendering::Show_Transparent, editor_key::label_show_transparent },
 					{ rendering::Show_Decals,      editor_key::label_show_decals },
 					{ rendering::Show_Water,       editor_key::label_show_water },
+					{ rendering::Show_Foliage,     editor_key::label_show_foliage },
 					{ rendering::Show_Particles,   editor_key::label_show_particles },
 					{ rendering::Show_Sprites3D,   editor_key::label_show_sprites_3d },
 					{ rendering::Show_Sprites2D,   editor_key::label_show_sprites_2d },
@@ -9190,12 +9191,9 @@ namespace won::editor
 			return;
 		}
 
-		if (!any_active)
+		if (!any_active && inspector_item_was_active)
 		{
-			if (inspector_item_was_active)
-			{
-				editor_history.PushComponentEdit(scene, picked, std::move(inspector_baseline), EditorText(editor_key::label_edit_entity_command));
-			}
+			editor_history.PushComponentEdit(scene, picked, std::move(inspector_baseline), EditorText(editor_key::label_edit_entity_command));
 			inspector_baseline = EditorHistory::CaptureComponents(scene, picked);
 		}
 		inspector_item_was_active = any_active;

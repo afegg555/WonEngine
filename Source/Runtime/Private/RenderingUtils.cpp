@@ -3,6 +3,10 @@
 #include "Font.h"
 #include "Image.h"
 #include "Mesh.h"
+#include "Material.h"
+#include "GPUScene.h"
+#include "Impostor.h"
+#include "MathUtils.h"
 #include "ShaderLibrary.h"
 #include "ShaderInterop_BVH.h"
 #include "ShaderInterop_Utility.h"
@@ -65,6 +69,161 @@ namespace won::rendering::utils
                 std::memcpy(packed_data.data() + out_offset + slot * slot_size, source.data(), slot_size);
             }
             current_offset += data_size;
+        }
+
+        bool CreateBufferView(RHIDevice& device, RHIResource& buffer, RHISubresourceType type, Size offset, Size size, Size stride, RHISubresourceHandle& out_handle)
+        {
+            RHISubresourceDesc view_desc = {};
+            view_desc.type = type;
+            view_desc.buffer_offset = offset;
+            view_desc.buffer_size = size;
+            view_desc.buffer_stride = stride;
+            return device.CreateSubresource(buffer, view_desc, &out_handle);
+        }
+
+        std::unique_ptr<RHIResource> CreateStructuredBuffer(RHIDevice& device, const char* name, const void* data, Size size, Size stride, RHIBindFlags bind_flags, RHISubresourceHandle* out_srv, RHISubresourceHandle* out_uav)
+        {
+            if (size == 0 || stride == 0)
+            {
+                return nullptr;
+            }
+            RHIBufferDesc desc = {};
+            desc.size = size;
+            desc.usage = RHIResourceUsage::Default;
+            desc.bind_flags = bind_flags;
+            std::unique_ptr<RHIResource> buffer = device.CreateBuffer(desc, data, data ? size : 0);
+            if (!buffer)
+            {
+                backlog::Post(String("failed to create ") + name, backlog::LogLevel::Error);
+                return nullptr;
+            }
+            buffer->SetName(name);
+            if (out_srv && !CreateBufferView(device, *buffer, RHISubresourceType::ShaderResource, 0, size, stride, *out_srv))
+            {
+                backlog::Post(String("failed to create ") + name + " SRV", backlog::LogLevel::Error);
+                return nullptr;
+            }
+            if (out_uav && !CreateBufferView(device, *buffer, RHISubresourceType::UnorderedAccess, 0, size, stride, *out_uav))
+            {
+                backlog::Post(String("failed to create ") + name + " UAV", backlog::LogLevel::Error);
+                return nullptr;
+            }
+            return buffer;
+        }
+
+        std::unique_ptr<RHIResource> CreateConstantBuffer(RHIDevice& device, const void* data, Size size, RHISubresourceHandle& out_cbv)
+        {
+            RHIBufferDesc desc = {};
+            desc.size = size;
+            desc.usage = RHIResourceUsage::Default;
+            desc.bind_flags = RHIBindFlags::ConstantBuffer;
+            std::unique_ptr<RHIResource> buffer = device.CreateBuffer(desc, data, size);
+            if (!buffer)
+            {
+                return nullptr;
+            }
+            if (!CreateBufferView(device, *buffer, RHISubresourceType::ConstantBuffer, 0, size, 0, out_cbv))
+            {
+                return nullptr;
+            }
+            return buffer;
+        }
+
+        std::unique_ptr<RHIResource> CreateRenderTargetTexture(RHIDevice& device, uint32 width, uint32 height, RHIFormat format, RHIBindFlags bind_flags, RHISubresourceType view_type, RHISubresourceHandle& out_view)
+        {
+            RHITextureDesc desc = {};
+            desc.width = width;
+            desc.height = height;
+            desc.format = format;
+            desc.usage = RHIResourceUsage::Default;
+            desc.bind_flags = bind_flags;
+            std::unique_ptr<RHIResource> texture = device.CreateTexture(desc);
+            if (!texture)
+            {
+                return nullptr;
+            }
+            RHISubresourceDesc view_desc = {};
+            view_desc.type = view_type;
+            view_desc.format = format;
+            if (!device.CreateSubresource(*texture, view_desc, &out_view))
+            {
+                return nullptr;
+            }
+            return texture;
+        }
+
+        bool ReadbackTexture(RHIDevice& device, RHIResource& texture, RHIResourceState current_state,
+            Vector<uint8>& out_pixels, uint32& out_row_pitch, uint32& out_rows)
+        {
+            Size total_size = 0;
+            if (!device.GetTextureCopyFootprint(texture, total_size, out_row_pitch, out_rows) || total_size == 0)
+            {
+                return false;
+            }
+
+            RHIBufferDesc readback_desc = {};
+            readback_desc.size = total_size;
+            readback_desc.usage = RHIResourceUsage::Readback;
+            readback_desc.bind_flags = RHIBindFlags::None;
+            std::unique_ptr<RHIResource> readback_buffer = device.CreateBuffer(readback_desc);
+            if (!readback_buffer || !readback_buffer->GetMappedData())
+            {
+                return false;
+            }
+
+            RHIContext* context = device.GetContext(RHIQueueType::Graphics);
+            std::unique_ptr<RHICommandAllocator> command_allocator = device.CreateCommandAllocator(RHIQueueType::Graphics);
+            std::unique_ptr<RHICommandList> command_list = device.CreateCommandList(RHIQueueType::Graphics);
+            if (!context || !command_allocator || !command_list)
+            {
+                return false;
+            }
+
+            command_allocator->Reset();
+            command_list->Begin(*command_allocator);
+            command_list->TransitionResource(texture, current_state, RHIResourceState::CopySource);
+            command_list->CopyTextureToBuffer(*readback_buffer, texture);
+            command_list->TransitionResource(texture, RHIResourceState::CopySource, current_state);
+            command_list->End();
+
+            std::unique_ptr<RHIFence> fence = device.CreateFence(0);
+            const uint64 fence_value = context->Submit(*command_list, fence.get());
+            if (fence_value > 0)
+            {
+                fence->Wait(fence_value);
+            }
+            else
+            {
+                context->WaitIdle();
+            }
+
+            out_pixels.resize(total_size);
+            std::memcpy(out_pixels.data(), readback_buffer->GetMappedData(), total_size);
+            return true;
+        }
+
+        std::shared_ptr<resource::Image> ReadbackTextureToImage(RHIDevice& device, RHIResource& texture, RHIResourceState current_state,
+            uint32 dimension, uint32 bytes_per_pixel, RHIFormat format, int32 channels)
+        {
+            Vector<uint8> raw;
+            uint32 row_pitch = 0;
+            uint32 rows = 0;
+            if (!ReadbackTexture(device, texture, current_state, raw, row_pitch, rows))
+            {
+                return nullptr;
+            }
+            auto image = std::make_shared<resource::Image>();
+            image->width = static_cast<int32>(dimension);
+            image->height = static_cast<int32>(dimension);
+            image->channels = channels;
+            image->format = format;
+            const uint32 tight_pitch = dimension * bytes_per_pixel;
+            image->pixels.resize(static_cast<Size>(tight_pitch) * dimension);
+            for (uint32 row = 0; row < dimension; ++row)
+            {
+                std::memcpy(image->pixels.data() + static_cast<Size>(row) * tight_pitch, raw.data() + static_cast<Size>(row) * row_pitch, tight_pitch);
+            }
+            return image;
         }
 
         bool GenerateTextureMips(RHIDevice& device, Renderer& renderer, RHICommandList& command_list, RHIResource& texture_resource, Vector<RHISubresourceHandle>* out_mip_srvs)
@@ -209,19 +368,19 @@ namespace won::rendering::utils
                 mesh_bounds.Invalidate();
                 uint32 primitive_count = 0;
 
-                for (Size submesh_index = 0; submesh_index < mesh.submeshes.size(); ++submesh_index)
+                for (Size submesh_index = 0; submesh_index < mesh.lods[0].submeshes.size(); ++submesh_index)
                 {
-                    const resource::Submesh& submesh = mesh.submeshes[submesh_index];
+                    const resource::Submesh& submesh = mesh.lods[0].submeshes[submesh_index];
                     if (submesh.primitive_topology != resource::PrimitiveTopology::TriangleList)
                     {
                         continue;
                     }
 
-                    if (submesh.first_index >= mesh.indices.size())
+                    if (submesh.first_index >= mesh.lods[0].indices.size())
                     {
                         continue;
                     }
-                    const uint32 available_index_count = (std::min)(submesh.index_count, static_cast<uint32>(mesh.indices.size()) - submesh.first_index);
+                    const uint32 available_index_count = (std::min)(submesh.index_count, static_cast<uint32>(mesh.lods[0].indices.size()) - submesh.first_index);
                     const uint32 triangle_count = available_index_count / 3;
                     if (triangle_count == 0)
                     {
@@ -330,97 +489,41 @@ namespace won::rendering::utils
                     sort_keys[sort_index] = { 0xFFFFFFFFu, sort_index };
                 }
 
-                auto create_structured_buffer = [&device](const char* buffer_name,
-                    Size buffer_size,
-                    Size stride,
-                    RHIBindFlags bind_flags,
-                    const void* data,
-                    RHISubresourceHandle* out_srv,
-                    RHISubresourceHandle* out_uav) -> std::unique_ptr<RHIResource>
-                {
-                    if (buffer_size == 0 || stride == 0)
-                    {
-                        return nullptr;
-                    }
-
-                    RHIBufferDesc buffer_desc = {};
-                    buffer_desc.size = buffer_size;
-                    buffer_desc.usage = RHIResourceUsage::Default;
-                    buffer_desc.bind_flags = bind_flags;
-                    std::unique_ptr<RHIResource> buffer = device.CreateBuffer(buffer_desc, data, data ? buffer_size : 0);
-                    if (!buffer)
-                    {
-                        backlog::Post(String("failed to create ") + buffer_name, backlog::LogLevel::Error);
-                        return nullptr;
-                    }
-                    buffer->SetName(buffer_name);
-
-                    if (out_srv)
-                    {
-                        RHISubresourceDesc srv_desc = {};
-                        srv_desc.type = RHISubresourceType::ShaderResource;
-                        srv_desc.buffer_offset = 0;
-                        srv_desc.buffer_size = buffer_size;
-                        srv_desc.buffer_stride = stride;
-                        if (!device.CreateSubresource(*buffer, srv_desc, out_srv))
-                        {
-                            backlog::Post(String("failed to create ") + buffer_name + " SRV", backlog::LogLevel::Error);
-                            return nullptr;
-                        }
-                    }
-
-                    if (out_uav)
-                    {
-                        RHISubresourceDesc uav_desc = {};
-                        uav_desc.type = RHISubresourceType::UnorderedAccess;
-                        uav_desc.buffer_offset = 0;
-                        uav_desc.buffer_size = buffer_size;
-                        uav_desc.buffer_stride = stride;
-                        if (!device.CreateSubresource(*buffer, uav_desc, out_uav))
-                        {
-                            backlog::Post(String("failed to create ") + buffer_name + " UAV", backlog::LogLevel::Error);
-                            return nullptr;
-                        }
-                    }
-
-                    return buffer;
-                };
-
-                gpu_bvh.node_buffer = create_structured_buffer("Mesh GPU BVH Node Buffer",
-                    node_count * sizeof(ShaderBVHNode), sizeof(ShaderBVHNode),
-                    RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess, nullptr, &gpu_bvh.node_srv, &gpu_bvh.node_uav);
+                gpu_bvh.node_buffer = CreateStructuredBuffer(device, "Mesh GPU BVH Node Buffer",
+                    nullptr, node_count * sizeof(ShaderBVHNode), sizeof(ShaderBVHNode),
+                    RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess, &gpu_bvh.node_srv, &gpu_bvh.node_uav);
                 if (!gpu_bvh.node_buffer)
                 {
                     succeeded = false;
                     continue;
                 }
-                gpu_bvh.primitive_buffer = create_structured_buffer("Mesh GPU BVH Primitive Buffer",
-                    sort_count * sizeof(ShaderBVHPrimitive), sizeof(ShaderBVHPrimitive),
-                    RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess, nullptr, &gpu_bvh.primitive_srv, &gpu_bvh.primitive_uav);
+                gpu_bvh.primitive_buffer = CreateStructuredBuffer(device, "Mesh GPU BVH Primitive Buffer",
+                    nullptr, sort_count * sizeof(ShaderBVHPrimitive), sizeof(ShaderBVHPrimitive),
+                    RHIBindFlags::ShaderResource | RHIBindFlags::UnorderedAccess, &gpu_bvh.primitive_srv, &gpu_bvh.primitive_uav);
                 if (!gpu_bvh.primitive_buffer)
                 {
                     succeeded = false;
                     continue;
                 }
-                sort_buffer = create_structured_buffer("Mesh GPU BVH Sort Buffer",
-                    sort_count * sizeof(uint2), sizeof(uint2),
-                    RHIBindFlags::UnorderedAccess, sort_keys.data(), nullptr, &sort_uav);
+                sort_buffer = CreateStructuredBuffer(device, "Mesh GPU BVH Sort Buffer",
+                    sort_keys.data(), sort_count * sizeof(uint2), sizeof(uint2),
+                    RHIBindFlags::UnorderedAccess, nullptr, &sort_uav);
                 if (!sort_buffer)
                 {
                     succeeded = false;
                     continue;
                 }
-                parent_buffer = create_structured_buffer("Mesh GPU BVH Parent Buffer",
-                    node_count * sizeof(uint32), sizeof(uint32),
-                    RHIBindFlags::UnorderedAccess, nullptr, nullptr, &parent_uav);
+                parent_buffer = CreateStructuredBuffer(device, "Mesh GPU BVH Parent Buffer",
+                    nullptr, node_count * sizeof(uint32), sizeof(uint32),
+                    RHIBindFlags::UnorderedAccess, nullptr, &parent_uav);
                 if (!parent_buffer)
                 {
                     succeeded = false;
                     continue;
                 }
-                counter_buffer = create_structured_buffer("Mesh GPU BVH Counter Buffer",
-                    node_count * sizeof(uint32), sizeof(uint32),
-                    RHIBindFlags::UnorderedAccess, zero_counters.data(), nullptr, &counter_uav);
+                counter_buffer = CreateStructuredBuffer(device, "Mesh GPU BVH Counter Buffer",
+                    zero_counters.data(), node_count * sizeof(uint32), sizeof(uint32),
+                    RHIBindFlags::UnorderedAccess, nullptr, &counter_uav);
                 if (!counter_buffer)
                 {
                     succeeded = false;
@@ -434,17 +537,17 @@ namespace won::rendering::utils
                 command_list.TransitionResource(*counter_buffer, RHIResourceState::Undefined, RHIResourceState::ShaderWrite);
 
                 Vector<ShaderBVHBuildSubmesh> build_submeshes;
-                build_submeshes.reserve(mesh.submeshes.size());
+                build_submeshes.reserve(mesh.lods[0].submeshes.size());
                 uint32 primitive_offset = 0;
-                for (Size submesh_index = 0; submesh_index < mesh.submeshes.size(); ++submesh_index)
+                for (Size submesh_index = 0; submesh_index < mesh.lods[0].submeshes.size(); ++submesh_index)
                 {
-                    const resource::Submesh& submesh = mesh.submeshes[submesh_index];
-                    if (submesh.primitive_topology != resource::PrimitiveTopology::TriangleList || submesh.first_index >= mesh.indices.size())
+                    const resource::Submesh& submesh = mesh.lods[0].submeshes[submesh_index];
+                    if (submesh.primitive_topology != resource::PrimitiveTopology::TriangleList || submesh.first_index >= mesh.lods[0].indices.size())
                     {
                         continue;
                     }
 
-                    const uint32 available_index_count = (std::min)(submesh.index_count, static_cast<uint32>(mesh.indices.size()) - submesh.first_index);
+                    const uint32 available_index_count = (std::min)(submesh.index_count, static_cast<uint32>(mesh.lods[0].indices.size()) - submesh.first_index);
                     const uint32 triangle_count = available_index_count / 3;
                     if (triangle_count == 0)
                     {
@@ -464,9 +567,9 @@ namespace won::rendering::utils
                 }
 
                 RHISubresourceHandle build_submesh_srv = {};
-                std::unique_ptr<RHIResource> build_submesh_buffer = create_structured_buffer("Mesh GPU BVH Build Submesh Buffer",
-                    build_submeshes.size() * sizeof(ShaderBVHBuildSubmesh), sizeof(ShaderBVHBuildSubmesh),
-                    RHIBindFlags::ShaderResource, build_submeshes.data(), &build_submesh_srv, nullptr);
+                std::unique_ptr<RHIResource> build_submesh_buffer = CreateStructuredBuffer(device, "Mesh GPU BVH Build Submesh Buffer",
+                    build_submeshes.data(), build_submeshes.size() * sizeof(ShaderBVHBuildSubmesh), sizeof(ShaderBVHBuildSubmesh),
+                    RHIBindFlags::ShaderResource, &build_submesh_srv, nullptr);
                 if (!build_submesh_buffer)
                 {
                     succeeded = false;
@@ -475,7 +578,7 @@ namespace won::rendering::utils
 
                 command_list.SetComputePipeline(*gpu_bvh_build_pipelines[static_cast<uint32>(GPUBVHBuildPipelineType::GeneratePrimitives)]);
                 command_list.SetShaderResource(RHIShaderStage::Compute, 0, { mesh.render_data.buffer.get(), mesh.render_data.positions.srv });
-                command_list.SetShaderResource(RHIShaderStage::Compute, 1, { mesh.render_data.buffer.get(), mesh.render_data.indices.srv });
+                command_list.SetShaderResource(RHIShaderStage::Compute, 1, { mesh.render_data.buffer.get(), mesh.lods[0].render_indices.srv });
                 command_list.SetShaderResource(RHIShaderStage::Compute, 2, { build_submesh_buffer.get(), build_submesh_srv });
                 command_list.SetUnorderedAccess(RHIShaderStage::Compute, 0, { gpu_bvh.primitive_buffer.get(), gpu_bvh.primitive_uav });
                 command_list.SetUnorderedAccess(RHIShaderStage::Compute, 2, { sort_buffer.get(), sort_uav });
@@ -1045,6 +1148,270 @@ namespace won::rendering::utils
         return true;
     }
 
+    bool BakeImpostor(RHIDevice& device, Renderer& renderer, resource::Mesh& mesh,
+        const resource::Material& material, uint32 grid_size, uint32 tile_resolution,
+        impostor::ImpostorLayout layout)
+    {
+        if (grid_size == 0 || tile_resolution == 0 || mesh.lods.empty() || mesh.lods[0].submeshes.empty() || material.slots.empty() || !mesh.render_data.IsValid())
+        {
+            return false;
+        }
+
+        Vector<ShaderTransform> shader_transforms(1);
+        shader_transforms[0].Init();
+        shader_transforms[0].world_transform = math::IDENTITY_MATRIX;
+        shader_transforms[0].normal_transform_row0 = float3(1.0f, 0.0f, 0.0f);
+        shader_transforms[0].normal_transform_row1 = float3(0.0f, 1.0f, 0.0f);
+        shader_transforms[0].normal_transform_row2 = float3(0.0f, 0.0f, 1.0f);
+
+        Vector<ShaderGeometry> shader_geometries(mesh.lods[0].submeshes.size());
+        for (Size i = 0; i < mesh.lods[0].submeshes.size(); ++i)
+        {
+            WriteShaderGeometry(mesh, i, shader_geometries[i]);
+        }
+
+        Vector<ShaderMaterial> shader_materials(material.slots.size());
+        for (Size i = 0; i < material.slots.size(); ++i)
+        {
+            WriteShaderMaterial(material.slots[i], shader_materials[i]);
+        }
+        const uint32 transform_index_data = 0;
+
+        RHISubresourceHandle transform_srv = {};
+        RHISubresourceHandle geometry_srv = {};
+        RHISubresourceHandle material_srv = {};
+        RHISubresourceHandle transform_index_srv = {};
+        std::unique_ptr<RHIResource> transform_buffer = CreateStructuredBuffer(device, "Impostor Transform Buffer", shader_transforms.data(), shader_transforms.size() * sizeof(ShaderTransform), sizeof(ShaderTransform), RHIBindFlags::ShaderResource, &transform_srv, nullptr);
+        std::unique_ptr<RHIResource> geometry_buffer = CreateStructuredBuffer(device, "Impostor Geometry Buffer", shader_geometries.data(), shader_geometries.size() * sizeof(ShaderGeometry), sizeof(ShaderGeometry), RHIBindFlags::ShaderResource, &geometry_srv, nullptr);
+        std::unique_ptr<RHIResource> material_buffer = CreateStructuredBuffer(device, "Impostor Material Buffer", shader_materials.data(), shader_materials.size() * sizeof(ShaderMaterial), sizeof(ShaderMaterial), RHIBindFlags::ShaderResource, &material_srv, nullptr);
+        std::unique_ptr<RHIResource> transform_index_buffer = CreateStructuredBuffer(device, "Impostor Transform Index Buffer", &transform_index_data, sizeof(uint32), sizeof(uint32), RHIBindFlags::ShaderResource, &transform_index_srv, nullptr);
+        if (!transform_buffer || !geometry_buffer || !material_buffer || !transform_index_buffer)
+        {
+            return false;
+        }
+
+        ShaderFrame shader_frame;
+        shader_frame.Init();
+        shader_frame.scene.transform_buffer = transform_srv.descriptor_index;
+        shader_frame.scene.geometrybuffer = geometry_srv.descriptor_index;
+        shader_frame.scene.materialbuffer = material_srv.descriptor_index;
+        RHISubresourceHandle frame_cbv = {};
+        std::unique_ptr<RHIResource> frame_buffer = CreateConstantBuffer(device, &shader_frame, sizeof(ShaderFrame), frame_cbv);
+        if (!frame_buffer)
+        {
+            return false;
+        }
+
+        math::AABB mesh_bounds;
+        mesh_bounds.Invalidate();
+        for (const resource::Submesh& submesh : mesh.lods[0].submeshes)
+        {
+            mesh_bounds.Merge(submesh.local_bounds);
+        }
+        const float3 bounds_min = mesh_bounds.min;
+        const float3 bounds_max = mesh_bounds.max;
+        const float3 center = float3((bounds_min.x + bounds_max.x) * 0.5f, (bounds_min.y + bounds_max.y) * 0.5f, (bounds_min.z + bounds_max.z) * 0.5f);
+        const float radius = 0.5f * math::Length(float3(bounds_max.x - bounds_min.x, bounds_max.y - bounds_min.y, bounds_max.z - bounds_min.z));
+        if (radius <= 0.0f)
+        {
+            return false;
+        }
+        const float capture_distance = radius * 2.0f;
+        const float near_plane = capture_distance - radius;
+        const float far_plane = capture_distance + radius;
+
+        Vector<std::unique_ptr<RHIResource>> view_buffers;
+        Vector<RHISubresourceHandle> view_cbvs(static_cast<Size>(grid_size) * grid_size);
+        view_buffers.reserve(static_cast<Size>(grid_size) * grid_size);
+        for (uint32 y = 0; y < grid_size; ++y)
+        {
+            for (uint32 x = 0; x < grid_size; ++x)
+            {
+                const float3 oct_direction = impostor::CellCaptureDirection(x, y, grid_size, layout);
+                const float3 direction = float3(oct_direction.x, oct_direction.z, oct_direction.y);
+                const float3 eye = float3(center.x + direction.x * capture_distance, center.y + direction.y * capture_distance, center.z + direction.z * capture_distance);
+                const DirectX::XMVECTOR eye_vector = DirectX::XMVectorSet(eye.x, eye.y, eye.z, 1.0f);
+                const DirectX::XMVECTOR forward_vector = DirectX::XMVectorSet(-direction.x, -direction.y, -direction.z, 0.0f);
+                const bool near_vertical = std::abs(direction.y) > 0.99f;
+                const DirectX::XMVECTOR up_vector = near_vertical ? DirectX::XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f) : DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+                const DirectX::XMMATRIX view_matrix = DirectX::XMMatrixLookToLH(eye_vector, forward_vector, up_vector);
+                const DirectX::XMMATRIX projection_matrix = DirectX::XMMatrixOrthographicLH(radius * 2.0f, radius * 2.0f, far_plane, near_plane);
+                const DirectX::XMMATRIX view_projection_matrix = DirectX::XMMatrixMultiply(view_matrix, projection_matrix);
+
+                ShaderView shader_view;
+                shader_view.Init();
+                ShaderCamera& camera = shader_view.camera;
+                camera.position = eye;
+                camera.forward = float3(-direction.x, -direction.y, -direction.z);
+                camera.up = near_vertical ? float3(0.0f, 0.0f, 1.0f) : float3(0.0f, 1.0f, 0.0f);
+                camera.z_near = near_plane;
+                camera.z_far = far_plane;
+                camera.internal_resolution = { tile_resolution, tile_resolution };
+                camera.exposure = 1.0f;
+                DirectX::XMStoreFloat4x4(&camera.view, view_matrix);
+                DirectX::XMStoreFloat4x4(&camera.projection, projection_matrix);
+                DirectX::XMStoreFloat4x4(&camera.view_projection, view_projection_matrix);
+                DirectX::XMStoreFloat4x4(&camera.inv_view_projection, DirectX::XMMatrixInverse(nullptr, view_projection_matrix));
+                shader_view.transform_index_buffer = transform_index_srv.descriptor_index;
+
+                RHISubresourceHandle& cell_cbv = view_cbvs[static_cast<Size>(y) * grid_size + x];
+                std::unique_ptr<RHIResource> view_buffer = CreateConstantBuffer(device, &shader_view, sizeof(ShaderView), cell_cbv);
+                if (!view_buffer)
+                {
+                    return false;
+                }
+                view_buffers.push_back(std::move(view_buffer));
+            }
+        }
+
+        const uint32 atlas_size = grid_size * tile_resolution;
+        RHISubresourceHandle albedo_rtv = {};
+        RHISubresourceHandle normal_rtv = {};
+        RHISubresourceHandle depth_rtv = {};
+        RHISubresourceHandle depth_stencil_dsv = {};
+        std::unique_ptr<RHIResource> albedo_atlas = CreateRenderTargetTexture(device, atlas_size, atlas_size, RHIFormat::R8G8B8A8UnormSrgb, RHIBindFlags::RenderTarget, RHISubresourceType::RenderTarget, albedo_rtv);
+        std::unique_ptr<RHIResource> normal_atlas = CreateRenderTargetTexture(device, atlas_size, atlas_size, RHIFormat::R8G8B8A8Unorm, RHIBindFlags::RenderTarget, RHISubresourceType::RenderTarget, normal_rtv);
+        std::unique_ptr<RHIResource> depth_atlas = CreateRenderTargetTexture(device, atlas_size, atlas_size, RHIFormat::R16Float, RHIBindFlags::RenderTarget, RHISubresourceType::RenderTarget, depth_rtv);
+        std::unique_ptr<RHIResource> depth_stencil = CreateRenderTargetTexture(device, atlas_size, atlas_size, RHIFormat::D32Float, RHIBindFlags::DepthStencil, RHISubresourceType::DepthStencil, depth_stencil_dsv);
+        if (!albedo_atlas || !normal_atlas || !depth_atlas || !depth_stencil)
+        {
+            return false;
+        }
+
+        RHIShader* vertex_shader = renderer.GetShader(resource::ShaderId::VSObjectCommon);
+        std::unique_ptr<RHIPipeline> capture_pipelines[2][2] = {};
+        for (uint32 masked = 0; masked < 2; ++masked)
+        {
+            RHIShader* pixel_shader = renderer.GetShader(masked == 1 ? resource::ShaderId::PSImpostorBakeMasked : resource::ShaderId::PSImpostorBake);
+            for (uint32 cull_none = 0; cull_none < 2; ++cull_none)
+            {
+                RHIGraphicsPipelineDesc pipeline_desc = {};
+                pipeline_desc.vertex_shader = vertex_shader;
+                pipeline_desc.pixel_shader = pixel_shader;
+                pipeline_desc.sample_count = 1;
+                pipeline_desc.depth_stencil_format = RHIFormat::D32Float;
+                pipeline_desc.depth_stencil.depth_test = true;
+                pipeline_desc.depth_stencil.depth_write = true;
+                pipeline_desc.depth_stencil.depth_compare = RHICompareOp::GreaterEqual;
+                pipeline_desc.blend.enable = false;
+                pipeline_desc.raster.cull_mode = cull_none == 1 ? RHICullMode::None : RHICullMode::Back;
+                pipeline_desc.topology = RHIPrimitiveTopology::TriangleList;
+                pipeline_desc.render_target_formats = { RHIFormat::R8G8B8A8UnormSrgb, RHIFormat::R8G8B8A8Unorm, RHIFormat::R16Float };
+                capture_pipelines[masked][cull_none] = device.CreateGraphicsPipeline(pipeline_desc);
+                if (!capture_pipelines[masked][cull_none])
+                {
+                    return false;
+                }
+            }
+        }
+
+        RHIContext* context = device.GetContext(RHIQueueType::Graphics);
+        std::unique_ptr<RHICommandAllocator> command_allocator = device.CreateCommandAllocator(RHIQueueType::Graphics);
+        std::unique_ptr<RHICommandList> command_list = device.CreateCommandList(RHIQueueType::Graphics);
+        if (!context || !command_allocator || !command_list)
+        {
+            return false;
+        }
+
+        command_allocator->Reset();
+        command_list->Begin(*command_allocator);
+        command_list->TransitionResource(*albedo_atlas, RHIResourceState::Undefined, RHIResourceState::RenderTarget);
+        command_list->TransitionResource(*normal_atlas, RHIResourceState::Undefined, RHIResourceState::RenderTarget);
+        command_list->TransitionResource(*depth_atlas, RHIResourceState::Undefined, RHIResourceState::RenderTarget);
+        command_list->TransitionResource(*depth_stencil, RHIResourceState::Undefined, RHIResourceState::DepthWrite);
+
+        RHISubresourceBinding albedo_binding = { albedo_atlas.get(), albedo_rtv };
+        RHISubresourceBinding normal_binding = { normal_atlas.get(), normal_rtv };
+        RHISubresourceBinding depth_binding = { depth_atlas.get(), depth_rtv };
+        RHISubresourceBinding depth_stencil_binding = { depth_stencil.get(), depth_stencil_dsv };
+        const Vector<RHISubresourceBinding> color_targets = { albedo_binding, normal_binding, depth_binding };
+        command_list->SetRenderTargets(color_targets, &depth_stencil_binding);
+        const RHIClearColor clear_color = { 0.0f, 0.0f, 0.0f, 0.0f };
+        command_list->ClearRenderTarget(albedo_binding, clear_color);
+        command_list->ClearRenderTarget(normal_binding, clear_color);
+        command_list->ClearRenderTarget(depth_binding, clear_color);
+        command_list->ClearDepthStencil(depth_stencil_binding, OPTIMIZED_FAST_CLEAR_DEPTH, 0);
+
+        RHISubresourceBinding frame_binding = { frame_buffer.get(), frame_cbv };
+        command_list->SetIndexBuffer(*mesh.render_data.buffer, sizeof(uint32), mesh.lods[0].render_indices.offset, mesh.lods[0].render_indices.size);
+
+        for (uint32 y = 0; y < grid_size; ++y)
+        {
+            for (uint32 x = 0; x < grid_size; ++x)
+            {
+                RHIViewport viewport = {};
+                viewport.x = static_cast<float>(x * tile_resolution);
+                viewport.y = static_cast<float>(y * tile_resolution);
+                viewport.width = static_cast<float>(tile_resolution);
+                viewport.height = static_cast<float>(tile_resolution);
+                viewport.min_depth = 0.0f;
+                viewport.max_depth = 1.0f;
+                RHIRect scissor = {};
+                scissor.x = x * tile_resolution;
+                scissor.y = y * tile_resolution;
+                scissor.width = tile_resolution;
+                scissor.height = tile_resolution;
+                command_list->SetViewport(viewport);
+                command_list->SetScissor(scissor);
+
+                RHISubresourceBinding view_binding = { view_buffers[static_cast<Size>(y) * grid_size + x].get(), view_cbvs[static_cast<Size>(y) * grid_size + x] };
+                for (Size submesh_index = 0; submesh_index < mesh.lods[0].submeshes.size(); ++submesh_index)
+                {
+                    const resource::Submesh& submesh = mesh.lods[0].submeshes[submesh_index];
+                    if (submesh.material_slot >= material.slots.size())
+                    {
+                        continue;
+                    }
+                    const resource::MaterialSlot& material_slot = material.slots[submesh.material_slot];
+                    const uint32 masked = material_slot.settings.blend_mode == resource::MaterialBlendMode::Masked ? 1u : 0u;
+                    const uint32 cull_none = material_slot.settings.double_sided ? 1u : 0u;
+                    command_list->SetGraphicsPipeline(*capture_pipelines[masked][cull_none]);
+                    command_list->SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_FRAME, frame_binding);
+                    command_list->SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_CAMERA, view_binding);
+                    command_list->SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_FRAME, frame_binding);
+                    command_list->SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_CAMERA, view_binding);
+                    command_list->SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
+
+                    ObjectPushConstants push;
+                    push.Init();
+                    push.instance_offset = 0;
+                    push.geometry_index = static_cast<uint32>(submesh_index);
+                    push.material_index = submesh.material_slot;
+                    command_list->PushConstants(RHIShaderStage::Vertex, &push, sizeof(ObjectPushConstants), 0);
+                    command_list->DrawIndexed(submesh.index_count, 1, submesh.first_index, 0, 0);
+                }
+            }
+        }
+
+        command_list->End();
+        std::unique_ptr<RHIFence> fence = device.CreateFence(0);
+        const uint64 fence_value = context->Submit(*command_list, fence.get());
+        if (fence_value > 0)
+        {
+            fence->Wait(fence_value);
+        }
+        else
+        {
+            context->WaitIdle();
+        }
+
+        std::shared_ptr<resource::Image> albedo_image = ReadbackTextureToImage(device, *albedo_atlas, RHIResourceState::RenderTarget, atlas_size, 4, RHIFormat::R8G8B8A8UnormSrgb, 4);
+        std::shared_ptr<resource::Image> normal_image = ReadbackTextureToImage(device, *normal_atlas, RHIResourceState::RenderTarget, atlas_size, 4, RHIFormat::R8G8B8A8Unorm, 4);
+        std::shared_ptr<resource::Image> depth_image = ReadbackTextureToImage(device, *depth_atlas, RHIResourceState::RenderTarget, atlas_size, 2, RHIFormat::R16Float, 1);
+        if (!albedo_image || !normal_image || !depth_image)
+        {
+            return false;
+        }
+
+        mesh.impostor.grid_size = grid_size;
+        mesh.impostor.radius = radius;
+        mesh.impostor.center = center;
+        mesh.impostor.albedo = albedo_image;
+        mesh.impostor.normal = normal_image;
+        mesh.impostor.depth = depth_image;
+        return true;
+    }
+
     bool CreateRenderData(RHIDevice& device, resource::Mesh& mesh)
     {
         if (mesh.render_data.IsValid())
@@ -1057,6 +1424,7 @@ namespace won::rendering::utils
             return false;
         }
 
+        const Vector<uint32>& base_indices = mesh.lods[0].indices;
         const Size stream_slots = mesh.dynamic_vertex_streams ? static_cast<Size>(max_frames_in_flight) : 1;
         const Size positions_size = mesh.positions.size() * sizeof(float3) * stream_slots;
         const Size colors_size = mesh.colors.size() * sizeof(float4);
@@ -1066,19 +1434,18 @@ namespace won::rendering::utils
         const bool has_skinning_stream = mesh.bone_indices.size() == mesh.positions.size() && mesh.bone_weights.size() == mesh.positions.size();
         const Size bone_indices_size = has_skinning_stream ? mesh.bone_indices.size() * sizeof(uint4) : 0;
         const Size bone_weights_size = has_skinning_stream ? mesh.bone_weights.size() * sizeof(float4) : 0;
-        const Size indices_size = mesh.indices.size() * sizeof(uint32);
 
         Vector<uint2> adjacency_ranges; // per vertex (start_index, count)
         Vector<uint32> adjacency_triangles; // flattened triangle indices
         if (mesh.dynamic_vertex_streams)
         {
-            const Size triangle_count = mesh.indices.size() / 3;
+            const Size triangle_count = base_indices.size() / 3;
             adjacency_ranges.assign(mesh.positions.size(), uint2(0, 0));
             for (Size triangle = 0; triangle < triangle_count; ++triangle)
             {
                 for (Size corner = 0; corner < 3; ++corner)
                 {
-                    const uint32 vertex = mesh.indices[triangle * 3 + corner];
+                    const uint32 vertex = base_indices[triangle * 3 + corner];
                     if (vertex < adjacency_ranges.size())
                     {
                         ++adjacency_ranges[vertex].y; // count triangles
@@ -1098,7 +1465,7 @@ namespace won::rendering::utils
             {
                 for (Size corner = 0; corner < 3; ++corner)
                 {
-                    const uint32 vertex = mesh.indices[triangle * 3 + corner];
+                    const uint32 vertex = base_indices[triangle * 3 + corner];
                     if (vertex < adjacency_ranges.size())
                     {
                         adjacency_triangles[adjacency_ranges[vertex].x + adjacency_ranges[vertex].y] = static_cast<uint32>(triangle);
@@ -1117,9 +1484,14 @@ namespace won::rendering::utils
         total_size = math::Align(total_size, static_cast<Size>(sizeof(float2))) + texcoords_size;
         total_size = math::Align(total_size, static_cast<Size>(sizeof(uint4))) + bone_indices_size;
         total_size = math::Align(total_size, static_cast<Size>(sizeof(float4))) + bone_weights_size;
-        total_size = math::Align(total_size, static_cast<Size>(sizeof(uint32))) + indices_size;
         total_size = math::Align(total_size, static_cast<Size>(sizeof(uint2))) + adjacency_ranges_size;
         total_size = math::Align(total_size, static_cast<Size>(sizeof(uint32))) + adjacency_triangles_size;
+        Vector<Size> lod_index_sizes(mesh.lods.size(), 0);
+        for (Size lod_index = 0; lod_index < mesh.lods.size(); ++lod_index)
+        {
+            lod_index_sizes[lod_index] = mesh.lods[lod_index].indices.size() * sizeof(uint32);
+            total_size = math::Align(total_size, static_cast<Size>(sizeof(uint32))) + lod_index_sizes[lod_index];
+        }
         if (total_size == 0)
         {
             return false;
@@ -1138,7 +1510,6 @@ namespace won::rendering::utils
         Size texcoords_offset = 0;
         Size bone_indices_offset = 0;
         Size bone_weights_offset = 0;
-        Size indices_offset = 0;
         Size adjacency_ranges_offset = 0;
         Size adjacency_triangles_offset = 0;
 
@@ -1149,9 +1520,13 @@ namespace won::rendering::utils
         PackBufferSubresource(mesh.texcoords, packed_data, texcoords_offset, texcoords_size, sizeof(float2), offset);
         PackBufferSubresource(mesh.bone_indices, packed_data, bone_indices_offset, bone_indices_size, sizeof(uint4), offset);
         PackBufferSubresource(mesh.bone_weights, packed_data, bone_weights_offset, bone_weights_size, sizeof(float4), offset);
-        PackBufferSubresource(mesh.indices, packed_data, indices_offset, indices_size, sizeof(uint32), offset);
         PackBufferSubresource(adjacency_ranges, packed_data, adjacency_ranges_offset, adjacency_ranges_size, sizeof(uint2), offset);
         PackBufferSubresource(adjacency_triangles, packed_data, adjacency_triangles_offset, adjacency_triangles_size, sizeof(uint32), offset);
+        Vector<Size> lod_index_offsets(mesh.lods.size(), 0);
+        for (Size lod_index = 0; lod_index < mesh.lods.size(); ++lod_index)
+        {
+            PackBufferSubresource(mesh.lods[lod_index].indices, packed_data, lod_index_offsets[lod_index], lod_index_sizes[lod_index], sizeof(uint32), offset);
+        }
 
         RHIBufferDesc buffer_desc = {};
         buffer_desc.size = total_size;
@@ -1178,12 +1553,7 @@ namespace won::rendering::utils
             out_subresource.offset = static_cast<uint32>(buffer_offset);
             out_subresource.size = static_cast<uint32>(buffer_size);
 
-            RHISubresourceDesc subresource_desc = {};
-            subresource_desc.type = RHISubresourceType::ShaderResource;
-            subresource_desc.buffer_offset = buffer_offset;
-            subresource_desc.buffer_size = buffer_size;
-            subresource_desc.buffer_stride = buffer_stride;
-            if (!device.CreateSubresource(*new_render_data.buffer, subresource_desc, &out_subresource.srv))
+            if (!CreateBufferView(device, *new_render_data.buffer, RHISubresourceType::ShaderResource, buffer_offset, buffer_size, buffer_stride, out_subresource.srv))
             {
                 return false;
             }
@@ -1193,8 +1563,7 @@ namespace won::rendering::utils
                 return true;
             }
 
-            subresource_desc.type = RHISubresourceType::UnorderedAccess;
-            return device.CreateSubresource(*new_render_data.buffer, subresource_desc, &out_subresource.uav);
+            return CreateBufferView(device, *new_render_data.buffer, RHISubresourceType::UnorderedAccess, buffer_offset, buffer_size, buffer_stride, out_subresource.uav);
         };
 
         if (!create_subresource(positions_offset, positions_size, sizeof(float3), false, new_render_data.positions))
@@ -1233,12 +1602,35 @@ namespace won::rendering::utils
         {
             return false;
         }
-        if (!create_subresource(indices_offset, indices_size, sizeof(uint32), false, new_render_data.indices))
+        for (Size lod_index = 0; lod_index < mesh.lods.size(); ++lod_index)
         {
-            return false;
+            if (!create_subresource(lod_index_offsets[lod_index], lod_index_sizes[lod_index], sizeof(uint32), false, mesh.lods[lod_index].render_indices))
+            {
+                return false;
+            }
         }
 
         mesh.render_data = std::move(new_render_data);
+
+        if (mesh.impostor.IsValid())
+        {
+            if (mesh.impostor.albedo && !mesh.impostor.albedo->render_data.IsValid())
+            {
+                CreateRenderData(device, *mesh.impostor.albedo, RHIFormat::R8G8B8A8UnormSrgb, true);
+            }
+            if (mesh.impostor.normal && !mesh.impostor.normal->render_data.IsValid())
+            {
+                CreateRenderData(device, *mesh.impostor.normal, RHIFormat::R8G8B8A8Unorm, true);
+            }
+            if (mesh.impostor.depth && !mesh.impostor.depth->render_data.IsValid())
+            {
+                CreateRenderData(device, *mesh.impostor.depth, RHIFormat::R16Float);
+            }
+            mesh.impostor.albedo_srv = mesh.impostor.albedo ? mesh.impostor.albedo->render_data.srv : RHISubresourceHandle{};
+            mesh.impostor.normal_srv = mesh.impostor.normal ? mesh.impostor.normal->render_data.srv : RHISubresourceHandle{};
+            mesh.impostor.depth_srv = mesh.impostor.depth ? mesh.impostor.depth->render_data.srv : RHISubresourceHandle{};
+        }
+
         return true;
     }
 

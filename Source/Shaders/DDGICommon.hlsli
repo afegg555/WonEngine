@@ -2,6 +2,7 @@
 #define DDGI_COMMON
 
 #include "Common.hlsli"
+#include "OctahedralMapping.hlsli"
 
 inline uint3 DDGIProbeAtlasBase(uint3 probe_index, ShaderDDGIVolume ddgi_volume)
 {
@@ -51,28 +52,6 @@ inline float3 DDGIProbeGridPosition(ShaderDDGIVolume ddgi_volume, uint3 probe_in
 inline float3 DDGIProbePosition(ShaderDDGIVolume ddgi_volume, uint3 probe_index, float4 probe_data)
 {
     return DDGIProbeGridPosition(ddgi_volume, probe_index) + probe_data.xyz;
-}
-
-inline float2 EncodeOctahedralDirection(float3 direction)
-{
-    direction /= max(abs(direction.x) + abs(direction.y) + abs(direction.z), 0.0001f);
-    if (direction.z < 0.0f)
-    {
-        float2 direction_sign = float2(direction.x >= 0.0f ? 1.0f : -1.0f, direction.y >= 0.0f ? 1.0f : -1.0f);
-        direction.xy = (1.0f - abs(direction.yx)) * direction_sign;
-    }
-    return direction.xy * 0.5f + 0.5f;
-}
-
-inline float3 DecodeOctahedralDirection(float2 encoded)
-{
-    float3 direction = float3(encoded.x, encoded.y, 1.0f - abs(encoded.x) - abs(encoded.y));
-    if (direction.z < 0.0f)
-    {
-        float2 direction_sign = float2(direction.x >= 0.0f ? 1.0f : -1.0f, direction.y >= 0.0f ? 1.0f : -1.0f);
-        direction.xy = (1.0f - abs(direction.yx)) * direction_sign;
-    }
-    return normalize(direction);
 }
 
 inline float3 DecodeOctahedralTexel(uint2 texel, uint resolution)

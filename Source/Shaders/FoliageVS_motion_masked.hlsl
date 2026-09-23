@@ -1,0 +1,2 @@
+#define OBJECTSHADER_LAYOUT_PREPASS_MOTION_MASKED
+#include "FoliageVS.hlsli"

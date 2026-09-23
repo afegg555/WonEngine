@@ -44,12 +44,12 @@ namespace won::ecs
         void UpdateLocalBounds()
         {
             local_bounds.Invalidate();
-            if (!mesh)
+            if (!mesh || mesh->lods.empty())
             {
                 return;
             }
 
-            for (const resource::Submesh& submesh : mesh->submeshes)
+            for (const resource::Submesh& submesh : mesh->lods[0].submeshes)
             {
                 local_bounds.Merge(submesh.local_bounds);
             }

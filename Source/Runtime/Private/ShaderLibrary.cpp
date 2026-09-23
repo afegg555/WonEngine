@@ -487,11 +487,11 @@ namespace won::resource
             RHICompareOp depth_compare;
             MaterialBlendMode blend_mode;
             bool blend_enabled;
-        } terrain_view_variants[] = {
+        } view_mode_variants[] = {
             { RHIFillMode::Wireframe, RHICompareOp::GreaterEqual, MaterialBlendMode::Opaque, false },
             { RHIFillMode::Solid, RHICompareOp::Always, MaterialBlendMode::Additive, true },
         };
-        for (const auto& variant : terrain_view_variants)
+        for (const auto& variant : view_mode_variants)
         {
             pipeline_desc = {};
             pipeline_desc.vertex_shader = GetShader(ShaderId::VSTerrainCommon);
@@ -519,6 +519,134 @@ namespace won::resource
                 pipeline_hash.storage.bits.blend_mode = static_cast<uint64>(variant.blend_mode);
                 pipeline_hash.storage.bits.vertex_shader = static_cast<uint64>(ShaderId::VSTerrainCommon);
                 pipeline_hash.storage.bits.pixel_shader = static_cast<uint64>(ShaderId::PSTerrainUnlit);
+                graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+            }
+        }
+
+        const struct
+        {
+            MaterialBlendMode blend_mode;
+            bool masked;
+            RHIBlendMode rhi_mode;
+        } foliage_variants[] = {
+            { MaterialBlendMode::Opaque, false, RHIBlendMode::Alpha },
+            { MaterialBlendMode::Masked, true, RHIBlendMode::Alpha },
+            { MaterialBlendMode::Transparent, false, RHIBlendMode::Alpha },
+            { MaterialBlendMode::Additive, false, RHIBlendMode::Additive },
+            { MaterialBlendMode::Premultiplied, false, RHIBlendMode::Premultiplied },
+        };
+        for (const auto& foliage_variant : foliage_variants)
+        {
+            for (uint32 clustered = 0; clustered < 2; ++clustered)
+            {
+                const ShaderId pixel_shader = foliage_variant.masked
+                    ? (clustered ? ShaderId::PSObjectForwardPlusMasked : ShaderId::PSObjectForwardMasked)
+                    : (clustered ? ShaderId::PSObjectForwardPlus : ShaderId::PSObjectForward);
+
+                pipeline_desc = {};
+                const bool blended = foliage_variant.blend_mode >= MaterialBlendMode::Transparent;
+                pipeline_desc.vertex_shader = GetShader(ShaderId::VSFoliageCommon);
+                pipeline_desc.pixel_shader = GetShader(pixel_shader);
+                pipeline_desc.sample_count = sample_count;
+                pipeline_desc.depth_stencil_format = dsv_format;
+                pipeline_desc.depth_stencil.depth_test = true;
+                pipeline_desc.depth_stencil.depth_write = !blended;
+                pipeline_desc.depth_stencil.depth_compare = RHICompareOp::GreaterEqual;
+                pipeline_desc.blend.enable = blended;
+                pipeline_desc.blend.mode = foliage_variant.rhi_mode;
+                pipeline_desc.render_target_formats = { hdr_rtv_format };
+
+                for (uint32 cull_index = 0; cull_index < 2; ++cull_index)
+                {
+                    const RHICullMode cull_mode = cull_index == 0 ? RHICullMode::Back : RHICullMode::None;
+                    pipeline_desc.raster.cull_mode = cull_mode;
+                    pipeline_hash = {};
+                    pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::MainPass);
+                    pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
+                    pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(cull_mode);
+                    pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
+                    pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(pipeline_desc.depth_stencil.depth_compare);
+                    pipeline_hash.storage.bits.shader_type = SHADER_MATERIAL_TYPE_PBR;
+                    pipeline_hash.storage.bits.blend_mode = static_cast<uint64>(foliage_variant.blend_mode);
+                    pipeline_hash.storage.bits.clustered = clustered;
+                    pipeline_hash.storage.bits.vertex_shader = static_cast<uint64>(ShaderId::VSFoliageCommon);
+                    graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+                }
+            }
+        }
+
+        for (const auto& variant : view_mode_variants)
+        {
+            pipeline_desc = {};
+            pipeline_desc.vertex_shader = GetShader(ShaderId::VSFoliageSimple);
+            pipeline_desc.pixel_shader = GetShader(ShaderId::PSObjectUnlit);
+            pipeline_desc.sample_count = sample_count;
+            pipeline_desc.depth_stencil_format = dsv_format;
+            pipeline_desc.depth_stencil.depth_test = true;
+            pipeline_desc.depth_stencil.depth_write = false;
+            pipeline_desc.depth_stencil.depth_compare = variant.depth_compare;
+            pipeline_desc.blend.enable = variant.blend_enabled;
+            pipeline_desc.blend.mode = RHIBlendMode::Additive;
+            pipeline_desc.raster.fill_mode = variant.fill_mode;
+            pipeline_desc.render_target_formats = { hdr_rtv_format };
+            for (uint32 cull_index = 0; cull_index < 2; ++cull_index)
+            {
+                const RHICullMode cull_mode = cull_index == 0 ? RHICullMode::Back : RHICullMode::None;
+                pipeline_desc.raster.cull_mode = cull_mode;
+                pipeline_hash = {};
+                pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::MainPass);
+                pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
+                pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(cull_mode);
+                pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(variant.fill_mode);
+                pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(variant.depth_compare);
+                pipeline_hash.storage.bits.shader_type = SHADER_MATERIAL_TYPE_UNLIT;
+                pipeline_hash.storage.bits.blend_mode = static_cast<uint64>(variant.blend_mode);
+                pipeline_hash.storage.bits.vertex_shader = static_cast<uint64>(ShaderId::VSFoliageSimple);
+                graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+            }
+        }
+
+        const struct
+        {
+            PrepassMode prepass_mode;
+            MaterialBlendMode blend_mode;
+            ShaderId vertex_shader;
+            ShaderId pixel_shader;
+            uint32 render_target_count;
+        } foliage_prepass_variants[] = {
+            { PrepassMode::DepthOnly, MaterialBlendMode::Opaque, ShaderId::VSFoliagePrepass, ShaderId::Count, 0 },
+            { PrepassMode::Normal, MaterialBlendMode::Opaque, ShaderId::VSFoliageNormal, ShaderId::PSObjectNormal, 1 },
+            { PrepassMode::Motion, MaterialBlendMode::Opaque, ShaderId::VSFoliageMotion, ShaderId::PSObjectMotion, 1 },
+            { PrepassMode::Motion, MaterialBlendMode::Masked, ShaderId::VSFoliageMotionMasked, ShaderId::PSObjectMotionMasked, 1 },
+            { PrepassMode::MotionNormal, MaterialBlendMode::Opaque, ShaderId::VSFoliageMotionNormal, ShaderId::PSObjectMotionNormal, 2 },
+            { PrepassMode::MotionNormal, MaterialBlendMode::Masked, ShaderId::VSFoliageMotionNormalMasked, ShaderId::PSObjectMotionNormalMasked, 2 },
+        };
+        for (const auto& foliage_prepass_variant : foliage_prepass_variants)
+        {
+            pipeline_desc = {};
+            pipeline_desc.vertex_shader = GetShader(foliage_prepass_variant.vertex_shader);
+            pipeline_desc.pixel_shader = foliage_prepass_variant.pixel_shader == ShaderId::Count ? nullptr : GetShader(foliage_prepass_variant.pixel_shader);
+            pipeline_desc.sample_count = sample_count;
+            pipeline_desc.depth_stencil_format = dsv_format;
+            pipeline_desc.depth_stencil.depth_test = true;
+            pipeline_desc.depth_stencil.depth_write = true;
+            pipeline_desc.depth_stencil.depth_compare = RHICompareOp::GreaterEqual;
+            pipeline_desc.blend.enable = false;
+            pipeline_desc.render_target_formats.assign(foliage_prepass_variant.render_target_count, RHIFormat::R16G16B16A16Float);
+
+            for (uint32 cull_index = 0; cull_index < 2; ++cull_index)
+            {
+                const RHICullMode cull_mode = cull_index == 0 ? RHICullMode::Back : RHICullMode::None;
+                pipeline_desc.raster.cull_mode = cull_mode;
+                pipeline_hash = {};
+                pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::Prepass);
+                pipeline_hash.storage.bits.pass_mode = static_cast<uint64>(foliage_prepass_variant.prepass_mode);
+                pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
+                pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(cull_mode);
+                pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
+                pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
+                pipeline_hash.storage.bits.blend_mode = static_cast<uint64>(foliage_prepass_variant.blend_mode);
+                pipeline_hash.storage.bits.vertex_shader = static_cast<uint64>(foliage_prepass_variant.vertex_shader);
                 graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
             }
         }
@@ -820,6 +948,69 @@ namespace won::resource
 
             compute_pipeline->SetName(ToString(shader_id));
             compute_pipeline_cache[ComputePipelineHash(shader_id).storage.value] = compute_pipeline;
+        }
+
+        pipeline_desc = {};
+        pipeline_desc.vertex_shader = GetShader(ShaderId::VSImpostor);
+        pipeline_desc.pixel_shader = GetShader(ShaderId::PSImpostorForward);
+        pipeline_desc.sample_count = sample_count;
+        pipeline_desc.depth_stencil_format = dsv_format;
+        pipeline_desc.depth_stencil.depth_test = true;
+        pipeline_desc.depth_stencil.depth_write = true;
+        pipeline_desc.depth_stencil.depth_compare = RHICompareOp::GreaterEqual;
+        pipeline_desc.blend.enable = false;
+        pipeline_desc.raster.cull_mode = RHICullMode::None;
+        pipeline_desc.topology = RHIPrimitiveTopology::TriangleList;
+        pipeline_desc.render_target_formats = { hdr_rtv_format };
+        pipeline_hash = {};
+        pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::MainPass);
+        pipeline_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
+        pipeline_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
+        pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
+        pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
+        pipeline_hash.storage.bits.vertex_shader = static_cast<uint64>(ShaderId::VSImpostor);
+        graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+
+        pipeline_desc.pixel_shader = GetShader(ShaderId::PSImpostorForwardPlus);
+        pipeline_hash.storage.bits.clustered = 1;
+        graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+        pipeline_hash.storage.bits.clustered = 0;
+
+        const struct
+        {
+            PrepassMode prepass_mode;
+            ShaderId pixel_shader;
+            uint32 render_target_count;
+        } impostor_prepass_variants[] = {
+            { PrepassMode::DepthOnly, ShaderId::PSImpostorPrepass, 0 },
+            { PrepassMode::Normal, ShaderId::PSImpostorNormal, 1 },
+            { PrepassMode::Motion, ShaderId::PSImpostorMotion, 1 },
+            { PrepassMode::MotionNormal, ShaderId::PSImpostorMotionNormal, 2 },
+        };
+        for (const auto& impostor_prepass_variant : impostor_prepass_variants)
+        {
+            pipeline_desc.pixel_shader = GetShader(impostor_prepass_variant.pixel_shader);
+            pipeline_desc.render_target_formats.assign(impostor_prepass_variant.render_target_count, RHIFormat::R16G16B16A16Float);
+            pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::Prepass);
+            pipeline_hash.storage.bits.pass_mode = static_cast<uint64>(impostor_prepass_variant.prepass_mode);
+            graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
+        }
+
+        pipeline_desc.pixel_shader = GetShader(ShaderId::PSImpostorForward);
+        pipeline_desc.render_target_formats = { hdr_rtv_format };
+        pipeline_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::MainPass);
+        pipeline_hash.storage.bits.pass_mode = 0;
+        for (const auto& variant : view_mode_variants)
+        {
+            pipeline_desc.depth_stencil.depth_write = false;
+            pipeline_desc.depth_stencil.depth_compare = variant.depth_compare;
+            pipeline_desc.blend.enable = variant.blend_enabled;
+            pipeline_desc.blend.mode = RHIBlendMode::Additive;
+            pipeline_desc.raster.fill_mode = variant.fill_mode;
+            pipeline_hash.storage.bits.fill_mode = static_cast<uint64>(variant.fill_mode);
+            pipeline_hash.storage.bits.depth_compare = static_cast<uint64>(variant.depth_compare);
+            pipeline_hash.storage.bits.blend_mode = static_cast<uint64>(variant.blend_mode);
+            graphics_pipeline_cache[pipeline_hash.storage.value] = device->CreateGraphicsPipeline(pipeline_desc);
         }
 
         return true;

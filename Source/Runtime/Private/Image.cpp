@@ -1,11 +1,14 @@
 #include "Image.h"
 #include "FileSystem.h"
+#include "Backlog.h"
 
 #include <cstring>
 #include <mutex>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb/stb_image.h"
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb/stb_image_write.h"
 
 namespace won::resource
 {
@@ -119,6 +122,103 @@ namespace won::resource
 
         stbi_image_free(pixels);
         return image;
+    }
+
+    bool SaveImageFile(const Image& image, const String& path)
+    {
+        if (!image.IsValid())
+        {
+            return false;
+        }
+
+        String extension = io::GetExtension(path);
+        for (char& character : extension)
+        {
+            character = static_cast<char>(std::tolower(static_cast<unsigned char>(character)));
+        }
+
+        const int32 width = image.width;
+        const int32 height = image.height;
+        Vector<uint8> converted;
+        const uint8* data = nullptr;
+        int32 component_count = 0;
+
+        if (image.format == rendering::RHIFormat::R16Float)
+        {
+            const Size pixel_count = static_cast<Size>(width) * height;
+            if (image.pixels.size() < pixel_count * sizeof(uint16))
+            {
+                return false;
+            }
+            converted.resize(pixel_count);
+            const uint16* source = reinterpret_cast<const uint16*>(image.pixels.data());
+            for (Size i = 0; i < pixel_count; ++i)
+            {
+                const uint16 half = source[i];
+                const uint32 exponent = (half >> 10) & 0x1Fu;
+                const uint32 mantissa = half & 0x3FFu;
+                uint32 bits;
+                if (exponent == 0u)
+                {
+                    bits = static_cast<uint32>(half & 0x8000u) << 16;
+                }
+                else if (exponent == 0x1Fu)
+                {
+                    bits = (static_cast<uint32>(half & 0x8000u) << 16) | 0x7F800000u | (mantissa << 13);
+                }
+                else
+                {
+                    bits = (static_cast<uint32>(half & 0x8000u) << 16) | ((exponent + 112u) << 23) | (mantissa << 13);
+                }
+                float value;
+                std::memcpy(&value, &bits, sizeof(value));
+                const float clamped = value < 0.0f ? 0.0f : (value > 1.0f ? 1.0f : value);
+                converted[i] = static_cast<uint8>(clamped * 255.0f + 0.5f);
+            }
+            data = converted.data();
+            component_count = 1;
+        }
+        else if (image.channels >= 1 && image.channels <= 4
+            && image.pixels.size() >= static_cast<Size>(width) * height * image.channels)
+        {
+            data = image.pixels.data();
+            component_count = image.channels;
+        }
+        else
+        {
+            backlog::Post("SaveImageFile: unsupported image format for " + path, backlog::LogLevel::Error);
+            return false;
+        }
+
+        int result = 0;
+        if (extension == "png")
+        {
+            result = stbi_write_png(path.c_str(), width, height, component_count, data, width * component_count);
+        }
+        else if (extension == "bmp")
+        {
+            result = stbi_write_bmp(path.c_str(), width, height, component_count, data);
+        }
+        else if (extension == "tga")
+        {
+            result = stbi_write_tga(path.c_str(), width, height, component_count, data);
+        }
+        else if (extension == "jpg" || extension == "jpeg")
+        {
+            result = stbi_write_jpg(path.c_str(), width, height, component_count, data, 90);
+        }
+        else
+        {
+            backlog::Post("SaveImageFile: unsupported file extension for " + path, backlog::LogLevel::Error);
+            return false;
+        }
+
+        if (result == 0)
+        {
+            backlog::Post("SaveImageFile: failed to write " + path, backlog::LogLevel::Error);
+            return false;
+        }
+        return true;
     }
 
     void ClearImageCache()
