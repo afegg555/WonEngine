@@ -2076,9 +2076,8 @@ namespace won::rendering
                     ObjectPushConstants push;
                     push.Init();
                     push.instance_offset = index_range.offset;
-                    push.geometry_index = renderable.geometry_index;
+                    push.geometry_index = lod_geometry.geometry_index;
                     push.material_index = renderable.material_index;
-                    push.lod_index = static_cast<uint32>(lod_index);
                     command_list.PushConstants(RHIShaderStage::Vertex, &push, sizeof(ObjectPushConstants), 0);
                     command_list.DrawIndexed(lod_geometry.index_count, index_range.count, lod_geometry.first_index, 0, 0);
                 }

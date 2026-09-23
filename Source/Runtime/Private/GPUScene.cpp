@@ -607,10 +607,10 @@ namespace won::rendering
                         WriteShaderMaterial(material_slot, shader_materials.back());
                     }
 
-                    const uint32 geometry_offset = static_cast<uint32>(shader_geometries.size());
                     for (Size submesh_index = 0; submesh_index < mesh.lods[0].submeshes.size(); ++submesh_index)
                     {
                         const resource::Submesh& submesh = mesh.lods[0].submeshes[submesh_index];
+                        const uint32 geometry_index = static_cast<uint32>(shader_geometries.size());
                         shader_geometries.emplace_back();
                         WriteShaderGeometry(mesh, submesh_index, shader_geometries.back());
 
@@ -622,7 +622,7 @@ namespace won::rendering
 
                         GPUScene::FoliageRenderable renderable = {};
                         renderable.index_buffer = mesh_render_data.buffer.get();
-                        renderable.geometry_index = geometry_offset + static_cast<uint32>(submesh_index);
+                        renderable.geometry_index = geometry_index;
                         renderable.material_index = material_offset + submesh.material_slot;
                         renderable.instance_offset = instance_offset;
                         renderable.instance_count = instance_count;
@@ -644,6 +644,17 @@ namespace won::rendering
                             GPUScene::FoliageLodGeometry lod_geometry;
                             lod_geometry.index_buffer_offset = lod.render_indices.offset;
                             lod_geometry.index_buffer_size = lod.render_indices.size;
+                            lod_geometry.geometry_index = geometry_index;
+                            if (lod_index > 0)
+                            {
+                                ShaderGeometry lod_shader_geometry = shader_geometries[geometry_index];
+                                lod_shader_geometry.index_buffer_descriptor = lod.render_indices.srv.descriptor_index;
+                                lod_shader_geometry.first_index = lod_submesh.first_index;
+                                lod_shader_geometry.index_count = lod_submesh.index_count;
+                                lod_shader_geometry.lod_index = static_cast<uint32>(lod_index);
+                                lod_geometry.geometry_index = static_cast<uint32>(shader_geometries.size());
+                                shader_geometries.push_back(lod_shader_geometry);
+                            }
                             lod_geometry.first_index = lod_submesh.first_index;
                             lod_geometry.index_count = lod_submesh.index_count;
                             lod_geometry.screen_size_threshold = lod.screen_size_threshold;
@@ -2019,6 +2030,10 @@ namespace won::rendering
         {
             renderable.geometry_index = renderable.geometry_index - foliage_geometry_base + geometry_base;
             renderable.material_index = renderable.material_index - foliage_material_base + material_base;
+            for (FoliageLodGeometry& lod_geometry : renderable.lod_geometries)
+            {
+                lod_geometry.geometry_index = lod_geometry.geometry_index - foliage_geometry_base + geometry_base;
+            }
         }
         foliage_geometry_base = geometry_base;
         foliage_material_base = material_base;

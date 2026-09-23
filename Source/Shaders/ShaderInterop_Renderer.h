@@ -211,7 +211,7 @@ struct alignas(16) ShaderGeometry // per submesh
     uint dynamic_stream_stride; // vertices per ring slot; 0 when the streams are static
 
     float3 bounds_min;
-    uint padding0;
+    uint lod_index;
     float3 bounds_max;
     uint padding1;
 
@@ -230,7 +230,7 @@ struct alignas(16) ShaderGeometry // per submesh
         index_count = 0;
         flags = SHADER_GEOMETRY_FLAG_NONE;
         dynamic_stream_stride = 0;
-        padding0 = 0;
+        lod_index = 0;
         padding1 = 0;
     }
 #endif
@@ -1301,7 +1301,6 @@ struct ObjectPushConstants
     uint instance_offset;
     uint geometry_index;
     uint material_index;
-    uint lod_index;
 
 #ifdef __cplusplus
     inline void Init()
@@ -1309,7 +1308,6 @@ struct ObjectPushConstants
         instance_offset = 0;
         geometry_index = 0;
         material_index = 0;
-        lod_index = 0;
     }
 #endif
 };
@@ -1394,7 +1392,7 @@ static_assert(sizeof(ShaderDebugDraw2DItem) == 48, "ShaderDebugDraw2DItem layout
 static_assert(sizeof(ShaderOcclusionBox) == 32, "ShaderOcclusionBox layout mismatch");
 static_assert(sizeof(ShaderMeshNormal) == 32, "ShaderMeshNormal layout mismatch");
 static_assert(sizeof(MeshNormalPushConstants) == 8, "MeshNormalPushConstants layout mismatch");
-static_assert(sizeof(ObjectPushConstants) == 16, "ObjectPushConstants layout mismatch");
+static_assert(sizeof(ObjectPushConstants) == 12, "ObjectPushConstants layout mismatch");
 static_assert(sizeof(TerrainPushConstants) == 12, "TerrainPushConstants layout mismatch");
 static_assert(sizeof(ShaderTransform) == 112, "ShaderTransform layout mismatch");
 static_assert(sizeof(ShaderPreviousTransform) == 48, "ShaderPreviousTransform layout mismatch");

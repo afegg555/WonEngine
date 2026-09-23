@@ -248,6 +248,7 @@ namespace won::rendering
         {
             uint32 index_buffer_offset = 0;
             uint32 index_buffer_size = 0;
+            uint32 geometry_index = 0;
             uint32 first_index = 0;
             uint32 index_count = 0;
             float screen_size_threshold = 0.0f;
