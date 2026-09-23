@@ -2657,6 +2657,11 @@
             "text": "Ambient Occlusion",
             "comment": "enum"
         },
+        "editor.enum.ViewMode.LodColoration": {
+            "source": "LOD Coloration",
+            "text": "LOD Coloration",
+            "comment": "enum"
+        },
         "editor.label.view_mode": {
             "source": "View Mode",
             "text": "View Mode",

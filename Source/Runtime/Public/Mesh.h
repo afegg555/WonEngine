@@ -71,6 +71,7 @@ namespace won::resource
             uint32 grid_size = 0;
             float radius = 0.0f;
             float3 center = {};
+            float screen_size_threshold = 0.0f;
             std::shared_ptr<Image> albedo;
             std::shared_ptr<Image> normal;
             std::shared_ptr<Image> depth;

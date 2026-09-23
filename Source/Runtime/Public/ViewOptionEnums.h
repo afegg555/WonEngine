@@ -43,6 +43,7 @@ namespace won::rendering
         Wireframe,
         Overdraw,
         AmbientOcclusion,
+        LodColoration,
 
         VIEWMODE_COUNT,
     };

@@ -22,7 +22,8 @@ namespace won::rendering
     static console::ConsoleVariable r_culling_log("r.culling.log", false, "log per-frame opaque culling counts for each stage", console::ConsoleVariableFlagNone);
 
     static console::ConsoleVariable r_foliage_impostor_force("r.foliage.impostor.force", false, "force impostor-capable foliage to render as impostors", console::ConsoleVariableFlagNone);
-    static console::ConsoleVariable r_foliage_impostor_screen_size("r.foliage.impostor.screen_size", 0.04f, "screen-height fraction below which impostor-capable foliage renders as impostors instead of mesh", console::ConsoleVariableFlagNone);
+    static console::ConsoleVariable r_foliage_max_distance("r.foliage.max_distance", 0.0f, "maximum foliage draw distance; 0 uses each type's distance", console::ConsoleVariableFlagNone);
+    static console::ConsoleVariable r_foliage_density_scale("r.foliage.density_scale", 1.0f, "fraction of foliage instances to draw", console::ConsoleVariableFlagNone);
 
     bool View::HasPointerFocus() const
     {
@@ -1210,14 +1211,16 @@ namespace won::rendering
 
         jobsystem::Execute(ctx, [&](jobsystem::JobArgs)
         {
+            profiler::ScopedRangeCPU foliage_culling_range("Foliage Cell Culling");
             const auto& foliage_renderables = gpu_scene.foliage_renderables;
             const auto& foliage_instances = gpu_scene.foliage_instances;
             foliage_lod_ranges.resize(foliage_renderables.size());
             foliage_instance_indices.clear();
 
             const float tan_half_fov = std::tan(cached_camera.fov_y * 0.5f);
-            const float impostor_screen_size = r_foliage_impostor_screen_size.GetFloat();
             const bool force_impostor = r_foliage_impostor_force.GetBool();
+            const float max_distance = r_foliage_max_distance.GetFloat();
+            const float density_scale = math::Clamp(r_foliage_density_scale.GetFloat(), 0.0f, 1.0f);
 
             Vector<Vector<uint32>> lod_instance_indices;
             uint32 previous_instance_offset = 0xFFFFFFFFu;
@@ -1242,34 +1245,67 @@ namespace won::rendering
                     instance_indices.clear();
                 }
 
-                for (uint32 local_instance_index = 0; local_instance_index < renderable.instance_count; ++local_instance_index)
+                float cull_distance = renderable.cull_distance;
+                if (max_distance > 0.0f && (cull_distance <= 0.0f || max_distance < cull_distance))
                 {
-                    const uint32 instance_index = renderable.instance_offset + local_instance_index;
-                    const float4& position_scale = foliage_instances[instance_index].position_scale;
-                    uint32 selected_lod_index = 0;
+                    cull_distance = max_distance;
+                }
+                const float cull_distance_squared = cull_distance * cull_distance;
 
-                    if (renderable.local_radius > 0.0f)
+                for (uint32 cell_index = renderable.cell_offset; cell_index < renderable.cell_offset + renderable.cell_count; ++cell_index)
+                {
+                    const GPUScene::FoliageCell& cell = gpu_scene.foliage_cells[cell_index];
+                    if (frustum && !cell.bounds.IntersectFrustum(*frustum))
                     {
-                        const float world_radius = renderable.local_radius * position_scale.w;
-                        const float distance = math::Length(float3(eye.x - position_scale.x, eye.y - position_scale.y, eye.z - position_scale.z));
-                        const float projected_size = world_radius / ((std::max)(distance, 0.001f) * (std::max)(tan_half_fov, 0.001f));
-                        if (has_impostor && (force_impostor || projected_size < impostor_screen_size))
+                        continue;
+                    }
+                    if (cull_distance > 0.0f)
+                    {
+                        const float dx = (std::max)({ cell.bounds.min.x - eye.x, 0.0f, eye.x - cell.bounds.max.x });
+                        const float dy = (std::max)({ cell.bounds.min.y - eye.y, 0.0f, eye.y - cell.bounds.max.y });
+                        const float dz = (std::max)({ cell.bounds.min.z - eye.z, 0.0f, eye.z - cell.bounds.max.z });
+                        if (dx * dx + dy * dy + dz * dz > cull_distance_squared)
                         {
-                            selected_lod_index = impostor_lod_index;
-                        }
-                        else
-                        {
-                            for (uint32 lod_index = 1; lod_index < mesh_lod_count; ++lod_index)
-                            {
-                                if (projected_size <= renderable.lod_geometries[lod_index].screen_size_threshold)
-                                {
-                                    selected_lod_index = lod_index;
-                                }
-                            }
+                            continue;
                         }
                     }
 
-                    lod_instance_indices[selected_lod_index].push_back(instance_index);
+                    for (uint32 instance_index = cell.instance_offset; instance_index < cell.instance_offset + cell.instance_count; ++instance_index)
+                    {
+                        const uint32 local_instance_index = instance_index - renderable.instance_offset;
+                        if (density_scale < 1.0f && static_cast<float>((local_instance_index * 1664525u + 1013904223u) & 0x00FFFFFFu) / 16777216.0f >= density_scale)
+                        {
+                            continue;
+                        }
+                        const float4& position_scale = foliage_instances[instance_index].position_scale;
+                        const float distance_squared = math::DistanceSquared(eye, float3(position_scale.x, position_scale.y, position_scale.z));
+                        if (cull_distance > 0.0f && distance_squared > cull_distance_squared)
+                        {
+                            continue;
+                        }
+
+                        uint32 selected_lod_index = 0;
+                        if (renderable.local_radius > 0.0f)
+                        {
+                            const float world_radius = renderable.local_radius * position_scale.w;
+                            const float projected_size = world_radius / ((std::max)(std::sqrt(distance_squared), 0.001f) * (std::max)(tan_half_fov, 0.001f));
+                            if (has_impostor && (force_impostor || projected_size <= renderable.impostor_screen_size_threshold))
+                            {
+                                selected_lod_index = impostor_lod_index;
+                            }
+                            else
+                            {
+                                for (uint32 lod_index = 1; lod_index < mesh_lod_count; ++lod_index)
+                                {
+                                    if (projected_size <= renderable.lod_geometries[lod_index].screen_size_threshold)
+                                    {
+                                        selected_lod_index = lod_index;
+                                    }
+                                }
+                            }
+                        }
+                        lod_instance_indices[selected_lod_index].push_back(instance_index);
+                    }
                 }
 
                 lod_ranges.mesh_lods.resize(mesh_lod_count);

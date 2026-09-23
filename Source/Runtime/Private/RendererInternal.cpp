@@ -480,8 +480,14 @@ namespace won::rendering
         UploadBuffer(gpu_scene.transform_buffer, "Scene Transform Buffer", frame_context, gpu_scene.shader_transforms.data(), gpu_scene.shader_transforms.size() * sizeof(ShaderTransform), sizeof(ShaderTransform), *device, frame_graph);
         UploadBuffer(gpu_scene.previous_transform_buffer, "Scene Previous Transform Buffer", frame_context, gpu_scene.shader_previous_transforms.data(), gpu_scene.shader_previous_transforms.size() * sizeof(ShaderPreviousTransform), sizeof(ShaderPreviousTransform), *device, frame_graph);
         UploadBuffer(gpu_scene.particle_buffer, "Scene Particle Buffer", frame_context, gpu_scene.particle_instances.data(), gpu_scene.particle_instances.size() * sizeof(float4), sizeof(float4), *device, frame_graph);
-        UploadBuffer(gpu_scene.foliage_instance_buffer, "Scene Foliage Instance Buffer", frame_context, gpu_scene.foliage_instances.data(), gpu_scene.foliage_instances.size() * sizeof(ShaderFoliageInstance), sizeof(float4), *device, frame_graph);
-        UploadBuffer(gpu_scene.foliage_impostor_buffer, "Scene Foliage Impostor Buffer", frame_context, gpu_scene.foliage_impostors.data(), gpu_scene.foliage_impostors.size() * sizeof(ShaderFoliageImpostor), sizeof(float4), *device, frame_graph);
+        if (gpu_scene.foliage_data_dirty ||
+            (!gpu_scene.foliage_instance_buffer.buffer && !gpu_scene.foliage_instances.empty()) ||
+            (!gpu_scene.foliage_impostor_buffer.buffer && !gpu_scene.foliage_impostors.empty()))
+        {
+            const bool instances_uploaded = UploadBuffer(gpu_scene.foliage_instance_buffer, "Scene Foliage Instance Buffer", frame_context, gpu_scene.foliage_instances.data(), gpu_scene.foliage_instances.size() * sizeof(ShaderFoliageInstance), sizeof(float4), *device, frame_graph);
+            const bool impostors_uploaded = UploadBuffer(gpu_scene.foliage_impostor_buffer, "Scene Foliage Impostor Buffer", frame_context, gpu_scene.foliage_impostors.data(), gpu_scene.foliage_impostors.size() * sizeof(ShaderFoliageImpostor), sizeof(float4), *device, frame_graph);
+            gpu_scene.foliage_data_dirty = !instances_uploaded || !impostors_uploaded;
+        }
         UploadBuffer(gpu_scene.decal_buffer, "Scene Decal Buffer", frame_context, gpu_scene.shader_decals.data(), gpu_scene.shader_decals.size() * sizeof(ShaderDecal), sizeof(ShaderDecal), *device, frame_graph);
         UploadBuffer(gpu_scene.water.body_buffer, "Scene Water Body Buffer", frame_context, gpu_scene.water.shader_bodies.data(), gpu_scene.water.shader_bodies.size() * sizeof(ShaderWaterBody), sizeof(ShaderWaterBody), *device, frame_graph);
         UploadBuffer(gpu_scene.water.zone_buffer, "Scene Water Zone Buffer", frame_context, gpu_scene.water.shader_zones.data(), gpu_scene.water.shader_zones.size() * sizeof(ShaderWaterZone), sizeof(ShaderWaterZone), *device, frame_graph);
@@ -1968,7 +1974,7 @@ namespace won::rendering
             flush_batch(gpu_scene.opaque_renderables, opaque_sort_indices, opaque_sort_buffer_base, batch_start, batch_size);
         }
 
-        if (pass == RenderPassType::MainPass && (flags & DrawScene_Foliage) != 0 && !gpu_scene.foliage_renderables.empty())
+        if ((pass == RenderPassType::MainPass || is_prepass) && (flags & DrawScene_Foliage) != 0 && !gpu_scene.foliage_renderables.empty())
         {
             GraphicsPipelineHash current_hash = {};
             bool has_pipeline = false;
@@ -1991,20 +1997,56 @@ namespace won::rendering
                     continue;
 
                 const bool masked = renderable.blend_mode == resource::MaterialBlendMode::Masked;
+                if (is_prepass && ((!prepass_writes_motion && masked) || renderable.blend_mode >= resource::MaterialBlendMode::Transparent))
+                {
+                    continue;
+                }
 
                 GraphicsPipelineHash foliage_hash = {};
-                foliage_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::MainPass);
-                foliage_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
-                foliage_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
-                foliage_hash.storage.bits.cull_mode = static_cast<uint64>(renderable.double_sided ? RHICullMode::None : RHICullMode::Back);
-                foliage_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
-                foliage_hash.storage.bits.shader_type = SHADER_MATERIAL_TYPE_PBR;
-                foliage_hash.storage.bits.blend_mode = static_cast<uint64>(masked ? resource::MaterialBlendMode::Masked : resource::MaterialBlendMode::Opaque);
-                if (view.render_path_type == RenderPathType::ForwardPlus)
+                if (is_prepass)
                 {
-                    foliage_hash.storage.bits.clustered = 1;
+                    resource::ShaderId vertex_shader = resource::ShaderId::VSFoliagePrepass;
+                    if (prepass_mode == PrepassMode::Normal)
+                    {
+                        vertex_shader = resource::ShaderId::VSFoliageNormal;
+                    }
+                    else if (prepass_mode == PrepassMode::Motion)
+                    {
+                        vertex_shader = masked ? resource::ShaderId::VSFoliageMotionMasked : resource::ShaderId::VSFoliageMotion;
+                    }
+                    else if (prepass_mode == PrepassMode::MotionNormal)
+                    {
+                        vertex_shader = masked ? resource::ShaderId::VSFoliageMotionNormalMasked : resource::ShaderId::VSFoliageMotionNormal;
+                    }
+                    foliage_hash = pipeline_hash;
+                    foliage_hash.storage.bits.cull_mode = static_cast<uint64>(renderable.double_sided ? RHICullMode::None : RHICullMode::Back);
+                    foliage_hash.storage.bits.blend_mode = static_cast<uint64>(masked ? resource::MaterialBlendMode::Masked : resource::MaterialBlendMode::Opaque);
+                    foliage_hash.storage.bits.vertex_shader = static_cast<uint64>(vertex_shader);
                 }
-                foliage_hash.storage.bits.vertex_shader = static_cast<uint64>(resource::ShaderId::VSFoliageCommon);
+                else
+                {
+                    foliage_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::MainPass);
+                    foliage_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
+                    foliage_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
+                    foliage_hash.storage.bits.cull_mode = static_cast<uint64>(renderable.double_sided ? RHICullMode::None : RHICullMode::Back);
+                    foliage_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
+                    foliage_hash.storage.bits.shader_type = SHADER_MATERIAL_TYPE_PBR;
+                    foliage_hash.storage.bits.blend_mode = static_cast<uint64>(renderable.blend_mode);
+                    if (view.render_path_type == RenderPathType::ForwardPlus)
+                    {
+                        foliage_hash.storage.bits.clustered = 1;
+                    }
+                    foliage_hash.storage.bits.vertex_shader = static_cast<uint64>(resource::ShaderId::VSFoliageCommon);
+                    if (draw_wireframe || draw_overdraw)
+                    {
+                        foliage_hash.storage.bits.fill_mode = static_cast<uint64>(draw_wireframe ? RHIFillMode::Wireframe : RHIFillMode::Solid);
+                        foliage_hash.storage.bits.depth_compare = static_cast<uint64>(draw_overdraw ? RHICompareOp::Always : RHICompareOp::GreaterEqual);
+                        foliage_hash.storage.bits.shader_type = SHADER_MATERIAL_TYPE_UNLIT;
+                        foliage_hash.storage.bits.blend_mode = static_cast<uint64>(draw_overdraw ? resource::MaterialBlendMode::Additive : resource::MaterialBlendMode::Opaque);
+                        foliage_hash.storage.bits.clustered = 0;
+                        foliage_hash.storage.bits.vertex_shader = static_cast<uint64>(resource::ShaderId::VSFoliageSimple);
+                    }
+                }
 
                 if (!has_pipeline || !(current_hash == foliage_hash))
                 {
@@ -2036,6 +2078,7 @@ namespace won::rendering
                     push.instance_offset = index_range.offset;
                     push.geometry_index = renderable.geometry_index;
                     push.material_index = renderable.material_index;
+                    push.lod_index = static_cast<uint32>(lod_index);
                     command_list.PushConstants(RHIShaderStage::Vertex, &push, sizeof(ObjectPushConstants), 0);
                     command_list.DrawIndexed(lod_geometry.index_count, index_range.count, lod_geometry.first_index, 0, 0);
                 }
@@ -2043,12 +2086,27 @@ namespace won::rendering
 
             {
                 GraphicsPipelineHash impostor_hash = {};
-                impostor_hash.storage.bits.render_pass_type = static_cast<uint64>(RenderPassType::MainPass);
+                impostor_hash.storage.bits.render_pass_type = static_cast<uint64>(pass);
+                if (is_prepass)
+                {
+                    impostor_hash.storage.bits.pass_mode = static_cast<uint64>(prepass_mode);
+                }
                 impostor_hash.storage.bits.topology = static_cast<uint64>(RHIPrimitiveTopology::TriangleList);
                 impostor_hash.storage.bits.cull_mode = static_cast<uint64>(RHICullMode::None);
                 impostor_hash.storage.bits.fill_mode = static_cast<uint64>(RHIFillMode::Solid);
                 impostor_hash.storage.bits.depth_compare = static_cast<uint64>(RHICompareOp::GreaterEqual);
                 impostor_hash.storage.bits.vertex_shader = static_cast<uint64>(resource::ShaderId::VSImpostor);
+                if (!is_prepass && view.render_path_type == RenderPathType::ForwardPlus)
+                {
+                    impostor_hash.storage.bits.clustered = 1;
+                }
+                if (draw_wireframe || draw_overdraw)
+                {
+                    impostor_hash.storage.bits.fill_mode = static_cast<uint64>(draw_wireframe ? RHIFillMode::Wireframe : RHIFillMode::Solid);
+                    impostor_hash.storage.bits.depth_compare = static_cast<uint64>(draw_overdraw ? RHICompareOp::Always : RHICompareOp::GreaterEqual);
+                    impostor_hash.storage.bits.blend_mode = static_cast<uint64>(draw_overdraw ? resource::MaterialBlendMode::Additive : resource::MaterialBlendMode::Opaque);
+                    impostor_hash.storage.bits.clustered = 0;
+                }
                 RHIPipeline* impostor_pipeline = shader_library.GetPipeline(impostor_hash);
                 if (impostor_pipeline)
                 {
@@ -2077,56 +2135,11 @@ namespace won::rendering
                         impostor_push.Init();
                         impostor_push.instance_offset = index_range.offset;
                         impostor_push.impostor_index = renderable.impostor_index;
+                        impostor_push.lod_index = static_cast<uint32>(renderable.lod_geometries.size());
                         command_list.PushConstants(RHIShaderStage::Vertex, &impostor_push, sizeof(ImpostorPushConstants), 0);
                         command_list.Draw(6, index_range.count, 0, 0);
                     }
                 }
-            }
-        }
-
-        if ((flags & DrawScene_Transparent) != 0 && !gpu_scene.transparent_renderables.empty())
-        {
-            const uint32 sort_buffer_base = static_cast<uint32>(view.sorted_opaque_indices.size());
-
-            GraphicsPipelineHash current_hash = {};
-            bool has_pipeline = false;
-
-            for (uint32 i = 0; i < static_cast<uint32>(view.sorted_transparent_indices.size()); ++i)
-            {
-                const MeshRenderable& renderable = gpu_scene.transparent_renderables[view.sorted_transparent_indices[i]];
-
-                if (pass == RenderPassType::ShadowPass && !renderable.IsCastShadow())
-                    continue;
-
-                GraphicsPipelineHash renderable_hash = pipeline_hash;
-                renderable_hash.storage.bits.cull_mode = static_cast<uint64>(
-                    renderable.IsDoubleSided() ? RHICullMode::None : RHICullMode::Back);
-                if (pass == RenderPassType::MainPass)
-                {
-                    renderable_hash.storage.bits.shader_type = draw_wireframe ? SHADER_MATERIAL_TYPE_UNLIT : renderable.shader_type;
-                    renderable_hash.storage.bits.blend_mode = static_cast<uint64>(draw_overdraw ? resource::MaterialBlendMode::Additive : renderable.blend_mode);
-                    renderable_hash.storage.bits.depth_compare = static_cast<uint64>(draw_overdraw ? RHICompareOp::Always : RHICompareOp::GreaterEqual);
-                    if (view.render_path_type == RenderPathType::ForwardPlus && renderable_hash.storage.bits.shader_type == SHADER_MATERIAL_TYPE_PBR)
-                    {
-                        renderable_hash.storage.bits.clustered = 1;
-                    }
-                }
-
-                if (!has_pipeline || !(current_hash == renderable_hash))
-                {
-                    RHIPipeline* pipeline = shader_library.GetPipeline(renderable_hash);
-                    if (!pipeline)
-                        continue;
-                    command_list.SetGraphicsPipeline(*pipeline);
-                    command_list.SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_FRAME, shader_frame_binding);
-                    command_list.SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_CAMERA, shader_view_binding);
-                    command_list.SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_FRAME, shader_frame_binding);
-                    command_list.SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_CAMERA, shader_view_binding);
-                    current_hash = renderable_hash;
-                    has_pipeline = true;
-                }
-
-                flush_batch(gpu_scene.transparent_renderables, view.sorted_transparent_indices, sort_buffer_base, i, 1);
             }
         }
 
@@ -2315,6 +2328,52 @@ namespace won::rendering
                     }
                     flush_terrain_batch(gpu_scene.terrain_transparent_renderables, view.sorted_terrain_transparent_indices, terrain_transparent_base, i, 1);
                 }
+            }
+        }
+
+        if ((flags & DrawScene_Transparent) != 0 && !gpu_scene.transparent_renderables.empty())
+        {
+            const uint32 sort_buffer_base = static_cast<uint32>(view.sorted_opaque_indices.size());
+
+            GraphicsPipelineHash current_hash = {};
+            bool has_pipeline = false;
+
+            for (uint32 i = 0; i < static_cast<uint32>(view.sorted_transparent_indices.size()); ++i)
+            {
+                const MeshRenderable& renderable = gpu_scene.transparent_renderables[view.sorted_transparent_indices[i]];
+
+                if (pass == RenderPassType::ShadowPass && !renderable.IsCastShadow())
+                    continue;
+
+                GraphicsPipelineHash renderable_hash = pipeline_hash;
+                renderable_hash.storage.bits.cull_mode = static_cast<uint64>(
+                    renderable.IsDoubleSided() ? RHICullMode::None : RHICullMode::Back);
+                if (pass == RenderPassType::MainPass)
+                {
+                    renderable_hash.storage.bits.shader_type = draw_wireframe ? SHADER_MATERIAL_TYPE_UNLIT : renderable.shader_type;
+                    renderable_hash.storage.bits.blend_mode = static_cast<uint64>(draw_overdraw ? resource::MaterialBlendMode::Additive : renderable.blend_mode);
+                    renderable_hash.storage.bits.depth_compare = static_cast<uint64>(draw_overdraw ? RHICompareOp::Always : RHICompareOp::GreaterEqual);
+                    if (view.render_path_type == RenderPathType::ForwardPlus && renderable_hash.storage.bits.shader_type == SHADER_MATERIAL_TYPE_PBR)
+                    {
+                        renderable_hash.storage.bits.clustered = 1;
+                    }
+                }
+
+                if (!has_pipeline || !(current_hash == renderable_hash))
+                {
+                    RHIPipeline* pipeline = shader_library.GetPipeline(renderable_hash);
+                    if (!pipeline)
+                        continue;
+                    command_list.SetGraphicsPipeline(*pipeline);
+                    command_list.SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                    command_list.SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_CAMERA, shader_view_binding);
+                    command_list.SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_FRAME, shader_frame_binding);
+                    command_list.SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_CAMERA, shader_view_binding);
+                    current_hash = renderable_hash;
+                    has_pipeline = true;
+                }
+
+                flush_batch(gpu_scene.transparent_renderables, view.sorted_transparent_indices, sort_buffer_base, i, 1);
             }
         }
 
@@ -4040,8 +4099,13 @@ namespace won::rendering
             {
                 prepass_accesses.push_back({ targets.ao_normal, RHIResourceState::RenderTarget, FrameResourceAccess::Type::ReadWrite });
             }
+            const bool draw_foliage = (view.show_flags & Show_Foliage) != 0;
+            if (draw_foliage && view.foliage_resources.instance_index_buffer != invalid_frame_resource)
+            {
+                prepass_accesses.push_back({ view.foliage_resources.instance_index_buffer, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read });
+            }
             frame_graph.AddPass("Prepass", prepass_accesses,
-                [this, &view, &targets, &frame_context, viewport, scissor, write_motion_vectors, write_normals](const FrameGraphPassContext& pass_context)
+                [this, &view, &targets, &frame_context, viewport, scissor, write_motion_vectors, write_normals, draw_foliage](const FrameGraphPassContext& pass_context)
             {
                 auto gpu_range = profiler::ScopedRangeGPU("Prepass", (*pass_context.command_list));
                 auto cpu_range = profiler::ScopedRangeCPU("Prepass");
@@ -4058,7 +4122,12 @@ namespace won::rendering
                     render_targets.push_back({ pass_context.GetResource(targets.ao_normal), targets.ao_normal_rtv });
                 }
                 pass_context.command_list->SetRenderTargets(render_targets, &depth_binding);
-                DrawScene(frame_context, view, RenderPassType::Prepass, static_cast<DrawSceneFlags>(DrawScene_Opaque | DrawScene_Terrain), (*pass_context.command_list));
+                uint32 prepass_flags = DrawScene_Opaque | DrawScene_Terrain;
+                if (draw_foliage)
+                {
+                    prepass_flags |= DrawScene_Foliage;
+                }
+                DrawScene(frame_context, view, RenderPassType::Prepass, static_cast<DrawSceneFlags>(prepass_flags), (*pass_context.command_list));
             });
         }
 
@@ -4354,6 +4423,10 @@ namespace won::rendering
             if (view.light_resources.forward_index_buffer != invalid_frame_resource)
             {
                 main_pass_accesses.push_back({ view.light_resources.forward_index_buffer, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read });
+            }
+            if ((main_pass_flags & DrawScene_Foliage) != 0 && view.foliage_resources.instance_index_buffer != invalid_frame_resource)
+            {
+                main_pass_accesses.push_back({ view.foliage_resources.instance_index_buffer, RHIResourceState::ShaderRead, FrameResourceAccess::Type::Read });
             }
 
             frame_graph.AddPass("Main Pass", std::move(main_pass_accesses),

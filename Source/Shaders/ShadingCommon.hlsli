@@ -651,6 +651,16 @@ static const half3 debug_cascade_tint[4] = {
     half3(1.0h, 1.0h, 0.3h), // yellow
 };
 static const half3 debug_overdraw_color = half3(0.06h, 0.06h, 0.06h); // dark gray
+static const uint debug_lod_color_count = 7u;
+static const half3 debug_lod_color[7] = {
+    half3(1.0h, 0.0h, 0.0h),
+    half3(1.0h, 0.5h, 0.0h),
+    half3(1.0h, 1.0h, 0.0h),
+    half3(0.0h, 1.0h, 0.0h),
+    half3(0.0h, 0.0h, 1.0h),
+    half3(0.29h, 0.0h, 0.51h),
+    half3(0.56h, 0.0h, 1.0h),
+};
 
 inline uint GetDebugLightCount(in float3 world_position, in float2 pixel_position)
 {
@@ -731,7 +741,7 @@ inline int GetDebugShadowCascadeIndex(in float3 world_position)
     return -1;
 }
 
-inline half4 ApplyDebugViewMode(in half4 lit_color, in Surface surface, in half4 base_color, in half metallic, in float2 pixel_position)
+inline half4 ApplyDebugViewMode(in half4 lit_color, in Surface surface, in half4 base_color, in half metallic, in float2 pixel_position, in uint lod_index)
 {
     const uint debug_view_mode = GetView().debug_view_mode;
     if (debug_view_mode == DEBUG_VIEW_MODE_NONE || debug_view_mode == DEBUG_VIEW_MODE_WIREFRAME)
@@ -776,6 +786,9 @@ inline half4 ApplyDebugViewMode(in half4 lit_color, in Surface surface, in half4
         debug_color = half4(ao.xxx, lit_color.a);
         break;
     }
+    case DEBUG_VIEW_MODE_LOD_COLORATION:
+        debug_color = half4(debug_lod_color[min(lod_index, debug_lod_color_count - 1u)], lit_color.a);
+        break;
     }
     return debug_color;
 }

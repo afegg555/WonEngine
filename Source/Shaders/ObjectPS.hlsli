@@ -146,7 +146,7 @@ float4 main(PixelInput input, in bool is_frontface : SV_IsFrontFace) : SV_Target
     final_color.rgb += surface.emissive_color;
 
 #ifndef WON_SHIPPING
-    final_color = ApplyDebugViewMode(final_color, surface, base_color, metallic, input.pos.xy);
+    final_color = ApplyDebugViewMode(final_color, surface, base_color, metallic, input.pos.xy, push.lod_index);
 #endif
 
 #endif // UNLIT

@@ -29,7 +29,6 @@ namespace won::ecs
         float random_yaw = 1.0f;
         float align_to_normal = 0.0f;
         float cull_distance = 80.0f;
-        float2 lod_distances = { 30.0f, 60.0f };
         bool cast_shadow = false;
         float wind_influence = 0.0f;
 

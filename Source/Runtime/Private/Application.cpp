@@ -27,7 +27,7 @@
 namespace won
 {
 #ifndef WON_SHIPPING
-    static console::ConsoleVariable r_viewmode("r.viewmode", -1, "override the view mode of every view: -1=off 0=Lit 1=Unlit 2=BaseColor 3=WorldNormal 4=Roughness 5=Metallic 6=LightComplexity 7=ShadowCascades 8=Wireframe 9=Overdraw", console::ConsoleVariableFlagNone);
+    static console::ConsoleVariable r_viewmode("r.viewmode", -1, "override the view mode of every view: -1=off 0=Lit 1=Unlit 2=BaseColor 3=WorldNormal 4=Roughness 5=Metallic 6=LightComplexity 7=ShadowCascades 8=Wireframe 9=Overdraw 10=AmbientOcclusion 11=LodColoration", console::ConsoleVariableFlagNone);
     static console::ConsoleVariable r_bvh_show("r.bvh.show", -1, "override the scene BVH overlay of every view: -1=off 0=hide 1=show", console::ConsoleVariableFlagNone);
     static console::ConsoleVariable r_ddgi_show("r.ddgi.show", -1, "override the DDGI volume and probe overlay of every view: -1=off 0=hide 1=show", console::ConsoleVariableFlagNone);
     static console::ConsoleVariable r_collider_show("r.collider.show", -1, "override the physics collider overlay of every view: -1=off 0=hide 1=show", console::ConsoleVariableFlagNone);

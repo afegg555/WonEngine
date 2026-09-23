@@ -348,6 +348,7 @@ static const uint DEBUG_VIEW_MODE_SHADOW_CASCADES = 7;
 static const uint DEBUG_VIEW_MODE_WIREFRAME = 8;
 static const uint DEBUG_VIEW_MODE_OVERDRAW = 9;
 static const uint DEBUG_VIEW_MODE_AMBIENT_OCCLUSION = 10;
+static const uint DEBUG_VIEW_MODE_LOD_COLORATION = 11;
 
 struct alignas(16) ShaderScene
 {
@@ -1300,6 +1301,7 @@ struct ObjectPushConstants
     uint instance_offset;
     uint geometry_index;
     uint material_index;
+    uint lod_index;
 
 #ifdef __cplusplus
     inline void Init()
@@ -1307,6 +1309,7 @@ struct ObjectPushConstants
         instance_offset = 0;
         geometry_index = 0;
         material_index = 0;
+        lod_index = 0;
     }
 #endif
 };
@@ -1391,7 +1394,7 @@ static_assert(sizeof(ShaderDebugDraw2DItem) == 48, "ShaderDebugDraw2DItem layout
 static_assert(sizeof(ShaderOcclusionBox) == 32, "ShaderOcclusionBox layout mismatch");
 static_assert(sizeof(ShaderMeshNormal) == 32, "ShaderMeshNormal layout mismatch");
 static_assert(sizeof(MeshNormalPushConstants) == 8, "MeshNormalPushConstants layout mismatch");
-static_assert(sizeof(ObjectPushConstants) == 12, "ObjectPushConstants layout mismatch");
+static_assert(sizeof(ObjectPushConstants) == 16, "ObjectPushConstants layout mismatch");
 static_assert(sizeof(TerrainPushConstants) == 12, "TerrainPushConstants layout mismatch");
 static_assert(sizeof(ShaderTransform) == 112, "ShaderTransform layout mismatch");
 static_assert(sizeof(ShaderPreviousTransform) == 48, "ShaderPreviousTransform layout mismatch");

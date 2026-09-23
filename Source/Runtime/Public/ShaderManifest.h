@@ -13,6 +13,13 @@ namespace won::resource
         VSTerrainSimple,
         VSObjectSimple,
         VSFoliageCommon,
+        VSFoliagePrepass,
+        VSFoliageNormal,
+        VSFoliageMotion,
+        VSFoliageMotionMasked,
+        VSFoliageMotionNormal,
+        VSFoliageMotionNormalMasked,
+        VSFoliageSimple,
         VSObjectPrepass,
         VSObjectNormal,
         VSObjectMotion,
@@ -45,7 +52,12 @@ namespace won::resource
         PSObjectUnlitMasked,
         PSImpostorBake,
         PSImpostorBakeMasked,
-        PSImpostor,
+        PSImpostorForward,
+        PSImpostorForwardPlus,
+        PSImpostorPrepass,
+        PSImpostorNormal,
+        PSImpostorMotion,
+        PSImpostorMotionNormal,
         PSSprite,
         PSSpriteMasked,
         PSText3D,
@@ -103,6 +115,14 @@ namespace won::resource
         switch (id)
         {
         case ShaderId::VSFullTriangle: return "VSFullTriangle";
+        case ShaderId::VSFoliageCommon: return "VSFoliageCommon";
+        case ShaderId::VSFoliagePrepass: return "VSFoliagePrepass";
+        case ShaderId::VSFoliageNormal: return "VSFoliageNormal";
+        case ShaderId::VSFoliageMotion: return "VSFoliageMotion";
+        case ShaderId::VSFoliageMotionMasked: return "VSFoliageMotionMasked";
+        case ShaderId::VSFoliageMotionNormal: return "VSFoliageMotionNormal";
+        case ShaderId::VSFoliageMotionNormalMasked: return "VSFoliageMotionNormalMasked";
+        case ShaderId::VSFoliageSimple: return "VSFoliageSimple";
         case ShaderId::VSObjectCommon: return "VSObjectCommon";
         case ShaderId::VSTerrainCommon: return "VSTerrainCommon";
         case ShaderId::VSTerrainSimple: return "VSTerrainSimple";
@@ -138,7 +158,12 @@ namespace won::resource
         case ShaderId::PSObjectUnlitMasked: return "PSObjectUnlitMasked";
         case ShaderId::PSImpostorBake: return "PSImpostorBake";
         case ShaderId::PSImpostorBakeMasked: return "PSImpostorBakeMasked";
-        case ShaderId::PSImpostor: return "PSImpostor";
+        case ShaderId::PSImpostorForward: return "PSImpostorForward";
+        case ShaderId::PSImpostorForwardPlus: return "PSImpostorForwardPlus";
+        case ShaderId::PSImpostorPrepass: return "PSImpostorPrepass";
+        case ShaderId::PSImpostorNormal: return "PSImpostorNormal";
+        case ShaderId::PSImpostorMotion: return "PSImpostorMotion";
+        case ShaderId::PSImpostorMotionNormal: return "PSImpostorMotionNormal";
         case ShaderId::PSSprite: return "PSSprite";
         case ShaderId::PSSpriteMasked: return "PSSpriteMasked";
         case ShaderId::PSText3D: return "PSText3D";

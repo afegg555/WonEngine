@@ -1,4 +1,5 @@
 #include "PhysicsWorld.h"
+#include "FoliageComponent.h"
 #include "Backlog.h"
 #include "Primitives.h"
 #include "TransformComponent.h"
@@ -296,6 +297,7 @@ namespace won::physics
         mutable std::shared_mutex bodies_mutex;
         UnorderedMap<won::ecs::Entity, JPH::BodyID> entity_to_body;
         UnorderedMap<JPH::BodyID, won::ecs::Entity> body_to_entity;
+        UnorderedMap<won::ecs::Entity, Vector<JPH::BodyID>> foliage_bodies;
 
         struct JointRecord
         {
@@ -416,7 +418,16 @@ namespace won::physics
                 body_interface.RemoveBody(body_id);
                 body_interface.DestroyBody(body_id);
             }
+            for (auto& [entity, body_ids] : foliage_bodies)
+            {
+                for (JPH::BodyID body_id : body_ids)
+                {
+                    body_interface.RemoveBody(body_id);
+                    body_interface.DestroyBody(body_id);
+                }
+            }
             entity_to_body.clear();
+            foliage_bodies.clear();
             body_to_entity.clear();
             active_trigger_pairs.clear();
             trigger_events.clear();
@@ -762,6 +773,81 @@ namespace won::physics
     {
         std::shared_lock lock(impl->bodies_mutex);
         return impl->entity_to_body.find(entity) != impl->entity_to_body.end();
+    }
+
+    void PhysicsWorld::AddFoliage(won::ecs::Entity entity, const won::ecs::FoliageComponent& foliage, uint32_t collision_layer)
+    {
+        JPH::BodyInterface& body_interface = impl->physics_system->GetBodyInterface();
+        for (const won::ecs::FoliageType& type : foliage.types)
+        {
+            if (type.collision != won::ecs::FoliageCollisionMode::Trunk || type.trunk_radius <= 0.0f || type.trunk_height <= 0.0f)
+            {
+                continue;
+            }
+
+            {
+                std::unique_lock lock(impl->bodies_mutex);
+                Vector<JPH::BodyID>& body_ids = impl->foliage_bodies[entity];
+                body_ids.reserve(body_ids.size() + type.instances.size());
+            }
+            for (const won::ecs::FoliageInstance& instance : type.instances)
+            {
+                const float scale = std::abs(instance.scale);
+                const float radius = (std::max)(0.01f, type.trunk_radius * scale);
+                const float height = (std::max)(radius * 2.0f, type.trunk_height * scale);
+                const float half_height = (std::max)(0.001f, height * 0.5f - radius);
+                const JPH::Ref<JPH::Shape> shape = new JPH::CapsuleShape(half_height, radius);
+
+                const DirectX::XMVECTOR rotation = DirectX::XMLoadFloat4(&instance.rotation);
+                const DirectX::XMVECTOR up = DirectX::XMVector3Rotate(DirectX::XMVectorSet(0.0f, height * 0.5f, 0.0f, 0.0f), rotation);
+                float3 offset;
+                DirectX::XMStoreFloat3(&offset, up);
+
+                JPH::BodyCreationSettings settings(
+                    shape,
+                    JPH::RVec3(instance.position.x + offset.x, instance.position.y + offset.y, instance.position.z + offset.z),
+                    JPH::Quat(instance.rotation.x, instance.rotation.y, instance.rotation.z, instance.rotation.w),
+                    JPH::EMotionType::Static,
+                    Detail::ObjectLayers::NON_MOVING);
+                settings.mUserData = static_cast<JPH::uint64>(collision_layer);
+
+                const JPH::BodyID body_id = body_interface.CreateAndAddBody(settings, JPH::EActivation::DontActivate);
+                if (body_id.IsInvalid())
+                {
+                    wonlog_warning("[PhysicsWorld] Failed to add foliage body for entity %llu", static_cast<unsigned long long>(entity));
+                    return;
+                }
+                std::unique_lock lock(impl->bodies_mutex);
+                impl->foliage_bodies[entity].push_back(body_id);
+                impl->body_to_entity[body_id] = entity;
+            }
+        }
+    }
+
+    void PhysicsWorld::RemoveFoliage(won::ecs::Entity entity)
+    {
+        Vector<JPH::BodyID> body_ids;
+        {
+            std::unique_lock lock(impl->bodies_mutex);
+            auto it = impl->foliage_bodies.find(entity);
+            if (it == impl->foliage_bodies.end())
+            {
+                return;
+            }
+            body_ids = std::move(it->second);
+            impl->foliage_bodies.erase(it);
+            for (JPH::BodyID body_id : body_ids)
+            {
+                impl->body_to_entity.erase(body_id);
+            }
+        }
+
+        JPH::BodyInterface& body_interface = impl->physics_system->GetBodyInterface();
+        for (JPH::BodyID body_id : body_ids)
+        {
+            body_interface.RemoveBody(body_id);
+            body_interface.DestroyBody(body_id);
+        }
     }
 
     static constexpr float soft_body_vertex_radius_ratio = 0.02f;
@@ -1178,21 +1264,25 @@ namespace won::physics
                     return;
                 }
 
-                ignored_body_ids.reserve(filter.ignored_entity_count);
                 std::shared_lock lock(impl.bodies_mutex);
                 for (Size i = 0; i < filter.ignored_entity_count; ++i)
                 {
                     auto it = impl.entity_to_body.find(filter.ignored_entities[i]);
                     if (it != impl.entity_to_body.end())
                     {
-                        ignored_body_ids.push_back(it->second);
+                        ignored_body_ids.insert(it->second);
+                    }
+                    auto foliage_it = impl.foliage_bodies.find(filter.ignored_entities[i]);
+                    if (foliage_it != impl.foliage_bodies.end())
+                    {
+                        ignored_body_ids.insert(foliage_it->second.begin(), foliage_it->second.end());
                     }
                 }
             }
 
             bool ShouldCollide(const JPH::BodyID& body_id) const override
             {
-                return std::find(ignored_body_ids.begin(), ignored_body_ids.end(), body_id) == ignored_body_ids.end();
+                return ignored_body_ids.find(body_id) == ignored_body_ids.end();
             }
 
             bool ShouldCollideLocked(const JPH::Body& body) const override
@@ -1203,7 +1293,7 @@ namespace won::physics
 
         private:
             uint32_t layer_mask;
-            Vector<JPH::BodyID> ignored_body_ids;
+            UnorderedSet<JPH::BodyID> ignored_body_ids;
         };
 
         bool ConvertShapeCastHit(const PhysicsWorldImpl& impl, const JPH::ShapeCastResult& source, float max_distance, PhysicsQueryHit& out_hit)

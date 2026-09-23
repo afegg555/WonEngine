@@ -1616,11 +1616,11 @@ namespace won::rendering::utils
         {
             if (mesh.impostor.albedo && !mesh.impostor.albedo->render_data.IsValid())
             {
-                CreateRenderData(device, *mesh.impostor.albedo, RHIFormat::R8G8B8A8UnormSrgb);
+                CreateRenderData(device, *mesh.impostor.albedo, RHIFormat::R8G8B8A8UnormSrgb, true);
             }
             if (mesh.impostor.normal && !mesh.impostor.normal->render_data.IsValid())
             {
-                CreateRenderData(device, *mesh.impostor.normal, RHIFormat::R8G8B8A8Unorm);
+                CreateRenderData(device, *mesh.impostor.normal, RHIFormat::R8G8B8A8Unorm, true);
             }
             if (mesh.impostor.depth && !mesh.impostor.depth->render_data.IsValid())
             {

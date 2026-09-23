@@ -29,6 +29,12 @@ PixelInput main(VertexInput input)
     output.worldpos = output.pos.xyz;
     output.pos = mul(camera.view_projection, output.pos);
 
+#ifdef OBJECTSHADER_OUTPUT_MOTION
+    output.current_clip_position = output.pos;
+    output.previous_clip_position = mul(camera.previous_view_projection, float4(output.worldpos, 1.0f));
+    output.previous_view_depth = dot(output.worldpos - camera.previous_position, camera.previous_forward);
+#endif
+
 #ifdef OBJECTSHADER_USE_UVSETS
     output.uvsets = input.GetUVSets();
 #endif

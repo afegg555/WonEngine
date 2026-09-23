@@ -5,6 +5,8 @@
 #include "TerrainComponent.h"
 #include "TerrainData.h"
 #include "TransformComponent.h"
+#include "PhysicsWorld.h"
+#include "CollisionLayerComponent.h"
 
 namespace won::ecs
 {
@@ -21,6 +23,7 @@ namespace won::ecs
         float4x4 terrain_world = math::IDENTITY_MATRIX;
         auto terrain_array = scene.GetComponentArray<TerrainComponent>().get();
         auto transform_array = scene.GetComponentArray<TransformComponent>().get();
+        auto collision_layer_array = scene.GetComponentArray<CollisionLayerComponent>().get();
         for (uint32 i = 0; i < static_cast<uint32>(terrain_array->GetSize()); ++i)
         {
             const TerrainComponent& terrain = terrain_array->data[i];
@@ -36,16 +39,32 @@ namespace won::ecs
             }
         }
 
-        if (terrain_data)
+        physics::PhysicsWorld* physics_world = scene.GetPhysicsWorld();
+        for (uint32 i = 0; i < foliage_count; ++i)
         {
-            for (uint32 i = 0; i < foliage_count; ++i)
+            FoliageComponent& foliage = foliage_array->data[i];
+            const Entity entity = foliage_array->index_to_entity[i];
+            if (!foliage.IsActive())
             {
-                FoliageComponent& foliage = foliage_array->data[i];
-                if (foliage.IsActive() && foliage.IsDirty())
+                if (foliage.IsDirty())
                 {
-                    foliage::ScatterFoliage(foliage, *terrain_data, terrain_world);
+                    physics_world->RemoveFoliage(entity);
+                    foliage.SetDirty(false);
+                    scene.MarkGpuDirty(foliage_component_mask);
                 }
+                continue;
             }
+            if (!foliage.IsDirty() || !terrain_data)
+            {
+                continue;
+            }
+
+            foliage::ScatterFoliage(foliage, *terrain_data, terrain_world);
+            scene.MarkGpuDirty(foliage_component_mask);
+            physics_world->RemoveFoliage(entity);
+            const uint32 layer = collision_layer_array && collision_layer_array->HasData(entity)
+                ? collision_layer_array->GetData(entity).layer : 0;
+            physics_world->AddFoliage(entity, foliage, layer);
         }
     }
 }

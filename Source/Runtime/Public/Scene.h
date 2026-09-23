@@ -139,6 +139,11 @@ namespace won::ecs
                 if (physics_world)
                     physics_world->RemoveBody(entity);
             }
+            if constexpr (std::is_same_v<Component, FoliageComponent>)
+            {
+                if (physics_world)
+                    physics_world->RemoveFoliage(entity);
+            }
 
             if constexpr (ComponentMaskFromType<Component>() != none_component_mask)
             {

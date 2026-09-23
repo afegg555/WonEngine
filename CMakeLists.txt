@@ -537,6 +537,13 @@ set(SHADERS_HLSL
     Source/Shaders/ObjectVS.hlsli
     Source/Shaders/FoliageVS.hlsli
     Source/Shaders/FoliageVS_common.hlsl
+    Source/Shaders/FoliageVS_prepass.hlsl
+    Source/Shaders/FoliageVS_normal.hlsl
+    Source/Shaders/FoliageVS_motion.hlsl
+    Source/Shaders/FoliageVS_motion_masked.hlsl
+    Source/Shaders/FoliageVS_motion_normal.hlsl
+    Source/Shaders/FoliageVS_motion_normal_masked.hlsl
+    Source/Shaders/FoliageVS_simple.hlsl
     Source/Shaders/ObjectVS_simple.hlsl
     Source/Shaders/ObjectVS_common.hlsl
     Source/Shaders/ObjectVS_prepass.hlsl
@@ -585,7 +592,14 @@ set(SHADERS_HLSL
     Source/Shaders/ShaderInterop_Impostor.h
     Source/Shaders/ImpostorCommon.hlsli
     Source/Shaders/ImpostorVS.hlsl
-    Source/Shaders/ImpostorPS.hlsl
+    Source/Shaders/ImpostorPS.hlsli
+    Source/Shaders/ImpostorPS_forward.hlsl
+    Source/Shaders/ImpostorPS_forwardplus.hlsl
+    Source/Shaders/ImpostorPS_prepass.hlsli
+    Source/Shaders/ImpostorPS_prepass.hlsl
+    Source/Shaders/ImpostorPS_normal.hlsl
+    Source/Shaders/ImpostorPS_motion.hlsl
+    Source/Shaders/ImpostorPS_motion_normal.hlsl
     Source/Shaders/SpritePS.hlsli
     Source/Shaders/SpritePS_default.hlsl
     Source/Shaders/SpritePS_masked.hlsl

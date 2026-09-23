@@ -445,6 +445,7 @@ namespace won::resource
         serialize::Serialize(archive, impostor.center.x);
         serialize::Serialize(archive, impostor.center.y);
         serialize::Serialize(archive, impostor.center.z);
+        serialize::Serialize(archive, impostor.screen_size_threshold);
         SerializeImage(archive, impostor.albedo);
         SerializeImage(archive, impostor.normal);
         SerializeImage(archive, impostor.depth);

@@ -139,7 +139,7 @@ int main(int argc, char** argv)
     if (!arguments.HasKey("--nolods"))
     {
         const Vector<float> lod_ratios = { 0.5f, 0.2f };
-        const Vector<float> lod_screen_sizes = { 0.3f, 0.1f };
+        const Vector<float> lod_screen_sizes = { 0.6f, 0.3f };
         GenerateMeshLods(*mesh, lod_ratios, lod_screen_sizes);
         std::cout << "MeshLodBakeTool: generated " << mesh->lods.size() << " mesh LODs\n";
     }
@@ -178,6 +178,7 @@ int main(int argc, char** argv)
         std::cout << "MeshLodBakeTool: bake failed\n";
         return 1;
     }
+    mesh->impostor.screen_size_threshold = 0.1f;
 
     if (arguments.HasKey("--write"))
     {

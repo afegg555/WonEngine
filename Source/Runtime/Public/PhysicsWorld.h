@@ -15,6 +15,7 @@ namespace won::ecs
     struct JointComponent;
     struct SoftBodyComponent;
     struct VehicleComponent;
+    struct FoliageComponent;
     using Entity = uint64;
 }
 
@@ -95,6 +96,8 @@ namespace won::physics
         void AddBody(won::ecs::Entity entity, const won::ecs::TransformComponent& transform, won::ecs::Collider3DComponent& collider, won::ecs::Rigidbody3DComponent* rb, uint32_t collision_layer = 0, const HeightFieldShapeDesc* height_field = nullptr);
         void RemoveBody(won::ecs::Entity entity);
         bool HasBody(won::ecs::Entity entity) const;
+        void AddFoliage(won::ecs::Entity entity, const won::ecs::FoliageComponent& foliage, uint32_t collision_layer = 0);
+        void RemoveFoliage(won::ecs::Entity entity);
 
         void AddSoftBody(won::ecs::Entity entity, const won::ecs::TransformComponent& transform, won::ecs::SoftBodyComponent& soft_body, const won::resource::Mesh& mesh, uint32_t collision_layer = 0);
         void GetSoftBodyVertices(won::ecs::Entity entity, Vector<float3>& out_positions) const;

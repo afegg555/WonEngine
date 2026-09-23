@@ -10,6 +10,10 @@ struct ImpostorPixel
     float2 quad_uv : TEXCOORD0;
     float2 cell_base : TEXCOORD1;
     float3 worldpos : TEXCOORD2;
+    nointerpolation float4 rotation : TEXCOORD3;
+    float4 current_clip_position : CURRENT_CLIP_POSITION;
+    float4 previous_clip_position : PREVIOUS_CLIP_POSITION;
+    float previous_view_depth : PREVIOUS_VIEW_DEPTH;
 };
 
 static const float2 impostor_quad_corners[6] =

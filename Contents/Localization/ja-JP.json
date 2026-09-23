@@ -2091,6 +2091,10 @@
             "source": "Ambient Occlusion",
             "text": "アンビエントオクルージョン"
         },
+        "editor.enum.ViewMode.LodColoration": {
+            "source": "LOD Coloration",
+            "text": "LOD カラー表示"
+        },
         "editor.label.view_mode": {
             "source": "View Mode",
             "text": "表示モード"

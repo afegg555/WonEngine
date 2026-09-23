@@ -149,6 +149,7 @@ namespace won::reflection
         WON_REFLECT_ENUM_VALUE("Wireframe", won::rendering::ViewMode::Wireframe)
         WON_REFLECT_ENUM_VALUE("Overdraw", won::rendering::ViewMode::Overdraw)
         WON_REFLECT_ENUM_VALUE("AmbientOcclusion", won::rendering::ViewMode::AmbientOcclusion)
+        WON_REFLECT_ENUM_VALUE("LodColoration", won::rendering::ViewMode::LodColoration)
     WON_REFLECT_ENUM_END()
 
     WON_REFLECT_ENUM(won::ecs::UIScaleMode, "UIScaleMode")
@@ -656,7 +657,6 @@ namespace won::reflection
         WON_REFLECT_FIELD(random_yaw, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(align_to_normal, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(cull_distance, won::FieldFlagEditable | won::FieldFlagSerializable)
-        WON_REFLECT_FIELD(lod_distances, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(cast_shadow, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(wind_influence, won::FieldFlagEditable | won::FieldFlagSerializable)
         WON_REFLECT_FIELD(slope_min_degrees, won::FieldFlagEditable | won::FieldFlagSerializable)

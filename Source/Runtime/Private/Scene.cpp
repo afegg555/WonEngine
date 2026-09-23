@@ -414,6 +414,8 @@ namespace won::ecs
         {
             if (physics_world && HasComponent<Collider3DComponent>(current))
                 physics_world->RemoveBody(current);
+            if (physics_world && HasComponent<FoliageComponent>(current))
+                physics_world->RemoveFoliage(current);
 
             ComponentMask destroyed_mask = none_component_mask;
             for (const won::TypeDesc* type_desc : component_types)
@@ -583,6 +585,9 @@ namespace won::ecs
         const won::TypeDesc* collider_desc = reflection::TypeMeta<Collider3DComponent>::Get();
         if (collider_desc && type_id == collider_desc->type_id && physics_world)
             physics_world->RemoveBody(entity);
+        const won::TypeDesc* foliage_desc = reflection::TypeMeta<FoliageComponent>::Get();
+        if (foliage_desc && type_id == foliage_desc->type_id && physics_world)
+            physics_world->RemoveFoliage(entity);
 
         if (component_manager.HasComponent(entity, type_id))
         {

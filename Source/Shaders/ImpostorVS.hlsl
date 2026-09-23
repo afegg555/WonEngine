@@ -20,8 +20,8 @@ ImpostorPixel main(uint vertex_id : SV_VertexID, uint instance_id : SV_InstanceI
     ShaderCamera camera = GetCamera();
     const float3 to_camera = normalize(camera.position - world_center);
     const float3 world_up = float3(0.0f, 1.0f, 0.0f);
-    const float3 billboard_right = normalize(cross(world_up, to_camera));
-    const float3 billboard_up = normalize(cross(to_camera, billboard_right));
+    const float3 billboard_right = normalize(cross(to_camera, world_up));
+    const float3 billboard_up = normalize(cross(billboard_right, to_camera));
 
     const float2 corner = impostor_quad_corners[vertex_id];
     const float2 offset = (corner * 2.0f - 1.0f) * world_radius;
@@ -29,7 +29,11 @@ ImpostorPixel main(uint vertex_id : SV_VertexID, uint instance_id : SV_InstanceI
 
     output.pos = mul(camera.view_projection, float4(world_position, 1.0f));
     output.worldpos = world_position;
+    output.current_clip_position = output.pos;
+    output.previous_clip_position = mul(camera.previous_view_projection, float4(world_position, 1.0f));
+    output.previous_view_depth = dot(world_position - camera.previous_position, camera.previous_forward);
     output.quad_uv = float2(corner.x, 1.0f - corner.y);
+    output.rotation = rotation;
 
     const float3 view_dir_local = mul(to_camera, rotation_matrix);
     const float3 oct_dir = float3(view_dir_local.x, view_dir_local.z, view_dir_local.y);
