@@ -368,19 +368,19 @@ namespace won::rendering::utils
                 mesh_bounds.Invalidate();
                 uint32 primitive_count = 0;
 
-                for (Size submesh_index = 0; submesh_index < mesh.submeshes.size(); ++submesh_index)
+                for (Size submesh_index = 0; submesh_index < mesh.lods[0].submeshes.size(); ++submesh_index)
                 {
-                    const resource::Submesh& submesh = mesh.submeshes[submesh_index];
+                    const resource::Submesh& submesh = mesh.lods[0].submeshes[submesh_index];
                     if (submesh.primitive_topology != resource::PrimitiveTopology::TriangleList)
                     {
                         continue;
                     }
 
-                    if (submesh.first_index >= mesh.indices.size())
+                    if (submesh.first_index >= mesh.lods[0].indices.size())
                     {
                         continue;
                     }
-                    const uint32 available_index_count = (std::min)(submesh.index_count, static_cast<uint32>(mesh.indices.size()) - submesh.first_index);
+                    const uint32 available_index_count = (std::min)(submesh.index_count, static_cast<uint32>(mesh.lods[0].indices.size()) - submesh.first_index);
                     const uint32 triangle_count = available_index_count / 3;
                     if (triangle_count == 0)
                     {
@@ -537,17 +537,17 @@ namespace won::rendering::utils
                 command_list.TransitionResource(*counter_buffer, RHIResourceState::Undefined, RHIResourceState::ShaderWrite);
 
                 Vector<ShaderBVHBuildSubmesh> build_submeshes;
-                build_submeshes.reserve(mesh.submeshes.size());
+                build_submeshes.reserve(mesh.lods[0].submeshes.size());
                 uint32 primitive_offset = 0;
-                for (Size submesh_index = 0; submesh_index < mesh.submeshes.size(); ++submesh_index)
+                for (Size submesh_index = 0; submesh_index < mesh.lods[0].submeshes.size(); ++submesh_index)
                 {
-                    const resource::Submesh& submesh = mesh.submeshes[submesh_index];
-                    if (submesh.primitive_topology != resource::PrimitiveTopology::TriangleList || submesh.first_index >= mesh.indices.size())
+                    const resource::Submesh& submesh = mesh.lods[0].submeshes[submesh_index];
+                    if (submesh.primitive_topology != resource::PrimitiveTopology::TriangleList || submesh.first_index >= mesh.lods[0].indices.size())
                     {
                         continue;
                     }
 
-                    const uint32 available_index_count = (std::min)(submesh.index_count, static_cast<uint32>(mesh.indices.size()) - submesh.first_index);
+                    const uint32 available_index_count = (std::min)(submesh.index_count, static_cast<uint32>(mesh.lods[0].indices.size()) - submesh.first_index);
                     const uint32 triangle_count = available_index_count / 3;
                     if (triangle_count == 0)
                     {
@@ -578,7 +578,7 @@ namespace won::rendering::utils
 
                 command_list.SetComputePipeline(*gpu_bvh_build_pipelines[static_cast<uint32>(GPUBVHBuildPipelineType::GeneratePrimitives)]);
                 command_list.SetShaderResource(RHIShaderStage::Compute, 0, { mesh.render_data.buffer.get(), mesh.render_data.positions.srv });
-                command_list.SetShaderResource(RHIShaderStage::Compute, 1, { mesh.render_data.buffer.get(), mesh.render_data.indices.srv });
+                command_list.SetShaderResource(RHIShaderStage::Compute, 1, { mesh.render_data.buffer.get(), mesh.lods[0].render_indices.srv });
                 command_list.SetShaderResource(RHIShaderStage::Compute, 2, { build_submesh_buffer.get(), build_submesh_srv });
                 command_list.SetUnorderedAccess(RHIShaderStage::Compute, 0, { gpu_bvh.primitive_buffer.get(), gpu_bvh.primitive_uav });
                 command_list.SetUnorderedAccess(RHIShaderStage::Compute, 2, { sort_buffer.get(), sort_uav });
@@ -1152,7 +1152,7 @@ namespace won::rendering::utils
         const resource::Material& material, uint32 grid_size, uint32 tile_resolution,
         impostor::ImpostorLayout layout)
     {
-        if (grid_size == 0 || tile_resolution == 0 || mesh.submeshes.empty() || material.slots.empty() || !mesh.render_data.IsValid())
+        if (grid_size == 0 || tile_resolution == 0 || mesh.lods.empty() || mesh.lods[0].submeshes.empty() || material.slots.empty() || !mesh.render_data.IsValid())
         {
             return false;
         }
@@ -1164,8 +1164,8 @@ namespace won::rendering::utils
         shader_transforms[0].normal_transform_row1 = float3(0.0f, 1.0f, 0.0f);
         shader_transforms[0].normal_transform_row2 = float3(0.0f, 0.0f, 1.0f);
 
-        Vector<ShaderGeometry> shader_geometries(mesh.submeshes.size());
-        for (Size i = 0; i < mesh.submeshes.size(); ++i)
+        Vector<ShaderGeometry> shader_geometries(mesh.lods[0].submeshes.size());
+        for (Size i = 0; i < mesh.lods[0].submeshes.size(); ++i)
         {
             WriteShaderGeometry(mesh, i, shader_geometries[i]);
         }
@@ -1204,7 +1204,7 @@ namespace won::rendering::utils
 
         math::AABB mesh_bounds;
         mesh_bounds.Invalidate();
-        for (const resource::Submesh& submesh : mesh.submeshes)
+        for (const resource::Submesh& submesh : mesh.lods[0].submeshes)
         {
             mesh_bounds.Merge(submesh.local_bounds);
         }
@@ -1333,7 +1333,7 @@ namespace won::rendering::utils
         command_list->ClearDepthStencil(depth_stencil_binding, OPTIMIZED_FAST_CLEAR_DEPTH, 0);
 
         RHISubresourceBinding frame_binding = { frame_buffer.get(), frame_cbv };
-        command_list->SetIndexBuffer(*mesh.render_data.buffer, sizeof(uint32), mesh.render_data.indices.offset, mesh.render_data.indices.size);
+        command_list->SetIndexBuffer(*mesh.render_data.buffer, sizeof(uint32), mesh.lods[0].render_indices.offset, mesh.lods[0].render_indices.size);
 
         for (uint32 y = 0; y < grid_size; ++y)
         {
@@ -1355,9 +1355,9 @@ namespace won::rendering::utils
                 command_list->SetScissor(scissor);
 
                 RHISubresourceBinding view_binding = { view_buffers[static_cast<Size>(y) * grid_size + x].get(), view_cbvs[static_cast<Size>(y) * grid_size + x] };
-                for (Size submesh_index = 0; submesh_index < mesh.submeshes.size(); ++submesh_index)
+                for (Size submesh_index = 0; submesh_index < mesh.lods[0].submeshes.size(); ++submesh_index)
                 {
-                    const resource::Submesh& submesh = mesh.submeshes[submesh_index];
+                    const resource::Submesh& submesh = mesh.lods[0].submeshes[submesh_index];
                     if (submesh.material_slot >= material.slots.size())
                     {
                         continue;
@@ -1424,6 +1424,7 @@ namespace won::rendering::utils
             return false;
         }
 
+        const Vector<uint32>& base_indices = mesh.lods[0].indices;
         const Size stream_slots = mesh.dynamic_vertex_streams ? static_cast<Size>(max_frames_in_flight) : 1;
         const Size positions_size = mesh.positions.size() * sizeof(float3) * stream_slots;
         const Size colors_size = mesh.colors.size() * sizeof(float4);
@@ -1433,19 +1434,18 @@ namespace won::rendering::utils
         const bool has_skinning_stream = mesh.bone_indices.size() == mesh.positions.size() && mesh.bone_weights.size() == mesh.positions.size();
         const Size bone_indices_size = has_skinning_stream ? mesh.bone_indices.size() * sizeof(uint4) : 0;
         const Size bone_weights_size = has_skinning_stream ? mesh.bone_weights.size() * sizeof(float4) : 0;
-        const Size indices_size = mesh.indices.size() * sizeof(uint32);
 
         Vector<uint2> adjacency_ranges; // per vertex (start_index, count)
         Vector<uint32> adjacency_triangles; // flattened triangle indices
         if (mesh.dynamic_vertex_streams)
         {
-            const Size triangle_count = mesh.indices.size() / 3;
+            const Size triangle_count = base_indices.size() / 3;
             adjacency_ranges.assign(mesh.positions.size(), uint2(0, 0));
             for (Size triangle = 0; triangle < triangle_count; ++triangle)
             {
                 for (Size corner = 0; corner < 3; ++corner)
                 {
-                    const uint32 vertex = mesh.indices[triangle * 3 + corner];
+                    const uint32 vertex = base_indices[triangle * 3 + corner];
                     if (vertex < adjacency_ranges.size())
                     {
                         ++adjacency_ranges[vertex].y; // count triangles
@@ -1465,7 +1465,7 @@ namespace won::rendering::utils
             {
                 for (Size corner = 0; corner < 3; ++corner)
                 {
-                    const uint32 vertex = mesh.indices[triangle * 3 + corner];
+                    const uint32 vertex = base_indices[triangle * 3 + corner];
                     if (vertex < adjacency_ranges.size())
                     {
                         adjacency_triangles[adjacency_ranges[vertex].x + adjacency_ranges[vertex].y] = static_cast<uint32>(triangle);
@@ -1484,9 +1484,14 @@ namespace won::rendering::utils
         total_size = math::Align(total_size, static_cast<Size>(sizeof(float2))) + texcoords_size;
         total_size = math::Align(total_size, static_cast<Size>(sizeof(uint4))) + bone_indices_size;
         total_size = math::Align(total_size, static_cast<Size>(sizeof(float4))) + bone_weights_size;
-        total_size = math::Align(total_size, static_cast<Size>(sizeof(uint32))) + indices_size;
         total_size = math::Align(total_size, static_cast<Size>(sizeof(uint2))) + adjacency_ranges_size;
         total_size = math::Align(total_size, static_cast<Size>(sizeof(uint32))) + adjacency_triangles_size;
+        Vector<Size> lod_index_sizes(mesh.lods.size(), 0);
+        for (Size lod_index = 0; lod_index < mesh.lods.size(); ++lod_index)
+        {
+            lod_index_sizes[lod_index] = mesh.lods[lod_index].indices.size() * sizeof(uint32);
+            total_size = math::Align(total_size, static_cast<Size>(sizeof(uint32))) + lod_index_sizes[lod_index];
+        }
         if (total_size == 0)
         {
             return false;
@@ -1505,7 +1510,6 @@ namespace won::rendering::utils
         Size texcoords_offset = 0;
         Size bone_indices_offset = 0;
         Size bone_weights_offset = 0;
-        Size indices_offset = 0;
         Size adjacency_ranges_offset = 0;
         Size adjacency_triangles_offset = 0;
 
@@ -1516,9 +1520,13 @@ namespace won::rendering::utils
         PackBufferSubresource(mesh.texcoords, packed_data, texcoords_offset, texcoords_size, sizeof(float2), offset);
         PackBufferSubresource(mesh.bone_indices, packed_data, bone_indices_offset, bone_indices_size, sizeof(uint4), offset);
         PackBufferSubresource(mesh.bone_weights, packed_data, bone_weights_offset, bone_weights_size, sizeof(float4), offset);
-        PackBufferSubresource(mesh.indices, packed_data, indices_offset, indices_size, sizeof(uint32), offset);
         PackBufferSubresource(adjacency_ranges, packed_data, adjacency_ranges_offset, adjacency_ranges_size, sizeof(uint2), offset);
         PackBufferSubresource(adjacency_triangles, packed_data, adjacency_triangles_offset, adjacency_triangles_size, sizeof(uint32), offset);
+        Vector<Size> lod_index_offsets(mesh.lods.size(), 0);
+        for (Size lod_index = 0; lod_index < mesh.lods.size(); ++lod_index)
+        {
+            PackBufferSubresource(mesh.lods[lod_index].indices, packed_data, lod_index_offsets[lod_index], lod_index_sizes[lod_index], sizeof(uint32), offset);
+        }
 
         RHIBufferDesc buffer_desc = {};
         buffer_desc.size = total_size;
@@ -1594,9 +1602,12 @@ namespace won::rendering::utils
         {
             return false;
         }
-        if (!create_subresource(indices_offset, indices_size, sizeof(uint32), false, new_render_data.indices))
+        for (Size lod_index = 0; lod_index < mesh.lods.size(); ++lod_index)
         {
-            return false;
+            if (!create_subresource(lod_index_offsets[lod_index], lod_index_sizes[lod_index], sizeof(uint32), false, mesh.lods[lod_index].render_indices))
+            {
+                return false;
+            }
         }
 
         mesh.render_data = std::move(new_render_data);

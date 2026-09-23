@@ -780,6 +780,11 @@ namespace won::ecs
                 const XMVECTOR ray_direction = XMVector3Normalize(XMLoadFloat3(&ray.direction));
 
                 resource::Mesh& mesh = *geometry->mesh;
+                if (mesh.lods.empty())
+                {
+                    return false;
+                }
+                const Vector<uint32>& mesh_indices = mesh.lods[0].indices;
                 math::Ray local_ray = {};
                 XMStoreFloat3(&local_ray.origin, XMVector3TransformCoord(ray_origin, inv_world_transform));
                 XMStoreFloat3(&local_ray.direction, XMVector3Normalize(XMVector3TransformNormal(ray_direction, inv_world_transform)));
@@ -789,14 +794,14 @@ namespace won::ecs
                 auto test_local_triangle = [&](uint32 triangle_index) -> bool
                 {
                     const uint32 index = triangle_index * 3;
-                    if (index + 2 >= mesh.indices.size())
+                    if (index + 2 >= mesh_indices.size())
                     {
                         return false;
                     }
 
-                    const uint32 i0 = mesh.indices[index];
-                    const uint32 i1 = mesh.indices[index + 1];
-                    const uint32 i2 = mesh.indices[index + 2];
+                    const uint32 i0 = mesh_indices[index];
+                    const uint32 i1 = mesh_indices[index + 1];
+                    const uint32 i2 = mesh_indices[index + 2];
                     if (i0 >= mesh.positions.size() || i1 >= mesh.positions.size() || i2 >= mesh.positions.size())
                     {
                         return false;
@@ -866,7 +871,7 @@ namespace won::ecs
 
                 if (!used_local_bvh)
                 {
-                    for (uint32 index = 0; index + 2 < mesh.indices.size(); index += 3)
+                    for (uint32 index = 0; index + 2 < mesh_indices.size(); index += 3)
                     {
                         test_local_triangle(index / 3);
                     }

@@ -55,7 +55,9 @@ int main()
             { 0.0f, 0.0f, -1.0f },
             { 0.0f, 0.0f, -1.0f },
         };
-        triangle_mesh->indices = { 0, 1, 2 };
+        triangle_mesh->lods.resize(1);
+        triangle_mesh->lods[0].screen_size_threshold = 1.0f;
+        triangle_mesh->lods[0].indices = { 0, 1, 2 };
         won::resource::Submesh triangle_submesh = {};
         triangle_submesh.first_index = 0;
         triangle_submesh.index_count = 3;
@@ -63,7 +65,7 @@ int main()
         triangle_submesh.material_slot = 0;
         triangle_submesh.local_bounds.min = { -0.8f, -0.5f, 0.0f };
         triangle_submesh.local_bounds.max = { 0.8f, 0.8f, 0.0f };
-        triangle_mesh->submeshes.push_back(triangle_submesh);
+        triangle_mesh->lods[0].submeshes.push_back(triangle_submesh);
         if (won::rendering::RHIDevice* device = app.GetDevice())
         {
             won::rendering::utils::CreateRenderData(*device, *triangle_mesh);

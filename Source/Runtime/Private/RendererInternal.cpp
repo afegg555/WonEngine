@@ -47,9 +47,6 @@ namespace won::rendering
         constexpr uint32 temporal_jitter_sample_count = 8;
         constexpr float temporal_history_blend = 0.9f;
 
-        static console::ConsoleVariable r_foliage_impostor_force("r.foliage.impostor.force", false, "force impostor-capable foliage to render as impostors", console::ConsoleVariableFlagNone);
-        static console::ConsoleVariable r_foliage_impostor_screensize("r.foliage.impostor.screensize", 0.04f, "screen-height fraction below which impostor-capable foliage renders as impostors instead of mesh", console::ConsoleVariableFlagNone);
-
         RHIPrimitiveTopology ToRHIPrimitiveTopology(resource::PrimitiveTopology topology)
         {
             switch (topology)
@@ -550,7 +547,7 @@ namespace won::rendering
                     ShaderMeshNormal shader_mesh_normal = {};
                     shader_mesh_normal.Init();
                     shader_mesh_normal.position_descriptor = static_cast<uint32>(render_data.positions.srv.descriptor_index);
-                    shader_mesh_normal.index_descriptor = static_cast<uint32>(render_data.indices.srv.descriptor_index);
+                    shader_mesh_normal.index_descriptor = static_cast<uint32>(mesh->lods[0].render_indices.srv.descriptor_index);
                     shader_mesh_normal.adjacency_range_descriptor = static_cast<uint32>(render_data.adjacency_ranges.srv.descriptor_index);
                     shader_mesh_normal.adjacency_triangle_descriptor = static_cast<uint32>(render_data.adjacency_triangles.srv.descriptor_index);
                     shader_mesh_normal.normal_uav_descriptor = static_cast<uint32>(render_data.normals.uav.descriptor_index);
@@ -1622,81 +1619,23 @@ namespace won::rendering
         }
 
         {
-            const auto& foliage_renderables = gpu_scene.foliage_renderables;
-            view.foliage_lod_ranges.assign(foliage_renderables.size(), View::FoliageLodRange{});
             view.foliage_resources.instance_index_buffer = invalid_frame_resource;
             view.foliage_resources.instance_index_srv = {};
-            if (!foliage_renderables.empty())
+            const Vector<uint32>& foliage_indices = view.foliage_instance_indices;
+            if (!foliage_indices.empty())
             {
-                const auto& foliage_instances = gpu_scene.foliage_instances;
-                const auto& foliage_impostors = gpu_scene.foliage_impostors;
-                const float3 eye = view.cached_camera.eye;
-                const float tan_half_fov = std::tan(view.cached_camera.fov_y * 0.5f);
-                const float screen_threshold = r_foliage_impostor_screensize.GetFloat();
-                const bool force_impostor = r_foliage_impostor_force.GetBool();
-
-                Vector<uint32> foliage_index_scratch;
-                foliage_index_scratch.reserve(foliage_instances.size());
-                uint32 previous_offset = 0xFFFFFFFFu;
-                View::FoliageLodRange current_range = {};
-                Vector<uint32> far_indices;
-                for (Size i = 0; i < foliage_renderables.size(); ++i)
-                {
-                    const GPUScene::FoliageRenderable& renderable = foliage_renderables[i];
-                    if (renderable.instance_offset != previous_offset)
-                    {
-                        previous_offset = renderable.instance_offset;
-                        const float radius = renderable.has_impostor ? foliage_impostors[renderable.impostor_index].radius : 0.0f;
-                        far_indices.clear();
-                        current_range.near_index_base = static_cast<uint32>(foliage_index_scratch.size());
-                        current_range.near_count = 0;
-                        for (uint32 k = 0; k < renderable.instance_count; ++k)
-                        {
-                            const uint32 instance = renderable.instance_offset + k;
-                            bool is_far = false;
-                            if (renderable.has_impostor && radius > 0.0f)
-                            {
-                                const float4& position_scale = foliage_instances[instance].position_scale;
-                                const float world_radius = radius * position_scale.w;
-                                const float dist = math::Length(float3(eye.x - position_scale.x, eye.y - position_scale.y, eye.z - position_scale.z));
-                                const float screen = world_radius / ((std::max)(dist, 0.001f) * (std::max)(tan_half_fov, 0.001f));
-                                is_far = force_impostor || screen < screen_threshold;
-                            }
-                            if (is_far)
-                            {
-                                far_indices.push_back(instance);
-                            }
-                            else
-                            {
-                                foliage_index_scratch.push_back(instance);
-                                ++current_range.near_count;
-                            }
-                        }
-                        current_range.far_index_base = static_cast<uint32>(foliage_index_scratch.size());
-                        current_range.far_count = static_cast<uint32>(far_indices.size());
-                        for (uint32 far_instance : far_indices)
-                        {
-                            foliage_index_scratch.push_back(far_instance);
-                        }
-                    }
-                    view.foliage_lod_ranges[i] = current_range;
-                }
-
-                if (!foliage_index_scratch.empty())
-                {
-                    RHIBufferDesc desc = {};
-                    desc.size = math::Align(foliage_index_scratch.size(), sort_buffer_element_granularity) * sizeof(uint32);
-                    desc.usage = RHIResourceUsage::Default;
-                    desc.bind_flags = RHIBindFlags::ShaderResource;
-                    view.foliage_resources.instance_index_buffer = frame_graph.CreateBuffer(view.viewer_index, "Foliage Instance Index Buffer", desc);
-                    RHISubresourceDesc srv_desc = {};
-                    srv_desc.type = RHISubresourceType::ShaderResource;
-                    srv_desc.buffer_offset = 0;
-                    srv_desc.buffer_size = desc.size;
-                    srv_desc.buffer_stride = sizeof(uint32);
-                    view.foliage_resources.instance_index_srv = frame_graph.CreateSubresource(view.foliage_resources.instance_index_buffer, srv_desc);
-                    frame_graph.QueueBufferUpload(view.foliage_resources.instance_index_buffer, foliage_index_scratch.data(), foliage_index_scratch.size() * sizeof(uint32));
-                }
+                RHIBufferDesc desc = {};
+                desc.size = math::Align(foliage_indices.size(), sort_buffer_element_granularity) * sizeof(uint32);
+                desc.usage = RHIResourceUsage::Default;
+                desc.bind_flags = RHIBindFlags::ShaderResource;
+                view.foliage_resources.instance_index_buffer = frame_graph.CreateBuffer(view.viewer_index, "Foliage Instance Index Buffer", desc);
+                RHISubresourceDesc srv_desc = {};
+                srv_desc.type = RHISubresourceType::ShaderResource;
+                srv_desc.buffer_offset = 0;
+                srv_desc.buffer_size = desc.size;
+                srv_desc.buffer_stride = sizeof(uint32);
+                view.foliage_resources.instance_index_srv = frame_graph.CreateSubresource(view.foliage_resources.instance_index_buffer, srv_desc);
+                frame_graph.QueueBufferUpload(view.foliage_resources.instance_index_buffer, foliage_indices.data(), foliage_indices.size() * sizeof(uint32));
             }
         }
 
@@ -2033,15 +1972,22 @@ namespace won::rendering
         {
             GraphicsPipelineHash current_hash = {};
             bool has_pipeline = false;
-            RHIResource* bound_foliage_index_buffer = nullptr;
-            uint32 bound_foliage_index_offset = 0;
             command_list.SetPrimitiveTopology(RHIPrimitiveTopology::TriangleList);
 
             for (Size renderable_index = 0; renderable_index < gpu_scene.foliage_renderables.size(); ++renderable_index)
             {
                 const GPUScene::FoliageRenderable& renderable = gpu_scene.foliage_renderables[renderable_index];
-                const View::FoliageLodRange& lod_range = view.foliage_lod_ranges[renderable_index];
-                if (lod_range.near_count == 0)
+                const View::FoliageLodRanges& lod_range = view.foliage_lod_ranges[renderable_index];
+                bool any_mesh_level = false;
+                for (const View::FoliageLodRanges::IndexRange& index_range : lod_range.mesh_lods)
+                {
+                    if (index_range.count > 0)
+                    {
+                        any_mesh_level = true;
+                        break;
+                    }
+                }
+                if (!any_mesh_level)
                     continue;
 
                 const bool masked = renderable.blend_mode == resource::MaterialBlendMode::Masked;
@@ -2074,20 +2020,25 @@ namespace won::rendering
                     has_pipeline = true;
                 }
 
-                if (bound_foliage_index_buffer != renderable.index_buffer || bound_foliage_index_offset != renderable.index_buffer_offset)
+                for (Size lod_index = 0; lod_index < lod_range.mesh_lods.size(); ++lod_index)
                 {
-                    command_list.SetIndexBuffer(*renderable.index_buffer, sizeof(uint32), renderable.index_buffer_offset, renderable.index_buffer_size);
-                    bound_foliage_index_buffer = renderable.index_buffer;
-                    bound_foliage_index_offset = renderable.index_buffer_offset;
-                }
+                    const View::FoliageLodRanges::IndexRange& index_range = lod_range.mesh_lods[lod_index];
+                    if (index_range.count == 0)
+                    {
+                        continue;
+                    }
 
-                ObjectPushConstants push;
-                push.Init();
-                push.instance_offset = lod_range.near_index_base;
-                push.geometry_index = renderable.geometry_index;
-                push.material_index = renderable.material_index;
-                command_list.PushConstants(RHIShaderStage::Vertex, &push, sizeof(ObjectPushConstants), 0);
-                command_list.DrawIndexed(renderable.index_count, lod_range.near_count, renderable.first_index, 0, 0);
+                    const GPUScene::FoliageLodGeometry& lod_geometry = renderable.lod_geometries[lod_index];
+                    command_list.SetIndexBuffer(*renderable.index_buffer, sizeof(uint32), lod_geometry.index_buffer_offset, lod_geometry.index_buffer_size);
+
+                    ObjectPushConstants push;
+                    push.Init();
+                    push.instance_offset = index_range.offset;
+                    push.geometry_index = renderable.geometry_index;
+                    push.material_index = renderable.material_index;
+                    command_list.PushConstants(RHIShaderStage::Vertex, &push, sizeof(ObjectPushConstants), 0);
+                    command_list.DrawIndexed(lod_geometry.index_count, index_range.count, lod_geometry.first_index, 0, 0);
+                }
             }
 
             {
@@ -2106,24 +2057,28 @@ namespace won::rendering
                     command_list.SetConstantBuffer(RHIShaderStage::Vertex, CBSLOT_RENDERER_CAMERA, shader_view_binding);
                     command_list.SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_FRAME, shader_frame_binding);
                     command_list.SetConstantBuffer(RHIShaderStage::Pixel, CBSLOT_RENDERER_CAMERA, shader_view_binding);
-                    uint32 previous_impostor_instance_offset = 0xFFFFFFFFu;
+                    uint32 previous_instance_offset = 0xFFFFFFFFu;
                     for (Size renderable_index = 0; renderable_index < gpu_scene.foliage_renderables.size(); ++renderable_index)
                     {
                         const GPUScene::FoliageRenderable& renderable = gpu_scene.foliage_renderables[renderable_index];
-                        if (!renderable.has_impostor || renderable.instance_offset == previous_impostor_instance_offset)
+                        if (renderable.impostor_index == GPUScene::FoliageRenderable::invalid_impostor_index || renderable.instance_offset == previous_instance_offset)
+                        {
                             continue;
-                        previous_impostor_instance_offset = renderable.instance_offset;
+                        }
+                        previous_instance_offset = renderable.instance_offset;
 
-                        const View::FoliageLodRange& lod_range = view.foliage_lod_ranges[renderable_index];
-                        if (lod_range.far_count == 0)
+                        const View::FoliageLodRanges::IndexRange& index_range = view.foliage_lod_ranges[renderable_index].impostor;
+                        if (index_range.count == 0)
+                        {
                             continue;
+                        }
 
                         ImpostorPushConstants impostor_push;
                         impostor_push.Init();
-                        impostor_push.instance_offset = lod_range.far_index_base;
+                        impostor_push.instance_offset = index_range.offset;
                         impostor_push.impostor_index = renderable.impostor_index;
                         command_list.PushConstants(RHIShaderStage::Vertex, &impostor_push, sizeof(ImpostorPushConstants), 0);
-                        command_list.Draw(6, lod_range.far_count, 0, 0);
+                        command_list.Draw(6, index_range.count, 0, 0);
                     }
                 }
             }

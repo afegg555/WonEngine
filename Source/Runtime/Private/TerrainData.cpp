@@ -304,6 +304,8 @@ namespace won::terrain
         const float cell_z = data.cell_z;
 
         auto mesh = std::make_shared<resource::Mesh>();
+        mesh->lods.resize(1);
+        mesh->lods[0].screen_size_threshold = 1.0f;
         const uint32 vertex_count = vert_x * vert_z;
         mesh->positions.resize(vertex_count);
         mesh->normals.resize(vertex_count);
@@ -353,7 +355,7 @@ namespace won::terrain
 
         // Two triangles per grid cell. Winding chosen for top-facing (+Y) front faces under
         // the engine's CW front-face convention; verify visually and flip if back-face culled.
-        mesh->indices.reserve(static_cast<Size>(res_x) * res_z * 6);
+        mesh->lods[0].indices.reserve(static_cast<Size>(res_x) * res_z * 6);
         for (uint32 j = 0; j < res_z; ++j)
         {
             for (uint32 i = 0; i < res_x; ++i)
@@ -362,23 +364,23 @@ namespace won::terrain
                 const uint32 i10 = j * vert_x + (i + 1);
                 const uint32 i01 = (j + 1) * vert_x + i;
                 const uint32 i11 = (j + 1) * vert_x + (i + 1);
-                mesh->indices.push_back(i00);
-                mesh->indices.push_back(i01);
-                mesh->indices.push_back(i11);
-                mesh->indices.push_back(i00);
-                mesh->indices.push_back(i11);
-                mesh->indices.push_back(i10);
+                mesh->lods[0].indices.push_back(i00);
+                mesh->lods[0].indices.push_back(i01);
+                mesh->lods[0].indices.push_back(i11);
+                mesh->lods[0].indices.push_back(i00);
+                mesh->lods[0].indices.push_back(i11);
+                mesh->lods[0].indices.push_back(i10);
             }
         }
 
         resource::Submesh submesh = {};
         submesh.first_index = 0;
-        submesh.index_count = static_cast<uint32>(mesh->indices.size());
+        submesh.index_count = static_cast<uint32>(mesh->lods[0].indices.size());
         submesh.first_vertex = 0;
         submesh.material_slot = 0;
         submesh.primitive_topology = resource::PrimitiveTopology::TriangleList;
         submesh.local_bounds = bounds;
-        mesh->submeshes.push_back(submesh);
+        mesh->lods[0].submeshes.push_back(submesh);
 
         return mesh;
     }

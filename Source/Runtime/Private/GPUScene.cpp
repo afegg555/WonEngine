@@ -28,7 +28,7 @@ namespace won::rendering
     void WriteShaderGeometry(const resource::Mesh& mesh, Size submesh_index, ShaderGeometry& shader_geometry)
     {
         const resource::Mesh::RenderData& mesh_render_data = mesh.render_data;
-        const resource::Submesh& submesh = mesh.submeshes[submesh_index];
+        const resource::Submesh& submesh = mesh.lods[0].submeshes[submesh_index];
         shader_geometry.Init();
         shader_geometry.bounds_min = submesh.local_bounds.min;
         shader_geometry.bounds_max = submesh.local_bounds.max;
@@ -42,7 +42,7 @@ namespace won::rendering
         shader_geometry.normal_buffer_descriptor = mesh_render_data.normals.srv.descriptor_index;
         shader_geometry.texcoord_buffer_descriptor = mesh_render_data.texcoords.srv.descriptor_index;
         shader_geometry.tangent_buffer_descriptor = mesh_render_data.tangents.srv.descriptor_index;
-        shader_geometry.index_buffer_descriptor = mesh_render_data.indices.srv.descriptor_index;
+        shader_geometry.index_buffer_descriptor = mesh.lods[0].render_indices.srv.descriptor_index;
         shader_geometry.index_count = submesh.index_count;
         shader_geometry.first_index = submesh.first_index;
         shader_geometry.dynamic_stream_stride = mesh.dynamic_vertex_streams ? static_cast<uint32>(mesh.positions.size()) : 0u;
@@ -208,7 +208,7 @@ namespace won::rendering
                     if (inserted)
                     {
                         unique_meshes.push_back({ mesh, offset });
-                        unique_submesh_sum += mesh->submeshes.size();
+                        unique_submesh_sum += mesh->lods[0].submeshes.size();
                     }
                     geometry_comp.geometry_offset = it->second;
                 }
@@ -218,7 +218,7 @@ namespace won::rendering
 
             jobsystem::Dispatch(sub_ctx, (uint32_t)unique_meshes.size(), jobsystem::groupsize_light, [&](jobsystem::JobArgs args) {
                 auto [mesh, geometry_offset] = unique_meshes[args.job_index];
-                for (Size i = 0; i < mesh->submeshes.size(); ++i)
+                for (Size i = 0; i < mesh->lods[0].submeshes.size(); ++i)
                 {
                     WriteShaderGeometry(*mesh, i, shader_geometries[geometry_offset + i]);
                 }
@@ -308,7 +308,7 @@ namespace won::rendering
                     terrain.data->render_data.layer_materials.size() == terrain.data->material_layers.size())
                 {
                     terrain_layer_count += (std::max)(Size(1), terrain.data->material_layers.size());
-                    terrain_submesh_count += terrain.data->render_data.mesh->submeshes.size();
+                    terrain_submesh_count += terrain.data->render_data.mesh->lods[0].submeshes.size();
                 }
             }
 
@@ -399,17 +399,17 @@ namespace won::rendering
                 }
 
                 const uint32 geometry_offset = static_cast<uint32>(shader_geometries.size());
-                for (Size submesh_index = 0; submesh_index < mesh.submeshes.size(); ++submesh_index)
+                for (Size submesh_index = 0; submesh_index < mesh.lods[0].submeshes.size(); ++submesh_index)
                 {
-                    const resource::Submesh& submesh = mesh.submeshes[submesh_index];
+                    const resource::Submesh& submesh = mesh.lods[0].submeshes[submesh_index];
                     shader_geometries.emplace_back();
                     WriteShaderGeometry(mesh, submesh_index, shader_geometries.back());
 
                     TerrainRenderable renderable = {};
                     renderable.entity = entity;
                     renderable.index_buffer = mesh_render_data.buffer.get();
-                    renderable.index_buffer_offset = mesh_render_data.indices.offset;
-                    renderable.index_buffer_size = mesh_render_data.indices.size;
+                    renderable.index_buffer_offset = mesh.lods[0].render_indices.offset;
+                    renderable.index_buffer_size = mesh.lods[0].render_indices.size;
                     renderable.first_index = submesh.first_index;
                     renderable.index_count = submesh.index_count;
                     renderable.transform_index = transform_index;
@@ -483,7 +483,35 @@ namespace won::rendering
                     }
                     const resource::Mesh& mesh = *type.mesh;
                     const resource::Mesh::RenderData& mesh_render_data = mesh.render_data;
-                    if (!mesh_render_data.IsValid())
+                    if (!mesh_render_data.IsValid() || mesh.lods.empty())
+                    {
+                        continue;
+                    }
+
+                    Size lod_count = 0;
+                    for (const resource::Mesh::Lod& lod : mesh.lods)
+                    {
+                        if (!lod.render_indices.IsValid() || lod.submeshes.size() != mesh.lods[0].submeshes.size())
+                        {
+                            break;
+                        }
+                        ++lod_count;
+                    }
+                    if (lod_count == 0)
+                    {
+                        continue;
+                    }
+
+                    bool has_renderable_submesh = false;
+                    for (const resource::Submesh& submesh : mesh.lods[0].submeshes)
+                    {
+                        if (submesh.material_slot < type.material->slots.size())
+                        {
+                            has_renderable_submesh = true;
+                            break;
+                        }
+                    }
+                    if (!has_renderable_submesh)
                     {
                         continue;
                     }
@@ -499,6 +527,30 @@ namespace won::rendering
                     }
                     const uint32 instance_count = static_cast<uint32>(type.instances.size());
 
+                    math::AABB mesh_bounds;
+                    mesh_bounds.Invalidate();
+                    for (const resource::Submesh& submesh : mesh.lods[0].submeshes)
+                    {
+                        mesh_bounds.Merge(submesh.local_bounds);
+                    }
+
+                    const float local_radius = mesh_bounds.IsValid() ? math::Length(mesh_bounds.GetExtent()) : 0.0f;
+                    uint32 impostor_index = GPUScene::FoliageRenderable::invalid_impostor_index;
+
+                    const bool mesh_has_impostor = mesh.impostor.grid_size > 0 && mesh.impostor.albedo_srv.IsValid() && mesh.impostor.normal_srv.IsValid();
+                    if (mesh_has_impostor)
+                    {
+                        ShaderFoliageImpostor shader_impostor;
+                        shader_impostor.albedo_texture = static_cast<int>(mesh.impostor.albedo_srv.descriptor_index);
+                        shader_impostor.normal_texture = static_cast<int>(mesh.impostor.normal_srv.descriptor_index);
+                        shader_impostor.depth_texture = mesh.impostor.depth_srv.IsValid() ? static_cast<int>(mesh.impostor.depth_srv.descriptor_index) : -1;
+                        shader_impostor.grid_size = mesh.impostor.grid_size;
+                        shader_impostor.radius = mesh.impostor.radius;
+                        shader_impostor.center = mesh.impostor.center;
+                        impostor_index = static_cast<uint32>(foliage_impostors.size());
+                        foliage_impostors.push_back(shader_impostor);
+                    }
+
                     const uint32 material_offset = static_cast<uint32>(shader_materials.size());
                     for (const resource::MaterialSlot& material_slot : type.material->slots)
                     {
@@ -507,9 +559,9 @@ namespace won::rendering
                     }
 
                     const uint32 geometry_offset = static_cast<uint32>(shader_geometries.size());
-                    for (Size submesh_index = 0; submesh_index < mesh.submeshes.size(); ++submesh_index)
+                    for (Size submesh_index = 0; submesh_index < mesh.lods[0].submeshes.size(); ++submesh_index)
                     {
-                        const resource::Submesh& submesh = mesh.submeshes[submesh_index];
+                        const resource::Submesh& submesh = mesh.lods[0].submeshes[submesh_index];
                         shader_geometries.emplace_back();
                         WriteShaderGeometry(mesh, submesh_index, shader_geometries.back());
 
@@ -521,32 +573,30 @@ namespace won::rendering
 
                         GPUScene::FoliageRenderable renderable = {};
                         renderable.index_buffer = mesh_render_data.buffer.get();
-                        renderable.index_buffer_offset = mesh_render_data.indices.offset;
-                        renderable.index_buffer_size = mesh_render_data.indices.size;
-                        renderable.first_index = submesh.first_index;
-                        renderable.index_count = submesh.index_count;
                         renderable.geometry_index = geometry_offset + static_cast<uint32>(submesh_index);
                         renderable.material_index = material_offset + submesh.material_slot;
                         renderable.instance_offset = instance_offset;
                         renderable.instance_count = instance_count;
+                        renderable.local_radius = local_radius;
+                        renderable.impostor_index = impostor_index;
                         renderable.shader_type = static_cast<uint32>(material_slot.settings.material_type);
                         renderable.blend_mode = material_slot.settings.blend_mode;
-                        renderable.double_sided = material_slot.settings.double_sided;
                         renderable.cast_shadow = type.cast_shadow;
-                        renderable.has_impostor = mesh.impostor.grid_size > 0 && mesh.impostor.albedo_srv.IsValid() && mesh.impostor.normal_srv.IsValid();
-                        if (renderable.has_impostor)
+                        renderable.double_sided = material_slot.settings.double_sided;
+                        renderable.lod_geometries.reserve(lod_count);
+                        for (Size lod_index = 0; lod_index < lod_count; ++lod_index)
                         {
-                            ShaderFoliageImpostor shader_impostor;
-                            shader_impostor.albedo_texture = static_cast<int>(mesh.impostor.albedo_srv.descriptor_index);
-                            shader_impostor.normal_texture = static_cast<int>(mesh.impostor.normal_srv.descriptor_index);
-                            shader_impostor.depth_texture = mesh.impostor.depth_srv.IsValid() ? static_cast<int>(mesh.impostor.depth_srv.descriptor_index) : -1;
-                            shader_impostor.grid_size = mesh.impostor.grid_size;
-                            shader_impostor.radius = mesh.impostor.radius;
-                            shader_impostor.center = mesh.impostor.center;
-                            renderable.impostor_index = static_cast<uint32>(foliage_impostors.size());
-                            foliage_impostors.push_back(shader_impostor);
+                            const resource::Mesh::Lod& lod = mesh.lods[lod_index];
+                            const resource::Submesh& lod_submesh = lod.submeshes[submesh_index];
+                            GPUScene::FoliageLodGeometry lod_geometry;
+                            lod_geometry.index_buffer_offset = lod.render_indices.offset;
+                            lod_geometry.index_buffer_size = lod.render_indices.size;
+                            lod_geometry.first_index = lod_submesh.first_index;
+                            lod_geometry.index_count = lod_submesh.index_count;
+                            lod_geometry.screen_size_threshold = lod.screen_size_threshold;
+                            renderable.lod_geometries.push_back(lod_geometry);
                         }
-                        foliage_renderables.push_back(renderable);
+                        foliage_renderables.push_back(std::move(renderable));
                     }
                 }
             }
@@ -741,9 +791,9 @@ namespace won::rendering
                         bucket.caster_bound.Merge(world_aabb);
                     }
 
-                    for (Size i = 0; i < geometry_comp.mesh->submeshes.size(); ++i)
+                    for (Size i = 0; i < geometry_comp.mesh->lods[0].submeshes.size(); ++i)
                     {
-                        const resource::Submesh& submesh = geometry_comp.mesh->submeshes[i];
+                        const resource::Submesh& submesh = geometry_comp.mesh->lods[0].submeshes[i];
                         if (submesh.material_slot >= material_comp.material->slots.size())
                         {
                             continue;
@@ -756,8 +806,8 @@ namespace won::rendering
                         renderable.geometry_index = geometry_comp.geometry_offset + static_cast<uint32>(i);
                         renderable.material_index = material_comp.material_offset + submesh.material_slot;
                         renderable.index_buffer = mesh_render_data.buffer.get();
-                        renderable.index_buffer_offset = mesh_render_data.indices.offset;
-                        renderable.index_buffer_size = mesh_render_data.indices.size;
+                        renderable.index_buffer_offset = geometry_comp.mesh->lods[0].render_indices.offset;
+                        renderable.index_buffer_size = geometry_comp.mesh->lods[0].render_indices.size;
                         renderable.first_index = submesh.first_index;
                         renderable.index_count = submesh.index_count;
                         renderable.world_position = world_position;

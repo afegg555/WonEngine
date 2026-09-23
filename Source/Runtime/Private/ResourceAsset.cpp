@@ -25,7 +25,7 @@ namespace won::resource
 {
     namespace
     {
-        constexpr uint32 mesh_binary_version = 3;
+        constexpr uint32 mesh_binary_version = 4;
         constexpr uint32 mesh_binary_magic = 0x48534D57; // WMSH
         constexpr uint32 navmesh_binary_version = 1;
 		constexpr uint32 navmesh_binary_magic = 0x56414E57; // WNAV
@@ -450,6 +450,22 @@ namespace won::resource
         SerializeImage(archive, impostor.depth);
     }
 
+    void SerializeMeshLods(serialize::BinaryArchive& archive, Vector<Mesh::Lod>& lods)
+    {
+        Size count = archive.IsWriteMode() ? lods.size() : 0;
+        serialize::Serialize(archive, count);
+        if (!archive.IsWriteMode())
+        {
+            lods.resize(count);
+        }
+        for (Mesh::Lod& lod : lods)
+        {
+            serialize::Serialize(archive, lod.indices);
+            SerializeSubmeshes(archive, lod.submeshes);
+            serialize::Serialize(archive, lod.screen_size_threshold);
+        }
+    }
+
     bool SaveMeshBinary(const String& path, const Mesh& mesh)
     {
         if (path.empty() || !mesh.IsValid())
@@ -472,11 +488,13 @@ namespace won::resource
         serialize::Serialize(archive, copy.texcoords);
         serialize::Serialize(archive, copy.bone_indices);
         serialize::Serialize(archive, copy.bone_weights);
-        serialize::Serialize(archive, copy.indices);
-        SerializeSubmeshes(archive, copy.submeshes);
+        serialize::Serialize(archive, copy.lods[0].indices);
+        SerializeSubmeshes(archive, copy.lods[0].submeshes);
         SerializeSkeleton(archive, copy.skeleton);
         SerializeAnimationClips(archive, copy.animation_clips, version);
         SerializeMeshImpostor(archive, copy.impostor);
+        Vector<Mesh::Lod> extra_lods(copy.lods.begin() + 1, copy.lods.end());
+        SerializeMeshLods(archive, extra_lods);
         return true;
     }
 
@@ -525,13 +543,30 @@ namespace won::resource
         serialize::Serialize(archive, mesh->texcoords);
         serialize::Serialize(archive, mesh->bone_indices);
         serialize::Serialize(archive, mesh->bone_weights);
-        serialize::Serialize(archive, mesh->indices);
-        SerializeSubmeshes(archive, mesh->submeshes);
+        Vector<uint32> base_indices;
+        Vector<Submesh> base_submeshes;
+        serialize::Serialize(archive, base_indices);
+        SerializeSubmeshes(archive, base_submeshes);
         SerializeSkeleton(archive, mesh->skeleton);
         SerializeAnimationClips(archive, mesh->animation_clips, version);
         if (version >= 3)
         {
             SerializeMeshImpostor(archive, mesh->impostor);
+        }
+        Vector<Mesh::Lod> extra_lods;
+        if (version >= 4)
+        {
+            SerializeMeshLods(archive, extra_lods);
+        }
+        mesh->lods.clear();
+        Mesh::Lod base_lod;
+        base_lod.indices = std::move(base_indices);
+        base_lod.submeshes = std::move(base_submeshes);
+        base_lod.screen_size_threshold = 1.0f;
+        mesh->lods.push_back(std::move(base_lod));
+        for (Mesh::Lod& extra_lod : extra_lods)
+        {
+            mesh->lods.push_back(std::move(extra_lod));
         }
         if (!mesh->IsValid())
         {
@@ -1317,14 +1352,14 @@ namespace won::resource
                 if (collider.shape_type == ecs::Collider3DComponent::ShapeType::HeightField)
                 {
                     ecs::GeometryComponent* geometry = scene.GetComponent<ecs::GeometryComponent>(entity);
-                    if (!geometry || !geometry->mesh)
+                    if (!geometry || !geometry->mesh || geometry->mesh->lods.empty())
                     {
                         continue;
                     }
                     src_positions = geometry->mesh->positions.data();
                     src_position_count = geometry->mesh->positions.size();
-                    src_indices = geometry->mesh->indices.data();
-                    src_index_count = geometry->mesh->indices.size();
+                    src_indices = geometry->mesh->lods[0].indices.data();
+                    src_index_count = geometry->mesh->lods[0].indices.size();
                 }
                 else if (collider.shape_type == ecs::Collider3DComponent::ShapeType::Sphere)
                 {

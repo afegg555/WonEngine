@@ -21,6 +21,9 @@ namespace won::rendering
 
     static console::ConsoleVariable r_culling_log("r.culling.log", false, "log per-frame opaque culling counts for each stage", console::ConsoleVariableFlagNone);
 
+    static console::ConsoleVariable r_foliage_impostor_force("r.foliage.impostor.force", false, "force impostor-capable foliage to render as impostors", console::ConsoleVariableFlagNone);
+    static console::ConsoleVariable r_foliage_impostor_screen_size("r.foliage.impostor.screen_size", 0.04f, "screen-height fraction below which impostor-capable foliage renders as impostors instead of mesh", console::ConsoleVariableFlagNone);
+
     bool View::HasPointerFocus() const
     {
         const float2 p = io::GetMouseState().position;
@@ -1202,6 +1205,90 @@ namespace won::rendering
                     sprite.SetResourceIndex(static_cast<uint32>(r.font->render_data.atlas_srv.descriptor_index));
                 }
                 sprite_resources.sprites_2d.push_back(sprite);
+            }
+        });
+
+        jobsystem::Execute(ctx, [&](jobsystem::JobArgs)
+        {
+            const auto& foliage_renderables = gpu_scene.foliage_renderables;
+            const auto& foliage_instances = gpu_scene.foliage_instances;
+            foliage_lod_ranges.resize(foliage_renderables.size());
+            foliage_instance_indices.clear();
+
+            const float tan_half_fov = std::tan(cached_camera.fov_y * 0.5f);
+            const float impostor_screen_size = r_foliage_impostor_screen_size.GetFloat();
+            const bool force_impostor = r_foliage_impostor_force.GetBool();
+
+            Vector<Vector<uint32>> lod_instance_indices;
+            uint32 previous_instance_offset = 0xFFFFFFFFu;
+            for (Size renderable_index = 0; renderable_index < foliage_renderables.size(); ++renderable_index)
+            {
+                const GPUScene::FoliageRenderable& renderable = foliage_renderables[renderable_index];
+                FoliageLodRanges& lod_ranges = foliage_lod_ranges[renderable_index];
+                if (renderable.instance_offset == previous_instance_offset)
+                {
+                    lod_ranges = foliage_lod_ranges[renderable_index - 1];
+                    continue;
+                }
+                previous_instance_offset = renderable.instance_offset;
+
+                const uint32 mesh_lod_count = static_cast<uint32>(renderable.lod_geometries.size());
+                const uint32 impostor_lod_index = mesh_lod_count;
+                const bool has_impostor = renderable.impostor_index != GPUScene::FoliageRenderable::invalid_impostor_index;
+
+                lod_instance_indices.resize(mesh_lod_count + 1);
+                for (Vector<uint32>& instance_indices : lod_instance_indices)
+                {
+                    instance_indices.clear();
+                }
+
+                for (uint32 local_instance_index = 0; local_instance_index < renderable.instance_count; ++local_instance_index)
+                {
+                    const uint32 instance_index = renderable.instance_offset + local_instance_index;
+                    const float4& position_scale = foliage_instances[instance_index].position_scale;
+                    uint32 selected_lod_index = 0;
+
+                    if (renderable.local_radius > 0.0f)
+                    {
+                        const float world_radius = renderable.local_radius * position_scale.w;
+                        const float distance = math::Length(float3(eye.x - position_scale.x, eye.y - position_scale.y, eye.z - position_scale.z));
+                        const float projected_size = world_radius / ((std::max)(distance, 0.001f) * (std::max)(tan_half_fov, 0.001f));
+                        if (has_impostor && (force_impostor || projected_size < impostor_screen_size))
+                        {
+                            selected_lod_index = impostor_lod_index;
+                        }
+                        else
+                        {
+                            for (uint32 lod_index = 1; lod_index < mesh_lod_count; ++lod_index)
+                            {
+                                if (projected_size <= renderable.lod_geometries[lod_index].screen_size_threshold)
+                                {
+                                    selected_lod_index = lod_index;
+                                }
+                            }
+                        }
+                    }
+
+                    lod_instance_indices[selected_lod_index].push_back(instance_index);
+                }
+
+                lod_ranges.mesh_lods.resize(mesh_lod_count);
+                for (uint32 lod_index = 0; lod_index < mesh_lod_count; ++lod_index)
+                {
+                    const Vector<uint32>& instance_indices = lod_instance_indices[lod_index];
+                    lod_ranges.mesh_lods[lod_index] = {
+                        static_cast<uint32>(foliage_instance_indices.size()),
+                        static_cast<uint32>(instance_indices.size())
+                    };
+                    foliage_instance_indices.insert(foliage_instance_indices.end(), instance_indices.begin(), instance_indices.end());
+                }
+
+                const Vector<uint32>& impostor_instance_indices = lod_instance_indices[impostor_lod_index];
+                lod_ranges.impostor = {
+                    static_cast<uint32>(foliage_instance_indices.size()),
+                    static_cast<uint32>(impostor_instance_indices.size())
+                };
+                foliage_instance_indices.insert(foliage_instance_indices.end(), impostor_instance_indices.begin(), impostor_instance_indices.end());
             }
         });
 

@@ -771,11 +771,12 @@ namespace won::physics
         const uint32 vertices_x = (std::max)(1u, soft_body.divisions_x) + 1u;
         const uint32 vertices_y = (std::max)(1u, soft_body.divisions_y) + 1u;
         const Size vertex_count = static_cast<Size>(vertices_x) * static_cast<Size>(vertices_y);
-        if (mesh.positions.size() != vertex_count || mesh.indices.size() < 3)
+        if (mesh.lods.empty() || mesh.positions.size() != vertex_count || mesh.lods[0].indices.size() < 3)
         {
             wonlog_warning("[PhysicsWorld] SoftBody on entity %llu does not match its mesh, body skipped", static_cast<unsigned long long>(entity));
             return;
         }
+        const Vector<uint32>& mesh_indices = mesh.lods[0].indices;
 
         const float total_mass = (std::max)(0.0f, soft_body.mass);
         const float distributed_mass = total_mass / static_cast<float>(vertex_count);
@@ -806,9 +807,9 @@ namespace won::physics
                 shared_settings->mVertices[index] = JPH::SoftBodySharedSettings::Vertex(JPH::Float3(world_position.x, world_position.y, world_position.z), JPH::Float3(0.0f, 0.0f, 0.0f), attached ? 0.0f : free_inv_mass);
             }
         }
-        for (Size index = 0; index + 2 < mesh.indices.size(); index += 3)
+        for (Size index = 0; index + 2 < mesh_indices.size(); index += 3)
         {
-            shared_settings->AddFace(JPH::SoftBodySharedSettings::Face(mesh.indices[index], mesh.indices[index + 1], mesh.indices[index + 2]));
+            shared_settings->AddFace(JPH::SoftBodySharedSettings::Face(mesh_indices[index], mesh_indices[index + 1], mesh_indices[index + 2]));
         }
 
         const JPH::Vec3 first_vertex(shared_settings->mVertices[0].mPosition);

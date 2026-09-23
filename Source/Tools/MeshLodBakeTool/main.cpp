@@ -21,18 +21,21 @@ namespace
 {
     void GenerateMeshLods(resource::Mesh& mesh, const Vector<float>& ratios, const Vector<float>& screen_sizes)
     {
-        mesh.lods.clear();
-        if (mesh.positions.empty() || mesh.indices.empty() || mesh.submeshes.empty())
+        if (mesh.lods.empty() || mesh.positions.empty() || mesh.lods[0].indices.empty() || mesh.lods[0].submeshes.empty())
         {
             return;
         }
+        mesh.lods.resize(1);
+        mesh.lods.reserve(1 + ratios.size());
+        const Vector<uint32>& base_indices = mesh.lods[0].indices;
+        const Vector<resource::Submesh>& base_submeshes = mesh.lods[0].submeshes;
         for (Size level = 0; level < ratios.size(); ++level)
         {
             resource::Mesh::Lod lod;
             lod.screen_size_threshold = screen_sizes[level];
-            for (const resource::Submesh& submesh : mesh.submeshes)
+            for (const resource::Submesh& submesh : base_submeshes)
             {
-                const unsigned int* source = mesh.indices.data() + submesh.first_index;
+                const unsigned int* source = base_indices.data() + submesh.first_index;
                 const Size source_count = submesh.index_count;
                 Size target = static_cast<Size>(source_count * ratios[level]);
                 target -= target % 3;

@@ -246,6 +246,8 @@ struct COMInitializer
 
             asset_data.mesh = std::make_shared<resource::Mesh>();
             resource::Mesh& mesh = *asset_data.mesh;
+            mesh.lods.resize(1);
+            mesh.lods[0].screen_size_threshold = 1.0f;
 
             auto skeleton = std::make_shared<resource::Skeleton>();
             UnorderedMap<String, uint32> bone_name_to_index;
@@ -691,8 +693,8 @@ struct COMInitializer
                     const bool has_tb = ai_mesh->HasTangentsAndBitangents();
                     const bool use_skinning_mesh_space = ai_mesh->HasBones();
                     const uint32 vertex_offset = static_cast<uint32>(mesh.positions.size());
-                    const uint32 index_offset = static_cast<uint32>(mesh.indices.size());
-                    resource::Submesh& submesh = mesh.submeshes.emplace_back();
+                    const uint32 index_offset = static_cast<uint32>(mesh.lods[0].indices.size());
+                    resource::Submesh& submesh = mesh.lods[0].submeshes.emplace_back();
                     math::AABB local_bounds = {};
                     local_bounds.Invalidate();
                     submesh.first_vertex = vertex_offset;
@@ -813,19 +815,19 @@ struct COMInitializer
 
                     if (ai_mesh->HasFaces())
                     {
-                        mesh.indices.reserve(mesh.indices.size() + ai_mesh->mNumFaces * 3);
+                        mesh.lods[0].indices.reserve(mesh.lods[0].indices.size() + ai_mesh->mNumFaces * 3);
 
                         for (uint32_t face_index = 0; face_index < ai_mesh->mNumFaces; ++face_index)
                         {
                             const aiFace& face = ai_mesh->mFaces[face_index];
                             for (uint32_t index_index = 0; index_index < face.mNumIndices; ++index_index)
                             {
-                                mesh.indices.push_back(vertex_offset + face.mIndices[index_index]);
+                                mesh.lods[0].indices.push_back(vertex_offset + face.mIndices[index_index]);
                             }
                         }
                     }
 
-                    submesh.index_count = static_cast<uint32>(mesh.indices.size()) - index_offset;
+                    submesh.index_count = static_cast<uint32>(mesh.lods[0].indices.size()) - index_offset;
                     submesh.local_bounds = local_bounds;
                 }
 
@@ -1180,8 +1182,8 @@ struct COMInitializer
             std::cout << "Materials: " << material_binary_full_path << "\n";
             std::cout << "Meta: " << resource::GetAssetMetaPath(source_asset_path) << "\n";
             std::cout << "Vertices: " << data.mesh->positions.size() << "\n";
-            std::cout << "Indices: " << data.mesh->indices.size() << "\n";
-            std::cout << "Submeshes: " << data.mesh->submeshes.size() << "\n";
+            std::cout << "Indices: " << data.mesh->lods[0].indices.size() << "\n";
+            std::cout << "Submeshes: " << data.mesh->lods[0].submeshes.size() << "\n";
             std::cout << "Material slots: " << material_slots.size() << "\n";
             std::cout << "Texture bindings: " << data.textures.size() << "\n";
             if (data.mesh->skeleton)
